@@ -274,28 +274,30 @@ export function AssignmentBrief({
 
   function toggleExpanded(): void {
     if (mobile) return;
-    setExpanded((current) => {
-      if (!current) {
-        compactRectRef.current = rectRef.current;
-        const next = expandedAssignmentBriefRect(
-          rectRef.current,
-          window.innerWidth,
-          window.innerHeight,
-        );
-        rectRef.current = next;
-        setRect(next);
-        return true;
-      }
-      const next = clampAssignmentBriefRect(
-        compactRectRef.current,
+    if (!expandedRef.current) {
+      compactRectRef.current = rectRef.current;
+      const next = expandedAssignmentBriefRect(
+        rectRef.current,
         window.innerWidth,
         window.innerHeight,
       );
       rectRef.current = next;
+      expandedRef.current = true;
       setRect(next);
-      window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
-      return false;
-    });
+      setExpanded(true);
+      return;
+    }
+
+    const next = clampAssignmentBriefRect(
+      compactRectRef.current,
+      window.innerWidth,
+      window.innerHeight,
+    );
+    rectRef.current = next;
+    expandedRef.current = false;
+    setRect(next);
+    setExpanded(false);
+    window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
   }
 
   async function submit(): Promise<void> {
