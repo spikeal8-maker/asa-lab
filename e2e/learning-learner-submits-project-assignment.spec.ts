@@ -429,6 +429,10 @@ test('A0 desktop Electronics uses a permanent anchor and compact movable task pa
   });
 
   await brief.getByRole('button', { name: 'Вернуть компактный размер' }).click();
+  await expect(brief.getByRole('button', { name: 'Расширить задание' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
   expect(await assignmentBriefRect(learner.page)).toEqual(compact);
 
   const drag = brief.getByRole('button', { name: 'Переместить карточку задания' });
@@ -605,8 +609,8 @@ test('A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 an
   ).join('\n');
   const learner = await openAssignedProject(browser, page, 'electronics', {
     brief: longBrief,
-    viewport: mobileV1Viewports[0],
   });
+  await learner.page.setViewportSize(mobileV1Viewports[0]);
   const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');
 
