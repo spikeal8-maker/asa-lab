@@ -145,14 +145,14 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-RELEASE-BASELINE-001
-      issue: 380
-      branch: main
+      id: TASK-ELECTRONICS-UX-REPAIR-001
+      issue: 377
+      branch: codex/electronics-natural-wire-routing-377
       base_branch: main
-      pr: null
-      pr_draft: false
-      status: done
-      checkpoint: bounded_baseline_repair_verified_in_release
+      pr: 378
+      pr_draft: true
+      status: in_progress
+      checkpoint: r1_r4_implementation
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: eb7204267b21c11fb9201c95020ddc6a2d4b44cc
