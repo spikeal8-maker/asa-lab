@@ -87,8 +87,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: confirmed_existing_account_operator_cli_hardening
+      status: done
+      checkpoint: owner_granted_runtime_verified_repeat_safe_ci_passed
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -112,7 +112,7 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       convergence_baseline_sha: 959e68502af8b8c69a4aaaf87a4f502e057140ac
-      head_sha: 959e68502af8b8c69a4aaaf87a4f502e057140ac
+      head_sha: 94d3ef933624b743bd9a91cf7b709c3448cacef0
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
