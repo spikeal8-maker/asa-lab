@@ -7,19 +7,27 @@ components:
     risk: medium
     contracts:
     - docs/product/electronics/README.md#7-stage-selection-и-rotation
+    - docs/product/electronics/README.md#8-провода-и-breadboard
     sources:
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/pages/SchematicEditor.tsx
     - apps/web/src/electronics/WorkbenchStage.tsx
     - apps/web/src/electronics/WorkbenchSidebars.tsx
+    - apps/web/src/electronics/WorkbenchHeader.tsx
     - apps/web/src/electronics/workbench-geometry.ts
+    - apps/web/src/electronics/workbench-drag-preview.ts
+    - apps/web/src/electronics/component-hit-testing.ts
+    - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
+    - apps/web/src/electronics/testing/workbench-geometry.spec.ts
+    - apps/web/src/electronics/testing/workbench-drag-preview.spec.ts
+    - e2e/electronics-interactions.spec.ts
     - e2e/electronics-simulation.spec.ts
     dependencies:
     - electronics.worker.live-controller
-    notes: UI renders committed engine results; it must not compute electrical truth itself.
+    notes: UI renders committed engine results; it must not compute electrical truth itself. Read only the selected task's exact sources, not every mapped file.
     symbols:
     - useElectronicsWorkbench
     - WorkbenchStage

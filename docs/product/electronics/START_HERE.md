@@ -25,6 +25,12 @@ path only. A review-found code repair must be explicitly returned to an executab
 
 Choose the task kind and resolve human keywords/component IDs in [COMPONENT_MAP.yaml](COMPONENT_MAP.yaml).
 
+For the owner-selected four-part workbench usability repair (assisted wire routing,
+zoom-scaled terminal targets, native mobile catalog drag and compact wire controls),
+read [TASK-ELECTRONICS-UX-REPAIR-001](tasks/TASK-ELECTRONICS-UX-REPAIR-001.md).
+It supersedes the earlier task-local blanket ban on axis assistance with bounded soft
+alignment; it does not activate itself or authorize deployment/general refactoring.
+
 | Task kind | Next document |
 | --- | --- |
 | `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
