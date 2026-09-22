@@ -70,6 +70,46 @@ async function editRealProject(page: Page, module: string) {
     );
   }
 }
+async function editCourseActivityProject(page: Page, module: string) {
+  let expectedObjectCount = 0;
+  if (module === 'three-d') {
+    const viewport = page.getByTestId('asa3d-viewport');
+    const objectCount = page.locator('.asa3d-object-count');
+    await expect(viewport).toBeVisible({ timeout: 60000 });
+    await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    expectedObjectCount = Number.parseInt(await objectCount.innerText(), 10) + 1;
+    const saveState = page.locator('.asa3d-save-state');
+    await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
+    await expect(saveState).toHaveClass(/save-(dirty|saving)/);
+    await expect(saveState).toHaveClass(/save-saved/);
+    await expect(saveState).toContainText('Все изменения сохранены');
+  } else {
+    const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
+    await expect(resistor).toBeVisible({ timeout: 60000 });
+    expectedObjectCount = (await page.getByTestId('schematic-component').count()) + 1;
+    const card = (await resistor.boundingBox())!,
+      canvas = (await page.locator('.workbench-canvas').boundingBox())!;
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.65, {
+      steps: 20,
+    });
+    await page.mouse.up();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+  }
+
+  await page.reload();
+  if (module === 'electronics') {
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+  } else {
+    await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true');
+    await expect(page.locator('.asa3d-object-count')).toContainText(
+      new RegExp(`^${expectedObjectCount} `),
+    );
+  }
+}
+
 test.use({ actionTimeout: 12000 });
 
 test('author-only content keeps exact ID and versions after teaching activation; graded scale and mute are usable', async ({
@@ -1450,7 +1490,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(threeDCard).toContainText('Не начато');
 
   await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
-  await editRealProject(learner.page, 'electronics');
+  await editCourseActivityProject(learner.page, 'electronics');
 
   await openCourse();
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
@@ -1477,7 +1517,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
   await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
-  await editRealProject(learner.page, 'three-d');
+  await editCourseActivityProject(learner.page, 'three-d');
 
   await openCourse();
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
