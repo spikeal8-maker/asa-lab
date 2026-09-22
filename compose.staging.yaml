@@ -20,6 +20,17 @@ services:
       NODE_ENV: production
       APP_DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in the private staging environment}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:?set ASA_SETTINGS_ENCRYPTION_KEY in the private staging environment}
+      ASA_PUBLIC_WEB_ORIGINS: ${ASA_PUBLIC_WEB_ORIGINS:?set the public HTTPS staging Web origin}
+      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:?set the public HTTPS staging Scratch runtime origin}
 
   web:
     restart: always
+    build:
+      args:
+        ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:?set the public HTTPS staging Scratch runtime origin}
+
+  scratch:
+    restart: always
+    build:
+      args:
+        ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:?set the public HTTPS staging parent Web origin}

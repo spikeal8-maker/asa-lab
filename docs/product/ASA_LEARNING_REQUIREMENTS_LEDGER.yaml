@@ -728,6 +728,190 @@ requirements:
   planned_test_ids:
   - TST-RECOVERY-LEARNING-E1-CREDENTIAL-SECRETS-001
 
+
+- id: E1-FIX-13
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Universal learner work shell above every lab plus activity-level teacher review queue
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.2.2 / §4.2.3 / §16
+  issue: 368
+  source_paths:
+  - apps/web/src/components/AssignmentBrief.tsx
+  - apps/web/src/components/assignment-brief.css
+  - apps/web/src/components/assignment-brief-layout.ts
+  - apps/web/src/modules/ModuleEditorHost.tsx
+  - apps/web/src/components/ClassroomCourses.tsx
+  - apps/web/src/components/WorkPreview.tsx
+  - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
+  - docs/product/learning/ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
+  tests:
+  - tests/courses/assignment-brief-layout.spec.ts
+  verification:
+    source_sha: null
+    method: implementation_started
+    observed_result: Normative and visual contract added; first bounded slice implements shared overlay geometry without changing subject editors.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - LEARNER-TASK-AVAILABLE-ABOVE-EVERY-MODULE
+  - DIRECT-AND-COURSE-BLOCK-EXACT-TASK-CONTEXT
+  - DESKTOP-TASK-MOVE-RESIZE-CLAMP-RESET
+  - MOBILE-TASK-BOTTOM-SHEET-320-390
+  - TASK-IMAGE-ZOOM-AND-PIN
+  - TASK-VIDEO-FILE-LINK-RENDER
+  - TEACHER-ACTIVITY-REVIEW-QUEUE
+  - REVIEW-EXACT-SUBMISSION-NOT-LATEST-DRAFT
+  - REVIEW-PREVIOUS-NEXT-FILTERS
+  - REVIEW-ACCEPT-RETURN-GRADE-WITHOUT-FULL-EDITOR
+  - MODULE-ADAPTER-ELECTRONICS-THREE-D-BLOCKS
+  - FUTURE-MODULE-REUSES-SHELL-WITHOUT-COPIED-LEARNING-UI
+  - WORK-CONTEXT-SINGLE-SERVER-RESOLVER
+  - TASK-SNAPSHOT-IMMUTABLE-GOAL-MEDIA
+  - MODULE-LEARNING-CAPABILITY-NOT-HARDCODED
+  - START-WORK-ATOMIC-NO-ORPHAN-PROJECT
+  - SCRATCH-FULLSCREEN-BELOW-LEARNING-OVERLAY
+  - OVERLAY-POINTER-CAPTURE-ACROSS-IFRAME
+  - V1-OWNER-EVIDENCE-ELECTRONICS-DESKTOP
+  - V1-OWNER-EVIDENCE-THREE-D-DESKTOP
+  - V1-OWNER-EVIDENCE-BLOCKS-DESKTOP
+  - V1-OWNER-EVIDENCE-MOBILE-390
+  - V1-OWNER-EVIDENCE-MOBILE-320
+  - A0-TESTS-PUBLIC-MODULE-BOUNDARY-NOT-PRIVATE-DOM
+  planned_test_ids: []
+
+
+- id: E1-FIX-14
+  milestone: E1
+  status: in_progress
+  priority: P1
+  summary: Protected learner-work lifecycle for assignment-created projects, separate learning archive and safe personal copy
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.2.4 / ASA_LEARNER_WORK_LIFECYCLE_SPEC
+  issue: 371
+  source_paths:
+  - contexts/projects/**
+  - apps/api/src/projects.controller.ts
+  - apps/api/src/gallery.controller.ts
+  - apps/web/src/pages/MyProjectsPage.tsx
+  - apps/web/src/modules/ProjectCard.tsx
+  - apps/web/src/components/SeatAssignments.tsx
+  - apps/web/src/components/SeatCourses.tsx
+  - apps/web/src/api.ts
+  - docs/product/learning/ASA_LEARNER_WORK_LIFECYCLE_SPEC.md
+  - docs/product/learning/ASA_LEARNING_WORK_ARCHITECTURE_PLAN.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/learning/ASA_LEARNER_WORK_LIFECYCLE_SPEC.md
+  tests: []
+  verification:
+    source_sha: null
+    method: specification_added
+    observed_result: Learner project provenance, protection, learning archive, publication ban and personal-copy boundary are now normative; implementation not yet claimed.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - DIRECT-START-CREATES-LEARNING-PROVENANCE
+  - COURSE-ACTIVITY-START-CREATES-EXACT-LEARNING-PROVENANCE
+  - ACTIVE-LEARNING-WORK-CANNOT-GENERIC-ARCHIVE-OR-TRASH
+  - LEARNING-WORK-CANNOT-PUBLISH-ORIGINAL
+  - SEAT-TO-ACCOUNT-LINK-PRESERVES-PROTECTION
+  - SUBMITTED-WAITING-REVIEW-REMAINS-PROTECTED
+  - CHANGES-REQUESTED-REQUIRES-WORK-RESURFACE
+  - ACCEPTED-WORK-MAY-MOVE-TO-LEARNING-ARCHIVE
+  - LEARNING-ARCHIVE-DOES-NOT-MUTATE-SUBMISSION-RESULT
+  - WITHDRAWN-WORK-MAY-LEARNING-ARCHIVE-WITH-HISTORY
+  - PERSONAL-COPY-NEW-ID-NO-LEARNING-RUNTIME-LINK
+  - PERSONAL-COPY-CHANGES-DO-NOT-MUTATE-ORIGINAL
+  - TEACHER-EXACT-REVIEW-SURVIVES-LEARNER-ARCHIVE
+  - ACCOUNT-PROJECT-LIST-DISTINGUISHES-PERSONAL-LEARNING-SERVER-SIDE
+  - GENERIC-DUPLICATE-CANNOT-BYPASS-LEARNING-PROTECTION
+  - ACCEPTED-ORIGINAL-READ-ONLY
+  - SINGLE-LEARNING-WORK-POLICY-GUARDS-MUTATIONS
+  planned_test_ids: []
+
+
+- id: E1-FIX-15
+  milestone: E1
+  status: in_progress
+  priority: P1
+  issue: 368
+  summary: Coherent learner hub from notifications and multiple groups through assignment detail into subject work
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.5.1 / ASA_LEARNER_LEARNING_HUB_SPEC
+  source_paths:
+  - apps/web/src/pages/LearningPage.tsx
+  - apps/web/src/pages/AttendedClassesPage.tsx
+  - apps/web/src/components/SeatAssignments.tsx
+  - apps/web/src/components/SeatCourses.tsx
+  - apps/web/src/components/LearningInbox.tsx
+  - apps/web/src/components/PortalHeader.tsx
+  - apps/web/src/pages/CreatorHomePage.tsx
+  - docs/product/learning/ASA_LEARNER_LEARNING_HUB_SPEC.md
+  - docs/product/learning/ASA_LEARNING_VISIBLE_DELIVERY_PLAN.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/learning/ASA_LEARNER_LEARNING_HUB_SPEC.md
+  tests: []
+  verification:
+    source_sha: null
+    method: specification_added
+    observed_result: Existing My Learning, multi-class account access and notifications are present but not yet converged into the normative aggregated learner journey.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - ACCOUNT-HOME-SHOWS-LEARNING-ATTENTION-WITHOUT-ROLE-MODE
+  - LEARNING-NOW-AGGREGATES-TWO-GROUPS
+  - BELL-UNREAD-DIFFERS-FROM-ACTIONABLE-COUNT
+  - SCHEDULED-FUTURE-TITLE-VISIBLE-CONTENT-LOCKED
+  - AVAILABLE-TASK-DETAIL-BEFORE-START
+  - VIEW-DETAIL-DOES-NOT-CREATE-PROJECT
+  - NOTIFICATION-DESTINATION-OPENS-LEARNING-CONTEXT
+  - START-FROM-DETAIL-ENTERS-EDITOR-WITH-ANCHOR
+  - SUBMITTED-WAITING-REVIEW-NOT-ACTIONABLE
+  - CHANGES-REQUESTED-IS-HIGH-PRIORITY-ACTION
+  - COMPLETED-HISTORY-INDEPENDENT-OF-PROJECT-ARCHIVE
+  planned_test_ids: []
+
+
+- id: E1-FIX-16
+  milestone: E1
+  status: in_progress
+  priority: P1
+  issue: 368
+  summary: Coherent teacher oversight of learner projects and exact assignment submissions
+  normative_ref: PRODUCT-INTEGRATED-V15 §4.5.2 / ASA_TEACHER_LEARNER_OVERSIGHT_SPEC
+  source_paths:
+  - apps/web/src/pages/ClassroomStudentPage.tsx
+  - apps/api/src/classrooms.controller.ts
+  - apps/web/src/components/WorkPreview.tsx
+  - apps/web/src/components/ClassroomCourses.tsx
+  - docs/product/learning/ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md
+  evidence:
+  - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
+  - docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
+  - docs/product/learning/ASA_TEACHER_LEARNER_OVERSIGHT_SPEC.md
+  tests: []
+  verification:
+    source_sha: null
+    method: current_surface_review
+    observed_result: ClassroomStudentPage already lists classroom_seat_projects and current canonical states, but coherent current-project versus exact-submission navigation/review acceptance remains target.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - TEACHER-SEES-ALL-STUDENTSEAT-PROJECTS
+  - TEACHER-SEES-NON-ASSIGNMENT-STUDENTSEAT-PROJECT
+  - ASSIGNMENT-PROJECT-LINKS-TO-EXACT-REVIEW
+  - REVIEW-USES-SUBMITTED-NOT-LATEST-DRAFT
+  - CURRENT-VS-SUBMITTED-EXPLICIT-WHEN-DIFFERENT
+  - REVIEW-RETURNS-TO-SAME-LEARNER-PROFILE
+  - ACCOUNT-PERSONAL-OUTSIDE-CLASS-NOT-VISIBLE
+  - OTHER-CLASS-PROJECT-NOT-VISIBLE
+  - LEARNING-ARCHIVE-PRESERVES-TEACHER-HISTORY
+  - TEACHER-EDIT-WHEN-ALLOWED-IS-AUDITED
+  planned_test_ids: []
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target

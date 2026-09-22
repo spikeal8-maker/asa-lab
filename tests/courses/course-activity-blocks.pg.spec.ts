@@ -124,7 +124,10 @@ async function authorized(blocks: unknown[]) {
   return result.rows[0].ok as boolean;
 }
 
-async function classroomWithSeat(linkedAccountId: string | null = null) {
+async function classroomWithSeat(
+  linkedAccountId: string | null = null,
+  status: 'issued' | 'active' | 'suspended' | 'removed' = 'active',
+) {
   sequence += 1;
   const classroom = (
     await admin.query(
@@ -147,8 +150,15 @@ async function classroomWithSeat(linkedAccountId: string | null = null) {
       `INSERT INTO classroom_student_seats
          (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
           safe_mode,status,created_by,account_id)
-       VALUES($1,$2,'D3b learner',$3,$3,true,'active',$4,$5) RETURNING id`,
-      [author.tenantId, classroom, `d3b-seat-${sequence}`, author.teacherId, linkedAccountId],
+       VALUES($1,$2,'D3b learner',$3,$3,true,$4,$5,$6) RETURNING id`,
+      [
+        author.tenantId,
+        classroom,
+        `d3b-seat-${sequence}`,
+        status,
+        author.teacherId,
+        linkedAccountId,
+      ],
     )
   ).rows[0].id as string;
   return { classroom, seat };
@@ -455,6 +465,84 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     ).rows[0];
     expect(retryCounts).toEqual({ activity_runs: 2, handouts: 2, participations: 2 });
   });
+  it('assigns inherited participation to an issued named learner before first login', async () => {
+    const activity = await publishActivity(author, principalId, 'electronics');
+    const { courseId, sectionId } = await newCourse('D5 issued seat participation');
+    const blocks = [
+      {
+        id: 'issued-activity',
+        type: 'activity',
+        learningActivityVersionId: activity.versionId,
+      },
+    ];
+    await admin.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Issued learner activity',NULL,$4::jsonb,'material',NULL,15,NULL)",
+      [principalId, courseId, sectionId, JSON.stringify(blocks)],
+    );
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    const published = await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      `d5:issued:publish:${++sequence}`,
+    ]);
+    expect(published.rows[0].result_code).toBe('ok');
+
+    const { classroom, seat } = await classroomWithSeat(null, 'issued');
+    expect(
+      (
+        await admin.query('SELECT status,account_id FROM classroom_student_seats WHERE id=$1', [
+          seat,
+        ])
+      ).rows[0],
+    ).toEqual({ status: 'issued', account_id: null });
+
+    const assigned = await assignCourseRun(
+      courseId,
+      classroom,
+      seat,
+      `d5:issued:assign:${++sequence}`,
+    );
+    expect(assigned).toMatchObject({ result_code: 'ok', reused: false });
+
+    const enrollment = (
+      await admin.query(
+        `SELECT enrollment.id,enrollment.learner_identity_id,enrollment.status
+           FROM course_enrollments enrollment
+           JOIN learner_identity_links link
+             ON link.tenant_id=enrollment.tenant_id
+            AND link.school_id=enrollment.school_id
+            AND link.learner_identity_id=enrollment.learner_identity_id
+            AND link.link_kind='student_seat'
+            AND link.status='active'
+            AND link.seat_id=$2
+          WHERE enrollment.course_run_id=$1`,
+        [assigned.run_id, seat],
+      )
+    ).rows[0];
+    expect(enrollment).toMatchObject({ status: 'assigned' });
+    expect(enrollment.id).toBeTruthy();
+
+    const participation = (
+      await admin.query(
+        `SELECT part.source_course_enrollment_id,part.learner_identity_id,part.status
+           FROM activity_participations part
+           JOIN activity_runs run ON run.id=part.activity_run_id
+          WHERE run.source_course_run_id=$1
+            AND part.learner_identity_id=$2`,
+        [assigned.run_id, enrollment.learner_identity_id],
+      )
+    ).rows[0];
+    expect(participation).toEqual({
+      source_course_enrollment_id: enrollment.id,
+      learner_identity_id: enrollment.learner_identity_id,
+      status: 'assigned',
+    });
+  });
+
   it('preserves legacy lesson-level ActivityRun with a null block identity', async () => {
     const legacy = await publishActivity(author, principalId, 'electronics');
     const { courseId, sectionId } = await newCourse('D3b legacy runtime');
