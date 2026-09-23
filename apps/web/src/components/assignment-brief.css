@@ -14,7 +14,7 @@
   align-items: center;
   gap: 7px;
   min-height: 42px;
-  max-width: min(460px, calc(100vw - 32px));
+  max-width: min(240px, calc(100vw - 32px));
   padding: 0 13px;
   border: 1px solid #a9cfdf;
   border-radius: 999px;
@@ -43,11 +43,10 @@
   font-weight: 700;
 }
 
-.assignment-brief-anchor-title {
-  min-width: 0;
-  overflow: hidden;
+.assignment-brief-anchor-result {
+  flex: 0 0 auto;
   color: #344b58;
-  text-overflow: ellipsis;
+  font-weight: 700;
   white-space: nowrap;
 }
 
@@ -242,6 +241,14 @@
   color: #0a6f9c;
 }
 
+.assignment-brief-result {
+  margin-left: auto;
+  color: #0a6f9c;
+  font-size: 14px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
 .assignment-brief-submit {
   flex: 0 0 auto;
   min-height: 32px;
@@ -344,10 +351,6 @@
     min-height: 42px;
     max-width: calc(100vw - 16px);
     padding-inline: 11px;
-  }
-
-  .assignment-brief-anchor-title {
-    flex: 1 1 auto;
   }
 
   .assignment-brief-panel.is-mobile {

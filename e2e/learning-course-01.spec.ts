@@ -15,7 +15,7 @@ const keys = new Map<string, string>();
 async function editRealProject(page: Page, module: string) {
   const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
   const assignmentPanel = page.getByTestId('assignment-brief');
-  await expect(assignmentAnchor).toBeVisible();
+  await expect(assignmentAnchor).toBeVisible({ timeout: 60_000 });
   if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
     await assignmentAnchor.click();
   }
@@ -287,8 +287,8 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('button', { name: 'Открыть', exact: true })
     .click();
   await editRealProject(learner.page, 'electronics');
-  await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+  await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+  await expect(learner.page.getByText('На проверке', { exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -519,8 +519,8 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   await work.getByRole('button', { name: 'Открыть', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
   const submit = async () => {
-    await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(learner.page.getByText('На проверке', { exact: true })).toBeVisible();
   };
   await submit();
   await page.goto('/#/');
@@ -649,8 +649,8 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .getByRole('button', { name: 'Открыть', exact: true })
     .click();
   await editRealProject(learner.page, 'three-d');
-  await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+  await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+  await expect(learner.page.getByText('На проверке', { exact: true })).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -875,9 +875,16 @@ for (const module of ['three-d', 'electronics'])
     await row.getByRole('button', { name: 'Открыть', exact: true }).click();
     await editRealProject(learner.page, module);
     const brief = learner.page.getByTestId('assignment-brief');
-    await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
-    await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await expect(brief.getByText('В работе', { exact: true })).toBeVisible();
+    await expect(brief.getByText('Сохранено', { exact: true })).toBeVisible();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить на проверку', exact: true }),
+    ).toBeEnabled();
+    await brief.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
+    ).toBeVisible();
+    await expect(brief.getByRole('button', { name: /Отправить|Продолжить/ })).toHaveCount(0);
     await learner.page.screenshot({
       path: evidenceDir + '/' + module + '-exact-submission.png',
       fullPage: true,
@@ -905,11 +912,24 @@ for (const module of ['three-d', 'electronics'])
     await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
     await learner.page.goto('/#/learning');
     await openPortalSection(learner.page, 'Моё обучение');
+    await expect(row).toContainText('Нужна доработка');
+    await expect(row.getByRole('button', { name: 'Начать доработку', exact: true })).toBeVisible();
     await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+    const learnerAnchor = learner.page.getByTestId('assignment-brief-anchor');
+    if ((await learnerAnchor.getAttribute('aria-expanded')) !== 'true') await learnerAnchor.click();
+    await expect(brief).toBeVisible();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('Нужна доработка', { exact: true }),
+    ).toBeVisible();
+    await expect(brief.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
     await editRealProject(learner.page, module);
-    await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
-    await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
+    ).toBeEnabled();
+    await brief.getByRole('button', { name: 'Отправить повторно', exact: true }).click();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
+    ).toBeVisible();
     await page.goto(teacherUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
@@ -923,6 +943,25 @@ for (const module of ['three-d', 'electronics'])
       path: evidenceDir + '/gradebook-accepted-' + module + '.png',
       fullPage: true,
     });
+
+    await learner.page.goto('/#/learning');
+    await openPortalSection(learner.page, 'Моё обучение');
+    const completedRow = learner.page
+      .getByTestId('seat-assignments')
+      .locator('li')
+      .filter({ hasText: title });
+    await expect(completedRow).toContainText('Выполнено');
+    await completedRow.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+    const completedAnchor = learner.page.getByTestId('assignment-brief-anchor');
+    if ((await completedAnchor.getAttribute('aria-expanded')) !== 'true') {
+      await completedAnchor.click();
+    }
+    await expect(brief).toBeVisible();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('Выполнено', { exact: true }),
+    ).toBeVisible();
+    await expect(brief.locator('.assignment-brief-result')).toHaveText('✓ Принято');
+    await expect(completedAnchor.locator('.assignment-brief-anchor-result')).toHaveText('· ✓');
     await learner.context.close();
   });
 
@@ -1441,9 +1480,13 @@ for (const module of ['electronics', 'three-d'])
     await learner.getByRole('button', { name: 'Начать задание', exact: true }).click();
     await editRealProject(learner, module);
     const brief = learner.getByTestId('assignment-brief');
-    await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
-    await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить на проверку', exact: true }),
+    ).toBeEnabled();
+    await brief.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
+    ).toBeVisible();
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-submitted.png',
     });

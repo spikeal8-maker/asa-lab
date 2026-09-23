@@ -12,9 +12,10 @@ import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
 import { courseAssignmentShape } from './SeatCourses';
 import {
-  canonicalLearningLabel,
-  canonicalSubmissionLocked,
-} from '../learning/canonical-learning-presentation';
+  assignmentBriefResultText,
+  assignmentBriefSubmitLabel,
+  assignmentBriefWorkflowLabel,
+} from './assignment-brief-presentation';
 import {
   clampAssignmentBriefRect,
   defaultAssignmentBriefRect,
@@ -37,6 +38,7 @@ import {
 
 const OPEN_KEY = 'asa-assignment-brief-open-v3';
 const RECT_KEY = 'asa-assignment-brief-rect-v3';
+const RESUBMISSION_KEY = 'asa-assignment-brief-resubmission-v1';
 const MOBILE_QUERY = '(max-width: 720px)';
 
 const RESIZE_EDGES: readonly AssignmentBriefResizeEdge[] = [
@@ -77,6 +79,20 @@ function readOpen(projectId: string): boolean {
   return window.localStorage.getItem(openStorageKey(projectId)) === 'open';
 }
 
+function resubmissionStorageKey(projectId: string): string {
+  return `${RESUBMISSION_KEY}:${projectId}`;
+}
+
+function readResubmission(projectId: string): boolean {
+  return window.sessionStorage.getItem(resubmissionStorageKey(projectId)) === 'resumed';
+}
+
+function writeResubmission(projectId: string, resumed: boolean): void {
+  const key = resubmissionStorageKey(projectId);
+  if (resumed) window.sessionStorage.setItem(key, 'resumed');
+  else window.sessionStorage.removeItem(key);
+}
+
 function readRect(): AssignmentBriefRect {
   return parseAssignmentBriefRect(
     window.localStorage.getItem(RECT_KEY),
@@ -99,6 +115,9 @@ export function AssignmentBrief({
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resumedAfterChangesRequested, setResumedAfterChangesRequested] = useState(() =>
+    readResubmission(projectId),
+  );
   const revision = useConfirmedProjectRevision();
   const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
   const operation = useRef<PointerOperation | null>(null);
@@ -134,6 +153,7 @@ export function AssignmentBrief({
     rectRef.current = next;
     setRect(next);
     setExpanded(false);
+    setResumedAfterChangesRequested(readResubmission(projectId));
   }, [projectId]);
 
   useEffect(() => {
@@ -307,8 +327,11 @@ export function AssignmentBrief({
     if (assignment.canonicalState?.workflowState === 'changes_requested') {
       const started = await api.startSeatAssignment(assignment.id, projectId);
       setBusy(false);
-      if (started.ok) setAssignment(await load());
-      else setError(started.error.message);
+      if (started.ok) {
+        writeResubmission(projectId, true);
+        setResumedAfterChangesRequested(true);
+        setAssignment(await load());
+      } else setError(started.error.message);
       return;
     }
     if (submissionRequest.current?.revision !== revision)
@@ -321,15 +344,26 @@ export function AssignmentBrief({
     );
     setBusy(false);
     if (result.ok) {
+      writeResubmission(projectId, false);
+      setResumedAfterChangesRequested(false);
       setAssignment((await load()) ?? { ...assignment, submittedAt: result.data.submittedAt });
       submissionRequest.current = null;
     } else setError(result.error.message);
   }
 
-  const locked = assignment.canonicalState
-    ? canonicalSubmissionLocked(assignment.canonicalState)
-    : assignment.submittedAt !== null;
-  const changesRequested = assignment.canonicalState?.workflowState === 'changes_requested';
+  const workflowState =
+    assignment.canonicalState?.workflowState ??
+    (assignment.submittedAt ? 'submitted' : 'in_progress');
+  const changesRequested = workflowState === 'changes_requested';
+  const waitingReview = workflowState === 'submitted' || workflowState === 'waiting_review';
+  const completed = workflowState === 'completed';
+  const invalidated = workflowState === 'invalidated';
+  const workflowLabel = assignmentBriefWorkflowLabel(
+    assignment.canonicalState,
+    assignment.submittedAt,
+  );
+  const anchorResult = assignmentBriefResultText(assignment.canonicalState, 'anchor');
+  const panelResult = assignmentBriefResultText(assignment.canonicalState, 'panel');
   const floatingStyle: CSSProperties | undefined =
     open && !mobile
       ? {
@@ -363,10 +397,7 @@ export function AssignmentBrief({
             ) : null}
             <div className="assignment-brief-heading">
               <div className="assignment-brief-title">{assignment.title}</div>
-              <span className="assignment-brief-state">
-                {canonicalLearningLabel(assignment.canonicalState) ??
-                  (assignment.submittedAt ? 'Сдано' : 'В работе')}
-              </span>
+              <span className="assignment-brief-state">{workflowLabel}</span>
             </div>
             {!mobile ? (
               <button
@@ -407,11 +438,20 @@ export function AssignmentBrief({
           </div>
 
           <footer className="assignment-brief-footer">
-            {locked ? (
-              <span className="assignment-brief-footer-state">Сдано на проверку</span>
+            {completed ? (
+              <>
+                <span className="assignment-brief-footer-state">Выполнено</span>
+                {panelResult ? (
+                  <strong className="assignment-brief-result">{panelResult}</strong>
+                ) : null}
+              </>
+            ) : waitingReview ? (
+              <span className="assignment-brief-footer-state">На проверке</span>
+            ) : invalidated ? (
+              <span className="assignment-brief-footer-state">Попытка отменена</span>
             ) : changesRequested ? (
               <>
-                <span className="assignment-brief-footer-state">Требуется доработка</span>
+                <span className="assignment-brief-footer-state">Нужна доработка</span>
                 <button
                   type="button"
                   className="assignment-brief-submit"
@@ -432,7 +472,12 @@ export function AssignmentBrief({
                   disabled={busy || revision === null}
                   onClick={() => void submit()}
                 >
-                  {busy ? 'Сдаём…' : 'Сдать работу'}
+                  {busy
+                    ? 'Отправляем…'
+                    : assignmentBriefSubmitLabel(
+                        assignment.canonicalState,
+                        resumedAfterChangesRequested,
+                      )}
                 </button>
               </>
             )}
@@ -463,9 +508,9 @@ export function AssignmentBrief({
           ▣
         </span>
         <span className="assignment-brief-anchor-label">Задание</span>
-        <span className="assignment-brief-anchor-title" aria-hidden="true">
-          · {assignment.title}
-        </span>
+        {anchorResult ? (
+          <span className="assignment-brief-anchor-result">· {anchorResult}</span>
+        ) : null}
         <span className="assignment-brief-anchor-chevron" aria-hidden="true">
           {open ? '⌄' : '⌃'}
         </span>
