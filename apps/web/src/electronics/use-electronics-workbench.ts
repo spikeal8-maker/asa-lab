@@ -33,9 +33,12 @@ import {
   lockOrthogonalBend,
   lockOrthogonalPoint,
   potentiometerWiperPosition,
+  resolveWireAssist,
   viewportViewBox,
+  worldToClient,
   type Point,
   type Viewport,
+  type WireAssistAxis,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
@@ -358,6 +361,10 @@ export function useElectronicsWorkbench(projectId: string) {
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
+  const [wirePreviewVertices, setWirePreviewVertices] = useState<readonly Point[]>([]);
+  const [wireGuide, setWireGuide] = useState<{ readonly from: Point; readonly to: Point } | null>(
+    null,
+  );
   const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(() => !compactWorkbench());
@@ -425,6 +432,7 @@ export function useElectronicsWorkbench(projectId: string) {
     dragging: boolean;
   } | null>(null);
   const suppressTerminalClickRef = useRef(false);
+  const wireAssistAxisRef = useRef<WireAssistAxis | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
   const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
   const spacePressedRef = useRef(false);
@@ -469,6 +477,8 @@ export function useElectronicsWorkbench(projectId: string) {
     setPanning(false);
     setMarquee(null);
     setReconnectHover(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
     const settled = panViewportRef.current;
     if (settled) applyViewport(settled);
     for (const id of pointerIds) {
@@ -1224,8 +1234,11 @@ export function useElectronicsWorkbench(projectId: string) {
   function clearPendingWire(): void {
     setPendingTerminal(null);
     setWireDraftVertices([]);
+    setWirePreviewVertices([]);
     setWirePreviewEnd(null);
     setReconnectHover(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
   }
 
   function beginWireAtTerminal(componentId: string, terminal: Terminal): void {
@@ -1234,7 +1247,10 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelection(null);
     setPendingTerminal(source);
     setWireDraftVertices([]);
+    setWirePreviewVertices([]);
     setReconnectHover(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
     setWirePreviewEnd(wireTerminalPoint(source));
     setNotice(
       'Ведите провод к цели. Щелчок добавляет точку, Shift фиксирует участок под 90°, Esc отменяет.',
@@ -1301,8 +1317,8 @@ export function useElectronicsWorkbench(projectId: string) {
     ) {
       return;
     }
-    const source = { componentId, terminal };
-    beginWireAtTerminal(componentId, terminal);
+    const source = terminalTargetAt(event.clientX, event.clientY) ?? { componentId, terminal };
+    beginWireAtTerminal(source.componentId, source.terminal);
     wireStartPressRef.current = {
       pointerId: event.pointerId,
       source,
@@ -1313,17 +1329,21 @@ export function useElectronicsWorkbench(projectId: string) {
     stageRef.current?.setPointerCapture(event.pointerId);
   }
 
-  function clickTerminal(componentId: string, terminal: Terminal, forceOrthogonal = false): void {
+  function clickTerminal(
+    componentId: string,
+    terminal: Terminal,
+    forceOrthogonal = false,
+    pointer?: Point,
+  ): void {
     if (!document) return;
+    const resolved = pointer ? terminalTargetAt(pointer.x, pointer.y) : null;
+    const target = resolved ?? { componentId, terminal };
     if (simulationRunning) {
       setNotice('Идёт моделирование: остановите его, чтобы менять соединения.');
       return;
     }
     if (reconnectEndpoint && selection?.kind === 'wire') {
-      const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, {
-        componentId,
-        terminal,
-      });
+      const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, target);
       if (next) commitDocument(next, 'Конец провода переподключён.');
       setReconnectEndpoint(null);
       setReconnectHover(null);
@@ -1331,10 +1351,10 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     if (!pendingTerminal) {
-      beginWireAtTerminal(componentId, terminal);
+      beginWireAtTerminal(target.componentId, target.terminal);
       return;
     }
-    commitPendingWireTo({ componentId, terminal }, forceOrthogonal);
+    commitPendingWireTo(target, forceOrthogonal);
   }
 
   function selectComponent(componentId: string, additive = false): void {
@@ -1401,8 +1421,51 @@ export function useElectronicsWorkbench(projectId: string) {
     return freePoint;
   }
 
-  function wireDraftPoint(anchor: Point, point: Point, forceOrthogonal: boolean): Point {
-    return forceOrthogonal ? lockOrthogonalPoint(anchor, freeWirePoint(point)) : point;
+  function wireDraftPoint(
+    anchor: Point,
+    point: Point,
+    clientPoint: Point,
+    forceOrthogonal: boolean,
+    disableSoftAssist: boolean,
+  ): Point {
+    if (forceOrthogonal) {
+      wireAssistAxisRef.current = null;
+      setWireGuide(null);
+      return lockOrthogonalPoint(anchor, freeWirePoint(point));
+    }
+
+    const stage = stageRef.current;
+    if (!stage || disableSoftAssist) {
+      wireAssistAxisRef.current = null;
+      setWireGuide(null);
+      return freeWirePoint(point);
+    }
+
+    const anchorClient = worldToClient(
+      anchor,
+      stage.getBoundingClientRect(),
+      panViewportRef.current ?? viewport,
+      STAGE_WIDTH,
+      STAGE_HEIGHT,
+    );
+    const assisted = resolveWireAssist(
+      anchorClient,
+      clientPoint,
+      wireAssistAxisRef.current,
+      disableSoftAssist,
+    );
+    wireAssistAxisRef.current = assisted.axis;
+    if (!assisted.axis) {
+      setWireGuide(null);
+      return freeWirePoint(point);
+    }
+
+    const assistedPoint =
+      assisted.axis === 'horizontal'
+        ? { x: point.x, y: anchor.y }
+        : { x: anchor.x, y: point.y };
+    setWireGuide({ from: anchor, to: assistedPoint });
+    return assistedPoint;
   }
 
   function startComponentDrag(
@@ -1531,9 +1594,19 @@ export function useElectronicsWorkbench(projectId: string) {
       setWireDraftVertices((current) => {
         if (current.length >= 48 || !pendingStart) return current;
         const anchor = current[current.length - 1] ?? pendingStart;
-        const point = wireDraftPoint(anchor, rawPoint, orthogonalWireMode || event.shiftKey);
+        const point = wireDraftPoint(
+          anchor,
+          rawPoint,
+          { x: event.clientX, y: event.clientY },
+          orthogonalWireMode || event.shiftKey,
+          event.altKey,
+        );
+        const next = [...current, point];
         setWirePreviewEnd(point);
-        return [...current, point];
+        setWirePreviewVertices(next);
+        wireAssistAxisRef.current = null;
+        setWireGuide(null);
+        return next;
       });
       setNotice(
         orthogonalWireMode || event.shiftKey
@@ -1610,20 +1683,75 @@ export function useElectronicsWorkbench(projectId: string) {
     placeCatalogComponent(event);
   }
 
-  // The dragged wire endpoint rides under the pointer, so a plain
-  // elementFromPoint finds the endpoint itself instead of the terminal below.
-  // Walk the whole stack under the pointer and take the first real terminal.
-  function terminalTargetAt(
-    clientX: number,
-    clientY: number,
-  ): { componentId: string; terminal: Terminal } | null {
-    for (const element of globalThis.document.elementsFromPoint(clientX, clientY)) {
-      const target = element.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
-      const componentId = target?.dataset['terminalComponentId'];
-      const terminal = target?.dataset['terminalId'];
-      if (componentId && terminal) return { componentId, terminal: terminal as Terminal };
+  // Pointer capture and overlapping breadboard holes make DOM hit order
+  // unsuitable as electrical truth. Resolve against the actual rendered terminal
+  // circles, then choose the nearest eligible centre deterministically.
+  function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    const candidates = [
+      ...stage.querySelectorAll<SVGGraphicsElement>(
+        '[data-terminal-component-id][data-terminal-id]',
+      ),
+    ]
+      .flatMap((element) => {
+        const componentId = element.dataset['terminalComponentId'];
+        const terminal = element.dataset['terminalId'];
+        if (!componentId || !terminal) return [];
+        const rect = element.getBoundingClientRect();
+        const radiusX = rect.width / 2;
+        const radiusY = rect.height / 2;
+        if (radiusX <= 0 || radiusY <= 0) return [];
+        const dx = clientX - (rect.left + rect.right) / 2;
+        const dy = clientY - (rect.top + rect.bottom) / 2;
+        const normalizedDistance = Math.hypot(dx / radiusX, dy / radiusY);
+        if (normalizedDistance > 1) return [];
+        return [
+          {
+            componentId,
+            terminal: terminal as Terminal,
+            normalizedDistance,
+            distance: Math.hypot(dx, dy),
+          },
+        ];
+      })
+      .sort(
+        (a, b) =>
+          a.normalizedDistance - b.normalizedDistance ||
+          a.distance - b.distance ||
+          a.componentId.localeCompare(b.componentId) ||
+          String(a.terminal).localeCompare(String(b.terminal)),
+      );
+    const first = candidates[0];
+    return first ? { componentId: first.componentId, terminal: first.terminal } : null;
+  }
+
+  function updateWireDraftPreview(
+    start: Point,
+    world: Point,
+    clientPoint: Point,
+    forceOrthogonal: boolean,
+    disableSoftAssist: boolean,
+    target: TerminalRef | null,
+  ): void {
+    const targetPoint = target ? wireTerminalPoint(target) : null;
+    if (targetPoint) {
+      wireAssistAxisRef.current = null;
+      setWireGuide(null);
+      setWirePreviewEnd(targetPoint);
+      setWirePreviewVertices(
+        forceOrthogonal
+          ? completeOrthogonalRoute(start, targetPoint, wireDraftVertices)
+          : wireDraftVertices,
+      );
+      return;
     }
-    return null;
+
+    const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? start;
+    setWirePreviewEnd(
+      wireDraftPoint(anchor, world, clientPoint, forceOrthogonal, disableSoftAssist),
+    );
+    setWirePreviewVertices(wireDraftVertices);
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
@@ -1668,11 +1796,18 @@ export function useElectronicsWorkbench(projectId: string) {
         wireStartPress.dragging = true;
       }
       const start = wireTerminalPoint(wireStartPress.source);
+      const target = terminalTargetAt(event.clientX, event.clientY);
+      setReconnectHover(target);
       if (start) {
-        const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? start;
-        setWirePreviewEnd(wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey));
+        updateWireDraftPreview(
+          start,
+          world,
+          client,
+          orthogonalWireMode || event.shiftKey,
+          event.altKey,
+          target,
+        );
       }
-      setReconnectHover(terminalTargetAt(event.clientX, event.clientY));
       return;
     }
     const endpointDrag = endpointDragRef.current;
@@ -1731,9 +1866,16 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     if (pendingTerminal && pendingStart) {
-      const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? pendingStart;
-      setWirePreviewEnd(wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey));
-      setReconnectHover(terminalTargetAt(event.clientX, event.clientY));
+      const target = terminalTargetAt(event.clientX, event.clientY);
+      setReconnectHover(target);
+      updateWireDraftPreview(
+        pendingStart,
+        world,
+        client,
+        orthogonalWireMode || event.shiftKey,
+        event.altKey,
+        target,
+      );
     } else if (reconnectEndpoint) {
       setWirePreviewEnd(world);
     }
@@ -1972,7 +2114,10 @@ export function useElectronicsWorkbench(projectId: string) {
     cancelInteraction();
     setPendingTerminal(null);
     setWireDraftVertices([]);
+    setWirePreviewVertices([]);
     setWirePreviewEnd(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
     setReconnectEndpoint(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -2332,7 +2477,9 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelection,
     pendingTerminal,
     wireDraftVertices,
+    wirePreviewVertices,
     wirePreviewEnd,
+    wireGuide,
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,

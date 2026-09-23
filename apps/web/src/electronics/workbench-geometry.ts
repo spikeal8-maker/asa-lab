@@ -9,6 +9,24 @@ export interface Viewport {
   readonly zoom: number;
 }
 
+export type WireAssistAxis = 'horizontal' | 'vertical';
+
+export interface WireAssistResult {
+  readonly axis: WireAssistAxis | null;
+  readonly point: Point;
+}
+
+export const WIRE_ASSIST_MIN_DISTANCE_PX = 24;
+export const WIRE_ASSIST_ENTER_DEVIATION_PX = 6;
+export const WIRE_ASSIST_EXIT_DEVIATION_PX = 10;
+export const WIRE_ASSIST_ENTER_ANGLE_DEG = 3;
+export const WIRE_ASSIST_EXIT_ANGLE_DEG = 5;
+
+export const TERMINAL_MARKER_SIZE = 12;
+export const TERMINAL_HIT_RADIUS = 9;
+export const TERMINAL_TOUCH_HIT_RADIUS = 14;
+export const WIRE_ENDPOINT_HANDLE_RADIUS = 6;
+
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
@@ -132,14 +150,26 @@ export function lockOrthogonalBend(previous: Point, next: Point, point: Point): 
 
 /** A wire point placed by hand, outside the 90° mode.
  *
- * It used to be pulled onto the same ten-unit grid as everything else, which is
- * exactly what "free" was not. Alignment belongs to the orthogonal mode, where
- * it was asked for; here the point belongs where it was put.
+ * Free routing is deliberately not grid-rounded. The stored endpoint follows
+ * the same world coordinate produced by the pointer transform; only explicit
+ * 90° routing is allowed to quantize an intermediate bend.
  */
 export function freeWirePoint(point: Point): Point {
-  return { x: Math.round(point.x), y: Math.round(point.y) };
+  return { x: point.x, y: point.y };
 }
 
+function assistAngleDegrees(primary: number, transverse: number): number {
+  return (
+    (Math.atan2(Math.abs(transverse), Math.max(Math.abs(primary), Number.EPSILON)) * 180) /
+    Math.PI
+  );
+}
+
+/**
+ * Legacy pure geometry helper retained for older document-level regression tests.
+ * The live routing controller no longer calls this function; R1 uses
+ * resolveWireAssist in CSS-pixel space with hysteresis instead.
+ */
 export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): Point {
   const horizontalDistance = Math.abs(point.y - anchor.y);
   const verticalDistance = Math.abs(point.x - anchor.x);
@@ -150,6 +180,65 @@ export function magneticWirePoint(anchor: Point, point: Point, threshold = 10): 
     return { x: anchor.x, y: point.y };
   }
   return point;
+}
+
+/**
+ * Resolve the optional H/V drafting aid entirely in CSS-pixel space.
+ *
+ * currentAxis provides hysteresis: an active axis is held until its wider
+ * exit corridor is crossed, and an axis that exits is not replaced by the
+ * other axis on the same sample. This prevents horizontal/vertical flicker.
+ */
+export function resolveWireAssist(
+  anchor: Point,
+  pointer: Point,
+  currentAxis: WireAssistAxis | null,
+  disabled = false,
+): WireAssistResult {
+  if (disabled) return { axis: null, point: pointer };
+
+  const dx = pointer.x - anchor.x;
+  const dy = pointer.y - anchor.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance < WIRE_ASSIST_MIN_DISTANCE_PX) return { axis: null, point: pointer };
+
+  const horizontalDeviation = Math.abs(dy);
+  const verticalDeviation = Math.abs(dx);
+  const horizontalAngle = assistAngleDegrees(dx, dy);
+  const verticalAngle = assistAngleDegrees(dy, dx);
+
+  if (currentAxis === 'horizontal') {
+    const staysLocked =
+      horizontalDeviation <= WIRE_ASSIST_EXIT_DEVIATION_PX &&
+      horizontalAngle <= WIRE_ASSIST_EXIT_ANGLE_DEG;
+    return staysLocked
+      ? { axis: 'horizontal', point: { x: pointer.x, y: anchor.y } }
+      : { axis: null, point: pointer };
+  }
+
+  if (currentAxis === 'vertical') {
+    const staysLocked =
+      verticalDeviation <= WIRE_ASSIST_EXIT_DEVIATION_PX &&
+      verticalAngle <= WIRE_ASSIST_EXIT_ANGLE_DEG;
+    return staysLocked
+      ? { axis: 'vertical', point: { x: anchor.x, y: pointer.y } }
+      : { axis: null, point: pointer };
+  }
+
+  const horizontalCandidate =
+    horizontalDeviation <= WIRE_ASSIST_ENTER_DEVIATION_PX &&
+    horizontalAngle <= WIRE_ASSIST_ENTER_ANGLE_DEG;
+  const verticalCandidate =
+    verticalDeviation <= WIRE_ASSIST_ENTER_DEVIATION_PX &&
+    verticalAngle <= WIRE_ASSIST_ENTER_ANGLE_DEG;
+
+  if (horizontalCandidate && (!verticalCandidate || horizontalDeviation <= verticalDeviation)) {
+    return { axis: 'horizontal', point: { x: pointer.x, y: anchor.y } };
+  }
+  if (verticalCandidate) {
+    return { axis: 'vertical', point: { x: anchor.x, y: pointer.y } };
+  }
+  return { axis: null, point: pointer };
 }
 
 /** Keep a dragged segment parallel to the segment the user grabbed.
@@ -217,11 +306,30 @@ export function completeOrthogonalRoute(
   target: Point,
   vertices: readonly Point[],
 ): readonly Point[] {
-  const anchor = vertices[vertices.length - 1] ?? start;
-  const elbow = lockOrthogonalPoint(anchor, target);
-  const isAnchor = elbow.x === anchor.x && elbow.y === anchor.y;
-  const isTarget = elbow.x === target.x && elbow.y === target.y;
-  return isAnchor || isTarget ? vertices : [...vertices, elbow];
+  const routed: Point[] = [];
+  let anchor = start;
+
+  for (const vertex of vertices) {
+    const alreadyOrthogonal = vertex.x === anchor.x || vertex.y === anchor.y;
+    const next = alreadyOrthogonal
+      ? vertex
+      : Math.abs(vertex.x - anchor.x) >= Math.abs(vertex.y - anchor.y)
+        ? { x: vertex.x, y: anchor.y }
+        : { x: anchor.x, y: vertex.y };
+    if (next.x !== anchor.x || next.y !== anchor.y) routed.push(next);
+    anchor = next;
+  }
+
+  if (target.x === anchor.x || target.y === anchor.y) return routed;
+
+  // The terminal is authoritative and may be fractional/off-grid. Build the
+  // final elbow from its exact coordinate instead of snapping the terminal.
+  const elbow =
+    Math.abs(target.x - anchor.x) >= Math.abs(target.y - anchor.y)
+      ? { x: target.x, y: anchor.y }
+      : { x: anchor.x, y: target.y };
+  if (elbow.x !== anchor.x || elbow.y !== anchor.y) routed.push(elbow);
+  return routed;
 }
 
 export function wirePoints(from: Point, to: Point, vertices?: readonly Point[]): Point[] {
@@ -265,6 +373,25 @@ export function clientToWorld(
   return {
     x: box.x + (clientX - rect.left - offsetX) / scale,
     y: box.y + (clientY - rect.top - offsetY) / scale,
+  };
+}
+
+export function worldToClient(
+  point: Point,
+  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
+  viewport: Viewport,
+  canvasWidth: number,
+  canvasHeight: number,
+): Point {
+  const box = viewportViewBox(viewport, canvasWidth, canvasHeight);
+  const scale = Math.max(rect.width / box.width, rect.height / box.height);
+  const renderedWidth = box.width * scale;
+  const renderedHeight = box.height * scale;
+  const offsetX = (rect.width - renderedWidth) / 2;
+  const offsetY = (rect.height - renderedHeight) / 2;
+  return {
+    x: rect.left + offsetX + (point.x - box.x) * scale,
+    y: rect.top + offsetY + (point.y - box.y) * scale,
   };
 }
 

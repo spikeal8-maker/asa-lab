@@ -21,6 +21,10 @@ import {
   diagnosticBadgeGeometry,
   roundedWirePath,
   stageReadoutGeometry,
+  TERMINAL_HIT_RADIUS,
+  TERMINAL_MARKER_SIZE,
+  TERMINAL_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_HANDLE_RADIUS,
   wirePoints,
 } from './workbench-geometry';
 import {
@@ -921,7 +925,11 @@ export function WorkbenchStage({
                               className="workbench-breadboard-hole-hit"
                               cx={point.x}
                               cy={point.y}
-                              r={coarseInteraction ? 10 : 5}
+                              r={
+                                coarseInteraction
+                                  ? TERMINAL_TOUCH_HIT_RADIUS
+                                  : TERMINAL_HIT_RADIUS
+                              }
                               data-terminal-component-id={component.id}
                               data-terminal-id={hole.id}
                               role="button"
@@ -933,7 +941,10 @@ export function WorkbenchStage({
                               onClick={(event) => {
                                 event.stopPropagation();
                                 if (!c.consumeTerminalClick()) {
-                                  c.clickTerminal(component.id, hole.id, event.shiftKey);
+                                  c.clickTerminal(component.id, hole.id, event.shiftKey, {
+                                  x: event.clientX,
+                                  y: event.clientY,
+                                });
                                 }
                               }}
                               onKeyDown={(event) => {
@@ -945,10 +956,10 @@ export function WorkbenchStage({
                             />
                             <rect
                               className="workbench-contact-square"
-                              x={point.x - 5}
-                              y={point.y - 5}
-                              width={10}
-                              height={10}
+                              x={point.x - TERMINAL_MARKER_SIZE / 2}
+                              y={point.y - TERMINAL_MARKER_SIZE / 2}
+                              width={TERMINAL_MARKER_SIZE}
+                              height={TERMINAL_MARKER_SIZE}
                               rx={1}
                             />
                             <circle
@@ -999,7 +1010,9 @@ export function WorkbenchStage({
                     >
                       <circle
                         className="workbench-terminal-hit"
-                        r={coarseInteraction ? 14 : 8}
+                        r={
+                          coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS
+                        }
                         data-terminal-component-id={component.id}
                         data-terminal-id={terminal}
                         onPointerDown={(event) =>
@@ -1008,7 +1021,10 @@ export function WorkbenchStage({
                         onClick={(event) => {
                           event.stopPropagation();
                           if (!c.consumeTerminalClick()) {
-                            c.clickTerminal(component.id, terminal, event.shiftKey);
+                            c.clickTerminal(component.id, terminal, event.shiftKey, {
+                              x: event.clientX,
+                              y: event.clientY,
+                            });
                           }
                         }}
                         role="button"
@@ -1025,10 +1041,10 @@ export function WorkbenchStage({
                       />
                       <rect
                         className="workbench-terminal-dot"
-                        x={-5}
-                        y={-5}
-                        width={10}
-                        height={10}
+                        x={-TERMINAL_MARKER_SIZE / 2}
+                        y={-TERMINAL_MARKER_SIZE / 2}
+                        width={TERMINAL_MARKER_SIZE}
+                        height={TERMINAL_MARKER_SIZE}
                         rx={1}
                       />
                       {(() => {
@@ -1165,10 +1181,22 @@ export function WorkbenchStage({
               </g>
             );
           })}
+          {c.wireGuide ? (
+            <line
+              className="workbench-wire-guide"
+              data-testid="wire-alignment-guide"
+              x1={c.wireGuide.from.x}
+              y1={c.wireGuide.from.y}
+              x2={c.wireGuide.to.x}
+              y2={c.wireGuide.to.y}
+            />
+          ) : null}
           {c.pendingStart && c.wirePreviewEnd ? (
             <path
               className="workbench-wire-preview"
-              d={roundedWirePath(wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices))}
+              d={roundedWirePath(
+                wirePoints(c.pendingStart, c.wirePreviewEnd, c.wirePreviewVertices),
+              )}
               stroke={c.activeWireColor}
             />
           ) : null}
@@ -1195,7 +1223,7 @@ export function WorkbenchStage({
                   data-wire-endpoint={endpoint}
                   cx={displayed.x}
                   cy={displayed.y}
-                  r={5}
+                  r={WIRE_ENDPOINT_HANDLE_RADIUS}
                   // The endpoint in hand rides exactly under the pointer. It must
                   // not eat hit-testing: the terminal beneath it still needs the
                   // hover highlight and the drop target lookup.

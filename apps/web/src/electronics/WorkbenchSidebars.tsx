@@ -21,7 +21,14 @@ import {
 import { ComponentPreview } from './component-preview';
 import { PirSensorControls } from './PirSensorControls';
 import { UltrasonicDistanceControls } from './UltrasonicDistanceControls';
-import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
+import {
+  CollapseIcon,
+  DeleteIcon,
+  ExpandIcon,
+  ListIcon,
+  SearchIcon,
+  WireIcon,
+} from './workbench-icons';
 import { WIRE_COLORS } from './workbench-model';
 import {
   defaultResistanceUnit,
@@ -359,7 +366,9 @@ export function WorkbenchSidebars({
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
-  const shelfTouches = useRef(new Map<number, { x: number; y: number }>());
+  const shelfTouches = useRef(
+    new Map<number, { x: number; y: number; mode: 'pending' | 'dragging' | 'scrolling' }>(),
+  );
   const [stateOpen, setStateOpen] = useState(false);
   const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
@@ -611,11 +620,19 @@ export function WorkbenchSidebars({
                     onPointerDown={(event) => {
                       if (!family.enabled || event.button !== 0) return;
                       if (event.pointerType === 'touch') {
+                        if (shelfTouches.current.size > 0) {
+                          for (const [pointerId, touch] of shelfTouches.current) {
+                            if (touch.mode === 'dragging') c.cancelFamilyPlacement(pointerId);
+                          }
+                          shelfTouches.current.clear();
+                          return;
+                        }
                         shelfTouches.current.set(event.pointerId, {
                           x: event.clientX,
                           y: event.clientY,
+                          mode: 'pending',
                         });
-                        return; // Native shelf scrolling; a short tap selects a part on pointerup.
+                        return;
                       }
                       event.currentTarget.setPointerCapture(event.pointerId);
                       c.beginFamilyPlacement(family.familyId, {
@@ -626,18 +643,48 @@ export function WorkbenchSidebars({
                       event.preventDefault();
                     }}
                     onPointerMove={(event) => {
-                      if (event.pointerType !== 'touch')
+                      if (event.pointerType !== 'touch') {
                         c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                        return;
+                      }
+                      const touch = shelfTouches.current.get(event.pointerId);
+                      if (!touch || touch.mode === 'scrolling') return;
+                      const dx = event.clientX - touch.x;
+                      const dy = event.clientY - touch.y;
+                      const travel = Math.hypot(dx, dy);
+                      if (touch.mode === 'pending' && travel >= 8) {
+                        const upwardToStage = dy < 0 && Math.abs(dy) >= 1.25 * Math.abs(dx);
+                        if (!upwardToStage) {
+                          touch.mode = 'scrolling';
+                          return;
+                        }
+                        touch.mode = 'dragging';
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        c.beginFamilyPlacement(family.familyId, {
+                          pointerId: event.pointerId,
+                          clientX: touch.x,
+                          clientY: touch.y,
+                        });
+                      }
+                      if (touch.mode === 'dragging') {
+                        c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                        event.preventDefault();
+                      }
                     }}
                     onPointerUp={(event) => {
                       if (event.pointerType === 'touch') {
-                        const start = shelfTouches.current.get(event.pointerId);
+                        const touch = shelfTouches.current.get(event.pointerId);
                         shelfTouches.current.delete(event.pointerId);
-                        if (
-                          start &&
-                          Math.hypot(event.clientX - start.x, event.clientY - start.y) < 10
+                        if (touch?.mode === 'dragging') {
+                          c.finishFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                        } else if (
+                          touch?.mode === 'pending' &&
+                          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) < 10
                         ) {
                           c.selectFamilyByTouch(family.familyId);
+                        }
+                        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                          event.currentTarget.releasePointerCapture(event.pointerId);
                         }
                         return;
                       }
@@ -647,10 +694,20 @@ export function WorkbenchSidebars({
                       }
                     }}
                     onPointerCancel={(event) => {
+                      const touch = shelfTouches.current.get(event.pointerId);
                       shelfTouches.current.delete(event.pointerId);
-                      c.cancelFamilyPlacement(event.pointerId);
+                      if (touch?.mode === 'dragging' || event.pointerType !== 'touch') {
+                        c.cancelFamilyPlacement(event.pointerId);
+                      }
                       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                         event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                    }}
+                    onLostPointerCapture={(event) => {
+                      const touch = shelfTouches.current.get(event.pointerId);
+                      if (touch?.mode === 'dragging') {
+                        shelfTouches.current.delete(event.pointerId);
+                        c.cancelFamilyPlacement(event.pointerId);
                       }
                     }}
                     data-family-id={family.familyId}
@@ -719,12 +776,13 @@ export function WorkbenchSidebars({
 
       {c.selection ? (
         <aside
-          className={`workbench-inspector${
+          className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
             selectedIsPotentiometer ? ' is-potentiometer' : ''
           }${c.libraryOpen ? '' : ' library-hidden'}`}
-          aria-label="Параметры выделения"
+          aria-label={c.selectedWire ? 'Параметры выбранного провода' : 'Параметры выделения'}
         >
-          <div className="workbench-inspector-heading">
+          {c.selectedWire ? null : (
+            <div className="workbench-inspector-heading">
             <div>
               <span>
                 {c.selection.kind === 'wire'
@@ -768,7 +826,8 @@ export function WorkbenchSidebars({
                 </button>
               </div>
             ) : null}
-          </div>
+            </div>
+          )}
 
           {helpOpen && c.selectedComponent && c.selectedEntry ? (
             <div className="workbench-inspector-help-popover" role="region" aria-label="Справка">
@@ -2250,21 +2309,23 @@ export function WorkbenchSidebars({
               <div className="workbench-wire-compact-actions">
                 <button
                   type="button"
-                  className={c.orthogonalWireMode ? 'active' : ''}
-                  aria-pressed={c.orthogonalWireMode}
-                  onClick={c.toggleWireRoute}
-                  title="Прокладка под 90°"
+                  onClick={c.removeWireBends}
+                  aria-label="Выпрямить провод"
+                  title="Выпрямить провод"
                 >
-                  <WireIcon /> 90°
+                  <WireIcon />
                 </button>
-                <button type="button" onClick={c.removeWireBends}>
-                  Убрать изгибы
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={c.removeSelection}
+                  aria-label="Удалить провод"
+                  title="Удалить провод"
+                >
+                  <DeleteIcon />
                 </button>
                 <details className="workbench-wire-more">
-                  <summary
-                    aria-label="Переподключение и удаление"
-                    title="Переподключение и удаление"
-                  >
+                  <summary aria-label="Ещё действия с проводом" title="Ещё действия с проводом">
                     …
                   </summary>
                   <div className="workbench-wire-more-menu">
@@ -2273,9 +2334,6 @@ export function WorkbenchSidebars({
                     </button>
                     <button type="button" onClick={() => c.beginReconnect('to')}>
                       Переподключить конец
-                    </button>
-                    <button type="button" className="danger" onClick={c.removeSelection}>
-                      Удалить
                     </button>
                   </div>
                 </details>

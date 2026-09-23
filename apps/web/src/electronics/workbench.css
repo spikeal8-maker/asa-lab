@@ -889,6 +889,13 @@
   opacity: 0.35;
   pointer-events: none;
 }
+.workbench-wire-guide {
+  stroke: #18a4df;
+  stroke-width: 1.2;
+  stroke-dasharray: 5 5;
+  opacity: 0.72;
+  pointer-events: none;
+}
 .workbench-wire-preview {
   fill: none;
   stroke-width: 3.2;
@@ -5080,14 +5087,14 @@ html.arduino-palette-resizing * {
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
-    touch-action: pan-x;
+    touch-action: pan-x pinch-zoom;
   }
   .workbench-catalog-card,
   .workbench-catalog-grid.list-view .workbench-catalog-card {
     width: 94px;
     height: 100px;
     min-height: 100px;
-    touch-action: pan-x;
+    touch-action: pan-x pinch-zoom;
   }
   .workbench-catalog-add,
   .workbench-catalog-grid.list-view .workbench-catalog-add {
@@ -5454,25 +5461,39 @@ html.arduino-palette-resizing * {
   width: 20px;
   height: 20px;
 }
+.workbench-inspector.wire-selected {
+  box-sizing: border-box;
+  width: 286px;
+  max-width: 296px;
+  max-height: 48px;
+  overflow: visible;
+  pointer-events: none;
+}
 .workbench-wire-inspector-compact {
-  display: grid;
-  gap: 8px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  pointer-events: auto;
 }
 .workbench-wire-inspector-compact .workbench-wire-swatches {
   display: grid;
   grid-template-columns: repeat(6, 24px);
-  gap: 5px;
+  gap: 4px;
   margin: 0;
 }
 .workbench-wire-inspector-compact .workbench-wire-swatches button {
+  box-sizing: border-box;
   width: 24px;
+  min-width: 24px;
   height: 24px;
+  min-height: 24px;
 }
 .workbench-wire-compact-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
 }
 .workbench-wire-compact-actions > button,
 .workbench-wire-more > summary {
@@ -5480,9 +5501,11 @@ html.arduino-palette-resizing * {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-height: 30px;
-  padding: 4px 8px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 4px;
   border: 1px solid #cbd4db;
   border-radius: 5px;
   background: #fff;
@@ -5490,10 +5513,14 @@ html.arduino-palette-resizing * {
   font: inherit;
   cursor: pointer;
 }
-.workbench-wire-compact-actions > button.active {
-  border-color: #1596ce;
-  background: #eef8fc;
-  color: #0b84b9;
+.workbench-wire-compact-actions > button.danger {
+  color: #a82c31;
+}
+.workbench-wire-inspector-compact button:focus-visible,
+.workbench-wire-more > summary:focus-visible,
+.workbench-wire-more-menu button:focus-visible {
+  outline: 2px solid #168cc5;
+  outline-offset: 2px;
 }
 .workbench-wire-compact-actions > button svg {
   width: 16px;
@@ -5503,7 +5530,7 @@ html.arduino-palette-resizing * {
   position: relative;
 }
 .workbench-wire-more > summary {
-  width: 32px;
+  width: 28px;
   padding: 4px;
   list-style: none;
 }
@@ -5535,4 +5562,44 @@ html.arduino-palette-resizing * {
 }
 .workbench-wire-more-menu button.danger {
   color: #a83b34;
+}
+
+@media (max-width: 980px) {
+  .workbench-inspector.wire-selected,
+  .workbench-inspector.wire-selected.library-hidden {
+    top: 8px;
+    right: 8px;
+    left: auto;
+    box-sizing: border-box;
+    width: min(296px, calc(100% - 16px));
+    max-width: calc(100% - 16px);
+    max-height: 112px;
+    overflow: visible;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-inspector-compact {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 5px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-swatches {
+    grid-template-columns: repeat(6, 44px);
+    gap: 4px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-swatches button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-compact-actions {
+    gap: 4px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-compact-actions > button,
+  .workbench-inspector.wire-selected .workbench-wire-more > summary {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
 }

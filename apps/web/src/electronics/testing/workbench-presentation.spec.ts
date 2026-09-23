@@ -33,7 +33,11 @@ const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'ut
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
-    expect(stageSource).toContain('width={10 / c.viewport.zoom}');
+    expect(stageSource).toContain('TERMINAL_MARKER_SIZE');
+    expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
+    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(stageSource).not.toContain('width={10 / c.viewport.zoom}');
+    expect(stageSource).not.toContain('r={8 / c.viewport.zoom}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     expect(stageSource).toContain("? ' wiring' : ''");
     expect(workbenchCss).toMatch(/\.workbench-terminal-dot\s*\{[^}]*opacity:\s*0;/s);
@@ -339,7 +343,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
-    expect(stageSource).toContain('c.wireDraftVertices');
+    expect(stageSource).toContain('c.wirePreviewVertices');
     expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
       stageSource.indexOf('{orderedComponents'),
     );
@@ -370,22 +374,31 @@ describe('owner-reference Electronics presentation contract', () => {
       controllerSource.indexOf('function wireVertexDragPoint'),
       controllerSource.indexOf('function wireDraftPoint'),
     );
-    expect(vertexPointLogic).not.toContain('magneticWirePoint');
-    expect(controllerSource).toContain('magneticWirePoint(anchor, freePoint');
+    expect(vertexPointLogic).not.toContain('resolveWireAssist');
+    expect(controllerSource).toContain('resolveWireAssist(');
+    expect(controllerSource).toContain('worldToClient(');
+    expect(controllerSource).toContain('wireAssistAxisRef.current');
+    expect(controllerSource).toContain('event.altKey');
+    expect(controllerSource).toContain(
+      'completeOrthogonalRoute(start, targetPoint, wireDraftVertices)',
+    );
+    expect(stageSource).toContain('data-testid="wire-alignment-guide"');
+    expect(workbenchCss).toMatch(/\.workbench-wire-guide\s*\{[^}]*pointer-events:\s*none;/s);
     expect(controllerSource).toContain('lockOrthogonalBend');
     expect(controllerSource).toContain('orthogonalWireMode || event.shiftKey');
-    expect(controllerSource).toContain(
-      'wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey)',
-    );
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
-    const newWireStart = controllerSource.slice(
-      controllerSource.indexOf('if (!pendingTerminal) {'),
-      controllerSource.indexOf('if (pendingTerminal.componentId'),
+    const beginWire = controllerSource.slice(
+      controllerSource.indexOf('function beginWireAtTerminal'),
+      controllerSource.indexOf('function commitPendingWireTo'),
     );
-    expect(newWireStart).toContain('setSelection(null);');
-    expect(newWireStart.indexOf('setSelection(null);')).toBeLessThan(
-      newWireStart.indexOf('setPendingTerminal({ componentId, terminal });'),
+    expect(beginWire).toContain('setSelection(null);');
+    expect(beginWire).toContain('setPendingTerminal(source);');
+    expect(beginWire.indexOf('setSelection(null);')).toBeLessThan(
+      beginWire.indexOf('setPendingTerminal(source);'),
+    );
+    expect(controllerSource).toContain(
+      'terminalTargetAt(event.clientX, event.clientY) ?? { componentId, terminal }',
     );
 
     // A running simulation is a circuit under power: it can be operated, not
@@ -621,10 +634,14 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(sidebarSource).toContain("c.libraryOpen ? 'Скрыть компоненты' : 'Компоненты'");
     expect(controllerModuleSource).toContain("window.matchMedia?.('(max-width: 980px)')");
-    expect(workbenchCss).toContain('touch-action: pan-x');
+    expect(workbenchCss).toContain('touch-action: pan-x pinch-zoom');
     expect(editorSource).toContain('onMobileHeightChange={setCodeHeightPercent}');
     expect(controllerModuleSource).toContain('Компонент выбран. Коснитесь места на рабочем поле');
-    expect(stageSource).toContain('coarseInteraction ? 14 : 8');
-    expect(stageSource).toContain('coarseInteraction ? 10 : 5');
+    expect(sidebarSource).toContain("mode: 'pending' | 'dragging' | 'scrolling'");
+    expect(sidebarSource).toContain('Math.abs(dy) >= 1.25 * Math.abs(dx)');
+    expect(sidebarSource).toContain("touch.mode = 'scrolling'");
+    expect(sidebarSource).toContain("touch.mode = 'dragging'");
+    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
   });
 });
