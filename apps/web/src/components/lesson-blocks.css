@@ -205,3 +205,16 @@
 .lesson-divider-editor-note {
   margin: 0;
 }
+.lesson-activity-block {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid #d9e3e8;
+  border-radius: 12px;
+  background: #fbfcfd;
+}
+
+.lesson-activity-placeholder {
+  color: #334852;
+  font-size: 0.95rem;
+}
