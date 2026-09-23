@@ -1,296 +1,181 @@
-# Learning/Courses public staging release plan
+# Learning/Courses: изолированный тестовый запуск
 
-**ID:** PUBLIC-TEST-001  
-**Issue:** #374  
-**Base:** fresh `main` only  
-**Production impact:** none until separate owner-authorized deploy
+**ID:** PUBLIC-TEST-001
 
-## 1. Purpose
+**Issue:** #374. **Подготовка:** PR #375, `release/learning-public-test-prep`.
 
-Provide a public, disposable-but-persistent staging installation where the owner can inspect the current Learning/Courses product in a real browser before any production update.
+**Граница:** только тестовый экземпляр; рабочий `asa-lab.ru` не обновляется.
 
-Staging is not a second product. It runs the same Web/API/Scratch/PostgreSQL stack with isolated data and explicit staging origins.
+## 1. Состав кандидата
 
-## 2. Current observed state
+Исходная подготовка: `c98d4a735c0dfbc615e6dc667450d1fed3056b6b`.
+Принятый исходный main: `42ba99558ac552d81289115fefe8502974f0ba11`.
+Обычный merge main в подготовку: `8ea84d69c1628ebc16765c4dd9e356ab4aed85c3`.
+D5 (#361), оболочка прямого задания (#369) и карточка Electronics (#384)
+уже входят в main; повторно собирать их старые HEAD не требуется.
+PR #376 — исторический сборочный кандидат; его не запускать и не сливать.
 
-| Surface | Revision / schema |
-|---|---|
-| public `asa-lab.ru` | `1ae93cbb99ffa53abbf53430bf2c6d1dfca39e1e` / schema 142 |
-| local Ali_Robs dev | `78287af04ee16d3f034c8a349cbc7ff43763b5c1` / schema 151 |
-| fresh main at plan creation | `62787aa5f8addf1e1e5c6e3b242f53ee7aa851d8` |
-| PR #361 | `0b1748f44e5c8598228a887556496f3620b21d41` |
-| PR #369 | `64c544c6d7de9cf78ad6abd6813f85bb1cb54357` |
+Относительно принятого main разрешены только `compose.staging.yaml` и этот
+документ. Продуктовый код, SQL, workflows, package.json и lockfile наследуются
+из main без изменений. A1 и следующий продуктовый этап не начинаются.
 
-A local dry-run merge of fresh main + #361 + #369 completed without Git conflicts. This proves only mergeability, not acceptance.
+Итоговый SHA фиксируется после коммита этих файлов командой `git rev-parse HEAD`.
+Он записывается в приватный env как `ASA_BUILD_REVISION` и в `evidence/receipt.json`,
+сопоставляется с HEAD #375, CI и тремя сервисами. Документ внутри коммита не может
+содержать SHA самого себя: итоговое значение берётся из Git и квитанции запуска.
+Новая правка требует нового SHA, CI и пересборки; старое evidence не переносится.
 
-## 3. Release model
+Сведения прежнего плана о сайте (`1ae93cbb...`, схема 142), локальном `78287af...`
+и схеме 151 — исторические наблюдения, не текущая проверка сайта или его БД.
+Рабочий публичный сервис здесь не исследуется и не изменяется.
 
-There are two different artifacts.
+## 2. Экземпляр и изоляция
 
-### Preview candidate
+Авторизованный компьютер: `Ali_Robs`.
+Каталог: `C:\Users\spike\asa-lab-learning-test-374`, worktree — подкаталог `repo`.
+Приватные файлы и evidence находятся рядом, за пределами Git/build context.
+Compose project: `asa-lab-learning-374`.
 
-May include accepted or explicitly owner-requested unmerged Learning heads for inspection.
+Web: `http://127.0.0.1:14620`, только на Ali_Robs. Это не публичный URL.
+Внешняя публикация, TLS, DNS, FRP, VPN и firewall в этой задаче не настраиваются.
+Перед запуском повторно проверить свободу 14620 и диагностического 14623;
+чужой занятый порт не освобождать.
 
-It:
-- runs only on staging;
-- uses synthetic data;
-- is clearly marked TEST/STAGING;
-- is never promoted by copying a database or container blindly.
+Используются только `compose.yaml` + `compose.staging.yaml` из одного SHA.
+Никаких dev/production/FRP overlays. Новая БД: `asa_learning_374_test`.
+Только новые volumes `asa-lab-learning-374_postgres-data` и
+`asa-lab-learning-374_blocks-object-data`; сети `application`, `database`,
+`scratch-runtime` также имеют префикс project. Сеть БД internal.
+PostgreSQL, API и MinIO не имеют опубликованных host-портов.
+Не подключать external volumes, рабочие данные или общую БД.
 
-### Production candidate
+`private/staging.env` содержит независимые случайные пароли БД, runtime-роли,
+object storage и encryption/signing keys. `ASA_SEED_DEV=false`.
+Публичные пароли по умолчанию запрещены. Env, cookies, sessions и данные входа
+не выводить в логи и не коммитить. Rendered config с секретами хранить только
+приватно; evidence содержит очищенный отчёт о конфигурации.
 
-Must be an exact SHA reachable from `main`, with required CI success and guarded update eligibility.
+## 3. Scratch: единый вход ASA Lab
 
-No draft PR is deployed directly to production.
+`docker/web/Caddyfile` проксирует `/internal/blocks/` в `scratch:8080`, удаляя
+Cookie/Authorization и Set-Cookie на этой границе. Редактор встроен на том же
+browser origin, что и портал. Отдельный публичный runtime hostname из старого
+плана отменён; действуют текущие compose, Web config и Scratch runtime contract.
 
-## 4. Target staging topology
-
-Recommended host topology:
-
-```text
-https://lab.alikinas.ru
-        |
-        +--> staging Web 127.0.0.1:14610
-                |
-                +--> private staging API
-                +--> private staging PostgreSQL
-                +--> private staging MinIO
-
-https://scratch.lab.alikinas.ru
-        |
-        +--> staging Scratch 127.0.0.1:14613
-```
-
-Required Compose identity:
-
-```text
-COMPOSE_PROJECT_NAME=asa-lab-staging
-ASA_WEB_PORT=14610
-ASA_BLOCKS_PORT=14613
+```dotenv
+ASA_PUBLIC_WEB_ORIGINS=http://127.0.0.1:14620
+ASA_BLOCKS_RUNTIME_ORIGIN=http://127.0.0.1:14620
+ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:14620
+ASA_WEB_PORT=14620
+ASA_BLOCKS_PORT=14623
 ASA_SEED_DEV=false
 ```
 
-Required browser origins:
+14623 — только loopback health/diagnostic endpoint основного compose-контракта,
+не пользовательский вход и не публичный сайт. API/БД не входят в scratch-runtime.
+Использовать штатный Dockerfile, upstream pin и патчи. Старый контейнер не
+является новой сборкой, даже если отвечает healthy.
 
-```text
-ASA_PUBLIC_WEB_ORIGINS=https://lab.alikinas.ru
-ASA_BLOCKS_PARENT_ORIGIN=https://lab.alikinas.ru
-ASA_BLOCKS_RUNTIME_ORIGIN=https://scratch.lab.alikinas.ru
+## 4. Сборка, миграции и запуск
+
+В PowerShell на Ali_Robs после фиксации кандидата и проверки чистого дерева:
+
+```powershell
+Set-Location 'C:\Users\spike\asa-lab-learning-test-374\repo'
+$project = 'asa-lab-learning-374'
+$envFile = 'C:\Users\spike\asa-lab-learning-test-374\private\staging.env'
+$dc = @('compose', '--env-file', $envFile, '-p', $project,
+  '-f', 'compose.yaml', '-f', 'compose.staging.yaml')
+git rev-parse HEAD
+git status --porcelain=v1
+docker @dc config --quiet
+docker @dc build api web scratch minio
+docker @dc up -d --no-build postgres minio scratch
+docker @dc run --rm --no-deps migration
+docker @dc run --rm --no-deps migration
+docker @dc up -d --no-build api web
 ```
 
-The exact public runtime hostname may differ, but it must be a distinct HTTPS origin and must be fixed before building Web/Scratch.
+Каждый ненулевой exit code — STOP. До первого up очищенный rendered config
+должен подтвердить уникальные identity/volumes/networks, только loopback-порты,
+отсутствие host networking/Docker socket и независимые credentials.
+`ASA_BUILD_REVISION` и уникальные image tags соответствуют `git rev-parse HEAD`.
 
-## 5. Data isolation
+План берётся из `tools/migrate.mjs`. Для исходного main последняя миграция —
+`0160_course_participation_issued_seat.sql`. Проверить полный упорядоченный состав
+и checksums против `schema_migrations` только новой тестовой БД. Повторный запуск
+обязан сообщить 0 pending migrations. Ограниченную роль создаёт штатный migration
+entrypoint; ручные SQL-изменения запрещены. API запускается после миграций,
+`/health/ready` должен подтвердить synchronized и ожидаемую фактическую схему.
 
-Public staging MUST NOT use the production PostgreSQL or MinIO volumes.
+Сверить Git SHA, image IDs/OCI revision, Web `build-metadata.json`, API readiness
+и Scratch `/internal/blocks/asa-commit.txt`. Записать container IDs и timestamps.
+Существующие `asa-lab-dev` и другие проекты не останавливать и не пересоздавать.
 
-Do not copy production learner data into public staging.
+До push: форматирование двух файлов, `git diff --check`, применимые штатные
+preflight/governance/Compose validators. На итоговом SHA необходимы
+`ASA Lab Governance and Code Gates` (четыре jobs SUCCESS),
+`pnpm test:learning-e1` и `pnpm e2e:learning-e1`.
+Learning workflow при необходимости запустить штатным workflow_dispatch на #375:
+path filters могут не реагировать на deployment-only diff.
+CI и демонстрация против собранных контейнеров — отдельные уровни evidence.
 
-Use:
-- separate PostgreSQL named volume;
-- separate Blocks object-storage volume;
-- synthetic teacher;
-- synthetic groups;
-- synthetic learners;
-- synthetic courses/assignments/projects only.
+## 5. Демонстрация
 
-Credentials are kept in private host-owned `.env` and are not committed.
+Штатной регистрацией создать взрослый тестовый Account, подключить авторство и
+преподавание. Через UI/API создать одну группу и два StudentSeat. Данные входа
+хранить в `private/demo-credentials.json`, за пределами Git и публичных логов.
+Не копировать настоящих учеников и не применять SQL INSERT/UPDATE для demo.
 
-## 6. Candidate composition
+Через Course Builder опубликовать и назначить курс с одним уроком:
+текст → Electronics Activity → callout → 3D Activity.
+Отдельно выдать прямое задание для проверки панели #369.
+Второго ученика оставить с нетронутыми назначениями для ручного прохода.
 
-Before the first Learning public candidate:
+Обязательные browser-сценарии против контейнеров:
 
-1. Finish V1 visual acceptance in PR #369.
-2. Fresh-converge PR #361 onto current main and independently accept D5.
-3. Re-fetch main immediately before candidate creation.
-4. Integrate exact accepted heads into one staging candidate.
-5. Record:
-   - base main SHA;
-   - #361 accepted SHA;
-   - #369 accepted SHA;
-   - final candidate SHA;
-   - changed migration set.
+1. Преподаватель публикует и назначает курс; ученик видит исходный порядок блоков.
+2. Electronics: Start → resistor → exact-project server save → reload → тот же
+   resistor → повторное открытие прежнего projectId → submit.
+3. 3D: другой projectId → объект → подтверждение save → reload; после свежего
+   чтения курса Electronics остаётся submitted/«На проверке».
+4. Прямое задание открывает лабораторию с биркой и открываемой панелью #369.
+5. Обычный Scratch работает встроенно, сохраняет изменение на сервер и после
+   reload восстанавливает тот же проект, без отдельного публичного origin.
+6. Ученический экран 390 и 320 CSS px: доступность практик и отсутствие overflow.
 
-No broad feature work is added during convergence.
+Сохранить реальные снимки курса преподавателя, урока ученика с двумя практиками,
+Electronics, 3D, бирки и открытой панели, Scratch и экранов 390/320. Manifest
+содержит SHA, revisions, URL, viewport, browser/OS, assertions и projectId без
+секретов. PASS означает выполненное утверждение, не наличие кнопки в DOM.
 
-## 7. CI gates
+## 6. Известные ограничения
 
-Before public exposure, exact candidate must pass:
+D5 поддерживает независимые практические блоки урока и inherited participation
+для issued StudentSeat. Прямая/legacy выдача поддерживает панель #369.
+Панель конкретного практического блока курса через Learning Work Context —
+следующий этап A1, не требование этого запуска. Новый ученический центр, защита
+учебных проектов, поточная проверка и полное медиа-задание также не требуются.
+Наличие планов не означает, что эти функции реализованы или приняты.
 
-```text
-Learning E1 Convergence
-ASA Lab Governance and Code Gates
+Electronics R1–R4 из #378 не включаются и не объявляются принятыми. Изменение
+ширины окна не заменяет проверку настоящего телефона. Воспроизводимые дефекты
+фиксировать с SHA и шагами; не чинить продукт, SQL, validators или workflows
+вне двух разрешённых файлов. Рабочую БД и публичный сервис не трогать.
+
+## 7. Квитанция и остановка
+
+`evidence/receipt.json`: исходный main, итоговый SHA, PR, компьютер, Compose,
+URLs, образы/revisions, миграции, CI run IDs, результаты каждого сценария,
+снимки и ограничения. Роли и секреты — отдельно в приватном локальном файле.
+Не подставлять старый CI; FAIL/UNVERIFIED сообщать отдельно от PASS.
+Не merge #375/#376 автоматически. Внешний доступ — отдельное поручение.
+
+Остановка только этого стенда, с сохранением его volumes:
+
+```powershell
+docker compose --env-file 'C:\Users\spike\asa-lab-learning-test-374\private\staging.env' -p asa-lab-learning-374 -f 'C:\Users\spike\asa-lab-learning-test-374\repo\compose.yaml' -f 'C:\Users\spike\asa-lab-learning-test-374\repo\compose.staging.yaml' down
 ```
 
-Plus candidate-specific checks:
-
-```text
-pnpm test:learning-e1
-pnpm e2e:learning-e1
-pnpm gate:repository
-git diff --check
-```
-
-Any known external baseline failure must be explicitly named and must not be caused by candidate files.
-
-## 8. Migration gates
-
-Staging uses a new isolated database.
-
-Required:
-1. render final Compose config;
-2. run migration plan;
-3. migrate clean staging DB;
-4. confirm expected schema equals actual schema;
-5. rerun migration and confirm zero pending migrations;
-6. start API only after migration success.
-
-Production migration is a separate later operation.
-
-The public production installation currently reports schema 142. The current main contains migrations through 0159; PR #361 additionally contains 0160. Therefore production promotion later requires a real guarded migration preflight, not manual SQL.
-
-## 9. Public ingress
-
-DNS currently resolves `lab.alikinas.ru` to the same external address as production, but no working staging route was observed.
-
-Before public staging acceptance:
-- configure HTTPS route `lab.alikinas.ru -> 127.0.0.1:14610`;
-- create/configure distinct HTTPS Scratch runtime hostname -> `127.0.0.1:14613`;
-- preserve production routes;
-- do not publish API/PostgreSQL/MinIO.
-
-TLS and routing are operator infrastructure; they do not change application code.
-
-## 10. Synthetic acceptance dataset
-
-Staging should contain at least:
-
-- teacher: 1;
-- groups: 2;
-- learners: 5+;
-- course with theory + Electronics practice + 3D practice;
-- direct assignment;
-- scheduled assignment;
-- available assignment;
-- in-progress work;
-- submitted/waiting-review work;
-- changes-requested work;
-- completed work;
-- one ordinary non-assignment StudentSeat project.
-
-This dataset is for product inspection, not performance benchmarking.
-
-## 11. Owner journeys
-
-Minimum public browser journeys:
-
-### Learner
-
-```text
-login
-→ Home learning attention
-→ My Learning
-→ two groups
-→ scheduled locked task
-→ available task detail
-→ Start/Continue
-→ editor assignment anchor
-→ open/move/resize task panel
-→ save
-→ submit
-```
-
-### Teacher
-
-```text
-login
-→ class
-→ learner profile
-→ see ordinary + assignment projects
-→ open assignment review
-→ exact submitted version
-→ return/change-request/accept
-→ next learner
-```
-
-### Modules
-
-Verify:
-- Electronics;
-- 3D;
-- Blocks/Scratch overlay and runtime origin.
-
-## 12. Owner-visible evidence
-
-Exact-candidate screenshots are required and stored as CI/deployment evidence.
-
-At minimum:
-- learner home;
-- multi-group My Learning;
-- task detail;
-- Electronics anchor/panel;
-- 3D panel;
-- Scratch overlay;
-- teacher learner profile;
-- teacher exact review;
-- mobile 390;
-- mobile 320.
-
-A public URL without reviewed evidence is not acceptance.
-
-## 13. Staging readiness receipt
-
-Record:
-
-```text
-CANDIDATE_SHA:
-BASE_MAIN_SHA:
-PR361_SHA:
-PR369_SHA:
-
-WEB_REVISION:
-API_REVISION:
-SCRATCH_REVISION:
-
-SCHEMA_ACTUAL:
-SCHEMA_EXPECTED:
-SYNCHRONIZED:
-
-PORTAL_URL:
-SCRATCH_URL:
-
-LEARNING_E1:
-GOVERNANCE:
-
-OWNER_EVIDENCE:
-OWNER_ACCEPTANCE:
-```
-
-## 14. Production promotion
-
-Only after owner acceptance:
-
-1. ensure the accepted candidate content is merged/reachable from fresh `main`;
-2. require exact-main general CI success;
-3. identify the real production Compose checkout/project/volume;
-4. run guarded update `--check`;
-5. create verified backup;
-6. run migration plan against production;
-7. guarded update;
-8. verify Web/API/Scratch exact same revision;
-9. verify schema synchronized;
-10. run authorized synthetic smoke on `asa-lab.ru`.
-
-Never promote by pointing production DNS at the staging database/container.
-
-## 15. STOP conditions
-
-Stop before changing production if:
-- candidate includes unreviewed product files;
-- #361 or #369 head changed after acceptance;
-- main moved and candidate was not rebuilt;
-- staging and production Compose identities are ambiguous;
-- migration plan fails;
-- public Scratch origin is not exact;
-- any candidate service reports a different revision;
-- owner-visible Learning journey is not accepted.
+Не добавлять `-v`, не выполнять global prune, не трогать PR #378 и Issue #377,
+другие сервисы и настройки ОС. После отчёта STOP.
