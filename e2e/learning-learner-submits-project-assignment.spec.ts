@@ -170,6 +170,30 @@ async function learnerAssignments(
     ...(viewport ? { viewport: { width: viewport.width, height: viewport.height } } : {}),
     ...(bypassCSP ? { bypassCSP: true } : {}),
   });
+  const blocksRuntimeUpstream = process.env['ASA_BLOCKS_UPSTREAM_ORIGIN']?.trim();
+  if (blocksRuntimeUpstream) {
+    const upstreamOrigin = new URL(blocksRuntimeUpstream).origin;
+    if (upstreamOrigin !== blocksRuntimeUpstream) {
+      throw new Error('ASA_BLOCKS_UPSTREAM_ORIGIN must be an exact origin');
+    }
+    await context.route('**/internal/blocks/**', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const upstreamPath = requestUrl.pathname.replace(/^\/internal\/blocks/, '') || '/';
+      const upstreamUrl = new URL(upstreamPath + requestUrl.search, upstreamOrigin + '/');
+      const requestHeaders = { ...route.request().headers() };
+      delete requestHeaders.cookie;
+      delete requestHeaders.authorization;
+      const response = await route.fetch({
+        url: upstreamUrl.toString(),
+        headers: requestHeaders,
+      });
+      const responseHeaders = { ...response.headers() };
+      delete responseHeaders['set-cookie'];
+      responseHeaders['x-frame-options'] = 'SAMEORIGIN';
+      responseHeaders['content-security-policy'] = "frame-ancestors 'self'";
+      await route.fulfill({ response, headers: responseHeaders });
+    });
+  }
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
@@ -548,9 +572,6 @@ test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async (
   await page.setViewportSize(desktopV1Viewport);
   const learner = await openAssignedProject(browser, page, 'blocks', {
     viewport: desktopV1Viewport,
-    // The E2E API serves the SPA with a stricter CSP than production Caddy.
-    // Bypass only that harness-only CSP so the pinned separate Scratch origin can load.
-    bypassCSP: true,
   });
   const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');

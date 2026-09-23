@@ -279,6 +279,61 @@ describe('informational lesson blocks', () => {
     ).toBe(false);
   });
 
+  it('renders Activity blocks in mixed lesson order and keeps hidden Activity absent', () => {
+    const blocks: LessonBlock[] = [
+      { id: 'intro', type: 'paragraph', text: 'Перед практикой' },
+      {
+        id: 'activity-a',
+        type: 'activity',
+        learningActivityVersionId: '11111111-1111-4111-8111-111111111111',
+      },
+      { id: 'note', type: 'callout', text: 'Между практиками', tone: 'note' },
+      {
+        id: 'activity-b',
+        type: 'activity',
+        learningActivityVersionId: '22222222-2222-4222-8222-222222222222',
+      },
+      { id: 'file', type: 'file', url: 'https://example.test/help.pdf', label: 'Памятка' },
+      {
+        id: 'hidden-activity',
+        type: 'activity',
+        learningActivityVersionId: '33333333-3333-4333-8333-333333333333',
+        hidden: true,
+      },
+    ];
+    const markup = renderToStaticMarkup(
+      createElement(LessonBlocks, {
+        blocks,
+        renderActivity: (block) => createElement('span', null, `Runtime ${block.id}`),
+      }),
+    );
+
+    const sequence = [
+      'Перед практикой',
+      'Runtime activity-a',
+      'Между практиками',
+      'Runtime activity-b',
+      'Памятка',
+    ].map((value) => markup.indexOf(value));
+    expect(sequence.every((position) => position >= 0)).toBe(true);
+    expect(sequence).toEqual([...sequence].sort((left, right) => left - right));
+    expect(markup).not.toContain('Runtime hidden-activity');
+
+    const preview = renderToStaticMarkup(
+      createElement(LessonBlocks, {
+        blocks: [
+          {
+            id: 'preview-activity',
+            type: 'activity',
+            learningActivityVersionId: '44444444-4444-4444-8444-444444444444',
+          },
+        ],
+      }),
+    );
+    expect(preview).toContain('Практика');
+    expect(preview).toContain('data-block-id="preview-activity"');
+  });
+
   it('does not render hidden draft blocks or fall back to legacy content when blocks exist', () => {
     const blocks: LessonBlock[] = [
       { id: 'visible', type: 'paragraph', text: 'Visible block' },

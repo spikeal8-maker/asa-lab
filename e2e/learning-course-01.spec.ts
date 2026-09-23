@@ -70,6 +70,131 @@ async function editRealProject(page: Page, module: string) {
     );
   }
 }
+
+type CourseActivityProjectEvidence = {
+  projectId: string;
+  expectedObjectCount: number;
+  addedComponentId?: string;
+};
+
+function courseActivityProjectId(page: Page, module: string): string {
+  const location = new URL(page.url());
+  const encoded =
+    module === 'electronics'
+      ? /^\/projects\/([^/]+)\/electronics\/edit\/?$/.exec(location.pathname)?.[1]
+      : /^#\/3d\/([^?]+)/.exec(location.hash)?.[1];
+  const projectId = encoded ? decodeURIComponent(encoded) : '';
+  expect(projectId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  return projectId;
+}
+
+async function editCourseActivityProject(
+  page: Page,
+  module: string,
+): Promise<CourseActivityProjectEvidence> {
+  let expectedObjectCount = 0;
+  let projectId = '';
+  let addedComponentId: string | undefined;
+  if (module === 'three-d') {
+    const viewport = page.getByTestId('asa3d-viewport');
+    const objectCount = page.locator('.asa3d-object-count');
+    await expect(viewport).toBeVisible({ timeout: 60000 });
+    await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    projectId = courseActivityProjectId(page, module);
+    expectedObjectCount = Number.parseInt(await objectCount.innerText(), 10) + 1;
+    const saveState = page.locator('.asa3d-save-state');
+    await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
+    await expect(saveState).toHaveClass(/save-(dirty|saving)/);
+    await expect(saveState).toHaveClass(/save-saved/);
+    await expect(saveState).toContainText('Все изменения сохранены');
+  } else {
+    const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
+    await expect(resistor).toBeVisible({ timeout: 60000 });
+    projectId = courseActivityProjectId(page, module);
+    const components = page.getByTestId('schematic-component');
+    const existingComponentIds = new Set(
+      await components.evaluateAll((nodes) =>
+        nodes
+          .map((node) => node.getAttribute('data-component-id'))
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    expectedObjectCount = (await components.count()) + 1;
+    const savedCurrentChange = page.waitForResponse(
+      (response) => {
+        if (response.request().method() !== 'PUT' || !response.ok()) return false;
+        if (new URL(response.url()).pathname !== `/api/projects/${projectId}/draft`) return false;
+        let requestBody: {
+          document?: { components?: Array<{ id?: string; kind?: string }> };
+        };
+        try {
+          requestBody = response.request().postDataJSON();
+        } catch {
+          return false;
+        }
+        const requestComponents = requestBody.document?.components ?? [];
+        return (
+          requestComponents.length === expectedObjectCount &&
+          requestComponents.some(
+            (component) =>
+              component.kind === 'resistor' &&
+              typeof component.id === 'string' &&
+              !existingComponentIds.has(component.id),
+          )
+        );
+      },
+      { timeout: 30000 },
+    );
+    const card = (await resistor.boundingBox())!,
+      canvas = (await page.locator('.workbench-canvas').boundingBox())!;
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.65, {
+      steps: 20,
+    });
+    await page.mouse.up();
+    await expect(components).toHaveCount(expectedObjectCount);
+
+    const saveResponse = await savedCurrentChange;
+    const requestBody = saveResponse.request().postDataJSON() as {
+      document: { components: Array<{ id: string; kind: string }> };
+    };
+    const addedResistors = requestBody.document.components.filter(
+      (component) => component.kind === 'resistor' && !existingComponentIds.has(component.id),
+    );
+    expect(addedResistors).toHaveLength(1);
+    addedComponentId = addedResistors[0]!.id;
+    const savedBody = (await saveResponse.json()) as {
+      draft: { document: { components: Array<{ id: string; kind: string }> } };
+    };
+    expect(savedBody.draft.document.components).toHaveLength(expectedObjectCount);
+    expect(savedBody.draft.document.components).toContainEqual(
+      expect.objectContaining({ id: addedComponentId, kind: 'resistor' }),
+    );
+  }
+
+  await page.reload();
+  if (module === 'electronics') {
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+    expect(courseActivityProjectId(page, module)).toBe(projectId);
+    await expect(
+      page.locator(
+        `[data-testid="schematic-component"][data-component-id="${addedComponentId}"][data-kind="resistor"]`,
+      ),
+    ).toBeVisible();
+  } else {
+    await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true');
+    expect(courseActivityProjectId(page, module)).toBe(projectId);
+    await expect(page.locator('.asa3d-object-count')).toContainText(
+      new RegExp(`^${expectedObjectCount} `),
+    );
+  }
+  return { projectId, expectedObjectCount, ...(addedComponentId ? { addedComponentId } : {}) };
+}
+
 test.use({ actionTimeout: 12000 });
 
 test('author-only content keeps exact ID and versions after teaching activation; graded scale and mute are usable', async ({
@@ -333,15 +458,15 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-async function createPublishedProjectActivity(
+async function createPublishedProjectActivityAfterLogin(
   page: Page,
   title: string,
   module = 'electronics',
   resultMode = 'completion',
-  actor = teacher,
 ): Promise<void> {
-  await loginWithOrganization(page, actor);
   await page.goto('/#/challenges');
+  const newMaterial = page.getByRole('button', { name: 'Новый материал', exact: true });
+  if (await newMaterial.isVisible()) await newMaterial.click();
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page
     .getByLabel('Содержание', { exact: true })
@@ -353,6 +478,17 @@ async function createPublishedProjectActivity(
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
+}
+
+async function createPublishedProjectActivity(
+  page: Page,
+  title: string,
+  module = 'electronics',
+  resultMode = 'completion',
+  actor = teacher,
+): Promise<void> {
+  await loginWithOrganization(page, actor);
+  await createPublishedProjectActivityAfterLogin(page, title, module, resultMode);
 }
 
 test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and exact join approval', async ({
@@ -1332,3 +1468,230 @@ for (const module of ['electronics', 'three-d'])
     });
     await context.close();
   });
+
+test('Course Activity blocks preserve mixed order and open exact Electronics and 3D runtimes', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const suffix = ++sequence;
+  const electronicsTitle = `D5 Electronics Activity ${suffix}`;
+  const threeDTitle = `D5 3D Activity ${suffix}`;
+  const courseTitle = `D5 Activity blocks ${suffix}`;
+
+  const d5Teacher = await seedTeacher(admin, 'learning-course01-d5');
+  await loginWithOrganization(page, d5Teacher);
+  await createPublishedProjectActivityAfterLogin(page, electronicsTitle, 'electronics');
+  await createPublishedProjectActivityAfterLogin(page, threeDTitle, 'three-d');
+
+  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = page.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(courseTitle);
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+
+  const editor = page.getByTestId('course-editor');
+  await editor
+    .locator('.course-outline')
+    .getByRole('button', { name: '+ Урок', exact: true })
+    .click();
+  await editor.getByLabel('Название урока').fill('Смешанная практика');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Перед Electronics');
+
+  await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
+  await editor
+    .getByLabel('Опубликованная активность')
+    .nth(0)
+    .selectOption({ label: electronicsTitle });
+
+  await editor.getByRole('button', { name: '+ Врезка', exact: true }).click();
+  await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');
+
+  await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
+  await editor.getByLabel('Опубликованная активность').nth(1).selectOption({ label: threeDTitle });
+
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+
+  await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+  const preview = page.getByTestId('course-preview-page');
+  const previewBlocks = preview.locator('.lesson-blocks').first().locator(':scope > *');
+  await expect(previewBlocks).toHaveCount(4);
+  await expect(previewBlocks.nth(0)).toContainText('Перед Electronics');
+  await expect(previewBlocks.nth(1)).toContainText('Практика');
+  await expect(previewBlocks.nth(2)).toContainText('Между двумя практиками');
+  await expect(previewBlocks.nth(3)).toContainText('Практика');
+  await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
+
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+
+  const joinCode = await createClassWithStudents(page, 'D5 Activity class ' + suffix, [
+    { label: 'D5 learner', handle: 'd5-activity-' + suffix },
+  ]);
+  await page
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Обучение', exact: true })
+    .click();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
+  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+
+  const learner = await learnerAssignments(browser, joinCode, 'd5-activity-' + suffix);
+  const learnerFailures = collectBrowserFailures(learner.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+
+  type D5CourseRunRead = {
+    id: string;
+    title: string;
+    sections: Array<{
+      lessons: Array<{
+        activityOccurrences: Array<{
+          title: string;
+          projectId: string | null;
+          canonicalState: { workflowState: string } | null;
+        }>;
+      }>;
+    }>;
+  };
+  function occurrenceFromCourseRun(run: D5CourseRunRead, title: string) {
+    const occurrences = run.sections
+      .flatMap((section) => section.lessons)
+      .flatMap((lesson) => lesson.activityOccurrences)
+      .filter((occurrence) => occurrence.title === title);
+    expect(occurrences).toHaveLength(1);
+    return occurrences[0]!;
+  }
+
+  let courseRunId: string | null = null;
+  async function openCourse(): Promise<D5CourseRunRead> {
+    const response = await learner.page.request.get('/api/class-join/me/course-runs');
+    expect(response.ok()).toBe(true);
+    const payload = (await response.json()) as { items: D5CourseRunRead[] };
+    const matchingRuns = payload.items.filter((run) => run.title === courseTitle);
+    expect(matchingRuns).toHaveLength(1);
+    const run = matchingRuns[0]!;
+    if (courseRunId === null) courseRunId = run.id;
+    expect(run.id).toBe(courseRunId);
+    await learner.page.goto('/#/learning?courseRun=' + encodeURIComponent(courseRunId));
+    await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
+    return run;
+  }
+
+  await openCourse();
+  const player = learner.page.getByTestId('seat-course-player');
+  const learnerBlocks = player.locator('.lesson-blocks').first().locator(':scope > *');
+  await expect(learnerBlocks).toHaveCount(4);
+  await expect(learnerBlocks.nth(0)).toContainText('Перед Electronics');
+  await expect(learnerBlocks.nth(1)).toContainText(electronicsTitle);
+  await expect(learnerBlocks.nth(2)).toContainText('Между двумя практиками');
+  await expect(learnerBlocks.nth(3)).toContainText(threeDTitle);
+
+  let electronicsCard = player
+    .locator('.lesson-activity-block')
+    .filter({ hasText: electronicsTitle });
+  let threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText('Electronics');
+  await expect(electronicsCard).toContainText('Не начато');
+  await expect(threeDCard).toContainText('3D');
+  await expect(threeDCard).toContainText('Не начато');
+
+  await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  const electronicsEvidence = await editCourseActivityProject(learner.page, 'electronics');
+  expect(electronicsEvidence.projectId).not.toBe('');
+  expect(electronicsEvidence.addedComponentId).toBeTruthy();
+
+  await openCourse();
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(
+    electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }),
+  ).toBeVisible();
+  await expect(threeDCard).toContainText('Не начато');
+  await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
+
+  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(electronicsEvidence.projectId);
+  await expect(
+    learner.page.locator(
+      `[data-testid="schematic-component"][data-component-id="${electronicsEvidence.addedComponentId}"][data-kind="resistor"]`,
+    ),
+  ).toBeVisible();
+
+  await openCourse();
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  learner.page.once('dialog', (dialog) => void dialog.accept());
+  await electronicsCard.getByRole('button', { name: 'Сдать', exact: true }).click();
+  await expect(
+    electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
+  ).toBeDisabled();
+
+  const afterElectronicsSubmit = await openCourse();
+  const submittedElectronics = occurrenceFromCourseRun(afterElectronicsSubmit, electronicsTitle);
+  const untouchedThreeD = occurrenceFromCourseRun(afterElectronicsSubmit, threeDTitle);
+  expect(submittedElectronics.projectId).toBe(electronicsEvidence.projectId);
+  expect(submittedElectronics.canonicalState?.workflowState).toBe('submitted');
+  expect(untouchedThreeD.projectId).toBeNull();
+  expect(untouchedThreeD.canonicalState?.workflowState).toBe('not_started');
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText('Сдано');
+  await expect(threeDCard).toContainText('Не начато');
+  await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
+  await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  const threeDEvidence = await editCourseActivityProject(learner.page, 'three-d');
+  expect(threeDEvidence.projectId).not.toBe('');
+  expect(threeDEvidence.projectId).not.toBe(electronicsEvidence.projectId);
+
+  const afterThreeDStart = await openCourse();
+  const electronicsAfterThreeD = occurrenceFromCourseRun(afterThreeDStart, electronicsTitle);
+  const startedThreeD = occurrenceFromCourseRun(afterThreeDStart, threeDTitle);
+  expect(electronicsAfterThreeD.projectId).toBe(electronicsEvidence.projectId);
+  expect(electronicsAfterThreeD.canonicalState?.workflowState).toBe('submitted');
+  expect(startedThreeD.projectId).toBe(threeDEvidence.projectId);
+  expect(startedThreeD.projectId).not.toBe(electronicsAfterThreeD.projectId);
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText('Сдано');
+  await expect(
+    electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
+  ).toBeDisabled();
+  await expect(
+    threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }),
+  ).toBeVisible();
+
+  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(electronicsEvidence.projectId);
+  await expect(
+    learner.page.locator(
+      `[data-testid="schematic-component"][data-component-id="${electronicsEvidence.addedComponentId}"][data-kind="resistor"]`,
+    ),
+  ).toBeVisible();
+
+  await openCourse();
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60_000 });
+  await expect(learner.page.getByTestId('asa3d-viewport')).toHaveAttribute(
+    'data-runtime-ready',
+    'true',
+  );
+  expect(courseActivityProjectId(learner.page, 'three-d')).toBe(threeDEvidence.projectId);
+  await expect(learner.page.locator('.asa3d-object-count')).toContainText(
+    new RegExp(`^${threeDEvidence.expectedObjectCount} `),
+  );
+
+  learnerFailures.assertEmpty();
+  await learner.context.close();
+});
