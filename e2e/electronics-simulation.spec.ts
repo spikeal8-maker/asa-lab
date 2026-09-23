@@ -3182,7 +3182,14 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       };
 
       await page.mouse.click(sourcePoint.x, sourcePoint.y);
-      await expect(page.locator('.workbench-wire-preview')).toBeVisible();
+      const pendingPreview = page.locator('.workbench-wire-preview');
+      await expect(pendingPreview).toHaveCount(1);
+      await page.mouse.move(bendPoint.x, bendPoint.y);
+      await expect
+        .poll(() =>
+          pendingPreview.evaluate((element) => (element as SVGPathElement).getTotalLength()),
+        )
+        .toBeGreaterThan(1);
       await page.mouse.click(bendPoint.x, bendPoint.y);
       await page.mouse.click(targetPoint.x, targetPoint.y);
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
@@ -3194,7 +3201,7 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await expect(colourButtons).toHaveCount(6);
       const wire = page.getByTestId('schematic-wire');
       const originalColour = await wire.getAttribute('stroke');
-      await colourButtons.locator(':not(.active)').first().click();
+      await wirePanel.locator('.workbench-wire-swatches button:not(.active)').first().click();
       await expect.poll(() => wire.getAttribute('stroke')).not.toBe(originalColour);
 
       const vertex = page.getByTestId('wire-vertex').first();
@@ -3212,6 +3219,63 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await expect.poll(() => wire.getAttribute('d')).not.toBe(originalPath);
       await page.getByRole('button', { name: /Отменить/ }).click();
       await expect.poll(() => wire.getAttribute('d')).toBe(originalPath);
+      await page.getByRole('button', { name: /Повторить/ }).click();
+      await expect.poll(() => wire.getAttribute('d')).not.toBe(originalPath);
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await expect.poll(() => wire.getAttribute('d')).toBe(originalPath);
+
+      const selectWire = async () => {
+        const point = await page
+          .getByTestId('wire-hit')
+          .first()
+          .evaluate((element) => {
+            const path = element as SVGPathElement;
+            const screen = path
+              .getPointAtLength(path.getTotalLength() * 0.25)
+              .matrixTransform(path.getScreenCTM()!);
+            return { x: screen.x, y: screen.y };
+          });
+        await page.mouse.click(point.x, point.y);
+        await expect(wirePanel).toBeVisible();
+      };
+      await selectWire();
+      await wirePanel.getByRole('button', { name: 'Выпрямить провод', exact: true }).click();
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await selectWire();
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      await wirePanel.getByRole('button', { name: 'Удалить провод', exact: true }).click();
+      await expect(wire).toHaveCount(0);
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await selectWire();
+      await expect(wire).toHaveCount(1);
+      for (const [end, componentType, terminal] of [
+        ['from', 'battery-holder-aa-2', 'BAT-'],
+        ['to', 'led-5mm', 'cathode'],
+      ] as const) {
+        const handle = page.locator(`[data-testid="wire-endpoint"][data-wire-endpoint="${end}"]`);
+        const destination = component(page, componentType).locator(
+          `[data-terminal-id="${terminal}"]`,
+        );
+        const before = await handle.boundingBox();
+        const target = await destination.boundingBox();
+        if (!before || !target) throw new Error('Missing visible reconnect geometry');
+        await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, {
+          steps: 12,
+        });
+        await expect(destination.locator('..')).toHaveClass(/drop-target/);
+        await page.mouse.up();
+        const after = await handle.boundingBox();
+        if (!after) throw new Error('Missing reconnected endpoint');
+        expect(
+          Math.hypot(
+            after.x + after.width / 2 - target.x - target.width / 2,
+            after.y + after.height / 2 - target.y - target.height / 2,
+          ),
+        ).toBeLessThanOrEqual(0.5);
+      }
 
       await expect(page.locator('.workbench-main')).toHaveAttribute(
         'data-project-save-status',
@@ -3229,8 +3293,8 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
         return savedWire;
       };
       const beforeReload = await readSavedWire();
-      expect(beforeReload.from).toEqual({ componentId: 'source', terminal: 'BAT+' });
-      expect(beforeReload.to).toEqual({ componentId: 'led', terminal: 'anode' });
+      expect(beforeReload.from).toEqual({ componentId: 'source', terminal: 'BAT-' });
+      expect(beforeReload.to).toEqual({ componentId: 'led', terminal: 'cathode' });
       expect(beforeReload.vertices).toHaveLength(1);
       expect(beforeReload.color).toBe(await wire.getAttribute('stroke'));
       await page.screenshot({
@@ -3266,8 +3330,16 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
         fullPage: true,
       });
 
-      const exactHead = process.env['ASA_BUILD_REVISION'] ?? process.env['GITHUB_SHA'] ?? 'UNSET';
-      if (process.env['CI'] === 'true') expect(exactHead).not.toBe('UNSET');
+      failures.assertEmpty();
+      const metadataResponse = await page.context().request.get('/build-metadata.json');
+      expect(metadataResponse.ok()).toBe(true);
+      const build = (await metadataResponse.json()) as { revision: string; builtAt: string };
+      const exactHead = build.revision;
+      expect(exactHead).toMatch(/^[0-9a-f]{40}$/);
+      const requestedHead = process.env['ASA_BUILD_REVISION'] ?? process.env['GITHUB_SHA'];
+      if (requestedHead && /^[0-9a-f]{40}$/.test(requestedHead)) {
+        expect(exactHead).toBe(requestedHead);
+      }
       mkdirSync('reports', { recursive: true });
       writeFileSync(
         'reports/electronics-ux-repair-evidence.json',
@@ -3277,7 +3349,11 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
             issue: 377,
             pr: 378,
             exactHead,
+            build,
+            persistenceStatus: 'passed',
+            aggregateStatusSource: 'Complete Playwright run; image paths alone are not acceptance',
             browser: 'chromium',
+            browserVersion: page.context().browser()?.version(),
             os: process.platform,
             evidence: {
               R1: [

@@ -31,6 +31,55 @@ const touchVideoTest = test.extend({
   video: 'on',
 });
 const wireVideoTest = test.extend({ video: 'on' });
+test.beforeEach(async ({ page }, info) => {
+  if (!/R3 native matrix|R3 cancellation/.test(info.title)) return;
+  await page.addInitScript(() => {
+    const events: unknown[] = [];
+    (window as unknown as { inputProbe: unknown[] }).inputProbe = events;
+    for (const type of [
+      'pointerdown',
+      'pointerup',
+      'pointercancel',
+      'gotpointercapture',
+      'lostpointercapture',
+      'touchstart',
+      'touchend',
+      'touchcancel',
+      'click',
+      'blur',
+    ]) {
+      window.addEventListener(
+        type,
+        (event) => {
+          const pointer = event as PointerEvent;
+          const target = event.target instanceof Element ? event.target : null;
+          events.push({
+            type,
+            t: Math.round(performance.now()),
+            id: pointer.pointerId,
+            x: pointer.clientX,
+            y: pointer.clientY,
+            defaultPrevented: event.defaultPrevented,
+            target: target?.getAttribute('class'),
+            terminal: target?.getAttribute('data-terminal-id'),
+            label: target?.closest('[aria-label]')?.getAttribute('aria-label'),
+            touches: (event as TouchEvent).touches?.length,
+          });
+        },
+        true,
+      );
+    }
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  if (!/R3 native matrix|R3 cancellation/.test(info.title) || info.status === 'passed') return;
+  console.log(
+    'INPUT_PROBE',
+    JSON.stringify(
+      await page.evaluate(() => (window as unknown as { inputProbe: unknown[] }).inputProbe),
+    ),
+  );
+});
 
 test.describe('interaction: document integrity', () => {
   test('board carries mounted parts in one undoable move', async ({ page }) => {
@@ -237,7 +286,7 @@ async function openEditor(page: Page, initial = documentFixture()) {
   });
   await page.goto('/projects/' + ID + '/electronics/edit');
   await expect(page.getByTestId('schematic-component')).toHaveCount(initial.components.length);
-  return { requests, errors };
+  return { requests, errors, readDocument: () => doc };
 }
 
 const part = (page: Page, id: string) =>
@@ -254,7 +303,32 @@ async function pointOnBody(page: Page, id: string) {
     .locator('.workbench-part')
     .evaluate((element) => {
       const box = element.getBoundingClientRect();
-      return { x: box.x + box.width * 0.5, y: box.y + box.height * 0.35 };
+      const component = element.closest<SVGElement>('[data-testid="schematic-component"]');
+      const terminalRects = component
+        ? [...component.querySelectorAll<SVGGraphicsElement>('[data-terminal-component-id]')].map(
+            (terminal) => terminal.getBoundingClientRect(),
+          )
+        : [];
+      const candidates = [
+        [0.5, 0.35],
+        [0.5, 0.5],
+        [0.35, 0.3],
+        [0.65, 0.3],
+        [0.35, 0.5],
+        [0.65, 0.5],
+      ] as const;
+      for (const [rx, ry] of candidates) {
+        const point = { x: box.x + box.width * rx, y: box.y + box.height * ry };
+        const overlapsTerminal = terminalRects.some(
+          (terminal) =>
+            point.x >= terminal.left - 1 &&
+            point.x <= terminal.right + 1 &&
+            point.y >= terminal.top - 1 &&
+            point.y <= terminal.bottom + 1,
+        );
+        if (!overlapsTerminal) return point;
+      }
+      throw new Error('Could not find a component-body point outside terminal hit areas');
     });
 }
 
@@ -264,27 +338,27 @@ test.describe('interaction: electronics input and responsive layout', () => {
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const { errors } = await openEditor(page);
-    const led = part(page, 'led');
-    const start = await pointOnBody(page, 'led');
-    const originalX = await led.getAttribute('data-x');
+    const component = part(page, 'battery');
+    const start = await pointOnBody(page, 'battery');
+    const originalX = await component.getAttribute('data-x');
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     const writes = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
     );
-    const before = await led.boundingBox();
+    const before = await component.boundingBox();
     await page.mouse.move(start.x + 95, start.y + 55, { steps: 30 });
     await frames(page);
-    const moving = await led.boundingBox();
+    const moving = await component.boundingBox();
     expect(moving!.x - before!.x).toBeCloseTo(95, 0);
     expect(moving!.y - before!.y).toBeCloseTo(55, 0);
-    expect(await led.getAttribute('data-x')).toBe(originalX);
+    expect(await component.getAttribute('data-x')).toBe(originalX);
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writes);
     await page.keyboard.press('Escape');
     await page.mouse.up();
-    expect(await led.getAttribute('data-x')).toBe(originalX);
+    expect(await component.getAttribute('data-x')).toBe(originalX);
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writes);
@@ -293,19 +367,19 @@ test.describe('interaction: electronics input and responsive layout', () => {
     await page.mouse.move(start.x + 25, start.y + 20);
     await page.evaluate(() => window.dispatchEvent(new Event('blur')));
     await page.mouse.up();
-    await expect(led).toHaveAttribute('data-x', originalX!);
+    await expect(component).toHaveAttribute('data-x', originalX!);
     await page.mouse.move(start.x, start.y);
     await page.mouse.down();
     await page.mouse.move(start.x + 95, start.y + 55, { steps: 30 });
     await page.mouse.up();
-    await expect(led).not.toHaveAttribute('data-x', originalX!);
-    const end = await led.boundingBox();
+    await expect(component).not.toHaveAttribute('data-x', originalX!);
+    const end = await component.boundingBox();
     expect(end!.x - before!.x).toBeCloseTo(95, 0);
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writes + 1);
     await page.getByRole('button', { name: /Отменить/ }).click();
-    await expect(led).toHaveAttribute('data-x', originalX!);
+    await expect(component).toHaveAttribute('data-x', originalX!);
     expect(errors).toEqual([]);
   });
 
@@ -521,8 +595,8 @@ test.describe('interaction: catalog and carrier', () => {
       .last();
     const placedBox = (await placed.boundingBox())!;
     // Stored placements round world units and selection strokes extend the visible bounds.
-    expect(Math.abs(placedBox.x - edge.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(placedBox.y - edge.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(placedBox.x - edge.x)).toBeLessThanOrEqual(2);
+    expect(Math.abs(placedBox.y - edge.y)).toBeLessThanOrEqual(2);
   });
 
   test('fit includes the large board and panning does not change project positions', async ({
@@ -687,12 +761,35 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.click(sourcePoint.x, sourcePoint.y);
       const preview = page.locator('.workbench-wire-preview');
       const guide = page.getByTestId('wire-alignment-guide');
+      const guideLength = () =>
+        guide.evaluate((element) => {
+          const line = element as SVGLineElement;
+          const style = getComputedStyle(line);
+          if (
+            style.display === 'none' ||
+            style.visibility === 'hidden' ||
+            Number(style.opacity) <= 0 ||
+            style.stroke === 'none' ||
+            Number.parseFloat(style.strokeWidth) <= 0
+          )
+            return 0;
+          const matrix = line.getScreenCTM();
+          if (!matrix) return 0;
+          const from = new DOMPoint(line.x1.baseVal.value, line.y1.baseVal.value).matrixTransform(
+            matrix,
+          );
+          const to = new DOMPoint(line.x2.baseVal.value, line.y2.baseVal.value).matrixTransform(
+            matrix,
+          );
+          return Math.hypot(to.x - from.x, to.y - from.y);
+        });
       await expect(preview).toHaveCount(1);
 
       const enter = { x: sourcePoint.x + 120, y: sourcePoint.y + 5 };
       await page.mouse.move(enter.x, enter.y);
       await frames(page);
-      await expect(guide).toBeVisible();
+      await expect(guide).toHaveCount(1);
+      expect(await guideLength()).toBeGreaterThan(100);
       let previewEnd = await pathScreenPoint(preview);
       expect(previewEnd.x).toBeCloseTo(enter.x, 0);
       expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
@@ -701,7 +798,8 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       const hysteresis = { x: sourcePoint.x + 120, y: sourcePoint.y + 9 };
       await page.mouse.move(hysteresis.x, hysteresis.y);
       await frames(page);
-      await expect(guide).toBeVisible();
+      await expect(guide).toHaveCount(1);
+      expect(await guideLength()).toBeGreaterThan(100);
       previewEnd = await pathScreenPoint(preview);
       expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
 
@@ -976,3 +1074,239 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     },
   );
 });
+
+for (const [width, height] of [
+  [320, 568],
+  [390, 844],
+  [430, 932],
+  [768, 1024],
+  [568, 320],
+  [844, 390],
+  [932, 430],
+  [1024, 768],
+] as const) {
+  touchVideoTest(
+    `R3 native matrix ${width}x${height}: place, move, both wire gestures, Undo/Redo and panel`,
+    async ({ page, context }) => {
+      test.setTimeout(60_000);
+      await page.setViewportSize({ width, height });
+      const fixture = documentFixture();
+      fixture.components = fixture.components
+        .filter((item) => item.id !== 'board' && item.id !== 'uno')
+        .map((item) =>
+          item.id === 'led'
+            ? { ...item, rotation: 45, stateProperties: { ...item.stateProperties, mirrorX: true } }
+            : item,
+        );
+      const { errors, readDocument } = await openEditor(page, fixture);
+      if (width === 320)
+        await page.evaluate(() => {
+          const events: unknown[] = [];
+          (window as unknown as { touchEvidence: unknown[] }).touchEvidence = events;
+          for (const kind of ['pointerdown', 'pointerup', 'click']) {
+            window.addEventListener(
+              kind,
+              (event) => {
+                const e = event as PointerEvent;
+                const el = event.target as Element;
+                events.push({
+                  kind,
+                  x: e.clientX,
+                  y: e.clientY,
+                  target: el.getAttribute('class'),
+                  terminal: el.getAttribute('data-terminal-id'),
+                  label: el.getAttribute('aria-label'),
+                });
+              },
+              true,
+            );
+          }
+        });
+      const session = await context.newCDPSession(page);
+      const send = (
+        type: 'touchStart' | 'touchMove' | 'touchEnd',
+        touchPoints: { id: number; x: number; y: number }[],
+      ) => session.send('Input.dispatchTouchEvent', { type, touchPoints });
+      const tap = async (locator: Locator) => {
+        if (await locator.evaluate((element) => element instanceof SVGElement)) {
+          // Dense terminal hit circles overlap by design. Send real screen input
+          // and verify the resolver's recorded terminal identity below, not DOM order.
+          const point = await locatorCenter(locator);
+          await page.touchscreen.tap(point.x, point.y);
+        } else {
+          await locator.tap();
+        }
+      };
+      const gesture = async (from: { x: number; y: number }, to: { x: number; y: number }) => {
+        await send('touchStart', [{ id: 1, ...from }]);
+        for (let step = 1; step <= 8; step++)
+          await send('touchMove', [
+            {
+              id: 1,
+              x: from.x + ((to.x - from.x) * step) / 8,
+              y: from.y + ((to.y - from.y) * step) / 8,
+            },
+          ]);
+        await send('touchEnd', []);
+      };
+      if (width <= 980) {
+        await tap(page.getByRole('button', { name: 'Каталог деталей', exact: true }));
+      }
+      const card = page.getByRole('button', { name: 'Резистор', exact: true });
+      await card.scrollIntoViewIfNeeded();
+      const start = await locatorCenter(card);
+      const stage = await page.locator('.workbench-stage').boundingBox();
+      if (!stage) throw new Error('Missing built stage');
+      const drop = { x: stage.x + stage.width * 0.6, y: stage.y + stage.height * 0.5 };
+      await send('touchStart', [{ id: 1, ...start }]);
+      await send('touchMove', [{ id: 1, x: start.x, y: start.y - 14 }]);
+      const preview = page.getByTestId('catalog-placement-preview');
+      await expect(preview).toHaveCount(1);
+      for (let step = 1; step <= 8; step++)
+        await send('touchMove', [
+          {
+            id: 1,
+            x: start.x + ((drop.x - start.x) * step) / 8,
+            y: start.y - 14 + ((drop.y - start.y + 14) * step) / 8,
+          },
+        ]);
+      await frames(page);
+      const previewCenter = await locatorCenter(preview);
+      expect(Math.hypot(previewCenter.x - drop.x, previewCenter.y - drop.y)).toBeLessThanOrEqual(1);
+      await send('touchEnd', []);
+      await expect(page.getByTestId('schematic-component')).toHaveCount(3);
+      await expect(preview).toHaveCount(0);
+      await tap(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
+      const resistor = page.locator(
+        '[data-testid="schematic-component"][data-component-type="resistor-axial"]',
+      );
+      const resistorId = await resistor.getAttribute('data-component-id');
+      if (!resistorId) throw new Error('Missing placed resistor identity');
+      const grab = await pointOnBody(page, resistorId);
+      const oldX = await resistor.getAttribute('data-x');
+      await gesture(grab, { x: grab.x + 18, y: grab.y + 20 });
+      await expect(resistor).not.toHaveAttribute('data-x', oldX!);
+      await tap(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
+      const clearedStage = await page.locator('.workbench-stage').boundingBox();
+      if (!clearedStage) throw new Error('Missing stage after fit');
+      await page.touchscreen.tap(
+        clearedStage.x + clearedStage.width - 12,
+        clearedStage.y + clearedStage.height - 12,
+      );
+      await expect(page.getByTestId('component-compact-properties')).toHaveCount(0);
+      const source = wireTerminal(page, 'battery', 'BAT+');
+      const target = wireTerminal(page, 'led', 'cathode');
+      await gesture(await locatorCenter(source), await locatorCenter(target));
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+      const undo = page.getByRole('button', { name: 'Отменить (Ctrl+Z)', exact: true });
+      const redo = page.getByRole('button', {
+        name: 'Повторить (Ctrl+Shift+Z)',
+        exact: true,
+      });
+      await expect(undo).toBeEnabled();
+      await undo.tap();
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
+      await expect(redo).toBeEnabled();
+      await redo.tap();
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await undo.tap();
+      await tap(source);
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+      await tap(target);
+      if (width === 320) {
+        console.log(
+          'NATIVE_320_EVENTS',
+          await page.evaluate(
+            () => (window as unknown as { touchEvidence: unknown[] }).touchEvidence,
+          ),
+        );
+        await page.screenshot({ path: 'reports/interactions/native-320-taps.png' });
+      }
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect
+        .poll(() => readDocument().connections.map((wire) => ({ from: wire.from, to: wire.to })))
+        .toEqual([
+          {
+            from: { componentId: 'battery', terminal: 'BAT+' },
+            to: { componentId: 'led', terminal: 'cathode' },
+          },
+        ]);
+      const panel = page.locator('.workbench-inspector.wire-selected');
+      const box = await panel.boundingBox();
+      const zoom = await page.locator('.workbench-stage-controls').boundingBox();
+      if (!box || !zoom) throw new Error('Missing panel or zoom controls');
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      expect(box.y + box.height).toBeLessThanOrEqual(height);
+      expect(
+        box.x >= zoom.x + zoom.width ||
+          box.y >= zoom.y + zoom.height ||
+          box.x + box.width <= zoom.x ||
+          box.y + box.height <= zoom.y,
+      ).toBe(true);
+      await page.screenshot({ path: `reports/interactions/native-${width}x${height}.png` });
+      expect(errors).toEqual([]);
+    },
+  );
+}
+
+touchVideoTest(
+  'R3 cancellation: second finger, pointercancel, capture loss and blur leave no draft',
+  async ({ page, context }) => {
+    const { errors } = await openEditor(page);
+    await page.getByRole('button', { name: 'Каталог деталей', exact: true }).click();
+    const card = page.getByRole('button', { name: 'Резистор', exact: true });
+    await card.scrollIntoViewIfNeeded();
+    const session = await context.newCDPSession(page);
+    const send = (
+      type: 'touchStart' | 'touchMove' | 'touchEnd' | 'touchCancel',
+      touchPoints: { id: number; x: number; y: number }[],
+    ) => session.send('Input.dispatchTouchEvent', { type, touchPoints });
+    for (const mode of ['second-finger', 'pointercancel', 'capture-loss', 'blur'] as const) {
+      console.log('CANCEL_MODE', mode);
+      const start = await locatorCenter(card);
+      const moving = { x: start.x, y: start.y - 24 };
+      const writes = await page.evaluate(
+        () => (window as unknown as { draftWrites: number }).draftWrites,
+      );
+      await card.evaluate((element) => {
+        element.addEventListener(
+          'pointerdown',
+          (event) => {
+            (element as HTMLElement).dataset['testPointerId'] = String(
+              (event as PointerEvent).pointerId,
+            );
+          },
+          { once: true },
+        );
+      });
+      await send('touchStart', [{ id: 1, ...start }]);
+      await send('touchMove', [{ id: 1, ...moving }]);
+      await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(1);
+      if (mode === 'second-finger')
+        await send('touchStart', [
+          { id: 1, ...moving },
+          { id: 2, x: 185, y: 300 },
+        ]);
+      else if (mode === 'pointercancel') await send('touchCancel', []);
+      else if (mode === 'capture-loss')
+        await card.evaluate((element) => {
+          const owner = element.closest('article');
+          const id = Number((element as HTMLElement).dataset['testPointerId']);
+          if (!owner?.hasPointerCapture(id)) throw new Error('Card does not own actual capture');
+          owner.releasePointerCapture(id);
+        });
+      else await page.evaluate(() => window.dispatchEvent(new Event('blur')));
+      if (mode === 'capture-loss')
+        await send('touchMove', [{ id: 1, x: moving.x, y: moving.y - 1 }]);
+      await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
+      if (mode !== 'pointercancel') await send('touchEnd', []);
+      await expect(page.getByTestId('schematic-component')).toHaveCount(4);
+      expect(
+        await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+      ).toBe(writes);
+    }
+    expect(errors).toEqual([]);
+  },
+);

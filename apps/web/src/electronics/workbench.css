@@ -5603,3 +5603,13 @@ html.arduino-palette-resizing * {
     min-height: 44px;
   }
 }
+
+/* On narrow phones the six accessible swatches cannot share a row with
+   the zoom controls. Dock below them, above the closed component shelf. */
+@media (max-width: 360px) {
+  .workbench-inspector.wire-selected,
+  .workbench-inspector.wire-selected.library-hidden {
+    top: auto;
+    bottom: calc(var(--wb-library-closed-height) + 8px);
+  }
+}
