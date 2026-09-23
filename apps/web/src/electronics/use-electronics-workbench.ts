@@ -434,12 +434,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
   const segmentDragRef = useRef<SegmentDrag | null>(null);
-  const lastSegmentPressRef = useRef<{
-    wireId: string;
-    x: number;
-    y: number;
-    at: number;
-  } | null>(null);
   const lastVertexPressRef = useRef<{
     wireId: string;
     vertexIndex: number;
@@ -2231,27 +2225,8 @@ export function useElectronicsWorkbench(projectId: string) {
     segmentIndex: number,
   ): void {
     if (simulationRunning || pendingTerminal || !document) return;
-    const previous = lastSegmentPressRef.current;
-    const repeated =
-      previous?.wireId === wireId &&
-      Date.now() - previous.at <= 420 &&
-      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8;
-    if (event.detail >= 2 || repeated) {
-      lastSegmentPressRef.current = null;
-      segmentDragRef.current = null;
-      const next = insertWireVertex(document, wireId, toWorld(event));
-      if (next !== document) commitDocument(next, 'Точка управления проводом добавлена.');
-      setSelection({ kind: 'wire', id: wireId });
-      event.stopPropagation();
-      event.preventDefault();
-      return;
-    }
-    lastSegmentPressRef.current = {
-      wireId,
-      x: event.clientX,
-      y: event.clientY,
-      at: Date.now(),
-    };
+    // WorkbenchStage is the single arbiter of wire click sequences. Starting
+    // a segment drag must never reinterpret a rejected pair as a double-click.
     segmentDragRef.current = {
       pointerId: event.pointerId,
       wireId,

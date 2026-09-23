@@ -336,7 +336,15 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(stageSource).toContain('c.startSegmentDrag(event, wireId, segmentIndex)');
     expect(stageSource).toContain('c.addWireVertexAt(event, wireId)');
-    expect(controllerModuleSource).toContain('lastSegmentPressRef');
+    expect(controllerModuleSource).not.toContain('lastSegmentPressRef');
+    const segmentStart = controllerModuleSource.slice(
+      controllerModuleSource.indexOf('function startSegmentDrag('),
+      controllerModuleSource.indexOf('function removeWireVertexAt('),
+    );
+    expect(segmentStart).not.toContain('insertWireVertex');
+    expect(stageSource).toContain('pointerSequenceRef');
+    expect(stageSource).toContain('previous.pointerSequence + 1 === pointerSequenceRef.current');
+    expect(stageSource).toContain('previous.mutationEpoch === c.documentMutationEpoch()');
     expect(controllerModuleSource).toContain('lastVertexPressRef');
     expect(controllerModuleSource).toContain('insertWireVertex(document, wireId, toWorld(event))');
     expect(controllerModuleSource).toContain('removeWireVertexAt(wireId, vertexIndex)');

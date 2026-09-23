@@ -201,12 +201,14 @@ export function WorkbenchStage({
     groupId: string;
   } | null>(null);
   const [, setHitMaskRevision] = useState(0);
+  const pointerSequenceRef = useRef(0);
   const lastWireClick = useRef<{
     wireId: string;
     x: number;
     y: number;
     at: number;
     mutationEpoch: number;
+    pointerSequence: number;
   } | null>(null);
   const lastVertexClick = useRef<{
     wireId: string;
@@ -215,6 +217,19 @@ export function WorkbenchStage({
     y: number;
     at: number;
   } | null>(null);
+
+  useEffect(() => {
+    // Count every physical pointer-down in capture order. A wire double-click
+    // is valid only when its two wire presses are adjacent in that global
+    // sequence. Any toolbar, inspector, canvas, or other-pointer press breaks
+    // the pair even if it does not mutate the document.
+    const advancePointerSequence = (): void => {
+      pointerSequenceRef.current += 1;
+    };
+    globalThis.document.addEventListener('pointerdown', advancePointerSequence, true);
+    return () =>
+      globalThis.document.removeEventListener('pointerdown', advancePointerSequence, true);
+  }, []);
 
   function isRepeatedClick(
     previous: { x: number; y: number; at: number } | null,
@@ -252,6 +267,7 @@ export function WorkbenchStage({
     const repeated =
       previous?.wireId === wireId &&
       previous.mutationEpoch === c.documentMutationEpoch() &&
+      previous.pointerSequence + 1 === pointerSequenceRef.current &&
       isRepeatedClick(previous, event);
     if (repeated) {
       lastWireClick.current = null;
@@ -264,6 +280,7 @@ export function WorkbenchStage({
       y: event.clientY,
       at: Date.now(),
       mutationEpoch: c.documentMutationEpoch(),
+      pointerSequence: pointerSequenceRef.current,
     };
     if (segmentIndex === undefined) {
       c.setSelection({ kind: 'wire', id: wireId });

@@ -3226,6 +3226,20 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await page.getByRole('button', { name: /Отменить/ }).click();
       await expect.poll(() => wire.getAttribute('d')).toBe(originalPath);
 
+      await page.evaluate((wireId) => {
+        const times: number[] = [];
+        (window as unknown as { persistenceWireClickTimes: number[] }).persistenceWireClickTimes =
+          times;
+        document.addEventListener(
+          'pointerdown',
+          (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (target?.closest('[data-wire-id]')?.getAttribute('data-wire-id') === wireId)
+              times.push(event.timeStamp);
+          },
+          { capture: true },
+        );
+      }, stableWireId);
       const selectWire = async () => {
         const point = await page
           .getByTestId('wire-hit')
@@ -3266,6 +3280,15 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await selectWire();
       await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
       expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
+      const quickSelectTimes = await page.evaluate(
+        () =>
+          (window as unknown as { persistenceWireClickTimes: number[] }).persistenceWireClickTimes,
+      );
+      expect(quickSelectTimes).toHaveLength(2);
+      const quickReselectGapMs = quickSelectTimes[1]! - quickSelectTimes[0]!;
+      // Persist the observed interval as evidence without coupling this real-API
+      // acceptance to host speed. The focused interaction regression separately
+      // proves the interrupted pair inside the 420 ms double-click window.
       await wirePanel.getByRole('button', { name: 'Удалить провод', exact: true }).click();
       await expect(wire).toHaveCount(0);
       await page.getByRole('button', { name: /Отменить/ }).click();
@@ -3392,6 +3415,10 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
             exactHead,
             build,
             persistenceStatus: 'passed',
+            quickReselectGapMs,
+            wireBeforeReload: beforeReload,
+            wireAfterReload: afterReload,
+            persistenceViewport: page.viewportSize(),
             aggregateStatusSource: 'Complete Playwright run; image paths alone are not acceptance',
             browser: 'chromium',
             browserVersion: page.context().browser()?.version(),

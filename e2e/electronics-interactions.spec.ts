@@ -237,6 +237,50 @@ test.describe('interaction: document integrity', () => {
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writesBeforeReselect);
     await expect(wire).toHaveAttribute('data-wire-id', 'double-click-wire');
+
+    // A non-mutating pointer press between two wire presses must break the
+    // double-click pair. Dispatch all three pointerdowns in one browser task so
+    // the test stays inside the 420 ms product window even under parallel load.
+    const pairPoint = await pointAtQuarter();
+    const writesBeforeFocusPair = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    const interruptedPairDurationMs = await page.evaluate(({ x, y }) => {
+      const wireHit = document.querySelector<SVGPathElement>(
+        '[data-testid="wire-hit"][data-wire-id="double-click-wire"]',
+      );
+      const title = document.querySelector<HTMLInputElement>('.workbench-title-input');
+      if (!wireHit || !title) throw new Error('Wire hit or project title input is missing');
+
+      const press = (target: Element, pointerId: number): void => {
+        target.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: y,
+            pointerId,
+            pointerType: 'mouse',
+            button: 0,
+            buttons: 1,
+          }),
+        );
+      };
+
+      // Break any sequence left by the preceding acceptance steps first.
+      press(title, 71);
+      const startedAt = performance.now();
+      press(wireHit, 72);
+      press(title, 73);
+      press(wireHit, 74);
+      return performance.now() - startedAt;
+    }, pairPoint);
+    expect(interruptedPairDurationMs).toBeLessThan(420);
+    await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+    expect(readDocument().connections[0]?.vertices).toEqual(beforeReselect);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writesBeforeFocusPair);
   });
 });
 
