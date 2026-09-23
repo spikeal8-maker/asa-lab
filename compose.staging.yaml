@@ -20,21 +20,21 @@ services:
       NODE_ENV: production
       APP_DATABASE_URL: ${APP_DATABASE_URL:?set APP_DATABASE_URL in the private staging environment}
       ASA_SETTINGS_ENCRYPTION_KEY: ${ASA_SETTINGS_ENCRYPTION_KEY:?set ASA_SETTINGS_ENCRYPTION_KEY in the private staging environment}
-      ASA_PUBLIC_WEB_ORIGINS: ${ASA_PUBLIC_WEB_ORIGINS:?set the exact staging Web origin}
-      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:?set the exact staging Web origin}}
+      ASA_PUBLIC_WEB_ORIGINS: ${ASA_PUBLIC_WEB_ORIGINS-}
+      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}}
 
   web:
     restart: always
     environment:
-      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:?set the exact staging Web origin}}
+      ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}}
     build:
       args:
-        ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:?set the exact staging Web origin}}
+        ASA_BLOCKS_RUNTIME_ORIGIN: ${ASA_BLOCKS_RUNTIME_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}}
 
   scratch:
     restart: always
     environment:
-      ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:?set the exact staging Web origin}}
+      ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}}
     build:
       args:
-        ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:?set the exact staging Web origin}}
+        ASA_BLOCKS_PARENT_ORIGIN: ${ASA_BLOCKS_PARENT_ORIGIN:-${ASA_PUBLIC_WEB_ORIGINS:-http://127.0.0.1:${ASA_WEB_PORT:-4610}}}

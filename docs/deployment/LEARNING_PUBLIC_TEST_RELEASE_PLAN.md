@@ -63,7 +63,7 @@ browser origin, что и портал. Отдельный публичный ru
 плана отменён; действуют текущие compose, Web config и Scratch runtime contract.
 
 ```dotenv
-ASA_PUBLIC_WEB_ORIGINS=http://127.0.0.1:14620
+ASA_PUBLIC_WEB_ORIGINS=
 ASA_BLOCKS_RUNTIME_ORIGIN=http://127.0.0.1:14620
 ASA_BLOCKS_PARENT_ORIGIN=http://127.0.0.1:14620
 ASA_WEB_PORT=14620
@@ -75,6 +75,13 @@ ASA_SEED_DEV=false
 не пользовательский вход и не публичный сайт. API/БД не входят в scratch-runtime.
 Использовать штатный Dockerfile, upstream pin и патчи. Старый контейнер не
 является новой сборкой, даже если отвечает healthy.
+
+Локальный origin уже вычисляется API из `ASA_WEB_PORT`; его не записывают в
+`ASA_PUBLIC_WEB_ORIGINS`. Этот параметр оставляется пустым для локального стенда
+и принимает только дополнительные не-loopback HTTPS-origin при отдельно
+разрешённой внешней публикации. Guard `origin-policy.ts` не меняется.
+Первый проверочный кандидат выявил ошибку конфигурации: HTTP loopback в этом
+списке закономерно блокировал API; исправление ограничено staging overlay.
 
 ## 4. Сборка, миграции и запуск
 
@@ -100,6 +107,11 @@ docker @dc up -d --no-build api web
 должен подтвердить уникальные identity/volumes/networks, только loopback-порты,
 отсутствие host networking/Docker socket и независимые credentials.
 `ASA_BUILD_REVISION` и уникальные image tags соответствуют `git rev-parse HEAD`.
+
+На совершенно пустой БД read-only `--plan` до первого bootstrap сообщает
+`relation "schema_migrations" does not exist`: таблица учёта ещё не создана.
+Сначала проверить чистоту новой БД и файловый план (`--check`), применить штатный
+migration entrypoint, затем повторить `--plan`. Не создавать ledger ручным SQL.
 
 План берётся из `tools/migrate.mjs`. Для исходного main последняя миграция —
 `0160_course_participation_issued_seat.sql`. Проверить полный упорядоченный состав
