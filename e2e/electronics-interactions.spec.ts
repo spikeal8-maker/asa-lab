@@ -7,13 +7,16 @@ import {
   productionBreadboard,
 } from '../apps/web/src/electronics/production-manifest-adapter';
 import {
+  catalogEntry,
   componentPointPosition,
+  renderedSize,
   terminalPosition,
 } from '../apps/web/src/electronics/component-catalog';
 import {
   addComponentToDocument,
   moveComponentInDocument,
   snapComponentToBreadboard,
+  terminalPositionInDocument,
 } from '../apps/web/src/electronics/workbench-document';
 
 configureProductionLibrary(
@@ -410,10 +413,16 @@ async function pointOnBody(page: Page, id: string) {
     .evaluate((element) => {
       const box = element.getBoundingClientRect();
       const component = element.closest<SVGElement>('[data-testid="schematic-component"]');
-      const terminalRects = component
-        ? [...component.querySelectorAll<SVGGraphicsElement>('[data-terminal-component-id]')].map(
-            (terminal) => terminal.getBoundingClientRect(),
+      const componentId = component?.dataset['componentId'];
+      const terminalOverlay = componentId
+        ? document.querySelector<SVGGElement>(
+            '[data-testid="component-terminal-overlay"][data-component-id="' + componentId + '"]',
           )
+        : null;
+      const terminalRects = terminalOverlay
+        ? [
+            ...terminalOverlay.querySelectorAll<SVGGraphicsElement>('[data-terminal-component-id]'),
+          ].map((terminal) => terminal.getBoundingClientRect())
         : [];
 
       // Pick a point the browser can actually deliver to the component body.
@@ -766,6 +775,68 @@ function wiredDocument(): SchematicDocument {
   return doc;
 }
 
+function componentCenterInDocument(document: SchematicDocument, componentId: string) {
+  const component = document.components.find((item) => item.id === componentId);
+  if (!component) throw new Error('Missing crossing component ' + componentId);
+  const entry = catalogEntry(component);
+  if (!entry) throw new Error('Missing catalog entry for ' + componentId);
+  const size = renderedSize(entry, component.rotation ?? 0);
+  return {
+    x: component.position.x + size.width / 2,
+    y: component.position.y + size.height / 2,
+  };
+}
+
+function layeredCrossingDocument(): SchematicDocument {
+  let document = documentFixture();
+  document = addComponentToDocument(
+    document,
+    'resistor-axial',
+    { x: 720, y: 650 },
+    'cross-resistor',
+  ).document;
+  const crossingVertices = (componentId: string) => {
+    const center = componentCenterInDocument(document, componentId);
+    return [
+      { x: center.x - 80, y: center.y },
+      { x: center.x + 80, y: center.y },
+    ];
+  };
+  return {
+    ...document,
+    connections: [
+      {
+        id: 'uno-cross',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: crossingVertices('uno'),
+        color: '#e3212b',
+      },
+      {
+        id: 'led-cross',
+        from: { componentId: 'battery', terminal: 'BAT-' },
+        to: { componentId: 'led', terminal: 'anode' },
+        vertices: crossingVertices('led'),
+        color: '#149447',
+      },
+      {
+        id: 'resistor-cross',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT-' },
+        vertices: crossingVertices('cross-resistor'),
+        color: '#2457d6',
+      },
+      {
+        id: 'board-cross',
+        from: { componentId: 'battery', terminal: 'BAT+' },
+        to: { componentId: 'led', terminal: 'anode' },
+        vertices: crossingVertices('board'),
+        color: '#e38b21',
+      },
+    ],
+  };
+}
+
 wireVideoTest.describe('interaction: natural precise wire routing', () => {
   wireVideoTest(
     'R2 TERMINAL/HIT/ENDPOINT geometry scales at 0.5/1/2/4 and keeps one centre',
@@ -782,7 +853,8 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         dot: number;
         breadboardHit: number;
         breadboardDot: number;
-        endpoint: number;
+        endpointHit: number;
+        endpointVisible: number;
       };
       const samples = new Map<number, Sample>();
       const centerOf = (box: { x: number; y: number; width: number; height: number }) => ({
@@ -818,14 +890,24 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         const breadboardHit = wireTerminal(page, 'board', 'J20');
         const breadboardDot = breadboardHit.locator('..').locator('.workbench-contact-square');
         const endpoint = page.getByTestId('wire-endpoint').first();
-        const [hitBox, dotBox, boardHitBox, boardDotBox, endpointBox] = await Promise.all([
-          componentHit.boundingBox(),
-          componentDot.boundingBox(),
-          breadboardHit.boundingBox(),
-          breadboardDot.boundingBox(),
-          endpoint.boundingBox(),
-        ]);
-        if (!hitBox || !dotBox || !boardHitBox || !boardDotBox || !endpointBox) {
+        const endpointVisible = page.getByTestId('wire-endpoint-visible').first();
+        const [hitBox, dotBox, boardHitBox, boardDotBox, endpointBox, endpointVisibleBox] =
+          await Promise.all([
+            componentHit.boundingBox(),
+            componentDot.boundingBox(),
+            breadboardHit.boundingBox(),
+            breadboardDot.boundingBox(),
+            endpoint.boundingBox(),
+            endpointVisible.boundingBox(),
+          ]);
+        if (
+          !hitBox ||
+          !dotBox ||
+          !boardHitBox ||
+          !boardDotBox ||
+          !endpointBox ||
+          !endpointVisibleBox
+        ) {
           throw new Error(`Expected visible R2 geometry at zoom ${zoom}`);
         }
         const hitCenter = centerOf(hitBox);
@@ -833,6 +915,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         const boardHitCenter = centerOf(boardHitBox);
         const boardDotCenter = centerOf(boardDotBox);
         const endpointCenter = centerOf(endpointBox);
+        const endpointVisibleCenter = centerOf(endpointVisibleBox);
         expect(
           Math.hypot(hitCenter.x - dotCenter.x, hitCenter.y - dotCenter.y),
         ).toBeLessThanOrEqual(0.5);
@@ -842,26 +925,183 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         expect(
           Math.hypot(hitCenter.x - endpointCenter.x, hitCenter.y - endpointCenter.y),
         ).toBeLessThanOrEqual(0.5);
+        expect(
+          Math.hypot(
+            endpointCenter.x - endpointVisibleCenter.x,
+            endpointCenter.y - endpointVisibleCenter.y,
+          ),
+        ).toBeLessThanOrEqual(0.5);
+        expect(Number(await componentHit.getAttribute('r'))).toBe(9);
+        expect(Number(await componentDot.getAttribute('width'))).toBe(8);
+        expect(Number(await endpoint.getAttribute('r'))).toBe(9);
+        expect(Number(await endpointVisible.getAttribute('r'))).toBe(4);
+        expect(dotBox.width).toBeLessThan(hitBox.width);
+        expect(endpointVisibleBox.width).toBeLessThan(endpointBox.width);
 
         samples.set(zoom, {
           hit: hitBox.width,
           dot: dotBox.width,
           breadboardHit: boardHitBox.width,
           breadboardDot: boardDotBox.width,
-          endpoint: endpointBox.width,
+          endpointHit: endpointBox.width,
+          endpointVisible: endpointVisibleBox.width,
         });
-        if (zoom === 4) {
-          await page.screenshot({ path: 'reports/interactions/r2-terminal-scale-4x.png' });
+        if (zoom === 1 || zoom === 2 || zoom === 4) {
+          await page.screenshot({
+            path: 'reports/interactions/f1-marker-zoom-' + zoom + 'x.png',
+          });
         }
       }
 
       const base = samples.get(1)!;
       for (const zoom of [0.5, 1, 2, 4]) {
         const sample = samples.get(zoom)!;
-        for (const key of ['hit', 'dot', 'breadboardHit', 'breadboardDot', 'endpoint'] as const) {
+        for (const key of [
+          'hit',
+          'dot',
+          'breadboardHit',
+          'breadboardDot',
+          'endpointHit',
+          'endpointVisible',
+        ] as const) {
           expect(sample[key] / base[key]).toBeCloseTo(zoom, 1);
         }
       }
+
+      // Prove that the retained collision geometry, not the smaller visible
+      // marker, owns pointer input near its outer edge.
+      await page.keyboard.press('Escape');
+      const edgeTerminal = wireTerminal(page, 'led', 'cathode');
+      const edgeTerminalBox = await edgeTerminal.boundingBox();
+      if (!edgeTerminalBox) throw new Error('Missing terminal hit geometry for edge acceptance');
+      const terminalEdgePoint = {
+        x: edgeTerminalBox.x + edgeTerminalBox.width - 1,
+        y: edgeTerminalBox.y + edgeTerminalBox.height / 2,
+      };
+      await page.mouse.move(terminalEdgePoint.x, terminalEdgePoint.y);
+      await page.mouse.down();
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+      await page.mouse.up();
+      await page.keyboard.press('Escape');
+
+      const edgeWirePoint = await pathScreenPoint(page.getByTestId('wire-hit').first(), 0.5);
+      await page.mouse.click(edgeWirePoint.x, edgeWirePoint.y);
+      const endpointHit = page.getByTestId('wire-endpoint').first();
+      const endpointVisible = page.getByTestId('wire-endpoint-visible').first();
+      const edgeEndpointBox = await endpointHit.boundingBox();
+      if (!edgeEndpointBox) throw new Error('Missing endpoint hit geometry for edge acceptance');
+      const endpointEdgePoint = {
+        x: edgeEndpointBox.x + edgeEndpointBox.width - 1,
+        y: edgeEndpointBox.y + edgeEndpointBox.height / 2,
+      };
+      await page.mouse.move(endpointEdgePoint.x, endpointEdgePoint.y);
+      await page.mouse.down();
+      await frames(page);
+      const movedVisible = await locatorCenter(endpointVisible);
+      expect(
+        Math.hypot(movedVisible.x - endpointEdgePoint.x, movedVisible.y - endpointEdgePoint.y),
+      ).toBeLessThanOrEqual(1);
+      await page.keyboard.press('Escape');
+      await page.mouse.up();
+    },
+  );
+
+  wireVideoTest(
+    'F2 SVG layering keeps wires above breadboard and below Arduino/LED/resistor with matching pointer ownership',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const fixture = layeredCrossingDocument();
+      await openEditor(page, fixture);
+      await page
+        .getByRole('button', {
+          name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
+          exact: true,
+        })
+        .click();
+
+      for (const [componentId, wireId] of [
+        ['uno', 'uno-cross'],
+        ['led', 'led-cross'],
+        ['cross-resistor', 'resistor-cross'],
+      ] as const) {
+        const body = part(page, componentId).locator('.workbench-part');
+        const box = await body.boundingBox();
+        if (!box) throw new Error('Missing foreground body ' + componentId);
+        const crossingWire = page.locator(
+          '[data-testid="wire-hit"][data-wire-id="' + wireId + '"]',
+        );
+        const candidatePoints = await crossingWire.evaluate((element, bounds) => {
+          const path = element as SVGPathElement;
+          const matrix = path.getScreenCTM();
+          if (!matrix) return [];
+          const length = path.getTotalLength();
+          const points: Array<{ x: number; y: number }> = [];
+          for (let index = 1; index < 80; index += 1) {
+            const point = path.getPointAtLength((length * index) / 80).matrixTransform(matrix);
+            if (
+              point.x > bounds.x + 2 &&
+              point.x < bounds.x + bounds.width - 2 &&
+              point.y > bounds.y + 2 &&
+              point.y < bounds.y + bounds.height - 2
+            )
+              points.push({ x: point.x, y: point.y });
+          }
+          return points;
+        }, box);
+        expect(candidatePoints.length).toBeGreaterThan(0);
+
+        let componentOwnedPoint: { x: number; y: number } | null = null;
+        for (const point of candidatePoints) {
+          await page.mouse.click(point.x, point.y);
+          if (
+            await part(page, componentId).evaluate((node) =>
+              node.classList.contains('workbench-component-selected'),
+            )
+          ) {
+            componentOwnedPoint = point;
+            break;
+          }
+          await page.keyboard.press('Escape');
+        }
+        expect(
+          componentOwnedPoint,
+          'wire crossing must resolve pointer ownership to visible ' + componentId + ' artwork',
+        ).not.toBeNull();
+        await expect(page.getByTestId('wire-inspector-compact')).toHaveCount(0);
+        await page.keyboard.press('Escape');
+      }
+
+      const board = part(page, 'board').locator('.workbench-part');
+      const boardBox = await board.boundingBox();
+      if (!boardBox) throw new Error('Missing breadboard body');
+      const boardWire = page.locator('[data-testid="wire-hit"][data-wire-id="board-cross"]');
+      const selectablePoint = await boardWire.evaluate((element, bounds) => {
+        const path = element as SVGPathElement;
+        const matrix = path.getScreenCTM();
+        if (!matrix) return null;
+        const length = path.getTotalLength();
+        for (let index = 1; index < 240; index += 1) {
+          const point = path.getPointAtLength((length * index) / 240).matrixTransform(matrix);
+          if (
+            point.x <= bounds.x + 4 ||
+            point.x >= bounds.x + bounds.width - 4 ||
+            point.y <= bounds.y + 4 ||
+            point.y >= bounds.y + bounds.height - 4
+          )
+            continue;
+          const top = document.elementFromPoint(point.x, point.y);
+          const wireTarget = top?.closest<SVGElement>(
+            '[data-testid="wire-hit"], [data-testid="wire-segment"]',
+          );
+          if (wireTarget?.dataset['wireId'] === 'board-cross') return { x: point.x, y: point.y };
+        }
+        return null;
+      }, boardBox);
+      expect(selectablePoint).not.toBeNull();
+      await page.mouse.click(selectablePoint!.x, selectablePoint!.y);
+      await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+
+      await page.screenshot({ path: 'reports/interactions/f2-scene-layering.png' });
     },
   );
 
@@ -1138,6 +1378,123 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
   );
 
   wireVideoTest(
+    'F3 bend soft-lock enters, holds, exits; Alt stays free; Shift is strict; Undo/Redo restore the bend',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const fixture = wiredDocument();
+      fixture.connections[0] = {
+        ...fixture.connections[0]!,
+        vertices: [{ x: 790, y: 430 }],
+      };
+      const fromComponent = fixture.components.find((item) => item.id === 'led')!;
+      const toComponent = fixture.components.find((item) => item.id === 'battery')!;
+      const previous = terminalPositionInDocument(
+        fixture,
+        fromComponent,
+        fixture.connections[0]!.from.terminal,
+      )!;
+      const next = terminalPositionInDocument(
+        fixture,
+        toComponent,
+        fixture.connections[0]!.to.terminal,
+      )!;
+      const canonical = { x: previous.x, y: next.y };
+      const alternate = { x: next.x, y: previous.y };
+      const { readDocument } = await openEditor(page, fixture);
+      await page
+        .getByRole('button', {
+          name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
+          exact: true,
+        })
+        .click();
+
+      const wireHit = page.getByTestId('wire-hit').first();
+      const selectPoint = await pathScreenPoint(wireHit, 0.5);
+      await page.mouse.click(selectPoint.x, selectPoint.y);
+      const vertex = page.getByTestId('wire-vertex').first();
+      await expect(vertex).toBeVisible();
+      const guide = page.getByTestId('wire-alignment-guide');
+      const previousClient = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
+      const nextClient = await locatorCenter(wireTerminal(page, 'battery', 'BAT+'));
+      const canonicalClient = { x: previousClient.x, y: nextClient.y };
+
+      const resetByUndo = async () => {
+        await page
+          .getByRole('button', { name: /\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c/ })
+          .click();
+        await expect
+          .poll(() => readDocument().connections[0]?.vertices?.[0])
+          .toEqual({ x: 790, y: 430 });
+      };
+
+      let start = await locatorCenter(vertex);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(canonicalClient.x + 5, canonicalClient.y + 3);
+      await frames(page);
+      await expect(guide).toHaveCount(1);
+      await page.mouse.move(canonicalClient.x + 10, canonicalClient.y);
+      await frames(page);
+      await expect(guide).toHaveCount(1);
+      await page.mouse.up();
+      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).toEqual(canonical);
+      await page.screenshot({ path: 'reports/interactions/f3-bend-soft-lock.png' });
+      await resetByUndo();
+      await page
+        .getByRole('button', { name: /\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c/ })
+        .click();
+      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).toEqual(canonical);
+      await resetByUndo();
+
+      start = await locatorCenter(vertex);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(canonicalClient.x + 5, canonicalClient.y + 3);
+      await frames(page);
+      await expect(guide).toHaveCount(1);
+      await page.mouse.move(canonicalClient.x + 14, canonicalClient.y);
+      await frames(page);
+      await expect(guide).toHaveCount(0);
+      await page.mouse.up();
+      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).not.toEqual(canonical);
+      await resetByUndo();
+
+      start = await locatorCenter(vertex);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.keyboard.down('Alt');
+      await page.mouse.move(canonicalClient.x + 2, canonicalClient.y + 2);
+      await frames(page);
+      await expect(guide).toHaveCount(0);
+      await page.mouse.up();
+      await page.keyboard.up('Alt');
+      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).not.toEqual(canonical);
+      await resetByUndo();
+
+      start = await locatorCenter(vertex);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.keyboard.down('Shift');
+      await page.mouse.move(canonicalClient.x + 46, canonicalClient.y + 31);
+      await frames(page);
+      await expect(guide).toHaveCount(0);
+      await page.mouse.up();
+      await page.keyboard.up('Shift');
+      await expect
+        .poll(() => {
+          const point = readDocument().connections[0]?.vertices?.[0];
+          return Boolean(
+            point &&
+            ((point.x === canonical.x && point.y === canonical.y) ||
+              (point.x === alternate.x && point.y === alternate.y)),
+          );
+        })
+        .toBe(true);
+      await resetByUndo();
+    },
+  );
+
+  wireVideoTest(
     'R4 compact external wire panel keeps primary actions small and removes duplicate 90°',
     async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 1000 });
@@ -1164,6 +1521,43 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       if (!panelBox) throw new Error('Expected external selected-wire panel');
       expect(panelBox.width).toBeLessThanOrEqual(296);
       expect(panelBox.height).toBeLessThanOrEqual(48);
+      const panelStyle = await panel.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          borderWidth: style.borderTopWidth,
+          borderRadius: style.borderTopLeftRadius,
+          boxShadow: style.boxShadow,
+        };
+      });
+      expect(panelStyle.borderWidth).toBe('1px');
+      expect(Number.parseFloat(panelStyle.borderRadius)).toBeGreaterThanOrEqual(7);
+      expect(panelStyle.boxShadow).not.toBe('none');
+
+      const swatchStyle = await compact
+        .locator('.workbench-wire-swatches button')
+        .first()
+        .evaluate((element) => {
+          const style = getComputedStyle(element);
+          return {
+            radius: style.borderRadius,
+            cursor: style.cursor,
+            userSelect: style.userSelect,
+          };
+        });
+      expect(Number.parseFloat(swatchStyle.radius)).toBeGreaterThanOrEqual(5);
+      expect(swatchStyle.cursor).toBe('pointer');
+      expect(swatchStyle.userSelect).toBe('none');
+
+      const deleteIconBox = await compact
+        .locator('.workbench-wire-compact-actions > button.danger svg')
+        .boundingBox();
+      expect(deleteIconBox?.width).toBeGreaterThanOrEqual(18);
+      expect(deleteIconBox?.width).toBeLessThanOrEqual(20);
+      const actionDivider = await compact
+        .locator('.workbench-wire-compact-actions')
+        .evaluate((element) => getComputedStyle(element).borderLeftWidth);
+      expect(actionDivider).toBe('1px');
+
       const libraryBox = await page.locator('.workbench-library').boundingBox();
       if (!libraryBox) throw new Error('Expected desktop component library');
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(libraryBox.x - 4);

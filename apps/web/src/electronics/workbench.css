@@ -273,6 +273,11 @@
   stroke-width: 2;
   cursor: default;
 }
+.workbench-wire-endpoint-hit {
+  fill: rgba(255, 255, 255, 0.001);
+  stroke: none;
+  cursor: grab;
+}
 
 .workbench-terminal-list {
   display: grid;
@@ -5474,6 +5479,10 @@ html.arduino-palette-resizing * {
   max-width: 296px;
   max-height: 48px;
   overflow: visible;
+  border: 1px solid #cbd3d9;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(34, 50, 61, 0.16);
   pointer-events: none;
 }
 .workbench-wire-inspector-compact {
@@ -5496,11 +5505,18 @@ html.arduino-palette-resizing * {
   min-width: 24px;
   height: 24px;
   min-height: 24px;
+  border-radius: 6px;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  caret-color: transparent;
 }
 .workbench-wire-compact-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  padding-left: 6px;
+  border-left: 1px solid #e1e6e9;
 }
 .workbench-wire-compact-actions > button,
 .workbench-wire-more > summary {
@@ -5532,6 +5548,10 @@ html.arduino-palette-resizing * {
 .workbench-wire-compact-actions > button svg {
   width: 16px;
   height: 16px;
+}
+.workbench-wire-compact-actions > button.danger svg {
+  width: 19px;
+  height: 19px;
 }
 .workbench-wire-more {
   position: relative;
@@ -5601,6 +5621,10 @@ html.arduino-palette-resizing * {
   }
   .workbench-inspector.wire-selected .workbench-wire-compact-actions {
     gap: 4px;
+    padding-top: 4px;
+    padding-left: 0;
+    border-top: 1px solid #e1e6e9;
+    border-left: 0;
   }
   .workbench-inspector.wire-selected .workbench-wire-compact-actions > button,
   .workbench-inspector.wire-selected .workbench-wire-more > summary {

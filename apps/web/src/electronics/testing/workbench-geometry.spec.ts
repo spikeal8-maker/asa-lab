@@ -10,7 +10,14 @@ import {
   moveWireSegmentVertices,
   potentiometerWiperPosition,
   resolveWireAssist,
+  resolveWireVertexAssist,
   stageReadoutGeometry,
+  TERMINAL_HIT_RADIUS,
+  TERMINAL_MARKER_SIZE,
+  TERMINAL_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_HIT_RADIUS,
+  WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_VISIBLE_RADIUS,
   wireSegmentParallelDelta,
   worldToClient,
   type Point,
@@ -181,6 +188,46 @@ describe('what the canvas is allowed to move', () => {
     expect(exited).toEqual({ axis: null, point: { x: 220, y: 111 } });
 
     expect(resolveWireAssist(anchor, { x: 220, y: 111 }, exited.axis).axis).toBeNull();
+  });
+
+  it('keeps visible terminal and endpoint markers smaller than their collision targets', () => {
+    expect(TERMINAL_MARKER_SIZE).toBe(8);
+    expect(TERMINAL_HIT_RADIUS).toBe(9);
+    expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(14);
+    expect(WIRE_ENDPOINT_VISIBLE_RADIUS).toBe(4);
+    expect(WIRE_ENDPOINT_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_VISIBLE_RADIUS);
+    expect(WIRE_ENDPOINT_TOUCH_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_HIT_RADIUS);
+  });
+
+  it('soft-locks a dragged bend to one canonical elbow with hysteresis and Alt disable', () => {
+    const previous = { x: 100, y: 100 };
+    const next = { x: 220, y: 220 };
+
+    const entered = resolveWireVertexAssist(previous, next, { x: 106, y: 216 }, null);
+    expect(entered).toEqual({
+      target: 'previous-x-next-y',
+      point: { x: 100, y: 220 },
+    });
+
+    const held = resolveWireVertexAssist(previous, next, { x: 108, y: 228 }, entered.target);
+    expect(held).toEqual({
+      target: 'previous-x-next-y',
+      point: { x: 100, y: 220 },
+    });
+
+    const exited = resolveWireVertexAssist(previous, next, { x: 113, y: 220 }, held.target);
+    expect(exited).toEqual({ target: null, point: { x: 113, y: 220 } });
+
+    const other = resolveWireVertexAssist(previous, next, { x: 216, y: 104 }, exited.target);
+    expect(other).toEqual({
+      target: 'next-x-previous-y',
+      point: { x: 220, y: 100 },
+    });
+
+    expect(resolveWireVertexAssist(previous, next, { x: 102, y: 218 }, null, true)).toEqual({
+      target: null,
+      point: { x: 102, y: 218 },
+    });
   });
 
   it('keeps a free diagonal exact, supports vertical assist, and Alt-style disable wins', () => {

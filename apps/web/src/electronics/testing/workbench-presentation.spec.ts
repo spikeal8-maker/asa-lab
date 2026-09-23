@@ -29,6 +29,7 @@ const persistenceIndicatorSource = readFileSync(
   'utf8',
 );
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
+const geometrySource = readFileSync(resolve(electronicsRoot, 'workbench-geometry.ts'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
@@ -349,18 +350,36 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(controllerModuleSource).toContain('insertWireVertex(document, wireId, toWorld(event))');
     expect(controllerModuleSource).toContain('removeWireVertexAt(wireId, vertexIndex)');
     expect(stageSource).toContain('workbench-wire-endpoint');
+    expect(stageSource).toContain('data-testid="wire-endpoint-visible"');
+    expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
+    expect(geometrySource).toContain('TERMINAL_MARKER_SIZE = 8');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_VISIBLE_RADIUS = 4');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = 9');
+    expect(workbenchCss).toMatch(
+      /\.workbench-inspector\.wire-selected\s*\{[^}]*border:\s*1px solid #cbd3d9;/s,
+    );
+    expect(workbenchCss).toMatch(
+      /\.workbench-inspector\.wire-selected\s*\{[^}]*border-radius:\s*8px;/s,
+    );
+    expect(workbenchCss).toContain('border-left: 1px solid #e1e6e9;');
+    expect(workbenchCss).toContain('caret-color: transparent;');
+    expect(sidebarSource).toContain('<DeleteIcon />');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
     expect(stageSource).toContain('c.wirePreviewVertices');
-    expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
-      stageSource.indexOf('{orderedComponents'),
-    );
-    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeGreaterThan(
-      stageSource.indexOf('{orderedComponents'),
-    );
-    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeLessThan(
-      stageSource.indexOf('workbench-wire-overlay'),
-    );
+    const layerMarkers = [
+      'data-testid="breadboard-body-layer"',
+      'className="workbench-wire-layer workbench-wire-hit-layer"',
+      'data-testid="wire-layer"',
+      'data-testid="component-body-layer"',
+      'data-testid="terminal-overlay-layer"',
+      'data-testid="wire-editor-layer"',
+      'data-testid="wire-control-layer"',
+    ];
+    const layerPositions = layerMarkers.map((marker) => stageSource.indexOf(marker));
+    expect(layerPositions.every((position) => position >= 0)).toBe(true);
+    expect(layerPositions).toEqual([...layerPositions].sort((a, b) => a - b));
+    expect(stageSource).toContain('data-testid="component-terminal-overlay"');
     expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*pointer-events:\s*none;/s);
     expect(workbenchCss).toMatch(/\.workbench-wire-hit\s*\{[^}]*pointer-events:\s*stroke;/s);
     expect(stageSource).toContain('className="workbench-wire-selection"');
@@ -382,7 +401,9 @@ describe('owner-reference Electronics presentation contract', () => {
       controllerSource.indexOf('function wireVertexDragPoint'),
       controllerSource.indexOf('function wireDraftPoint'),
     );
-    expect(vertexPointLogic).not.toContain('resolveWireAssist');
+    expect(vertexPointLogic).toContain('resolveWireVertexAssist');
+    expect(vertexPointLogic).toContain('vertexAssistTargetRef.current');
+    expect(vertexPointLogic).not.toContain('magneticWirePoint');
     expect(controllerSource).toContain('resolveWireAssist(');
     expect(controllerSource).toContain('worldToClient(');
     expect(controllerSource).toContain('wireAssistAxisRef.current');

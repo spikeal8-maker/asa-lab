@@ -3140,13 +3140,14 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await loginWithOrganization(page, teacher);
       const projectId = await createProject(page, 'R1-R4 wire persistence acceptance');
       const base = circuitDocument({ switchClosed: false, resistorOhms: 220, reversedLed: false });
-      await saveDocument(page, projectId, {
+      const persistenceDocument: SchematicDocument = {
         ...base,
         components: base.components.filter((item) => item.id === 'source' || item.id === 'led'),
         connections: [],
         viewport: { x: 0, y: 0, zoom: 1 },
         simulation: { running: false, maxIterations: 24 },
-      });
+      };
+      await saveDocument(page, projectId, persistenceDocument);
       await page.goto(`/#/home/${projectId}`);
       await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
       await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(2);
@@ -3159,11 +3160,11 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       });
       await expect(component(page, 'resistor-axial')).toHaveCount(1);
 
-      const source = component(page, 'battery-holder-aa-2').locator(
-        '.workbench-terminal-hit[data-terminal-id="BAT+"]',
+      const source = page.locator(
+        '.workbench-terminal-hit[data-terminal-component-id="source"][data-terminal-id="BAT+"]',
       );
-      const target = component(page, 'led-5mm').locator(
-        '.workbench-terminal-hit[data-terminal-id="anode"]',
+      const target = page.locator(
+        '.workbench-terminal-hit[data-terminal-component-id="led"][data-terminal-id="anode"]',
       );
       const sourceBox = await source.boundingBox();
       const targetBox = await target.boundingBox();
@@ -3210,21 +3211,84 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       const vertexBox = await vertex.boundingBox();
       if (!vertexBox) throw new Error('wire bend is not rendered');
       const originalPath = await wire.getAttribute('d');
+      const originalVertex = await vertex.evaluate((node) => ({
+        x: Number(node.getAttribute('cx')),
+        y: Number(node.getAttribute('cy')),
+      }));
+      const terminalWorld = async (terminal: Locator) =>
+        terminal.evaluate((node) => {
+          const transform = node.parentElement?.getAttribute('transform') ?? '';
+          const match = /^translate\(([-+0-9.eE]+)[ ,]+([-+0-9.eE]+)\)$/.exec(transform);
+          if (!match) throw new Error('terminal overlay has no canonical translate()');
+          return { x: Number(match[1]), y: Number(match[2]) };
+        });
+      const sourceWorld = await terminalWorld(source);
+      const targetWorld = await terminalWorld(target);
+      const softCanonical = { x: sourceWorld.x, y: targetWorld.y };
+      const softCanonicalClient = await page
+        .locator('.workbench-canvas')
+        .evaluate((node, point) => {
+          const svg = node as SVGSVGElement;
+          const local = svg.createSVGPoint();
+          local.x = point.x;
+          local.y = point.y;
+          const screen = local.matrixTransform(svg.getScreenCTM()!);
+          return { x: screen.x, y: screen.y };
+        }, softCanonical);
+
       await page.mouse.move(vertexBox.x + vertexBox.width / 2, vertexBox.y + vertexBox.height / 2);
       await page.mouse.down();
-      await page.mouse.move(
-        vertexBox.x + vertexBox.width / 2 + 52,
-        vertexBox.y + vertexBox.height / 2 + 34,
-        { steps: 12 },
-      );
+      await page.mouse.move(softCanonicalClient.x + 4, softCanonicalClient.y + 3, { steps: 12 });
+      await expect(page.getByTestId('wire-alignment-guide')).toHaveCount(1);
       await page.mouse.up();
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('wire-vertex')
+            .first()
+            .evaluate((node) => ({
+              x: Number(node.getAttribute('cx')),
+              y: Number(node.getAttribute('cy')),
+            })),
+        )
+        .toEqual(softCanonical);
       await expect.poll(() => wire.getAttribute('d')).not.toBe(originalPath);
-      await page.getByRole('button', { name: /Отменить/ }).click();
-      await expect.poll(() => wire.getAttribute('d')).toBe(originalPath);
-      await page.getByRole('button', { name: /Повторить/ }).click();
-      await expect.poll(() => wire.getAttribute('d')).not.toBe(originalPath);
-      await page.getByRole('button', { name: /Отменить/ }).click();
-      await expect.poll(() => wire.getAttribute('d')).toBe(originalPath);
+
+      await page
+        .getByRole('button', {
+          name: '\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c (Ctrl+Z)',
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('wire-vertex')
+            .first()
+            .evaluate((node) => ({
+              x: Number(node.getAttribute('cx')),
+              y: Number(node.getAttribute('cy')),
+            })),
+        )
+        .toEqual(originalVertex);
+
+      await page
+        .getByRole('button', {
+          name: '\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c (Ctrl+Shift+Z)',
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('wire-vertex')
+            .first()
+            .evaluate((node) => ({
+              x: Number(node.getAttribute('cx')),
+              y: Number(node.getAttribute('cy')),
+            })),
+        )
+        .toEqual(softCanonical);
 
       await page.evaluate((wireId) => {
         const times: number[] = [];
@@ -3299,13 +3363,13 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await selectWire();
       await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
       expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
-      for (const [end, componentType, terminal] of [
-        ['from', 'battery-holder-aa-2', 'BAT-'],
-        ['to', 'led-5mm', 'cathode'],
+      for (const [end, componentId, terminal] of [
+        ['from', 'source', 'BAT-'],
+        ['to', 'led', 'cathode'],
       ] as const) {
         const handle = page.locator(`[data-testid="wire-endpoint"][data-wire-endpoint="${end}"]`);
-        const destination = component(page, componentType).locator(
-          `[data-terminal-id="${terminal}"]`,
+        const destination = page.locator(
+          `[data-terminal-component-id="${componentId}"][data-terminal-id="${terminal}"]`,
         );
         const before = await handle.boundingBox();
         const target = await destination.boundingBox();
@@ -3416,6 +3480,7 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
             build,
             persistenceStatus: 'passed',
             quickReselectGapMs,
+            f3SoftCanonical: softCanonical,
             wireBeforeReload: beforeReload,
             wireAfterReload: afterReload,
             persistenceViewport: page.viewportSize(),
@@ -3447,8 +3512,36 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
                 `${ARTIFACT_DIR}/r1-r4-wire-persistence-before-reload.png`,
                 `${ARTIFACT_DIR}/r1-r4-wire-persistence-after-reload.png`,
               ],
+              ownerFeedback: {
+                F1: [
+                  'reports/interactions/f1-marker-zoom-1x.png',
+                  'reports/interactions/f1-marker-zoom-2x.png',
+                  'reports/interactions/f1-marker-zoom-4x.png',
+                  'reports/interactions/r2-dense-terminal-resolver.png',
+                ],
+                F2: ['reports/interactions/f2-scene-layering.png'],
+                F3: [
+                  'reports/interactions/f3-bend-soft-lock.png',
+                  'reports/playwright/**/video.webm',
+                ],
+                F4: [
+                  'reports/interactions/r4-wire-panel-desktop.png',
+                  'reports/interactions/r4-wire-panel-mobile.png',
+                ],
+              },
             },
-            viewports: ['390x844', '1440x1000', '1920x1080'],
+            viewports: [
+              '320x568',
+              '390x844',
+              '430x932',
+              '768x1024',
+              '568x320',
+              '844x390',
+              '932x430',
+              '1024x768',
+              '1440x1000',
+              '1920x1080',
+            ],
             pointerTypes: ['mouse', 'native-cdp-touch'],
           },
           null,

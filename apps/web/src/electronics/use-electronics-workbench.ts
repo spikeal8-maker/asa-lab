@@ -34,11 +34,13 @@ import {
   lockOrthogonalPoint,
   potentiometerWiperPosition,
   resolveWireAssist,
+  resolveWireVertexAssist,
   viewportViewBox,
   worldToClient,
   type Point,
   type Viewport,
   type WireAssistAxis,
+  type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
@@ -385,9 +387,11 @@ export function useElectronicsWorkbench(projectId: string) {
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
   const [wirePreviewVertices, setWirePreviewVertices] = useState<readonly Point[]>([]);
-  const [wireGuide, setWireGuide] = useState<{ readonly from: Point; readonly to: Point } | null>(
-    null,
-  );
+  const [wireGuide, setWireGuide] = useState<{
+    readonly from: Point;
+    readonly via?: Point;
+    readonly to: Point;
+  } | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(() => !compactWorkbench());
@@ -450,6 +454,7 @@ export function useElectronicsWorkbench(projectId: string) {
   } | null>(null);
   const suppressTerminalClickRef = useRef(false);
   const wireAssistAxisRef = useRef<WireAssistAxis | null>(null);
+  const vertexAssistTargetRef = useRef<WireVertexAssistTarget | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
   const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
   const spacePressedRef = useRef(false);
@@ -495,6 +500,7 @@ export function useElectronicsWorkbench(projectId: string) {
     setMarquee(null);
     setReconnectHover(null);
     wireAssistAxisRef.current = null;
+    vertexAssistTargetRef.current = null;
     setWireGuide(null);
     const settled = panViewportRef.current;
     if (settled) applyViewport(settled);
@@ -1408,7 +1414,9 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     vertexIndex: number,
     point: Point,
+    clientPoint: Point,
     lockRightAngle: boolean,
+    disableSoftAssist: boolean,
   ): Point {
     const freePoint = freeWirePoint(point);
     if (!document) return freePoint;
@@ -1425,17 +1433,43 @@ export function useElectronicsWorkbench(projectId: string) {
       wire.vertices[vertexIndex + 1] ??
       (toComponent ? terminalPositionInDocument(document, toComponent, wire.to.terminal) : null);
     if (!previous || !next) return freePoint;
-    // Alignment happens where it was asked for. Holding Shift, or turning on the
-    // 90° mode, squares the bend against its neighbours; otherwise the vertex
-    // goes exactly where the pointer is.
-    //
-    // There used to be a magnet here regardless — two of them, in fact, pulling
-    // against each other, so near a bend the point flipped between axes as the
-    // pointer moved. Making it one magnet was not enough: the choice of which
-    // neighbour to align to changed mid-drag, and the point jumped again. A wire
-    // laid deliberately alongside another wire could not be placed at all.
-    if (lockRightAngle) return lockOrthogonalBend(previous, next, point);
-    return freePoint;
+
+    if (lockRightAngle) {
+      vertexAssistTargetRef.current = null;
+      setWireGuide(null);
+      return lockOrthogonalBend(previous, next, point);
+    }
+
+    const stage = stageRef.current;
+    if (!stage || disableSoftAssist) {
+      vertexAssistTargetRef.current = null;
+      setWireGuide(null);
+      return freePoint;
+    }
+
+    const rect = stage.getBoundingClientRect();
+    const activeViewport = panViewportRef.current ?? viewport;
+    const previousClient = worldToClient(previous, rect, activeViewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const nextClient = worldToClient(next, rect, activeViewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const assisted = resolveWireVertexAssist(
+      previousClient,
+      nextClient,
+      clientPoint,
+      vertexAssistTargetRef.current,
+      disableSoftAssist,
+    );
+    vertexAssistTargetRef.current = assisted.target;
+    if (!assisted.target) {
+      setWireGuide(null);
+      return freePoint;
+    }
+
+    const candidate =
+      assisted.target === 'previous-x-next-y'
+        ? { x: previous.x, y: next.y }
+        : { x: next.x, y: previous.y };
+    setWireGuide({ from: previous, via: candidate, to: next });
+    return candidate;
   }
 
   function wireDraftPoint(
@@ -1894,7 +1928,14 @@ export function useElectronicsWorkbench(projectId: string) {
           vertexDrag.startedDocument,
           vertexDrag.wireId,
           vertexDrag.vertexIndex,
-          wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
+          wireVertexDragPoint(
+            vertexDrag.wireId,
+            vertexDrag.vertexIndex,
+            world,
+            client,
+            event.shiftKey,
+            event.altKey,
+          ),
         ),
         vertexDrag.wireId,
       );
@@ -2061,8 +2102,12 @@ export function useElectronicsWorkbench(projectId: string) {
         vertexDrag.wireId,
         vertexDrag.vertexIndex,
         toWorld(event),
+        { x: event.clientX, y: event.clientY },
         event.shiftKey,
+        event.altKey,
       );
+      vertexAssistTargetRef.current = null;
+      setWireGuide(null);
       const source = vertexDrag.startedDocument;
       const old = source.connections.find((wire) => wire.id === vertexDrag.wireId)?.vertices?.[
         vertexDrag.vertexIndex
@@ -2208,6 +2253,8 @@ export function useElectronicsWorkbench(projectId: string) {
       at: Date.now(),
     };
     if (!document) return;
+    vertexAssistTargetRef.current = null;
+    setWireGuide(null);
     vertexDragRef.current = {
       pointerId: event.pointerId,
       wireId,

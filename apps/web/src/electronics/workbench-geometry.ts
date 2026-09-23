@@ -16,16 +16,27 @@ export interface WireAssistResult {
   readonly point: Point;
 }
 
+export type WireVertexAssistTarget = 'previous-x-next-y' | 'next-x-previous-y';
+
+export interface WireVertexAssistResult {
+  readonly target: WireVertexAssistTarget | null;
+  readonly point: Point;
+}
+
 export const WIRE_ASSIST_MIN_DISTANCE_PX = 24;
 export const WIRE_ASSIST_ENTER_DEVIATION_PX = 6;
 export const WIRE_ASSIST_EXIT_DEVIATION_PX = 10;
 export const WIRE_ASSIST_ENTER_ANGLE_DEG = 3;
 export const WIRE_ASSIST_EXIT_ANGLE_DEG = 5;
 
-export const TERMINAL_MARKER_SIZE = 12;
+export const TERMINAL_MARKER_SIZE = 8;
 export const TERMINAL_HIT_RADIUS = 9;
 export const TERMINAL_TOUCH_HIT_RADIUS = 14;
-export const WIRE_ENDPOINT_HANDLE_RADIUS = 6;
+export const WIRE_ENDPOINT_VISIBLE_RADIUS = 4;
+export const WIRE_ENDPOINT_HIT_RADIUS = 9;
+export const WIRE_ENDPOINT_TOUCH_HIT_RADIUS = 14;
+export const WIRE_VERTEX_ASSIST_ENTER_DISTANCE_PX = 8;
+export const WIRE_VERTEX_ASSIST_EXIT_DISTANCE_PX = 12;
 
 export function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -146,6 +157,50 @@ export function lockOrthogonalBend(previous: Point, next: Point, point: Point): 
     const candidateDistance = Math.hypot(candidate.x - snapped.x, candidate.y - snapped.y);
     return candidateDistance < closestDistance ? candidate : closest;
   });
+}
+
+/**
+ * Soft assistance for an existing bend. Unlike the removed pair of independent
+ * axis magnets, this resolver chooses between the two complete canonical
+ * elbows. One target is held until the wider exit corridor is crossed; on the
+ * sample that exits, no competing target may take over.
+ *
+ * previous/next/pointer are CSS-pixel coordinates. The controller commits the
+ * corresponding exact world-space elbow after this resolver selects it.
+ */
+export function resolveWireVertexAssist(
+  previous: Point,
+  next: Point,
+  pointer: Point,
+  currentTarget: WireVertexAssistTarget | null,
+  disabled = false,
+): WireVertexAssistResult {
+  if (disabled) return { target: null, point: pointer };
+
+  const candidates: Record<WireVertexAssistTarget, Point> = {
+    'previous-x-next-y': { x: previous.x, y: next.y },
+    'next-x-previous-y': { x: next.x, y: previous.y },
+  };
+
+  if (currentTarget) {
+    const candidate = candidates[currentTarget];
+    return Math.hypot(pointer.x - candidate.x, pointer.y - candidate.y) <=
+      WIRE_VERTEX_ASSIST_EXIT_DISTANCE_PX
+      ? { target: currentTarget, point: candidate }
+      : { target: null, point: pointer };
+  }
+
+  const ranked = (Object.entries(candidates) as Array<[WireVertexAssistTarget, Point]>)
+    .map(([target, point]) => ({
+      target,
+      point,
+      distance: Math.hypot(pointer.x - point.x, pointer.y - point.y),
+    }))
+    .sort((a, b) => a.distance - b.distance || a.target.localeCompare(b.target));
+  const nearest = ranked[0];
+  return nearest && nearest.distance <= WIRE_VERTEX_ASSIST_ENTER_DISTANCE_PX
+    ? { target: nearest.target, point: nearest.point }
+    : { target: null, point: pointer };
 }
 
 /** A wire point placed by hand, outside the 90° mode.
