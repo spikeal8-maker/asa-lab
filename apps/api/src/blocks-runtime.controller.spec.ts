@@ -62,6 +62,30 @@ function service(overrides: Partial<BlocksRuntimePersistenceService> = {}) {
   } as unknown as BlocksRuntimePersistenceService;
 }
 describe('BlocksRuntimeController', () => {
+  it('passes embedded GET origin to capability authorization without promoting account cookies', async () => {
+    const runtime = service({
+      authorize: vi.fn().mockResolvedValue({ ok: false, code: 'unauthorized' }),
+    });
+    const controller = new BlocksRuntimeController(runtime);
+    const embedded = {
+      method: 'GET',
+      headers: {
+        cookie: 'asa_session=account-only',
+        'sec-fetch-site': 'same-origin',
+        referer: 'https://asa-lab.ru/internal/blocks/?asaStatus=parent',
+      },
+    } as unknown as FastifyRequest;
+    await expect(
+      controller.getAsset(embedded, reply().value, PROJECT, 'a'.repeat(32) + '.png'),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(runtime.authorize).toHaveBeenCalledWith({
+      authorization: undefined,
+      origin: 'https://asa-lab.ru',
+      projectId: PROJECT,
+      permission: 'asset:read',
+    });
+    expect(runtime.readAsset).not.toHaveBeenCalled();
+  });
   it('saves through the shared draft path and returns only confirmed revision', async () => {
     const runtime = service();
     const controller = new BlocksRuntimeController(runtime);

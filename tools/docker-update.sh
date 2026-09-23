@@ -3,6 +3,10 @@ set -eu
 
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo_root"
+if [ -f .asa/installed-release.json ]; then
+  echo 'This installation uses published releases. Use sh tools/asa-manager.sh update.' >&2
+  exit 78
+fi
 . "$repo_root/tools/installation-identity.sh"
 
 profile=${ASA_COMPOSE_PROFILE:-production}

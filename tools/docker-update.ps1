@@ -13,6 +13,9 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+if (-not $SelfTest -and (Test-Path (Join-Path $RepoRoot '.asa/installed-release.json'))) {
+  throw 'This installation uses published releases. Use tools/asa-manager.ps1 update.'
+}
 Set-Location $RepoRoot
 . (Join-Path $PSScriptRoot 'installation-identity.ps1')
 

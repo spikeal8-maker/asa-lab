@@ -1,74 +1,251 @@
-/* The task, over the work.
+/* Universal learning task overlay.
  *
- * Fixed to the top so it survives whatever the editor does with its own layout,
- * and clear of the editor's own toolbar so it never covers the controls the
- * learner needs to build with. Folded away it is a pill the width of its own
- * words; opened it is a card, and the model keeps the middle of the screen.
+ * The assignment belongs to Learning and floats above the subject editor.
+ * The anchor is permanent; the desktop panel moves/resizes independently and
+ * narrow screens use a dedicated bottom sheet.
  */
 
-.assignment-brief {
+.assignment-brief-anchor {
   position: fixed;
-  z-index: 60;
-  top: 62px;
-  left: 50%;
-  width: max-content;
-  max-width: calc(100vw - 24px);
-  transform: translateX(-50%);
-  border: 1px solid #b9d7e5;
-  border-radius: 12px;
-  background: #f4fafd;
-  box-shadow: 0 10px 28px rgba(17, 52, 71, 0.18);
-}
-
-.assignment-brief.is-open {
-  width: min(760px, calc(100vw - 24px));
-}
-
-/* Полоса над холстом: свёрнутая она должна быть строкой, а не панелью —
-   место на экране принадлежит модели, а не напоминанию о задании. */
-.assignment-brief-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 3px 6px 3px 10px;
-}
-
-.assignment-brief-toggle {
-  display: flex;
+  z-index: 1110;
+  left: 16px;
+  bottom: 16px;
+  display: inline-flex;
   align-items: center;
   gap: 7px;
-  min-width: 0;
-  flex: 1 1 auto;
-  padding: 2px 0;
-  border: 0;
-  background: none;
+  min-height: 42px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 0 13px;
+  border: 1px solid #a9cfdf;
+  border-radius: 999px;
+  background: #f8fcfe;
+  box-shadow: 0 8px 22px rgba(17, 52, 71, 0.16);
   color: #16232c;
   font: inherit;
   font-size: 14px;
+  cursor: pointer;
+}
+
+.assignment-brief-anchor:hover,
+.assignment-brief-anchor:focus-visible {
+  border-color: #6faec8;
+  background: #eef8fc;
+}
+
+.assignment-brief-anchor-icon,
+.assignment-brief-anchor-chevron {
+  flex: 0 0 auto;
+  color: #0a6f9c;
+}
+
+.assignment-brief-anchor-label {
+  flex: 0 0 auto;
   font-weight: 700;
+}
+
+.assignment-brief-anchor-title {
+  min-width: 0;
+  overflow: hidden;
+  color: #344b58;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assignment-brief-anchor-chevron {
+  margin-left: 2px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.assignment-brief-panel {
+  position: fixed;
+  z-index: 1100;
+  display: flex;
+  flex-direction: column;
+  min-width: min(320px, calc(100vw - 24px));
+  min-height: 220px;
+  overflow: hidden;
+  border: 1px solid #b9d7e5;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 34px rgba(17, 52, 71, 0.2);
+  color: #16232c;
+}
+
+.assignment-brief-header {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 7px;
+  min-height: 52px;
+  padding: 8px 8px 7px;
+  border-bottom: 1px solid rgba(11, 111, 159, 0.12);
+  background: #f8fcfe;
+}
+
+.assignment-brief-drag,
+.assignment-brief-expand,
+.assignment-brief-menu > summary {
+  display: grid;
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #526773;
+  font: inherit;
+  cursor: pointer;
+}
+
+.assignment-brief-drag {
+  font-size: 18px;
+  line-height: 1;
+  cursor: move;
+  touch-action: none;
+}
+
+.assignment-brief-expand {
+  font-size: 16px;
+}
+
+.assignment-brief-drag:hover,
+.assignment-brief-expand:hover,
+.assignment-brief-menu > summary:hover,
+.assignment-brief-drag:focus-visible,
+.assignment-brief-expand:focus-visible,
+.assignment-brief-menu > summary:focus-visible {
+  background: rgba(11, 111, 159, 0.09);
+  color: #0b6f9f;
+}
+
+.assignment-brief-heading {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.assignment-brief-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #16232c;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.25;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.assignment-brief-state {
+  display: inline-block;
+  margin-top: 3px;
+  color: #0a6f9c;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.assignment-brief-menu {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.assignment-brief-menu > summary {
+  list-style: none;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.assignment-brief-menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.assignment-brief-menu-popover {
+  position: absolute;
+  z-index: 4;
+  top: 34px;
+  right: 0;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 32px));
+  padding: 5px;
+  border: 1px solid #c6dce6;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 10px 24px rgba(17, 52, 71, 0.18);
+}
+
+.assignment-brief-menu-popover button {
+  width: 100%;
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #263b47;
+  font: inherit;
+  font-size: 12px;
   text-align: left;
   cursor: pointer;
 }
 
-.assignment-brief-toggle span {
-  color: #0a6f9c;
+.assignment-brief-menu-popover button:hover,
+.assignment-brief-menu-popover button:focus-visible {
+  background: #eef7fb;
 }
 
-.assignment-brief-state {
-  flex: 0 0 auto;
-  padding: 2px 9px;
-  border-radius: 999px;
-  background: #e2f0f8;
-  color: #0a6f9c;
+.assignment-brief-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 10px 14px 12px;
+}
+
+.assignment-brief-due {
+  margin: 0 0 8px;
+  color: #526773;
   font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
+}
+
+.assignment-brief-error {
+  margin: 0 0 8px;
+  color: #9d2d23;
+  font-size: 12px;
+}
+
+.assignment-brief-body .assignment-view {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.assignment-brief-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 48px;
+  padding: 7px 10px 8px 14px;
+  border-top: 1px solid rgba(11, 111, 159, 0.12);
+  background: #f8fcfe;
+}
+
+.assignment-brief-save-state,
+.assignment-brief-footer-state {
+  min-width: 0;
+  color: #526773;
+  font-size: 12px;
+}
+
+.assignment-brief-footer-state {
+  color: #0a6f9c;
 }
 
 .assignment-brief-submit {
   flex: 0 0 auto;
-  min-height: 26px;
-  padding: 0 12px;
+  min-height: 32px;
+  padding: 0 13px;
   border: 0;
   border-radius: 999px;
   background: #0b6f9f;
@@ -83,21 +260,142 @@
   background: #075c85;
 }
 
-/* Вёрстка самого задания — общая (assignment-view). Полосе остаётся рамка
-   вокруг неё и потолок по высоте: экран принадлежит модели. */
-.assignment-brief-body {
-  overflow-y: auto;
-  max-height: 46vh;
-  padding: 0 14px 14px;
+.assignment-brief-submit:disabled {
+  cursor: default;
+  opacity: 0.58;
 }
 
-.assignment-brief-body .assignment-view {
-  grid-template-columns: minmax(0, 1fr) 180px;
-  gap: 14px;
+/* Eight resize zones keep the visual handle subtle while making every edge usable. */
+.assignment-brief-resize {
+  position: absolute;
+  z-index: 2;
+  display: block;
+  touch-action: none;
+}
+
+.assignment-brief-resize-top,
+.assignment-brief-resize-bottom {
+  left: 12px;
+  right: 12px;
+  height: 10px;
+  cursor: ns-resize;
+}
+
+.assignment-brief-resize-top {
+  top: -5px;
+}
+
+.assignment-brief-resize-bottom {
+  bottom: -5px;
+}
+
+.assignment-brief-resize-left,
+.assignment-brief-resize-right {
+  top: 12px;
+  bottom: 12px;
+  width: 10px;
+  cursor: ew-resize;
+}
+
+.assignment-brief-resize-left {
+  left: -5px;
+}
+
+.assignment-brief-resize-right {
+  right: -5px;
+}
+
+.assignment-brief-resize-top-left,
+.assignment-brief-resize-top-right,
+.assignment-brief-resize-bottom-left,
+.assignment-brief-resize-bottom-right {
+  width: 16px;
+  height: 16px;
+}
+
+.assignment-brief-resize-top-left {
+  top: -5px;
+  left: -5px;
+  cursor: nwse-resize;
+}
+
+.assignment-brief-resize-top-right {
+  top: -5px;
+  right: -5px;
+  cursor: nesw-resize;
+}
+
+.assignment-brief-resize-bottom-left {
+  bottom: -5px;
+  left: -5px;
+  cursor: nesw-resize;
+}
+
+.assignment-brief-resize-bottom-right {
+  right: -5px;
+  bottom: -5px;
+  cursor: nwse-resize;
 }
 
 @media (max-width: 720px) {
-  .assignment-brief-body .assignment-view {
-    grid-template-columns: minmax(0, 1fr);
+  .assignment-brief-anchor {
+    left: 8px;
+    bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    min-height: 42px;
+    max-width: calc(100vw - 16px);
+    padding-inline: 11px;
+  }
+
+  .assignment-brief-anchor-title {
+    flex: 1 1 auto;
+  }
+
+  .assignment-brief-panel.is-mobile {
+    left: 8px !important;
+    right: 8px;
+    top: auto !important;
+    bottom: calc(58px + env(safe-area-inset-bottom, 0px));
+    width: auto !important;
+    height: min(68dvh, 520px) !important;
+    min-width: 0;
+    min-height: min(260px, 58dvh);
+    max-height: 76dvh;
+    border-radius: 18px 18px 12px 12px;
+  }
+
+  .assignment-brief-panel.is-mobile::before {
+    content: '';
+    align-self: center;
+    width: 42px;
+    height: 4px;
+    margin-top: 7px;
+    border-radius: 999px;
+    background: #a9bbc4;
+  }
+
+  .assignment-brief-panel.is-mobile .assignment-brief-header {
+    min-height: 48px;
+    padding-top: 5px;
+  }
+
+  .assignment-brief-panel.is-mobile .assignment-brief-menu {
+    display: none;
+  }
+
+  .assignment-brief-body {
+    padding-inline: 12px;
+  }
+
+  .assignment-brief-footer {
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+    padding-left: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assignment-brief-anchor,
+  .assignment-brief-panel,
+  .assignment-brief-panel * {
+    scroll-behavior: auto;
   }
 }

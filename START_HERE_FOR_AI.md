@@ -15,6 +15,9 @@ AGENTS.md
 ```
 
 `AGENTS.md` задаёт правила Git, безопасности, портов, данных и критерии остановки.
+Для установки, расписания обновлений и полного экспорта данных входная точка —
+[`PORTABLE_OPERATIONS.md`](docs/deployment/PORTABLE_OPERATIONS.md). Сначала найдите
+канонический каталог PostgreSQL; не разворачивайте вторую копию из worktree.
 GitHub-first protocol задаёт рабочую модель: GitHub хранит каноническое состояние и
 изменения, локальный компьютер используется только как короткий runner, а тяжёлые
 production Docker/browser/data evidence выполняются в GitHub Actions. Политика не

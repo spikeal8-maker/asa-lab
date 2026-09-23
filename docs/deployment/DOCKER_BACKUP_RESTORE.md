@@ -1,5 +1,10 @@
 # Docker backup and restore
 
+For a complete machine transfer, use [PORTABLE_OPERATIONS.md](PORTABLE_OPERATIONS.md):
+the new manager preserves PostgreSQL ACLs, MinIO objects, private keys and configuration.
+The legacy helpers below export **only PostgreSQL**, stripping ACL metadata; their
+output is not a complete project backup and must not be used alone for disaster recovery.
+
 The backup helper creates a PostgreSQL custom-format dump with owner and ACL
 metadata removed. Files are created with mode 0600 under `backups/` by default.
 

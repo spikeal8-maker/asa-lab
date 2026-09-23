@@ -1,6 +1,12 @@
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { api, type SeatAssignment, type SeatCourseRun, type SeatCourseRunLesson } from '../api';
+import {
+  api,
+  type CourseActivityOccurrence,
+  type SeatAssignment,
+  type SeatCourseRun,
+  type SeatCourseRunLesson,
+} from '../api';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { courseCompletion, lessonComplete, lessonExcused } from '../learning/course-completion';
 import { AssignmentView } from './AssignmentView';
@@ -36,6 +42,43 @@ export function courseAssignmentShape(
   };
 }
 
+export function courseActivityOccurrenceForBlock(
+  lesson: SeatCourseRunLesson,
+  blockId: string,
+): CourseActivityOccurrence | null {
+  return lesson.activityOccurrences.find((occurrence) => occurrence.blockId === blockId) ?? null;
+}
+
+export function courseActivityAssignmentShape(
+  run: SeatCourseRun,
+  occurrence: CourseActivityOccurrence,
+): SeatAssignment {
+  return {
+    id: occurrence.classroomAssignmentId,
+    title: occurrence.title,
+    brief: null,
+    goal: null,
+    moduleKey: occurrence.moduleKey,
+    dueAt:
+      occurrence.canonicalState?.effectiveDueAt === undefined
+        ? run.dueAt
+        : occurrence.canonicalState.effectiveDueAt,
+    status: run.status,
+    sampleImage: null,
+    projectId: occurrence.projectId,
+    submittedAt: occurrence.submittedAt,
+    snapshotRevision: occurrence.snapshotRevision,
+    updatedAt: occurrence.updatedAt,
+    canonicalState: occurrence.canonicalState,
+  };
+}
+
+function courseActivityModuleLabel(moduleKey: string): string {
+  if (moduleKey === 'electronics') return 'Electronics';
+  if (moduleKey === 'three-d') return '3D';
+  return moduleKey;
+}
+
 export function SeatCourses({
   onOpenProject,
   source = 'seat',
@@ -55,7 +98,13 @@ export function SeatCourses({
       (r) =>
         r.id === destination.courseRun ||
         r.sections.some((s) =>
-          s.lessons.some((l) => l.classroomAssignmentId === destination.assignment),
+          s.lessons.some(
+            (l) =>
+              l.classroomAssignmentId === destination.assignment ||
+              l.activityOccurrences.some(
+                (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
+              ),
+          ),
         ),
     );
     if (run) {
@@ -63,7 +112,13 @@ export function SeatCourses({
       setOpenLessonId(
         run.sections
           .flatMap((s) => s.lessons)
-          .find((l) => l.classroomAssignmentId === destination.assignment)?.id ?? null,
+          .find(
+            (l) =>
+              l.classroomAssignmentId === destination.assignment ||
+              l.activityOccurrences.some(
+                (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
+              ),
+          )?.id ?? null,
       );
     }
   }, [runs, destination.courseRun, destination.assignment]);
@@ -100,32 +155,29 @@ export function SeatCourses({
   const completion = courseCompletion(lessons);
   const completedLessonCount = completion.completed;
 
-  async function start(lesson: SeatCourseRunLesson): Promise<void> {
-    if (!lesson.classroomAssignmentId || !lesson.moduleKey) return;
-    setBusy(lesson.id);
+  async function startAssignment(assignment: SeatAssignment, busyKey: string): Promise<void> {
+    if (assignment.moduleKey === 'unknown') return;
+    setBusy(busyKey);
     setError(null);
     const created = await api.createProject({
       scope: 'personal',
-      module: lesson.moduleKey,
-      title: lesson.assignmentTitle ?? lesson.title,
-      idempotencyKey: lesson.classroomAssignmentId,
+      module: assignment.moduleKey,
+      title: assignment.title,
+      idempotencyKey: assignment.id,
     });
     if (!created.ok) {
       setBusy(null);
       setError(created.error.message || 'Не удалось начать задание.');
       return;
     }
-    const linked = await api.startSeatAssignment(
-      lesson.classroomAssignmentId,
-      created.data.project.id,
-    );
+    const linked = await api.startSeatAssignment(assignment.id, created.data.project.id);
     setBusy(null);
     if (!linked.ok) {
       setError(linked.error.message || 'Не удалось начать задание.');
       return;
     }
     await reload();
-    onOpenProject(linked.data.projectId, lesson.moduleKey);
+    onOpenProject(linked.data.projectId, assignment.moduleKey);
   }
 
   async function markMaterial(lesson: SeatCourseRunLesson, completed: boolean): Promise<boolean> {
@@ -238,7 +290,106 @@ export function SeatCourses({
             {openLesson.summary ? (
               <p className="seat-course-summary">{openLesson.summary}</p>
             ) : null}
-            <LessonBlocks blocks={openLesson.blocks} legacyContent={openLesson.content} />
+            <LessonBlocks
+              blocks={openLesson.blocks}
+              legacyContent={openLesson.content}
+              renderActivity={(block) => {
+                const occurrence = courseActivityOccurrenceForBlock(openLesson, block.id);
+                if (!occurrence) {
+                  return (
+                    <>
+                      <strong>Практика</strong>
+                      <small>Практика пока недоступна.</small>
+                    </>
+                  );
+                }
+                const activityAssignment = courseActivityAssignmentShape(openRun, occurrence);
+                const busyKey = `activity:${occurrence.classroomAssignmentId}`;
+                const activityStatus =
+                  canonicalLearningLabel(activityAssignment.canonicalState) ??
+                  (activityAssignment.submittedAt
+                    ? 'Сдано'
+                    : activityAssignment.projectId
+                      ? 'В работе'
+                      : 'Не начато');
+                return (
+                  <div
+                    className="seat-course-activity"
+                    data-testid="course-activity-runtime"
+                    data-assignment-id={occurrence.classroomAssignmentId}
+                  >
+                    <div className="seat-course-activity-main">
+                      <span className="course-eyebrow">Практика</span>
+                      <strong>{activityAssignment.title}</strong>
+                      <small>
+                        {courseActivityModuleLabel(activityAssignment.moduleKey)} · {activityStatus}
+                      </small>
+                    </div>
+                    <div className="seat-course-activity-actions">
+                      {activityAssignment.projectId ? (
+                        <>
+                          <button
+                            type="button"
+                            className="portal-create-button"
+                            onClick={async () =>
+                              setError(await openAssignmentWork(activityAssignment, onOpenProject))
+                            }
+                          >
+                            Открыть работу
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            disabled={
+                              busy === busyKey ||
+                              (activityAssignment.canonicalState
+                                ? canonicalSubmissionLocked(activityAssignment.canonicalState)
+                                : activityAssignment.submittedAt !== null)
+                            }
+                            onClick={async () => {
+                              if (
+                                activityAssignment.canonicalState?.workflowState ===
+                                'changes_requested'
+                              ) {
+                                setError(
+                                  await openAssignmentWork(activityAssignment, onOpenProject),
+                                );
+                                return;
+                              }
+                              setBusy(busyKey);
+                              const result = await submitSavedAssignment(activityAssignment);
+                              setBusy(null);
+                              if (result.ok) await reload();
+                              else setError(result.error.message);
+                            }}
+                          >
+                            {activityAssignment.canonicalState
+                              ? activityAssignment.canonicalState.workflowState ===
+                                'changes_requested'
+                                ? 'Начать доработку'
+                                : canonicalSubmissionLocked(activityAssignment.canonicalState)
+                                  ? 'Работа сдана'
+                                  : 'Сдать'
+                              : activityAssignment.submittedAt
+                                ? 'Работа сдана'
+                                : 'Сдать'}
+                          </button>
+                        </>
+                      ) : (
+                        <button
+                          type="button"
+                          className="portal-create-button"
+                          disabled={busy === busyKey || openRun.status === 'closed'}
+                          onClick={() => void startAssignment(activityAssignment, busyKey)}
+                        >
+                          {busy === busyKey ? 'Готовим…' : 'Начать'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }}
+            />
             {assignment ? (
               <>
                 <AssignmentView
@@ -317,7 +468,7 @@ export function SeatCourses({
                       type="button"
                       className="portal-create-button"
                       disabled={busy === openLesson.id || openRun.status === 'closed'}
-                      onClick={() => void start(openLesson)}
+                      onClick={() => void startAssignment(assignment, openLesson.id)}
                     >
                       {busy === openLesson.id ? 'Готовим…' : 'Начать задание'}
                     </button>

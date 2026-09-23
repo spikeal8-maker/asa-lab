@@ -18,6 +18,7 @@ import type {
   BlocksRuntimePersistenceService,
 } from './blocks-runtime-persistence.service.js';
 import { checkBodyShape } from './validation.js';
+import { blocksRuntimeRequestOrigin } from './blocks-runtime-transport.js';
 const ASSET_FILE = /^([a-f0-9]{32})\.(svg|png|jpg|wav|mp3)$/;
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CONTENT_TYPE: Readonly<Record<BlocksAssetFormat, string>> = {
@@ -87,7 +88,7 @@ export class BlocksRuntimeController {
   ): Promise<BlocksRuntimeAuthorized> {
     const result = await this.runtime.authorize({
       authorization: request.headers.authorization,
-      origin: request.headers.origin,
+      origin: blocksRuntimeRequestOrigin(request),
       projectId,
       permission,
     });

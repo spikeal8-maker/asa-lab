@@ -95,7 +95,7 @@ test('project IDs, traversal, invalid formats and type mismatches never reach fe
     assert.throws(() => storage.getLibraryAssetUrl(id, 'svg'), /runtime_asset_unavailable/);
   }
   assert.throws(() => storage.getLibraryAssetUrl(hash, 'json'), /runtime_asset_unavailable/);
-  assert.equal(storage.getLibraryAssetUrl(hash, 'svg'), `/library-assets/${hash}.svg`);
+  assert.equal(storage.getLibraryAssetUrl(hash, 'svg'), `./library-assets/${hash}.svg`);
   await assert.rejects(
     storage.saveProject('00000000-0000-4000-8000-000000000000', '{}'),
     /project_identity_mismatch/,
@@ -197,7 +197,7 @@ test('stock media uses credential-free, redirect-free local requests and caches 
   assert.equal(first.clean, false);
   assert.equal(await storage.load('ImageVector', hash, 'svg'), first);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].url, `/library-assets/${hash}.svg`);
+  assert.equal(calls[0].url, `./library-assets/${hash}.svg`);
   assert.equal(calls[0].options.credentials, 'omit');
   assert.equal(calls[0].options.redirect, 'error');
   assert.equal(storage.getLibraryAssetUrl(hash, 'svg'), 'data:cached');

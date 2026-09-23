@@ -124,6 +124,48 @@ const BUILTINS = new Set([
 type ArduinoCompletionDefinition = Omit<ArduinoCompletion, 'support'>;
 
 const COMPLETION_DEFINITIONS = {
+  'Servo.h': {
+    label: 'Servo.h',
+    detail: 'Подключить встроенный адаптер Servo',
+    insertText: '#include <Servo.h>\nServo servo;',
+    example: '#include <Servo.h> / Servo servo;',
+    lineComplete: true,
+  },
+  'Servo.attach': {
+    label: 'Servo.attach',
+    detail: 'Подключить объявленный объект servo к выводу',
+    insertText: 'servo.attach(9);',
+    example: 'servo.attach(9);',
+    lineComplete: true,
+  },
+  'Servo.write': {
+    label: 'Servo.write',
+    detail: 'Задать угол объекта servo',
+    insertText: 'servo.write(90);',
+    example: 'servo.write(90);',
+    lineComplete: true,
+  },
+  'Servo.read': {
+    label: 'Servo.read',
+    detail: 'Прочитать заданный угол объекта servo',
+    insertText: 'int angle = servo.read();',
+    example: 'servo.read()',
+    lineComplete: true,
+  },
+  'Servo.detach': {
+    label: 'Servo.detach',
+    detail: 'Отключить объект servo',
+    insertText: 'servo.detach();',
+    example: 'servo.detach();',
+    lineComplete: true,
+  },
+  readUltrasonicCm: {
+    label: 'readUltrasonicCm',
+    detail: 'Измерить расстояние через trigger/echo',
+    insertText: 'int distance = readUltrasonicCm(7, 8);',
+    example: 'readUltrasonicCm(7, 8)',
+    lineComplete: true,
+  },
   setup: {
     label: 'setup',
     detail: 'Настройка при запуске',
@@ -446,7 +488,7 @@ export function arduinoCompletionsAt(
   limit = 7,
 ): { readonly from: number; readonly items: readonly ArduinoCompletion[] } | null {
   const beforeCursor = source.slice(0, cursor);
-  const match = /(?:\bSerial\.)?[A-Za-z_]\w*$/.exec(beforeCursor);
+  const match = /(?<![\w.])(?:(?:Serial|Servo)\.)?[A-Za-z_]\w*$/i.exec(beforeCursor);
   if (!match || match[0].length < 2) return null;
   const prefix = match[0].toLowerCase();
   const items = ARDUINO_COMPLETIONS.filter((item) =>

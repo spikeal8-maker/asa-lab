@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { BlocksEditor } from '../BlocksEditor';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
-const RUNTIME_ORIGIN = 'http://127.0.0.1:4613';
+const RUNTIME_ORIGIN = window.location.origin;
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 
 function session(runtimeToken = 'real.runtime.token', expiresAt = 4_000_000_000) {

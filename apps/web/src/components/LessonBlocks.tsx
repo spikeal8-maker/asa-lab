@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { LessonBlock } from '../api';
 import './lesson-blocks.css';
 
@@ -35,10 +36,12 @@ export function LessonBlocks({
   blocks,
   legacyContent = null,
   compact = false,
+  renderActivity,
 }: {
   readonly blocks: readonly LessonBlock[];
   readonly legacyContent?: string | null;
   readonly compact?: boolean;
+  readonly renderActivity?: (block: Extract<LessonBlock, { type: 'activity' }>) => ReactNode;
 }): JSX.Element | null {
   const content = visibleBlocks(blocks, legacyContent);
   if (content.length === 0) return null;
@@ -135,7 +138,20 @@ export function LessonBlocks({
           );
         }
         if (block.type === 'activity') {
-          return null;
+          return (
+            <section
+              key={block.id}
+              className="lesson-activity-block"
+              data-testid="lesson-activity-block"
+              data-block-id={block.id}
+            >
+              {renderActivity ? (
+                renderActivity(block)
+              ) : (
+                <strong className="lesson-activity-placeholder">Практика</strong>
+              )}
+            </section>
+          );
         }
         if (block.type === 'audio') {
           if (!isLocalMedia(block.url)) {

@@ -9,19 +9,19 @@ development_policy:
   lane_path_ownership: advisory
 
 task:
-  id: VSCR-M1-005B
-  issue: 287
-  branch: codex/scratch-real-storage-005b
+  id: TASK-SINGLE-ENTRY-PRODUCTION-001
+  issue: 382
+  branch: main
   base_branch: main
-  pr: 288
-  pr_draft: true
-  status: in_progress
-  checkpoint: implementation_complete_independent_review_pending
+  pr: null
+  pr_draft: false
+  status: done
+  checkpoint: production_single_entry_deployed_verified_owner_review_pending
   owner_acceptance: pending
 
 revisions:
-  convergence_baseline_sha: 1d101b699b7db34efa838a143a93f9b19940e5c9
-  head_sha: fa64bb97c394b730d815d9103580ae07d5bb4fab
+  convergence_baseline_sha: 4c64b26ef5d1de643ac3c142c91674e871ad6ef6
+  head_sha: f56a71edb41548932d47154d68fcde87b64402da
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
@@ -73,23 +73,26 @@ parallel_lanes:
       - migrations/0078_max_verification_lifecycle.sql
       - migrations/0100_max_runtime_settings.sql
       - tests/admin/**
+      - tools/platform-admin.mjs
+      - tools/owner-admin.py
+      - docs/deployment/OWNER_ADMIN.md
       - tests/account/**
       - e2e/admin-auth-max.spec.ts
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
-      id: TASK-ASA-ACCESS-A-INTEGRATE-001
-      issue: 173
+      id: TASK-OWNER-ADMIN-PROVISIONING-001
+      issue: 383
       branch: main
       base_branch: main
-      pr: 174
+      pr: null
       pr_draft: false
       status: done
-      checkpoint: owner_accepted_result_a_merged_without_deployment
-      owner_acceptance: accepted
+      checkpoint: owner_granted_runtime_verified_repeat_safe_ci_passed
+      owner_acceptance: pending
       normative_refs:
-        - document: IDENTITY-ACCESS-V20
-          revision: '2.0'
+        - document: IDENTITY-ACCESS-V22
+          revision: '2.2'
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -108,9 +111,8 @@ parallel_lanes:
           status: unverified
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
-      convergence_baseline_sha: cc712bc5155291b64dca3207457d26b055c118f6
-      head_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
-      product_merge_sha: 07ffd4e5266ded960ae8485a93a20103d607d6d9
+      convergence_baseline_sha: 959e68502af8b8c69a4aaaf87a4f502e057140ac
+      head_sha: 94d3ef933624b743bd9a91cf7b709c3448cacef0
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -121,7 +123,7 @@ parallel_lanes:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm test:access-a
+          - pnpm test:owner-admin
       browser:
         workflow: ASA Lab Governance and Code Gates
         commands:
@@ -143,18 +145,18 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-EOPT5B1D-KNOWN-UNSUPPORTED-LOCALITY-001
-      issue: 319
-      branch: codex/electronics-eopt5b1d-known-unsupported-locality
+      id: TASK-ELECTRONICS-UX-REPAIR-001
+      issue: 377
+      branch: codex/electronics-natural-wire-routing-377
       base_branch: main
-      pr: 320
+      pr: 378
       pr_draft: true
       status: in_progress
-      checkpoint: eopt5b1d_known_unsupported_board_local
+      checkpoint: r1_r4_implementation
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: f82b3d529133e8a3fe45c8c0b953f19129abe692
-      head_sha: 9f5108317c31f3cb53de9c79637838cfa6784bb9
+      convergence_baseline_sha: eb7204267b21c11fb9201c95020ddc6a2d4b44cc
+      head_sha: f150219098d5f2a92239cf438d52dc063def5359
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned

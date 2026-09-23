@@ -67,7 +67,7 @@
   place-items: center;
   padding: 24px;
   background: rgba(12, 22, 30, 0.86);
-  z-index: 60;
+  z-index: 1150;
 }
 
 .assignment-lightbox img {

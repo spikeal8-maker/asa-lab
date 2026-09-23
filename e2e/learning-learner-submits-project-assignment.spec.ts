@@ -7,6 +7,12 @@ import { openPortalSection } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-002';
+const workShellV1EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
+const desktopV1Viewport = { width: 1440, height: 900 } as const;
+const mobileV1Viewports = [
+  { width: 390, height: 844 },
+  { width: 320, height: 568 },
+] as const;
 const policies = {
   attemptPolicy: { maxAttempts: 1 },
   resultSelectionPolicy: { mode: 'latest' },
@@ -26,13 +32,18 @@ test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'learning-vs-002-browser');
   mkdirSync(evidenceDir, { recursive: true });
+  mkdirSync(workShellV1EvidenceDir, { recursive: true });
 });
 
 test.afterAll(async () => {
   await admin.end();
 });
 
-async function createPublishedProjectActivity(title: string): Promise<void> {
+async function createPublishedProjectActivity(
+  title: string,
+  moduleKey = 'electronics',
+  brief = 'Соберите рабочую электрическую цепь.',
+): Promise<void> {
   const identity = await admin.query(
     `SELECT principal_id FROM legacy_user_account_links
       WHERE tenant_id=$1 AND user_id=$2`,
@@ -42,9 +53,9 @@ async function createPublishedProjectActivity(title: string): Promise<void> {
   const authored = await admin.query(
     `INSERT INTO teacher_assignments
        (tenant_id,owner_principal_id,title,brief,module_key,visibility)
-     VALUES ($1,$2,$3,'Соберите рабочую электрическую цепь.','electronics','private')
+     VALUES ($1,$2,$3,$4,$5,'private')
      RETURNING id`,
-    [teacher.tenantId, principalId, title],
+    [teacher.tenantId, principalId, title, brief, moduleKey],
   );
   const client = await admin.connect();
   try {
@@ -53,12 +64,13 @@ async function createPublishedProjectActivity(title: string): Promise<void> {
     const created = await client.query(
       `SELECT * FROM learning_activity_create(
         $1,$2,'school','private','project',$3,'ignored','completion',NULL,
-        $4::jsonb,'electronics',NULL,NULL,$5,$6)`,
+        $4::jsonb,$5,NULL,NULL,$6,$7)`,
       [
         principalId,
         teacher.tenantId,
         title,
         JSON.stringify(policies),
+        moduleKey,
         authored.rows[0].id,
         `vs002:e2e:create:${++sequence}`,
       ],
@@ -151,8 +163,37 @@ async function learnerAssignments(
   browser: Browser,
   joinCode: string,
   handle: string,
+  viewport?: { readonly width: number; readonly height: number },
+  bypassCSP = false,
 ): Promise<{ context: import('@playwright/test').BrowserContext; page: Page }> {
-  const context = await browser.newContext();
+  const context = await browser.newContext({
+    ...(viewport ? { viewport: { width: viewport.width, height: viewport.height } } : {}),
+    ...(bypassCSP ? { bypassCSP: true } : {}),
+  });
+  const blocksRuntimeUpstream = process.env['ASA_BLOCKS_UPSTREAM_ORIGIN']?.trim();
+  if (blocksRuntimeUpstream) {
+    const upstreamOrigin = new URL(blocksRuntimeUpstream).origin;
+    if (upstreamOrigin !== blocksRuntimeUpstream) {
+      throw new Error('ASA_BLOCKS_UPSTREAM_ORIGIN must be an exact origin');
+    }
+    await context.route('**/internal/blocks/**', async (route) => {
+      const requestUrl = new URL(route.request().url());
+      const upstreamPath = requestUrl.pathname.replace(/^\/internal\/blocks/, '') || '/';
+      const upstreamUrl = new URL(upstreamPath + requestUrl.search, upstreamOrigin + '/');
+      const requestHeaders = { ...route.request().headers() };
+      delete requestHeaders.cookie;
+      delete requestHeaders.authorization;
+      const response = await route.fetch({
+        url: upstreamUrl.toString(),
+        headers: requestHeaders,
+      });
+      const responseHeaders = { ...response.headers() };
+      delete responseHeaders['set-cookie'];
+      responseHeaders['x-frame-options'] = 'SAMEORIGIN';
+      responseHeaders['content-security-policy'] = "frame-ancestors 'self'";
+      await route.fulfill({ response, headers: responseHeaders });
+    });
+  }
   const page = await context.newPage();
   await page.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
   await expect(page.getByLabel('Код ученика', { exact: true })).toBeVisible();
@@ -165,6 +206,61 @@ async function learnerAssignments(
 
 function assignmentRow(page: Page, title: string) {
   return page.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
+}
+
+async function openAssignedProject(
+  browser: Browser,
+  teacherPage: Page,
+  moduleKey: 'electronics' | 'three-d' | 'blocks',
+  options: {
+    brief?: string;
+    viewport?: { readonly width: number; readonly height: number };
+    bypassCSP?: boolean;
+    title?: string;
+  } = {},
+): Promise<{ context: import('@playwright/test').BrowserContext; page: Page; title: string }> {
+  const token = ++sequence;
+  const title = options.title ?? `A0 ${moduleKey} ${token}`;
+  const handle = `a0-${moduleKey}-${token}`;
+  await createPublishedProjectActivity(title, moduleKey, options.brief);
+  const joinCode = await createClassWithStudents(teacherPage, `A0 ${moduleKey} ${token}`, [
+    { label: `Ученик ${moduleKey} ${token}`, handle },
+  ]);
+  await openAssignments(teacherPage);
+  await assignFromUi(teacherPage, { title, due: '2027-05-30' });
+
+  const learner = await learnerAssignments(
+    browser,
+    joinCode,
+    handle,
+    options.viewport,
+    options.bypassCSP,
+  );
+  const row = assignmentRow(learner.page, title);
+  await expect(row).toContainText('Не начато');
+  await row.getByRole('button', { name: 'Открыть', exact: true }).click();
+  await expect(learner.page.getByTestId('assignment-brief-anchor')).toBeVisible({
+    timeout: 60_000,
+  });
+  await expect(learner.page.getByTestId('assignment-brief')).toHaveCount(0);
+  return { ...learner, title };
+}
+
+async function assignmentBriefRect(page: Page): Promise<{
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}> {
+  return page.getByTestId('assignment-brief').evaluate((element) => {
+    const style = (element as HTMLElement).style;
+    return {
+      x: Number.parseFloat(style.left),
+      y: Number.parseFloat(style.top),
+      width: Number.parseFloat(style.width),
+      height: Number.parseFloat(style.height),
+    };
+  });
 }
 
 test('learner starts the real project editor and submits one immutable attempt', async ({
@@ -193,10 +289,18 @@ test('learner starts the real project editor and submits one immutable attempt',
   await row.screenshot({ path: `${evidenceDir}/learner-not-started.png` });
 
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
-  await expect(learner.page.getByTestId('assignment-brief')).toBeVisible();
+  const assignmentAnchor = learner.page.getByTestId('assignment-brief-anchor');
+  const assignmentPanel = learner.page.getByTestId('assignment-brief');
+  await expect(assignmentAnchor).toBeVisible();
+  await expect(assignmentAnchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(assignmentPanel).toHaveCount(0);
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
+  await assignmentAnchor.click();
+  await expect(assignmentPanel).toBeVisible();
+  await expect(assignmentPanel.getByText(/редакц(?:ия|ии|ию|ией|ий) №/i)).toHaveCount(0);
+  await assignmentAnchor.click();
+  await expect(assignmentPanel).toHaveCount(0);
   await learner.page.screenshot({ path: `${evidenceDir}/real-project-editor.png` });
-  await expect(learner.page.getByTestId('assignment-brief')).toBeVisible();
   const resistor = learner.page.getByRole('button', { name: 'Резистор', exact: true });
   const card = (await resistor.boundingBox())!;
   const canvas = (await learner.page.locator('.workbench-canvas').boundingBox())!;
@@ -207,11 +311,7 @@ test('learner starts the real project editor and submits one immutable attempt',
   });
   await learner.page.mouse.up();
   await expect(learner.page.getByTestId('schematic-component')).toHaveCount(1);
-  await expect(
-    learner.page.getByText(
-      /К проверке будет закреплена сохранённая редакция №|Черновик сохранён: редакция №/,
-    ),
-  ).toBeVisible();
+  await expect(learner.page.getByTestId('assignment-brief-anchor')).toBeVisible();
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
 
@@ -294,4 +394,294 @@ test('named audience excludes the third learner from read, start and submit', as
   expect(statuses).toEqual({ start: 404, submit: 404 });
   await excluded.page.screenshot({ path: `${evidenceDir}/learner-excluded.png`, fullPage: true });
   await excluded.context.close();
+});
+
+test('A0 desktop Electronics uses a permanent anchor and compact movable task panel', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize(desktopV1Viewport);
+  const learner = await openAssignedProject(browser, page, 'electronics', {
+    viewport: desktopV1Viewport,
+    title: 'Исследование последовательной электрической цепи и закона Ома',
+  });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
+  const brief = learner.page.getByTestId('assignment-brief');
+
+  await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
+  await expect(anchor).toBeVisible();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-anchor-1440.png`,
+    fullPage: false,
+  });
+
+  const anchorBefore = (await anchor.boundingBox())!;
+  await anchor.click();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'true');
+  await expect(brief).toBeVisible();
+  const header = brief.locator('.assignment-brief-header');
+  const footer = brief.locator('.assignment-brief-footer');
+  const compact = await assignmentBriefRect(learner.page);
+  expect(compact.width).toBeGreaterThanOrEqual(360);
+  expect(compact.width).toBeLessThanOrEqual(400);
+  expect(compact.height).toBeGreaterThanOrEqual(260);
+  expect(compact.height).toBeLessThanOrEqual(320);
+  await expect(brief.locator('.assignment-brief-title')).toHaveText(learner.title);
+  await expect(brief.locator('.assignment-brief-title')).toBeVisible();
+  await expect(header.getByRole('button', { name: 'Сдать работу' })).toHaveCount(0);
+  await expect(header.getByText('Сбросить', { exact: true })).toHaveCount(0);
+  await expect(footer).toBeVisible();
+  await expect(footer.getByRole('button', { name: 'Сдать работу' })).toBeVisible();
+  await expect(brief.getByText(/редакц(?:ия|ии|ию|ией|ий) №/i)).toHaveCount(0);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-panel-1440.png`,
+    fullPage: false,
+  });
+
+  await brief.getByRole('button', { name: 'Расширить задание' }).click();
+  const expanded = await assignmentBriefRect(learner.page);
+  expect(expanded.width).toBeGreaterThan(compact.width + 100);
+  expect(expanded.height).toBeGreaterThan(compact.height + 100);
+  expect(expanded.width).toBeLessThanOrEqual(Math.floor(desktopV1Viewport.width * 0.7));
+  expect(expanded.height).toBeLessThanOrEqual(Math.floor((900 - 58 - 24) * 0.8));
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-expanded-1440.png`,
+    fullPage: false,
+  });
+
+  await brief.getByRole('button', { name: 'Вернуть компактный размер' }).click();
+  await expect(brief.getByRole('button', { name: 'Расширить задание' })).toHaveAttribute(
+    'aria-pressed',
+    'false',
+  );
+  expect(await assignmentBriefRect(learner.page)).toEqual(compact);
+
+  const drag = brief.getByRole('button', { name: 'Переместить карточку задания' });
+  const dragBox = (await drag.boundingBox())!;
+  const workbench = (await learner.page.locator('.workbench-canvas').boundingBox())!;
+  await learner.page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
+  await learner.page.mouse.down();
+  await learner.page.mouse.move(
+    workbench.x + workbench.width * 0.58,
+    workbench.y + workbench.height * 0.32,
+    { steps: 20 },
+  );
+  await learner.page.mouse.up();
+  const moved = await assignmentBriefRect(learner.page);
+  expect(Math.abs(moved.x - compact.x) + Math.abs(moved.y - compact.y)).toBeGreaterThan(20);
+  const anchorAfter = (await anchor.boundingBox())!;
+  expect(Math.abs(anchorAfter.x - anchorBefore.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(anchorAfter.y - anchorBefore.y)).toBeLessThanOrEqual(1);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-electronics-moved-1440.png`,
+    fullPage: false,
+  });
+
+  const resize = brief.locator('.assignment-brief-resize-bottom-right');
+  const resizeBox = (await resize.boundingBox())!;
+  await learner.page.mouse.move(
+    resizeBox.x + resizeBox.width / 2,
+    resizeBox.y + resizeBox.height / 2,
+  );
+  await learner.page.mouse.down();
+  await learner.page.mouse.move(resizeBox.x + 120, resizeBox.y + 90, { steps: 12 });
+  await learner.page.mouse.up();
+  const resized = await assignmentBriefRect(learner.page);
+  expect(resized.width).toBeGreaterThan(moved.width);
+  expect(resized.height).toBeGreaterThan(moved.height);
+
+  await anchor.click();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await expect(anchor).toBeVisible();
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  expect(await assignmentBriefRect(learner.page)).toEqual(resized);
+
+  await brief.locator('.assignment-brief-menu > summary').click();
+  await brief.getByRole('button', { name: 'Сбросить положение и размер' }).click();
+  expect(await assignmentBriefRect(learner.page)).toEqual({
+    x: 12,
+    y: 524,
+    width: 380,
+    height: 300,
+  });
+
+  await anchor.focus();
+  await learner.page.keyboard.press('Enter');
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await learner.page.keyboard.press('Enter');
+  await expect(anchor).toHaveAttribute('aria-expanded', 'true');
+  await expect(learner.page.locator('.workbench-shell')).toBeVisible();
+  await learner.context.close();
+});
+
+test('A0 3D shell keeps anchor and panel above the editor while tools remain interactive', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize(desktopV1Viewport);
+  const learner = await openAssignedProject(browser, page, 'three-d', {
+    viewport: desktopV1Viewport,
+  });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
+  const brief = learner.page.getByTestId('assignment-brief');
+  const viewport = learner.page.getByTestId('asa3d-viewport');
+
+  await expect(viewport).toBeVisible({ timeout: 60_000 });
+  await expect(viewport).toHaveAttribute('data-runtime-ready', 'true', { timeout: 60_000 });
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  await expect(anchor).toBeVisible();
+
+  const tool = learner.page.getByRole('button', { name: 'Параллелепипед', exact: true });
+  await expect(tool).toBeVisible();
+  const briefBox = (await brief.boundingBox())!;
+  const toolBox = (await tool.boundingBox())!;
+  const toolPoint = {
+    x: toolBox.x + toolBox.width / 2,
+    y: toolBox.y + toolBox.height / 2,
+  };
+  expect(
+    toolPoint.x >= briefBox.x &&
+      toolPoint.x <= briefBox.x + briefBox.width &&
+      toolPoint.y >= briefBox.y &&
+      toolPoint.y <= briefBox.y + briefBox.height,
+  ).toBe(false);
+
+  await tool.click();
+  await expect(viewport).toHaveAttribute('data-selected-node-id', /.+/);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-three-d-panel-1440.png`,
+    fullPage: false,
+  });
+  await learner.context.close();
+});
+
+test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(300_000);
+  await page.setViewportSize(desktopV1Viewport);
+  const learner = await openAssignedProject(browser, page, 'blocks', {
+    viewport: desktopV1Viewport,
+  });
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
+  const brief = learner.page.getByTestId('assignment-brief');
+  const fullscreen = learner.page.locator('[data-asa-blocks-fullscreen]');
+
+  await expect(fullscreen).toBeVisible({ timeout: 60_000 });
+  const loadingOverlay = learner.page.locator('[data-asa-blocks-loading-overlay]');
+  const runtimeFrame = learner.page.locator('iframe[title="Scratch runtime"]');
+  await expect(loadingOverlay).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+  await expect(runtimeFrame).toBeVisible({ timeout: 60_000 });
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+
+  const anchorBox = (await anchor.boundingBox())!;
+  const anchorTopmost = await learner.page.evaluate(
+    ({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return Boolean(element?.closest('[data-testid="assignment-brief-anchor"]'));
+    },
+    { x: anchorBox.x + anchorBox.width / 2, y: anchorBox.y + anchorBox.height / 2 },
+  );
+  expect(anchorTopmost).toBe(true);
+
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  await expect(anchor).toBeVisible();
+  const box = (await brief.boundingBox())!;
+  const panelTopmost = await learner.page.evaluate(
+    ({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return Boolean(element?.closest('[data-testid="assignment-brief"]'));
+    },
+    { x: box.x + Math.min(120, box.width / 2), y: box.y + 24 },
+  );
+  expect(panelTopmost).toBe(true);
+
+  await expect(fullscreen).toHaveCSS('z-index', '1000');
+  await expect(brief).toHaveCSS('z-index', '1100');
+  await expect(anchor).toHaveCSS('z-index', '1110');
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-blocks-overlay-1440.png`,
+    fullPage: false,
+  });
+  await learner.context.close();
+});
+
+test('A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 and 320', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const longBrief = Array.from(
+    { length: 36 },
+    (_, index) =>
+      `Шаг ${index + 1}: соберите и проверьте учебную цепь, затем зафиксируйте результат.`,
+  ).join('\n');
+  const learner = await openAssignedProject(browser, page, 'electronics', {
+    brief: longBrief,
+  });
+  await learner.page.setViewportSize(mobileV1Viewports[0]);
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
+  const brief = learner.page.getByTestId('assignment-brief');
+
+  await expect(anchor).toBeVisible();
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(brief).toHaveCount(0);
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/V1-mobile-anchor-390.png`,
+    fullPage: false,
+  });
+
+  for (const viewport of mobileV1Viewports) {
+    await learner.page.setViewportSize(viewport);
+    await expect(anchor).toBeVisible();
+    if ((await anchor.getAttribute('aria-expanded')) === 'true') await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+    await expect(brief).toHaveCount(0);
+
+    await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-expanded', 'true');
+    await expect(brief).toBeVisible();
+    await expect(brief).toHaveClass(/is-mobile/);
+    await expect(brief.getByRole('button', { name: 'Переместить карточку задания' })).toHaveCount(
+      0,
+    );
+    await expect(brief.locator('.assignment-brief-resize')).toHaveCount(0);
+    await expect(brief.locator('.assignment-brief-body')).toHaveCSS('overflow-y', 'auto');
+
+    const panelBox = (await brief.boundingBox())!;
+    expect(panelBox.x).toBeGreaterThanOrEqual(7);
+    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(viewport.width - 7);
+    expect(panelBox.y + panelBox.height).toBeLessThanOrEqual(viewport.height + 1);
+    expect(
+      await learner.page.evaluate(
+        () =>
+          document.documentElement.scrollWidth <= window.innerWidth &&
+          document.body.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+
+    await learner.page.screenshot({
+      path: `${workShellV1EvidenceDir}/V1-mobile-panel-${viewport.width}.png`,
+      fullPage: false,
+    });
+
+    await anchor.click();
+    await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+    await expect(brief).toHaveCount(0);
+    await expect(anchor).toBeVisible();
+  }
+
+  await learner.context.close();
 });

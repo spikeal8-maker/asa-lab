@@ -16,6 +16,16 @@ server {
     # Non-hashed scripts and deployment metadata must revalidate after updates.
     add_header Cache-Control "no-cache";
 
+    # Only the entry document receives the configured exact parent origin.
+    location = / {
+        # A file alias on a trailing-slash URI triggers nginx's index handler.
+        rewrite ^ /index.html last;
+    }
+    location = /index.html {
+        alias /var/cache/nginx/asa-index.html;
+        default_type text/html;
+    }
+
     location = /library-assets/library-assets-manifest.json {
         try_files $uri =404;
     }
