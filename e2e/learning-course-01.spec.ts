@@ -70,6 +70,7 @@ async function editRealProject(page: Page, module: string) {
     );
   }
 }
+
 type CourseActivityProjectEvidence = {
   projectId: string;
   expectedObjectCount: number;
@@ -93,15 +94,15 @@ async function editCourseActivityProject(
   page: Page,
   module: string,
 ): Promise<CourseActivityProjectEvidence> {
-  const projectId = courseActivityProjectId(page, module);
   let expectedObjectCount = 0;
+  let projectId = '';
   let addedComponentId: string | undefined;
-
   if (module === 'three-d') {
     const viewport = page.getByTestId('asa3d-viewport');
     const objectCount = page.locator('.asa3d-object-count');
     await expect(viewport).toBeVisible({ timeout: 60000 });
     await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
+    projectId = courseActivityProjectId(page, module);
     expectedObjectCount = Number.parseInt(await objectCount.innerText(), 10) + 1;
     const saveState = page.locator('.asa3d-save-state');
     await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
@@ -112,26 +113,41 @@ async function editCourseActivityProject(
   } else {
     const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
     await expect(resistor).toBeVisible({ timeout: 60000 });
+    projectId = courseActivityProjectId(page, module);
     const components = page.getByTestId('schematic-component');
-    const existingIds = new Set(
-      (
-        await components.evaluateAll((nodes) =>
-          nodes.map((node) => node.getAttribute('data-component-id')),
-        )
-      ).filter((id): id is string => id !== null),
+    const existingComponentIds = new Set(
+      await components.evaluateAll((nodes) =>
+        nodes
+          .map((node) => node.getAttribute('data-component-id'))
+          .filter((value): value is string => Boolean(value)),
+      ),
     );
     expectedObjectCount = (await components.count()) + 1;
-
-    const draftPath = `/api/projects/${encodeURIComponent(projectId)}/draft`;
-    const saveResponsePromise = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return (
-        response.request().method() === 'PUT' &&
-        url.pathname === draftPath &&
-        response.ok()
-      );
-    });
-
+    const savedCurrentChange = page.waitForResponse(
+      (response) => {
+        if (response.request().method() !== 'PUT' || !response.ok()) return false;
+        if (new URL(response.url()).pathname !== `/api/projects/${projectId}/draft`) return false;
+        let requestBody: {
+          document?: { components?: Array<{ id?: string; kind?: string }> };
+        };
+        try {
+          requestBody = response.request().postDataJSON();
+        } catch {
+          return false;
+        }
+        const requestComponents = requestBody.document?.components ?? [];
+        return (
+          requestComponents.length === expectedObjectCount &&
+          requestComponents.some(
+            (component) =>
+              component.kind === 'resistor' &&
+              typeof component.id === 'string' &&
+              !existingComponentIds.has(component.id),
+          )
+        );
+      },
+      { timeout: 30000 },
+    );
     const card = (await resistor.boundingBox())!,
       canvas = (await page.locator('.workbench-canvas').boundingBox())!;
     await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
@@ -142,38 +158,28 @@ async function editCourseActivityProject(
     await page.mouse.up();
     await expect(components).toHaveCount(expectedObjectCount);
 
-    const saveResponse = await saveResponsePromise;
+    const saveResponse = await savedCurrentChange;
     const requestBody = saveResponse.request().postDataJSON() as {
-      document?: { components?: Array<{ id?: string; kind?: string }> };
+      document: { components: Array<{ id: string; kind: string }> };
     };
-    const requestComponents = requestBody.document?.components ?? [];
-    expect(requestComponents).toHaveLength(expectedObjectCount);
-    const newResistors = requestComponents.filter(
-      (component) =>
-        component.kind === 'resistor' &&
-        typeof component.id === 'string' &&
-        !existingIds.has(component.id),
+    const addedResistors = requestBody.document.components.filter(
+      (component) => component.kind === 'resistor' && !existingComponentIds.has(component.id),
     );
-    expect(newResistors).toHaveLength(1);
-    addedComponentId = newResistors[0]!.id!;
-
-    const responseBody = (await saveResponse.json()) as {
-      draft?: { document?: { components?: Array<{ id?: string; kind?: string }> } };
+    expect(addedResistors).toHaveLength(1);
+    addedComponentId = addedResistors[0]!.id;
+    const savedBody = (await saveResponse.json()) as {
+      draft: { document: { components: Array<{ id: string; kind: string }> } };
     };
-    const savedComponents = responseBody.draft?.document?.components ?? [];
-    expect(savedComponents).toHaveLength(expectedObjectCount);
-    expect(
-      savedComponents.some(
-        (component) => component.id === addedComponentId && component.kind === 'resistor',
-      ),
-    ).toBe(true);
+    expect(savedBody.draft.document.components).toHaveLength(expectedObjectCount);
+    expect(savedBody.draft.document.components).toContainEqual(
+      expect.objectContaining({ id: addedComponentId, kind: 'resistor' }),
+    );
   }
 
   await page.reload();
-  expect(courseActivityProjectId(page, module)).toBe(projectId);
   if (module === 'electronics') {
-    expect(addedComponentId).toBeTruthy();
     await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+    expect(courseActivityProjectId(page, module)).toBe(projectId);
     await expect(
       page.locator(
         `[data-testid="schematic-component"][data-component-id="${addedComponentId}"][data-kind="resistor"]`,
@@ -181,16 +187,12 @@ async function editCourseActivityProject(
     ).toBeVisible();
   } else {
     await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true');
+    expect(courseActivityProjectId(page, module)).toBe(projectId);
     await expect(page.locator('.asa3d-object-count')).toContainText(
       new RegExp(`^${expectedObjectCount} `),
     );
   }
-
-  return {
-    projectId,
-    expectedObjectCount,
-    ...(addedComponentId ? { addedComponentId } : {}),
-  };
+  return { projectId, expectedObjectCount, ...(addedComponentId ? { addedComponentId } : {}) };
 }
 
 test.use({ actionTimeout: 12000 });
@@ -1557,7 +1559,6 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
       }>;
     }>;
   };
-
   function occurrenceFromCourseRun(run: D5CourseRunRead, title: string) {
     const occurrences = run.sections
       .flatMap((section) => section.lessons)
@@ -1645,7 +1646,6 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(electronicsCard).toContainText('Сдано');
   await expect(threeDCard).toContainText('Не начато');
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
-
   await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
   const threeDEvidence = await editCourseActivityProject(learner.page, 'three-d');
   expect(threeDEvidence.projectId).not.toBe('');
