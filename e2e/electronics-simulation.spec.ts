@@ -3192,14 +3192,16 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
         .toBeGreaterThan(1);
       await page.mouse.click(bendPoint.x, bendPoint.y);
       await page.mouse.click(targetPoint.x, targetPoint.y);
-      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      const wire = page.getByTestId('schematic-wire');
+      await expect(wire).toHaveCount(1);
+      const stableWireId = await wire.getAttribute('data-wire-id');
+      if (!stableWireId) throw new Error('created wire has no stable ID');
       await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
 
       const wirePanel = page.getByTestId('wire-inspector-compact');
       await expect(wirePanel).toBeVisible();
       const colourButtons = wirePanel.locator('.workbench-wire-swatches button');
       await expect(colourButtons).toHaveCount(6);
-      const wire = page.getByTestId('schematic-wire');
       const originalColour = await wire.getAttribute('stroke');
       await wirePanel.locator('.workbench-wire-swatches button:not(.active)').first().click();
       await expect.poll(() => wire.getAttribute('stroke')).not.toBe(originalColour);
@@ -3238,17 +3240,42 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
         await page.mouse.click(point.x, point.y);
         await expect(wirePanel).toBeVisible();
       };
+      const editorVertices = () =>
+        page.getByTestId('wire-vertex').evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            x: Number(node.getAttribute('cx')),
+            y: Number(node.getAttribute('cy')),
+          })),
+        );
+
       await selectWire();
+      const verticesBeforeStraighten = await editorVertices();
+      expect(verticesBeforeStraighten).toHaveLength(1);
       await wirePanel.getByRole('button', { name: 'Выпрямить провод', exact: true }).click();
       await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
       await page.getByRole('button', { name: /Отменить/ }).click();
+
+      // This assertion happens before the second select. It catches a broken
+      // straighten/Undo independently from the double-click recognizer.
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      const verticesAfterStraightenUndo = await editorVertices();
+      expect(verticesAfterStraightenUndo).toEqual(verticesBeforeStraighten);
+
+      // Keep the original rapid select → straighten → Undo → select sequence.
+      // The second select itself must not add a vertex.
       await selectWire();
       await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
       await wirePanel.getByRole('button', { name: 'Удалить провод', exact: true }).click();
       await expect(wire).toHaveCount(0);
       await page.getByRole('button', { name: /Отменить/ }).click();
-      await selectWire();
       await expect(wire).toHaveCount(1);
+      await expect(wire).toHaveAttribute('data-wire-id', stableWireId);
+      // Wire vertices are edit handles and are rendered only for a selected wire.
+      // Select it first, then prove that delete -> Undo restored the exact route.
+      await selectWire();
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
       for (const [end, componentType, terminal] of [
         ['from', 'battery-holder-aa-2', 'BAT-'],
         ['to', 'led-5mm', 'cathode'],
@@ -3275,6 +3302,8 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
             after.y + after.height / 2 - target.y - target.height / 2,
           ),
         ).toBeLessThanOrEqual(0.5);
+        await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+        expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
       }
 
       await expect(page.locator('.workbench-main')).toHaveAttribute(
@@ -3293,8 +3322,10 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
         return savedWire;
       };
       const beforeReload = await readSavedWire();
+      expect(beforeReload.id).toBe(stableWireId);
       expect(beforeReload.from).toEqual({ componentId: 'source', terminal: 'BAT-' });
       expect(beforeReload.to).toEqual({ componentId: 'led', terminal: 'cathode' });
+      expect(beforeReload.vertices).toEqual(await editorVertices());
       expect(beforeReload.vertices).toHaveLength(1);
       expect(beforeReload.color).toBe(await wire.getAttribute('stroke'));
       await page.screenshot({
@@ -3305,7 +3336,12 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await page.reload();
       await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(page.getByTestId('schematic-wire')).toHaveAttribute(
+        'data-wire-id',
+        stableWireId,
+      );
       const afterReload = await readSavedWire();
+      expect(afterReload.id).toBe(stableWireId);
       expect(afterReload.from).toEqual(beforeReload.from);
       expect(afterReload.to).toEqual(beforeReload.to);
       expect(afterReload.color).toBe(beforeReload.color);
@@ -3321,6 +3357,11 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       });
       await page.mouse.click(hitPoint.x, hitPoint.y);
       await expect(page.getByTestId('wire-vertex')).toHaveCount(beforeReload.vertices?.length ?? 0);
+      expect(await editorVertices()).toEqual(beforeReload.vertices ?? []);
+      await expect(page.getByTestId('schematic-wire')).toHaveAttribute(
+        'data-wire-id',
+        stableWireId,
+      );
       await expect(page.getByTestId('schematic-wire')).toHaveAttribute(
         'stroke',
         beforeReload.color!,

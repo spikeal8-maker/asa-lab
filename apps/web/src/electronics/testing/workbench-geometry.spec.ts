@@ -52,6 +52,23 @@ describe('shared screen gesture transform', () => {
     expect(b.x).toBeLessThanOrEqual(size.width - 27.99);
     expect(b.y).toBeLessThanOrEqual(size.height - 27.99);
   });
+
+  it('fits compact content outside the left stage controls with asymmetric screen insets', () => {
+    const rect = { width: 320, height: 472, left: 0, top: 0 };
+    const bounds = { minX: 0, minY: 0, maxX: 500, maxY: 300 };
+    const viewport = fitViewportToScreen(bounds, rect, 1600, 980, 0.2, 8, {
+      left: 64,
+      right: 28,
+      top: 28,
+      bottom: 28,
+    });
+    const a = worldToClient({ x: bounds.minX, y: bounds.minY }, rect, viewport, 1600, 980);
+    const b = worldToClient({ x: bounds.maxX, y: bounds.maxY }, rect, viewport, 1600, 980);
+    expect(a.x).toBeGreaterThanOrEqual(63.99);
+    expect(b.x).toBeLessThanOrEqual(rect.width - 27.99);
+    expect(a.y).toBeGreaterThanOrEqual(27.99);
+    expect(b.y).toBeLessThanOrEqual(rect.height - 27.99);
+  });
 });
 
 describe('workbench pointer coordinates', () => {

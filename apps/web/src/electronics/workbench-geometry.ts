@@ -411,6 +411,13 @@ export function gestureViewport(
   return { x: start.x + before.x - after.x, y: start.y + before.y - after.y, zoom };
 }
 
+export interface ViewportFitInsets {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
 export function fitViewportToScreen(
   bounds: { minX: number; minY: number; maxX: number; maxY: number },
   rect: Pick<DOMRect, 'width' | 'height'>,
@@ -418,18 +425,25 @@ export function fitViewportToScreen(
   canvasHeight: number,
   minZoom: number,
   maxZoom: number,
-  padding = 28,
+  padding: number | ViewportFitInsets = 28,
 ): Viewport {
   const baseScale = Math.max(rect.width / canvasWidth, rect.height / canvasHeight);
   if (baseScale <= 0) return { x: 0, y: 0, zoom: 1 };
+  const insets =
+    typeof padding === 'number'
+      ? { left: padding, right: padding, top: padding, bottom: padding }
+      : padding;
   const targetScale = Math.min(
-    Math.max(1, rect.width - 2 * padding) / Math.max(1, bounds.maxX - bounds.minX),
-    Math.max(1, rect.height - 2 * padding) / Math.max(1, bounds.maxY - bounds.minY),
+    Math.max(1, rect.width - insets.left - insets.right) / Math.max(1, bounds.maxX - bounds.minX),
+    Math.max(1, rect.height - insets.top - insets.bottom) / Math.max(1, bounds.maxY - bounds.minY),
   );
   const zoom = clamp(targetScale / baseScale, minZoom, maxZoom);
+  const actualScale = baseScale * zoom;
+  const horizontalOffset = (insets.left - insets.right) / (2 * actualScale);
+  const verticalOffset = (insets.top - insets.bottom) / (2 * actualScale);
   return {
-    x: (bounds.minX + bounds.maxX) / 2 - canvasWidth / zoom / 2,
-    y: (bounds.minY + bounds.maxY) / 2 - canvasHeight / zoom / 2,
+    x: (bounds.minX + bounds.maxX) / 2 - canvasWidth / zoom / 2 - horizontalOffset,
+    y: (bounds.minY + bounds.maxY) / 2 - canvasHeight / zoom / 2 - verticalOffset,
     zoom,
   };
 }

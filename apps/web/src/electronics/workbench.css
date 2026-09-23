@@ -890,10 +890,10 @@
   pointer-events: none;
 }
 .workbench-wire-guide {
-  stroke: #18a4df;
-  stroke-width: 1.2;
-  stroke-dasharray: 5 5;
-  opacity: 0.72;
+  stroke: #0789c6;
+  stroke-width: 1.5;
+  stroke-dasharray: 6 5;
+  opacity: 0.9;
   pointer-events: none;
 }
 .workbench-wire-preview {
@@ -5347,6 +5347,13 @@ html.arduino-palette-resizing * {
 @media (max-width: 980px) and (orientation: landscape) and (max-height: 550px) {
   .workbench-shell {
     --wb-library-open-height: 152px;
+  }
+  /* Keep the selected component's body reachable on short landscape screens.
+     The full 300px compact inspector could cover the placed resistor entirely
+     at 568x320; wire-selected keeps its separate R4 geometry below. */
+  .workbench-inspector:not(.wire-selected),
+  .workbench-inspector.library-hidden:not(.wire-selected) {
+    width: min(200px, calc(100% - 80px));
   }
   .workbench-library-heading,
   .workbench-library-search {

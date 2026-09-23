@@ -206,6 +206,7 @@ export function WorkbenchStage({
     x: number;
     y: number;
     at: number;
+    mutationEpoch: number;
   } | null>(null);
   const lastVertexClick = useRef<{
     wireId: string;
@@ -248,8 +249,11 @@ export function WorkbenchStage({
     }
     event.stopPropagation();
     const previous = lastWireClick.current;
-    const repeated = previous?.wireId === wireId && isRepeatedClick(previous, event);
-    if (event.detail >= 2 || repeated) {
+    const repeated =
+      previous?.wireId === wireId &&
+      previous.mutationEpoch === c.documentMutationEpoch() &&
+      isRepeatedClick(previous, event);
+    if (repeated) {
       lastWireClick.current = null;
       c.addWireVertexAt(event, wireId);
       return;
@@ -259,6 +263,7 @@ export function WorkbenchStage({
       x: event.clientX,
       y: event.clientY,
       at: Date.now(),
+      mutationEpoch: c.documentMutationEpoch(),
     };
     if (segmentIndex === undefined) {
       c.setSelection({ kind: 'wire', id: wireId });

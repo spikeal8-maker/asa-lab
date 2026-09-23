@@ -177,15 +177,38 @@ export function useElectronicsWorkbench(projectId: string) {
     setProjectTitle,
     canUndo,
     canRedo,
-    undo,
-    redo,
-    commitDocument,
+    undo: projectUndo,
+    redo: projectRedo,
+    commitDocument: projectCommitDocument,
     saveNow,
     toggleSimulation,
     resetSimulation,
     checkpoint,
     renameProject,
   } = projectState;
+
+  const documentMutationEpochRef = useRef(0);
+
+  const markDocumentMutation = (): void => {
+    documentMutationEpochRef.current += 1;
+  };
+
+  const commitDocument = (...args: Parameters<typeof projectCommitDocument>) => {
+    markDocumentMutation();
+    return projectCommitDocument(...args);
+  };
+
+  const undo = () => {
+    markDocumentMutation();
+    return projectUndo();
+  };
+
+  const redo = () => {
+    markDocumentMutation();
+    return projectRedo();
+  };
+
+  const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
   const runtimeDocument = useMemo(
@@ -1441,13 +1464,9 @@ export function useElectronicsWorkbench(projectId: string) {
       return freeWirePoint(point);
     }
 
-    const anchorClient = worldToClient(
-      anchor,
-      stage.getBoundingClientRect(),
-      panViewportRef.current ?? viewport,
-      STAGE_WIDTH,
-      STAGE_HEIGHT,
-    );
+    const rect = stage.getBoundingClientRect();
+    const activeViewport = panViewportRef.current ?? viewport;
+    const anchorClient = worldToClient(anchor, rect, activeViewport, STAGE_WIDTH, STAGE_HEIGHT);
     const assisted = resolveWireAssist(
       anchorClient,
       clientPoint,
@@ -1462,7 +1481,53 @@ export function useElectronicsWorkbench(projectId: string) {
 
     const assistedPoint =
       assisted.axis === 'horizontal' ? { x: point.x, y: anchor.y } : { x: anchor.x, y: point.y };
-    setWireGuide({ from: anchor, to: assistedPoint });
+
+    // The guide is drafting help, not another copy of the preview. Extend it in
+    // screen space beyond both ends of the active segment so the dashed axis is
+    // still visible when the solid wire preview lies on the same line.
+    const guideExtensionPx = 24;
+    const alignedClient =
+      assisted.axis === 'horizontal'
+        ? { x: clientPoint.x, y: anchorClient.y }
+        : { x: anchorClient.x, y: clientPoint.y };
+    const guideFromClient =
+      assisted.axis === 'horizontal'
+        ? {
+            x: Math.min(anchorClient.x, alignedClient.x) - guideExtensionPx,
+            y: anchorClient.y,
+          }
+        : {
+            x: anchorClient.x,
+            y: Math.min(anchorClient.y, alignedClient.y) - guideExtensionPx,
+          };
+    const guideToClient =
+      assisted.axis === 'horizontal'
+        ? {
+            x: Math.max(anchorClient.x, alignedClient.x) + guideExtensionPx,
+            y: anchorClient.y,
+          }
+        : {
+            x: anchorClient.x,
+            y: Math.max(anchorClient.y, alignedClient.y) + guideExtensionPx,
+          };
+    setWireGuide({
+      from: clientToWorld(
+        guideFromClient.x,
+        guideFromClient.y,
+        rect,
+        activeViewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      ),
+      to: clientToWorld(
+        guideToClient.x,
+        guideToClient.y,
+        rect,
+        activeViewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      ),
+    });
     return assistedPoint;
   }
 
@@ -2270,7 +2335,15 @@ export function useElectronicsWorkbench(projectId: string) {
     const rect = stageRef.current?.getBoundingClientRect();
     applyViewport(
       bounds && rect
-        ? fitViewportToScreen(bounds, rect, STAGE_WIDTH, STAGE_HEIGHT, MIN_ZOOM, MAX_ZOOM)
+        ? fitViewportToScreen(
+            bounds,
+            rect,
+            STAGE_WIDTH,
+            STAGE_HEIGHT,
+            MIN_ZOOM,
+            MAX_ZOOM,
+            compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
+          )
         : DEFAULT_VIEWPORT,
     );
   }
@@ -2501,6 +2574,7 @@ export function useElectronicsWorkbench(projectId: string) {
     canRedo,
     undo,
     redo,
+    documentMutationEpoch,
     duplicateSelected,
     copySelected,
     pasteCopied,

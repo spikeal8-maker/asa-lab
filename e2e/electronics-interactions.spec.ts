@@ -53,6 +53,7 @@ test.beforeEach(async ({ page }, info) => {
         (event) => {
           const pointer = event as PointerEvent;
           const target = event.target instanceof Element ? event.target : null;
+          if (events.length === 256) events.shift();
           events.push({
             type,
             t: Math.round(performance.now()),
@@ -73,12 +74,13 @@ test.beforeEach(async ({ page }, info) => {
 });
 test.afterEach(async ({ page }, info) => {
   if (!/R3 native matrix|R3 cancellation/.test(info.title) || info.status === 'passed') return;
-  console.log(
-    'INPUT_PROBE',
-    JSON.stringify(
+  if (page.isClosed()) return;
+  await info.attach('native-input-failure', {
+    body: JSON.stringify(
       await page.evaluate(() => (window as unknown as { inputProbe: unknown[] }).inputProbe),
     ),
-  );
+    contentType: 'application/json',
+  });
 });
 
 test.describe('interaction: document integrity', () => {
@@ -175,6 +177,66 @@ test.describe('interaction: document integrity', () => {
     ).toBe(writes + 1);
     await page.getByRole('button', { name: /Отменить/ }).click();
     await expect(wire).toHaveAttribute('d', original!);
+  });
+
+  test('wire double-click is consecutive: intervening straighten and Undo break the click pair', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const doc = documentFixture();
+    doc.connections = [
+      {
+        id: 'double-click-wire',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: [{ x: 820, y: 280 }],
+      },
+    ];
+    const { readDocument } = await openEditor(page, doc);
+    const wireHit = page.getByTestId('wire-hit');
+    const wire = page.getByTestId('schematic-wire');
+    const pointAtQuarter = () =>
+      wireHit.evaluate((element) => {
+        const path = element as SVGPathElement;
+        const point = path
+          .getPointAtLength(path.getTotalLength() * 0.25)
+          .matrixTransform(path.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      });
+
+    const trueDoublePoint = await pointAtQuarter();
+    await page.mouse.dblclick(trueDoublePoint.x, trueDoublePoint.y);
+    await expect(page.getByTestId('wire-vertex')).toHaveCount(2);
+    await expect.poll(() => readDocument().connections[0]?.vertices?.length).toBe(2);
+
+    await page.getByRole('button', { name: /Отменить/ }).click();
+    await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+    await expect.poll(() => readDocument().connections[0]?.vertices).toEqual([{ x: 820, y: 280 }]);
+
+    // First click establishes a possible pair, but the command and its Undo
+    // replace the document twice. The next select is not a double-click even
+    // when it lands at the same screen point well inside the old time window.
+    const firstSelect = await pointAtQuarter();
+    await page.mouse.click(firstSelect.x, firstSelect.y);
+    const panel = page.getByTestId('wire-inspector-compact');
+    await expect(panel).toBeVisible();
+    await panel.getByRole('button', { name: 'Выпрямить провод', exact: true }).click();
+    await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
+    await page.getByRole('button', { name: /Отменить/ }).click();
+    await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+
+    const beforeReselect = structuredClone(readDocument().connections[0]?.vertices ?? []);
+    const writesBeforeReselect = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    const secondSelect = await pointAtQuarter();
+    await page.mouse.click(secondSelect.x, secondSelect.y);
+    await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+    await expect.poll(() => readDocument().connections[0]?.vertices).toEqual(beforeReselect);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writesBeforeReselect);
+    await expect(wire).toHaveAttribute('data-wire-id', 'double-click-wire');
   });
 });
 
@@ -309,26 +371,36 @@ async function pointOnBody(page: Page, id: string) {
             (terminal) => terminal.getBoundingClientRect(),
           )
         : [];
-      const candidates = [
-        [0.5, 0.35],
-        [0.5, 0.5],
-        [0.35, 0.3],
-        [0.65, 0.3],
-        [0.35, 0.5],
-        [0.65, 0.5],
-      ] as const;
-      for (const [rx, ry] of candidates) {
-        const point = { x: box.x + box.width * rx, y: box.y + box.height * ry };
-        const overlapsTerminal = terminalRects.some(
-          (terminal) =>
-            point.x >= terminal.left - 1 &&
-            point.x <= terminal.right + 1 &&
-            point.y >= terminal.top - 1 &&
-            point.y <= terminal.bottom + 1,
-        );
-        if (!overlapsTerminal) return point;
+
+      // Pick a point the browser can actually deliver to the component body.
+      // Geometry alone is insufficient on compact landscape layouts: an inspector
+      // can cover the body, and enlarged R2 terminal targets can cover a lead.
+      const fractions = [0.5, 0.35, 0.65, 0.2, 0.8] as const;
+      for (const ry of fractions) {
+        for (const rx of fractions) {
+          const point = { x: box.x + box.width * rx, y: box.y + box.height * ry };
+          const overlapsTerminal = terminalRects.some(
+            (terminal) =>
+              point.x >= terminal.left - 1 &&
+              point.x <= terminal.right + 1 &&
+              point.y >= terminal.top - 1 &&
+              point.y <= terminal.bottom + 1,
+          );
+          if (overlapsTerminal) continue;
+          const topmost = document.elementFromPoint(point.x, point.y);
+          if (!topmost) continue;
+          if (topmost.closest('.workbench-inspector')) continue;
+          if (topmost.closest('[data-terminal-component-id][data-terminal-id]')) continue;
+          const topComponent = topmost.closest<SVGElement>('[data-testid="schematic-component"]');
+          if (
+            topComponent?.dataset['componentId'] === component?.dataset['componentId'] ||
+            topmost.classList.contains('workbench-grid-hit')
+          ) {
+            return point;
+          }
+        }
       }
-      throw new Error('Could not find a component-body point outside terminal hit areas');
+      throw new Error('No exposed component-body point is reachable without crossing a terminal');
     });
 }
 
@@ -789,7 +861,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.move(enter.x, enter.y);
       await frames(page);
       await expect(guide).toHaveCount(1);
-      expect(await guideLength()).toBeGreaterThan(100);
+      expect(await guideLength()).toBeGreaterThan(160);
       let previewEnd = await pathScreenPoint(preview);
       expect(previewEnd.x).toBeCloseTo(enter.x, 0);
       expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
@@ -799,7 +871,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.move(hysteresis.x, hysteresis.y);
       await frames(page);
       await expect(guide).toHaveCount(1);
-      expect(await guideLength()).toBeGreaterThan(100);
+      expect(await guideLength()).toBeGreaterThan(160);
       previewEnd = await pathScreenPoint(preview);
       expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
 
@@ -810,6 +882,24 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       previewEnd = await pathScreenPoint(preview);
       expect(previewEnd.x).toBeCloseTo(exit.x, 0);
       expect(previewEnd.y).toBeCloseTo(exit.y, 0);
+
+      const verticalEnter = { x: sourcePoint.x + 5, y: sourcePoint.y - 120 };
+      await page.mouse.move(verticalEnter.x, verticalEnter.y);
+      await frames(page);
+      await expect(guide).toHaveCount(1);
+      expect(await guideLength()).toBeGreaterThan(160);
+      previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.x).toBeCloseTo(sourcePoint.x, 0);
+      expect(previewEnd.y).toBeCloseTo(verticalEnter.y, 0);
+      await page.screenshot({ path: 'reports/interactions/r1-soft-wire-guide-vertical.png' });
+
+      const verticalExit = { x: sourcePoint.x + 12, y: sourcePoint.y - 120 };
+      await page.mouse.move(verticalExit.x, verticalExit.y);
+      await frames(page);
+      await expect(guide).toHaveCount(0);
+      previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.x).toBeCloseTo(verticalExit.x, 0);
+      expect(previewEnd.y).toBeCloseTo(verticalExit.y, 0);
 
       const diagonal = { x: sourcePoint.x + 120, y: sourcePoint.y + 40 };
       await page.mouse.move(diagonal.x, diagonal.y);
@@ -827,6 +917,17 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       expect(previewEnd.y).toBeCloseTo(disabled.y, 0);
       await page.keyboard.up('Alt');
 
+      const cancelGuide = { x: sourcePoint.x + 120, y: sourcePoint.y + 4 };
+      await page.mouse.move(cancelGuide.x, cancelGuide.y);
+      await frames(page);
+      await expect(guide).toHaveCount(1);
+      await page.keyboard.press('Escape');
+      await expect(preview).toHaveCount(0);
+      await expect(guide).toHaveCount(0);
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
+
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      await expect(preview).toHaveCount(1);
       const targetPoint = await locatorCenter(target);
       await page.mouse.click(targetPoint.x, targetPoint.y);
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
@@ -1088,7 +1189,6 @@ for (const [width, height] of [
   touchVideoTest(
     `R3 native matrix ${width}x${height}: place, move, both wire gestures, Undo/Redo and panel`,
     async ({ page, context }) => {
-      test.setTimeout(60_000);
       await page.setViewportSize({ width, height });
       const fixture = documentFixture();
       fixture.components = fixture.components
@@ -1099,29 +1199,6 @@ for (const [width, height] of [
             : item,
         );
       const { errors, readDocument } = await openEditor(page, fixture);
-      if (width === 320)
-        await page.evaluate(() => {
-          const events: unknown[] = [];
-          (window as unknown as { touchEvidence: unknown[] }).touchEvidence = events;
-          for (const kind of ['pointerdown', 'pointerup', 'click']) {
-            window.addEventListener(
-              kind,
-              (event) => {
-                const e = event as PointerEvent;
-                const el = event.target as Element;
-                events.push({
-                  kind,
-                  x: e.clientX,
-                  y: e.clientY,
-                  target: el.getAttribute('class'),
-                  terminal: el.getAttribute('data-terminal-id'),
-                  label: el.getAttribute('aria-label'),
-                });
-              },
-              true,
-            );
-          }
-        });
       const session = await context.newCDPSession(page);
       const send = (
         type: 'touchStart' | 'touchMove' | 'touchEnd',
@@ -1186,6 +1263,8 @@ for (const [width, height] of [
       const oldX = await resistor.getAttribute('data-x');
       await gesture(grab, { x: grab.x + 18, y: grab.y + 20 });
       await expect(resistor).not.toHaveAttribute('data-x', oldX!);
+      const movedX = await resistor.getAttribute('data-x');
+      if (!movedX || movedX === oldX) throw new Error('Touch drag did not move the resistor body');
       await tap(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
       const clearedStage = await page.locator('.workbench-stage').boundingBox();
       if (!clearedStage) throw new Error('Missing stage after fit');
@@ -1205,25 +1284,67 @@ for (const [width, height] of [
         exact: true,
       });
       await expect(undo).toBeEnabled();
+      if (width === 390 && height === 844) {
+        const box = await undo.boundingBox();
+        if (!box) throw new Error('Undo button is not visible');
+        const centre = { id: 1, x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        const beforeCancelled = structuredClone(readDocument());
+        const writesBeforeCancelled = await page.evaluate(
+          () => (window as unknown as { draftWrites: number }).draftWrites,
+        );
+        // A swipe is not a command, even when the pointer returns to its start.
+        await send('touchStart', [centre]);
+        await send('touchMove', [{ ...centre, x: centre.x + 12 }]);
+        await send('touchMove', [centre]);
+        await send('touchEnd', []);
+        // Implicit capture delivers a near-edge release to the original button;
+        // release outside its rectangle still must not activate Undo.
+        const edge = { id: 1, x: box.x + 1, y: centre.y };
+        await send('touchStart', [edge]);
+        await send('touchMove', [{ ...edge, x: box.x - 2 }]);
+        await send('touchEnd', []);
+        await send('touchStart', [centre]);
+        await session.send('Input.dispatchTouchEvent', { type: 'touchCancel', touchPoints: [] });
+        // A second contact cancels the command gesture rather than turning the
+        // first finger's later release into an unsolicited Undo.
+        await send('touchStart', [centre]);
+        await send('touchStart', [centre, { id: 2, x: centre.x + 44, y: centre.y }]);
+        await send('touchEnd', []);
+        await frames(page);
+        expect(readDocument()).toEqual(beforeCancelled);
+        expect(
+          await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+        ).toBe(writesBeforeCancelled);
+        await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      }
       await undo.tap();
       await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
+      await expect(resistor).toHaveAttribute('data-x', movedX);
+      expect(readDocument().connections).toHaveLength(0);
       await expect(redo).toBeEnabled();
       await redo.tap();
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(resistor).toHaveAttribute('data-x', movedX);
       await undo.tap();
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
       await tap(source);
       await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
       await tap(target);
-      if (width === 320) {
-        console.log(
-          'NATIVE_320_EVENTS',
-          await page.evaluate(
-            () => (window as unknown as { touchEvidence: unknown[] }).touchEvidence,
-          ),
-        );
-        await page.screenshot({ path: 'reports/interactions/native-320-taps.png' });
-      }
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect
+        .poll(() => readDocument().connections.map((wire) => ({ from: wire.from, to: wire.to })))
+        .toEqual([
+          {
+            from: { componentId: 'battery', terminal: 'BAT+' },
+            to: { componentId: 'led', terminal: 'cathode' },
+          },
+        ]);
+      await undo.tap();
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
+      await expect(resistor).toHaveAttribute('data-x', movedX);
+      await redo.tap();
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(resistor).toHaveAttribute('data-x', movedX);
       await expect
         .poll(() => readDocument().connections.map((wire) => ({ from: wire.from, to: wire.to })))
         .toEqual([
@@ -1264,7 +1385,6 @@ touchVideoTest(
       touchPoints: { id: number; x: number; y: number }[],
     ) => session.send('Input.dispatchTouchEvent', { type, touchPoints });
     for (const mode of ['second-finger', 'pointercancel', 'capture-loss', 'blur'] as const) {
-      console.log('CANCEL_MODE', mode);
       const start = await locatorCenter(card);
       const moving = { x: start.x, y: start.y - 24 };
       const writes = await page.evaluate(
