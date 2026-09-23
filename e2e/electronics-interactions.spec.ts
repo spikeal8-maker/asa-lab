@@ -25,6 +25,12 @@ configureProductionLibrary(
   ),
 );
 const ID = '10000000-0000-4000-8000-000000000001';
+const touchVideoTest = test.extend({
+  hasTouch: true,
+  viewport: { width: 390, height: 844 },
+  video: 'on',
+});
+const wireVideoTest = test.extend({ video: 'on' });
 
 test.describe('interaction: document integrity', () => {
   test('board carries mounted parts in one undoable move', async ({ page }) => {
@@ -362,127 +368,125 @@ test.describe('interaction: electronics input and responsive layout', () => {
   }
 });
 
-test.describe('interaction: native touch', () => {
-  test.use({ hasTouch: true, viewport: { width: 390, height: 844 }, video: 'on' });
-
-  test('one-finger pan and two-finger pinch use the same screen coordinates', async ({
-    page,
-    context,
-  }) => {
-    const { errors } = await openEditor(page);
-    const session = await context.newCDPSession(page);
-    const send = (
-      type: 'touchStart' | 'touchMove' | 'touchEnd',
-      points: { id: number; x: number; y: number }[],
-    ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
-    const stage = page.locator('.workbench-canvas');
-    const project = async (x: number, y: number) =>
-      stage.evaluate(
-        (el, p) => {
-          const point = new DOMPoint(p.x, p.y).matrixTransform(
-            (el as SVGSVGElement).getScreenCTM()!,
-          );
-          return { x: point.x, y: point.y };
-        },
-        { x, y },
-      );
-    const origin = await project(800, 750);
-    await send('touchStart', [{ id: 1, x: 120, y: 650 }]);
-    await send('touchMove', [{ id: 1, x: 165, y: 675 }]);
-    await send('touchEnd', []);
-    const panned = await project(800, 750);
-    expect(panned.x - origin.x).toBeCloseTo(45, 0);
-    expect(panned.y - origin.y).toBeCloseTo(25, 0);
-    const before = await stage.evaluate((el) => {
-      const matrix = (el as SVGSVGElement).getScreenCTM()!;
-      const anchor = new DOMPoint(170, 600).matrixTransform(matrix.inverse());
-      return { a: matrix.a, x: anchor.x, y: anchor.y };
-    });
-    await send('touchStart', [
-      { id: 1, x: 120, y: 600 },
-      { id: 2, x: 220, y: 600 },
-    ]);
-    await send('touchMove', [
-      { id: 1, x: 100, y: 615 },
-      { id: 2, x: 250, y: 615 },
-    ]);
-    await send('touchEnd', []);
-    const after = await project(before.x, before.y);
-    expect(after.x).toBeCloseTo(175, 0);
-    expect(after.y).toBeCloseTo(615, 0);
-    const scale = await stage.evaluate((el) => (el as SVGSVGElement).getScreenCTM()!.a);
-    expect(scale / before.a).toBeCloseTo(1.5, 2);
-    expect(errors).toEqual([]);
-  });
-
-  test('R3 shelf scroll stays native and one upward finger drag places exactly one part', async ({
-    page,
-    context,
-  }) => {
-    await openEditor(page);
-    await page.getByRole('button', { name: 'Каталог деталей', exact: true }).click();
-    const shelf = page.locator('.workbench-catalog-grid');
-    const session = await context.newCDPSession(page);
-    const send = (
-      type: 'touchStart' | 'touchMove' | 'touchEnd',
-      points: { id: number; x: number; y: number }[],
-    ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
-
-    await send('touchStart', [{ id: 1, x: 340, y: 775 }]);
-    for (let x = 310; x >= 70; x -= 30) await send('touchMove', [{ id: 1, x, y: 775 }]);
-    await send('touchEnd', []);
-    await expect.poll(() => shelf.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
-    await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
-    await expect(page.getByTestId('schematic-component')).toHaveCount(4);
-
-    await shelf.evaluate((el) => {
-      el.scrollLeft = 0;
-    });
-    const card = page.getByRole('button', { name: 'Резистор', exact: true });
-    await card.scrollIntoViewIfNeeded();
-    const cardBox = await card.boundingBox();
-    const stageBox = await page.locator('.workbench-stage').boundingBox();
-    if (!cardBox || !stageBox) throw new Error('Expected visible mobile shelf and stage');
-    const start = {
-      x: cardBox.x + cardBox.width / 2,
-      y: cardBox.y + cardBox.height / 2,
-    };
-    const drop = {
-      x: stageBox.x + stageBox.width * 0.55,
-      y: stageBox.y + stageBox.height * 0.55,
-    };
-
-    await send('touchStart', [{ id: 2, ...start }]);
-    await send('touchMove', [{ id: 2, x: start.x, y: start.y - 12 }]);
-    await expect(page.getByTestId('catalog-placement-preview')).toBeVisible();
-    for (let step = 1; step <= 6; step += 1) {
-      const ratio = step / 6;
-      await send('touchMove', [
-        {
-          id: 2,
-          x: start.x + (drop.x - start.x) * ratio,
-          y: start.y - 12 + (drop.y - (start.y - 12)) * ratio,
-        },
+touchVideoTest.describe('interaction: native touch', () => {
+  touchVideoTest(
+    'one-finger pan and two-finger pinch use the same screen coordinates',
+    async ({ page, context }) => {
+      const { errors } = await openEditor(page);
+      const session = await context.newCDPSession(page);
+      const send = (
+        type: 'touchStart' | 'touchMove' | 'touchEnd',
+        points: { id: number; x: number; y: number }[],
+      ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+      const stage = page.locator('.workbench-canvas');
+      const project = async (x: number, y: number) =>
+        stage.evaluate(
+          (el, p) => {
+            const point = new DOMPoint(p.x, p.y).matrixTransform(
+              (el as SVGSVGElement).getScreenCTM()!,
+            );
+            return { x: point.x, y: point.y };
+          },
+          { x, y },
+        );
+      const origin = await project(800, 750);
+      await send('touchStart', [{ id: 1, x: 120, y: 650 }]);
+      await send('touchMove', [{ id: 1, x: 165, y: 675 }]);
+      await send('touchEnd', []);
+      const panned = await project(800, 750);
+      expect(panned.x - origin.x).toBeCloseTo(45, 0);
+      expect(panned.y - origin.y).toBeCloseTo(25, 0);
+      const before = await stage.evaluate((el) => {
+        const matrix = (el as SVGSVGElement).getScreenCTM()!;
+        const anchor = new DOMPoint(170, 600).matrixTransform(matrix.inverse());
+        return { a: matrix.a, x: anchor.x, y: anchor.y };
+      });
+      await send('touchStart', [
+        { id: 1, x: 120, y: 600 },
+        { id: 2, x: 220, y: 600 },
       ]);
-    }
-    const preview = page.getByTestId('catalog-placement-preview');
-    const previewBox = await preview.boundingBox();
-    if (!previewBox) throw new Error('Expected component preview during direct touch drag');
-    expect(previewBox.x + previewBox.width / 2).toBeCloseTo(drop.x, 0);
-    expect(previewBox.y + previewBox.height / 2).toBeCloseTo(drop.y, 0);
-    await page.screenshot({ path: 'reports/interactions/r3-touch-drag-preview.png' });
-    await send('touchEnd', []);
+      await send('touchMove', [
+        { id: 1, x: 100, y: 615 },
+        { id: 2, x: 250, y: 615 },
+      ]);
+      await send('touchEnd', []);
+      const after = await project(before.x, before.y);
+      expect(after.x).toBeCloseTo(175, 0);
+      expect(after.y).toBeCloseTo(615, 0);
+      const scale = await stage.evaluate((el) => (el as SVGSVGElement).getScreenCTM()!.a);
+      expect(scale / before.a).toBeCloseTo(1.5, 2);
+      expect(errors).toEqual([]);
+    },
+  );
 
-    await expect(page.getByTestId('schematic-component')).toHaveCount(5);
-    await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
-    await expect(page.locator('.workbench-library')).toHaveClass(/collapsed/);
-    const resistor = page.locator(
-      '[data-testid="schematic-component"][data-component-type="resistor-axial"]',
-    );
-    await expect(resistor).toHaveCount(1);
-    await expect(resistor).toBeVisible();
-    await page.screenshot({ path: 'reports/interactions/r3-touch-direct-placement.png' });
-  });
+  touchVideoTest(
+    'R3 shelf scroll stays native and one upward finger drag places exactly one part',
+    async ({ page, context }) => {
+      await openEditor(page);
+      await page.getByRole('button', { name: 'Каталог деталей', exact: true }).click();
+      const shelf = page.locator('.workbench-catalog-grid');
+      const session = await context.newCDPSession(page);
+      const send = (
+        type: 'touchStart' | 'touchMove' | 'touchEnd',
+        points: { id: number; x: number; y: number }[],
+      ) => session.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+
+      await send('touchStart', [{ id: 1, x: 340, y: 775 }]);
+      for (let x = 310; x >= 70; x -= 30) await send('touchMove', [{ id: 1, x, y: 775 }]);
+      await send('touchEnd', []);
+      await expect.poll(() => shelf.evaluate((el) => el.scrollLeft)).toBeGreaterThan(100);
+      await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
+      await expect(page.getByTestId('schematic-component')).toHaveCount(4);
+
+      await shelf.evaluate((el) => {
+        el.scrollLeft = 0;
+      });
+      const card = page.getByRole('button', { name: 'Резистор', exact: true });
+      await card.scrollIntoViewIfNeeded();
+      const cardBox = await card.boundingBox();
+      const stageBox = await page.locator('.workbench-stage').boundingBox();
+      if (!cardBox || !stageBox) throw new Error('Expected visible mobile shelf and stage');
+      const start = {
+        x: cardBox.x + cardBox.width / 2,
+        y: cardBox.y + cardBox.height / 2,
+      };
+      const drop = {
+        x: stageBox.x + stageBox.width * 0.55,
+        y: stageBox.y + stageBox.height * 0.55,
+      };
+
+      await send('touchStart', [{ id: 2, ...start }]);
+      await send('touchMove', [{ id: 2, x: start.x, y: start.y - 12 }]);
+      await expect(page.getByTestId('catalog-placement-preview')).toBeVisible();
+      for (let step = 1; step <= 6; step += 1) {
+        const ratio = step / 6;
+        await send('touchMove', [
+          {
+            id: 2,
+            x: start.x + (drop.x - start.x) * ratio,
+            y: start.y - 12 + (drop.y - (start.y - 12)) * ratio,
+          },
+        ]);
+      }
+      const preview = page.getByTestId('catalog-placement-preview');
+      const previewBox = await preview.boundingBox();
+      if (!previewBox) throw new Error('Expected component preview during direct touch drag');
+      expect(previewBox.x + previewBox.width / 2).toBeCloseTo(drop.x, 0);
+      expect(previewBox.y + previewBox.height / 2).toBeCloseTo(drop.y, 0);
+      await page.screenshot({ path: 'reports/interactions/r3-touch-drag-preview.png' });
+      await send('touchEnd', []);
+
+      await expect(page.getByTestId('schematic-component')).toHaveCount(5);
+      await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(0);
+      await expect(page.locator('.workbench-library')).toHaveClass(/collapsed/);
+      const resistor = page.locator(
+        '[data-testid="schematic-component"][data-component-type="resistor-axial"]',
+      );
+      await expect(resistor).toHaveCount(1);
+      await expect(resistor).toBeVisible();
+      await page.screenshot({ path: 'reports/interactions/r3-touch-direct-placement.png' });
+    },
+  );
 });
 
 test.describe('interaction: catalog and carrier', () => {
@@ -572,174 +576,169 @@ function wiredDocument(): SchematicDocument {
   return doc;
 }
 
-test.describe('interaction: natural precise wire routing', () => {
-  test.use({ video: 'on' });
-  test('R2 TERMINAL/HIT/ENDPOINT geometry scales at 0.5/1/2/4 and keeps one centre', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    const doc = wiredDocument();
-    doc.components = doc.components.map((item) =>
-      item.id === 'led' ? { ...item, rotation: 45 } : item,
-    );
-    await openEditor(page, doc);
-
-    type Sample = {
-      hit: number;
-      dot: number;
-      breadboardHit: number;
-      breadboardDot: number;
-      endpoint: number;
-    };
-    const samples = new Map<number, Sample>();
-    const centerOf = (box: { x: number; y: number; width: number; height: number }) => ({
-      x: box.x + box.width / 2,
-      y: box.y + box.height / 2,
-    });
-
-    for (const zoom of [0.5, 1, 2, 4]) {
-      await page.evaluate(
-        ({ id, zoomLevel }) => {
-          const center = { x: 800, y: 420 };
-          localStorage.setItem(
-            `asa-electronics-viewport:${id}`,
-            JSON.stringify({
-              x: center.x - 1600 / (2 * zoomLevel),
-              y: center.y - 980 / (2 * zoomLevel),
-              zoom: zoomLevel,
-            }),
-          );
-        },
-        { id: ID, zoomLevel: zoom },
+wireVideoTest.describe('interaction: natural precise wire routing', () => {
+  wireVideoTest(
+    'R2 TERMINAL/HIT/ENDPOINT geometry scales at 0.5/1/2/4 and keeps one centre',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const doc = wiredDocument();
+      doc.components = doc.components.map((item) =>
+        item.id === 'led' ? { ...item, rotation: 45 } : item,
       );
-      await page.reload();
-      await expect(page.getByTestId('schematic-component')).toHaveCount(doc.components.length);
+      await openEditor(page, doc);
 
-      const wirePath = page.getByTestId('wire-hit').first();
-      const wirePoint = await pathScreenPoint(wirePath, 0.5);
-      await page.mouse.click(wirePoint.x, wirePoint.y);
-      await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
-
-      const componentHit = wireTerminal(page, 'led', 'cathode');
-      const componentDot = componentHit.locator('..').locator('.workbench-terminal-dot');
-      const breadboardHit = wireTerminal(page, 'board', 'J20');
-      const breadboardDot = breadboardHit.locator('..').locator('.workbench-contact-square');
-      const endpoint = page.getByTestId('wire-endpoint').first();
-      const [hitBox, dotBox, boardHitBox, boardDotBox, endpointBox] = await Promise.all([
-        componentHit.boundingBox(),
-        componentDot.boundingBox(),
-        breadboardHit.boundingBox(),
-        breadboardDot.boundingBox(),
-        endpoint.boundingBox(),
-      ]);
-      if (!hitBox || !dotBox || !boardHitBox || !boardDotBox || !endpointBox) {
-        throw new Error(`Expected visible R2 geometry at zoom ${zoom}`);
-      }
-      const hitCenter = centerOf(hitBox);
-      const dotCenter = centerOf(dotBox);
-      const boardHitCenter = centerOf(boardHitBox);
-      const boardDotCenter = centerOf(boardDotBox);
-      const endpointCenter = centerOf(endpointBox);
-      expect(
-        Math.hypot(hitCenter.x - dotCenter.x, hitCenter.y - dotCenter.y),
-      ).toBeLessThanOrEqual(0.5);
-      expect(
-        Math.hypot(boardHitCenter.x - boardDotCenter.x, boardHitCenter.y - boardDotCenter.y),
-      ).toBeLessThanOrEqual(0.5);
-      expect(
-        Math.hypot(hitCenter.x - endpointCenter.x, hitCenter.y - endpointCenter.y),
-      ).toBeLessThanOrEqual(0.5);
-
-      samples.set(zoom, {
-        hit: hitBox.width,
-        dot: dotBox.width,
-        breadboardHit: boardHitBox.width,
-        breadboardDot: boardDotBox.width,
-        endpoint: endpointBox.width,
+      type Sample = {
+        hit: number;
+        dot: number;
+        breadboardHit: number;
+        breadboardDot: number;
+        endpoint: number;
+      };
+      const samples = new Map<number, Sample>();
+      const centerOf = (box: { x: number; y: number; width: number; height: number }) => ({
+        x: box.x + box.width / 2,
+        y: box.y + box.height / 2,
       });
-      if (zoom === 4) {
-        await page.screenshot({ path: 'reports/interactions/r2-terminal-scale-4x.png' });
+
+      for (const zoom of [0.5, 1, 2, 4]) {
+        await page.evaluate(
+          ({ id, zoomLevel }) => {
+            const center = { x: 800, y: 420 };
+            localStorage.setItem(
+              `asa-electronics-viewport:${id}`,
+              JSON.stringify({
+                x: center.x - 1600 / (2 * zoomLevel),
+                y: center.y - 980 / (2 * zoomLevel),
+                zoom: zoomLevel,
+              }),
+            );
+          },
+          { id: ID, zoomLevel: zoom },
+        );
+        await page.reload();
+        await expect(page.getByTestId('schematic-component')).toHaveCount(doc.components.length);
+
+        const wirePath = page.getByTestId('wire-hit').first();
+        const wirePoint = await pathScreenPoint(wirePath, 0.5);
+        await page.mouse.click(wirePoint.x, wirePoint.y);
+        await expect(page.getByTestId('wire-endpoint')).toHaveCount(2);
+
+        const componentHit = wireTerminal(page, 'led', 'cathode');
+        const componentDot = componentHit.locator('..').locator('.workbench-terminal-dot');
+        const breadboardHit = wireTerminal(page, 'board', 'J20');
+        const breadboardDot = breadboardHit.locator('..').locator('.workbench-contact-square');
+        const endpoint = page.getByTestId('wire-endpoint').first();
+        const [hitBox, dotBox, boardHitBox, boardDotBox, endpointBox] = await Promise.all([
+          componentHit.boundingBox(),
+          componentDot.boundingBox(),
+          breadboardHit.boundingBox(),
+          breadboardDot.boundingBox(),
+          endpoint.boundingBox(),
+        ]);
+        if (!hitBox || !dotBox || !boardHitBox || !boardDotBox || !endpointBox) {
+          throw new Error(`Expected visible R2 geometry at zoom ${zoom}`);
+        }
+        const hitCenter = centerOf(hitBox);
+        const dotCenter = centerOf(dotBox);
+        const boardHitCenter = centerOf(boardHitBox);
+        const boardDotCenter = centerOf(boardDotBox);
+        const endpointCenter = centerOf(endpointBox);
+        expect(
+          Math.hypot(hitCenter.x - dotCenter.x, hitCenter.y - dotCenter.y),
+        ).toBeLessThanOrEqual(0.5);
+        expect(
+          Math.hypot(boardHitCenter.x - boardDotCenter.x, boardHitCenter.y - boardDotCenter.y),
+        ).toBeLessThanOrEqual(0.5);
+        expect(
+          Math.hypot(hitCenter.x - endpointCenter.x, hitCenter.y - endpointCenter.y),
+        ).toBeLessThanOrEqual(0.5);
+
+        samples.set(zoom, {
+          hit: hitBox.width,
+          dot: dotBox.width,
+          breadboardHit: boardHitBox.width,
+          breadboardDot: boardDotBox.width,
+          endpoint: endpointBox.width,
+        });
+        if (zoom === 4) {
+          await page.screenshot({ path: 'reports/interactions/r2-terminal-scale-4x.png' });
+        }
       }
-    }
 
-    const base = samples.get(1)!;
-    for (const zoom of [0.5, 1, 2, 4]) {
-      const sample = samples.get(zoom)!;
-      for (const key of [
-        'hit',
-        'dot',
-        'breadboardHit',
-        'breadboardDot',
-        'endpoint',
-      ] as const) {
-        expect(sample[key] / base[key]).toBeCloseTo(zoom, 1);
+      const base = samples.get(1)!;
+      for (const zoom of [0.5, 1, 2, 4]) {
+        const sample = samples.get(zoom)!;
+        for (const key of ['hit', 'dot', 'breadboardHit', 'breadboardDot', 'endpoint'] as const) {
+          expect(sample[key] / base[key]).toBeCloseTo(zoom, 1);
+        }
       }
-    }
-  });
+    },
+  );
 
-  test('R1_SOFT_WIRE_ASSIST + FREE_EXIT + ALT_DISABLE + CLICK_CLICK_CONNECT', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openEditor(page);
-    const source = wireTerminal(page, 'led', 'cathode');
-    const target = wireTerminal(page, 'battery', 'BAT+');
-    const sourcePoint = await locatorCenter(source);
+  wireVideoTest(
+    'R1_SOFT_WIRE_ASSIST + FREE_EXIT + ALT_DISABLE + CLICK_CLICK_CONNECT',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await openEditor(page);
+      const source = wireTerminal(page, 'led', 'cathode');
+      const target = wireTerminal(page, 'battery', 'BAT+');
+      const sourcePoint = await locatorCenter(source);
 
-    await page.mouse.click(sourcePoint.x, sourcePoint.y);
-    const preview = page.locator('.workbench-wire-preview');
-    const guide = page.getByTestId('wire-alignment-guide');
-    await expect(preview).toHaveCount(1);
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      const preview = page.locator('.workbench-wire-preview');
+      const guide = page.getByTestId('wire-alignment-guide');
+      await expect(preview).toHaveCount(1);
 
-    const enter = { x: sourcePoint.x + 120, y: sourcePoint.y + 5 };
-    await page.mouse.move(enter.x, enter.y);
-    await frames(page);
-    await expect(guide).toBeVisible();
-    let previewEnd = await pathScreenPoint(preview);
-    expect(previewEnd.x).toBeCloseTo(enter.x, 0);
-    expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
-    await page.screenshot({ path: 'reports/interactions/r1-soft-wire-guide.png' });
+      const enter = { x: sourcePoint.x + 120, y: sourcePoint.y + 5 };
+      await page.mouse.move(enter.x, enter.y);
+      await frames(page);
+      await expect(guide).toBeVisible();
+      let previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.x).toBeCloseTo(enter.x, 0);
+      expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
+      await page.screenshot({ path: 'reports/interactions/r1-soft-wire-guide.png' });
 
-    const hysteresis = { x: sourcePoint.x + 120, y: sourcePoint.y + 9 };
-    await page.mouse.move(hysteresis.x, hysteresis.y);
-    await frames(page);
-    await expect(guide).toBeVisible();
-    previewEnd = await pathScreenPoint(preview);
-    expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
+      const hysteresis = { x: sourcePoint.x + 120, y: sourcePoint.y + 9 };
+      await page.mouse.move(hysteresis.x, hysteresis.y);
+      await frames(page);
+      await expect(guide).toBeVisible();
+      previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.y).toBeCloseTo(sourcePoint.y, 0);
 
-    const exit = { x: sourcePoint.x + 120, y: sourcePoint.y + 12 };
-    await page.mouse.move(exit.x, exit.y);
-    await frames(page);
-    await expect(guide).toHaveCount(0);
-    previewEnd = await pathScreenPoint(preview);
-    expect(previewEnd.x).toBeCloseTo(exit.x, 0);
-    expect(previewEnd.y).toBeCloseTo(exit.y, 0);
+      const exit = { x: sourcePoint.x + 120, y: sourcePoint.y + 12 };
+      await page.mouse.move(exit.x, exit.y);
+      await frames(page);
+      await expect(guide).toHaveCount(0);
+      previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.x).toBeCloseTo(exit.x, 0);
+      expect(previewEnd.y).toBeCloseTo(exit.y, 0);
 
-    const diagonal = { x: sourcePoint.x + 120, y: sourcePoint.y + 40 };
-    await page.mouse.move(diagonal.x, diagonal.y);
-    await frames(page);
-    previewEnd = await pathScreenPoint(preview);
-    expect(previewEnd.x).toBeCloseTo(diagonal.x, 0);
-    expect(previewEnd.y).toBeCloseTo(diagonal.y, 0);
+      const diagonal = { x: sourcePoint.x + 120, y: sourcePoint.y + 40 };
+      await page.mouse.move(diagonal.x, diagonal.y);
+      await frames(page);
+      previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.x).toBeCloseTo(diagonal.x, 0);
+      expect(previewEnd.y).toBeCloseTo(diagonal.y, 0);
 
-    await page.keyboard.down('Alt');
-    const disabled = { x: sourcePoint.x + 120, y: sourcePoint.y + 4 };
-    await page.mouse.move(disabled.x, disabled.y);
-    await frames(page);
-    await expect(guide).toHaveCount(0);
-    previewEnd = await pathScreenPoint(preview);
-    expect(previewEnd.y).toBeCloseTo(disabled.y, 0);
-    await page.keyboard.up('Alt');
+      await page.keyboard.down('Alt');
+      const disabled = { x: sourcePoint.x + 120, y: sourcePoint.y + 4 };
+      await page.mouse.move(disabled.x, disabled.y);
+      await frames(page);
+      await expect(guide).toHaveCount(0);
+      previewEnd = await pathScreenPoint(preview);
+      expect(previewEnd.y).toBeCloseTo(disabled.y, 0);
+      await page.keyboard.up('Alt');
 
-    const targetPoint = await locatorCenter(target);
-    await page.mouse.click(targetPoint.x, targetPoint.y);
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
-    await expect(preview).toHaveCount(0);
-    await expect(guide).toHaveCount(0);
-    await page.screenshot({ path: 'reports/interactions/r1-click-click-connected.png' });
-  });
+      const targetPoint = await locatorCenter(target);
+      await page.mouse.click(targetPoint.x, targetPoint.y);
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(preview).toHaveCount(0);
+      await expect(guide).toHaveCount(0);
+      await page.screenshot({ path: 'reports/interactions/r1-click-click-connected.png' });
+    },
+  );
 
-  test('DRAG_CONNECT + NO_DOUBLE_COMMIT', async ({ page }) => {
+  wireVideoTest('DRAG_CONNECT + NO_DOUBLE_COMMIT', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openEditor(page);
     const sourcePoint = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
@@ -764,41 +763,40 @@ test.describe('interaction: natural precise wire routing', () => {
     await page.screenshot({ path: 'reports/interactions/wire-drag-connect.png' });
   });
 
-  test('R2 dense breadboard resolver highlights and records the nearest eligible terminal', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openEditor(page);
-    const sourcePoint = await locatorCenter(wireTerminal(page, 'battery', 'BAT+'));
-    const j20 = wireTerminal(page, 'board', 'J20');
-    const j21 = wireTerminal(page, 'board', 'J21');
-    const j20Point = await locatorCenter(j20);
-    const j21Point = await locatorCenter(j21);
-    const targetPoint = {
-      x: j20Point.x + (j21Point.x - j20Point.x) * 0.35,
-      y: j20Point.y + (j21Point.y - j20Point.y) * 0.35,
-    };
+  wireVideoTest(
+    'R2 dense breadboard resolver highlights and records the nearest eligible terminal',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await openEditor(page);
+      const sourcePoint = await locatorCenter(wireTerminal(page, 'battery', 'BAT+'));
+      const j20 = wireTerminal(page, 'board', 'J20');
+      const j21 = wireTerminal(page, 'board', 'J21');
+      const j20Point = await locatorCenter(j20);
+      const j21Point = await locatorCenter(j21);
+      const targetPoint = {
+        x: j20Point.x + (j21Point.x - j20Point.x) * 0.35,
+        y: j20Point.y + (j21Point.y - j20Point.y) * 0.35,
+      };
 
-    await page.mouse.move(sourcePoint.x, sourcePoint.y);
-    await page.mouse.down();
-    await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
-    await expect(j20.locator('..')).toHaveClass(/drop-target/);
-    await expect(j21.locator('..')).not.toHaveClass(/drop-target/);
-    await page.mouse.up();
+      await page.mouse.move(sourcePoint.x, sourcePoint.y);
+      await page.mouse.down();
+      await page.mouse.move(targetPoint.x, targetPoint.y, { steps: 12 });
+      await expect(j20.locator('..')).toHaveClass(/drop-target/);
+      await expect(j21.locator('..')).not.toHaveClass(/drop-target/);
+      await page.mouse.up();
 
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
-    const targetEndpoint = page.locator(
-      '[data-testid="wire-endpoint"][data-wire-endpoint="to"]',
-    );
-    await expect(targetEndpoint).toBeVisible();
-    const endpointPoint = await locatorCenter(targetEndpoint);
-    expect(
-      Math.hypot(endpointPoint.x - j20Point.x, endpointPoint.y - j20Point.y),
-    ).toBeLessThanOrEqual(0.5);
-    await page.screenshot({ path: 'reports/interactions/r2-dense-terminal-resolver.png' });
-  });
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      const targetEndpoint = page.locator('[data-testid="wire-endpoint"][data-wire-endpoint="to"]');
+      await expect(targetEndpoint).toBeVisible();
+      const endpointPoint = await locatorCenter(targetEndpoint);
+      expect(
+        Math.hypot(endpointPoint.x - j20Point.x, endpointPoint.y - j20Point.y),
+      ).toBeLessThanOrEqual(0.5);
+      await page.screenshot({ path: 'reports/interactions/r2-dense-terminal-resolver.png' });
+    },
+  );
 
-  test('DRAG_RELEASE_EMPTY creates no connection or draft residue', async ({ page }) => {
+  wireVideoTest('DRAG_RELEASE_EMPTY creates no connection or draft residue', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openEditor(page);
     const sourcePoint = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
@@ -818,156 +816,163 @@ test.describe('interaction: natural precise wire routing', () => {
     ).toBe(writes);
   });
 
-  test('R1 SHIFT_ORTHOGONAL + EXPLICIT_90_MODE keep every saved segment orthogonal', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openEditor(page);
-    const source = wireTerminal(page, 'led', 'cathode');
-    const target = wireTerminal(page, 'battery', 'BAT+');
-    const sourcePoint = await locatorCenter(source);
-    const targetPoint = await locatorCenter(target);
+  wireVideoTest(
+    'R1 SHIFT_ORTHOGONAL + EXPLICIT_90_MODE keep every saved segment orthogonal',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await openEditor(page);
+      const source = wireTerminal(page, 'led', 'cathode');
+      const target = wireTerminal(page, 'battery', 'BAT+');
+      const sourcePoint = await locatorCenter(source);
+      const targetPoint = await locatorCenter(target);
 
-    const assertSavedRouteOrthogonal = async () => {
-      const vertices = await page.getByTestId('wire-vertex').evaluateAll((nodes) =>
-        nodes.map((node) => {
-          const box = node.getBoundingClientRect();
-          return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
-        }),
-      );
-      const route = [await locatorCenter(source), ...vertices, await locatorCenter(target)];
-      for (let index = 1; index < route.length; index += 1) {
-        const previous = route[index - 1]!;
-        const current = route[index]!;
+      const assertSavedRouteOrthogonal = async () => {
+        const vertices = await page.getByTestId('wire-vertex').evaluateAll((nodes) =>
+          nodes.map((node) => {
+            const box = node.getBoundingClientRect();
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+          }),
+        );
+        const route = [await locatorCenter(source), ...vertices, await locatorCenter(target)];
+        for (let index = 1; index < route.length; index += 1) {
+          const previous = route[index - 1]!;
+          const current = route[index]!;
+          expect(
+            Math.min(Math.abs(current.x - previous.x), Math.abs(current.y - previous.y)),
+          ).toBeLessThanOrEqual(1);
+        }
+        const targetEndpoint = page.locator(
+          '[data-testid="wire-endpoint"][data-wire-endpoint="to"]',
+        );
+        const endpointPoint = await locatorCenter(targetEndpoint);
+        const exactTarget = await locatorCenter(target);
         expect(
-          Math.min(Math.abs(current.x - previous.x), Math.abs(current.y - previous.y)),
-        ).toBeLessThanOrEqual(1);
-      }
-      const targetEndpoint = page.locator(
-        '[data-testid="wire-endpoint"][data-wire-endpoint="to"]',
-      );
-      const endpointPoint = await locatorCenter(targetEndpoint);
-      const exactTarget = await locatorCenter(target);
+          Math.hypot(endpointPoint.x - exactTarget.x, endpointPoint.y - exactTarget.y),
+        ).toBeLessThanOrEqual(0.5);
+      };
+
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      await page.keyboard.down('Shift');
+      const shiftedPointer = { x: sourcePoint.x + 110, y: sourcePoint.y + 38 };
+      await page.mouse.move(shiftedPointer.x, shiftedPointer.y);
+      await frames(page);
+      const shiftedEnd = await pathScreenPoint(page.locator('.workbench-wire-preview'));
       expect(
-        Math.hypot(endpointPoint.x - exactTarget.x, endpointPoint.y - exactTarget.y),
-      ).toBeLessThanOrEqual(0.5);
-    };
+        Math.min(Math.abs(shiftedEnd.x - sourcePoint.x), Math.abs(shiftedEnd.y - sourcePoint.y)),
+      ).toBeLessThan(2);
+      await page.mouse.click(targetPoint.x, targetPoint.y);
+      await page.keyboard.up('Shift');
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      await assertSavedRouteOrthogonal();
+      await page.screenshot({ path: 'reports/interactions/r1-shift-orthogonal.png' });
 
-    await page.mouse.click(sourcePoint.x, sourcePoint.y);
-    await page.keyboard.down('Shift');
-    const shiftedPointer = { x: sourcePoint.x + 110, y: sourcePoint.y + 38 };
-    await page.mouse.move(shiftedPointer.x, shiftedPointer.y);
-    await frames(page);
-    const shiftedEnd = await pathScreenPoint(page.locator('.workbench-wire-preview'));
-    expect(
-      Math.min(Math.abs(shiftedEnd.x - sourcePoint.x), Math.abs(shiftedEnd.y - sourcePoint.y)),
-    ).toBeLessThan(2);
-    await page.mouse.click(targetPoint.x, targetPoint.y);
-    await page.keyboard.up('Shift');
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
-    await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
-    await assertSavedRouteOrthogonal();
-    await page.screenshot({ path: 'reports/interactions/r1-shift-orthogonal.png' });
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
+      const mode = page.getByRole('button', {
+        name: 'Автоматическая прокладка провода под 90 градусов',
+      });
+      await mode.click();
+      await expect(mode).toHaveAttribute('aria-pressed', 'true');
 
-    await page.getByRole('button', { name: /Отменить/ }).click();
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
-    const mode = page.getByRole('button', {
-      name: 'Автоматическая прокладка провода под 90 градусов',
-    });
-    await mode.click();
-    await expect(mode).toHaveAttribute('aria-pressed', 'true');
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      const freePointer = { x: sourcePoint.x + 105, y: sourcePoint.y + 34 };
+      await page.mouse.move(freePointer.x, freePointer.y);
+      await frames(page);
+      const orthogonalEnd = await pathScreenPoint(page.locator('.workbench-wire-preview'));
+      expect(
+        Math.min(
+          Math.abs(orthogonalEnd.x - sourcePoint.x),
+          Math.abs(orthogonalEnd.y - sourcePoint.y),
+        ),
+      ).toBeLessThan(2);
+      await page.mouse.click(targetPoint.x, targetPoint.y);
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      await assertSavedRouteOrthogonal();
+      await page.screenshot({ path: 'reports/interactions/r1-mode90-orthogonal.png' });
+    },
+  );
 
-    await page.mouse.click(sourcePoint.x, sourcePoint.y);
-    const freePointer = { x: sourcePoint.x + 105, y: sourcePoint.y + 34 };
-    await page.mouse.move(freePointer.x, freePointer.y);
-    await frames(page);
-    const orthogonalEnd = await pathScreenPoint(page.locator('.workbench-wire-preview'));
-    expect(
-      Math.min(
-        Math.abs(orthogonalEnd.x - sourcePoint.x),
-        Math.abs(orthogonalEnd.y - sourcePoint.y),
-      ),
-    ).toBeLessThan(2);
-    await page.mouse.click(targetPoint.x, targetPoint.y);
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
-    await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
-    await assertSavedRouteOrthogonal();
-    await page.screenshot({ path: 'reports/interactions/r1-mode90-orthogonal.png' });
-  });
+  wireVideoTest(
+    'R4 compact external wire panel keeps primary actions small and removes duplicate 90°',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await openEditor(page, wiredDocument());
 
-  test('R4 compact external wire panel keeps primary actions small and removes duplicate 90°', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await openEditor(page, wiredDocument());
+      const wirePath = page.getByTestId('wire-hit').first();
+      const wirePoint = await pathScreenPoint(wirePath, 0.5);
+      await page.mouse.click(wirePoint.x, wirePoint.y);
 
-    const wirePath = page.getByTestId('wire-hit').first();
-    const wirePoint = await pathScreenPoint(wirePath, 0.5);
-    await page.mouse.click(wirePoint.x, wirePoint.y);
+      const panel = page.locator('.workbench-inspector.wire-selected');
+      const compact = page.getByTestId('wire-inspector-compact');
+      await expect(panel).toHaveAttribute('aria-label', 'Параметры выбранного провода');
+      await expect(compact).toBeVisible();
+      await expect(compact.locator('.workbench-wire-swatches button')).toHaveCount(6);
+      await expect(panel.locator('.workbench-inspector-heading')).toHaveCount(0);
+      await expect(compact.getByRole('button', { name: /90°/ })).toHaveCount(0);
+      await expect(compact.getByRole('button', { name: 'Выпрямить провод' })).toBeVisible();
+      await expect(compact.getByRole('button', { name: 'Удалить провод' })).toBeVisible();
+      await expect(
+        compact.locator('.workbench-wire-more > summary[aria-label="Ещё действия с проводом"]'),
+      ).toBeVisible();
 
-    const panel = page.locator('.workbench-inspector.wire-selected');
-    const compact = page.getByTestId('wire-inspector-compact');
-    await expect(panel).toHaveAttribute('aria-label', 'Параметры выбранного провода');
-    await expect(compact).toBeVisible();
-    await expect(compact.locator('.workbench-wire-swatches button')).toHaveCount(6);
-    await expect(panel.locator('.workbench-inspector-heading')).toHaveCount(0);
-    await expect(compact.getByRole('button', { name: /90°/ })).toHaveCount(0);
-    await expect(compact.getByRole('button', { name: 'Выпрямить провод' })).toBeVisible();
-    await expect(compact.getByRole('button', { name: 'Удалить провод' })).toBeVisible();
-    await expect(
-      compact.locator('.workbench-wire-more > summary[aria-label="Ещё действия с проводом"]'),
-    ).toBeVisible();
+      const panelBox = await panel.boundingBox();
+      if (!panelBox) throw new Error('Expected external selected-wire panel');
+      expect(panelBox.width).toBeLessThanOrEqual(296);
+      expect(panelBox.height).toBeLessThanOrEqual(48);
+      const libraryBox = await page.locator('.workbench-library').boundingBox();
+      if (!libraryBox) throw new Error('Expected desktop component library');
+      expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(libraryBox.x - 4);
 
-    const panelBox = await panel.boundingBox();
-    if (!panelBox) throw new Error('Expected external selected-wire panel');
-    expect(panelBox.width).toBeLessThanOrEqual(296);
-    expect(panelBox.height).toBeLessThanOrEqual(48);
-    const libraryBox = await page.locator('.workbench-library').boundingBox();
-    if (!libraryBox) throw new Error('Expected desktop component library');
-    expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(libraryBox.x - 4);
+      const firstSwatch = compact.locator('.workbench-wire-swatches button').first();
+      await firstSwatch.focus();
+      await expect(firstSwatch).toBeFocused();
+      const selectedWire = page.getByTestId('schematic-wire');
+      const beforeColour = await selectedWire.getAttribute('stroke');
+      await compact.locator('.workbench-wire-swatches button:not(.active)').first().click();
+      await expect.poll(() => selectedWire.getAttribute('stroke')).not.toBe(beforeColour);
 
-    const firstSwatch = compact.locator('.workbench-wire-swatches button').first();
-    await firstSwatch.focus();
-    await expect(firstSwatch).toBeFocused();
-    const selectedWire = page.getByTestId('schematic-wire');
-    const beforeColour = await selectedWire.getAttribute('stroke');
-    await compact.locator('.workbench-wire-swatches button:not(.active)').first().click();
-    await expect.poll(() => selectedWire.getAttribute('stroke')).not.toBe(beforeColour);
+      await compact.locator('.workbench-wire-more > summary').click();
+      await expect(compact.getByRole('button', { name: 'Переподключить начало' })).toBeVisible();
+      await expect(compact.getByRole('button', { name: 'Переподключить конец' })).toBeVisible();
+      await page.screenshot({ path: 'reports/interactions/r4-wire-panel-desktop.png' });
+    },
+  );
 
-    await compact.locator('.workbench-wire-more > summary').click();
-    await expect(compact.getByRole('button', { name: 'Переподключить начало' })).toBeVisible();
-    await expect(compact.getByRole('button', { name: 'Переподключить конец' })).toBeVisible();
-    await page.screenshot({ path: 'reports/interactions/r4-wire-panel-desktop.png' });
-  });
+  wireVideoTest(
+    'R4 mobile wire panel stays inside the stage with 44px primary targets',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await openEditor(page, wiredDocument());
+      const wirePoint = await pathScreenPoint(page.getByTestId('wire-hit').first(), 0.5);
+      await page.mouse.click(wirePoint.x, wirePoint.y);
 
-  test('R4 mobile wire panel stays inside the stage with 44px primary targets', async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await openEditor(page, wiredDocument());
-    const wirePoint = await pathScreenPoint(page.getByTestId('wire-hit').first(), 0.5);
-    await page.mouse.click(wirePoint.x, wirePoint.y);
-
-    const panel = page.locator('.workbench-inspector.wire-selected');
-    const compact = page.getByTestId('wire-inspector-compact');
-    await expect(panel).toBeVisible();
-    const box = await panel.boundingBox();
-    if (!box) throw new Error('Expected mobile selected-wire panel');
-    expect(box.x).toBeGreaterThanOrEqual(7);
-    expect(box.x + box.width).toBeLessThanOrEqual(383);
-    expect(box.height).toBeLessThanOrEqual(112);
-    for (const target of await compact.locator('.workbench-wire-swatches button').all()) {
-      const targetBox = await target.boundingBox();
-      expect(targetBox?.width).toBeGreaterThanOrEqual(44);
-      expect(targetBox?.height).toBeGreaterThanOrEqual(44);
-    }
-    for (const target of await compact.locator('.workbench-wire-compact-actions > button').all()) {
-      const targetBox = await target.boundingBox();
-      expect(targetBox?.width).toBeGreaterThanOrEqual(44);
-      expect(targetBox?.height).toBeGreaterThanOrEqual(44);
-    }
-    const library = page.locator('.workbench-library');
-    const libraryBox = await library.boundingBox();
-    if (!libraryBox) throw new Error('Expected mobile component shelf');
-    expect(box.y + box.height).toBeLessThanOrEqual(libraryBox.y - 4);
-    await page.screenshot({ path: 'reports/interactions/r4-wire-panel-mobile.png' });
-  });
+      const panel = page.locator('.workbench-inspector.wire-selected');
+      const compact = page.getByTestId('wire-inspector-compact');
+      await expect(panel).toBeVisible();
+      const box = await panel.boundingBox();
+      if (!box) throw new Error('Expected mobile selected-wire panel');
+      expect(box.x).toBeGreaterThanOrEqual(7);
+      expect(box.x + box.width).toBeLessThanOrEqual(383);
+      expect(box.height).toBeLessThanOrEqual(112);
+      for (const target of await compact.locator('.workbench-wire-swatches button').all()) {
+        const targetBox = await target.boundingBox();
+        expect(targetBox?.width).toBeGreaterThanOrEqual(44);
+        expect(targetBox?.height).toBeGreaterThanOrEqual(44);
+      }
+      for (const target of await compact
+        .locator('.workbench-wire-compact-actions > button')
+        .all()) {
+        const targetBox = await target.boundingBox();
+        expect(targetBox?.width).toBeGreaterThanOrEqual(44);
+        expect(targetBox?.height).toBeGreaterThanOrEqual(44);
+      }
+      const library = page.locator('.workbench-library');
+      const libraryBox = await library.boundingBox();
+      if (!libraryBox) throw new Error('Expected mobile component shelf');
+      expect(box.y + box.height).toBeLessThanOrEqual(libraryBox.y - 4);
+      await page.screenshot({ path: 'reports/interactions/r4-wire-panel-mobile.png' });
+    },
+  );
 });

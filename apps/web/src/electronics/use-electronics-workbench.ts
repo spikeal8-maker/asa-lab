@@ -1461,9 +1461,7 @@ export function useElectronicsWorkbench(projectId: string) {
     }
 
     const assistedPoint =
-      assisted.axis === 'horizontal'
-        ? { x: point.x, y: anchor.y }
-        : { x: anchor.x, y: point.y };
+      assisted.axis === 'horizontal' ? { x: point.x, y: anchor.y } : { x: anchor.x, y: point.y };
     setWireGuide({ from: anchor, to: assistedPoint });
     return assistedPoint;
   }

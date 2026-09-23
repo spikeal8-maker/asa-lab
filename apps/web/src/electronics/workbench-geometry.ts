@@ -160,8 +160,7 @@ export function freeWirePoint(point: Point): Point {
 
 function assistAngleDegrees(primary: number, transverse: number): number {
   return (
-    (Math.atan2(Math.abs(transverse), Math.max(Math.abs(primary), Number.EPSILON)) * 180) /
-    Math.PI
+    (Math.atan2(Math.abs(transverse), Math.max(Math.abs(primary), Number.EPSILON)) * 180) / Math.PI
   );
 }
 

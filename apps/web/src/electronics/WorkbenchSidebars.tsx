@@ -783,49 +783,49 @@ export function WorkbenchSidebars({
         >
           {c.selectedWire ? null : (
             <div className="workbench-inspector-heading">
-            <div>
-              <span>
-                {c.selection.kind === 'wire'
-                  ? 'Провод'
-                  : c.selection.ids.length > 1
-                    ? `Выбрано: ${c.selection.ids.length}`
-                    : (c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'Компонент')}
-              </span>
-            </div>
-            {c.selectedComponent ? (
-              <div className="workbench-inspector-information-actions">
-                <button
-                  type="button"
-                  className="workbench-inspector-help"
-                  onClick={() => {
-                    setStateOpen((value) => !value);
-                    setHelpOpen(false);
-                  }}
-                  aria-label={`Техническое состояние ${
-                    c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
-                  }`}
-                  aria-expanded={stateOpen}
-                  data-diagnostic-severity={selectedDiagnosticSeverity}
-                >
-                  i
-                </button>
-                <button
-                  type="button"
-                  className="workbench-inspector-help"
-                  onClick={() => {
-                    setHelpOpen((value) => !value);
-                    setStateOpen(false);
-                  }}
-                  aria-label={`Справка о компоненте ${
-                    c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
-                  }`}
-                  aria-expanded={helpOpen}
-                  data-active={helpOpen}
-                >
-                  ?
-                </button>
+              <div>
+                <span>
+                  {c.selection.kind === 'wire'
+                    ? 'Провод'
+                    : c.selection.ids.length > 1
+                      ? `Выбрано: ${c.selection.ids.length}`
+                      : (c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'Компонент')}
+                </span>
               </div>
-            ) : null}
+              {c.selectedComponent ? (
+                <div className="workbench-inspector-information-actions">
+                  <button
+                    type="button"
+                    className="workbench-inspector-help"
+                    onClick={() => {
+                      setStateOpen((value) => !value);
+                      setHelpOpen(false);
+                    }}
+                    aria-label={`Техническое состояние ${
+                      c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+                    }`}
+                    aria-expanded={stateOpen}
+                    data-diagnostic-severity={selectedDiagnosticSeverity}
+                  >
+                    i
+                  </button>
+                  <button
+                    type="button"
+                    className="workbench-inspector-help"
+                    onClick={() => {
+                      setHelpOpen((value) => !value);
+                      setStateOpen(false);
+                    }}
+                    aria-label={`Справка о компоненте ${
+                      c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+                    }`}
+                    aria-expanded={helpOpen}
+                    data-active={helpOpen}
+                  >
+                    ?
+                  </button>
+                </div>
+              ) : null}
             </div>
           )}
 

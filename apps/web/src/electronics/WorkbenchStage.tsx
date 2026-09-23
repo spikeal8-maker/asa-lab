@@ -926,9 +926,7 @@ export function WorkbenchStage({
                               cx={point.x}
                               cy={point.y}
                               r={
-                                coarseInteraction
-                                  ? TERMINAL_TOUCH_HIT_RADIUS
-                                  : TERMINAL_HIT_RADIUS
+                                coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS
                               }
                               data-terminal-component-id={component.id}
                               data-terminal-id={hole.id}
@@ -942,9 +940,9 @@ export function WorkbenchStage({
                                 event.stopPropagation();
                                 if (!c.consumeTerminalClick()) {
                                   c.clickTerminal(component.id, hole.id, event.shiftKey, {
-                                  x: event.clientX,
-                                  y: event.clientY,
-                                });
+                                    x: event.clientX,
+                                    y: event.clientY,
+                                  });
                                 }
                               }}
                               onKeyDown={(event) => {
@@ -1010,9 +1008,7 @@ export function WorkbenchStage({
                     >
                       <circle
                         className="workbench-terminal-hit"
-                        r={
-                          coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS
-                        }
+                        r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
                         data-terminal-component-id={component.id}
                         data-terminal-id={terminal}
                         onPointerDown={(event) =>
