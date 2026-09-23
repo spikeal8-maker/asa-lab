@@ -24,7 +24,19 @@ describe('Course Builder structure forward upgrade', () => {
       target.pathname = '/' + name;
       pool = new pg.Pool({ connectionString: target.toString(), max: 3 });
       const plan = planMigrations();
+      const expectedUpgradeVersions = [
+        '0153',
+        '0154',
+        '0155',
+        '0156',
+        '0157',
+        '0158',
+        '0159',
+        '0160',
+      ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
+      const upgradePlan = plan.filter((item) => Number(item.version) > 152);
+      expect(upgradePlan.map((item) => item.version)).toEqual(expectedUpgradeVersions);
       const bootstrap = await pool.connect();
       try {
         expect(await applyIsolatedTestPlan(bootstrap, pre153)).toBeGreaterThan(0);
@@ -184,7 +196,7 @@ describe('Course Builder structure forward upgrade', () => {
 
       const upgrade = await pool.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(7);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedUpgradeVersions.length);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();

@@ -70,8 +70,33 @@ async function editRealProject(page: Page, module: string) {
     );
   }
 }
-async function editCourseActivityProject(page: Page, module: string) {
+type CourseActivityProjectEvidence = {
+  projectId: string;
+  expectedObjectCount: number;
+  addedComponentId?: string;
+};
+
+function courseActivityProjectId(page: Page, module: string): string {
+  const location = new URL(page.url());
+  const encoded =
+    module === 'electronics'
+      ? /^\/projects\/([^/]+)\/electronics\/edit\/?$/.exec(location.pathname)?.[1]
+      : /^#\/3d\/([^?]+)/.exec(location.hash)?.[1];
+  const projectId = encoded ? decodeURIComponent(encoded) : '';
+  expect(projectId).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+  );
+  return projectId;
+}
+
+async function editCourseActivityProject(
+  page: Page,
+  module: string,
+): Promise<CourseActivityProjectEvidence> {
+  const projectId = courseActivityProjectId(page, module);
   let expectedObjectCount = 0;
+  let addedComponentId: string | undefined;
+
   if (module === 'three-d') {
     const viewport = page.getByTestId('asa3d-viewport');
     const objectCount = page.locator('.asa3d-object-count');
@@ -87,7 +112,26 @@ async function editCourseActivityProject(page: Page, module: string) {
   } else {
     const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
     await expect(resistor).toBeVisible({ timeout: 60000 });
-    expectedObjectCount = (await page.getByTestId('schematic-component').count()) + 1;
+    const components = page.getByTestId('schematic-component');
+    const existingIds = new Set(
+      (
+        await components.evaluateAll((nodes) =>
+          nodes.map((node) => node.getAttribute('data-component-id')),
+        )
+      ).filter((id): id is string => id !== null),
+    );
+    expectedObjectCount = (await components.count()) + 1;
+
+    const draftPath = `/api/projects/${encodeURIComponent(projectId)}/draft`;
+    const saveResponsePromise = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        response.request().method() === 'PUT' &&
+        url.pathname === draftPath &&
+        response.ok()
+      );
+    });
+
     const card = (await resistor.boundingBox())!,
       canvas = (await page.locator('.workbench-canvas').boundingBox())!;
     await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
@@ -96,18 +140,57 @@ async function editCourseActivityProject(page: Page, module: string) {
       steps: 20,
     });
     await page.mouse.up();
-    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+    await expect(components).toHaveCount(expectedObjectCount);
+
+    const saveResponse = await saveResponsePromise;
+    const requestBody = saveResponse.request().postDataJSON() as {
+      document?: { components?: Array<{ id?: string; kind?: string }> };
+    };
+    const requestComponents = requestBody.document?.components ?? [];
+    expect(requestComponents).toHaveLength(expectedObjectCount);
+    const newResistors = requestComponents.filter(
+      (component) =>
+        component.kind === 'resistor' &&
+        typeof component.id === 'string' &&
+        !existingIds.has(component.id),
+    );
+    expect(newResistors).toHaveLength(1);
+    addedComponentId = newResistors[0]!.id!;
+
+    const responseBody = (await saveResponse.json()) as {
+      draft?: { document?: { components?: Array<{ id?: string; kind?: string }> } };
+    };
+    const savedComponents = responseBody.draft?.document?.components ?? [];
+    expect(savedComponents).toHaveLength(expectedObjectCount);
+    expect(
+      savedComponents.some(
+        (component) => component.id === addedComponentId && component.kind === 'resistor',
+      ),
+    ).toBe(true);
   }
 
   await page.reload();
+  expect(courseActivityProjectId(page, module)).toBe(projectId);
   if (module === 'electronics') {
+    expect(addedComponentId).toBeTruthy();
     await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+    await expect(
+      page.locator(
+        `[data-testid="schematic-component"][data-component-id="${addedComponentId}"][data-kind="resistor"]`,
+      ),
+    ).toBeVisible();
   } else {
     await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true');
     await expect(page.locator('.asa3d-object-count')).toContainText(
       new RegExp(`^${expectedObjectCount} `),
     );
   }
+
+  return {
+    projectId,
+    expectedObjectCount,
+    ...(addedComponentId ? { addedComponentId } : {}),
+  };
 }
 
 test.use({ actionTimeout: 12000 });
@@ -1461,14 +1544,42 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     allowAdminAccessProbe: true,
   });
 
-  async function openCourse(): Promise<void> {
-    await learner.page.goto('/#/learning');
-    await learner.page
-      .getByTestId('seat-courses')
-      .getByRole('button')
-      .filter({ hasText: courseTitle })
-      .click();
+  type D5CourseRunRead = {
+    id: string;
+    title: string;
+    sections: Array<{
+      lessons: Array<{
+        activityOccurrences: Array<{
+          title: string;
+          projectId: string | null;
+          canonicalState: { workflowState: string } | null;
+        }>;
+      }>;
+    }>;
+  };
+
+  function occurrenceFromCourseRun(run: D5CourseRunRead, title: string) {
+    const occurrences = run.sections
+      .flatMap((section) => section.lessons)
+      .flatMap((lesson) => lesson.activityOccurrences)
+      .filter((occurrence) => occurrence.title === title);
+    expect(occurrences).toHaveLength(1);
+    return occurrences[0]!;
+  }
+
+  let courseRunId: string | null = null;
+  async function openCourse(): Promise<D5CourseRunRead> {
+    const response = await learner.page.request.get('/api/class-join/me/course-runs');
+    expect(response.ok()).toBe(true);
+    const payload = (await response.json()) as { items: D5CourseRunRead[] };
+    const matchingRuns = payload.items.filter((run) => run.title === courseTitle);
+    expect(matchingRuns).toHaveLength(1);
+    const run = matchingRuns[0]!;
+    if (courseRunId === null) courseRunId = run.id;
+    expect(run.id).toBe(courseRunId);
+    await learner.page.goto('/#/learning?courseRun=' + encodeURIComponent(courseRunId));
     await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
+    return run;
   }
 
   await openCourse();
@@ -1490,7 +1601,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(threeDCard).toContainText('Не начато');
 
   await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
-  await editCourseActivityProject(learner.page, 'electronics');
+  const electronicsEvidence = await editCourseActivityProject(learner.page, 'electronics');
+  expect(electronicsEvidence.projectId).not.toBe('');
+  expect(electronicsEvidence.addedComponentId).toBeTruthy();
 
   await openCourse();
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
@@ -1498,12 +1611,19 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(
     electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }),
   ).toBeVisible();
+  await expect(threeDCard).toContainText('Не начато');
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
 
   await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
     timeout: 60_000,
   });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(electronicsEvidence.projectId);
+  await expect(
+    learner.page.locator(
+      `[data-testid="schematic-component"][data-component-id="${electronicsEvidence.addedComponentId}"][data-kind="resistor"]`,
+    ),
+  ).toBeVisible();
 
   await openCourse();
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
@@ -1512,20 +1632,65 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(
     electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
   ).toBeDisabled();
-  await expect(electronicsCard).toContainText(/Сдано|Ждёт проверки/);
 
+  const afterElectronicsSubmit = await openCourse();
+  const submittedElectronics = occurrenceFromCourseRun(afterElectronicsSubmit, electronicsTitle);
+  const untouchedThreeD = occurrenceFromCourseRun(afterElectronicsSubmit, threeDTitle);
+  expect(submittedElectronics.projectId).toBe(electronicsEvidence.projectId);
+  expect(submittedElectronics.canonicalState?.workflowState).toBe('submitted');
+  expect(untouchedThreeD.projectId).toBeNull();
+  expect(untouchedThreeD.canonicalState?.workflowState).toBe('not_started');
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText('Сдано');
+  await expect(threeDCard).toContainText('Не начато');
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
-  await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
-  await editCourseActivityProject(learner.page, 'three-d');
 
-  await openCourse();
+  await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  const threeDEvidence = await editCourseActivityProject(learner.page, 'three-d');
+  expect(threeDEvidence.projectId).not.toBe('');
+  expect(threeDEvidence.projectId).not.toBe(electronicsEvidence.projectId);
+
+  const afterThreeDStart = await openCourse();
+  const electronicsAfterThreeD = occurrenceFromCourseRun(afterThreeDStart, electronicsTitle);
+  const startedThreeD = occurrenceFromCourseRun(afterThreeDStart, threeDTitle);
+  expect(electronicsAfterThreeD.projectId).toBe(electronicsEvidence.projectId);
+  expect(electronicsAfterThreeD.canonicalState?.workflowState).toBe('submitted');
+  expect(startedThreeD.projectId).toBe(threeDEvidence.projectId);
+  expect(startedThreeD.projectId).not.toBe(electronicsAfterThreeD.projectId);
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText('Сдано');
+  await expect(
+    electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
+  ).toBeDisabled();
   await expect(
     threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }),
   ).toBeVisible();
+
+  await electronicsCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(electronicsEvidence.projectId);
+  await expect(
+    learner.page.locator(
+      `[data-testid="schematic-component"][data-component-id="${electronicsEvidence.addedComponentId}"][data-kind="resistor"]`,
+    ),
+  ).toBeVisible();
+
+  await openCourse();
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
   await threeDCard.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await expect(learner.page.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 60_000 });
+  await expect(learner.page.getByTestId('asa3d-viewport')).toHaveAttribute(
+    'data-runtime-ready',
+    'true',
+  );
+  expect(courseActivityProjectId(learner.page, 'three-d')).toBe(threeDEvidence.projectId);
+  await expect(learner.page.locator('.asa3d-object-count')).toContainText(
+    new RegExp(`^${threeDEvidence.expectedObjectCount} `),
+  );
 
   learnerFailures.assertEmpty();
   await learner.context.close();
