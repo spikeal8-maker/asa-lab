@@ -315,7 +315,11 @@ export class LearningActivitiesController {
     );
     const sampleRow = sample.rows[0];
     const sampleCode = sampleRow?.['result_code'] as string | undefined;
-    if (sampleCode !== 'ok' && sampleCode !== 'sample_not_found') {
+    if (
+      sampleCode !== 'ok' &&
+      sampleCode !== 'sample_not_found' &&
+      sampleCode !== 'activity_not_found'
+    ) {
       throw this.draftSampleError(sampleCode);
     }
     return {
@@ -504,7 +508,7 @@ export class LearningActivitiesController {
       }
       if (sampleCode === 'ok' && sampleRow?.['content_hash']) {
         draftSampleImage = this.draftSampleUrl(activityId, String(sampleRow['content_hash']));
-      } else if (sampleCode !== 'sample_not_found') {
+      } else if (sampleCode !== 'sample_not_found' && sampleCode !== 'activity_not_found') {
         throw this.draftSampleError(sampleCode);
       }
     }
