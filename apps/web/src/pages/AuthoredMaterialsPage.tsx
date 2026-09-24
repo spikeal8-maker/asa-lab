@@ -262,7 +262,9 @@ export function AuthoredMaterialsPage({
       setError(null);
       setNotice(null);
     } catch (readError) {
-      setError(readError instanceof Error ? readError.message : 'Не удалось прочитать изображение.');
+      setError(
+        readError instanceof Error ? readError.message : 'Не удалось прочитать изображение.',
+      );
     }
   }
 
