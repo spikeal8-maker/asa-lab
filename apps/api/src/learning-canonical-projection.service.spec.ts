@@ -92,6 +92,33 @@ describe('LRN-M0-007 canonical projection boundary', () => {
     expect(pool.query).toHaveBeenCalledTimes(1);
   });
 
+  it('exposes revision origin as a learner-safe flag with no selected result', async () => {
+    const pool = poolWith({
+      ...base,
+      legacyWork: null,
+      attempt: {
+        id: '80000000-0000-4000-8000-000000000002',
+        attemptNumber: 2,
+        revisionOfAttemptId: '80000000-0000-4000-8000-000000000001',
+        state: 'in_progress',
+        reviewDecision: null,
+        startedAt: '2026-08-21T10:00:00.000Z',
+        submittedAt: null,
+        lateState: null,
+      },
+    });
+    const item = (
+      await new LearningCanonicalProjectionService(pool, {}).forSeat(
+        base.seatId,
+        '2026-08-22T00:00:00.000Z',
+      )
+    ).get(canonicalProjectionKey(base.seatId, base.classroomAssignmentId));
+
+    expect(item?.surface.workflowState).toBe('in_progress');
+    expect(item?.surface.selectedResult).toBeNull();
+    expect(item?.surface.flags).toContain('revision_in_progress');
+  });
+
   it('retains an old selected result while a new revision is in progress', async () => {
     const pool = poolWith({
       ...base,

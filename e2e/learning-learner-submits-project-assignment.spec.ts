@@ -412,9 +412,17 @@ test('A0 desktop Electronics uses a permanent anchor and compact movable task pa
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
   await expect(anchor).toBeVisible();
   await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await expect(anchor).toContainText('Задание');
+  await expect(anchor).not.toContainText(learner.title);
+  await expect(anchor).not.toContainText('результат ещё не опубликован');
+  await expect(anchor.locator('.assignment-brief-anchor-title')).toHaveCount(0);
   await expect(brief).toHaveCount(0);
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-electronics-anchor-1440.png`,
+    fullPage: false,
+  });
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/UX0-anchor.png`,
     fullPage: false,
   });
 
@@ -431,13 +439,19 @@ test('A0 desktop Electronics uses a permanent anchor and compact movable task pa
   expect(compact.height).toBeLessThanOrEqual(320);
   await expect(brief.locator('.assignment-brief-title')).toHaveText(learner.title);
   await expect(brief.locator('.assignment-brief-title')).toBeVisible();
-  await expect(header.getByRole('button', { name: 'Сдать работу' })).toHaveCount(0);
+  await expect(header.getByRole('button', { name: 'Отправить на проверку' })).toHaveCount(0);
   await expect(header.getByText('Сбросить', { exact: true })).toHaveCount(0);
   await expect(footer).toBeVisible();
-  await expect(footer.getByRole('button', { name: 'Сдать работу' })).toBeVisible();
+  await expect(footer).toContainText('Сохранено');
+  await expect(footer.getByRole('button', { name: 'Отправить на проверку' })).toBeVisible();
+  await expect(brief).not.toContainText('результат ещё не опубликован');
   await expect(brief.getByText(/редакц(?:ия|ии|ию|ией|ий) №/i)).toHaveCount(0);
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-electronics-panel-1440.png`,
+    fullPage: false,
+  });
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/UX0-in-progress.png`,
     fullPage: false,
   });
 
@@ -674,6 +688,10 @@ test('A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 an
 
     await learner.page.screenshot({
       path: `${workShellV1EvidenceDir}/V1-mobile-panel-${viewport.width}.png`,
+      fullPage: false,
+    });
+    await learner.page.screenshot({
+      path: `${workShellV1EvidenceDir}/UX0-mobile-${viewport.width}.png`,
       fullPage: false,
     });
 

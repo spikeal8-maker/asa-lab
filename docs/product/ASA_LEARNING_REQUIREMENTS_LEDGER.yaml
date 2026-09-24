@@ -912,6 +912,41 @@ requirements:
   - TEACHER-EDIT-WHEN-ALLOWED-IS-AUDITED
   planned_test_ids: []
 
+- id: E1-FIX-17
+  milestone: E1
+  status: in_progress
+  priority: P1
+  issue: 385
+  summary: Rebuild learner task surface and teacher authoring UX from owner staging review
+  normative_ref: ASA_LEARNING_UX_REDESIGN_SPEC
+  source_paths:
+  - apps/web/src/components/AssignmentBrief.tsx
+  - apps/web/src/components/assignment-brief.css
+  - apps/web/src/components/AssignmentView.tsx
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  evidence:
+  - staging school №374 owner review
+  verification:
+    source_sha: null
+    method: owner_visual_review
+    observed_result: Functional Learning paths exist, but student task surface and teacher authoring are not intuitive enough for product acceptance.
+    product_fix_verified: false
+    authenticated_live_journey: not_run
+  planned_scenarios:
+  - UX0-MINIMAL-ASSIGNMENT-ANCHOR
+  - UX0-IN-PROGRESS-FOOTER
+  - UX0-WAITING-REVIEW-STATE
+  - UX0-CHANGES-REQUESTED-STATE
+  - UX0-RELEASED-RESULT-IN-ANCHOR
+  - UX0-MOBILE-390
+  - UX0-MOBILE-320
+  - UX1-IMMUTABLE-IMAGE-IN-PUBLISHED-TASK
+  - UX1-PINNED-REFERENCE-IN-LAB
+  - UX2-TEACHER-ASSIGNMENT-EDITOR
+  - UX3-VISUAL-COURSE-BUILDER
+  - UX4-TEACHER-ATTENTION-AND-REVIEW
+  planned_test_ids: []
+
 - id: INT-REUSE-HISTORY
   milestone: unassigned
   status: target
