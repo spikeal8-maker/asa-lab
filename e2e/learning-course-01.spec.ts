@@ -987,6 +987,25 @@ for (const module of ['three-d', 'electronics'])
     ).toBeVisible();
     const continueButton = brief.getByRole('button', { name: 'Продолжить', exact: true });
     await expect(continueButton).toBeEnabled();
+
+    const beforeContinueProjectionResponse = await learner.page.request.get(
+      '/api/class-join/me/assignments',
+    );
+    expect(beforeContinueProjectionResponse.ok()).toBe(true);
+    const beforeContinueProjection = (await beforeContinueProjectionResponse.json()) as {
+      items: Array<{
+        title: string;
+        canonicalState: { workflowState: string; flags: string[] } | null;
+      }>;
+    };
+    const beforeContinueAssignment = beforeContinueProjection.items.find(
+      (item) => item.title === title,
+    );
+    expect(beforeContinueAssignment?.canonicalState?.workflowState).toBe('changes_requested');
+    expect(beforeContinueAssignment?.canonicalState?.flags ?? []).not.toContain(
+      'revision_in_progress',
+    );
+
     if (module === 'electronics') {
       await learner.page.screenshot({
         path: ux0EvidenceDir + '/UX0-changes-requested.png',
