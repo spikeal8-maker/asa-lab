@@ -1755,11 +1755,7 @@ export const api = {
         body: JSON.stringify({ ...draft, expectedRevision }),
       },
     ),
-  saveAuthoredActivityDraftSample: (
-    id: string,
-    expectedRevision: number,
-    imageDataUrl: string,
-  ) =>
+  saveAuthoredActivityDraftSample: (id: string, expectedRevision: number, imageDataUrl: string) =>
     call<{ draftRevision: number; contentHash: string; url: string }>(
       `/api/learning/activities/${encodeURIComponent(id)}/draft-sample`,
       {
