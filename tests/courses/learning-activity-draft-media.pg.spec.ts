@@ -34,15 +34,12 @@ beforeAll(async () => {
   ownerAccountId = identity.rows[0].account_id as string;
 
   const workspace = await admin.query(
-    `SELECT membership.workspace_id
-       FROM workspace_memberships membership
-       JOIN workspaces workspace ON workspace.id=membership.workspace_id
-      WHERE membership.account_id=$1
-        AND membership.role='owner'
-        AND workspace.kind='personal'
-      ORDER BY membership.created_at
+    `SELECT id AS workspace_id
+       FROM workspaces
+      WHERE tenant_id=$1 AND kind='organization'
+      ORDER BY created_at
       LIMIT 1`,
-    [ownerAccountId],
+    [owner.tenantId],
   );
 
   const foreignAccount = await admin.query(
