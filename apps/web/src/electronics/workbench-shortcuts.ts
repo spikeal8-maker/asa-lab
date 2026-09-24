@@ -9,6 +9,10 @@ export type WorkbenchShortcut =
   | 'select-all'
   | 'escape'
   | 'space'
+  | 'nudge-up'
+  | 'nudge-down'
+  | 'nudge-left'
+  | 'nudge-right'
   | null;
 
 export interface WorkbenchShortcutEvent {
@@ -71,5 +75,9 @@ export function resolveWorkbenchShortcut(event: WorkbenchShortcutEvent): Workben
   if (event.code === 'KeyR') return 'rotate';
   if (event.code === 'Escape') return 'escape';
   if (event.code === 'Space') return 'space';
+  if (event.code === 'ArrowUp') return 'nudge-up';
+  if (event.code === 'ArrowDown') return 'nudge-down';
+  if (event.code === 'ArrowLeft') return 'nudge-left';
+  if (event.code === 'ArrowRight') return 'nudge-right';
   return null;
 }

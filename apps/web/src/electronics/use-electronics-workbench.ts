@@ -119,6 +119,20 @@ function compactWorkbench(): boolean {
 
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
 const WIRE_DRAG_THRESHOLD_PX = 5;
+const DESKTOP_INITIAL_ZOOM = 1.25;
+const KEYBOARD_NUDGE_STEP = 5;
+const KEYBOARD_NUDGE_LARGE_STEP = 20;
+
+function emptyInitialViewport(): Viewport {
+  if (compactWorkbench()) return DEFAULT_VIEWPORT;
+  const width = STAGE_WIDTH / DESKTOP_INITIAL_ZOOM;
+  const height = STAGE_HEIGHT / DESKTOP_INITIAL_ZOOM;
+  return {
+    x: (STAGE_WIDTH - width) / 2,
+    y: (STAGE_HEIGHT - height) / 2,
+    zoom: DESKTOP_INITIAL_ZOOM,
+  };
+}
 
 function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
   if (result?.junctionState === 'reverse_blocking') return 'reverse';
@@ -417,7 +431,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(() => !compactWorkbench());
   const [libraryQuery, setLibraryQuery] = useState('');
-  const [category, setCategory] = useState<ComponentCategory>('basic');
+  const [category, setCategory] = useState<ComponentCategory>('all');
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
   const [catalogPlacement, setCatalogPlacement] = useState<CatalogPlacement | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
@@ -678,12 +692,16 @@ export function useElectronicsWorkbench(projectId: string) {
   useEffect(() => {
     if (project && document && viewportProjectRef.current !== project.id) {
       viewportProjectRef.current = project.id;
-      const stored =
-        readLocalElectronicsViewport(project.id) ?? document.viewport ?? DEFAULT_VIEWPORT;
+      const stored = readLocalElectronicsViewport(project.id);
+      const restored =
+        stored ??
+        (document.components.length === 0
+          ? emptyInitialViewport()
+          : (document.viewport ?? DEFAULT_VIEWPORT));
       // A document saved while the editor allowed a wider range would otherwise
       // reopen at a zoom the server will not accept back, and every save from
       // then on would fail for a reason the drawing does not explain.
-      setViewport({ ...stored, zoom: clamp(stored.zoom, MIN_ZOOM, MAX_ZOOM) });
+      setViewport({ ...restored, zoom: clamp(restored.zoom, MIN_ZOOM, MAX_ZOOM) });
     }
   }, [document, project]);
 
@@ -2393,7 +2411,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function fitScene(): void {
     if (!document || document.components.length === 0) {
-      applyViewport(DEFAULT_VIEWPORT);
+      applyViewport(emptyInitialViewport());
       return;
     }
     const bounds = sceneBounds(document);
@@ -2413,6 +2431,41 @@ export function useElectronicsWorkbench(projectId: string) {
     );
   }
 
+  function nudgeSelection(dx: number, dy: number): void {
+    const current = getCurrentDocument();
+    if (!current || selection?.kind !== 'component') return;
+    const selectedIds = selection.ids;
+    const componentIds = [
+      ...new Set([
+        ...selectedIds,
+        ...selectedIds.flatMap((id) => {
+          const selected = current.components.find((item) => item.id === id);
+          return selected?.kind === 'breadboard' ? componentsBoundToBreadboard(current, id) : [];
+        }),
+      ]),
+    ];
+    const bounds = sceneBounds({
+      ...current,
+      components: current.components.filter((part) => componentIds.includes(part.id)),
+    });
+    if (!bounds) return;
+    const delta = {
+      x: clamp(dx, -980 - bounds.minX, 4980 - bounds.maxX),
+      y: clamp(dy, -980 - bounds.minY, 3980 - bounds.maxY),
+    };
+    if (delta.x === 0 && delta.y === 0) return;
+    ensureEditModeForStructuralAction();
+    let next = translatedDragDocument(current, componentIds, delta);
+    for (const id of componentIds) {
+      const part = next.components.find((item) => item.id === id);
+      const carried = Object.values(part?.holeBindings ?? {}).some((binding) =>
+        componentIds.includes(binding.breadboardComponentId),
+      );
+      if (part && part.kind !== 'breadboard' && !carried) next = snapComponentToBreadboard(next, id);
+    }
+    commitDocument(next, 'Положение изменено с клавиатуры.');
+  }
+
   const shortcutActionsRef = useRef<{
     readonly undo: () => unknown;
     readonly redo: () => unknown;
@@ -2422,6 +2475,7 @@ export function useElectronicsWorkbench(projectId: string) {
     readonly remove: () => void;
     readonly rotate: () => void;
     readonly selectAll: () => void;
+    readonly nudge: (dx: number, dy: number) => void;
     readonly cancel: () => void;
   } | null>(null);
   shortcutActionsRef.current = {
@@ -2437,6 +2491,7 @@ export function useElectronicsWorkbench(projectId: string) {
       const ids = current?.components.map((component) => component.id) ?? [];
       setSelection(ids.length > 0 ? { kind: 'component', id: ids[0]!, ids } : null);
     },
+    nudge: nudgeSelection,
     cancel: () => {
       cancelInteraction();
       setCatalogPlacementState(null);
@@ -2469,6 +2524,14 @@ export function useElectronicsWorkbench(projectId: string) {
       else if (command === 'delete') actions.remove();
       else if (command === 'rotate') actions.rotate();
       else if (command === 'select-all') actions.selectAll();
+      else if (command === 'nudge-up')
+        actions.nudge(0, -(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP));
+      else if (command === 'nudge-down')
+        actions.nudge(0, event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP);
+      else if (command === 'nudge-left')
+        actions.nudge(-(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP), 0);
+      else if (command === 'nudge-right')
+        actions.nudge(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP, 0);
       else if (command === 'escape') actions.cancel();
     }
     function keyUp(event: globalThis.KeyboardEvent): void {

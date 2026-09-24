@@ -1631,6 +1631,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await expect(compact.getByRole('button', { name: 'Переподключить начало' })).toBeVisible();
       await expect(compact.getByRole('button', { name: 'Переподключить конец' })).toBeVisible();
       await page.screenshot({ path: 'reports/interactions/r4-wire-panel-desktop.png' });
+      await page.screenshot({ path: 'reports/interactions/d1-trash-desktop.png' });
     },
   );
 
@@ -1674,6 +1675,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       if (!libraryBox) throw new Error('Expected mobile component shelf');
       expect(box.y + box.height).toBeLessThanOrEqual(libraryBox.y - 4);
       await page.screenshot({ path: 'reports/interactions/r4-wire-panel-mobile.png' });
+      await page.screenshot({ path: 'reports/interactions/d1-trash-mobile.png' });
     },
   );
 });
@@ -2047,11 +2049,24 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
           name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
         })
         .click();
-      await expect(
-        page.getByRole('button', {
-          name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        }),
-      ).toBeVisible();
+      const runningSimulation = page.getByRole('button', {
+        name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+      });
+      await expect(runningSimulation).toBeVisible();
+      await expect(runningSimulation).toHaveAttribute('aria-pressed', 'true');
+      const runningStyle = await runningSimulation.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return {
+          background: style.backgroundColor,
+          border: style.borderColor,
+          color: style.color,
+          fontWeight: style.fontWeight,
+        };
+      });
+      expect(runningStyle.background).not.toBe('rgba(0, 0, 0, 0)');
+      expect(runningStyle.background).not.toBe('transparent');
+      expect(Number.parseInt(runningStyle.fontWeight, 10)).toBeGreaterThanOrEqual(600);
+      await page.screenshot({ path: 'reports/interactions/d2-simulation-running.png' });
 
       const buttonPoint = await pointOnBody(page, 'runtime-button');
       await page.touchscreen.tap(buttonPoint.x, buttonPoint.y);
@@ -2482,3 +2497,203 @@ touchVideoTest(
     expect(errors).toEqual([]);
   },
 );
+
+test.describe('owner D3-D6 acceptance', () => {
+  test('D3 arrow nudge moves one component and a group with one undoable step per keypress', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const { readDocument } = await openEditor(page, documentFixture());
+    await page
+      .getByRole('button', {
+        name: '\u041f\u043e\u0434\u043e\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
+        exact: true,
+      })
+      .click();
+
+    const selectBody = async (id: string, shift = false) => {
+      const at = await pointOnBody(page, id);
+      if (shift) await page.keyboard.down('Shift');
+      await page.mouse.click(at.x, at.y);
+      if (shift) await page.keyboard.up('Shift');
+    };
+    const position = (id: string) => {
+      const found = readDocument().components.find((component) => component.id === id);
+      if (!found) throw new Error('Missing component ' + id);
+      return { ...found.position };
+    };
+
+    await selectBody('battery');
+    const batteryStart = position('battery');
+    await page.keyboard.press('ArrowRight');
+    await expect.poll(() => position('battery')).toEqual({
+      x: batteryStart.x + 5,
+      y: batteryStart.y,
+    });
+    await page.keyboard.press('Shift+ArrowDown');
+    await expect.poll(() => position('battery')).toEqual({
+      x: batteryStart.x + 5,
+      y: batteryStart.y + 20,
+    });
+
+    await page.keyboard.press('Control+z');
+    await expect.poll(() => position('battery')).toEqual({
+      x: batteryStart.x + 5,
+      y: batteryStart.y,
+    });
+    await page.keyboard.press('Control+z');
+    await expect.poll(() => position('battery')).toEqual(batteryStart);
+    await page.keyboard.press('Control+Shift+z');
+    await page.keyboard.press('Control+Shift+z');
+    await expect.poll(() => position('battery')).toEqual({
+      x: batteryStart.x + 5,
+      y: batteryStart.y + 20,
+    });
+
+    await selectBody('battery');
+    await selectBody('led', true);
+    const batteryGroupStart = position('battery');
+    const ledGroupStart = position('led');
+    await page.keyboard.press('ArrowLeft');
+    await expect.poll(() => position('battery')).toEqual({
+      x: batteryGroupStart.x - 5,
+      y: batteryGroupStart.y,
+    });
+    await expect.poll(() => position('led')).toEqual({
+      x: ledGroupStart.x - 5,
+      y: ledGroupStart.y,
+    });
+    await page.keyboard.press('Control+z');
+    await expect.poll(() => position('battery')).toEqual(batteryGroupStart);
+    await expect.poll(() => position('led')).toEqual(ledGroupStart);
+
+    const title = page.getByRole('textbox', {
+      name: '\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0435\u043a\u0442\u0430',
+      exact: true,
+    });
+    await title.fill('Arrow field');
+    const beforeEditableArrow = position('battery');
+    await page.keyboard.press('ArrowLeft');
+    await page.keyboard.press('ArrowRight');
+    expect(position('battery')).toEqual(beforeEditableArrow);
+
+    await page.screenshot({ path: 'reports/interactions/d3-keyboard-nudge.png' });
+  });
+
+  test('D4 desktop empty project starts closer while mobile contract stays independent', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const empty: SchematicDocument = {
+      schemaVersion: 4,
+      components: [],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    };
+    const { readDocument } = await openEditor(page, empty);
+    await expect(page.getByLabel('Масштаб 125 процентов')).toBeVisible();
+
+    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+    await card.scrollIntoViewIfNeeded();
+    const cardPoint = await locatorCenter(card);
+    const stage = await page.locator('.workbench-stage').boundingBox();
+    if (!stage) throw new Error('Missing desktop stage');
+    const drop = { x: stage.x + stage.width * 0.48, y: stage.y + stage.height * 0.5 };
+    await page.mouse.move(cardPoint.x, cardPoint.y);
+    await page.mouse.down();
+    await page.mouse.move(drop.x, drop.y, { steps: 12 });
+    await page.mouse.up();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(1);
+
+    const battery = page
+      .locator(
+        '[data-component-type="battery-holder-aa-2"][data-testid="schematic-component"]',
+      )
+      .first();
+    const afterBox = await battery.boundingBox();
+    if (!afterBox) throw new Error('Missing battery at closer initial zoom');
+    await page.screenshot({ path: 'reports/interactions/d4-initial-zoom-after.png' });
+
+    await page.evaluate(
+      ({ id }) => {
+        localStorage.setItem(
+          'asa-electronics-viewport:' + id,
+          JSON.stringify({ x: 0, y: 0, zoom: 1 }),
+        );
+      },
+      { id: ID },
+    );
+    await page.reload();
+    await expect(page.getByLabel('Масштаб 100 процентов')).toBeVisible();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(readDocument().components.length);
+    const beforeBox = await battery.boundingBox();
+    if (!beforeBox) throw new Error('Missing battery at legacy initial zoom');
+    expect(afterBox.width).toBeGreaterThan(beforeBox.width * 1.18);
+    expect(afterBox.height).toBeGreaterThan(beforeBox.height * 1.18);
+    await page.screenshot({ path: 'reports/interactions/d4-initial-zoom-before.png' });
+  });
+
+  test('D5 mobile component shelf is compact with edge handle and opt-in search', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openEditor(page, documentFixture());
+
+    const library = page.locator('.workbench-library');
+    const handle = page.locator('.workbench-library-collapse');
+    await expect(library).toHaveClass(/collapsed/);
+    const handleBox = await handle.boundingBox();
+    if (!handleBox) throw new Error('Missing compact mobile library handle');
+    expect(handleBox.width).toBeLessThanOrEqual(40);
+    expect(handleBox.height).toBeLessThanOrEqual(32);
+    await page.screenshot({ path: 'reports/interactions/d5-mobile-panel-collapsed.png' });
+
+    await handle.click();
+    await expect(library).not.toHaveClass(/collapsed/);
+    const openBox = await library.boundingBox();
+    if (!openBox) throw new Error('Missing open mobile library');
+    expect(openBox.height).toBeLessThanOrEqual(170);
+    const searchToggle = page.getByRole('button', { name: 'Поиск компонентов' });
+    await expect(searchToggle).toBeVisible();
+    const searchInput = page.getByPlaceholder('Поиск');
+    await expect(searchInput).toBeHidden();
+    await page.screenshot({ path: 'reports/interactions/d5-mobile-panel-open.png' });
+
+    await searchToggle.click();
+    await expect(searchInput).toBeVisible();
+    await expect(searchInput).toBeFocused();
+    await searchInput.fill('светодиод');
+    await expect(page.getByRole('button', { name: 'Светодиод', exact: true })).toBeVisible();
+    await page.screenshot({ path: 'reports/interactions/d5-mobile-search-active.png' });
+  });
+
+  test('D6 component shelf opens on All and search/categories remain functional', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await openEditor(page, documentFixture());
+
+    const category = page.getByRole('combobox', { name: 'Категория компонентов' });
+    await expect(category).toHaveValue('all');
+    const cards = page.locator('.workbench-catalog-card');
+    const allCount = await cards.count();
+    expect(allCount).toBeGreaterThan(10);
+
+    await category.selectOption('basic');
+    await expect(category).toHaveValue('basic');
+    const basicCount = await cards.count();
+    expect(basicCount).toBeGreaterThan(0);
+    expect(basicCount).toBeLessThanOrEqual(allCount);
+
+    await category.selectOption('power');
+    await expect(category).toHaveValue('power');
+    expect(await cards.count()).toBeGreaterThan(0);
+
+    await category.selectOption('all');
+    const search = page.getByPlaceholder('Поиск');
+    await search.fill('резистор');
+    await expect(page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible();
+    expect(await cards.count()).toBeGreaterThan(0);
+    await page.screenshot({ path: 'reports/interactions/d6-all-components-default.png' });
+  });
+});
+

@@ -5651,3 +5651,148 @@ html.arduino-palette-resizing * {
     bottom: calc(var(--wb-library-closed-height) + 8px);
   }
 }
+
+
+/* Owner D2: modelling must read as an explicit locked runtime mode. */
+@keyframes workbench-simulation-running-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 2px rgba(31, 143, 91, 0.12);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(31, 143, 91, 0.18),
+      0 0 14px rgba(31, 143, 91, 0.16);
+  }
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running {
+  border-color: #2c9865;
+  background: #e9f7ef;
+  color: #176b46;
+  font-weight: 600;
+  animation: workbench-simulation-running-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-toolbar-group.right .workbench-pill.simulate.running {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(31, 143, 91, 0.14);
+  }
+}
+
+.workbench-library-search-toggle {
+  display: none;
+}
+
+/* Owner D5: compact mobile component shelf with an edge handle and opt-in search. */
+@media (max-width: 980px) {
+  .workbench-shell {
+    --wb-library-open-height: calc(156px + env(safe-area-inset-bottom));
+    --wb-library-closed-height: calc(18px + env(safe-area-inset-bottom));
+  }
+  .workbench-library,
+  .workbench-library.collapsed {
+    border-radius: 8px 8px 0 0;
+  }
+  .workbench-library-collapse {
+    left: auto;
+    right: 8px;
+    top: -28px;
+    width: 36px;
+    height: 28px;
+    gap: 0;
+    border: 1px solid #cfd6dc;
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: rgba(255, 255, 255, 0.98);
+    color: #3d5464;
+    box-shadow: 0 -1px 5px rgba(29, 43, 54, 0.06);
+  }
+  .workbench-library-collapse svg {
+    width: 16px;
+    height: 16px;
+  }
+  .workbench-library-handle-label {
+    display: none;
+  }
+  .workbench-library-heading {
+    top: 8px;
+    left: 8px;
+    right: 52px;
+    width: auto;
+    min-height: 36px;
+  }
+  .workbench-library-heading select {
+    height: 36px;
+    font-size: 15px;
+  }
+  .workbench-library-search-toggle {
+    position: absolute;
+    z-index: 8;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid #d3dbe1;
+    border-radius: 6px;
+    background: #fff;
+    color: #3d5464;
+  }
+  .workbench-library-search-toggle.active {
+    border-color: #168cc5;
+    background: #eaf5fa;
+    color: #126f99;
+  }
+  .workbench-library-search-toggle svg {
+    width: 18px;
+    height: 18px;
+  }
+  .workbench-library-search {
+    top: 8px;
+    left: 8px;
+    right: 52px;
+    z-index: 7;
+    display: none;
+    margin: 0;
+  }
+  .workbench-library-search.mobile-open {
+    display: block;
+  }
+  .workbench-library-search input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 36px;
+    padding: 5px 34px 5px 10px;
+    font-size: 15px;
+  }
+  .workbench-library-search svg {
+    top: 8px;
+    width: 19px;
+    height: 19px;
+  }
+  .workbench-catalog-grid,
+  .workbench-catalog-grid.list-view {
+    top: 50px;
+    grid-auto-columns: 88px;
+    grid-template-rows: 92px;
+    gap: 7px;
+    padding: 0 8px 6px;
+  }
+  .workbench-catalog-card,
+  .workbench-catalog-grid.list-view .workbench-catalog-card {
+    width: 88px;
+    height: 92px;
+    min-height: 92px;
+  }
+  .workbench-catalog-add,
+  .workbench-catalog-grid.list-view .workbench-catalog-add {
+    grid-template-rows: 62px 26px;
+    padding: 1px 3px;
+  }
+  .workbench-catalog-art,
+  .workbench-catalog-grid.list-view .workbench-catalog-art {
+    height: 62px;
+  }
+}

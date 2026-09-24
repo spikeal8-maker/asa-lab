@@ -366,6 +366,18 @@ export function WorkbenchSidebars({
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchExpanded = mobileSearchOpen || c.libraryQuery.length > 0;
+  const toggleMobileSearch = (): void => {
+    if (mobileSearchExpanded) {
+      c.setLibraryQuery('');
+      setMobileSearchOpen(false);
+      return;
+    }
+    setMobileSearchOpen(true);
+    window.requestAnimationFrame(() => mobileSearchInputRef.current?.focus());
+  };
   const shelfTouches = useRef(
     new Map<number, { x: number; y: number; mode: 'pending' | 'dragging' | 'scrolling' }>(),
   );
@@ -655,9 +667,21 @@ export function WorkbenchSidebars({
                 <ListIcon />
               </button>
             </div>
-            <label className="workbench-library-search">
+            <button
+              type="button"
+              className={`workbench-library-search-toggle${mobileSearchExpanded ? ' active' : ''}`}
+              onClick={toggleMobileSearch}
+              aria-label={mobileSearchExpanded ? 'Закрыть поиск компонентов' : 'Поиск компонентов'}
+              aria-expanded={mobileSearchExpanded}
+            >
+              <SearchIcon />
+            </button>
+            <label
+              className={`workbench-library-search${mobileSearchExpanded ? ' mobile-open' : ''}`}
+            >
               <span className="sr-only">Поиск компонентов</span>
               <input
+                ref={mobileSearchInputRef}
                 value={c.libraryQuery}
                 onChange={(event) => c.setLibraryQuery(event.target.value)}
                 placeholder="Поиск"

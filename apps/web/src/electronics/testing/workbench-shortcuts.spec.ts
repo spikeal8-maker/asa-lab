@@ -24,6 +24,14 @@ describe('workbench shortcuts', () => {
     expect(resolveWorkbenchShortcut(key('Backspace'))).toBe('delete');
   });
 
+  it('maps physical arrow keys to component nudge commands and preserves Shift for step size', () => {
+    expect(resolveWorkbenchShortcut(key('ArrowUp'))).toBe('nudge-up');
+    expect(resolveWorkbenchShortcut(key('ArrowDown'))).toBe('nudge-down');
+    expect(resolveWorkbenchShortcut(key('ArrowLeft'))).toBe('nudge-left');
+    expect(resolveWorkbenchShortcut(key('ArrowRight', { shiftKey: true }))).toBe('nudge-right');
+    expect(resolveWorkbenchShortcut(key('ArrowRight', { ctrlKey: true }))).toBeNull();
+  });
+
   it('is layout independent for English and Russian KeyboardEvent.key values', () => {
     const english = { ...key('KeyC', { ctrlKey: true }), key: 'c' };
     const russian = { ...key('KeyC', { ctrlKey: true }), key: '\u0441' };
