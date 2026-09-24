@@ -38,7 +38,6 @@ import {
 
 const OPEN_KEY = 'asa-assignment-brief-open-v3';
 const RECT_KEY = 'asa-assignment-brief-rect-v3';
-const RESUBMISSION_KEY = 'asa-assignment-brief-resubmission-v1';
 const MOBILE_QUERY = '(max-width: 720px)';
 
 const RESIZE_EDGES: readonly AssignmentBriefResizeEdge[] = [
@@ -79,20 +78,6 @@ function readOpen(projectId: string): boolean {
   return window.localStorage.getItem(openStorageKey(projectId)) === 'open';
 }
 
-function resubmissionStorageKey(projectId: string): string {
-  return `${RESUBMISSION_KEY}:${projectId}`;
-}
-
-function readResubmission(projectId: string): boolean {
-  return window.sessionStorage.getItem(resubmissionStorageKey(projectId)) === 'resumed';
-}
-
-function writeResubmission(projectId: string, resumed: boolean): void {
-  const key = resubmissionStorageKey(projectId);
-  if (resumed) window.sessionStorage.setItem(key, 'resumed');
-  else window.sessionStorage.removeItem(key);
-}
-
 function readRect(): AssignmentBriefRect {
   return parseAssignmentBriefRect(
     window.localStorage.getItem(RECT_KEY),
@@ -115,9 +100,6 @@ export function AssignmentBrief({
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [resumedAfterChangesRequested, setResumedAfterChangesRequested] = useState(() =>
-    readResubmission(projectId),
-  );
   const revision = useConfirmedProjectRevision();
   const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
   const operation = useRef<PointerOperation | null>(null);
@@ -153,7 +135,6 @@ export function AssignmentBrief({
     rectRef.current = next;
     setRect(next);
     setExpanded(false);
-    setResumedAfterChangesRequested(readResubmission(projectId));
   }, [projectId]);
 
   useEffect(() => {
@@ -327,11 +308,8 @@ export function AssignmentBrief({
     if (assignment.canonicalState?.workflowState === 'changes_requested') {
       const started = await api.startSeatAssignment(assignment.id, projectId);
       setBusy(false);
-      if (started.ok) {
-        writeResubmission(projectId, true);
-        setResumedAfterChangesRequested(true);
-        setAssignment(await load());
-      } else setError(started.error.message);
+      if (started.ok) setAssignment(await load());
+      else setError(started.error.message);
       return;
     }
     if (submissionRequest.current?.revision !== revision)
@@ -344,8 +322,6 @@ export function AssignmentBrief({
     );
     setBusy(false);
     if (result.ok) {
-      writeResubmission(projectId, false);
-      setResumedAfterChangesRequested(false);
       setAssignment((await load()) ?? { ...assignment, submittedAt: result.data.submittedAt });
       submissionRequest.current = null;
     } else setError(result.error.message);
@@ -472,12 +448,7 @@ export function AssignmentBrief({
                   disabled={busy || revision === null}
                   onClick={() => void submit()}
                 >
-                  {busy
-                    ? 'Отправляем…'
-                    : assignmentBriefSubmitLabel(
-                        assignment.canonicalState,
-                        resumedAfterChangesRequested,
-                      )}
+                  {busy ? 'Отправляем…' : assignmentBriefSubmitLabel(assignment.canonicalState)}
                 </button>
               </>
             )}

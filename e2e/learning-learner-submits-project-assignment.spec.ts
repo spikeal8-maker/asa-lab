@@ -421,6 +421,10 @@ test('A0 desktop Electronics uses a permanent anchor and compact movable task pa
     path: `${workShellV1EvidenceDir}/V1-electronics-anchor-1440.png`,
     fullPage: false,
   });
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/UX0-anchor.png`,
+    fullPage: false,
+  });
 
   const anchorBefore = (await anchor.boundingBox())!;
   await anchor.click();
@@ -444,6 +448,10 @@ test('A0 desktop Electronics uses a permanent anchor and compact movable task pa
   await expect(brief.getByText(/редакц(?:ия|ии|ию|ией|ий) №/i)).toHaveCount(0);
   await learner.page.screenshot({
     path: `${workShellV1EvidenceDir}/V1-electronics-panel-1440.png`,
+    fullPage: false,
+  });
+  await learner.page.screenshot({
+    path: `${workShellV1EvidenceDir}/UX0-in-progress.png`,
     fullPage: false,
   });
 
@@ -680,6 +688,10 @@ test('A0 mobile shell uses a permanent bottom anchor and bounded sheet at 390 an
 
     await learner.page.screenshot({
       path: `${workShellV1EvidenceDir}/V1-mobile-panel-${viewport.width}.png`,
+      fullPage: false,
+    });
+    await learner.page.screenshot({
+      path: `${workShellV1EvidenceDir}/UX0-mobile-${viewport.width}.png`,
       fullPage: false,
     });
 

@@ -33,6 +33,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0158',
         '0159',
         '0160',
+        '0161',
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -196,7 +197,7 @@ describe('Course Builder structure forward upgrade', () => {
 
       const upgrade = await pool.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(8);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(9);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();

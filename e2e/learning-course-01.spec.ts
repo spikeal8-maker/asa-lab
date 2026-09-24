@@ -7,6 +7,7 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
+const ux0EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
@@ -310,6 +311,47 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await inbox.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
   await learner.page.goto('/#/learning');
   await expect(learner.page.getByText('Освоено', { exact: true })).toBeVisible();
+  const gradedProjectionResponse = await learner.page.request.get('/api/class-join/me/assignments');
+  expect(gradedProjectionResponse.ok()).toBe(true);
+  const gradedProjection = (await gradedProjectionResponse.json()) as {
+    items: Array<{
+      title: string;
+      canonicalState: {
+        workflowState: string;
+        selectedResult: {
+          displayGrade: string | null;
+          rawPoints: number | null;
+          maxPoints: number | null;
+        } | null;
+      } | null;
+    }>;
+  };
+  const gradedAssignment = gradedProjection.items.find(
+    (item) => item.title === 'Оцениваемая практика автора',
+  );
+  expect(gradedAssignment?.canonicalState?.workflowState).toBe('completed');
+  expect(gradedAssignment?.canonicalState?.selectedResult?.displayGrade).toBe('Освоено');
+  expect(gradedAssignment?.canonicalState?.selectedResult?.rawPoints).toBe(8);
+  expect(gradedAssignment?.canonicalState?.selectedResult?.maxPoints).toBe(10);
+
+  const gradedRow = learner.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: 'Оцениваемая практика автора' });
+  await gradedRow.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  const gradedAnchor = learner.page.getByTestId('assignment-brief-anchor');
+  const gradedBrief = learner.page.getByTestId('assignment-brief');
+  await expect(gradedAnchor).toBeVisible({ timeout: 60_000 });
+  if ((await gradedAnchor.getAttribute('aria-expanded')) !== 'true') await gradedAnchor.click();
+  await expect(gradedAnchor.locator('.assignment-brief-anchor-result')).toHaveText('· Освоено');
+  await expect(
+    gradedBrief.locator('.assignment-brief-footer').getByText('Выполнено', { exact: true }),
+  ).toBeVisible();
+  await expect(gradedBrief.locator('.assignment-brief-result')).toHaveText('Освоено');
+  await learner.page.screenshot({
+    path: ux0EvidenceDir + '/UX0-completed-grade.png',
+    fullPage: false,
+  });
   await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
   const stale = await page.context().newPage();
   await stale.goto(page.url());
@@ -457,6 +499,7 @@ test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'learning-course01-browser');
   mkdirSync(evidenceDir, { recursive: true });
+  mkdirSync(ux0EvidenceDir, { recursive: true });
 });
 
 test.afterAll(async () => {
@@ -900,6 +943,12 @@ for (const module of ['three-d', 'electronics'])
       brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
     ).toBeVisible();
     await expect(brief.getByRole('button', { name: /Отправить|Продолжить/ })).toHaveCount(0);
+    if (module === 'electronics') {
+      await learner.page.screenshot({
+        path: ux0EvidenceDir + '/UX0-waiting-review.png',
+        fullPage: false,
+      });
+    }
     await learner.page.screenshot({
       path: evidenceDir + '/' + module + '-exact-submission.png',
       fullPage: true,
@@ -936,7 +985,31 @@ for (const module of ['three-d', 'electronics'])
     await expect(
       brief.locator('.assignment-brief-footer').getByText('Нужна доработка', { exact: true }),
     ).toBeVisible();
-    await expect(brief.getByRole('button', { name: 'Продолжить', exact: true })).toBeEnabled();
+    const continueButton = brief.getByRole('button', { name: 'Продолжить', exact: true });
+    await expect(continueButton).toBeEnabled();
+    if (module === 'electronics') {
+      await learner.page.screenshot({
+        path: ux0EvidenceDir + '/UX0-changes-requested.png',
+        fullPage: false,
+      });
+    }
+    await continueButton.click();
+    await expect(continueButton).toHaveCount(0);
+
+    const resumedProjectionResponse = await learner.page.request.get(
+      '/api/class-join/me/assignments',
+    );
+    expect(resumedProjectionResponse.ok()).toBe(true);
+    const resumedProjection = (await resumedProjectionResponse.json()) as {
+      items: Array<{
+        title: string;
+        canonicalState: { workflowState: string; flags: string[] } | null;
+      }>;
+    };
+    const resumedAssignment = resumedProjection.items.find((item) => item.title === title);
+    expect(resumedAssignment?.canonicalState?.workflowState).toBe('in_progress');
+    expect(resumedAssignment?.canonicalState?.flags).toContain('revision_in_progress');
+
     await editRealProject(learner.page, module);
     await expect(
       brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
@@ -945,6 +1018,23 @@ for (const module of ['three-d', 'electronics'])
     await expect(
       brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
     ).toBeVisible();
+    const resubmittedProjectionResponse = await learner.page.request.get(
+      '/api/class-join/me/assignments',
+    );
+    expect(resubmittedProjectionResponse.ok()).toBe(true);
+    const resubmittedProjection = (await resubmittedProjectionResponse.json()) as {
+      items: Array<{
+        title: string;
+        canonicalState: { workflowState: string; flags: string[] } | null;
+      }>;
+    };
+    const resubmittedAssignment = resubmittedProjection.items.find((item) => item.title === title);
+    expect(['submitted', 'waiting_review']).toContain(
+      resubmittedAssignment?.canonicalState?.workflowState,
+    );
+    expect(resubmittedAssignment?.canonicalState?.flags ?? []).not.toContain(
+      'revision_in_progress',
+    );
     await page.goto(teacherUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
@@ -977,6 +1067,12 @@ for (const module of ['three-d', 'electronics'])
     ).toBeVisible();
     await expect(brief.locator('.assignment-brief-result')).toHaveText('✓ Принято');
     await expect(completedAnchor.locator('.assignment-brief-anchor-result')).toHaveText('· ✓');
+    if (module === 'electronics') {
+      await learner.page.screenshot({
+        path: ux0EvidenceDir + '/UX0-completed-check.png',
+        fullPage: false,
+      });
+    }
     await learner.context.close();
   });
 

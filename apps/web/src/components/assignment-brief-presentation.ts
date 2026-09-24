@@ -35,20 +35,17 @@ export function assignmentBriefResultText(
 ): string | null {
   const result = assignmentBriefSelectedResult(state);
   if (!result) return null;
+  const displayGrade = result.displayGrade?.trim();
+  if (displayGrade) return displayGrade;
   if (result.rawPoints !== null && result.maxPoints !== null) {
     return result.rawPoints + '/' + result.maxPoints;
   }
-  const displayGrade = result.displayGrade?.trim();
-  if (displayGrade) return displayGrade;
   if (result.completionValue === true) return variant === 'anchor' ? '✓' : '✓ Принято';
   return null;
 }
 
-export function assignmentBriefSubmitLabel(
-  state: CanonicalLearningSurfaceState | null,
-  resumedAfterChangesRequested = false,
-): string {
-  return resumedAfterChangesRequested || state?.flags.includes('revision_in_progress')
+export function assignmentBriefSubmitLabel(state: CanonicalLearningSurfaceState | null): string {
+  return state?.flags.includes('revision_in_progress')
     ? 'Отправить повторно'
     : 'Отправить на проверку';
 }

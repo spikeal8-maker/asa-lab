@@ -81,6 +81,41 @@ describe('LRN-M0-006 canonical learning state', () => {
     expect(resolveCanonicalLearningState(input).workflowState).toBe('changes_requested');
   });
 
+  it('marks a real revision origin in progress even before a result is selected', () => {
+    const input = baseInput();
+    input.attempts.latest = {
+      id: 'attempt-2',
+      attemptNumber: 2,
+      revisionOfAttemptId: 'attempt-1',
+      state: 'in_progress',
+      reviewDecision: null,
+      startedAt: '2026-08-24T11:30:00.000Z',
+      submittedAt: null,
+      lateState: null,
+    };
+    const result = resolveCanonicalLearningState(input);
+    expect(result.workflowState).toBe('in_progress');
+    expect(result.selectedResult).toBeNull();
+    expect(result.flags).toContain('revision_in_progress');
+  });
+
+  it('does not mark a first in-progress attempt as a revision', () => {
+    const input = baseInput();
+    input.attempts.latest = {
+      id: 'attempt-1',
+      attemptNumber: 1,
+      revisionOfAttemptId: null,
+      state: 'in_progress',
+      reviewDecision: null,
+      startedAt: '2026-08-24T10:00:00.000Z',
+      submittedAt: null,
+      lateState: null,
+    };
+    const result = resolveCanonicalLearningState(input);
+    expect(result.workflowState).toBe('in_progress');
+    expect(result.flags).not.toContain('revision_in_progress');
+  });
+
   it('keeps an older selected result while a revision is in progress', () => {
     const input = baseInput();
     input.attempts = {

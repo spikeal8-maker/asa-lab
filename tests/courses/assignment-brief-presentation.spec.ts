@@ -54,12 +54,23 @@ describe('UX0 learner task presentation', () => {
     );
   });
 
-  it('renders released graded and completion values only from canonical selectedResult', () => {
+  it('prioritizes released displayGrade over numeric points from canonical selectedResult', () => {
+    const graded = state('completed', { ...gradedResult, displayGrade: 'Освоено' });
+    expect(assignmentBriefSelectedResult(graded)).toEqual({
+      ...gradedResult,
+      displayGrade: 'Освоено',
+    });
+    expect(assignmentBriefResultText(graded, 'anchor')).toBe('Освоено');
+    expect(assignmentBriefResultText(graded, 'panel')).toBe('Освоено');
+  });
+
+  it('falls back to raw points when displayGrade is absent', () => {
     const graded = state('completed', gradedResult);
-    expect(assignmentBriefSelectedResult(graded)).toBe(gradedResult);
     expect(assignmentBriefResultText(graded, 'anchor')).toBe('8/10');
     expect(assignmentBriefResultText(graded, 'panel')).toBe('8/10');
+  });
 
+  it('falls back to completion-only presentation when grade and points are absent', () => {
     const completion = state('completed', completionResult);
     expect(assignmentBriefResultText(completion, 'anchor')).toBe('✓');
     expect(assignmentBriefResultText(completion, 'panel')).toBe('✓ Принято');
@@ -82,9 +93,8 @@ describe('UX0 learner task presentation', () => {
     ).toBeNull();
   });
 
-  it('uses the resubmission label after a confirmed resume or a canonical revision flag', () => {
+  it('uses the resubmission label only from the canonical revision-in-progress flag', () => {
     expect(assignmentBriefSubmitLabel(state('in_progress'))).toBe('Отправить на проверку');
-    expect(assignmentBriefSubmitLabel(state('in_progress'), true)).toBe('Отправить повторно');
     expect(
       assignmentBriefSubmitLabel({
         ...state('in_progress'),
