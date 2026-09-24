@@ -750,7 +750,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-guide-axis={axis.orientation}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     expect(workbenchCss).toMatch(/\.workbench-wire-guide\s*\{[^}]*stroke-width:\s*1px;/s);
-    expect(iconSource).toContain('<rect x="7" y="8.5" width="10" height="11.5" rx="1.5" />');
+    expect(iconSource).toContain('<rect x="6.5" y="7.5" width="11" height="12.5" rx="2" />');
     expect(sidebarSource).toContain('className="workbench-wire-delete"');
     expect(controllerModuleSource).toContain(
       'nextComponentSelection(current, componentId, additive)',
