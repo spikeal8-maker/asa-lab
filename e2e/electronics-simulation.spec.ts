@@ -2033,19 +2033,22 @@ for (const scenario of [
         const box = await buttons.nth(index).locator('.workbench-part').boundingBox();
         if (!box) throw new Error('Button is not visible');
         if (scenario.mode === 'buttons' && index === 0) {
-          // This fixture deliberately crosses the button with a wire. Its
-          // transparent editing hit area must not swallow a running input.
-          expect(
-            await page.evaluate(
-              ({ x, y }) =>
-                Boolean(
-                  document
-                    .elementFromPoint(x, y)
-                    ?.closest('.workbench-wire-hit, .workbench-wire-segment-hit'),
-                ),
-              { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-            ),
-          ).toBe(true);
+          // F2: this fixture deliberately crosses the foreground button with a
+          // wire. The hidden wire hit geometry must not own the pointer through
+          // the component body; the button remains the interactive surface.
+          const pointerOwner = await page.evaluate(
+            ({ x, y }) => {
+              const top = document.elementFromPoint(x, y);
+              return {
+                wire: Boolean(top?.closest('.workbench-wire-hit, .workbench-wire-segment-hit')),
+                componentType: top?.closest<SVGElement>('[data-testid="schematic-component"]')
+                  ?.dataset['componentType'],
+              };
+            },
+            { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          );
+          expect(pointerOwner.wire).toBe(false);
+          expect(pointerOwner.componentType).toBe('button-tactile-6mm');
         }
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.mouse.down();
@@ -3596,8 +3599,14 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-wired.png`, fullPage: true });
 
-  const sourcePositive = component(page, 'battery-holder-aa-2').locator(
-    '.workbench-terminal-hit[data-terminal-id="BAT+"]',
+  const sourceComponentId = await component(page, 'battery-holder-aa-2').getAttribute(
+    'data-component-id',
+  );
+  if (!sourceComponentId) throw new Error('battery source has no component identity');
+  const sourcePositive = page.locator(
+    '.workbench-terminal-hit[data-terminal-component-id="' +
+      sourceComponentId +
+      '"][data-terminal-id="BAT+"]',
   );
   await sourcePositive.click();
   const previewWire = page.locator('.workbench-wire-preview');
