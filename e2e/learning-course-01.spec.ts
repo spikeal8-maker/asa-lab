@@ -1106,7 +1106,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   const courseTitle = 'Структурный курс ' + sequence;
   await createPublishedProjectActivity(page, material, 'electronics');
 
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Новый курс' });
   await form.getByLabel('Название', { exact: true }).fill(courseTitle);
@@ -1167,7 +1167,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   ).toHaveCount(2);
 
   await page.goto('/#/challenges');
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page
     .getByTestId('courses-list')
     .getByRole('button')
@@ -1192,7 +1192,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   );
 
   await page.reload();
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page
     .getByTestId('courses-list')
     .getByRole('button')
@@ -1275,7 +1275,7 @@ test('Course Builder persists informational block structural controls into futur
   await loginWithOrganization(page, teacher);
   await page.goto('/#/challenges');
 
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Новый курс' });
   await form.getByLabel('Название', { exact: true }).fill(courseTitle);
@@ -1328,7 +1328,7 @@ test('Course Builder persists informational block structural controls into futur
   ]);
 
   await page.goto('/#/challenges');
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page
     .getByTestId('courses-list')
     .getByRole('button')
@@ -1364,7 +1364,7 @@ test('Course Builder persists informational block structural controls into futur
   await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page
     .getByTestId('courses-list')
     .getByRole('button')
@@ -1459,7 +1459,7 @@ for (const module of ['electronics', 'three-d'])
     const material = 'Электроника курса ' + ++sequence,
       courseTitle = 'Первый курс ' + sequence;
     await createPublishedProjectActivity(page, material, module);
-    await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+    await page.getByRole('button', { name: 'Курсы', exact: true }).click();
     await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
     const form = page.getByRole('dialog', { name: 'Новый курс' });
     await form.getByLabel('Название', { exact: true }).fill(courseTitle);
@@ -1507,7 +1507,7 @@ for (const module of ['electronics', 'three-d'])
     await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
 
     await page.reload();
-    await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+    await page.getByRole('button', { name: 'Курсы', exact: true }).click();
     await page
       .getByTestId('courses-list')
       .getByRole('button')
@@ -1659,7 +1659,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await createPublishedProjectActivityAfterLogin(page, electronicsTitle, 'electronics');
   await createPublishedProjectActivityAfterLogin(page, threeDTitle, 'three-d');
 
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Новый курс' });
   await form.getByLabel('Название', { exact: true }).fill(courseTitle);
