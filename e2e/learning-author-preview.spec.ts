@@ -265,9 +265,7 @@ function solidPng(red: number, green: number, blue: number): Buffer {
   return PNG.sync.write(image);
 }
 
-test('teacher draft sample survives reload, replacement and deletion without legacy assignment writes', async ({
-  page,
-}) => {
+test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   test.setTimeout(120000);
   const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
   const title = 'Draft image ' + unique;
