@@ -12,9 +12,10 @@ import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
 import { courseAssignmentShape } from './SeatCourses';
 import {
-  canonicalLearningLabel,
-  canonicalSubmissionLocked,
-} from '../learning/canonical-learning-presentation';
+  assignmentBriefResultText,
+  assignmentBriefSubmitLabel,
+  assignmentBriefWorkflowLabel,
+} from './assignment-brief-presentation';
 import {
   clampAssignmentBriefRect,
   defaultAssignmentBriefRect,
@@ -326,10 +327,19 @@ export function AssignmentBrief({
     } else setError(result.error.message);
   }
 
-  const locked = assignment.canonicalState
-    ? canonicalSubmissionLocked(assignment.canonicalState)
-    : assignment.submittedAt !== null;
-  const changesRequested = assignment.canonicalState?.workflowState === 'changes_requested';
+  const workflowState =
+    assignment.canonicalState?.workflowState ??
+    (assignment.submittedAt ? 'submitted' : 'in_progress');
+  const changesRequested = workflowState === 'changes_requested';
+  const waitingReview = workflowState === 'submitted' || workflowState === 'waiting_review';
+  const completed = workflowState === 'completed';
+  const invalidated = workflowState === 'invalidated';
+  const workflowLabel = assignmentBriefWorkflowLabel(
+    assignment.canonicalState,
+    assignment.submittedAt,
+  );
+  const anchorResult = assignmentBriefResultText(assignment.canonicalState, 'anchor');
+  const panelResult = assignmentBriefResultText(assignment.canonicalState, 'panel');
   const floatingStyle: CSSProperties | undefined =
     open && !mobile
       ? {
@@ -363,10 +373,7 @@ export function AssignmentBrief({
             ) : null}
             <div className="assignment-brief-heading">
               <div className="assignment-brief-title">{assignment.title}</div>
-              <span className="assignment-brief-state">
-                {canonicalLearningLabel(assignment.canonicalState) ??
-                  (assignment.submittedAt ? 'Сдано' : 'В работе')}
-              </span>
+              <span className="assignment-brief-state">{workflowLabel}</span>
             </div>
             {!mobile ? (
               <button
@@ -407,11 +414,20 @@ export function AssignmentBrief({
           </div>
 
           <footer className="assignment-brief-footer">
-            {locked ? (
-              <span className="assignment-brief-footer-state">Сдано на проверку</span>
+            {completed ? (
+              <>
+                <span className="assignment-brief-footer-state">Выполнено</span>
+                {panelResult ? (
+                  <strong className="assignment-brief-result">{panelResult}</strong>
+                ) : null}
+              </>
+            ) : waitingReview ? (
+              <span className="assignment-brief-footer-state">На проверке</span>
+            ) : invalidated ? (
+              <span className="assignment-brief-footer-state">Попытка отменена</span>
             ) : changesRequested ? (
               <>
-                <span className="assignment-brief-footer-state">Требуется доработка</span>
+                <span className="assignment-brief-footer-state">Нужна доработка</span>
                 <button
                   type="button"
                   className="assignment-brief-submit"
@@ -432,7 +448,7 @@ export function AssignmentBrief({
                   disabled={busy || revision === null}
                   onClick={() => void submit()}
                 >
-                  {busy ? 'Сдаём…' : 'Сдать работу'}
+                  {busy ? 'Отправляем…' : assignmentBriefSubmitLabel(assignment.canonicalState)}
                 </button>
               </>
             )}
@@ -463,9 +479,9 @@ export function AssignmentBrief({
           ▣
         </span>
         <span className="assignment-brief-anchor-label">Задание</span>
-        <span className="assignment-brief-anchor-title" aria-hidden="true">
-          · {assignment.title}
-        </span>
+        {anchorResult ? (
+          <span className="assignment-brief-anchor-result">· {anchorResult}</span>
+        ) : null}
         <span className="assignment-brief-anchor-chevron" aria-hidden="true">
           {open ? '⌄' : '⌃'}
         </span>

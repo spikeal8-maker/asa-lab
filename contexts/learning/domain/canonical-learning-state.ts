@@ -34,6 +34,7 @@ const FLAG_ORDER: readonly CanonicalLearningFlag[] = [
 export interface AttemptSnapshot {
   id: string;
   attemptNumber: number;
+  revisionOfAttemptId?: string | null;
   state: 'in_progress' | 'submitted' | 'evaluating' | 'closed' | 'invalidated' | 'expired';
   reviewDecision: 'accepted' | 'changes_requested' | 'incomplete' | 'excused' | null;
   startedAt: string;
@@ -312,10 +313,11 @@ export function resolveCanonicalLearningState(
     flags.add('unselected_result');
     if (selection.conflict !== null) conflicts.push(selection.conflict);
   }
+  const revisionOfAttemptId = latest?.revisionOfAttemptId ?? null;
   if (
     latest?.state === 'in_progress' &&
-    selectedResult !== null &&
-    selectedResult.attemptId !== latest.id
+    (revisionOfAttemptId !== null ||
+      (selectedResult !== null && selectedResult.attemptId !== latest.id))
   ) {
     flags.add('revision_in_progress');
   }

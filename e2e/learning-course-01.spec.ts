@@ -7,6 +7,7 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
+const ux0EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
@@ -15,7 +16,7 @@ const keys = new Map<string, string>();
 async function editRealProject(page: Page, module: string) {
   const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
   const assignmentPanel = page.getByTestId('assignment-brief');
-  await expect(assignmentAnchor).toBeVisible();
+  await expect(assignmentAnchor).toBeVisible({ timeout: 60_000 });
   if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
     await assignmentAnchor.click();
   }
@@ -287,8 +288,13 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('button', { name: 'Открыть', exact: true })
     .click();
   await editRealProject(learner.page, 'electronics');
-  await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+  await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+  await expect(
+    learner.page
+      .getByTestId('assignment-brief')
+      .locator('.assignment-brief-footer')
+      .getByText('На проверке', { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -305,6 +311,47 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await inbox.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
   await learner.page.goto('/#/learning');
   await expect(learner.page.getByText('Освоено', { exact: true })).toBeVisible();
+  const gradedProjectionResponse = await learner.page.request.get('/api/class-join/me/assignments');
+  expect(gradedProjectionResponse.ok()).toBe(true);
+  const gradedProjection = (await gradedProjectionResponse.json()) as {
+    items: Array<{
+      title: string;
+      canonicalState: {
+        workflowState: string;
+        selectedResult: {
+          displayGrade: string | null;
+          rawPoints: number | null;
+          maxPoints: number | null;
+        } | null;
+      } | null;
+    }>;
+  };
+  const gradedAssignment = gradedProjection.items.find(
+    (item) => item.title === 'Оцениваемая практика автора',
+  );
+  expect(gradedAssignment?.canonicalState?.workflowState).toBe('completed');
+  expect(gradedAssignment?.canonicalState?.selectedResult?.displayGrade).toBe('Освоено');
+  expect(gradedAssignment?.canonicalState?.selectedResult?.rawPoints).toBe(8);
+  expect(gradedAssignment?.canonicalState?.selectedResult?.maxPoints).toBe(10);
+
+  const gradedRow = learner.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: 'Оцениваемая практика автора' });
+  await gradedRow.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  const gradedAnchor = learner.page.getByTestId('assignment-brief-anchor');
+  const gradedBrief = learner.page.getByTestId('assignment-brief');
+  await expect(gradedAnchor).toBeVisible({ timeout: 60_000 });
+  if ((await gradedAnchor.getAttribute('aria-expanded')) !== 'true') await gradedAnchor.click();
+  await expect(gradedAnchor.locator('.assignment-brief-anchor-result')).toHaveText('· Освоено');
+  await expect(
+    gradedBrief.locator('.assignment-brief-footer').getByText('Выполнено', { exact: true }),
+  ).toBeVisible();
+  await expect(gradedBrief.locator('.assignment-brief-result')).toHaveText('Освоено');
+  await learner.page.screenshot({
+    path: ux0EvidenceDir + '/UX0-completed-grade.png',
+    fullPage: false,
+  });
   await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
   const stale = await page.context().newPage();
   await stale.goto(page.url());
@@ -452,6 +499,7 @@ test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'learning-course01-browser');
   mkdirSync(evidenceDir, { recursive: true });
+  mkdirSync(ux0EvidenceDir, { recursive: true });
 });
 
 test.afterAll(async () => {
@@ -518,11 +566,16 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
     .filter({ hasText: title });
   await work.getByRole('button', { name: 'Открыть', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
-  const submit = async () => {
-    await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+  const submit = async (label: 'Отправить на проверку' | 'Отправить повторно') => {
+    await learner.page.getByRole('button', { name: label, exact: true }).click();
+    await expect(
+      learner.page
+        .getByTestId('assignment-brief')
+        .locator('.assignment-brief-footer')
+        .getByText('На проверке', { exact: true }),
+    ).toBeVisible();
   };
-  await submit();
+  await submit('Отправить на проверку');
   await page.goto('/#/');
   const link = home.getByRole('link', { name: 'Лена Главная · ' + title, exact: true });
   await expect(link).toBeVisible();
@@ -559,7 +612,7 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   await learner.page.goto('/#/learning');
   await work.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
-  await submit();
+  await submit('Отправить повторно');
   await home.getByRole('button', { name: 'Обновить', exact: true }).click();
   await expect(link).toBeVisible();
   await expect(link).not.toHaveAttribute('href', firstHref);
@@ -649,8 +702,13 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .getByRole('button', { name: 'Открыть', exact: true })
     .click();
   await editRealProject(learner.page, 'three-d');
-  await learner.page.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-  await expect(learner.page.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+  await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+  await expect(
+    learner.page
+      .getByTestId('assignment-brief')
+      .locator('.assignment-brief-footer')
+      .getByText('На проверке', { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -875,9 +933,22 @@ for (const module of ['three-d', 'electronics'])
     await row.getByRole('button', { name: 'Открыть', exact: true }).click();
     await editRealProject(learner.page, module);
     const brief = learner.page.getByTestId('assignment-brief');
-    await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
-    await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await expect(brief.getByText('В работе', { exact: true })).toBeVisible();
+    await expect(brief.getByText('Сохранено', { exact: true })).toBeVisible();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить на проверку', exact: true }),
+    ).toBeEnabled();
+    await brief.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
+    ).toBeVisible();
+    await expect(brief.getByRole('button', { name: /Отправить|Продолжить/ })).toHaveCount(0);
+    if (module === 'electronics') {
+      await learner.page.screenshot({
+        path: ux0EvidenceDir + '/UX0-waiting-review.png',
+        fullPage: false,
+      });
+    }
     await learner.page.screenshot({
       path: evidenceDir + '/' + module + '-exact-submission.png',
       fullPage: true,
@@ -905,11 +976,86 @@ for (const module of ['three-d', 'electronics'])
     await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
     await learner.page.goto('/#/learning');
     await openPortalSection(learner.page, 'Моё обучение');
+    await expect(row).toContainText('Нужна доработка');
+    await expect(row.getByRole('button', { name: 'Начать доработку', exact: true })).toBeVisible();
     await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+    const learnerAnchor = learner.page.getByTestId('assignment-brief-anchor');
+    if ((await learnerAnchor.getAttribute('aria-expanded')) !== 'true') await learnerAnchor.click();
+    await expect(brief).toBeVisible();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('Нужна доработка', { exact: true }),
+    ).toBeVisible();
+    const continueButton = brief.getByRole('button', { name: 'Продолжить', exact: true });
+    await expect(continueButton).toBeEnabled();
+
+    const beforeContinueProjectionResponse = await learner.page.request.get(
+      '/api/class-join/me/assignments',
+    );
+    expect(beforeContinueProjectionResponse.ok()).toBe(true);
+    const beforeContinueProjection = (await beforeContinueProjectionResponse.json()) as {
+      items: Array<{
+        title: string;
+        canonicalState: { workflowState: string; flags: string[] } | null;
+      }>;
+    };
+    const beforeContinueAssignment = beforeContinueProjection.items.find(
+      (item) => item.title === title,
+    );
+    expect(beforeContinueAssignment?.canonicalState?.workflowState).toBe('changes_requested');
+    expect(beforeContinueAssignment?.canonicalState?.flags ?? []).not.toContain(
+      'revision_in_progress',
+    );
+
+    if (module === 'electronics') {
+      await learner.page.screenshot({
+        path: ux0EvidenceDir + '/UX0-changes-requested.png',
+        fullPage: false,
+      });
+    }
+    await continueButton.click();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
+    ).toBeEnabled({ timeout: 15_000 });
+
+    const resumedProjectionResponse = await learner.page.request.get(
+      '/api/class-join/me/assignments',
+    );
+    expect(resumedProjectionResponse.ok()).toBe(true);
+    const resumedProjection = (await resumedProjectionResponse.json()) as {
+      items: Array<{
+        title: string;
+        canonicalState: { workflowState: string; flags: string[] } | null;
+      }>;
+    };
+    const resumedAssignment = resumedProjection.items.find((item) => item.title === title);
+    expect(resumedAssignment?.canonicalState?.workflowState).toBe('in_progress');
+    expect(resumedAssignment?.canonicalState?.flags).toContain('revision_in_progress');
+
     await editRealProject(learner.page, module);
-    await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
-    await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
+    ).toBeEnabled();
+    await brief.getByRole('button', { name: 'Отправить повторно', exact: true }).click();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
+    ).toBeVisible();
+    const resubmittedProjectionResponse = await learner.page.request.get(
+      '/api/class-join/me/assignments',
+    );
+    expect(resubmittedProjectionResponse.ok()).toBe(true);
+    const resubmittedProjection = (await resubmittedProjectionResponse.json()) as {
+      items: Array<{
+        title: string;
+        canonicalState: { workflowState: string; flags: string[] } | null;
+      }>;
+    };
+    const resubmittedAssignment = resubmittedProjection.items.find((item) => item.title === title);
+    expect(['submitted', 'waiting_review']).toContain(
+      resubmittedAssignment?.canonicalState?.workflowState,
+    );
+    expect(resubmittedAssignment?.canonicalState?.flags ?? []).not.toContain(
+      'revision_in_progress',
+    );
     await page.goto(teacherUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
@@ -923,6 +1069,31 @@ for (const module of ['three-d', 'electronics'])
       path: evidenceDir + '/gradebook-accepted-' + module + '.png',
       fullPage: true,
     });
+
+    await learner.page.goto('/#/learning');
+    await openPortalSection(learner.page, 'Моё обучение');
+    const completedRow = learner.page
+      .getByTestId('seat-assignments')
+      .locator('li')
+      .filter({ hasText: title });
+    await expect(completedRow).toContainText('Выполнено');
+    await completedRow.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+    const completedAnchor = learner.page.getByTestId('assignment-brief-anchor');
+    if ((await completedAnchor.getAttribute('aria-expanded')) !== 'true') {
+      await completedAnchor.click();
+    }
+    await expect(brief).toBeVisible();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('Выполнено', { exact: true }),
+    ).toBeVisible();
+    await expect(brief.locator('.assignment-brief-result')).toHaveText('✓ Принято');
+    await expect(completedAnchor.locator('.assignment-brief-anchor-result')).toHaveText('· ✓');
+    if (module === 'electronics') {
+      await learner.page.screenshot({
+        path: ux0EvidenceDir + '/UX0-completed-check.png',
+        fullPage: false,
+      });
+    }
     await learner.context.close();
   });
 
@@ -1441,9 +1612,13 @@ for (const module of ['electronics', 'three-d'])
     await learner.getByRole('button', { name: 'Начать задание', exact: true }).click();
     await editRealProject(learner, module);
     const brief = learner.getByTestId('assignment-brief');
-    await expect(brief.getByRole('button', { name: 'Сдать работу', exact: true })).toBeEnabled();
-    await brief.getByRole('button', { name: 'Сдать работу', exact: true }).click();
-    await expect(brief.getByText('Сдано на проверку', { exact: true })).toBeVisible();
+    await expect(
+      brief.getByRole('button', { name: 'Отправить на проверку', exact: true }),
+    ).toBeEnabled();
+    await brief.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
+    await expect(
+      brief.locator('.assignment-brief-footer').getByText('На проверке', { exact: true }),
+    ).toBeVisible();
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-submitted.png',
     });

@@ -6,11 +6,10 @@ export async function openAssignmentWork(
   onOpen: (id: string, module: string) => void,
 ): Promise<string | null> {
   if (!assignment.projectId) return 'Сначала начните задание.';
-  if (assignment.canonicalState?.workflowState === 'changes_requested') {
-    const started = await api.startSeatAssignment(assignment.id, assignment.projectId);
-    if (!started.ok) return started.error.message;
-    onOpen(started.data.projectId, assignment.moduleKey);
-  } else onOpen(assignment.projectId, assignment.moduleKey);
+  // Reopening an existing draft is read-only. A changes-requested attempt is
+  // resumed only by the explicit "Продолжить" action inside AssignmentBrief,
+  // so the learner can first read the teacher's requested-revision state.
+  onOpen(assignment.projectId, assignment.moduleKey);
   return null;
 }
 /** List surfaces explicitly confirm a persisted revision. Editors use their own

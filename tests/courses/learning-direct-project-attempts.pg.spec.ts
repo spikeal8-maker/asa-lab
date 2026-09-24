@@ -2,6 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { PgClassroomRepository } from '../../contexts/classroom/index';
 import { teacherHomeAttention } from '../../apps/api/src/teacher-home-attention';
+import {
+  LearningCanonicalProjectionService,
+  canonicalProjectionKey,
+} from '../../apps/api/src/learning-canonical-projection.service';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -1209,6 +1213,24 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         ])
       ).rows[0].revision_of_attempt_id,
     ).toBe(a.attempt_id);
+
+    const revisionEvidence = (
+      await admin.query(
+        "SELECT evidence FROM learning_canonical_evidence_internal($1,$2,false) WHERE evidence->>'classroomAssignmentId'=$3",
+        [cls, seat, assignment],
+      )
+    ).rows[0].evidence;
+    expect(revisionEvidence.attempt).toMatchObject({
+      id: b.attempt_id,
+      state: 'in_progress',
+      revisionOfAttemptId: a.attempt_id,
+    });
+    const revisionProjection = (
+      await new LearningCanonicalProjectionService(app, {}).forSeat(seat)
+    ).get(canonicalProjectionKey(seat, assignment));
+    expect(revisionProjection?.surface.workflowState).toBe('in_progress');
+    expect(revisionProjection?.surface.flags).toContain('revision_in_progress');
+
     expect((await submit()).result_code).toBe('ok');
     expect(await reviewItems()).toMatchObject([{ attemptId: b.attempt_id }]);
     expect(
