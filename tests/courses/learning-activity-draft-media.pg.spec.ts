@@ -58,12 +58,12 @@ beforeAll(async () => {
   await admin.query(
     `INSERT INTO capability_grants
        (account_id,capability,state,policy_version,granted_by)
-     VALUES ($1,'content_author','verified','ux1a1-test','server')`,
+     VALUES ($1,'educator','verified','ux1a1-test','server')`,
     [foreignAccount.rows[0].id],
   );
   await admin.query(
     `INSERT INTO workspace_memberships (account_id,workspace_id,role)
-     VALUES ($1,$2,'owner')`,
+     VALUES ($1,$2,'educator')`,
     [foreignAccount.rows[0].id, workspace.rows[0].workspace_id],
   );
 
