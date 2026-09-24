@@ -2456,13 +2456,14 @@ export function useElectronicsWorkbench(projectId: string) {
     if (delta.x === 0 && delta.y === 0) return;
     ensureEditModeForStructuralAction();
     let next = translatedDragDocument(current, componentIds, delta);
-    for (const id of componentIds) {
+    // A multi-selection is one rigid body for keyboard nudges. Snapping every
+    // member independently can pull one part onto a nearby breadboard hole and
+    // deform the group. Keep single-part placement help, but preserve relative
+    // geometry whenever the user explicitly selected more than one component.
+    if (selectedIds.length === 1 && componentIds.length === 1) {
+      const id = componentIds[0]!;
       const part = next.components.find((item) => item.id === id);
-      const carried = Object.values(part?.holeBindings ?? {}).some((binding) =>
-        componentIds.includes(binding.breadboardComponentId),
-      );
-      if (part && part.kind !== 'breadboard' && !carried)
-        next = snapComponentToBreadboard(next, id);
+      if (part && part.kind !== 'breadboard') next = snapComponentToBreadboard(next, id);
     }
     commitDocument(next, 'Положение изменено с клавиатуры.');
   }

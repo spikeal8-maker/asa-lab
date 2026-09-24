@@ -2335,9 +2335,22 @@ for (const [width, height] of [
       await tap(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
       const clearPoint = await page.locator('.workbench-stage').evaluate((stage) => {
         const box = stage.getBoundingClientRect();
-        for (const fy of [0.12, 0.28, 0.5, 0.72, 0.88]) {
-          for (const fx of [0.12, 0.28, 0.5, 0.72, 0.88]) {
+        const componentBoxes = [
+          ...document.querySelectorAll<SVGGraphicsElement>(
+            '[data-testid="schematic-component"] .workbench-part',
+          ),
+        ].map((element) => element.getBoundingClientRect());
+        for (const fy of [0.08, 0.18, 0.32, 0.5, 0.68, 0.82, 0.92]) {
+          for (const fx of [0.08, 0.18, 0.32, 0.5, 0.68, 0.82, 0.92]) {
             const point = { x: box.left + box.width * fx, y: box.top + box.height * fy };
+            const insideComponentBox = componentBoxes.some(
+              (part) =>
+                point.x >= part.left &&
+                point.x <= part.right &&
+                point.y >= part.top &&
+                point.y <= part.bottom,
+            );
+            if (insideComponentBox) continue;
             const topmost = document.elementFromPoint(point.x, point.y);
             if (topmost?.classList.contains('workbench-grid-hit')) return point;
           }
