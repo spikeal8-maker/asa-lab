@@ -184,8 +184,7 @@ export class LearningActivitiesController {
   }
 
   private draftSampleError(code: string | undefined): HttpException {
-    const status =
-      code === 'invalid_media' ? 400 : code === 'revision_conflict' ? 409 : 404;
+    const status = code === 'invalid_media' ? 400 : code === 'revision_conflict' ? 409 : 404;
     const message =
       code === 'sample_not_found'
         ? 'Картинки нет.'
