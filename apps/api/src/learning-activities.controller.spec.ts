@@ -141,6 +141,58 @@ describe('canonical learning activity API', () => {
     expect(api.query).not.toHaveBeenCalled();
   });
 
+  it('stores and deletes a canonical draft sample with the authenticated activity scope', async () => {
+    const imageDataUrl =
+      'data:image/png;base64,' + Buffer.from('canonical-draft-image-a').toString('base64');
+    const put = target({
+      rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'a'.repeat(64) }],
+    });
+    await expect(
+      put.value.putDraftSample(request(), ACTIVITY_ID, {
+        expectedRevision: 1,
+        imageDataUrl,
+      }),
+    ).resolves.toEqual({
+      draftRevision: 2,
+      contentHash: 'a'.repeat(64),
+      url: `/api/learning/activities/${ACTIVITY_ID}/draft-sample?v=${'a'.repeat(64)}`,
+    });
+    expect(put.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_draft_sample_set'),
+      [
+        PRINCIPAL_ID,
+        TENANT_ID,
+        ACTIVITY_ID,
+        1,
+        expect.any(Buffer),
+        'image/png',
+      ],
+    );
+
+    const remove = target({ rows: [{ result_code: 'ok', draft_revision: 3 }] });
+    await expect(
+      remove.value.deleteDraftSample(request(), ACTIVITY_ID, { expectedRevision: 2 }),
+    ).resolves.toEqual({ draftRevision: 3 });
+    expect(remove.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_draft_sample_delete'),
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 2],
+    );
+  });
+
+  it('rejects invalid draft sample type and revision before SQL', async () => {
+    const api = target();
+    await expect(
+      api.value.putDraftSample(request(), ACTIVITY_ID, {
+        expectedRevision: 1,
+        imageDataUrl: 'data:image/gif;base64,R0lGODlhAQABAIAAAAUEBA==',
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      api.value.deleteDraftSample(request(), ACTIVITY_ID, { expectedRevision: 0 }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(api.query).not.toHaveBeenCalled();
+  });
+
   it('returns the immutable publication receipt including retry state', async () => {
     const api = target({
       rows: [
