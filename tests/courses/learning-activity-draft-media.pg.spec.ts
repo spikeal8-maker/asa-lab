@@ -34,10 +34,13 @@ beforeAll(async () => {
   ownerAccountId = identity.rows[0].account_id as string;
 
   const workspace = await admin.query(
-    `SELECT workspace_id
-       FROM workspace_memberships
-      WHERE account_id=$1 AND role='owner'
-      ORDER BY created_at
+    `SELECT membership.workspace_id
+       FROM workspace_memberships membership
+       JOIN workspaces workspace ON workspace.id=membership.workspace_id
+      WHERE membership.account_id=$1
+        AND membership.role='owner'
+        AND workspace.kind='personal'
+      ORDER BY membership.created_at
       LIMIT 1`,
     [ownerAccountId],
   );
@@ -58,12 +61,12 @@ beforeAll(async () => {
   await admin.query(
     `INSERT INTO capability_grants
        (account_id,capability,state,policy_version,granted_by)
-     VALUES ($1,'content_author','verified','ux1a1-test','test')`,
+     VALUES ($1,'content_author','verified','ux1a1-test','server')`,
     [foreignAccount.rows[0].id],
   );
   await admin.query(
     `INSERT INTO workspace_memberships (account_id,workspace_id,role)
-     VALUES ($1,$2,'educator')`,
+     VALUES ($1,$2,'owner')`,
     [foreignAccount.rows[0].id, workspace.rows[0].workspace_id],
   );
 
