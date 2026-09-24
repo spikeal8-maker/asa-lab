@@ -1,6 +1,17 @@
 name: ${COMPOSE_PROJECT_NAME:-asa-lab-test}
 
 services:
+  # CI-only MinIO mirror: the pinned quay.io/minio/mc image is not
+  # accessible from GitHub-hosted runners. The matching public MinIO
+  # server image also contains `mc`, so both test services use one
+  # exact Docker Hub release without changing production Compose.
+  minio:
+    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+    pull_policy: always
+
+  minio-init:
+    image: minio/minio:RELEASE.2024-09-13T20-26-02Z
+    pull_policy: always
   postgres:
     environment:
       POSTGRES_DB: asalab_test
