@@ -68,7 +68,6 @@ jobs:
       - name: Focused Electronics M1 gate
         run: pnpm gate:electronics-m1
 
-
   benchmark:
     name: Electronics E-OPT benchmark integrity
     needs: focused
@@ -118,6 +117,7 @@ jobs:
             reports/electronics-opt0-*.md
           if-no-files-found: ignore
           retention-days: 14
+
   browser:
     name: Actual editor live simulation journey
     needs: focused
@@ -143,39 +143,38 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
-      - name: Prepare CI-only MinIO registry override
-        run: |
-          cat > /tmp/electronics-minio-ci.yaml <<'YAML'
-          services:
-            minio:
-              image: minio/minio:RELEASE.2024-09-13T20-26-02Z
-              pull_policy: always
-            minio-init:
-              image: minio/minio:RELEASE.2024-09-13T20-26-02Z
-              pull_policy: always
-          YAML
-      - name: Build isolated Electronics browser stack
+      - name: Build isolated Electronics browser images
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f /tmp/electronics-minio-ci.yaml --profile test
-          build migration api web scratch test-runner
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          build migration api web test-runner
 
-      - name: Start isolated PostgreSQL, migrations, API and web
+      - name: Start isolated PostgreSQL
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f /tmp/electronics-minio-ci.yaml --profile test
-          up -d --wait --wait-timeout 240 postgres api web
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          up -d --wait --wait-timeout 120 postgres
+
+      - name: Apply isolated migrations
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          run --rm --no-deps migration
+
+      - name: Start Electronics API and Web without unrelated media services
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
 
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
       - name: Electronics M1 browser gate
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f /tmp/electronics-minio-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
           pnpm gate:electronics-m1:browser
 
       - name: Show isolated stack state
         if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml -f /tmp/electronics-minio-ci.yaml --profile test ps -a
+        run: docker compose -f compose.yaml -f compose.test.yaml --profile test ps -a
 
       - name: Upload browser evidence
         if: always()
@@ -191,7 +190,7 @@ jobs:
       - name: Remove isolated test stack
         if: always()
         run: >-
-          docker compose -f compose.yaml -f compose.test.yaml -f /tmp/electronics-minio-ci.yaml --profile test
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
           down -v --remove-orphans
 
   review-images:
