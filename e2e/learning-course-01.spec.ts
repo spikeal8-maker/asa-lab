@@ -288,7 +288,12 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .click();
   await editRealProject(learner.page, 'electronics');
   await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
-  await expect(learner.page.getByText('На проверке', { exact: true })).toBeVisible();
+  await expect(
+    learner.page
+      .getByTestId('assignment-brief')
+      .locator('.assignment-brief-footer')
+      .getByText('На проверке', { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
@@ -518,11 +523,16 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
     .filter({ hasText: title });
   await work.getByRole('button', { name: 'Открыть', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
-  const submit = async () => {
-    await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
-    await expect(learner.page.getByText('На проверке', { exact: true })).toBeVisible();
+  const submit = async (label: 'Отправить на проверку' | 'Отправить повторно') => {
+    await learner.page.getByRole('button', { name: label, exact: true }).click();
+    await expect(
+      learner.page
+        .getByTestId('assignment-brief')
+        .locator('.assignment-brief-footer')
+        .getByText('На проверке', { exact: true }),
+    ).toBeVisible();
   };
-  await submit();
+  await submit('Отправить на проверку');
   await page.goto('/#/');
   const link = home.getByRole('link', { name: 'Лена Главная · ' + title, exact: true });
   await expect(link).toBeVisible();
@@ -559,7 +569,7 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   await learner.page.goto('/#/learning');
   await work.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
-  await submit();
+  await submit('Отправить повторно');
   await home.getByRole('button', { name: 'Обновить', exact: true }).click();
   await expect(link).toBeVisible();
   await expect(link).not.toHaveAttribute('href', firstHref);
@@ -650,7 +660,12 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .click();
   await editRealProject(learner.page, 'three-d');
   await learner.page.getByRole('button', { name: 'Отправить на проверку', exact: true }).click();
-  await expect(learner.page.getByText('На проверке', { exact: true })).toBeVisible();
+  await expect(
+    learner.page
+      .getByTestId('assignment-brief')
+      .locator('.assignment-brief-footer')
+      .getByText('На проверке', { exact: true }),
+  ).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
