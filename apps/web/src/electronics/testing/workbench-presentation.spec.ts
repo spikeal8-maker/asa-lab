@@ -373,9 +373,12 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('caret-color: transparent;');
     expect(workbenchCss).toContain('.workbench-wire-inspector-compact button,');
     expect(sidebarSource).toContain('<DeleteIcon className="workbench-delete-icon" />');
-    expect(iconSource).toContain('<path d="M4.5 7.5h15" />');
-    expect(iconSource).toContain('<rect x="6.5" y="7.5" width="11" height="12.5" rx="2" />');
-    expect(iconSource).toContain('<path d="M10 11v5M14 11v5" />');
+    expect(iconSource).toContain(
+      'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z',
+    );
+    expect(iconSource).toContain('fill="currentColor"');
+    expect(iconSource).toContain('stroke="none"');
+    expect(iconSource).not.toContain('<path d="M10 11v5M14 11v5" />');
     expect(headerSource).toContain('aria-pressed={c.simulationRunning}');
     expect(workbenchCss).toContain('@keyframes workbench-simulation-running-pulse');
     expect(controllerModuleSource).toContain("useState<ComponentCategory>('all')");
@@ -750,7 +753,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('data-guide-axis={axis.orientation}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     expect(workbenchCss).toMatch(/\.workbench-wire-guide\s*\{[^}]*stroke-width:\s*1px;/s);
-    expect(iconSource).toContain('<rect x="6.5" y="7.5" width="11" height="12.5" rx="2" />');
+    expect(iconSource).toContain(
+      'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z',
+    );
     expect(sidebarSource).toContain('className="workbench-wire-delete"');
     expect(controllerModuleSource).toContain(
       'nextComponentSelection(current, componentId, additive)',
