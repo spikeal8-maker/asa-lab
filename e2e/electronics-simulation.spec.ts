@@ -4039,8 +4039,7 @@ test('independent and parallel sources keep diagnostics local and expose current
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   const conflictProjectId = await createProject(page, 'R4-M1 parallel source modes');
   await saveDocument(page, conflictProjectId, conflictingParallelSourcesDocument());
-  await page.goto(`/#/home/${conflictProjectId}`);
-  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await page.goto('/#/home/' + conflictProjectId);
 
   const highSource = page.locator(
     '[data-testid="schematic-component"][data-component-id="source-high"]',
@@ -4048,13 +4047,62 @@ test('independent and parallel sources keep diagnostics local and expose current
   const lowSource = page.locator(
     '[data-testid="schematic-component"][data-component-id="source-low"]',
   );
+
+  // E1: static/preflight diagnostics remain available in edit mode, but
+  // runtime operating/presentation state is absent until modeling starts.
+  await expect(
+    page.getByRole('button', {
+      name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    }),
+  ).toBeVisible();
+  await expect(highSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(lowSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(highSource).not.toHaveAttribute('data-presentation-state');
+  await expect(lowSource).not.toHaveAttribute('data-presentation-state');
+  await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await page.screenshot({
+    path: ARTIFACT_DIR + '/electronics-source-conflict-simulation-off.png',
+    fullPage: true,
+  });
+
+  await page
+    .getByRole('button', {
+      name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    })
+    .click();
   await expect(highSource).toHaveAttribute('data-source-operating-mode', 'delivering');
   await expect(lowSource).toHaveAttribute('data-source-operating-mode', 'absorbing');
   await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
   await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
-  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await expect(
+    page.getByRole('button', {
+      name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    }),
+  ).toBeVisible();
   await page.screenshot({
-    path: `${ARTIFACT_DIR}/electronics-parallel-source-conflict.png`,
+    path: ARTIFACT_DIR + '/electronics-parallel-source-conflict.png',
+    fullPage: true,
+  });
+
+  await page
+    .getByRole('button', {
+      name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    })
+    .click();
+  await expect(
+    page.getByRole('button', {
+      name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    }),
+  ).toBeVisible();
+  await expect(highSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(lowSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(highSource).not.toHaveAttribute('data-presentation-state');
+  await expect(lowSource).not.toHaveAttribute('data-presentation-state');
+  await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await page.screenshot({
+    path: ARTIFACT_DIR + '/electronics-source-conflict-after-stop.png',
     fullPage: true,
   });
   failures.assertEmpty();

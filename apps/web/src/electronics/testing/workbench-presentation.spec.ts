@@ -30,11 +30,12 @@ const persistenceIndicatorSource = readFileSync(
 );
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 const geometrySource = readFileSync(resolve(electronicsRoot, 'workbench-geometry.ts'), 'utf8');
+const shortcutsSource = readFileSync(resolve(electronicsRoot, 'workbench-shortcuts.ts'), 'utf8');
+const iconSource = readFileSync(resolve(electronicsRoot, 'workbench-icons.tsx'), 'utf8');
 const dragPreviewSource = readFileSync(
   resolve(electronicsRoot, 'workbench-drag-preview.ts'),
   'utf8',
 );
-const iconSource = readFileSync(resolve(electronicsRoot, 'workbench-icons.tsx'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
@@ -257,7 +258,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-component-diagnostic-indicator circle');
     expect(workbenchCss).toContain('.workbench-led-explosion-outer');
     expect(workbenchCss).toContain('.workbench-led-explosion-inner');
-    expect(stageSource).toContain('data-presentation-state={c.resultByComponent.get(component.id)');
+    expect(stageSource).toContain(
+      'c.runtimePresentationResultByComponent.get(component.id)?.presentationState',
+    );
     expect(workbenchCss).toContain("[data-presentation-state='destructive'][data-kind='source']");
     expect(workbenchCss).toContain("[data-presentation-state='destructive'][data-kind='resistor']");
     expect(workbenchCss).toContain('@keyframes workbench-component-overheat');
@@ -370,7 +373,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('caret-color: transparent;');
     expect(workbenchCss).toContain('.workbench-wire-inspector-compact button,');
     expect(sidebarSource).toContain('<DeleteIcon className="workbench-delete-icon" />');
-    expect(iconSource).toContain('<path d="M3 6h18" />');
+    expect(iconSource).toContain('<path d="M5 7h14" />');
+    expect(iconSource).toContain('<rect x="7" y="8.5" width="10" height="11.5" rx="1.5" />');
     expect(dragPreviewSource).toContain('.workbench-wire-editor-layer > g[data-wire-id=');
     expect(dragPreviewSource).toContain('circle[data-wire-vertex-index]');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
@@ -439,25 +443,62 @@ describe('owner-reference Electronics presentation contract', () => {
       'terminalTargetAt(event.clientX, event.clientY) ?? { componentId, terminal }',
     );
 
-    // A running simulation is a circuit under power: it can be operated, not
-    // rebuilt. Components used to stay draggable while it ran, so the board could
-    // be rearranged underneath a result that described the old arrangement.
-    // Actuators, the potentiometer and the value fields keep working.
-    expect(controllerSource).toContain(
-      'Идёт моделирование: остановите его, чтобы переставлять компоненты.',
+    // Structural edits leave a running simulation centrally and continue the
+    // same gesture. Runtime actuator/measurement paths remain separate.
+    expect(controllerSource).toContain('function ensureEditModeForStructuralAction(): void');
+    expect(controllerSource).toContain('ensureEditModeForStructuralAction();');
+    expect(controllerSource).toContain('simulationWorkerRef.current?.stop();');
+    const componentDrag = controllerSource.slice(
+      controllerSource.indexOf('function startComponentDrag'),
+      controllerSource.indexOf('function wiperPositionFromPointer'),
     );
-    expect(controllerSource).toContain(
-      'Идёт моделирование: остановите его, чтобы менять соединения.',
-    );
+    expect(componentDrag).toContain("simulationRunning && component.kind === 'button'");
+    expect(componentDrag).toContain("simulationRunning && component.kind === 'switch'");
+    expect(componentDrag).toContain('ensureEditModeForStructuralAction();');
     const vertexDrag = controllerSource.slice(controllerSource.indexOf('function startVertexDrag'));
-    expect(vertexDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
+    expect(vertexDrag.slice(0, 360)).toContain('ensureEditModeForStructuralAction();');
     const endpointDrag = controllerSource.slice(
       controllerSource.indexOf('function startEndpointDrag'),
     );
-    expect(endpointDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
+    expect(endpointDrag.slice(0, 360)).toContain('ensureEditModeForStructuralAction();');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
     expect(stageSource).toContain('onPointerDownCapture={c.beginStagePointer}');
     expect(controllerSource).toContain('placeCatalogComponent(event)');
+
+    // Runtime presentation is a running-simulation contract; static solve data
+    // remains available to diagnostics without driving destructive visuals.
+    expect(controllerSource).toContain('runtimePresentationResultByComponent');
+    expect(controllerSource).toContain('simulationRunning ? resultByComponent');
+    expect(stageSource).toContain(
+      'c.runtimePresentationResultByComponent.get(component.id)?.presentationState',
+    );
+    expect(stageSource).toContain(
+      'result={c.runtimePresentationResultByComponent.get(component.id)}',
+    );
+
+    // Guides render through the visible viewBox, not just the active segment.
+    expect(stageSource).toContain('wireGuideAxes(c.wireGuide)');
+    expect(stageSource).toContain('data-guide-axis={axis.orientation}');
+    expect(stageSource).toContain('c.viewBox.x + c.viewBox.width');
+    expect(stageSource).toContain('c.viewBox.y + c.viewBox.height');
+    expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
+    expect(workbenchCss).toMatch(
+      /\.workbench-wire-guide\s*\{[^}]*stroke-width:\s*1px;[^}]*pointer-events:\s*none;/s,
+    );
+
+    // Command shortcuts use physical codes and ignore editable ancestors.
+    expect(controllerSource).toContain('resolveWorkbenchShortcut(event)');
+    expect(controllerSource).toContain('isEditableShortcutTarget(event.target)');
+    expect(controllerSource).not.toContain('event.key.toLowerCase()');
+    expect(shortcutsSource).toContain("event.code === 'KeyC'");
+    expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
+    expect(shortcutsSource).toContain('.monaco-editor textarea');
+
+    // Multi-selection has a summary inspector instead of one component editor.
+    expect(controllerSource).toContain(
+      "selection?.kind === 'component' && selection.ids.length === 1",
+    );
+    expect(sidebarSource).toContain('Выбрано: ${c.selection.ids.length}');
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
@@ -681,5 +722,30 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain("touch.mode = 'dragging'");
     expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
+  });
+
+  it('keeps runtime visuals, structural edit transition, full guide, multi-select and code shortcuts explicit', () => {
+    expect(controllerModuleSource).toContain('function ensureEditModeForStructuralAction()');
+    expect(controllerModuleSource).toContain('runtimePresentationResultByComponent');
+    expect(stageSource).toContain('c.runtimePresentationResultByComponent');
+    expect(stageSource).toContain('wireGuideAxes(c.wireGuide)');
+    expect(stageSource).toContain('data-guide-axis={axis.orientation}');
+    expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
+    expect(workbenchCss).toMatch(/\.workbench-wire-guide\s*\{[^}]*stroke-width:\s*1px;/s);
+    expect(iconSource).toContain('<rect x="7" y="8.5" width="10" height="11.5" rx="1.5" />');
+    expect(sidebarSource).toContain('className="workbench-wire-delete"');
+    expect(controllerModuleSource).toContain(
+      'nextComponentSelection(current, componentId, additive)',
+    );
+    expect(controllerModuleSource).toContain('selection.ids.length === 1');
+    expect(shortcutsSource).toContain("event.code === 'KeyC'");
+    expect(shortcutsSource).toContain("event.code === 'KeyV'");
+    expect(shortcutsSource).toContain("event.code === 'KeyD'");
+    expect(shortcutsSource).toContain("event.code === 'KeyZ'");
+    expect(shortcutsSource).toContain("event.code === 'KeyY'");
+    expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
+    expect(shortcutsSource).toContain('.arduino-source-editor');
+    expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'c'");
+    expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'v'");
   });
 });

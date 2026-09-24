@@ -213,6 +213,40 @@ export function freeWirePoint(point: Point): Point {
   return { x: point.x, y: point.y };
 }
 
+export interface WireGuideGeometry {
+  readonly from: Point;
+  readonly via?: Point;
+  readonly to: Point;
+}
+
+export interface WireGuideAxis {
+  readonly orientation: 'horizontal' | 'vertical';
+  readonly coordinate: number;
+}
+
+export function wireGuideAxes(guide: WireGuideGeometry): readonly WireGuideAxis[] {
+  const segments = guide.via
+    ? [[guide.from, guide.via] as const, [guide.via, guide.to] as const]
+    : [[guide.from, guide.to] as const];
+  const axes: WireGuideAxis[] = [];
+  for (const [start, end] of segments) {
+    const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+    const axis: WireGuideAxis = horizontal
+      ? { orientation: 'horizontal', coordinate: (start.y + end.y) / 2 }
+      : { orientation: 'vertical', coordinate: (start.x + end.x) / 2 };
+    if (
+      !axes.some(
+        (existing) =>
+          existing.orientation === axis.orientation &&
+          Math.abs(existing.coordinate - axis.coordinate) < 1e-6,
+      )
+    ) {
+      axes.push(axis);
+    }
+  }
+  return axes;
+}
+
 function assistAngleDegrees(primary: number, transverse: number): number {
   return (
     (Math.atan2(Math.abs(transverse), Math.max(Math.abs(primary), Number.EPSILON)) * 180) / Math.PI

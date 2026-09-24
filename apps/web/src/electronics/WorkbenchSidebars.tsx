@@ -2391,7 +2391,7 @@ export function WorkbenchSidebars({
                 </button>
                 <button
                   type="button"
-                  className="danger"
+                  className="workbench-wire-delete"
                   onClick={c.removeSelection}
                   aria-label="Удалить провод"
                   title="Удалить провод"

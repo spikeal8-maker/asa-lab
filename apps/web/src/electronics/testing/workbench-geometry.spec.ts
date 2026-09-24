@@ -18,6 +18,7 @@ import {
   WIRE_ENDPOINT_HIT_RADIUS,
   WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_VISIBLE_RADIUS,
+  wireGuideAxes,
   wireSegmentParallelDelta,
   worldToClient,
   type Point,
@@ -188,6 +189,43 @@ describe('what the canvas is allowed to move', () => {
     expect(exited).toEqual({ axis: null, point: { x: 220, y: 111 } });
 
     expect(resolveWireAssist(anchor, { x: 220, y: 111 }, exited.axis).axis).toBeNull();
+  });
+
+  it('derives the full-stage construction axes without changing snap geometry', () => {
+    expect(
+      wireGuideAxes({
+        from: { x: 100, y: 220 },
+        to: { x: 600, y: 220 },
+      }),
+    ).toEqual([{ orientation: 'horizontal', coordinate: 220 }]);
+
+    expect(
+      wireGuideAxes({
+        from: { x: 100, y: 100 },
+        via: { x: 100, y: 220 },
+        to: { x: 600, y: 220 },
+      }),
+    ).toEqual([
+      { orientation: 'vertical', coordinate: 100 },
+      { orientation: 'horizontal', coordinate: 220 },
+    ]);
+  });
+
+  it('renders only the necessary full-stage guide axes', () => {
+    expect(wireGuideAxes({ from: { x: 20, y: 50 }, to: { x: 400, y: 50 } })).toEqual([
+      { orientation: 'horizontal', coordinate: 50 },
+    ]);
+
+    expect(
+      wireGuideAxes({
+        from: { x: 100, y: 120 },
+        via: { x: 100, y: 460 },
+        to: { x: 700, y: 460 },
+      }),
+    ).toEqual([
+      { orientation: 'vertical', coordinate: 100 },
+      { orientation: 'horizontal', coordinate: 460 },
+    ]);
   });
 
   it('keeps visible terminal and endpoint markers smaller than their collision targets', () => {

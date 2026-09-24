@@ -1436,14 +1436,14 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.down();
       await page.mouse.move(canonicalClient.x + 5, canonicalClient.y + 3);
       await frames(page);
-      await expect(guide).toHaveCount(1);
+      await expect(guide).toHaveCount(2);
       const enteredHandle = await locatorCenter(vertex);
       expect(
         Math.hypot(enteredHandle.x - canonicalClient.x, enteredHandle.y - canonicalClient.y),
       ).toBeLessThanOrEqual(2);
       await page.mouse.move(canonicalClient.x + 10, canonicalClient.y);
       await frames(page);
-      await expect(guide).toHaveCount(1);
+      await expect(guide).toHaveCount(2);
       const heldHandle = await locatorCenter(vertex);
       expect(
         Math.hypot(heldHandle.x - canonicalClient.x, heldHandle.y - canonicalClient.y),
@@ -1464,7 +1464,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.down();
       await page.mouse.move(canonicalClient.x + 5, canonicalClient.y + 3);
       await frames(page);
-      await expect(guide).toHaveCount(1);
+      await expect(guide).toHaveCount(2);
       const releasedPointer = { x: canonicalClient.x + 14, y: canonicalClient.y };
       await page.mouse.move(releasedPointer.x, releasedPointer.y);
       await frames(page);
@@ -1594,7 +1594,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       }
 
       const deleteIcon = compact.locator(
-        '.workbench-wire-compact-actions > button.danger svg.workbench-delete-icon',
+        '.workbench-wire-compact-actions > button.workbench-wire-delete svg.workbench-delete-icon',
       );
       await expect(deleteIcon).toBeVisible();
       const deleteIconBox = await deleteIcon.boundingBox();
@@ -1663,7 +1663,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         expect(targetBox?.height).toBeGreaterThanOrEqual(44);
       }
       const mobileDeleteIcon = compact.locator(
-        '.workbench-wire-compact-actions > button.danger svg.workbench-delete-icon',
+        '.workbench-wire-compact-actions > button.workbench-wire-delete svg.workbench-delete-icon',
       );
       await expect(mobileDeleteIcon).toBeVisible();
       const mobileDeleteIconBox = await mobileDeleteIcon.boundingBox();
@@ -1677,6 +1677,511 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     },
   );
 });
+
+test.describe('owner follow-up: edit mode, multi-select, clipboard and physical shortcuts', () => {
+  test('E5/E6/E7/E8 multi-select, group move, clipboard and layout-independent shortcuts', async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const baseFixture = documentFixture();
+    const ordinaryFixture = {
+      ...baseFixture,
+      components: baseFixture.components.filter((item) => ['led', 'battery'].includes(item.id)),
+    };
+    let fixture = addComponentToDocument(
+      ordinaryFixture,
+      'resistor-axial',
+      { x: 1060, y: 300 },
+      'group-resistor',
+    ).document;
+    fixture = {
+      ...fixture,
+      connections: [
+        {
+          id: 'internal-wire',
+          from: { componentId: 'led', terminal: 'cathode' },
+          to: { componentId: 'battery', terminal: 'BAT+' },
+          color: '#149447',
+          vertices: [{ x: 860, y: 340 }],
+        },
+        {
+          id: 'external-wire',
+          from: { componentId: 'battery', terminal: 'BAT-' },
+          to: { componentId: 'group-resistor', terminal: 'lead-2' },
+          color: '#2c62c9',
+          vertices: [{ x: 1020, y: 500 }],
+        },
+      ],
+    };
+    const { readDocument } = await openEditor(page, fixture);
+    await page
+      .getByRole('button', {
+        name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
+        exact: true,
+      })
+      .click();
+
+    const clickBody = async (id: string, shift = false) => {
+      let at: { x: number; y: number };
+      try {
+        at = await pointOnBody(page, id);
+      } catch (error) {
+        if (!shift) throw error;
+        // Compact parts can be completely covered by their retained R2 terminal
+        // hit targets. Shift-click the real terminal surface in that case; the
+        // controller must arbitrate it as additive component selection while no
+        // wire/reconnect interaction is active.
+        const terminal = page
+          .locator('[data-terminal-component-id="' + id + '"][data-terminal-id]')
+          .first();
+        await expect(terminal).toBeVisible();
+        at = await locatorCenter(terminal);
+      }
+      if (shift) await page.keyboard.down('Shift');
+      await page.mouse.click(at.x, at.y);
+      if (shift) await page.keyboard.up('Shift');
+    };
+    const selectedIds = () =>
+      page
+        .locator('[data-testid="schematic-component"].workbench-component-selected')
+        .evaluateAll((nodes) =>
+          nodes.map((node) => (node as SVGElement).dataset['componentId']).sort(),
+        );
+
+    await clickBody('led');
+    await clickBody('battery', true);
+    await expect.poll(selectedIds).toEqual(['battery', 'led']);
+    await expect(
+      page.getByText('\u0412\u044b\u0431\u0440\u0430\u043d\u043e: 2', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByTestId('component-compact-properties')).toHaveCount(0);
+
+    await clickBody('battery', true);
+    await expect.poll(selectedIds).toEqual(['led']);
+    await clickBody('battery', true);
+    await expect.poll(selectedIds).toEqual(['battery', 'led']);
+
+    const beforeMove = structuredClone(readDocument());
+    const ledBefore = beforeMove.components.find((item) => item.id === 'led')!.position;
+    const resistorBefore = beforeMove.components.find(
+      (item) => item.id === 'group-resistor',
+    )!.position;
+    const batteryBefore = beforeMove.components.find((item) => item.id === 'battery')!.position;
+    const grab = await pointOnBody(page, 'led');
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x + 42, grab.y + 28, { steps: 12 });
+    await frames(page);
+    await page.mouse.up();
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'led')?.position)
+      .not.toEqual(ledBefore);
+    const moved = structuredClone(readDocument());
+    const ledMoved = moved.components.find((item) => item.id === 'led')!.position;
+    const batteryMoved = moved.components.find((item) => item.id === 'battery')!.position;
+    expect(batteryMoved.x - batteryBefore.x).toBeCloseTo(ledMoved.x - ledBefore.x, 3);
+    expect(batteryMoved.y - batteryBefore.y).toBeCloseTo(ledMoved.y - ledBefore.y, 3);
+    expect(moved.components.find((item) => item.id === 'group-resistor')!.position).toEqual(
+      resistorBefore,
+    );
+
+    await page
+      .getByRole('button', { name: /\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c/ })
+      .click();
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'led')?.position)
+      .toEqual(ledBefore);
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'battery')?.position)
+      .toEqual(batteryBefore);
+
+    await clickBody('battery');
+    const ledBox = await part(page, 'led').boundingBox();
+    const resistorBox = await part(page, 'group-resistor').boundingBox();
+    const stageBox = await page.locator('.workbench-stage').boundingBox();
+    if (!ledBox || !resistorBox || !stageBox) throw new Error('Missing group selection bounds');
+    const start = {
+      x: Math.max(stageBox.x + 8, Math.min(ledBox.x, resistorBox.x) - 18),
+      y: Math.max(stageBox.y + 8, Math.min(ledBox.y, resistorBox.y) - 18),
+    };
+    const end = {
+      x: Math.min(
+        stageBox.x + stageBox.width - 8,
+        Math.max(ledBox.x + ledBox.width, resistorBox.x + resistorBox.width) + 18,
+      ),
+      y: Math.min(
+        stageBox.y + stageBox.height - 8,
+        Math.max(ledBox.y + ledBox.height, resistorBox.y + resistorBox.height) + 18,
+      ),
+    };
+    await page.keyboard.down('Shift');
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(end.x, end.y, { steps: 10 });
+    await page.mouse.up();
+    await page.keyboard.up('Shift');
+    await expect.poll(selectedIds).toEqual(['battery', 'group-resistor', 'led']);
+
+    const session = await context.newCDPSession(page);
+    const physicalKey = async (
+      code: string,
+      key: string,
+      options: { ctrl?: boolean; shift?: boolean } = {},
+    ) => {
+      const virtualCodes: Record<string, number> = {
+        KeyA: 65,
+        KeyC: 67,
+        KeyD: 68,
+        KeyR: 82,
+        KeyV: 86,
+        KeyY: 89,
+        KeyZ: 90,
+        Delete: 46,
+        Backspace: 8,
+        Escape: 27,
+        Space: 32,
+      };
+      const virtual = virtualCodes[code] ?? 0;
+      const modifiers = (options.ctrl ? 2 : 0) | (options.shift ? 8 : 0);
+      await session.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        code,
+        key,
+        modifiers,
+        windowsVirtualKeyCode: virtual,
+        nativeVirtualKeyCode: virtual,
+      });
+      await session.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        code,
+        key,
+        modifiers,
+        windowsVirtualKeyCode: virtual,
+        nativeVirtualKeyCode: virtual,
+      });
+    };
+
+    await clickBody('led');
+    await clickBody('battery', true);
+    await expect.poll(selectedIds).toEqual(['battery', 'led']);
+    const originalComponentCount = readDocument().components.length;
+    const originalConnectionCount = readDocument().connections.length;
+    expect(
+      readDocument().connections.some(
+        (wire) =>
+          new Set([wire.from.componentId, wire.to.componentId]).size === 2 &&
+          [wire.from.componentId, wire.to.componentId].includes('led') &&
+          [wire.from.componentId, wire.to.componentId].includes('battery'),
+      ),
+    ).toBe(true);
+
+    await physicalKey('KeyC', 'c', { ctrl: true });
+    await physicalKey('KeyV', 'v', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
+    await expect.poll(() => readDocument().connections.length).toBe(originalConnectionCount + 1);
+    const firstPaste = structuredClone(readDocument());
+    const pastedIds = firstPaste.components
+      .map((item) => item.id)
+      .filter((id) => !fixture.components.some((source) => source.id === id));
+    expect(new Set(pastedIds).size).toBe(2);
+    const copiedWire = firstPaste.connections.find(
+      (wire) => !fixture.connections.some((source) => source.id === wire.id),
+    );
+    expect(copiedWire).toBeDefined();
+    expect(copiedWire?.from.componentId).not.toBe('battery');
+    expect(copiedWire?.to.componentId).not.toBe('battery');
+
+    await physicalKey('KeyZ', 'z', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount);
+    await physicalKey('KeyZ', 'z', { ctrl: true, shift: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
+    await physicalKey('KeyZ', 'z', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount);
+    await physicalKey('KeyY', 'y', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
+
+    await clickBody('led');
+    await clickBody('battery', true);
+    await physicalKey('KeyC', '\u0441', { ctrl: true });
+    await physicalKey('KeyV', '\u043c', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 4);
+    await physicalKey('KeyD', '\u0432', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 6);
+    await physicalKey('KeyV', '\u043c', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 8);
+    expect(new Set(readDocument().components.map((item) => item.id)).size).toBe(
+      readDocument().components.length,
+    );
+
+    const selectByKeyboard = async (id: string) => {
+      const body = part(page, id).locator('.workbench-part');
+      await body.focus();
+      await body.press('Enter');
+      await expect.poll(selectedIds).toEqual([id]);
+    };
+
+    await selectByKeyboard('battery');
+    const rotationBefore =
+      readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0;
+    await physicalKey('KeyR', '\u043a');
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0)
+      .not.toBe(rotationBefore);
+    await physicalKey('KeyZ', 'z', { ctrl: true });
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0)
+      .toBe(rotationBefore);
+
+    const countBeforeDelete = readDocument().components.length;
+    await selectByKeyboard('battery');
+    await physicalKey('Delete', 'Delete');
+    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete - 1);
+    await physicalKey('KeyZ', 'z', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete);
+
+    await selectByKeyboard('battery');
+    await physicalKey('Backspace', 'Backspace');
+    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete - 1);
+    await physicalKey('KeyZ', 'z', { ctrl: true });
+    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete);
+
+    await physicalKey('KeyA', 'a', { ctrl: true });
+    await expect(page.locator('.workbench-component-selected')).toHaveCount(countBeforeDelete);
+    await physicalKey('Escape', 'Escape');
+    await expect(page.locator('.workbench-component-selected')).toHaveCount(0);
+
+    await page.screenshot({ path: 'reports/interactions/e5-e6-multiselect-copy-paste.png' });
+
+    const title = page.getByRole('textbox', {
+      name: '\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0435\u043a\u0442\u0430',
+      exact: true,
+    });
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await title.fill('ABC');
+    await title.selectText();
+    await page.keyboard.press('Control+KeyC');
+    await page.keyboard.press('End');
+    await page.keyboard.press('Control+KeyV');
+    await expect(title).toHaveValue('ABCABC');
+    const countBeforeBackspace = readDocument().components.length;
+    await page.keyboard.press('Backspace');
+    await expect(title).toHaveValue('ABCAB');
+    expect(readDocument().components.length).toBe(countBeforeBackspace);
+    await page.keyboard.press('Space');
+    await page.keyboard.type('X');
+    await expect(title).toHaveValue('ABCAB X');
+    expect(readDocument().components.length).toBe(countBeforeBackspace);
+
+    const expectedComponents = readDocument().components.length;
+    const expectedConnections = readDocument().connections.length;
+    await page.reload();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedComponents);
+    await expect(page.getByTestId('schematic-wire')).toHaveCount(expectedConnections);
+  });
+
+  touchVideoTest(
+    'E2 running simulation exits to edit mode and continues the same structural gesture',
+    async ({ page, context }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const fixture = addComponentToDocument(
+        documentFixture(),
+        'button-tactile-6mm',
+        { x: 1070, y: 420 },
+        'runtime-button',
+      ).document;
+      const { readDocument } = await openEditor(page, fixture);
+      const session = await context.newCDPSession(page);
+      const send = (
+        type: 'touchStart' | 'touchMove' | 'touchEnd',
+        touchPoints: { id: number; x: number; y: number }[],
+      ) => session.send('Input.dispatchTouchEvent', { type, touchPoints });
+
+      await page
+        .getByRole('button', {
+          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        })
+        .click();
+      await expect(
+        page.getByRole('button', {
+          name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        }),
+      ).toBeVisible();
+
+      const buttonPoint = await pointOnBody(page, 'runtime-button');
+      await page.touchscreen.tap(buttonPoint.x, buttonPoint.y);
+      await expect(
+        page.getByRole('button', {
+          name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        }),
+      ).toBeVisible();
+
+      await page
+        .getByRole('button', {
+          name: '\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0434\u0435\u0442\u0430\u043b\u0435\u0439',
+          exact: true,
+        })
+        .click();
+      const card = page.getByRole('button', {
+        name: '\u0420\u0435\u0437\u0438\u0441\u0442\u043e\u0440',
+        exact: true,
+      });
+      await card.scrollIntoViewIfNeeded();
+      const cardPoint = await locatorCenter(card);
+      const stage = await page.locator('.workbench-stage').boundingBox();
+      if (!stage) throw new Error('Missing stage for structural edit acceptance');
+      const drop = { x: stage.x + stage.width * 0.62, y: stage.y + stage.height * 0.48 };
+      const beforeCount = readDocument().components.length;
+
+      await send('touchStart', [{ id: 1, ...cardPoint }]);
+      await send('touchMove', [{ id: 1, x: cardPoint.x, y: cardPoint.y - 14 }]);
+      await expect(
+        page.getByRole('button', {
+          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        }),
+      ).toBeVisible();
+      await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(1);
+      for (let step = 1; step <= 8; step++) {
+        await send('touchMove', [
+          {
+            id: 1,
+            x: cardPoint.x + ((drop.x - cardPoint.x) * step) / 8,
+            y: cardPoint.y - 14 + ((drop.y - cardPoint.y + 14) * step) / 8,
+          },
+        ]);
+      }
+      await send('touchEnd', []);
+      await expect.poll(() => readDocument().components.length).toBe(beforeCount + 1);
+
+      await page
+        .getByRole('button', {
+          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        })
+        .click();
+      const batteryBefore = readDocument().components.find(
+        (item) => item.id === 'battery',
+      )!.position;
+      const batteryPoint = await pointOnBody(page, 'battery');
+      await send('touchStart', [{ id: 2, ...batteryPoint }]);
+      await send('touchMove', [{ id: 2, x: batteryPoint.x + 24, y: batteryPoint.y + 18 }]);
+      await expect(
+        page.getByRole('button', {
+          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        }),
+      ).toBeVisible();
+      await send('touchEnd', []);
+      await expect
+        .poll(() => readDocument().components.find((item) => item.id === 'battery')?.position)
+        .not.toEqual(batteryBefore);
+
+      await page
+        .getByRole('button', {
+          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        })
+        .click();
+      await expect(
+        page.getByRole('button', {
+          name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        }),
+      ).toBeVisible();
+      const wireSource = wireTerminal(page, 'battery', 'BAT+');
+      const wireSourcePoint = await locatorCenter(wireSource);
+      await page.touchscreen.tap(wireSourcePoint.x, wireSourcePoint.y);
+      await expect(
+        page.getByRole('button', {
+          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+        }),
+      ).toBeVisible();
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+      await page.keyboard.press('Escape');
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+
+      await page.screenshot({ path: 'reports/interactions/e2-simulation-to-edit.png' });
+    },
+  );
+});
+
+for (const zoom of [1, 2, 4] as const) {
+  wireVideoTest(
+    'E3 full-stage H/V guide keeps constant screen treatment at zoom ' + zoom + 'x',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      const fixture = documentFixture();
+      const battery = fixture.components.find((component) => component.id === 'battery');
+      if (!battery) throw new Error('Missing battery for guide acceptance');
+      const sourceWorld = terminalPositionInDocument(fixture, battery, 'BAT+');
+      if (!sourceWorld) throw new Error('Missing BAT+ world point for guide acceptance');
+      fixture.viewport = {
+        x: sourceWorld.x - 800 / zoom,
+        y: sourceWorld.y - 490 / zoom,
+        zoom,
+      };
+      await openEditor(page, fixture);
+      const source = wireTerminal(page, 'battery', 'BAT+');
+      const sourcePoint = await locatorCenter(source);
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+
+      const stageBox = await page.locator('.workbench-stage').boundingBox();
+      if (!stageBox) throw new Error('Missing guide stage bounds');
+      const horizontalRoomRight = stageBox.x + stageBox.width - 30 - sourcePoint.x;
+      const horizontalRoomLeft = sourcePoint.x - (stageBox.x + 30);
+      const horizontalDirection = horizontalRoomRight >= horizontalRoomLeft ? 1 : -1;
+      const horizontalDistance = Math.max(
+        30,
+        Math.min(90, horizontalDirection > 0 ? horizontalRoomRight : horizontalRoomLeft),
+      );
+      const horizontalTarget = {
+        x: sourcePoint.x + horizontalDistance * horizontalDirection,
+        y: sourcePoint.y + 2,
+      };
+      await page.mouse.move(horizontalTarget.x, horizontalTarget.y);
+      await frames(page);
+      const horizontal = page.getByTestId('wire-alignment-guide');
+      await expect(horizontal).toHaveCount(1);
+      await expect(horizontal).toHaveAttribute('data-guide-axis', 'horizontal');
+      await expect(horizontal).toHaveAttribute('vector-effect', 'non-scaling-stroke');
+      const hBox = await horizontal.boundingBox();
+      if (!hBox) throw new Error('Missing guide bounds');
+      expect(hBox.width).toBeGreaterThanOrEqual(stageBox.width - 3);
+      const strokeWidth = await horizontal.evaluate((node) => getComputedStyle(node).strokeWidth);
+      expect(Number.parseFloat(strokeWidth)).toBeCloseTo(1, 1);
+      await page.screenshot({
+        path: 'reports/interactions/e3-guide-horizontal-' + zoom + 'x.png',
+      });
+
+      await page.keyboard.press('Escape');
+      await expect(page.getByTestId('wire-alignment-guide')).toHaveCount(0);
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
+      const verticalRoomDown = stageBox.y + stageBox.height - 30 - sourcePoint.y;
+      const verticalRoomUp = sourcePoint.y - (stageBox.y + 30);
+      const verticalDirection = verticalRoomDown >= verticalRoomUp ? 1 : -1;
+      const verticalDistance = Math.max(
+        30,
+        Math.min(90, verticalDirection > 0 ? verticalRoomDown : verticalRoomUp),
+      );
+      const verticalTarget = {
+        x: sourcePoint.x + 2,
+        y: sourcePoint.y + verticalDistance * verticalDirection,
+      };
+      await page.mouse.move(verticalTarget.x, verticalTarget.y);
+      await frames(page);
+      const vertical = page.getByTestId('wire-alignment-guide');
+      await expect(vertical).toHaveCount(1);
+      await expect(vertical).toHaveAttribute('data-guide-axis', 'vertical');
+      const vBox = await vertical.boundingBox();
+      if (!vBox) throw new Error('Missing vertical guide bounds');
+      expect(vBox.height).toBeGreaterThanOrEqual(stageBox.height - 3);
+      await page.keyboard.down('Alt');
+      await page.mouse.move(verticalTarget.x, verticalTarget.y);
+      await frames(page);
+      await expect(page.getByTestId('wire-alignment-guide')).toHaveCount(0);
+      await page.keyboard.up('Alt');
+      await page.keyboard.press('Escape');
+    },
+  );
+}
 
 for (const [width, height] of [
   [320, 568],

@@ -27,6 +27,7 @@ import {
   WIRE_ENDPOINT_HIT_RADIUS,
   WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
   WIRE_ENDPOINT_VISIBLE_RADIUS,
+  wireGuideAxes,
   wirePoints,
 } from './workbench-geometry';
 import {
@@ -446,7 +447,7 @@ export function WorkbenchStage({
       bounds,
       componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
     );
-    const result = c.resultByComponent.get(component.id);
+    const result = c.runtimePresentationResultByComponent.get(component.id);
     const rpm = c.simulationRunning
       ? Number(isGearmotor ? (result?.outputRpm ?? 0) : (result?.motorRpm ?? 0))
       : 0;
@@ -508,7 +509,7 @@ export function WorkbenchStage({
       const isRgbLed = entry.key === 'rgb-led';
       const ledBurned =
         (isLedIndicator || isRgbLed) &&
-        (c.resultByComponent.get(component.id)?.presentationState === 'failed' ||
+        (c.runtimePresentationResultByComponent.get(component.id)?.presentationState === 'failed' ||
           (isRgbLed && diagnostics.includes('led_burnout')));
       const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
       const primaryDiagnostic = ledBurned
@@ -670,8 +671,12 @@ export function WorkbenchStage({
         data-testid="schematic-component"
         data-component-id={component.id}
         data-kind={component.kind}
-        data-presentation-state={c.resultByComponent.get(component.id)?.presentationState}
-        data-source-operating-mode={c.resultByComponent.get(component.id)?.sourceOperatingMode}
+        data-presentation-state={
+          c.runtimePresentationResultByComponent.get(component.id)?.presentationState
+        }
+        data-source-operating-mode={
+          c.runtimePresentationResultByComponent.get(component.id)?.sourceOperatingMode
+        }
         data-component-type={component.componentTypeId}
         data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
         data-hole-ids={Object.entries(component.holeBindings ?? {})
@@ -754,7 +759,7 @@ export function WorkbenchStage({
             height={baseSize.height}
             visualState={visualState}
             effectiveBrightness={c.componentLedBrightness(component)}
-            result={c.resultByComponent.get(component.id)}
+            result={c.runtimePresentationResultByComponent.get(component.id)}
             selected={selected}
             selectionOffset={1.6 / c.viewport.zoom}
             simulationRunning={c.simulationRunning}
@@ -1049,6 +1054,8 @@ export function WorkbenchStage({
     );
   }
 
+  const alignmentGuideAxes = c.wireGuide ? wireGuideAxes(c.wireGuide) : [];
+
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <PickedUpPart controller={c} />
@@ -1228,24 +1235,24 @@ export function WorkbenchStage({
                 : null}
             </g>
           ))}
-          {c.wireGuide ? (
-            c.wireGuide.via ? (
-              <path
-                className="workbench-wire-guide"
-                data-testid="wire-alignment-guide"
-                d={`M ${c.wireGuide.from.x} ${c.wireGuide.from.y} L ${c.wireGuide.via.x} ${c.wireGuide.via.y} L ${c.wireGuide.to.x} ${c.wireGuide.to.y}`}
-              />
-            ) : (
-              <line
-                className="workbench-wire-guide"
-                data-testid="wire-alignment-guide"
-                x1={c.wireGuide.from.x}
-                y1={c.wireGuide.from.y}
-                x2={c.wireGuide.to.x}
-                y2={c.wireGuide.to.y}
-              />
-            )
-          ) : null}
+          {alignmentGuideAxes.map((axis, index) => (
+            <line
+              key={`${axis.orientation}:${axis.coordinate}:${index}`}
+              className="workbench-wire-guide"
+              data-testid="wire-alignment-guide"
+              data-guide-axis={axis.orientation}
+              x1={axis.orientation === 'horizontal' ? c.viewBox.x : axis.coordinate}
+              y1={axis.orientation === 'horizontal' ? axis.coordinate : c.viewBox.y}
+              x2={
+                axis.orientation === 'horizontal' ? c.viewBox.x + c.viewBox.width : axis.coordinate
+              }
+              y2={
+                axis.orientation === 'horizontal' ? axis.coordinate : c.viewBox.y + c.viewBox.height
+              }
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          ))}
         </g>
         {selectedWire && selectedWireFrom && selectedWireTo ? (
           <g className="workbench-wire-control-layer" data-testid="wire-control-layer">

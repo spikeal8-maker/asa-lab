@@ -895,10 +895,9 @@
   pointer-events: none;
 }
 .workbench-wire-guide {
-  stroke: #0789c6;
-  stroke-width: 1.5;
-  stroke-dasharray: 6 5;
-  opacity: 0.9;
+  stroke: #7196a6;
+  stroke-width: 1px;
+  opacity: 0.72;
   pointer-events: none;
 }
 .workbench-wire-preview {
@@ -5539,7 +5538,12 @@ html.arduino-palette-resizing * {
   font: inherit;
   cursor: pointer;
 }
-.workbench-wire-compact-actions > button.danger {
+.workbench-wire-compact-actions > button.workbench-wire-delete {
+  color: #344c5c;
+}
+.workbench-wire-compact-actions > button.workbench-wire-delete:hover,
+.workbench-wire-compact-actions > button.workbench-wire-delete:focus-visible,
+.workbench-wire-compact-actions > button.workbench-wire-delete:active {
   color: #a82c31;
 }
 .workbench-wire-inspector-compact button:focus-visible,
