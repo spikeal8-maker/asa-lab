@@ -324,25 +324,15 @@ export function AssignmentLibraryPage({
           aria-current={tab === 'materials' ? 'page' : undefined}
           onClick={() => selectTab('materials')}
         >
-          Мои материалы
+          Задания
         </button>
-        {canTeach ? (
-          <button
-            type="button"
-            className={tab === 'bank' ? 'is-active' : undefined}
-            aria-current={tab === 'bank' ? 'page' : undefined}
-            onClick={() => selectTab('bank')}
-          >
-            Ранее созданные задания
-          </button>
-        ) : null}
         <button
           type="button"
           className={tab === 'courses' ? 'is-active' : undefined}
           aria-current={tab === 'courses' ? 'page' : undefined}
           onClick={() => selectTab('courses')}
         >
-          Мои курсы
+          Курсы
         </button>
         {canTeach ? (
           <button
@@ -351,7 +341,7 @@ export function AssignmentLibraryPage({
             aria-current={tab === 'catalogue' ? 'page' : undefined}
             onClick={() => selectTab('catalogue')}
           >
-            Каталог
+            Библиотека
           </button>
         ) : null}
       </nav>
