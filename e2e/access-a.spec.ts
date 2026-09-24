@@ -167,7 +167,7 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
   await expect(page.getByTestId('learner-preview')).toContainText('Самостоятельный текст');
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Добавить демо-курс', exact: true })).toHaveCount(
     0,
   );
