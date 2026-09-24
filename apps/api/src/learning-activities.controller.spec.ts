@@ -141,7 +141,7 @@ describe('canonical learning activity API', () => {
     expect(api.query).not.toHaveBeenCalled();
   });
 
-  it('stores and deletes a canonical draft sample with the authenticated activity scope', async () => {
+  it('stores and deletes a canonical draft sample with owner activity scope', async () => {
     const imageDataUrl =
       'data:image/png;base64,' + Buffer.from('canonical-draft-image-a').toString('base64');
     const put = target({
@@ -159,14 +159,7 @@ describe('canonical learning activity API', () => {
     });
     expect(put.query).toHaveBeenCalledWith(
       expect.stringContaining('learning_activity_draft_sample_set'),
-      [
-        PRINCIPAL_ID,
-        TENANT_ID,
-        ACTIVITY_ID,
-        1,
-        expect.any(Buffer),
-        'image/png',
-      ],
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, expect.any(Buffer), 'image/png'],
     );
 
     const remove = target({ rows: [{ result_code: 'ok', draft_revision: 3 }] });
