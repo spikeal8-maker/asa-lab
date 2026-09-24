@@ -149,7 +149,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await expect(page.getByLabel('Содержание', { exact: true })).toHaveValue('Material content V1');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Опубликована версия 4. Материал остаётся закрытым.')).toBeVisible();
-  await page.getByRole('button', { name: 'Мои курсы', exact: true }).click();
+  await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Новый курс' });
   await form.getByLabel('Название', { exact: true }).fill('Historical course');
