@@ -5506,6 +5506,9 @@ html.arduino-palette-resizing * {
   height: 24px;
   min-height: 24px;
   border-radius: 6px;
+}
+.workbench-wire-inspector-compact button,
+.workbench-wire-more > summary {
   cursor: pointer;
   user-select: none;
   -webkit-user-select: none;
@@ -5549,9 +5552,9 @@ html.arduino-palette-resizing * {
   width: 16px;
   height: 16px;
 }
-.workbench-wire-compact-actions > button.danger svg {
-  width: 19px;
-  height: 19px;
+.workbench-wire-compact-actions > button .workbench-delete-icon {
+  width: 20px;
+  height: 20px;
 }
 .workbench-wire-more {
   position: relative;

@@ -2396,7 +2396,7 @@ export function WorkbenchSidebars({
                   aria-label="Удалить провод"
                   title="Удалить провод"
                 >
-                  <DeleteIcon />
+                  <DeleteIcon className="workbench-delete-icon" />
                 </button>
                 <details className="workbench-wire-more">
                   <summary aria-label="Ещё действия с проводом" title="Ещё действия с проводом">

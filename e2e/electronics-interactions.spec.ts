@@ -1413,6 +1413,10 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.click(selectPoint.x, selectPoint.y);
       const vertex = page.getByTestId('wire-vertex').first();
       await expect(vertex).toBeVisible();
+      // D4 is specifically committed-wire cable management, not new-wire
+      // drafting: the route already exists and no creation preview is active.
+      expect(readDocument().connections[0]?.vertices).toEqual([{ x: 790, y: 430 }]);
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
       const guide = page.getByTestId('wire-alignment-guide');
       const previousClient = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
       const nextClient = await locatorCenter(wireTerminal(page, 'battery', 'BAT+'));
@@ -1433,9 +1437,18 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.move(canonicalClient.x + 5, canonicalClient.y + 3);
       await frames(page);
       await expect(guide).toHaveCount(1);
+      const enteredHandle = await locatorCenter(vertex);
+      expect(
+        Math.hypot(enteredHandle.x - canonicalClient.x, enteredHandle.y - canonicalClient.y),
+      ).toBeLessThanOrEqual(2);
       await page.mouse.move(canonicalClient.x + 10, canonicalClient.y);
       await frames(page);
       await expect(guide).toHaveCount(1);
+      const heldHandle = await locatorCenter(vertex);
+      expect(
+        Math.hypot(heldHandle.x - canonicalClient.x, heldHandle.y - canonicalClient.y),
+      ).toBeLessThanOrEqual(2);
+      await page.screenshot({ path: 'reports/interactions/d4-committed-bend-soft-lock.png' });
       await page.mouse.up();
       await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).toEqual(canonical);
       await page.screenshot({ path: 'reports/interactions/f3-bend-soft-lock.png' });
@@ -1452,9 +1465,14 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.move(canonicalClient.x + 5, canonicalClient.y + 3);
       await frames(page);
       await expect(guide).toHaveCount(1);
-      await page.mouse.move(canonicalClient.x + 14, canonicalClient.y);
+      const releasedPointer = { x: canonicalClient.x + 14, y: canonicalClient.y };
+      await page.mouse.move(releasedPointer.x, releasedPointer.y);
       await frames(page);
       await expect(guide).toHaveCount(0);
+      const releasedHandle = await locatorCenter(vertex);
+      expect(
+        Math.hypot(releasedHandle.x - releasedPointer.x, releasedHandle.y - releasedPointer.y),
+      ).toBeLessThanOrEqual(2);
       await page.mouse.up();
       await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).not.toEqual(canonical);
       await resetByUndo();
@@ -1463,9 +1481,15 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.move(start.x, start.y);
       await page.mouse.down();
       await page.keyboard.down('Alt');
-      await page.mouse.move(canonicalClient.x + 2, canonicalClient.y + 2);
+      const freePointer = { x: canonicalClient.x + 42, y: canonicalClient.y + 31 };
+      await page.mouse.move(freePointer.x, freePointer.y);
       await frames(page);
       await expect(guide).toHaveCount(0);
+      const freeHandle = await locatorCenter(vertex);
+      expect(
+        Math.hypot(freeHandle.x - freePointer.x, freeHandle.y - freePointer.y),
+      ).toBeLessThanOrEqual(2);
+      await page.screenshot({ path: 'reports/interactions/d1-bend-handle-follows-pointer.png' });
       await page.mouse.up();
       await page.keyboard.up('Alt');
       await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).not.toEqual(canonical);
@@ -1548,9 +1572,32 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       expect(swatchStyle.cursor).toBe('pointer');
       expect(swatchStyle.userSelect).toBe('none');
 
-      const deleteIconBox = await compact
-        .locator('.workbench-wire-compact-actions > button.danger svg')
-        .boundingBox();
+      const panelControlStyles = await compact
+        .locator('button, .workbench-wire-more > summary')
+        .evaluateAll((elements) =>
+          elements.map((element) => {
+            const style = getComputedStyle(element);
+            return {
+              caretColor: style.caretColor,
+              cursor: style.cursor,
+              userSelect: style.userSelect,
+              editable: (element as HTMLElement).isContentEditable,
+            };
+          }),
+        );
+      expect(panelControlStyles.length).toBeGreaterThan(8);
+      for (const style of panelControlStyles) {
+        expect(['transparent', 'rgba(0, 0, 0, 0)']).toContain(style.caretColor);
+        expect(style.cursor).toBe('pointer');
+        expect(style.userSelect).toBe('none');
+        expect(style.editable).toBe(false);
+      }
+
+      const deleteIcon = compact.locator(
+        '.workbench-wire-compact-actions > button.danger svg.workbench-delete-icon',
+      );
+      await expect(deleteIcon).toBeVisible();
+      const deleteIconBox = await deleteIcon.boundingBox();
       expect(deleteIconBox?.width).toBeGreaterThanOrEqual(18);
       expect(deleteIconBox?.width).toBeLessThanOrEqual(20);
       const actionDivider = await compact
@@ -1563,8 +1610,18 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       expect(panelBox.x + panelBox.width).toBeLessThanOrEqual(libraryBox.x - 4);
 
       const firstSwatch = compact.locator('.workbench-wire-swatches button').first();
-      await firstSwatch.focus();
+      await firstSwatch.click();
       await expect(firstSwatch).toBeFocused();
+      expect(await page.evaluate(() => getSelection()?.toString() ?? '')).toBe('');
+      await page.keyboard.press('Tab');
+      const secondSwatch = compact.locator('.workbench-wire-swatches button').nth(1);
+      await expect(secondSwatch).toBeFocused();
+      const keyboardFocus = await secondSwatch.evaluate((element) => {
+        const style = getComputedStyle(element);
+        return { outlineStyle: style.outlineStyle, outlineWidth: style.outlineWidth };
+      });
+      expect(keyboardFocus.outlineStyle).not.toBe('none');
+      expect(Number.parseFloat(keyboardFocus.outlineWidth)).toBeGreaterThanOrEqual(2);
       const selectedWire = page.getByTestId('schematic-wire');
       const beforeColour = await selectedWire.getAttribute('stroke');
       await compact.locator('.workbench-wire-swatches button:not(.active)').first().click();
@@ -1605,6 +1662,13 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         expect(targetBox?.width).toBeGreaterThanOrEqual(44);
         expect(targetBox?.height).toBeGreaterThanOrEqual(44);
       }
+      const mobileDeleteIcon = compact.locator(
+        '.workbench-wire-compact-actions > button.danger svg.workbench-delete-icon',
+      );
+      await expect(mobileDeleteIcon).toBeVisible();
+      const mobileDeleteIconBox = await mobileDeleteIcon.boundingBox();
+      expect(mobileDeleteIconBox?.width).toBeGreaterThanOrEqual(19);
+      expect(mobileDeleteIconBox?.width).toBeLessThanOrEqual(21);
       const library = page.locator('.workbench-library');
       const libraryBox = await library.boundingBox();
       if (!libraryBox) throw new Error('Expected mobile component shelf');

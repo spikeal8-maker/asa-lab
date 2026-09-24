@@ -47,8 +47,10 @@ export function PasteIcon(props: IconProps): JSX.Element {
 export function DeleteIcon(props: IconProps): JSX.Element {
   return (
     <IconBase {...props}>
-      <path d="M4 6h16M9 6V3h6v3" />
-      <path d="m6.5 6 1 15h9l1-15M10 10v7M14 10v7" />
+      <path d="M3 6h18" />
+      <path d="M8 6V4h8v2" />
+      <path d="m6 6 1 15h10l1-15" />
+      <path d="M10 10v7M14 10v7" />
     </IconBase>
   );
 }

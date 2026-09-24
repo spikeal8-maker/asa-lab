@@ -30,6 +30,11 @@ const persistenceIndicatorSource = readFileSync(
 );
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 const geometrySource = readFileSync(resolve(electronicsRoot, 'workbench-geometry.ts'), 'utf8');
+const dragPreviewSource = readFileSync(
+  resolve(electronicsRoot, 'workbench-drag-preview.ts'),
+  'utf8',
+);
+const iconSource = readFileSync(resolve(electronicsRoot, 'workbench-icons.tsx'), 'utf8');
 
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
@@ -363,7 +368,11 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(workbenchCss).toContain('border-left: 1px solid #e1e6e9;');
     expect(workbenchCss).toContain('caret-color: transparent;');
-    expect(sidebarSource).toContain('<DeleteIcon />');
+    expect(workbenchCss).toContain('.workbench-wire-inspector-compact button,');
+    expect(sidebarSource).toContain('<DeleteIcon className="workbench-delete-icon" />');
+    expect(iconSource).toContain('<path d="M3 6h18" />');
+    expect(dragPreviewSource).toContain('.workbench-wire-editor-layer > g[data-wire-id=');
+    expect(dragPreviewSource).toContain('circle[data-wire-vertex-index]');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
     expect(stageSource).toContain('c.wirePreviewVertices');
