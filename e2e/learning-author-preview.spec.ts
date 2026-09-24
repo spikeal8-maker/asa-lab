@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { PNG } from 'pngjs';
 
 test('exact saved and published learner preview ignores late responses and creates no commands', async ({
   page,
@@ -250,4 +251,106 @@ test('draft from historical Course and Activity versions uses the author UI, pro
     history.getByRole('button', { name: 'Создать черновик из этой версии' }),
   ).toBeDisabled();
   await editor.screenshot({ path: 'e2e/artifacts/learning/version-draft/published-v4.png' });
+});
+
+
+function solidPng(red: number, green: number, blue: number): Buffer {
+  const image = new PNG({ width: 3, height: 3 });
+  for (let pixel = 0; pixel < 9; pixel += 1) {
+    const offset = pixel * 4;
+    image.data[offset] = red;
+    image.data[offset + 1] = green;
+    image.data[offset + 2] = blue;
+    image.data[offset + 3] = 255;
+  }
+  return PNG.sync.write(image);
+}
+
+test('teacher draft sample survives reload, replacement and deletion without legacy assignment writes', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Draft image ' + unique;
+  const imageA = solidPng(220, 40, 40);
+  const imageB = solidPng(40, 80, 220);
+  const legacyMutations: string[] = [];
+
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/api/assignments') &&
+      !['GET', 'HEAD'].includes(request.method())
+    ) {
+      legacyMutations.push(request.method() + ' ' + request.url());
+    }
+  });
+
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(`${unique}@draft-image.test`);
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('d' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор картинки');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Возможности', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+
+  await page.goto('/#/challenges');
+  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по изображению.');
+  const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
+  await fileInput.setInputFiles({ name: 'image-a.png', mimeType: 'image/png', buffer: imageA });
+  await expect(page.getByRole('img', { name: 'Схема / изображение задания' })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  const savedImageA = page.getByRole('img', { name: 'Схема / изображение задания' });
+  await expect(savedImageA).toBeVisible();
+  const sourceA = await savedImageA.getAttribute('src');
+  expect(sourceA).toBeTruthy();
+  const responseA = await page.request.get(new URL(sourceA!, page.url()).toString());
+  expect(responseA.ok()).toBe(true);
+  expect(Buffer.compare(await responseA.body(), imageA)).toBe(0);
+
+  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
+  const preview = page.getByTestId('learner-preview');
+  await expect(preview.getByRole('heading', { name: title, exact: true })).toBeVisible();
+  await expect(preview.getByRole('img', { name: `Образец: ${title}` })).toBeVisible();
+
+  await page
+    .getByLabel('Файл схемы или изображения', { exact: true })
+    .setInputFiles({ name: 'image-b.png', mimeType: 'image/png', buffer: imageB });
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  const savedImageB = page.getByRole('img', { name: 'Схема / изображение задания' });
+  await expect(savedImageB).toBeVisible();
+  const sourceB = await savedImageB.getAttribute('src');
+  expect(sourceB).toBeTruthy();
+  expect(sourceB).not.toBe(sourceA);
+  const responseB = await page.request.get(new URL(sourceB!, page.url()).toString());
+  expect(responseB.ok()).toBe(true);
+  expect(Buffer.compare(await responseB.body(), imageB)).toBe(0);
+
+  await page.getByRole('button', { name: 'Удалить', exact: true }).click();
+  await expect(page.getByText('Изображение удалено.', { exact: true })).toBeVisible();
+
+  await page.reload();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Схема / изображение задания' })).toHaveCount(0);
+  await expect(page.getByText('Выбрать файл', { exact: true })).toBeVisible();
+  expect(legacyMutations).toEqual([]);
 });
