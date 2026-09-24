@@ -3,6 +3,25 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { api, type AuthoredActivityDraft, type AuthoredActivityLearnerPreview } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 
+async function readDraftImage(file: File): Promise<string> {
+  const reader = new FileReader();
+  return new Promise<string>((resolve, reject) => {
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('Не удалось прочитать изображение.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function checkDraftImage(file: File): string | null {
+  if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+    return 'Подойдёт PNG, JPEG или WebP.';
+  }
+  if (file.size < 1 || file.size > 400_000) {
+    return 'Картинка должна быть до 400 КБ.';
+  }
+  return null;
+}
+
 const initial: AuthoredActivityDraft = {
   title: '',
   instructions: '',
@@ -107,6 +126,8 @@ export function AuthoredMaterialsPage({
   const [draft, setDraft] = useState<AuthoredActivityDraft>(initial);
   const [opened, setOpened] = useState<{ id: string; revision: number } | null>(null);
   const [publishedVersionId, setPublishedVersionId] = useState<string | null>(null);
+  const [draftSampleImage, setDraftSampleImage] = useState<string | null>(null);
+  const [pendingDraftSample, setPendingDraftSample] = useState<string | null>(null);
   const [preview, setPreview] = useState<
     | { kind: 'loading' }
     | { kind: 'ready'; data: AuthoredActivityLearnerPreview }
@@ -120,7 +141,7 @@ export function AuthoredMaterialsPage({
   useEffect(() => {
     previewRequest.current += 1;
     setPreview(null);
-  }, [draft, opened, publishedVersionId]);
+  }, [draft, opened, publishedVersionId, draftSampleImage, pendingDraftSample]);
   const refresh = useCallback(async () => {
     setLoading(true);
     const result = await api.authoredActivities();
@@ -142,6 +163,8 @@ export function AuthoredMaterialsPage({
       const value = result.data.draft;
       setOpened({ id, revision: result.data.draftRevision });
       setPublishedVersionId(result.data.currentPublishedVersionId);
+      setDraftSampleImage(result.data.draftSampleImage);
+      setPendingDraftSample(null);
       const loaded: AuthoredActivityDraft = {
         title: value.title,
         instructions: value.instructions,
@@ -162,34 +185,118 @@ export function AuthoredMaterialsPage({
     event?.preventDefault();
     if (busy || !draft.title.trim()) return null;
     const payload = JSON.stringify(draft);
-    if (opened && savedPayload.current === payload) return opened;
+    const textDirty = !opened || savedPayload.current !== payload;
+    if (!textDirty && pendingDraftSample === null) return opened;
+
     setBusy(true);
     setError(null);
     setNotice(null);
-    if (!request.current || request.current.payload !== payload)
-      request.current = { payload, id: crypto.randomUUID() };
-    const result = opened
-      ? await api.saveAuthoredActivity(opened.id, opened.revision, draft)
-      : await api.createActivityDraft(draft, request.current.id);
-    if (result.ok) {
-      const saved = { id: result.data.id, revision: result.data.draftRevision };
+
+    let saved = opened;
+    if (textDirty) {
+      if (!opened && (!request.current || request.current.payload !== payload)) {
+        request.current = { payload, id: crypto.randomUUID() };
+      }
+      const result = opened
+        ? await api.saveAuthoredActivity(opened.id, opened.revision, draft)
+        : await api.createActivityDraft(draft, request.current!.id);
+      if (!result.ok) {
+        setError(
+          result.error.code?.includes('conflict')
+            ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
+            : result.error.message,
+        );
+        setBusy(false);
+        return null;
+      }
+      saved = { id: result.data.id, revision: result.data.draftRevision };
       setOpened(saved);
-      setPreview(null);
       savedPayload.current = payload;
       request.current = null;
-      setNotice('Черновик сохранён. Публикация — отдельное действие.');
-      await refresh();
-      onChanged?.();
-      setBusy(false);
-      return saved;
     }
-    setError(
-      result.error.code?.includes('conflict')
-        ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
-        : result.error.message,
-    );
+
+    if (!saved) {
+      setBusy(false);
+      return null;
+    }
+
+    if (pendingDraftSample !== null) {
+      const imageResult = await api.saveAuthoredActivityDraftSample(
+        saved.id,
+        saved.revision,
+        pendingDraftSample,
+      );
+      if (!imageResult.ok) {
+        setError(
+          imageResult.error.code === 'revision_conflict'
+            ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
+            : imageResult.error.message,
+        );
+        setBusy(false);
+        return null;
+      }
+      saved = { id: saved.id, revision: imageResult.data.draftRevision };
+      setOpened(saved);
+      setDraftSampleImage(imageResult.data.url);
+      setPendingDraftSample(null);
+    }
+
+    setPreview(null);
+    setNotice('Черновик сохранён. Публикация — отдельное действие.');
+    await refresh();
+    onChanged?.();
     setBusy(false);
-    return null;
+    return saved;
+  }
+
+  async function pickDraftSample(file: File) {
+    const problem = checkDraftImage(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    try {
+      const dataUrl = await readDraftImage(file);
+      setPendingDraftSample(dataUrl);
+      setPreview(null);
+      setError(null);
+      setNotice(null);
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : 'Не удалось прочитать изображение.');
+    }
+  }
+
+  async function deleteDraftSample() {
+    if (busy) return;
+    if (!opened || draftSampleImage === null) {
+      setPendingDraftSample(null);
+      setDraftSampleImage(null);
+      setPreview(null);
+      setError(null);
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    const result = await api.deleteAuthoredActivityDraftSample(opened.id, opened.revision);
+    if (!result.ok) {
+      setError(
+        result.error.code === 'revision_conflict'
+          ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
+          : result.error.message,
+      );
+      setBusy(false);
+      return;
+    }
+    setOpened({ id: opened.id, revision: result.data.draftRevision });
+    setDraftSampleImage(null);
+    setPendingDraftSample(null);
+    setPreview(null);
+    setNotice('Изображение удалено.');
+    await refresh();
+    onChanged?.();
+    setBusy(false);
   }
   async function publish() {
     const saved = await save();
@@ -220,7 +327,10 @@ export function AuthoredMaterialsPage({
       setPreview({ kind: 'error', message: 'Сначала сохраните материал.' });
       return;
     }
-    if (source === 'draft' && savedPayload.current !== JSON.stringify(draft)) {
+    if (
+      source === 'draft' &&
+      (savedPayload.current !== JSON.stringify(draft) || pendingDraftSample !== null)
+    ) {
       setPreview({
         kind: 'error',
         message: 'Сохраните текущие изменения, чтобы предпросмотр черновика был точным.',
@@ -256,6 +366,10 @@ export function AuthoredMaterialsPage({
   function policy(key: keyof AuthoredActivityDraft['policies'], value: Record<string, unknown>) {
     setDraft({ ...draft, policies: { ...draft.policies, [key]: value } });
   }
+  const draftDirty =
+    (opened !== null && savedPayload.current !== JSON.stringify(draft)) ||
+    pendingDraftSample !== null;
+  const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const Root = embedded ? 'section' : 'main';
   return (
     <Root className={embedded ? 'authored-materials' : 'portal-content'} aria-label="Мои материалы">
@@ -277,6 +391,8 @@ export function AuthoredMaterialsPage({
             setPublishedVersionId(null);
             setPreview(null);
             savedPayload.current = null;
+            setDraftSampleImage(null);
+            setPendingDraftSample(null);
             setDraft(initial);
             setNotice(null);
             setError(null);
@@ -435,6 +551,39 @@ export function AuthoredMaterialsPage({
               <option value="block_at_due">Запретить после срока</option>
             </select>
           </label>
+          <fieldset className="authored-draft-image">
+            <legend>Схема / изображение</legend>
+            {displayedDraftSample ? (
+              <img src={displayedDraftSample} alt="Схема / изображение задания" />
+            ) : null}
+            <div className="authored-draft-image-actions">
+              <label className="btn-secondary">
+                {displayedDraftSample ? 'Заменить' : 'Выбрать файл'}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  aria-label="Файл схемы или изображения"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) void pickDraftSample(file);
+                  }}
+                />
+              </label>
+              {displayedDraftSample ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => void deleteDraftSample()}
+                >
+                  Удалить
+                </button>
+              ) : null}
+            </div>
+            <p className="account-hint">PNG, JPEG или WebP, до 400 КБ.</p>
+          </fieldset>
           <p className="account-hint">
             Закрытый материал. Публикация закрепляет версию для назначения и не открывает публичный
             доступ.
@@ -462,7 +611,7 @@ export function AuthoredMaterialsPage({
             <button
               type="button"
               className="btn-secondary"
-              disabled={busy || !opened || savedPayload.current !== JSON.stringify(draft)}
+              disabled={busy || !opened || draftDirty}
               onClick={() => void previewAsLearner('draft')}
             >
               Как ученик: сохранённый черновик
@@ -476,7 +625,7 @@ export function AuthoredMaterialsPage({
               Как ученик: опубликованная версия
             </button>
           </div>
-          {opened && savedPayload.current !== JSON.stringify(draft) ? (
+          {opened && draftDirty ? (
             <p className="account-hint">
               Сохраните изменения, чтобы предпросмотр черновика был точным.
             </p>
@@ -488,7 +637,7 @@ export function AuthoredMaterialsPage({
               onBusyChange={setBusy}
               rootId={opened.id}
               revision={opened.revision}
-              dirty={savedPayload.current !== JSON.stringify(draft)}
+              dirty={draftDirty}
               onOpenDraft={async (sourceVersionNumber) => {
                 await open(opened.id);
                 if (sourceVersionNumber)
