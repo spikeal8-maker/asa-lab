@@ -201,10 +201,10 @@ BEGIN
         content_hash = EXCLUDED.content_hash,
         updated_at = now();
 
-    UPDATE public.learning_activities
-       SET draft_revision = draft_revision + 1
-     WHERE id = p_activity_id
-     RETURNING draft_revision INTO v_revision;
+    UPDATE public.learning_activities activity
+       SET draft_revision = activity.draft_revision + 1
+     WHERE activity.id = p_activity_id
+     RETURNING activity.draft_revision INTO v_revision;
 
     RETURN QUERY SELECT 'ok'::varchar, v_revision, v_hash;
 END;
@@ -262,10 +262,10 @@ BEGIN
         RETURN;
     END IF;
 
-    UPDATE public.learning_activities
-       SET draft_revision = draft_revision + 1
-     WHERE id = p_activity_id
-     RETURNING draft_revision INTO v_revision;
+    UPDATE public.learning_activities activity
+       SET draft_revision = activity.draft_revision + 1
+     WHERE activity.id = p_activity_id
+     RETURNING activity.draft_revision INTO v_revision;
 
     RETURN QUERY SELECT 'ok'::varchar, v_revision;
 END;
