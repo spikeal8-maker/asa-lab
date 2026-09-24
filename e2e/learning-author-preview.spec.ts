@@ -274,10 +274,7 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   const legacyMutations: string[] = [];
 
   page.on('request', (request) => {
-    if (
-      request.url().includes('/api/assignments') &&
-      !['GET', 'HEAD'].includes(request.method())
-    ) {
+    if (request.url().includes('/api/assignments') && !['GET', 'HEAD'].includes(request.method())) {
       legacyMutations.push(request.method() + ' ' + request.url());
     }
   });
