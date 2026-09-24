@@ -253,7 +253,6 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await editor.screenshot({ path: 'e2e/artifacts/learning/version-draft/published-v4.png' });
 });
 
-
 function solidPng(red: number, green: number, blue: number): Buffer {
   const image = new PNG({ width: 3, height: 3 });
   for (let pixel = 0; pixel < 9; pixel += 1) {
