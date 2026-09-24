@@ -2333,12 +2333,18 @@ for (const [width, height] of [
       const movedX = await resistor.getAttribute('data-x');
       if (!movedX || movedX === oldX) throw new Error('Touch drag did not move the resistor body');
       await tap(page.getByRole('button', { name: 'Подогнать проект', exact: true }));
-      const clearedStage = await page.locator('.workbench-stage').boundingBox();
-      if (!clearedStage) throw new Error('Missing stage after fit');
-      await page.touchscreen.tap(
-        clearedStage.x + clearedStage.width - 12,
-        clearedStage.y + clearedStage.height - 12,
-      );
+      const clearPoint = await page.locator('.workbench-stage').evaluate((stage) => {
+        const box = stage.getBoundingClientRect();
+        for (const fy of [0.12, 0.28, 0.5, 0.72, 0.88]) {
+          for (const fx of [0.12, 0.28, 0.5, 0.72, 0.88]) {
+            const point = { x: box.left + box.width * fx, y: box.top + box.height * fy };
+            const topmost = document.elementFromPoint(point.x, point.y);
+            if (topmost?.classList.contains('workbench-grid-hit')) return point;
+          }
+        }
+        throw new Error('No exposed empty-canvas point is available after fit');
+      });
+      await page.touchscreen.tap(clearPoint.x, clearPoint.y);
       await expect(page.getByTestId('component-compact-properties')).toHaveCount(0);
       const source = wireTerminal(page, 'battery', 'BAT+');
       const target = wireTerminal(page, 'led', 'cathode');
@@ -2506,7 +2512,7 @@ test.describe('owner D3-D6 acceptance', () => {
     const { readDocument } = await openEditor(page, documentFixture());
     await page
       .getByRole('button', {
-        name: '\u041f\u043e\u0434\u043e\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
+        name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
         exact: true,
       })
       .click();
