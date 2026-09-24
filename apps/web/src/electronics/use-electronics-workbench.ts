@@ -2461,7 +2461,8 @@ export function useElectronicsWorkbench(projectId: string) {
       const carried = Object.values(part?.holeBindings ?? {}).some((binding) =>
         componentIds.includes(binding.breadboardComponentId),
       );
-      if (part && part.kind !== 'breadboard' && !carried) next = snapComponentToBreadboard(next, id);
+      if (part && part.kind !== 'breadboard' && !carried)
+        next = snapComponentToBreadboard(next, id);
     }
     commitDocument(next, 'Положение изменено с клавиатуры.');
   }

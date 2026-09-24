@@ -424,7 +424,9 @@ export function WorkbenchHeader({
             data-simulation-status={c.simulationStatus}
             aria-pressed={c.simulationRunning}
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
-            title={c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'}
+            title={
+              c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
+            }
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}

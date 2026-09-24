@@ -2526,43 +2526,55 @@ test.describe('owner D3-D6 acceptance', () => {
     await selectBody('battery');
     const batteryStart = position('battery');
     await page.keyboard.press('ArrowRight');
-    await expect.poll(() => position('battery')).toEqual({
-      x: batteryStart.x + 5,
-      y: batteryStart.y,
-    });
+    await expect
+      .poll(() => position('battery'))
+      .toEqual({
+        x: batteryStart.x + 5,
+        y: batteryStart.y,
+      });
     await page.keyboard.press('Shift+ArrowDown');
-    await expect.poll(() => position('battery')).toEqual({
-      x: batteryStart.x + 5,
-      y: batteryStart.y + 20,
-    });
+    await expect
+      .poll(() => position('battery'))
+      .toEqual({
+        x: batteryStart.x + 5,
+        y: batteryStart.y + 20,
+      });
 
     await page.keyboard.press('Control+z');
-    await expect.poll(() => position('battery')).toEqual({
-      x: batteryStart.x + 5,
-      y: batteryStart.y,
-    });
+    await expect
+      .poll(() => position('battery'))
+      .toEqual({
+        x: batteryStart.x + 5,
+        y: batteryStart.y,
+      });
     await page.keyboard.press('Control+z');
     await expect.poll(() => position('battery')).toEqual(batteryStart);
     await page.keyboard.press('Control+Shift+z');
     await page.keyboard.press('Control+Shift+z');
-    await expect.poll(() => position('battery')).toEqual({
-      x: batteryStart.x + 5,
-      y: batteryStart.y + 20,
-    });
+    await expect
+      .poll(() => position('battery'))
+      .toEqual({
+        x: batteryStart.x + 5,
+        y: batteryStart.y + 20,
+      });
 
     await selectBody('battery');
     await selectBody('led', true);
     const batteryGroupStart = position('battery');
     const ledGroupStart = position('led');
     await page.keyboard.press('ArrowLeft');
-    await expect.poll(() => position('battery')).toEqual({
-      x: batteryGroupStart.x - 5,
-      y: batteryGroupStart.y,
-    });
-    await expect.poll(() => position('led')).toEqual({
-      x: ledGroupStart.x - 5,
-      y: ledGroupStart.y,
-    });
+    await expect
+      .poll(() => position('battery'))
+      .toEqual({
+        x: batteryGroupStart.x - 5,
+        y: batteryGroupStart.y,
+      });
+    await expect
+      .poll(() => position('led'))
+      .toEqual({
+        x: ledGroupStart.x - 5,
+        y: ledGroupStart.y,
+      });
     await page.keyboard.press('Control+z');
     await expect.poll(() => position('battery')).toEqual(batteryGroupStart);
     await expect.poll(() => position('led')).toEqual(ledGroupStart);
@@ -2607,9 +2619,7 @@ test.describe('owner D3-D6 acceptance', () => {
     await expect(page.getByTestId('schematic-component')).toHaveCount(1);
 
     const battery = page
-      .locator(
-        '[data-component-type="battery-holder-aa-2"][data-testid="schematic-component"]',
-      )
+      .locator('[data-component-type="battery-holder-aa-2"][data-testid="schematic-component"]')
       .first();
     const afterBox = await battery.boundingBox();
     if (!afterBox) throw new Error('Missing battery at closer initial zoom');
@@ -2626,7 +2636,9 @@ test.describe('owner D3-D6 acceptance', () => {
     );
     await page.reload();
     await expect(page.getByLabel('Масштаб 100 процентов')).toBeVisible();
-    await expect(page.getByTestId('schematic-component')).toHaveCount(readDocument().components.length);
+    await expect(page.getByTestId('schematic-component')).toHaveCount(
+      readDocument().components.length,
+    );
     const beforeBox = await battery.boundingBox();
     if (!beforeBox) throw new Error('Missing battery at legacy initial zoom');
     expect(afterBox.width).toBeGreaterThan(beforeBox.width * 1.18);
@@ -2668,7 +2680,9 @@ test.describe('owner D3-D6 acceptance', () => {
     await page.screenshot({ path: 'reports/interactions/d5-mobile-search-active.png' });
   });
 
-  test('D6 component shelf opens on All and search/categories remain functional', async ({ page }) => {
+  test('D6 component shelf opens on All and search/categories remain functional', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await openEditor(page, documentFixture());
 
@@ -2696,4 +2710,3 @@ test.describe('owner D3-D6 acceptance', () => {
     await page.screenshot({ path: 'reports/interactions/d6-all-components-default.png' });
   });
 });
-

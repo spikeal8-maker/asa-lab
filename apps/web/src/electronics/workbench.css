@@ -5652,7 +5652,6 @@ html.arduino-palette-resizing * {
   }
 }
 
-
 /* Owner D2: modelling must read as an explicit locked runtime mode. */
 @keyframes workbench-simulation-running-pulse {
   0%,
