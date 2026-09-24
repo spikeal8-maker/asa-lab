@@ -202,7 +202,8 @@ export function useElectronicsWorkbench(projectId: string) {
   };
 
   const commitDocument = (...args: Parameters<typeof projectCommitDocument>) => {
-    ensureEditModeForStructuralAction();
+    // Parameter/value edits can remain live during modelling. Structural
+    // entrypoints leave simulation explicitly before they call this wrapper.
     markDocumentMutation();
     return projectCommitDocument(...args);
   };
@@ -853,6 +854,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function duplicateSelected(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
+    ensureEditModeForStructuralAction();
     const duplicated = duplicateComponentInDocument(
       currentDocument,
       selection,
@@ -877,6 +879,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function pasteCopied(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
+    ensureEditModeForStructuralAction();
     const duplicated = duplicateComponentInDocument(
       currentDocument,
       clipboardSelection,
@@ -899,6 +902,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function removeSelection(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument || !selection) return;
+    ensureEditModeForStructuralAction();
     if (selection.kind === 'wire' && selection.vertexIndex !== undefined) {
       removeWireVertexAt(selection.id, selection.vertexIndex);
       return;
@@ -913,6 +917,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function rotateSelected(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
+    ensureEditModeForStructuralAction();
     const next = rotateSelectionInDocument(currentDocument, selection);
     if (next) commitDocument(next, 'Элемент повернут на 45° вокруг центра — провода обновлены.');
   }
@@ -920,6 +925,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function mirrorSelected(axis: 'horizontal' | 'vertical'): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
+    ensureEditModeForStructuralAction();
     const next = mirrorSelectionInDocument(currentDocument, selection, axis);
     if (next)
       commitDocument(next, axis === 'horizontal' ? 'Элемент отражён.' : 'Элемент перевёрнут.');
@@ -1227,6 +1233,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setSelectedVariant(variantId: string): void {
     if (!document || selection?.kind !== 'component') return;
+    ensureEditModeForStructuralAction();
     const family = familyForVariant(
       selectedComponent?.variantId ?? selectedComponent?.componentTypeId,
     );
@@ -1252,6 +1259,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function toggleWireRoute(): void {
+    ensureEditModeForStructuralAction();
     const nextMode = !orthogonalWireMode;
     setOrthogonalWireMode(nextMode);
     if (nextMode && document && selection?.kind === 'wire') {
@@ -1266,6 +1274,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeWireBends(): void {
     if (!document) return;
+    ensureEditModeForStructuralAction();
     const next = removeSelectedWireBends(document, selection);
     if (next) commitDocument(next, 'Изгибы провода удалены.');
   }
@@ -1610,10 +1619,9 @@ export function useElectronicsWorkbench(projectId: string) {
       event.preventDefault();
       return;
     }
-    // Runtime actuators above remain live. Every ordinary component drag is a
-    // structural edit intent: leave simulation synchronously and keep this same
-    // pointer gesture moving the part.
-    ensureEditModeForStructuralAction();
+    // A press can still be an ordinary selection click while modelling.
+    // Structural intent begins only after the existing 3 px drag threshold is
+    // crossed; then the same pointer gesture continues in edit mode.
     if (!document) return;
     const point = toWorld(event);
     const selectedComponentIds =
@@ -1643,6 +1651,8 @@ export function useElectronicsWorkbench(projectId: string) {
         ...document,
         components: document.components.filter((part) => componentIds.includes(part.id)),
       }),
+      startedInSimulation: simulationRunning,
+      structuralEditStarted: false,
     };
     setDraggingComponents(true);
     if (stageRef.current) stageRef.current.dataset['componentDragging'] = 'true';
@@ -1997,6 +2007,14 @@ export function useElectronicsWorkbench(projectId: string) {
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
       const delta = componentDragDelta(drag, client);
+      if (
+        drag.startedInSimulation &&
+        !drag.structuralEditStarted &&
+        (delta.x !== 0 || delta.y !== 0)
+      ) {
+        drag.structuralEditStarted = true;
+        ensureEditModeForStructuralAction();
+      }
       visualFrameRef.current?.schedule(() => {
         const stage = stageRef.current;
         if (!stage || componentDragRef.current !== drag) return;
@@ -2490,6 +2508,14 @@ export function useElectronicsWorkbench(projectId: string) {
     for (const item of result?.components ?? []) map.set(item.componentId, item);
     return map;
   }, [result]);
+  const staticPreflightResult = useMemo(() => {
+    if (!document || simulationRunning) return null;
+    return calculateSimulationPreflight({
+      ...document,
+      simulation: { ...document.simulation, running: true },
+    });
+  }, [document, simulationRunning]);
+  const diagnosticResult = simulationRunning ? result : (staticPreflightResult ?? result);
   const runtimePresentationResultByComponent = useMemo(
     () => (simulationRunning ? resultByComponent : new Map<string, ComponentResult>()),
     [resultByComponent, simulationRunning],
@@ -2550,8 +2576,8 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   const diagnosticsByComponent = useMemo(() => {
-    return diagnosticsGroupedByComponent(result?.diagnostics ?? []);
-  }, [result]);
+    return diagnosticsGroupedByComponent(diagnosticResult?.diagnostics ?? []);
+  }, [diagnosticResult]);
   const errorDiagnosticComponentIds = useMemo(() => {
     const ids = new Set<string>();
     for (const [componentId, diagnostics] of diagnosticsByComponent) {

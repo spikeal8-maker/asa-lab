@@ -454,7 +454,15 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(componentDrag).toContain("simulationRunning && component.kind === 'button'");
     expect(componentDrag).toContain("simulationRunning && component.kind === 'switch'");
-    expect(componentDrag).toContain('ensureEditModeForStructuralAction();');
+    expect(componentDrag).not.toContain('ensureEditModeForStructuralAction();');
+    expect(componentDrag).toContain('startedInSimulation: simulationRunning');
+    const componentMove = controllerSource.slice(
+      controllerSource.indexOf('const drag = componentDragRef.current;'),
+      controllerSource.indexOf('const pan = panDragRef.current;'),
+    );
+    expect(componentMove).toContain('drag.startedInSimulation');
+    expect(componentMove).toContain('drag.structuralEditStarted = true');
+    expect(componentMove).toContain('ensureEditModeForStructuralAction();');
     const vertexDrag = controllerSource.slice(controllerSource.indexOf('function startVertexDrag'));
     expect(vertexDrag.slice(0, 360)).toContain('ensureEditModeForStructuralAction();');
     const endpointDrag = controllerSource.slice(

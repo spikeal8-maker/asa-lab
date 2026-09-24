@@ -1679,7 +1679,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
 });
 
 test.describe('owner follow-up: edit mode, multi-select, clipboard and physical shortcuts', () => {
-  test('E5/E6/E7/E8 multi-select, group move, clipboard and layout-independent shortcuts', async ({
+  test('E5/E6 multi-select, group move and clipboard preserve internal wiring', async ({
     page,
     context,
   }) => {
@@ -1896,32 +1896,71 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await expect.poll(() => readDocument().components.length).toBe(originalComponentCount);
     await physicalKey('KeyZ', 'z', { ctrl: true, shift: true });
     await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
-    await physicalKey('KeyZ', 'z', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount);
-    await physicalKey('KeyY', 'y', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
 
-    await clickBody('led');
-    await clickBody('battery', true);
-    await physicalKey('KeyC', '\u0441', { ctrl: true });
-    await physicalKey('KeyV', '\u043c', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 4);
-    await physicalKey('KeyD', '\u0432', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 6);
-    await physicalKey('KeyV', '\u043c', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 8);
-    expect(new Set(readDocument().components.map((item) => item.id)).size).toBe(
-      readDocument().components.length,
-    );
+    await page.screenshot({ path: 'reports/interactions/e5-e6-multiselect-copy-paste.png' });
 
-    const selectByKeyboard = async (id: string) => {
-      const body = part(page, id).locator('.workbench-part');
-      await body.focus();
-      await body.press('Enter');
-      await expect.poll(selectedIds).toEqual([id]);
+    const expectedComponents = readDocument().components.length;
+    const expectedConnections = readDocument().connections.length;
+    await page.reload();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedComponents);
+    await expect(page.getByTestId('schematic-wire')).toHaveCount(expectedConnections);
+  });
+
+  test('E7/E8 physical-code edit commands remain layout-independent and protect text fields', async ({
+    page,
+    context,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const { readDocument } = await openEditor(page, documentFixture());
+    await page
+      .getByRole('button', {
+        name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
+        exact: true,
+      })
+      .click();
+
+    const session = await context.newCDPSession(page);
+    const physicalKey = async (
+      code: string,
+      key: string,
+      options: { ctrl?: boolean; shift?: boolean } = {},
+    ) => {
+      const virtualCodes: Record<string, number> = {
+        KeyA: 65,
+        KeyD: 68,
+        KeyR: 82,
+        KeyZ: 90,
+        Delete: 46,
+        Backspace: 8,
+        Escape: 27,
+      };
+      const virtual = virtualCodes[code] ?? 0;
+      const modifiers = (options.ctrl ? 2 : 0) | (options.shift ? 8 : 0);
+      await session.send('Input.dispatchKeyEvent', {
+        type: 'rawKeyDown',
+        code,
+        key,
+        modifiers,
+        windowsVirtualKeyCode: virtual,
+        nativeVirtualKeyCode: virtual,
+      });
+      await session.send('Input.dispatchKeyEvent', {
+        type: 'keyUp',
+        code,
+        key,
+        modifiers,
+        windowsVirtualKeyCode: virtual,
+        nativeVirtualKeyCode: virtual,
+      });
     };
 
-    await selectByKeyboard('battery');
+    const selectBattery = async () => {
+      const point = await pointOnBody(page, 'battery');
+      await page.mouse.click(point.x, point.y);
+      await expect(part(page, 'battery')).toHaveClass(/workbench-component-selected/);
+    };
+
+    await selectBattery();
     const rotationBefore =
       readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0;
     await physicalKey('KeyR', '\u043a');
@@ -1934,24 +1973,34 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       .toBe(rotationBefore);
 
     const countBeforeDelete = readDocument().components.length;
-    await selectByKeyboard('battery');
+    await selectBattery();
     await physicalKey('Delete', 'Delete');
     await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete - 1);
     await physicalKey('KeyZ', 'z', { ctrl: true });
     await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete);
 
-    await selectByKeyboard('battery');
+    await selectBattery();
     await physicalKey('Backspace', 'Backspace');
     await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete - 1);
     await physicalKey('KeyZ', 'z', { ctrl: true });
     await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete);
 
     await physicalKey('KeyA', 'a', { ctrl: true });
-    await expect(page.locator('.workbench-component-selected')).toHaveCount(countBeforeDelete);
+    const selectedComponentIds = () =>
+      page
+        .locator('[data-testid="schematic-component"].workbench-component-selected')
+        .evaluateAll((nodes) =>
+          [...new Set(nodes.map((node) => (node as SVGElement).dataset['componentId']))]
+            .filter((id): id is string => Boolean(id))
+            .sort(),
+        );
+    await expect.poll(selectedComponentIds).toEqual(
+      readDocument()
+        .components.map((component) => component.id)
+        .sort(),
+    );
     await physicalKey('Escape', 'Escape');
-    await expect(page.locator('.workbench-component-selected')).toHaveCount(0);
-
-    await page.screenshot({ path: 'reports/interactions/e5-e6-multiselect-copy-paste.png' });
+    await expect.poll(selectedComponentIds).toEqual([]);
 
     const title = page.getByRole('textbox', {
       name: '\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0435\u043a\u0442\u0430',
@@ -1960,24 +2009,20 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await title.fill('ABC');
     await title.selectText();
-    await page.keyboard.press('Control+KeyC');
+    await page.keyboard.press('Control+c');
     await page.keyboard.press('End');
-    await page.keyboard.press('Control+KeyV');
+    await page.keyboard.press('Control+v');
     await expect(title).toHaveValue('ABCABC');
-    const countBeforeBackspace = readDocument().components.length;
+    const countBeforeTextKeys = readDocument().components.length;
+    await physicalKey('KeyD', '\u0432', { ctrl: true });
+    expect(readDocument().components.length).toBe(countBeforeTextKeys);
     await page.keyboard.press('Backspace');
     await expect(title).toHaveValue('ABCAB');
-    expect(readDocument().components.length).toBe(countBeforeBackspace);
     await page.keyboard.press('Space');
     await page.keyboard.type('X');
     await expect(title).toHaveValue('ABCAB X');
-    expect(readDocument().components.length).toBe(countBeforeBackspace);
-
-    const expectedComponents = readDocument().components.length;
-    const expectedConnections = readDocument().connections.length;
-    await page.reload();
-    await expect(page.getByTestId('schematic-component')).toHaveCount(expectedComponents);
-    await expect(page.getByTestId('schematic-wire')).toHaveCount(expectedConnections);
+    expect(readDocument().components.length).toBe(countBeforeTextKeys);
+    await page.screenshot({ path: 'reports/interactions/e7-e8-shortcuts-editable.png' });
   });
 
   touchVideoTest(

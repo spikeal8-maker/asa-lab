@@ -53,6 +53,8 @@ export interface ComponentDrag {
   startedDocument: SchematicDocument;
   startClient: Point;
   bounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  startedInSimulation: boolean;
+  structuralEditStarted: boolean;
 }
 
 export interface CatalogPlacement {

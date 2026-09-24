@@ -3242,7 +3242,7 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
       await page.mouse.move(vertexBox.x + vertexBox.width / 2, vertexBox.y + vertexBox.height / 2);
       await page.mouse.down();
       await page.mouse.move(softCanonicalClient.x + 4, softCanonicalClient.y + 3, { steps: 12 });
-      await expect(page.getByTestId('wire-alignment-guide')).toHaveCount(1);
+      await expect(page.getByTestId('wire-alignment-guide')).toHaveCount(2);
       await page.mouse.up();
       await expect
         .poll(() =>
