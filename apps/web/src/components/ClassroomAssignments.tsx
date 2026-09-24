@@ -314,10 +314,12 @@ export function ClassroomAssignments({
           <button
             type="button"
             className="btn-secondary"
-            disabled={archived || modules.length === 0}
-            onClick={() => setCreating(true)}
+            disabled={archived}
+            onClick={() => {
+              window.location.hash = '#/challenges';
+            }}
           >
-            Создать новое
+            Создать задание
           </button>
         </div>
       </div>
