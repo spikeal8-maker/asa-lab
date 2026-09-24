@@ -994,7 +994,9 @@ for (const module of ['three-d', 'electronics'])
       });
     }
     await continueButton.click();
-    await expect(continueButton).toHaveCount(0);
+    await expect(
+      brief.getByRole('button', { name: 'Отправить повторно', exact: true }),
+    ).toBeEnabled({ timeout: 15_000 });
 
     const resumedProjectionResponse = await learner.page.request.get(
       '/api/class-join/me/assignments',
