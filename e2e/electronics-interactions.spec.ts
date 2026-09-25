@@ -2078,6 +2078,8 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       const runningSimulation = page.getByRole('button', { name: 'Остановить моделирование' });
       await expect(runningSimulation).toBeVisible();
       await expect(runningSimulation).toHaveAttribute('aria-pressed', 'true');
+      await page.mouse.move(0, 0);
+      await frames(page);
       const runningStyle = await runningSimulation.evaluate((element) => {
         const style = getComputedStyle(element);
         return {
