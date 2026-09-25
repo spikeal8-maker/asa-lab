@@ -5807,3 +5807,87 @@ html.arduino-palette-resizing * {
     height: 62px;
   }
 }
+
+/* Owner mobile inspector acceptance: keep the selected component visible beside
+   a compact, scrollable properties panel without changing desktop or wire UI. */
+@media (max-width: 980px) and (orientation: portrait) {
+  .workbench-inspector:not(.wire-selected),
+  .workbench-inspector.library-hidden:not(.wire-selected) {
+    width: min(228px, calc(100% - 96px));
+    max-height: min(420px, calc(100% - var(--wb-library-closed-height) - 16px));
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-heading {
+    min-height: 30px;
+    gap: 4px;
+    padding: 2px 4px 2px 6px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-heading span {
+    font-size: 13px;
+    line-height: 1.1;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-information-actions {
+    gap: 2px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-help {
+    width: 36px;
+    height: 36px;
+    font-size: 13px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body {
+    padding: 1px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body > label,
+  .workbench-inspector:not(.wire-selected) .workbench-state-controls label {
+    min-height: 29px;
+    font-size: 12px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body > label {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-primary-controls label {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body > label > span,
+  .workbench-inspector:not(.wire-selected) .workbench-state-controls label > span {
+    min-height: 29px;
+    padding: 3px 5px;
+  }
+
+  .workbench-inspector:not(.wire-selected) input,
+  .workbench-inspector:not(.wire-selected) select {
+    min-height: 34px;
+    height: 34px;
+    font-size: 16px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-preview {
+    height: 58px;
+    margin-bottom: 4px;
+  }
+
+  .workbench-inspector:not(.wire-selected)
+    .workbench-inspector-preview
+    .workbench-component-preview {
+    max-width: 72px;
+    max-height: 54px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-component-note,
+  .workbench-inspector:not(.wire-selected) .workbench-junction-summary {
+    padding: 4px 5px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-actions.vertical {
+    gap: 3px;
+    margin-top: 4px;
+  }
+}
