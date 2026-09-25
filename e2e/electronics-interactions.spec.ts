@@ -2138,13 +2138,17 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       const buttonPoint = await pointOnBody(page, 'runtime-button');
       await page.mouse.move(buttonPoint.x, buttonPoint.y);
       await page.mouse.down();
-      await expect(part(page, 'runtime-button')).toHaveClass(/workbench-component-actuator-active/);
+      await expect(part(page, 'runtime-button')).toHaveClass(
+        /workbench-component-actuator-active/,
+      );
       await expect(runningSimulation).toBeVisible();
       await page.mouse.up();
 
       const switchActuator = part(page, 'runtime-switch').getByTestId('spdt-actuator');
       await switchActuator.click();
-      await expect(part(page, 'runtime-switch')).toHaveClass(/workbench-component-actuator-active/);
+      await expect(part(page, 'runtime-switch')).toHaveClass(
+        /workbench-component-actuator-active/,
+      );
       await expect(runningSimulation).toBeVisible();
 
       const potPoint = await pointOnBody(page, 'runtime-pot');
@@ -2185,7 +2189,8 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       await page.mouse.up();
       await expect.poll(batteryPosition).not.toEqual(unlockedBefore);
     },
-  );});
+  );
+});
 
 for (const zoom of [1, 2, 4] as const) {
   wireVideoTest(
