@@ -37,10 +37,13 @@ async function createActivity(title: string) {
 }
 
 async function publish(activityId: string, revision: number, requestId: string) {
-  const result = await admin.query(
-    'SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)',
-    [ownerPrincipalId, owner.tenantId, activityId, revision, requestId],
-  );
+  const result = await admin.query(`SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)`, [
+    ownerPrincipalId,
+    owner.tenantId,
+    activityId,
+    revision,
+    requestId,
+  ]);
   return result.rows[0] as {
     result_code: string;
     activity_version_id: string | null;
