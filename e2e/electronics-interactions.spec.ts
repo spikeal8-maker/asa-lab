@@ -2644,7 +2644,7 @@ test.describe('owner D3-D6 acceptance', () => {
     await page.screenshot({ path: 'reports/interactions/d3-keyboard-nudge.png' });
   });
 
-  test('D4 desktop empty project starts closer while mobile contract stays independent', async ({
+  test('D4 empty desktop ignores legacy local zoom, then normal persistence resumes', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1920, height: 1080 });
@@ -2655,6 +2655,20 @@ test.describe('owner D3-D6 acceptance', () => {
       viewport: { x: 0, y: 0, zoom: 1 },
       simulation: { running: false, maxIterations: 24 },
     };
+
+    await page.addInitScript(
+      ({ id }) => {
+        const marker = 'asa-electronics-d4-legacy-zoom-seeded';
+        if (sessionStorage.getItem(marker)) return;
+        localStorage.setItem(
+          'asa-electronics-viewport:' + id,
+          JSON.stringify({ x: 0, y: 0, zoom: 1 }),
+        );
+        sessionStorage.setItem(marker, '1');
+      },
+      { id: ID },
+    );
+
     const { readDocument } = await openEditor(page, empty);
     await expect(page.getByLabel('Масштаб 125 процентов')).toBeVisible();
 
@@ -2669,13 +2683,23 @@ test.describe('owner D3-D6 acceptance', () => {
     await page.mouse.move(drop.x, drop.y, { steps: 12 });
     await page.mouse.up();
     await expect(page.getByTestId('schematic-component')).toHaveCount(1);
-
-    const battery = page
-      .locator('[data-component-type="battery-holder-aa-2"][data-testid="schematic-component"]')
-      .first();
-    const afterBox = await battery.boundingBox();
-    if (!afterBox) throw new Error('Missing battery at closer initial zoom');
+    await expect(page.getByLabel('Масштаб 125 процентов')).toBeVisible();
     await page.screenshot({ path: 'reports/interactions/d4-initial-zoom-after.png' });
+
+    await page.evaluate(
+      ({ id }) => {
+        localStorage.setItem(
+          'asa-electronics-viewport:' + id,
+          JSON.stringify({ x: 160, y: 90, zoom: 1.5 }),
+        );
+      },
+      { id: ID },
+    );
+    await page.reload();
+    await expect(page.getByLabel('Масштаб 150 процентов')).toBeVisible();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(
+      readDocument().components.length,
+    );
 
     await page.evaluate(
       ({ id }) => {
@@ -2686,16 +2710,14 @@ test.describe('owner D3-D6 acceptance', () => {
       },
       { id: ID },
     );
-    await page.reload();
-    await expect(page.getByLabel('Масштаб 100 процентов')).toBeVisible();
-    await expect(page.getByTestId('schematic-component')).toHaveCount(
-      readDocument().components.length,
-    );
-    const beforeBox = await battery.boundingBox();
-    if (!beforeBox) throw new Error('Missing battery at legacy initial zoom');
-    expect(afterBox.width).toBeGreaterThan(beforeBox.width * 1.18);
-    expect(afterBox.height).toBeGreaterThan(beforeBox.height * 1.18);
-    await page.screenshot({ path: 'reports/interactions/d4-initial-zoom-before.png' });
+    const mobilePage = await page.context().newPage();
+    try {
+      await mobilePage.setViewportSize({ width: 390, height: 844 });
+      await openEditor(mobilePage, empty);
+      await expect(mobilePage.getByLabel('Масштаб 100 процентов')).toBeVisible();
+    } finally {
+      await mobilePage.close();
+    }
   });
 
   test('D5 mobile component shelf is compact with edge handle and opt-in search', async ({
