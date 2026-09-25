@@ -622,7 +622,6 @@ touchVideoTest.describe('interaction: native touch', () => {
     'R3 shelf scroll stays native and one upward finger drag places exactly one part',
     async ({ page, context }) => {
       await openEditor(page);
-      await page.getByRole('button', { name: 'Каталог деталей', exact: true }).click();
       const shelf = page.locator('.workbench-catalog-grid');
       const session = await context.newCDPSession(page);
       const send = (
@@ -2326,9 +2325,6 @@ for (const [width, height] of [
           ]);
         await send('touchEnd', []);
       };
-      if (width <= 980) {
-        await tap(page.getByRole('button', { name: 'Каталог деталей', exact: true }));
-      }
       const card = page.getByRole('button', { name: 'Резистор', exact: true });
       await card.scrollIntoViewIfNeeded();
       const start = await locatorCenter(card);
@@ -2495,7 +2491,6 @@ touchVideoTest(
   'R3 cancellation: second finger, pointercancel, capture loss and blur leave no draft',
   async ({ page, context }) => {
     const { errors } = await openEditor(page);
-    await page.getByRole('button', { name: 'Каталог деталей', exact: true }).click();
     const card = page.getByRole('button', { name: 'Резистор', exact: true });
     await card.scrollIntoViewIfNeeded();
     const session = await context.newCDPSession(page);
@@ -2713,7 +2708,7 @@ test.describe('owner D3-D6 acceptance', () => {
     }
   });
 
-  test('D5 mobile component shelf is compact with edge handle and opt-in search', async ({
+  test('D5 mobile component shelf opens by default with vertical edge handle and opt-in search', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -2721,30 +2716,51 @@ test.describe('owner D3-D6 acceptance', () => {
 
     const library = page.locator('.workbench-library');
     const handle = page.locator('.workbench-library-collapse');
-    await expect(library).toHaveClass(/collapsed/);
+    const handlePath = handle.locator('svg path');
+    const category = page.getByRole('combobox', { name: 'Категория компонентов' });
+    const searchToggle = page.getByRole('button', { name: 'Поиск компонентов' });
+    const searchInput = page.getByPlaceholder('Поиск');
+
+    await expect(library).not.toHaveClass(/collapsed/);
+    await expect(handle).toHaveAttribute('aria-label', 'Свернуть библиотеку');
+    await expect(handlePath).toHaveAttribute('d', 'm10 6 6 6-6 6');
+    await expect(category).toHaveValue('all');
+    await expect(searchToggle).toBeVisible();
+    await expect(searchInput).toBeHidden();
+
     const handleBox = await handle.boundingBox();
     if (!handleBox) throw new Error('Missing compact mobile library handle');
     expect(handleBox.width).toBeLessThanOrEqual(40);
     expect(handleBox.height).toBeLessThanOrEqual(32);
-    await page.screenshot({ path: 'reports/interactions/d5-mobile-panel-collapsed.png' });
-
-    await handle.click();
-    await expect(library).not.toHaveClass(/collapsed/);
     const openBox = await library.boundingBox();
     if (!openBox) throw new Error('Missing open mobile library');
     expect(openBox.height).toBeLessThanOrEqual(170);
-    const searchToggle = page.getByRole('button', { name: 'Поиск компонентов' });
-    await expect(searchToggle).toBeVisible();
-    const searchInput = page.getByPlaceholder('Поиск');
-    await expect(searchInput).toBeHidden();
+    const openRotation = await handle.locator('svg').evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { a: Math.round(matrix.a), b: Math.round(matrix.b) };
+    });
+    expect(openRotation).toEqual({ a: 0, b: 1 });
     await page.screenshot({ path: 'reports/interactions/d5-mobile-panel-open.png' });
+
+    await handle.click();
+    await expect(library).toHaveClass(/collapsed/);
+    await expect(handle).toHaveAttribute('aria-label', 'Открыть библиотеку');
+    await expect(handlePath).toHaveAttribute('d', 'm14 6-6 6 6 6');
+    const closedRotation = await handle.locator('svg').evaluate((element) => {
+      const matrix = new DOMMatrixReadOnly(getComputedStyle(element).transform);
+      return { a: Math.round(matrix.a), b: Math.round(matrix.b) };
+    });
+    expect(closedRotation).toEqual({ a: 0, b: 1 });
+
+    await handle.click();
+    await expect(library).not.toHaveClass(/collapsed/);
+    await expect(category).toHaveValue('all');
 
     await searchToggle.click();
     await expect(searchInput).toBeVisible();
     await expect(searchInput).toBeFocused();
     await searchInput.fill('светодиод');
     await expect(page.getByRole('button', { name: 'Светодиод', exact: true })).toBeVisible();
-    await page.screenshot({ path: 'reports/interactions/d5-mobile-search-active.png' });
   });
 
   test('D6 component shelf opens on All and search/categories remain functional', async ({
