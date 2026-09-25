@@ -751,8 +751,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
   });
 
-  it('keeps runtime visuals, structural edit transition, full guide, multi-select and code shortcuts explicit', () => {
-    expect(controllerModuleSource).toContain('function ensureEditModeForStructuralAction()');
+  it('keeps runtime visuals, structural lock, full guide, multi-select and code shortcuts explicit', () => {
+    expect(controllerModuleSource).toContain('function structuralEditAllowed(): boolean');
+    expect(controllerModuleSource).toContain('function stopSimulationForCatalogPlacement(): void');
     expect(controllerModuleSource).toContain('runtimePresentationResultByComponent');
     expect(stageSource).toContain('c.runtimePresentationResultByComponent');
     expect(stageSource).toContain('wireGuideAxes(c.wireGuide)');
