@@ -295,9 +295,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function structuralEditAllowed(): boolean {
     if (!simulationRunning) return true;
-    setNotice(
-      'Моделирование запущено. Остановите его, чтобы изменить существующую схему.',
-    );
+    setNotice('Моделирование запущено. Остановите его, чтобы изменить существующую схему.');
     return false;
   }
 
