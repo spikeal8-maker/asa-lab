@@ -5652,30 +5652,32 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* Running simulation is an explicit locked mode. Keep the signal on the
-   control itself: a solid stop state plus a quiet halo that also reads on mobile. */
+/* Running simulation stays obvious without using an error/danger treatment.
+   The calm blue-teal accent reads as an active mode on both desktop and mobile. */
 @keyframes workbench-simulation-running-pulse {
   0%,
   100% {
     box-shadow:
-      0 0 0 2px rgba(168, 35, 27, 0.2),
-      0 0 0 0 rgba(168, 35, 27, 0);
+      0 0 0 2px rgba(47, 127, 184, 0.14),
+      0 0 0 0 rgba(47, 127, 184, 0);
   }
   50% {
     box-shadow:
-      0 0 0 3px rgba(168, 35, 27, 0.24),
-      0 0 0 7px rgba(168, 35, 27, 0.1);
+      0 0 0 3px rgba(47, 127, 184, 0.2),
+      0 0 0 7px rgba(47, 127, 184, 0.08);
   }
 }
 .workbench-toolbar-group.right .workbench-pill.simulate.running {
-  border-color: #a8231b;
-  background: #b42318;
-  color: #fff;
+  border-color: #4d91c7;
+  background: #eaf5fc;
+  color: #216b9d;
   font-weight: 700;
-  animation: workbench-simulation-running-pulse 1.8s ease-in-out infinite;
+  animation: workbench-simulation-running-pulse 1.9s ease-in-out infinite;
 }
 .workbench-toolbar-group.right .workbench-pill.simulate.running:hover:not(:disabled) {
-  background: #9f1f17;
+  border-color: #3f84bb;
+  background: #dceef9;
+  color: #195f90;
 }
 .workbench-toolbar-group.right .workbench-pill.simulate.running svg {
   fill: currentColor;
@@ -5683,7 +5685,7 @@ html.arduino-palette-resizing * {
 @media (prefers-reduced-motion: reduce) {
   .workbench-toolbar-group.right .workbench-pill.simulate.running {
     animation: none;
-    box-shadow: 0 0 0 3px rgba(168, 35, 27, 0.22);
+    box-shadow: 0 0 0 3px rgba(47, 127, 184, 0.16);
   }
 }
 

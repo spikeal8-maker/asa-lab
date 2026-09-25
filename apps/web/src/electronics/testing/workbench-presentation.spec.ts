@@ -383,8 +383,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('aria-pressed={c.simulationRunning}');
     expect(workbenchCss).toContain('@keyframes workbench-simulation-running-pulse');
     expect(workbenchCss).toMatch(
-      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\.running\s*\{[^}]*background:\s*#b42318;[^}]*color:\s*#fff;[^}]*font-weight:\s*700;/s,
+      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\.running\s*\{[^}]*border-color:\s*#4d91c7;[^}]*background:\s*#eaf5fc;[^}]*color:\s*#216b9d;[^}]*font-weight:\s*700;/s,
     );
+    expect(workbenchCss).not.toContain('background: #b42318;');
     expect(headerSource).toContain('{c.simulationRunning ? <StopIcon /> : <PlayIcon />}');
     expect(controllerModuleSource).toContain("useState<ComponentCategory>('all')");
     expect(controllerModuleSource).toContain('DESKTOP_INITIAL_ZOOM = 1.25');
