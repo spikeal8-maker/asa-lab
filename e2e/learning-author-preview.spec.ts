@@ -465,9 +465,7 @@ test('published task image stays immutable across versions', async ({ page }) =>
     ).toString(),
   );
   expect(exactV1Preview.ok()).toBe(true);
-  const exactV1 = (await exactV1Preview.json()) as {
-    assignment: { sampleImage: string | null };
-  };
+  const exactV1 = (await exactV1Preview.json()) as { assignment: { sampleImage: string | null } };
   expect(exactV1.assignment.sampleImage).toBeTruthy();
   const exactV1Bytes = await page.request.get(
     new URL(exactV1.assignment.sampleImage!, page.url()).toString(),
@@ -482,9 +480,7 @@ test('published task image stays immutable across versions', async ({ page }) =>
     ).toString(),
   );
   expect(exactV2Preview.ok()).toBe(true);
-  const exactV2 = (await exactV2Preview.json()) as {
-    assignment: { sampleImage: string | null };
-  };
+  const exactV2 = (await exactV2Preview.json()) as { assignment: { sampleImage: string | null } };
   expect(exactV2.assignment.sampleImage).toBeTruthy();
   const exactV2Bytes = await page.request.get(
     new URL(exactV2.assignment.sampleImage!, page.url()).toString(),
