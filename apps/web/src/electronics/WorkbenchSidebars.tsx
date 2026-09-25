@@ -21,7 +21,14 @@ import {
 import { ComponentPreview } from './component-preview';
 import { PirSensorControls } from './PirSensorControls';
 import { UltrasonicDistanceControls } from './UltrasonicDistanceControls';
-import { CollapseIcon, ExpandIcon, ListIcon, SearchIcon, WireIcon } from './workbench-icons';
+import {
+  CollapseIcon,
+  DeleteIcon,
+  ExpandIcon,
+  ListIcon,
+  SearchIcon,
+  WireIcon,
+} from './workbench-icons';
 import { WIRE_COLORS } from './workbench-model';
 import {
   defaultResistanceUnit,
@@ -359,7 +366,85 @@ export function WorkbenchSidebars({
   controller: ElectronicsWorkbenchController;
 }): JSX.Element {
   const [helpOpen, setHelpOpen] = useState(false);
-  const shelfTouches = useRef(new Map<number, { x: number; y: number }>());
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchExpanded = mobileSearchOpen || c.libraryQuery.length > 0;
+  const toggleMobileSearch = (): void => {
+    if (mobileSearchExpanded) {
+      c.setLibraryQuery('');
+      setMobileSearchOpen(false);
+      return;
+    }
+    setMobileSearchOpen(true);
+    window.requestAnimationFrame(() => mobileSearchInputRef.current?.focus());
+  };
+  const shelfTouches = useRef(
+    new Map<number, { x: number; y: number; mode: 'pending' | 'dragging' | 'scrolling' }>(),
+  );
+  const shelfRoot = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const root = shelfRoot.current;
+    const retainRecognizedDrag = (event: globalThis.TouchEvent) => {
+      if (event.touches.length !== 1) return;
+      const gesture = shelfTouches.current.values().next().value;
+      const point = event.touches[0];
+      if (!gesture || !point || gesture.mode === 'scrolling') return;
+      const dx = point.clientX - gesture.x;
+      const dy = point.clientY - gesture.y;
+      const towardsStage = Math.hypot(dx, dy) >= 8 && dy < 0 && Math.abs(dy) >= 1.25 * Math.abs(dx);
+      if ((gesture.mode === 'dragging' || towardsStage) && event.cancelable) {
+        event.preventDefault();
+      }
+    };
+    // Register before contact, only on the shelf. Horizontal scrolling stays
+    // native; a recognized upward drag must not later become a browser pan
+    // when the user turns diagonally towards the short landscape stage.
+    root?.addEventListener('touchmove', retainRecognizedDrag, { passive: false });
+    return () => root?.removeEventListener('touchmove', retainRecognizedDrag);
+  }, []);
+  const ignoredShelfPointers = useRef(new Set<number>());
+  const cancelShelfPlacement = useRef(c.cancelFamilyPlacement);
+  cancelShelfPlacement.current = c.cancelFamilyPlacement;
+  useEffect(() => {
+    const cancel = () => {
+      for (const pointerId of shelfTouches.current.keys()) {
+        ignoredShelfPointers.current.add(pointerId);
+        cancelShelfPlacement.current(pointerId);
+      }
+      shelfTouches.current.clear();
+    };
+    const secondTouch = (event: globalThis.PointerEvent) => {
+      if (event.pointerType !== 'touch' || shelfTouches.current.has(event.pointerId)) return;
+      if (shelfTouches.current.size === 0 && ignoredShelfPointers.current.size === 0) return;
+      ignoredShelfPointers.current.add(event.pointerId);
+      cancel();
+    };
+    const release = (event: globalThis.PointerEvent) => {
+      ignoredShelfPointers.current.delete(event.pointerId);
+    };
+    const key = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') cancel();
+    };
+    const hidden = () => {
+      if (document.hidden) cancel();
+    };
+    // A second finger may land on the stage, outside the original card.
+    // Observe only; native scroll/pinch permissions remain unchanged.
+    window.addEventListener('pointerdown', secondTouch, true);
+    window.addEventListener('pointerup', release, true);
+    window.addEventListener('pointercancel', release, true);
+    window.addEventListener('blur', cancel);
+    window.addEventListener('keydown', key);
+    document.addEventListener('visibilitychange', hidden);
+    return () => {
+      window.removeEventListener('pointerdown', secondTouch, true);
+      window.removeEventListener('pointerup', release, true);
+      window.removeEventListener('pointercancel', release, true);
+      window.removeEventListener('blur', cancel);
+      window.removeEventListener('keydown', key);
+      document.removeEventListener('visibilitychange', hidden);
+    };
+  }, []);
   const [stateOpen, setStateOpen] = useState(false);
   const [helpSections, setHelpSections] = useState<readonly HelpSection[] | null>(null);
   const measurement = c.selectedComponent
@@ -539,6 +624,7 @@ export function WorkbenchSidebars({
   return (
     <>
       <aside
+        ref={shelfRoot}
         className={`workbench-library${c.libraryOpen ? '' : ' collapsed'}`}
         aria-label="Библиотека компонентов"
       >
@@ -581,9 +667,21 @@ export function WorkbenchSidebars({
                 <ListIcon />
               </button>
             </div>
-            <label className="workbench-library-search">
+            <button
+              type="button"
+              className={`workbench-library-search-toggle${mobileSearchExpanded ? ' active' : ''}`}
+              onClick={toggleMobileSearch}
+              aria-label={mobileSearchExpanded ? 'Закрыть поиск компонентов' : 'Поиск компонентов'}
+              aria-expanded={mobileSearchExpanded}
+            >
+              <SearchIcon />
+            </button>
+            <label
+              className={`workbench-library-search${mobileSearchExpanded ? ' mobile-open' : ''}`}
+            >
               <span className="sr-only">Поиск компонентов</span>
               <input
+                ref={mobileSearchInputRef}
                 value={c.libraryQuery}
                 onChange={(event) => c.setLibraryQuery(event.target.value)}
                 placeholder="Поиск"
@@ -609,13 +707,26 @@ export function WorkbenchSidebars({
                     // Now both do the same thing: the component itself follows the
                     // pointer and lands where it is put.
                     onPointerDown={(event) => {
-                      if (!family.enabled || event.button !== 0) return;
+                      if (
+                        !family.enabled ||
+                        event.button !== 0 ||
+                        ignoredShelfPointers.current.has(event.pointerId)
+                      )
+                        return;
                       if (event.pointerType === 'touch') {
+                        if (shelfTouches.current.size > 0) {
+                          for (const [pointerId, touch] of shelfTouches.current) {
+                            if (touch.mode === 'dragging') c.cancelFamilyPlacement(pointerId);
+                          }
+                          shelfTouches.current.clear();
+                          return;
+                        }
                         shelfTouches.current.set(event.pointerId, {
                           x: event.clientX,
                           y: event.clientY,
+                          mode: 'pending',
                         });
-                        return; // Native shelf scrolling; a short tap selects a part on pointerup.
+                        return;
                       }
                       event.currentTarget.setPointerCapture(event.pointerId);
                       c.beginFamilyPlacement(family.familyId, {
@@ -626,18 +737,48 @@ export function WorkbenchSidebars({
                       event.preventDefault();
                     }}
                     onPointerMove={(event) => {
-                      if (event.pointerType !== 'touch')
+                      if (event.pointerType !== 'touch') {
                         c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                        return;
+                      }
+                      const touch = shelfTouches.current.get(event.pointerId);
+                      if (!touch || touch.mode === 'scrolling') return;
+                      const dx = event.clientX - touch.x;
+                      const dy = event.clientY - touch.y;
+                      const travel = Math.hypot(dx, dy);
+                      if (touch.mode === 'pending' && travel >= 8) {
+                        const upwardToStage = dy < 0 && Math.abs(dy) >= 1.25 * Math.abs(dx);
+                        if (!upwardToStage) {
+                          touch.mode = 'scrolling';
+                          return;
+                        }
+                        touch.mode = 'dragging';
+                        event.currentTarget.setPointerCapture(event.pointerId);
+                        c.beginFamilyPlacement(family.familyId, {
+                          pointerId: event.pointerId,
+                          clientX: touch.x,
+                          clientY: touch.y,
+                        });
+                      }
+                      if (touch.mode === 'dragging') {
+                        c.moveFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                        event.preventDefault();
+                      }
                     }}
                     onPointerUp={(event) => {
                       if (event.pointerType === 'touch') {
-                        const start = shelfTouches.current.get(event.pointerId);
+                        const touch = shelfTouches.current.get(event.pointerId);
                         shelfTouches.current.delete(event.pointerId);
-                        if (
-                          start &&
-                          Math.hypot(event.clientX - start.x, event.clientY - start.y) < 10
+                        if (touch?.mode === 'dragging') {
+                          c.finishFamilyPlacement(event.pointerId, event.clientX, event.clientY);
+                        } else if (
+                          touch?.mode === 'pending' &&
+                          Math.hypot(event.clientX - touch.x, event.clientY - touch.y) < 10
                         ) {
                           c.selectFamilyByTouch(family.familyId);
+                        }
+                        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                          event.currentTarget.releasePointerCapture(event.pointerId);
                         }
                         return;
                       }
@@ -647,10 +788,24 @@ export function WorkbenchSidebars({
                       }
                     }}
                     onPointerCancel={(event) => {
+                      const touch = shelfTouches.current.get(event.pointerId);
                       shelfTouches.current.delete(event.pointerId);
-                      c.cancelFamilyPlacement(event.pointerId);
+                      if (touch?.mode === 'dragging' || event.pointerType !== 'touch') {
+                        c.cancelFamilyPlacement(event.pointerId);
+                      }
                       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                         event.currentTarget.releasePointerCapture(event.pointerId);
+                      }
+                    }}
+                    onLostPointerCapture={(event) => {
+                      // Native touch initially captures the child button. Its loss
+                      // bubbles when the card takes capture; that transfer is not
+                      // a cancellation of the card's active placement.
+                      if (event.currentTarget.hasPointerCapture(event.pointerId)) return;
+                      const touch = shelfTouches.current.get(event.pointerId);
+                      if (touch?.mode === 'dragging') {
+                        shelfTouches.current.delete(event.pointerId);
+                        c.cancelFamilyPlacement(event.pointerId);
                       }
                     }}
                     data-family-id={family.familyId}
@@ -719,56 +874,58 @@ export function WorkbenchSidebars({
 
       {c.selection ? (
         <aside
-          className={`workbench-inspector${
+          className={`workbench-inspector${c.selectedWire ? ' wire-selected' : ''}${
             selectedIsPotentiometer ? ' is-potentiometer' : ''
           }${c.libraryOpen ? '' : ' library-hidden'}`}
-          aria-label="Параметры выделения"
+          aria-label={c.selectedWire ? 'Параметры выбранного провода' : 'Параметры выделения'}
         >
-          <div className="workbench-inspector-heading">
-            <div>
-              <span>
-                {c.selection.kind === 'wire'
-                  ? 'Провод'
-                  : c.selection.ids.length > 1
-                    ? `Выбрано: ${c.selection.ids.length}`
-                    : (c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'Компонент')}
-              </span>
-            </div>
-            {c.selectedComponent ? (
-              <div className="workbench-inspector-information-actions">
-                <button
-                  type="button"
-                  className="workbench-inspector-help"
-                  onClick={() => {
-                    setStateOpen((value) => !value);
-                    setHelpOpen(false);
-                  }}
-                  aria-label={`Техническое состояние ${
-                    c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
-                  }`}
-                  aria-expanded={stateOpen}
-                  data-diagnostic-severity={selectedDiagnosticSeverity}
-                >
-                  i
-                </button>
-                <button
-                  type="button"
-                  className="workbench-inspector-help"
-                  onClick={() => {
-                    setHelpOpen((value) => !value);
-                    setStateOpen(false);
-                  }}
-                  aria-label={`Справка о компоненте ${
-                    c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
-                  }`}
-                  aria-expanded={helpOpen}
-                  data-active={helpOpen}
-                >
-                  ?
-                </button>
+          {c.selectedWire ? null : (
+            <div className="workbench-inspector-heading">
+              <div>
+                <span>
+                  {c.selection.kind === 'wire'
+                    ? 'Провод'
+                    : c.selection.ids.length > 1
+                      ? `Выбрано: ${c.selection.ids.length}`
+                      : (c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'Компонент')}
+                </span>
               </div>
-            ) : null}
-          </div>
+              {c.selectedComponent ? (
+                <div className="workbench-inspector-information-actions">
+                  <button
+                    type="button"
+                    className="workbench-inspector-help"
+                    onClick={() => {
+                      setStateOpen((value) => !value);
+                      setHelpOpen(false);
+                    }}
+                    aria-label={`Техническое состояние ${
+                      c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+                    }`}
+                    aria-expanded={stateOpen}
+                    data-diagnostic-severity={selectedDiagnosticSeverity}
+                  >
+                    i
+                  </button>
+                  <button
+                    type="button"
+                    className="workbench-inspector-help"
+                    onClick={() => {
+                      setHelpOpen((value) => !value);
+                      setStateOpen(false);
+                    }}
+                    aria-label={`Справка о компоненте ${
+                      c.selectedFamily?.familyLabel ?? c.selectedEntry?.label ?? 'компонента'
+                    }`}
+                    aria-expanded={helpOpen}
+                    data-active={helpOpen}
+                  >
+                    ?
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
 
           {helpOpen && c.selectedComponent && c.selectedEntry ? (
             <div className="workbench-inspector-help-popover" role="region" aria-label="Справка">
@@ -2230,9 +2387,11 @@ export function WorkbenchSidebars({
           ) : null}
 
           {c.selectedWire ? (
-            <div className="workbench-inspector-body">
-              <p>Цвет провода</p>
-              <div className="workbench-wire-swatches">
+            <div
+              className="workbench-inspector-body workbench-wire-inspector-compact"
+              data-testid="wire-inspector-compact"
+            >
+              <div className="workbench-wire-swatches" aria-label="Цвет выбранного провода">
                 {WIRE_COLORS.map((color) => (
                   <button
                     key={color}
@@ -2241,25 +2400,41 @@ export function WorkbenchSidebars({
                     style={{ background: color }}
                     onClick={() => c.setWireColor(color)}
                     aria-label={`Цвет ${color}`}
+                    title={`Цвет ${color}`}
                   />
                 ))}
               </div>
-              <div className="workbench-inspector-actions vertical">
-                <button type="button" onClick={c.toggleWireRoute}>
-                  <WireIcon /> Проложить автоматически под 90°
+              <div className="workbench-wire-compact-actions">
+                <button
+                  type="button"
+                  onClick={c.removeWireBends}
+                  aria-label="Выпрямить провод"
+                  title="Выпрямить провод"
+                >
+                  <WireIcon />
                 </button>
-                <button type="button" onClick={c.removeWireBends}>
-                  Убрать изгибы
+                <button
+                  type="button"
+                  className="workbench-wire-delete"
+                  onClick={c.removeSelection}
+                  aria-label="Удалить провод"
+                  title="Удалить провод"
+                >
+                  <DeleteIcon className="workbench-delete-icon" />
                 </button>
-                <button type="button" onClick={() => c.beginReconnect('from')}>
-                  Переподключить начало
-                </button>
-                <button type="button" onClick={() => c.beginReconnect('to')}>
-                  Переподключить конец
-                </button>
-                <button type="button" className="danger" onClick={c.removeSelection}>
-                  Удалить
-                </button>
+                <details className="workbench-wire-more">
+                  <summary aria-label="Ещё действия с проводом" title="Ещё действия с проводом">
+                    …
+                  </summary>
+                  <div className="workbench-wire-more-menu">
+                    <button type="button" onClick={() => c.beginReconnect('from')}>
+                      Переподключить начало
+                    </button>
+                    <button type="button" onClick={() => c.beginReconnect('to')}>
+                      Переподключить конец
+                    </button>
+                  </div>
+                </details>
               </div>
             </div>
           ) : null}

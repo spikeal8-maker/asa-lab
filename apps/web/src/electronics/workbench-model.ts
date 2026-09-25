@@ -53,6 +53,8 @@ export interface ComponentDrag {
   startedDocument: SchematicDocument;
   startClient: Point;
   bounds: { minX: number; minY: number; maxX: number; maxY: number } | null;
+  startedInSimulation: boolean;
+  structuralEditStarted: boolean;
 }
 
 export interface CatalogPlacement {
@@ -115,6 +117,25 @@ export interface HistoryState {
 
 export function selectedComponentIds(selection: Selection): string[] {
   return selection?.kind === 'component' ? selection.ids : [];
+}
+
+export function nextComponentSelection(
+  current: Selection,
+  componentId: string,
+  additive: boolean,
+): Selection {
+  if (!additive || current?.kind !== 'component') {
+    return { kind: 'component', id: componentId, ids: [componentId] };
+  }
+  const ids = current.ids.includes(componentId)
+    ? current.ids.filter((id) => id !== componentId)
+    : [...current.ids, componentId];
+  if (ids.length === 0) return null;
+  return {
+    kind: 'component',
+    id: ids.includes(current.id) ? current.id : (ids[0] as string),
+    ids,
+  };
 }
 
 export function initials(name: string): string {

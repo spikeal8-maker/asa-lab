@@ -29,11 +29,22 @@ const persistenceIndicatorSource = readFileSync(
   'utf8',
 );
 const workbenchCss = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
+const geometrySource = readFileSync(resolve(electronicsRoot, 'workbench-geometry.ts'), 'utf8');
+const shortcutsSource = readFileSync(resolve(electronicsRoot, 'workbench-shortcuts.ts'), 'utf8');
+const iconSource = readFileSync(resolve(electronicsRoot, 'workbench-icons.tsx'), 'utf8');
+const dragPreviewSource = readFileSync(
+  resolve(electronicsRoot, 'workbench-drag-preview.ts'),
+  'utf8',
+);
 
 describe('owner-reference Electronics presentation contract', () => {
   it('keeps idle terminals and breadboard overlays invisible until an active target state', () => {
     expect(stageSource).not.toContain('workbench-snap-link');
-    expect(stageSource).toContain('width={10 / c.viewport.zoom}');
+    expect(stageSource).toContain('TERMINAL_MARKER_SIZE');
+    expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
+    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(stageSource).not.toContain('width={10 / c.viewport.zoom}');
+    expect(stageSource).not.toContain('r={8 / c.viewport.zoom}');
     expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
     expect(stageSource).toContain("? ' wiring' : ''");
     expect(workbenchCss).toMatch(/\.workbench-terminal-dot\s*\{[^}]*opacity:\s*0;/s);
@@ -247,7 +258,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(workbenchCss).toContain('.workbench-component-diagnostic-indicator circle');
     expect(workbenchCss).toContain('.workbench-led-explosion-outer');
     expect(workbenchCss).toContain('.workbench-led-explosion-inner');
-    expect(stageSource).toContain('data-presentation-state={c.resultByComponent.get(component.id)');
+    expect(stageSource).toContain(
+      'c.runtimePresentationResultByComponent.get(component.id)?.presentationState',
+    );
     expect(workbenchCss).toContain("[data-presentation-state='destructive'][data-kind='source']");
     expect(workbenchCss).toContain("[data-presentation-state='destructive'][data-kind='resistor']");
     expect(workbenchCss).toContain('@keyframes workbench-component-overheat');
@@ -277,8 +290,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('data-testid="photoresistor-reference-profile"');
     expect(sidebarSource).toContain('Сопротивление сейчас');
     expect(sidebarSource).toContain('Больше света → меньше сопротивление');
+    expect(controllerModuleSource).toContain("component?.kind === 'photoresistor'");
     expect(controllerModuleSource).toContain(
-      "Object.keys(properties).every((key) => key === 'illumination')",
+      "runtimeOnlyControl = keys.every((key) => key === 'illumination')",
     );
   });
 
@@ -332,23 +346,72 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(stageSource).toContain('c.startSegmentDrag(event, wireId, segmentIndex)');
     expect(stageSource).toContain('c.addWireVertexAt(event, wireId)');
-    expect(controllerModuleSource).toContain('lastSegmentPressRef');
+    expect(controllerModuleSource).not.toContain('lastSegmentPressRef');
+    const segmentStart = controllerModuleSource.slice(
+      controllerModuleSource.indexOf('function startSegmentDrag('),
+      controllerModuleSource.indexOf('function removeWireVertexAt('),
+    );
+    expect(segmentStart).not.toContain('insertWireVertex');
+    expect(stageSource).toContain('pointerSequenceRef');
+    expect(stageSource).toContain('previous.pointerSequence + 1 === pointerSequenceRef.current');
+    expect(stageSource).toContain('previous.mutationEpoch === c.documentMutationEpoch()');
     expect(controllerModuleSource).toContain('lastVertexPressRef');
     expect(controllerModuleSource).toContain('insertWireVertex(document, wireId, toWorld(event))');
     expect(controllerModuleSource).toContain('removeWireVertexAt(wireId, vertexIndex)');
     expect(stageSource).toContain('workbench-wire-endpoint');
+    expect(stageSource).toContain('data-testid="wire-endpoint-visible"');
+    expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
+    expect(geometrySource).toContain('TERMINAL_MARKER_SIZE = 8');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_VISIBLE_RADIUS = 4');
+    expect(geometrySource).toContain('WIRE_ENDPOINT_HIT_RADIUS = 9');
+    expect(workbenchCss).toMatch(
+      /\.workbench-inspector\.wire-selected\s*\{[^}]*border:\s*1px solid #cbd3d9;/s,
+    );
+    expect(workbenchCss).toMatch(
+      /\.workbench-inspector\.wire-selected\s*\{[^}]*border-radius:\s*8px;/s,
+    );
+    expect(workbenchCss).toContain('border-left: 1px solid #e1e6e9;');
+    expect(workbenchCss).toContain('caret-color: transparent;');
+    expect(workbenchCss).toContain('.workbench-wire-inspector-compact button,');
+    expect(sidebarSource).toContain('<DeleteIcon className="workbench-delete-icon" />');
+    expect(iconSource).toContain(
+      'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z',
+    );
+    expect(iconSource).toContain('fill="currentColor"');
+    expect(iconSource).toContain('stroke="none"');
+    expect(iconSource).not.toContain('<path d="M10 11v5M14 11v5" />');
+    expect(headerSource).toContain('aria-pressed={c.simulationRunning}');
+    expect(workbenchCss).toContain('@keyframes workbench-simulation-running-pulse');
+    expect(workbenchCss).toMatch(
+      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\.running\s*\{[^}]*border-color:\s*#4d91c7;[^}]*background:\s*#eaf5fc;[^}]*color:\s*#216b9d;[^}]*font-weight:\s*700;/s,
+    );
+    expect(workbenchCss).not.toContain('background: #b42318;');
+    expect(headerSource).toContain('{c.simulationRunning ? <StopIcon /> : <PlayIcon />}');
+    expect(controllerModuleSource).toContain("useState<ComponentCategory>('all')");
+    expect(controllerModuleSource).toContain('DESKTOP_INITIAL_ZOOM = 1.25');
+    expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_STEP = 5');
+    expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_LARGE_STEP = 20');
+    expect(sidebarSource).toContain('workbench-library-search-toggle');
+    expect(workbenchCss).toContain('--wb-library-open-height: calc(156px');
+    expect(workbenchCss).toContain('--wb-library-closed-height: calc(18px');
+    expect(dragPreviewSource).toContain('.workbench-wire-editor-layer > g[data-wire-id=');
+    expect(dragPreviewSource).toContain('circle[data-wire-vertex-index]');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
     expect(stageSource).toContain('event.detail >= 2');
-    expect(stageSource).toContain('c.wireDraftVertices');
-    expect(stageSource.indexOf('workbench-wire-overlay')).toBeGreaterThan(
-      stageSource.indexOf('{orderedComponents'),
-    );
-    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeGreaterThan(
-      stageSource.indexOf('{orderedComponents'),
-    );
-    expect(stageSource.indexOf('workbench-wire-hit-layer')).toBeLessThan(
-      stageSource.indexOf('workbench-wire-overlay'),
-    );
+    expect(stageSource).toContain('c.wirePreviewVertices');
+    const layerMarkers = [
+      'data-testid="breadboard-body-layer"',
+      'className="workbench-wire-layer workbench-wire-hit-layer"',
+      'data-testid="wire-layer"',
+      'data-testid="component-body-layer"',
+      'data-testid="terminal-overlay-layer"',
+      'data-testid="wire-editor-layer"',
+      'data-testid="wire-control-layer"',
+    ];
+    const layerPositions = layerMarkers.map((marker) => stageSource.indexOf(marker));
+    expect(layerPositions.every((position) => position >= 0)).toBe(true);
+    expect(layerPositions).toEqual([...layerPositions].sort((a, b) => a - b));
+    expect(stageSource).toContain('data-testid="component-terminal-overlay"');
     expect(workbenchCss).toMatch(/\.workbench-wire\s*\{[^}]*pointer-events:\s*none;/s);
     expect(workbenchCss).toMatch(/\.workbench-wire-hit\s*\{[^}]*pointer-events:\s*stroke;/s);
     expect(stageSource).toContain('className="workbench-wire-selection"');
@@ -370,43 +433,101 @@ describe('owner-reference Electronics presentation contract', () => {
       controllerSource.indexOf('function wireVertexDragPoint'),
       controllerSource.indexOf('function wireDraftPoint'),
     );
+    expect(vertexPointLogic).toContain('resolveWireVertexAssist');
+    expect(vertexPointLogic).toContain('vertexAssistTargetRef.current');
     expect(vertexPointLogic).not.toContain('magneticWirePoint');
-    expect(controllerSource).toContain('magneticWirePoint(anchor, freePoint');
+    expect(controllerSource).toContain('resolveWireAssist(');
+    expect(controllerSource).toContain('worldToClient(');
+    expect(controllerSource).toContain('wireAssistAxisRef.current');
+    expect(controllerSource).toContain('event.altKey');
+    expect(controllerSource).toContain(
+      'completeOrthogonalRoute(start, targetPoint, wireDraftVertices)',
+    );
+    expect(stageSource).toContain('data-testid="wire-alignment-guide"');
+    expect(workbenchCss).toMatch(/\.workbench-wire-guide\s*\{[^}]*pointer-events:\s*none;/s);
     expect(controllerSource).toContain('lockOrthogonalBend');
     expect(controllerSource).toContain('orthogonalWireMode || event.shiftKey');
-    expect(controllerSource).toContain(
-      'wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey)',
-    );
     expect(controllerSource).toContain('removeWireVertexAt');
     expect(controllerSource).toContain("selection.kind === 'wire' && selection.vertexIndex");
-    const newWireStart = controllerSource.slice(
-      controllerSource.indexOf('if (!pendingTerminal) {'),
-      controllerSource.indexOf('if (pendingTerminal.componentId'),
+    const beginWire = controllerSource.slice(
+      controllerSource.indexOf('function beginWireAtTerminal'),
+      controllerSource.indexOf('function commitPendingWireTo'),
     );
-    expect(newWireStart).toContain('setSelection(null);');
-    expect(newWireStart.indexOf('setSelection(null);')).toBeLessThan(
-      newWireStart.indexOf('setPendingTerminal({ componentId, terminal });'),
+    expect(beginWire).toContain('setSelection(null);');
+    expect(beginWire).toContain('setPendingTerminal(source);');
+    expect(beginWire.indexOf('setSelection(null);')).toBeLessThan(
+      beginWire.indexOf('setPendingTerminal(source);'),
+    );
+    expect(controllerSource).toContain(
+      'terminalTargetAt(event.clientX, event.clientY) ?? { componentId, terminal }',
     );
 
-    // A running simulation is a circuit under power: it can be operated, not
-    // rebuilt. Components used to stay draggable while it ran, so the board could
-    // be rearranged underneath a result that described the old arrangement.
-    // Actuators, the potentiometer and the value fields keep working.
-    expect(controllerSource).toContain(
-      'Идёт моделирование: остановите его, чтобы переставлять компоненты.',
+    // Running simulation is a rigid structural lock. Only catalog pickup has
+    // the explicit auto-stop path; runtime actuator/measurement paths stay live.
+    expect(controllerSource).toContain('function structuralEditAllowed(): boolean');
+    expect(controllerSource).toContain('function stopSimulationForCatalogPlacement(): void');
+    expect(controllerSource).toContain('stopSimulationForCatalogPlacement();');
+    expect(controllerSource).toContain('simulationWorkerRef.current?.stop();');
+    const componentDrag = controllerSource.slice(
+      controllerSource.indexOf('function startComponentDrag'),
+      controllerSource.indexOf('function wiperPositionFromPointer'),
     );
-    expect(controllerSource).toContain(
-      'Идёт моделирование: остановите его, чтобы менять соединения.',
+    expect(componentDrag).toContain("simulationRunning && component.kind === 'button'");
+    expect(componentDrag).toContain("simulationRunning && component.kind === 'switch'");
+    expect(componentDrag).toContain('if (simulationRunning) {');
+    expect(componentDrag).toContain(
+      "setSelection({ kind: 'component', id: component.id, ids: [component.id] });",
     );
+    const componentMove = controllerSource.slice(
+      controllerSource.indexOf('const drag = componentDragRef.current;'),
+      controllerSource.indexOf('const pan = panDragRef.current;'),
+    );
+    expect(componentMove).not.toContain('stopSimulationForCatalogPlacement();');
+    expect(componentMove).not.toContain('structuralEditStarted = true');
     const vertexDrag = controllerSource.slice(controllerSource.indexOf('function startVertexDrag'));
-    expect(vertexDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
+    expect(vertexDrag.slice(0, 360)).toContain('if (!structuralEditAllowed()) return;');
     const endpointDrag = controllerSource.slice(
       controllerSource.indexOf('function startEndpointDrag'),
     );
-    expect(endpointDrag.slice(0, 320)).toContain('if (simulationRunning) return;');
+    expect(endpointDrag.slice(0, 360)).toContain('if (!structuralEditAllowed()) return;');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
     expect(stageSource).toContain('onPointerDownCapture={c.beginStagePointer}');
     expect(controllerSource).toContain('placeCatalogComponent(event)');
+
+    // Runtime presentation is a running-simulation contract; static solve data
+    // remains available to diagnostics without driving destructive visuals.
+    expect(controllerSource).toContain('runtimePresentationResultByComponent');
+    expect(controllerSource).toContain('simulationRunning ? resultByComponent');
+    expect(stageSource).toContain(
+      'c.runtimePresentationResultByComponent.get(component.id)?.presentationState',
+    );
+    expect(stageSource).toContain(
+      'result={c.runtimePresentationResultByComponent.get(component.id)}',
+    );
+
+    // Guides render through the visible viewBox, not just the active segment.
+    expect(stageSource).toContain('wireGuideAxes(c.wireGuide)');
+    expect(stageSource).toContain('data-guide-axis={axis.orientation}');
+    expect(stageSource).toContain('c.viewBox.x + c.viewBox.width');
+    expect(stageSource).toContain('c.viewBox.y + c.viewBox.height');
+    expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
+    expect(workbenchCss).toMatch(
+      /\.workbench-wire-guide\s*\{[^}]*stroke-width:\s*1px;[^}]*pointer-events:\s*none;/s,
+    );
+
+    // Command shortcuts use physical codes and ignore editable ancestors.
+    expect(controllerSource).toContain('resolveWorkbenchShortcut(event)');
+    expect(controllerSource).toContain('isEditableShortcutTarget(event.target)');
+    expect(controllerSource).not.toContain('event.key.toLowerCase()');
+    expect(shortcutsSource).toContain("event.code === 'KeyC'");
+    expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
+    expect(shortcutsSource).toContain('.monaco-editor textarea');
+
+    // Multi-selection has a summary inspector instead of one component editor.
+    expect(controllerSource).toContain(
+      "selection?.kind === 'component' && selection.ids.length === 1",
+    );
+    expect(sidebarSource).toContain('Выбрано: ${c.selection.ids.length}');
   });
 
   it('uses compact inline properties and real schematic/BOM export actions', () => {
@@ -621,10 +742,42 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(sidebarSource).toContain("c.libraryOpen ? 'Скрыть компоненты' : 'Компоненты'");
     expect(controllerModuleSource).toContain("window.matchMedia?.('(max-width: 980px)')");
-    expect(workbenchCss).toContain('touch-action: pan-x');
+    expect(workbenchCss).toContain('touch-action: pan-x pinch-zoom');
     expect(editorSource).toContain('onMobileHeightChange={setCodeHeightPercent}');
     expect(controllerModuleSource).toContain('Компонент выбран. Коснитесь места на рабочем поле');
-    expect(stageSource).toContain('coarseInteraction ? 14 : 8');
-    expect(stageSource).toContain('coarseInteraction ? 10 : 5');
+    expect(sidebarSource).toContain("mode: 'pending' | 'dragging' | 'scrolling'");
+    expect(sidebarSource).toContain('Math.abs(dy) >= 1.25 * Math.abs(dx)');
+    expect(sidebarSource).toContain("touch.mode = 'scrolling'");
+    expect(sidebarSource).toContain("touch.mode = 'dragging'");
+    expect(stageSource).toContain('TERMINAL_TOUCH_HIT_RADIUS');
+    expect(stageSource).toContain('TERMINAL_HIT_RADIUS');
+  });
+
+  it('keeps runtime visuals, structural lock, full guide, multi-select and code shortcuts explicit', () => {
+    expect(controllerModuleSource).toContain('function structuralEditAllowed(): boolean');
+    expect(controllerModuleSource).toContain('function stopSimulationForCatalogPlacement(): void');
+    expect(controllerModuleSource).toContain('runtimePresentationResultByComponent');
+    expect(stageSource).toContain('c.runtimePresentationResultByComponent');
+    expect(stageSource).toContain('wireGuideAxes(c.wireGuide)');
+    expect(stageSource).toContain('data-guide-axis={axis.orientation}');
+    expect(stageSource).toContain('vectorEffect="non-scaling-stroke"');
+    expect(workbenchCss).toMatch(/\.workbench-wire-guide\s*\{[^}]*stroke-width:\s*1px;/s);
+    expect(iconSource).toContain(
+      'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM8 9h8v10H8V9zm7.5-5-1-1h-5l-1 1H5v2h14V4z',
+    );
+    expect(sidebarSource).toContain('className="workbench-wire-delete"');
+    expect(controllerModuleSource).toContain(
+      'nextComponentSelection(current, componentId, additive)',
+    );
+    expect(controllerModuleSource).toContain('selection.ids.length === 1');
+    expect(shortcutsSource).toContain("event.code === 'KeyC'");
+    expect(shortcutsSource).toContain("event.code === 'KeyV'");
+    expect(shortcutsSource).toContain("event.code === 'KeyD'");
+    expect(shortcutsSource).toContain("event.code === 'KeyZ'");
+    expect(shortcutsSource).toContain("event.code === 'KeyY'");
+    expect(shortcutsSource).toContain('[contenteditable]:not([contenteditable="false"])');
+    expect(shortcutsSource).toContain('.arduino-source-editor');
+    expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'c'");
+    expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'v'");
   });
 });

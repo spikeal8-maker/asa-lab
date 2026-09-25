@@ -273,6 +273,11 @@
   stroke-width: 2;
   cursor: default;
 }
+.workbench-wire-endpoint-hit {
+  fill: rgba(255, 255, 255, 0.001);
+  stroke: none;
+  cursor: grab;
+}
 
 .workbench-terminal-list {
   display: grid;
@@ -887,6 +892,12 @@
   stroke-linecap: round;
   stroke-linejoin: round;
   opacity: 0.35;
+  pointer-events: none;
+}
+.workbench-wire-guide {
+  stroke: #7196a6;
+  stroke-width: 1px;
+  opacity: 0.72;
   pointer-events: none;
 }
 .workbench-wire-preview {
@@ -5080,14 +5091,14 @@ html.arduino-palette-resizing * {
     overflow-x: auto;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
-    touch-action: pan-x;
+    touch-action: pan-x pinch-zoom;
   }
   .workbench-catalog-card,
   .workbench-catalog-grid.list-view .workbench-catalog-card {
     width: 94px;
     height: 100px;
     min-height: 100px;
-    touch-action: pan-x;
+    touch-action: pan-x pinch-zoom;
   }
   .workbench-catalog-add,
   .workbench-catalog-grid.list-view .workbench-catalog-add {
@@ -5341,6 +5352,13 @@ html.arduino-palette-resizing * {
   .workbench-shell {
     --wb-library-open-height: 152px;
   }
+  /* Keep the selected component's body reachable on short landscape screens.
+     The full 300px compact inspector could cover the placed resistor entirely
+     at 568x320; wire-selected keeps its separate R4 geometry below. */
+  .workbench-inspector:not(.wire-selected),
+  .workbench-inspector.library-hidden:not(.wire-selected) {
+    width: min(200px, calc(100% - 80px));
+  }
   .workbench-library-heading,
   .workbench-library-search {
     top: 40px;
@@ -5409,5 +5427,467 @@ html.arduino-palette-resizing * {
   }
   .workbench-tool {
     width: 48px;
+  }
+}
+
+/* Pointer capture keeps hover ownership on the stage, so mark the real drop target explicitly. */
+.workbench-terminal.drop-target .workbench-terminal-dot,
+.workbench-breadboard-terminal.drop-target .workbench-contact-square {
+  opacity: 1;
+  fill: #17a34a;
+  stroke: #117c39;
+}
+
+/* Natural wire routing controls: compact swatches and a single-row selected-wire toolset. */
+.workbench-wire-color {
+  flex: 0 0 48px;
+  min-width: 48px;
+  width: 48px;
+}
+.workbench-wire-color summary {
+  padding: 0 5px;
+}
+.workbench-wire-color summary > span {
+  flex-basis: 26px;
+  width: 26px;
+  height: 26px;
+}
+.workbench-wire-color-menu {
+  grid-template-columns: repeat(3, 28px);
+  gap: 4px;
+  width: max-content;
+  padding: 5px;
+}
+.workbench-wire-color-menu button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 2px;
+}
+.workbench-wire-color-menu button > span {
+  width: 20px;
+  height: 20px;
+}
+.workbench-inspector.wire-selected {
+  box-sizing: border-box;
+  width: 286px;
+  max-width: 296px;
+  max-height: 48px;
+  overflow: visible;
+  border: 1px solid #cbd3d9;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 3px 10px rgba(34, 50, 61, 0.16);
+  pointer-events: none;
+}
+.workbench-wire-inspector-compact {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  pointer-events: auto;
+}
+.workbench-wire-inspector-compact .workbench-wire-swatches {
+  display: grid;
+  grid-template-columns: repeat(6, 24px);
+  gap: 4px;
+  margin: 0;
+}
+.workbench-wire-inspector-compact .workbench-wire-swatches button {
+  box-sizing: border-box;
+  width: 24px;
+  min-width: 24px;
+  height: 24px;
+  min-height: 24px;
+  border-radius: 6px;
+}
+.workbench-wire-inspector-compact button,
+.workbench-wire-more > summary {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  caret-color: transparent;
+}
+.workbench-wire-compact-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: 6px;
+  border-left: 1px solid #e1e6e9;
+}
+.workbench-wire-compact-actions > button,
+.workbench-wire-more > summary {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  min-height: 28px;
+  padding: 4px;
+  border: 1px solid #cbd4db;
+  border-radius: 5px;
+  background: #fff;
+  color: #344c5c;
+  font: inherit;
+  cursor: pointer;
+}
+.workbench-wire-compact-actions > button.workbench-wire-delete {
+  color: #344c5c;
+}
+.workbench-wire-compact-actions > button.workbench-wire-delete:hover,
+.workbench-wire-compact-actions > button.workbench-wire-delete:focus-visible,
+.workbench-wire-compact-actions > button.workbench-wire-delete:active {
+  color: #a82c31;
+}
+.workbench-wire-inspector-compact button:focus-visible,
+.workbench-wire-more > summary:focus-visible,
+.workbench-wire-more-menu button:focus-visible {
+  outline: 2px solid #168cc5;
+  outline-offset: 2px;
+}
+.workbench-wire-compact-actions > button svg {
+  width: 16px;
+  height: 16px;
+}
+.workbench-wire-compact-actions > button .workbench-delete-icon {
+  width: 20px;
+  height: 20px;
+}
+.workbench-wire-more {
+  position: relative;
+}
+.workbench-wire-more > summary {
+  width: 28px;
+  padding: 4px;
+  list-style: none;
+}
+.workbench-wire-more > summary::-webkit-details-marker {
+  display: none;
+}
+.workbench-wire-more-menu {
+  position: absolute;
+  z-index: 85;
+  top: calc(100% + 4px);
+  right: 0;
+  display: grid;
+  min-width: 190px;
+  padding: 5px;
+  border: 1px solid #cbd4db;
+  border-radius: 5px;
+  background: #fff;
+  box-shadow: 0 5px 14px rgba(41, 58, 70, 0.2);
+}
+.workbench-wire-more-menu button {
+  padding: 7px 9px;
+  border: 0;
+  background: transparent;
+  color: #344c5c;
+  text-align: left;
+}
+.workbench-wire-more-menu button:hover {
+  background: #eef4f7;
+}
+.workbench-wire-more-menu button.danger {
+  color: #a83b34;
+}
+
+@media (max-width: 980px) {
+  .workbench-inspector.wire-selected,
+  .workbench-inspector.wire-selected.library-hidden {
+    top: 8px;
+    right: 8px;
+    left: auto;
+    box-sizing: border-box;
+    width: min(296px, calc(100% - 16px));
+    max-width: calc(100% - 16px);
+    max-height: 112px;
+    overflow: visible;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-inspector-compact {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 5px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-swatches {
+    grid-template-columns: repeat(6, 44px);
+    gap: 4px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-swatches button {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-compact-actions {
+    gap: 4px;
+    padding-top: 4px;
+    padding-left: 0;
+    border-top: 1px solid #e1e6e9;
+    border-left: 0;
+  }
+  .workbench-inspector.wire-selected .workbench-wire-compact-actions > button,
+  .workbench-inspector.wire-selected .workbench-wire-more > summary {
+    width: 44px;
+    min-width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+}
+
+/* On narrow phones the six accessible swatches cannot share a row with
+   the zoom controls. Dock below them, above the closed component shelf. */
+@media (max-width: 360px) {
+  .workbench-inspector.wire-selected,
+  .workbench-inspector.wire-selected.library-hidden {
+    top: auto;
+    bottom: calc(var(--wb-library-closed-height) + 8px);
+  }
+}
+
+/* Running simulation stays obvious without using an error/danger treatment.
+   The calm blue-teal accent reads as an active mode on both desktop and mobile. */
+@keyframes workbench-simulation-running-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(47, 127, 184, 0.14),
+      0 0 0 0 rgba(47, 127, 184, 0);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(47, 127, 184, 0.2),
+      0 0 0 7px rgba(47, 127, 184, 0.08);
+  }
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running {
+  border-color: #4d91c7;
+  background: #eaf5fc;
+  color: #216b9d;
+  font-weight: 700;
+  animation: workbench-simulation-running-pulse 1.9s ease-in-out infinite;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running:hover:not(:disabled) {
+  border-color: #3f84bb;
+  background: #dceef9;
+  color: #195f90;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running svg {
+  fill: currentColor;
+}
+@media (prefers-reduced-motion: reduce) {
+  .workbench-toolbar-group.right .workbench-pill.simulate.running {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(47, 127, 184, 0.16);
+  }
+}
+
+.workbench-library-search-toggle {
+  display: none;
+}
+
+/* Owner D5: compact mobile component shelf with an edge handle and opt-in search. */
+@media (max-width: 980px) {
+  .workbench-shell {
+    --wb-library-open-height: calc(156px + env(safe-area-inset-bottom));
+    --wb-library-closed-height: calc(18px + env(safe-area-inset-bottom));
+  }
+  .workbench-library,
+  .workbench-library.collapsed {
+    border-radius: 8px 8px 0 0;
+  }
+  .workbench-library-collapse {
+    left: auto;
+    right: 8px;
+    top: -28px;
+    width: 36px;
+    height: 28px;
+    gap: 0;
+    border: 1px solid #cfd6dc;
+    border-bottom: 0;
+    border-radius: 8px 8px 0 0;
+    background: rgba(255, 255, 255, 0.98);
+    color: #3d5464;
+    box-shadow: 0 -1px 5px rgba(29, 43, 54, 0.06);
+  }
+  .workbench-library-collapse svg {
+    width: 16px;
+    height: 16px;
+    transform: rotate(90deg);
+  }
+  .workbench-library-handle-label {
+    display: none;
+  }
+  .workbench-library-heading {
+    top: 8px;
+    left: 8px;
+    right: 52px;
+    width: auto;
+    min-height: 36px;
+  }
+  .workbench-library-heading select {
+    height: 36px;
+    font-size: 15px;
+  }
+  .workbench-library-search-toggle {
+    position: absolute;
+    z-index: 8;
+    top: 8px;
+    right: 8px;
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid #d3dbe1;
+    border-radius: 6px;
+    background: #fff;
+    color: #3d5464;
+  }
+  .workbench-library-search-toggle.active {
+    border-color: #168cc5;
+    background: #eaf5fa;
+    color: #126f99;
+  }
+  .workbench-library-search-toggle svg {
+    width: 18px;
+    height: 18px;
+  }
+  .workbench-library-search {
+    top: 8px;
+    left: 8px;
+    right: 52px;
+    z-index: 7;
+    display: none;
+    margin: 0;
+  }
+  .workbench-library-search.mobile-open {
+    display: block;
+  }
+  .workbench-library-search input {
+    box-sizing: border-box;
+    width: 100%;
+    height: 36px;
+    padding: 5px 34px 5px 10px;
+    font-size: 15px;
+  }
+  .workbench-library-search svg {
+    top: 8px;
+    width: 19px;
+    height: 19px;
+  }
+  .workbench-catalog-grid,
+  .workbench-catalog-grid.list-view {
+    top: 50px;
+    grid-auto-columns: 88px;
+    grid-template-rows: 92px;
+    gap: 7px;
+    padding: 0 8px 6px;
+  }
+  .workbench-catalog-card,
+  .workbench-catalog-grid.list-view .workbench-catalog-card {
+    width: 88px;
+    height: 92px;
+    min-height: 92px;
+  }
+  .workbench-catalog-add,
+  .workbench-catalog-grid.list-view .workbench-catalog-add {
+    grid-template-rows: 62px 26px;
+    padding: 1px 3px;
+  }
+  .workbench-catalog-art,
+  .workbench-catalog-grid.list-view .workbench-catalog-art {
+    height: 62px;
+  }
+}
+
+/* Owner mobile inspector acceptance: keep the selected component visible beside
+   a compact, scrollable properties panel without changing desktop or wire UI. */
+@media (max-width: 980px) and (orientation: portrait) {
+  .workbench-inspector:not(.wire-selected),
+  .workbench-inspector.library-hidden:not(.wire-selected) {
+    width: min(228px, calc(100% - 96px));
+    max-height: min(420px, calc(100% - var(--wb-library-closed-height) - 16px));
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-heading {
+    min-height: 44px;
+    gap: 4px;
+    padding: 0 4px 0 6px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-heading span {
+    font-size: 13px;
+    line-height: 1.1;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-information-actions {
+    gap: 2px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-help {
+    width: 44px;
+    height: 44px;
+    font-size: 13px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body {
+    padding: 1px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body > label,
+  .workbench-inspector:not(.wire-selected) .workbench-state-controls label {
+    min-height: 29px;
+    font-size: 12px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body > label {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-primary-controls label {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-body > label > span,
+  .workbench-inspector:not(.wire-selected) .workbench-state-controls label > span {
+    min-height: 29px;
+    padding: 3px 5px;
+  }
+
+  .workbench-inspector:not(.wire-selected) input,
+  .workbench-inspector:not(.wire-selected) select {
+    min-height: 34px;
+    height: 34px;
+    font-size: 16px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-preview {
+    height: 58px;
+    margin-bottom: 4px;
+  }
+
+  .workbench-inspector:not(.wire-selected)
+    .workbench-inspector-preview
+    .workbench-component-preview {
+    max-width: 72px;
+    max-height: 54px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-component-note,
+  .workbench-inspector:not(.wire-selected) .workbench-junction-summary {
+    padding: 4px 5px;
+  }
+
+  .workbench-inspector:not(.wire-selected) .workbench-inspector-actions.vertical {
+    gap: 3px;
+    margin-top: 4px;
   }
 }

@@ -40,7 +40,27 @@ function ToolButton({
   danger = false,
   onClick,
   children,
-}: ToolButtonProps): JSX.Element {
+  touchCommand = false,
+}: ToolButtonProps & { touchCommand?: boolean }): JSX.Element {
+  const tap = useRef<{ id: number; x: number; y: number } | null>(null);
+  const suppressTouchClick = useRef(false);
+  useEffect(() => {
+    if (!touchCommand) return;
+    const cancel = () => {
+      tap.current = null;
+    };
+    const otherPointer = (event: PointerEvent) => {
+      if (tap.current && event.pointerId !== tap.current.id) cancel();
+    };
+    window.addEventListener('pointerdown', otherPointer, true);
+    window.addEventListener('blur', cancel);
+    document.addEventListener('visibilitychange', cancel);
+    return () => {
+      window.removeEventListener('pointerdown', otherPointer, true);
+      window.removeEventListener('blur', cancel);
+      document.removeEventListener('visibilitychange', cancel);
+    };
+  }, [touchCommand]);
   return (
     <button
       type="button"
@@ -48,7 +68,62 @@ function ToolButton({
       aria-label={label}
       title={label}
       disabled={disabled}
-      onClick={onClick}
+      onPointerDown={(event) => {
+        suppressTouchClick.current = false;
+        tap.current =
+          touchCommand && event.pointerType === 'touch' && event.isPrimary
+            ? { id: event.pointerId, x: event.clientX, y: event.clientY }
+            : null;
+      }}
+      onPointerMove={(event) => {
+        const start = tap.current;
+        if (
+          start?.id === event.pointerId &&
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
+        ) {
+          tap.current = null;
+          suppressTouchClick.current = true;
+        }
+      }}
+      onPointerCancel={() => {
+        tap.current = null;
+      }}
+      onLostPointerCapture={() => {
+        tap.current = null;
+      }}
+      onPointerUp={(event) => {
+        if (!touchCommand || event.pointerType !== 'touch') return;
+        const start = tap.current;
+        tap.current = null;
+        // Chromium may omit click after a native drag. Activate one bounded
+        // touch tap, and consume its compatibility click when one is emitted.
+        // No capture here: native toolbar scrolling and cancellation stay native.
+        suppressTouchClick.current = true;
+        if (
+          !start ||
+          start.id !== event.pointerId ||
+          disabled ||
+          Math.hypot(event.clientX - start.x, event.clientY - start.y) > 5
+        )
+          return;
+        const box = event.currentTarget.getBoundingClientRect();
+        if (
+          event.clientX < box.left ||
+          event.clientX > box.right ||
+          event.clientY < box.top ||
+          event.clientY > box.bottom
+        )
+          return;
+        onClick?.();
+      }}
+      onClick={(event) => {
+        if (touchCommand && suppressTouchClick.current && event.detail > 0) {
+          suppressTouchClick.current = false;
+          return;
+        }
+        suppressTouchClick.current = false;
+        onClick?.();
+      }}
     >
       {children}
     </button>
@@ -200,10 +275,20 @@ export function WorkbenchHeader({
               <DeleteIcon />
             </ToolButton>
             <span className="workbench-toolbar-divider" />
-            <ToolButton label="Отменить (Ctrl+Z)" onClick={c.undo} disabled={!c.canUndo}>
+            <ToolButton
+              label="Отменить (Ctrl+Z)"
+              touchCommand
+              onClick={c.undo}
+              disabled={!c.canUndo}
+            >
               <UndoIcon />
             </ToolButton>
-            <ToolButton label="Повторить (Ctrl+Shift+Z)" onClick={c.redo} disabled={!c.canRedo}>
+            <ToolButton
+              label="Повторить (Ctrl+Shift+Z)"
+              touchCommand
+              onClick={c.redo}
+              disabled={!c.canRedo}
+            >
               <RedoIcon />
             </ToolButton>
             <span className="workbench-toolbar-divider" />
@@ -235,9 +320,10 @@ export function WorkbenchHeader({
                       c.setWireColor(color);
                       wireColorMenuRef.current?.removeAttribute('open');
                     }}
+                    aria-label={`Цвет провода: ${WIRE_COLOR_NAMES[color]}`}
+                    title={WIRE_COLOR_NAMES[color]}
                   >
                     <span style={{ background: color }} />
-                    {WIRE_COLOR_NAMES[color]}
                   </button>
                 ))}
               </div>
@@ -336,7 +422,11 @@ export function WorkbenchHeader({
             onClick={() => void c.toggleSimulation()}
             disabled={c.busy}
             data-simulation-status={c.simulationStatus}
+            aria-pressed={c.simulationRunning}
             aria-label={c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}
+            title={
+              c.simulationRunning ? 'Моделирование запущено — остановить' : 'Начать моделирование'
+            }
           >
             {c.simulationRunning ? <StopIcon /> : <PlayIcon />}
             {c.simulationRunning ? 'Остановить моделирование' : 'Начать моделирование'}

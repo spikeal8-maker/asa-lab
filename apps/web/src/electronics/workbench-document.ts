@@ -525,7 +525,7 @@ export function moveWireVertex(
         // handler could put a bend where it was wanted — it jumped to the nearest
         // node instead, and running a wire alongside another wire was impossible.
         vertices: wire.vertices.map((vertex, index) =>
-          index === vertexIndex ? { x: Math.round(point.x), y: Math.round(point.y) } : vertex,
+          index === vertexIndex ? { x: point.x, y: point.y } : vertex,
         ),
       };
     }),

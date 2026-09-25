@@ -32,11 +32,15 @@ import {
   freeWirePoint,
   lockOrthogonalBend,
   lockOrthogonalPoint,
-  magneticWirePoint,
   potentiometerWiperPosition,
+  resolveWireAssist,
+  resolveWireVertexAssist,
   viewportViewBox,
+  worldToClient,
   type Point,
   type Viewport,
+  type WireAssistAxis,
+  type WireVertexAssistTarget,
 } from './workbench-geometry';
 import { useWorkbenchProjectState } from './use-workbench-project-state';
 import {
@@ -75,10 +79,10 @@ import {
   type ComponentDrag,
   type EndpointDrag,
   type MarqueeDrag,
-  MAGNET_SCREEN_UNITS,
   type PanDrag,
   type PotentiometerDrag,
   type SegmentDrag,
+  nextComponentSelection,
   type Selection,
   type TerminalRef,
   type VertexDrag,
@@ -98,6 +102,11 @@ import {
   createVisualFrame,
   translatedDragDocument,
 } from './workbench-drag-preview';
+import {
+  isEditableShortcutTarget,
+  resolveWorkbenchShortcut,
+  targetConsumesSpace,
+} from './workbench-shortcuts';
 
 function terminalRefKey(componentId: string, terminal: Terminal): string {
   return `${componentId}:${terminal}`;
@@ -109,6 +118,21 @@ function compactWorkbench(): boolean {
 }
 
 const ELECTRONICS_VIEWPORT_PREFIX = 'asa-electronics-viewport:';
+const WIRE_DRAG_THRESHOLD_PX = 5;
+const DESKTOP_INITIAL_ZOOM = 1.25;
+const KEYBOARD_NUDGE_STEP = 5;
+const KEYBOARD_NUDGE_LARGE_STEP = 20;
+
+function emptyInitialViewport(): Viewport {
+  if (compactWorkbench()) return DEFAULT_VIEWPORT;
+  const width = STAGE_WIDTH / DESKTOP_INITIAL_ZOOM;
+  const height = STAGE_HEIGHT / DESKTOP_INITIAL_ZOOM;
+  return {
+    x: (STAGE_WIDTH - width) / 2,
+    y: (STAGE_HEIGHT - height) / 2,
+    zoom: DESKTOP_INITIAL_ZOOM,
+  };
+}
 
 function ordinaryLedVisualState(result: ComponentResult | undefined): ComponentVisualState {
   if (result?.junctionState === 'reverse_blocking') return 'reverse';
@@ -175,15 +199,42 @@ export function useElectronicsWorkbench(projectId: string) {
     setProjectTitle,
     canUndo,
     canRedo,
-    undo,
-    redo,
-    commitDocument,
+    undo: projectUndo,
+    redo: projectRedo,
+    commitDocument: projectCommitDocument,
     saveNow,
     toggleSimulation,
     resetSimulation,
     checkpoint,
     renameProject,
   } = projectState;
+
+  const documentMutationEpochRef = useRef(0);
+
+  const markDocumentMutation = (): void => {
+    documentMutationEpochRef.current += 1;
+  };
+
+  const commitDocument = (...args: Parameters<typeof projectCommitDocument>) => {
+    // Runtime/environment inputs may remain live while modelling. Structural
+    // entrypoints reject mutation until the user stops simulation.
+    markDocumentMutation();
+    return projectCommitDocument(...args);
+  };
+
+  const undo = () => {
+    if (!structuralEditAllowed()) return;
+    markDocumentMutation();
+    return projectUndo();
+  };
+
+  const redo = () => {
+    if (!structuralEditAllowed()) return;
+    markDocumentMutation();
+    return projectRedo();
+  };
+
+  const documentMutationEpoch = (): number => documentMutationEpochRef.current;
 
   const [runtimeOverrides, setRuntimeOverrides] = useState<RuntimeComponentOverrides>({});
   const runtimeDocument = useMemo(
@@ -230,6 +281,23 @@ export function useElectronicsWorkbench(projectId: string) {
   runtimeDocumentRef.current = runtimeDocument;
   const resetSimulationRef = useRef(resetSimulation);
   resetSimulationRef.current = resetSimulation;
+
+  function stopSimulationForCatalogPlacement(): void {
+    if (!simulationRunning) return;
+    simulationWorkerRef.current?.stop();
+    resetSimulation();
+    setRuntimeOverrides({});
+    simulationStartedAtRef.current = null;
+    setRequestedHorizonMicroseconds(0);
+    setLiveResult(null);
+    setArduinoSerialByBoard({});
+  }
+
+  function structuralEditAllowed(): boolean {
+    if (!simulationRunning) return true;
+    setNotice('Моделирование запущено. Остановите его, чтобы изменить существующую схему.');
+    return false;
+  }
 
   useEffect(() => {
     if (!simulationRunning) {
@@ -359,11 +427,17 @@ export function useElectronicsWorkbench(projectId: string) {
   const [pendingTerminal, setPendingTerminal] = useState<TerminalRef | null>(null);
   const [wireDraftVertices, setWireDraftVertices] = useState<readonly Point[]>([]);
   const [wirePreviewEnd, setWirePreviewEnd] = useState<Point | null>(null);
+  const [wirePreviewVertices, setWirePreviewVertices] = useState<readonly Point[]>([]);
+  const [wireGuide, setWireGuide] = useState<{
+    readonly from: Point;
+    readonly via?: Point;
+    readonly to: Point;
+  } | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(() => !compactWorkbench());
+  const [libraryOpen, setLibraryOpen] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState('');
-  const [category, setCategory] = useState<ComponentCategory>('basic');
+  const [category, setCategory] = useState<ComponentCategory>('all');
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
   const [catalogPlacement, setCatalogPlacement] = useState<CatalogPlacement | null>(null);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
@@ -405,12 +479,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
   const segmentDragRef = useRef<SegmentDrag | null>(null);
-  const lastSegmentPressRef = useRef<{
-    wireId: string;
-    x: number;
-    y: number;
-    at: number;
-  } | null>(null);
   const lastVertexPressRef = useRef<{
     wireId: string;
     vertexIndex: number;
@@ -419,6 +487,15 @@ export function useElectronicsWorkbench(projectId: string) {
     at: number;
   } | null>(null);
   const endpointDragRef = useRef<EndpointDrag | null>(null);
+  const wireStartPressRef = useRef<{
+    pointerId: number;
+    source: TerminalRef;
+    startClient: Point;
+    dragging: boolean;
+  } | null>(null);
+  const suppressTerminalClickRef = useRef(false);
+  const wireAssistAxisRef = useRef<WireAssistAxis | null>(null);
+  const vertexAssistTargetRef = useRef<WireVertexAssistTarget | null>(null);
   const actuatorPressRef = useRef<ActuatorPress | null>(null);
   const potentiometerDragRef = useRef<PotentiometerDrag | null>(null);
   const spacePressedRef = useRef(false);
@@ -442,6 +519,7 @@ export function useElectronicsWorkbench(projectId: string) {
     spacePressedRef.current = false;
     const stage = stageRef.current;
     const pointerIds = [
+      wireStartPressRef.current?.pointerId,
       componentDragRef.current?.pointerId,
       vertexDragRef.current?.pointerId,
       segmentDragRef.current?.pointerId,
@@ -452,6 +530,8 @@ export function useElectronicsWorkbench(projectId: string) {
     vertexDragRef.current = null;
     segmentDragRef.current = null;
     endpointDragRef.current = null;
+    wireStartPressRef.current = null;
+    suppressTerminalClickRef.current = false;
     potentiometerDragRef.current = null;
     panDragRef.current = null;
     pinchRef.current = null;
@@ -460,6 +540,9 @@ export function useElectronicsWorkbench(projectId: string) {
     setPanning(false);
     setMarquee(null);
     setReconnectHover(null);
+    wireAssistAxisRef.current = null;
+    vertexAssistTargetRef.current = null;
+    setWireGuide(null);
     const settled = panViewportRef.current;
     if (settled) applyViewport(settled);
     for (const id of pointerIds) {
@@ -523,6 +606,8 @@ export function useElectronicsWorkbench(projectId: string) {
       vertexDragRef.current = null;
       segmentDragRef.current = null;
       endpointDragRef.current = null;
+      wireStartPressRef.current = null;
+      suppressTerminalClickRef.current = false;
       potentiometerDragRef.current = null;
       panDragRef.current = null;
       pinchRef.current = null;
@@ -613,12 +698,18 @@ export function useElectronicsWorkbench(projectId: string) {
   useEffect(() => {
     if (project && document && viewportProjectRef.current !== project.id) {
       viewportProjectRef.current = project.id;
-      const stored =
-        readLocalElectronicsViewport(project.id) ?? document.viewport ?? DEFAULT_VIEWPORT;
+      const stored = readLocalElectronicsViewport(project.id);
+      const restored =
+        document.components.length === 0 && !compactWorkbench()
+          ? emptyInitialViewport()
+          : (stored ??
+            (document.components.length === 0
+              ? emptyInitialViewport()
+              : (document.viewport ?? DEFAULT_VIEWPORT)));
       // A document saved while the editor allowed a wider range would otherwise
       // reopen at a zoom the server will not accept back, and every save from
       // then on would fail for a reason the drawing does not explain.
-      setViewport({ ...stored, zoom: clamp(stored.zoom, MIN_ZOOM, MAX_ZOOM) });
+      setViewport({ ...restored, zoom: clamp(restored.zoom, MIN_ZOOM, MAX_ZOOM) });
     }
   }, [document, project]);
 
@@ -629,7 +720,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }, [notice, setNotice]);
 
   function addComponent(componentTypeId: string, at?: Point): void {
-    if (!document) return;
+    if (!document || simulationRunning) return;
     const family = familyForVariant(componentTypeId);
     if (!family?.enabled) return;
     const placedCount = document.components.filter((component) => component.kind !== 'wire').length;
@@ -676,6 +767,7 @@ export function useElectronicsWorkbench(projectId: string) {
   ): void {
     const family = familyById(familyId);
     if (!family?.enabled) return;
+    stopSimulationForCatalogPlacement();
     const variant = selectedFamilyVariant(family, null);
     cancelInteraction();
     const next: CatalogPlacement = {
@@ -786,8 +878,14 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function duplicateSelected(): void {
-    if (!document || selection?.kind !== 'component') return;
-    const duplicated = duplicateComponentInDocument(document, selection, nextId(selection.id));
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument || selection?.kind !== 'component') return;
+    if (!structuralEditAllowed()) return;
+    const duplicated = duplicateComponentInDocument(
+      currentDocument,
+      selection,
+      nextId(selection.id),
+    );
     if (!duplicated) return;
     commitDocument(duplicated.document, 'Создана копия элемента.');
     const duplicatedIds = duplicated.components.map((component) => component.id);
@@ -805,9 +903,11 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function pasteCopied(): void {
-    if (!document || clipboardSelection?.kind !== 'component') return;
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument || clipboardSelection?.kind !== 'component') return;
+    if (!structuralEditAllowed()) return;
     const duplicated = duplicateComponentInDocument(
-      document,
+      currentDocument,
       clipboardSelection,
       nextId(clipboardSelection.id),
     );
@@ -826,39 +926,47 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function removeSelection(): void {
-    if (!document || !selection) return;
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument || !selection) return;
+    if (!structuralEditAllowed()) return;
     if (selection.kind === 'wire' && selection.vertexIndex !== undefined) {
       removeWireVertexAt(selection.id, selection.vertexIndex);
       return;
     }
     commitDocument(
-      removeSelectionFromDocument(document, selection),
+      removeSelectionFromDocument(currentDocument, selection),
       selection.kind === 'wire' ? 'Провод удалён.' : 'Элемент удалён.',
     );
     setSelection(null);
   }
 
   function rotateSelected(): void {
-    if (!document) return;
-    const next = rotateSelectionInDocument(document, selection);
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument) return;
+    if (!structuralEditAllowed()) return;
+    const next = rotateSelectionInDocument(currentDocument, selection);
     if (next) commitDocument(next, 'Элемент повернут на 45° вокруг центра — провода обновлены.');
   }
 
   function mirrorSelected(axis: 'horizontal' | 'vertical'): void {
-    if (!document) return;
-    const next = mirrorSelectionInDocument(document, selection, axis);
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument) return;
+    if (!structuralEditAllowed()) return;
+    const next = mirrorSelectionInDocument(currentDocument, selection, axis);
     if (next)
       commitDocument(next, axis === 'horizontal' ? 'Элемент отражён.' : 'Элемент перевёрнут.');
   }
 
   function updateSelectedValue(value: number): void {
-    if (!document) return;
+    if (!document || !structuralEditAllowed()) return;
     const next = updateSelectionValue(document, selection, value);
     if (next) commitDocument(next);
   }
 
   function updateSelectedResistanceValue(valueOhms: number, unit: string): void {
-    if (!document || !Number.isFinite(valueOhms) || valueOhms < 0) return;
+    if (!document || !Number.isFinite(valueOhms) || valueOhms < 0 || !structuralEditAllowed()) {
+      return;
+    }
     const withValue = updateSelectionValue(document, selection, valueOhms);
     if (!withValue) return;
     const withUnit = updateSelectionProperties(withValue, selection, { resistanceUnit: unit });
@@ -866,7 +974,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function updateSelectedName(name: string): void {
-    if (!document) return;
+    if (!document || !structuralEditAllowed()) return;
     const next = updateSelectionName(document, selection, name);
     if (next) commitDocument(next);
   }
@@ -940,26 +1048,45 @@ export function useElectronicsWorkbench(projectId: string) {
     message?: string,
   ): void {
     if (!document) return;
-    if (
-      simulationRunning &&
-      selection?.kind === 'component' &&
-      (() => {
-        const component = runtimeDocument?.components.find((item) => item.id === selection.id);
-        return (
-          (component?.kind === 'photoresistor' &&
-            Object.keys(properties).every((key) => key === 'illumination')) ||
-          (component?.componentTypeId === 'multimeter' &&
-            Object.keys(properties).every(
-              (key) => key === 'measurementMode' || key === 'meterRange',
-            )) ||
-          (component?.componentTypeId === 'pir-sensor' &&
-            Object.keys(properties).every((key) => key === 'motionDetected'))
+    if (simulationRunning && selection?.kind === 'component') {
+      const component = runtimeDocument?.components.find((item) => item.id === selection.id);
+      const keys = Object.keys(properties);
+      let persistentEnvironmentInput = false;
+      let runtimeOnlyControl = false;
+
+      if (component?.componentTypeId === 'temperature-sensor') {
+        persistentEnvironmentInput = keys.every((key) => key === 'temperatureCelsius');
+      } else if (component?.componentTypeId === 'soil-moisture-sensor') {
+        persistentEnvironmentInput = keys.every((key) => key === 'moisturePercent');
+      } else if (
+        component?.componentTypeId === 'ultrasonic-sensor' ||
+        component?.componentTypeId === 'ultrasonic-hc-sr04'
+      ) {
+        persistentEnvironmentInput = keys.every((key) => key === 'distanceMeters');
+      } else if (component?.kind === 'photoresistor') {
+        runtimeOnlyControl = keys.every((key) => key === 'illumination');
+      } else if (component?.componentTypeId === 'multimeter') {
+        runtimeOnlyControl = keys.every((key) => key === 'measurementMode' || key === 'meterRange');
+      } else if (component?.componentTypeId === 'pir-sensor') {
+        runtimeOnlyControl = keys.every((key) => key === 'motionDetected');
+      } else if (component?.componentTypeId === 'oscilloscope') {
+        runtimeOnlyControl = keys.every(
+          (key) =>
+            key === 'voltsPerDivision' || key === 'timePerDivisionMs' || key === 'triggerLevelVolt',
         );
-      })()
-    ) {
-      setRuntimeComponentOverride(selection.id, { stateProperties: properties });
-      return;
+      }
+
+      if (persistentEnvironmentInput) {
+        const next = updateSelectionProperties(document, selection, properties);
+        if (next) commitDocument(next, message);
+        return;
+      }
+      if (runtimeOnlyControl) {
+        setRuntimeComponentOverride(selection.id, { stateProperties: properties });
+        return;
+      }
     }
+    if (!structuralEditAllowed()) return;
     const next = updateSelectionProperties(document, selection, properties);
     if (next) commitDocument(next, message);
   }
@@ -1153,6 +1280,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setSelectedVariant(variantId: string): void {
     if (!document || selection?.kind !== 'component') return;
+    if (!structuralEditAllowed()) return;
     const family = familyForVariant(
       selectedComponent?.variantId ?? selectedComponent?.componentTypeId,
     );
@@ -1171,6 +1299,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function setWireColor(color: string): void {
+    if (!structuralEditAllowed()) return;
     setActiveWireColor(color);
     if (!document) return;
     const next = updateSelectedWireColor(document, selection, color);
@@ -1178,6 +1307,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function toggleWireRoute(): void {
+    if (!structuralEditAllowed()) return;
     const nextMode = !orthogonalWireMode;
     setOrthogonalWireMode(nextMode);
     if (nextMode && document && selection?.kind === 'wire') {
@@ -1192,30 +1322,153 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeWireBends(): void {
     if (!document) return;
+    if (!structuralEditAllowed()) return;
     const next = removeSelectedWireBends(document, selection);
     if (next) commitDocument(next, 'Изгибы провода удалены.');
   }
 
   function beginReconnect(endpoint: 'from' | 'to'): void {
     if (selection?.kind !== 'wire') return;
+    if (!structuralEditAllowed()) return;
     setReconnectEndpoint(endpoint);
     setReconnectHover(null);
     setWirePreviewEnd(null);
     setNotice('Выберите новый вывод для переподключения провода.');
   }
 
-  function clickTerminal(componentId: string, terminal: Terminal): void {
+  function wireTerminalPoint(ref: TerminalRef): Point | null {
+    if (!document) return null;
+    const component = document.components.find((item) => item.id === ref.componentId);
+    return component ? terminalPositionInDocument(document, component, ref.terminal) : null;
+  }
+
+  function clearPendingWire(): void {
+    setPendingTerminal(null);
+    setWireDraftVertices([]);
+    setWirePreviewVertices([]);
+    setWirePreviewEnd(null);
+    setReconnectHover(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
+  }
+
+  function beginWireAtTerminal(componentId: string, terminal: Terminal): void {
     if (!document) return;
-    // Wiring is rebuilding, not operating.
-    if (simulationRunning) {
-      setNotice('Идёт моделирование: остановите его, чтобы менять соединения.');
+    if (!structuralEditAllowed()) return;
+    const source = { componentId, terminal };
+    setSelection(null);
+    setPendingTerminal(source);
+    setWireDraftVertices([]);
+    setWirePreviewVertices([]);
+    setReconnectHover(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
+    setWirePreviewEnd(wireTerminalPoint(source));
+    setNotice(
+      'Ведите провод к цели. Щелчок добавляет точку, Shift фиксирует участок под 90°, Esc отменяет.',
+    );
+  }
+
+  function commitPendingWireTo(
+    target: TerminalRef,
+    forceOrthogonal = false,
+    sourceOverride?: TerminalRef,
+  ): boolean {
+    if (!document || !structuralEditAllowed()) {
+      clearPendingWire();
+      return false;
+    }
+    const source = sourceOverride ?? pendingTerminal;
+    if (!source) return false;
+    if (source.componentId === target.componentId && source.terminal === target.terminal) {
+      clearPendingWire();
+      setNotice('Прокладка провода отменена.');
+      return false;
+    }
+    const sourcePoint = wireTerminalPoint(source);
+    const targetPoint = wireTerminalPoint(target);
+    if (!sourcePoint || !targetPoint) return false;
+    const finalVertices =
+      orthogonalWireMode || forceOrthogonal
+        ? completeOrthogonalRoute(sourcePoint, targetPoint, wireDraftVertices)
+        : wireDraftVertices;
+    const connected = connectTerminals(
+      document,
+      source,
+      target,
+      nextId('wire'),
+      activeWireColor,
+      finalVertices,
+    );
+    if (connected.kind === 'duplicate') {
+      clearPendingWire();
+      setNotice('Эти выводы уже соединены.');
+      return false;
+    }
+    commitDocument(connected.document, 'Провод добавлен.');
+    setSelection({ kind: 'wire', id: connected.wire.id });
+    clearPendingWire();
+    return true;
+  }
+
+  function consumeTerminalClick(): boolean {
+    if (!suppressTerminalClickRef.current) return false;
+    suppressTerminalClickRef.current = false;
+    return true;
+  }
+
+  function startWireTerminalPointer(
+    event: PointerEvent<SVGCircleElement>,
+    componentId: string,
+    terminal: Terminal,
+  ): void {
+    event.stopPropagation();
+    if (event.button !== 0 || !document || reconnectEndpoint || pendingTerminal) {
       return;
     }
+    if (simulationRunning) {
+      selectComponent(componentId, event.shiftKey);
+      suppressTerminalClickRef.current = true;
+      event.preventDefault();
+      return;
+    }
+    // Terminal hit areas intentionally remain generous. On compact parts they
+    // can cover almost the whole body, so Shift+click must still honor the
+    // workbench multi-selection gesture instead of unexpectedly starting a wire.
+    if (event.shiftKey) {
+      selectComponent(componentId, true);
+      suppressTerminalClickRef.current = true;
+      event.preventDefault();
+      return;
+    }
+    const source = terminalTargetAt(event.clientX, event.clientY) ?? { componentId, terminal };
+    beginWireAtTerminal(source.componentId, source.terminal);
+    wireStartPressRef.current = {
+      pointerId: event.pointerId,
+      source,
+      startClient: { x: event.clientX, y: event.clientY },
+      dragging: false,
+    };
+    suppressTerminalClickRef.current = true;
+    stageRef.current?.setPointerCapture(event.pointerId);
+  }
+
+  function clickTerminal(
+    componentId: string,
+    terminal: Terminal,
+    forceOrthogonal = false,
+    pointer?: Point,
+  ): void {
+    if (!document) return;
+    const resolved = pointer ? terminalTargetAt(pointer.x, pointer.y) : null;
+    const target = resolved ?? { componentId, terminal };
+    if (forceOrthogonal && !pendingTerminal && !reconnectEndpoint) {
+      selectComponent(target.componentId, true);
+      return;
+    }
+    if (!structuralEditAllowed()) return;
     if (reconnectEndpoint && selection?.kind === 'wire') {
-      const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, {
-        componentId,
-        terminal,
-      });
+      const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, target);
       if (next) commitDocument(next, 'Конец провода переподключён.');
       setReconnectEndpoint(null);
       setReconnectHover(null);
@@ -1223,74 +1476,14 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     if (!pendingTerminal) {
-      // Starting a new wire is a new interaction. A previously selected wire
-      // must stop showing its outline, endpoints and bend handles immediately;
-      // otherwise the old controls remain visible underneath the live draft and
-      // the editor appears to be editing two wires at once.
-      setSelection(null);
-      setPendingTerminal({ componentId, terminal });
-      setWireDraftVertices([]);
-      const sourceComponent = document.components.find((item) => item.id === componentId);
-      setWirePreviewEnd(
-        sourceComponent ? terminalPositionInDocument(document, sourceComponent, terminal) : null,
-      );
-      setNotice(
-        'Ведите провод к цели. Щелчок добавляет точку, Shift фиксирует участок под 90°, Esc отменяет.',
-      );
+      beginWireAtTerminal(target.componentId, target.terminal);
       return;
     }
-    if (pendingTerminal.componentId === componentId && pendingTerminal.terminal === terminal) {
-      setPendingTerminal(null);
-      setWireDraftVertices([]);
-      setWirePreviewEnd(null);
-      setNotice('Прокладка провода отменена.');
-      return;
-    }
-    const targetComponent = document.components.find((item) => item.id === componentId);
-    const targetPoint = targetComponent
-      ? terminalPositionInDocument(document, targetComponent, terminal)
-      : null;
-    const finalVertices =
-      orthogonalWireMode && pendingStart && targetPoint
-        ? completeOrthogonalRoute(pendingStart, targetPoint, wireDraftVertices)
-        : wireDraftVertices;
-    const connected = connectTerminals(
-      document,
-      pendingTerminal,
-      { componentId, terminal },
-      nextId('wire'),
-      activeWireColor,
-      finalVertices,
-    );
-    if (connected.kind === 'duplicate') {
-      setPendingTerminal(null);
-      setWireDraftVertices([]);
-      setWirePreviewEnd(null);
-      setNotice('Эти выводы уже соединены.');
-      return;
-    }
-    commitDocument(connected.document, 'Провод добавлен.');
-    setSelection({ kind: 'wire', id: connected.wire.id });
-    setPendingTerminal(null);
-    setWireDraftVertices([]);
-    setWirePreviewEnd(null);
+    commitPendingWireTo(target, forceOrthogonal);
   }
 
   function selectComponent(componentId: string, additive = false): void {
-    setSelection((current) => {
-      if (!additive || current?.kind !== 'component') {
-        return { kind: 'component', id: componentId, ids: [componentId] };
-      }
-      const ids = current.ids.includes(componentId)
-        ? current.ids.filter((id) => id !== componentId)
-        : [...current.ids, componentId];
-      if (ids.length === 0) return null;
-      return {
-        kind: 'component',
-        id: ids.includes(current.id) ? current.id : (ids[0] as string),
-        ids,
-      };
-    });
+    setSelection((current) => nextComponentSelection(current, componentId, additive));
   }
 
   function toWorld(event: PointerEvent | MouseEvent | DragEvent | WheelEvent): Point {
@@ -1310,7 +1503,9 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     vertexIndex: number,
     point: Point,
+    clientPoint: Point,
     lockRightAngle: boolean,
+    disableSoftAssist: boolean,
   ): Point {
     const freePoint = freeWirePoint(point);
     if (!document) return freePoint;
@@ -1327,24 +1522,130 @@ export function useElectronicsWorkbench(projectId: string) {
       wire.vertices[vertexIndex + 1] ??
       (toComponent ? terminalPositionInDocument(document, toComponent, wire.to.terminal) : null);
     if (!previous || !next) return freePoint;
-    // Alignment happens where it was asked for. Holding Shift, or turning on the
-    // 90° mode, squares the bend against its neighbours; otherwise the vertex
-    // goes exactly where the pointer is.
-    //
-    // There used to be a magnet here regardless — two of them, in fact, pulling
-    // against each other, so near a bend the point flipped between axes as the
-    // pointer moved. Making it one magnet was not enough: the choice of which
-    // neighbour to align to changed mid-drag, and the point jumped again. A wire
-    // laid deliberately alongside another wire could not be placed at all.
-    if (lockRightAngle) return lockOrthogonalBend(previous, next, point);
-    return freePoint;
+
+    if (lockRightAngle) {
+      vertexAssistTargetRef.current = null;
+      setWireGuide(null);
+      return lockOrthogonalBend(previous, next, point);
+    }
+
+    const stage = stageRef.current;
+    if (!stage || disableSoftAssist) {
+      vertexAssistTargetRef.current = null;
+      setWireGuide(null);
+      return freePoint;
+    }
+
+    const rect = stage.getBoundingClientRect();
+    const activeViewport = panViewportRef.current ?? viewport;
+    const previousClient = worldToClient(previous, rect, activeViewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const nextClient = worldToClient(next, rect, activeViewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const assisted = resolveWireVertexAssist(
+      previousClient,
+      nextClient,
+      clientPoint,
+      vertexAssistTargetRef.current,
+      disableSoftAssist,
+    );
+    vertexAssistTargetRef.current = assisted.target;
+    if (!assisted.target) {
+      setWireGuide(null);
+      return freePoint;
+    }
+
+    const candidate =
+      assisted.target === 'previous-x-next-y'
+        ? { x: previous.x, y: next.y }
+        : { x: next.x, y: previous.y };
+    setWireGuide({ from: previous, via: candidate, to: next });
+    return candidate;
   }
 
-  function wireDraftPoint(anchor: Point, point: Point, forceOrthogonal: boolean): Point {
-    const freePoint = freeWirePoint(point);
-    return forceOrthogonal
-      ? lockOrthogonalPoint(anchor, freePoint)
-      : magneticWirePoint(anchor, freePoint, MAGNET_SCREEN_UNITS / viewport.zoom);
+  function wireDraftPoint(
+    anchor: Point,
+    point: Point,
+    clientPoint: Point,
+    forceOrthogonal: boolean,
+    disableSoftAssist: boolean,
+  ): Point {
+    if (forceOrthogonal) {
+      wireAssistAxisRef.current = null;
+      setWireGuide(null);
+      return lockOrthogonalPoint(anchor, freeWirePoint(point));
+    }
+
+    const stage = stageRef.current;
+    if (!stage || disableSoftAssist) {
+      wireAssistAxisRef.current = null;
+      setWireGuide(null);
+      return freeWirePoint(point);
+    }
+
+    const rect = stage.getBoundingClientRect();
+    const activeViewport = panViewportRef.current ?? viewport;
+    const anchorClient = worldToClient(anchor, rect, activeViewport, STAGE_WIDTH, STAGE_HEIGHT);
+    const assisted = resolveWireAssist(
+      anchorClient,
+      clientPoint,
+      wireAssistAxisRef.current,
+      disableSoftAssist,
+    );
+    wireAssistAxisRef.current = assisted.axis;
+    if (!assisted.axis) {
+      setWireGuide(null);
+      return freeWirePoint(point);
+    }
+
+    const assistedPoint =
+      assisted.axis === 'horizontal' ? { x: point.x, y: anchor.y } : { x: anchor.x, y: point.y };
+
+    // The guide is drafting help, not another copy of the preview. Extend it in
+    // screen space beyond both ends of the active segment so the dashed axis is
+    // still visible when the solid wire preview lies on the same line.
+    const guideExtensionPx = 24;
+    const alignedClient =
+      assisted.axis === 'horizontal'
+        ? { x: clientPoint.x, y: anchorClient.y }
+        : { x: anchorClient.x, y: clientPoint.y };
+    const guideFromClient =
+      assisted.axis === 'horizontal'
+        ? {
+            x: Math.min(anchorClient.x, alignedClient.x) - guideExtensionPx,
+            y: anchorClient.y,
+          }
+        : {
+            x: anchorClient.x,
+            y: Math.min(anchorClient.y, alignedClient.y) - guideExtensionPx,
+          };
+    const guideToClient =
+      assisted.axis === 'horizontal'
+        ? {
+            x: Math.max(anchorClient.x, alignedClient.x) + guideExtensionPx,
+            y: anchorClient.y,
+          }
+        : {
+            x: anchorClient.x,
+            y: Math.max(anchorClient.y, alignedClient.y) + guideExtensionPx,
+          };
+    setWireGuide({
+      from: clientToWorld(
+        guideFromClient.x,
+        guideFromClient.y,
+        rect,
+        activeViewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      ),
+      to: clientToWorld(
+        guideToClient.x,
+        guideToClient.y,
+        rect,
+        activeViewport,
+        STAGE_WIDTH,
+        STAGE_HEIGHT,
+      ),
+    });
+    return assistedPoint;
   }
 
   function startComponentDrag(
@@ -1375,14 +1676,12 @@ export function useElectronicsWorkbench(projectId: string) {
       event.preventDefault();
       return;
     }
-    // A running simulation is a circuit under power: it can be operated, not
-    // rebuilt. Actuators above still work, a potentiometer still turns, and
-    // values stay editable in the inspector — but nothing moves, because moving a
-    // part would change the circuit the running result describes.
+    // Existing geometry is rigid while simulation runs. A normal component
+    // press still selects it, but no drag state or pointer capture is created.
     if (simulationRunning) {
       setSelection({ kind: 'component', id: component.id, ids: [component.id] });
-      setNotice('Идёт моделирование: остановите его, чтобы переставлять компоненты.');
       event.stopPropagation();
+      event.preventDefault();
       return;
     }
     if (!document) return;
@@ -1414,6 +1713,8 @@ export function useElectronicsWorkbench(projectId: string) {
         ...document,
         components: document.components.filter((part) => componentIds.includes(part.id)),
       }),
+      startedInSimulation: simulationRunning,
+      structuralEditStarted: false,
     };
     setDraggingComponents(true);
     if (stageRef.current) stageRef.current.dataset['componentDragging'] = 'true';
@@ -1473,9 +1774,19 @@ export function useElectronicsWorkbench(projectId: string) {
       setWireDraftVertices((current) => {
         if (current.length >= 48 || !pendingStart) return current;
         const anchor = current[current.length - 1] ?? pendingStart;
-        const point = wireDraftPoint(anchor, rawPoint, orthogonalWireMode || event.shiftKey);
+        const point = wireDraftPoint(
+          anchor,
+          rawPoint,
+          { x: event.clientX, y: event.clientY },
+          orthogonalWireMode || event.shiftKey,
+          event.altKey,
+        );
+        const next = [...current, point];
         setWirePreviewEnd(point);
-        return [...current, point];
+        setWirePreviewVertices(next);
+        wireAssistAxisRef.current = null;
+        setWireGuide(null);
+        return next;
       });
       setNotice(
         orthogonalWireMode || event.shiftKey
@@ -1552,20 +1863,75 @@ export function useElectronicsWorkbench(projectId: string) {
     placeCatalogComponent(event);
   }
 
-  // The dragged wire endpoint rides under the pointer, so a plain
-  // elementFromPoint finds the endpoint itself instead of the terminal below.
-  // Walk the whole stack under the pointer and take the first real terminal.
-  function terminalTargetAt(
-    clientX: number,
-    clientY: number,
-  ): { componentId: string; terminal: Terminal } | null {
-    for (const element of globalThis.document.elementsFromPoint(clientX, clientY)) {
-      const target = element.closest<SVGElement>('[data-terminal-component-id][data-terminal-id]');
-      const componentId = target?.dataset['terminalComponentId'];
-      const terminal = target?.dataset['terminalId'];
-      if (componentId && terminal) return { componentId, terminal: terminal as Terminal };
+  // Pointer capture and overlapping breadboard holes make DOM hit order
+  // unsuitable as electrical truth. Resolve against the actual rendered terminal
+  // circles, then choose the nearest eligible centre deterministically.
+  function terminalTargetAt(clientX: number, clientY: number): TerminalRef | null {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    const candidates = [
+      ...stage.querySelectorAll<SVGGraphicsElement>(
+        '[data-terminal-component-id][data-terminal-id]',
+      ),
+    ]
+      .flatMap((element) => {
+        const componentId = element.dataset['terminalComponentId'];
+        const terminal = element.dataset['terminalId'];
+        if (!componentId || !terminal) return [];
+        const rect = element.getBoundingClientRect();
+        const radiusX = rect.width / 2;
+        const radiusY = rect.height / 2;
+        if (radiusX <= 0 || radiusY <= 0) return [];
+        const dx = clientX - (rect.left + rect.right) / 2;
+        const dy = clientY - (rect.top + rect.bottom) / 2;
+        const normalizedDistance = Math.hypot(dx / radiusX, dy / radiusY);
+        if (normalizedDistance > 1) return [];
+        return [
+          {
+            componentId,
+            terminal: terminal as Terminal,
+            normalizedDistance,
+            distance: Math.hypot(dx, dy),
+          },
+        ];
+      })
+      .sort(
+        (a, b) =>
+          a.normalizedDistance - b.normalizedDistance ||
+          a.distance - b.distance ||
+          a.componentId.localeCompare(b.componentId) ||
+          String(a.terminal).localeCompare(String(b.terminal)),
+      );
+    const first = candidates[0];
+    return first ? { componentId: first.componentId, terminal: first.terminal } : null;
+  }
+
+  function updateWireDraftPreview(
+    start: Point,
+    world: Point,
+    clientPoint: Point,
+    forceOrthogonal: boolean,
+    disableSoftAssist: boolean,
+    target: TerminalRef | null,
+  ): void {
+    const targetPoint = target ? wireTerminalPoint(target) : null;
+    if (targetPoint) {
+      wireAssistAxisRef.current = null;
+      setWireGuide(null);
+      setWirePreviewEnd(targetPoint);
+      setWirePreviewVertices(
+        forceOrthogonal
+          ? completeOrthogonalRoute(start, targetPoint, wireDraftVertices)
+          : wireDraftVertices,
+      );
+      return;
     }
-    return null;
+
+    const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? start;
+    setWirePreviewEnd(
+      wireDraftPoint(anchor, world, clientPoint, forceOrthogonal, disableSoftAssist),
+    );
+    setWirePreviewVertices(wireDraftVertices);
   }
 
   function handlePointerMove(event: PointerEvent<SVGSVGElement>): void {
@@ -1599,6 +1965,31 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     const world = toWorld(event);
+    const wireStartPress = wireStartPressRef.current;
+    if (wireStartPress?.pointerId === event.pointerId) {
+      if (
+        Math.hypot(
+          event.clientX - wireStartPress.startClient.x,
+          event.clientY - wireStartPress.startClient.y,
+        ) >= WIRE_DRAG_THRESHOLD_PX
+      ) {
+        wireStartPress.dragging = true;
+      }
+      const start = wireTerminalPoint(wireStartPress.source);
+      const target = terminalTargetAt(event.clientX, event.clientY);
+      setReconnectHover(target);
+      if (start) {
+        updateWireDraftPreview(
+          start,
+          world,
+          client,
+          orthogonalWireMode || event.shiftKey,
+          event.altKey,
+          target,
+        );
+      }
+      return;
+    }
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
       setWirePreviewEnd(world);
@@ -1626,7 +2017,14 @@ export function useElectronicsWorkbench(projectId: string) {
           vertexDrag.startedDocument,
           vertexDrag.wireId,
           vertexDrag.vertexIndex,
-          wireVertexDragPoint(vertexDrag.wireId, vertexDrag.vertexIndex, world, event.shiftKey),
+          wireVertexDragPoint(
+            vertexDrag.wireId,
+            vertexDrag.vertexIndex,
+            world,
+            client,
+            event.shiftKey,
+            event.altKey,
+          ),
         ),
         vertexDrag.wireId,
       );
@@ -1655,8 +2053,16 @@ export function useElectronicsWorkbench(projectId: string) {
       return;
     }
     if (pendingTerminal && pendingStart) {
-      const anchor = wireDraftVertices[wireDraftVertices.length - 1] ?? pendingStart;
-      setWirePreviewEnd(wireDraftPoint(anchor, world, orthogonalWireMode || event.shiftKey));
+      const target = terminalTargetAt(event.clientX, event.clientY);
+      setReconnectHover(target);
+      updateWireDraftPreview(
+        pendingStart,
+        world,
+        client,
+        orthogonalWireMode || event.shiftKey,
+        event.altKey,
+        target,
+      );
     } else if (reconnectEndpoint) {
       setWirePreviewEnd(world);
     }
@@ -1711,6 +2117,37 @@ export function useElectronicsWorkbench(projectId: string) {
       event.preventDefault();
       return;
     }
+    const wireStartPress = wireStartPressRef.current;
+    if (wireStartPress?.pointerId === event.pointerId) {
+      wireStartPressRef.current = null;
+      const dragged =
+        wireStartPress.dragging ||
+        Math.hypot(
+          event.clientX - wireStartPress.startClient.x,
+          event.clientY - wireStartPress.startClient.y,
+        ) >= WIRE_DRAG_THRESHOLD_PX;
+      setReconnectHover(null);
+      if (dragged) {
+        const target = terminalTargetAt(event.clientX, event.clientY);
+        if (
+          target &&
+          (target.componentId !== wireStartPress.source.componentId ||
+            target.terminal !== wireStartPress.source.terminal)
+        ) {
+          commitPendingWireTo(target, event.shiftKey, wireStartPress.source);
+        } else {
+          clearPendingWire();
+          setNotice('Провод не создан: отпустите его на контакте.');
+        }
+      }
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      }
+      window.setTimeout(() => {
+        suppressTerminalClickRef.current = false;
+      }, 0);
+      return;
+    }
     const endpointDrag = endpointDragRef.current;
     if (endpointDrag?.pointerId === event.pointerId) {
       endpointDragRef.current = null;
@@ -1754,8 +2191,12 @@ export function useElectronicsWorkbench(projectId: string) {
         vertexDrag.wireId,
         vertexDrag.vertexIndex,
         toWorld(event),
+        { x: event.clientX, y: event.clientY },
         event.shiftKey,
+        event.altKey,
       );
+      vertexAssistTargetRef.current = null;
+      setWireGuide(null);
       const source = vertexDrag.startedDocument;
       const old = source.connections.find((wire) => wire.id === vertexDrag.wireId)?.vertices?.[
         vertexDrag.vertexIndex
@@ -1840,6 +2281,11 @@ export function useElectronicsWorkbench(projectId: string) {
             next = snapComponentToBreadboard(next, id);
         }
         commitDocument(next, 'Положение сохранится автоматически.');
+      } else if (drag.componentIds.length > 1) {
+        // Pointer capture can suppress the later React click. A zero-distance
+        // press on one member of a selected group is still an ordinary click:
+        // collapse to that component. Any actual movement keeps the group drag.
+        setSelection({ kind: 'component', id: drag.componentId, ids: [drag.componentId] });
       }
     }
     if (panDragRef.current?.pointerId === event.pointerId) {
@@ -1862,7 +2308,12 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function cancelPointer(event: PointerEvent<SVGSVGElement>): void {
     cancelInteraction();
+    setPendingTerminal(null);
+    setWireDraftVertices([]);
+    setWirePreviewVertices([]);
     setWirePreviewEnd(null);
+    wireAssistAxisRef.current = null;
+    setWireGuide(null);
     setReconnectEndpoint(null);
     if (event.currentTarget.hasPointerCapture(event.pointerId))
       event.currentTarget.releasePointerCapture(event.pointerId);
@@ -1873,7 +2324,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     vertexIndex: number,
   ): void {
-    if (simulationRunning) return;
+    if (!structuralEditAllowed()) return;
     const previous = lastVertexPressRef.current;
     const repeated =
       previous?.wireId === wireId &&
@@ -1896,6 +2347,8 @@ export function useElectronicsWorkbench(projectId: string) {
       at: Date.now(),
     };
     if (!document) return;
+    vertexAssistTargetRef.current = null;
+    setWireGuide(null);
     vertexDragRef.current = {
       pointerId: event.pointerId,
       wireId,
@@ -1912,28 +2365,10 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     segmentIndex: number,
   ): void {
-    if (simulationRunning || pendingTerminal || !document) return;
-    const previous = lastSegmentPressRef.current;
-    const repeated =
-      previous?.wireId === wireId &&
-      Date.now() - previous.at <= 420 &&
-      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8;
-    if (event.detail >= 2 || repeated) {
-      lastSegmentPressRef.current = null;
-      segmentDragRef.current = null;
-      const next = insertWireVertex(document, wireId, toWorld(event));
-      if (next !== document) commitDocument(next, 'Точка управления проводом добавлена.');
-      setSelection({ kind: 'wire', id: wireId });
-      event.stopPropagation();
-      event.preventDefault();
-      return;
-    }
-    lastSegmentPressRef.current = {
-      wireId,
-      x: event.clientX,
-      y: event.clientY,
-      at: Date.now(),
-    };
+    if (pendingTerminal || !document) return;
+    if (!structuralEditAllowed()) return;
+    // WorkbenchStage is the single arbiter of wire click sequences. Starting
+    // a segment drag must never reinterpret a rejected pair as a double-click.
     segmentDragRef.current = {
       pointerId: event.pointerId,
       wireId,
@@ -1948,6 +2383,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeWireVertexAt(wireId: string, vertexIndex: number): void {
     if (!document) return;
+    if (!structuralEditAllowed()) return;
     const next = removeWireVertex(document, wireId, vertexIndex);
     commitDocument(next, 'Точка изгиба удалена.');
     setSelection({ kind: 'wire', id: wireId });
@@ -1958,7 +2394,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     endpoint: 'from' | 'to',
   ): void {
-    if (simulationRunning) return;
+    if (!structuralEditAllowed()) return;
     endpointDragRef.current = { pointerId: event.pointerId, wireId, endpoint };
     setSelection({ kind: 'wire', id: wireId });
     setReconnectEndpoint(endpoint);
@@ -1974,6 +2410,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
   ): void {
     if (!document) return;
+    if (!structuralEditAllowed()) return;
     const next = insertWireVertex(document, wireId, toWorld(event));
     if (next === document) return;
     commitDocument(next, 'Точка управления проводом добавлена.');
@@ -2010,60 +2447,130 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function fitScene(): void {
     if (!document || document.components.length === 0) {
-      applyViewport(DEFAULT_VIEWPORT);
+      applyViewport(emptyInitialViewport());
       return;
     }
     const bounds = sceneBounds(document);
     const rect = stageRef.current?.getBoundingClientRect();
     applyViewport(
       bounds && rect
-        ? fitViewportToScreen(bounds, rect, STAGE_WIDTH, STAGE_HEIGHT, MIN_ZOOM, MAX_ZOOM)
+        ? fitViewportToScreen(
+            bounds,
+            rect,
+            STAGE_WIDTH,
+            STAGE_HEIGHT,
+            MIN_ZOOM,
+            MAX_ZOOM,
+            compactWorkbench() ? { left: 64, right: 28, top: 28, bottom: 28 } : 28,
+          )
         : DEFAULT_VIEWPORT,
     );
   }
 
+  function nudgeSelection(dx: number, dy: number): void {
+    const current = getCurrentDocument();
+    if (!current || selection?.kind !== 'component') return;
+    const selectedIds = selection.ids;
+    const componentIds = [
+      ...new Set([
+        ...selectedIds,
+        ...selectedIds.flatMap((id) => {
+          const selected = current.components.find((item) => item.id === id);
+          return selected?.kind === 'breadboard' ? componentsBoundToBreadboard(current, id) : [];
+        }),
+      ]),
+    ];
+    const bounds = sceneBounds({
+      ...current,
+      components: current.components.filter((part) => componentIds.includes(part.id)),
+    });
+    if (!bounds) return;
+    const delta = {
+      x: clamp(dx, -980 - bounds.minX, 4980 - bounds.maxX),
+      y: clamp(dy, -980 - bounds.minY, 3980 - bounds.maxY),
+    };
+    if (delta.x === 0 && delta.y === 0) return;
+    if (!structuralEditAllowed()) return;
+    let next = translatedDragDocument(current, componentIds, delta);
+    // A multi-selection is one rigid body for keyboard nudges. Snapping every
+    // member independently can pull one part onto a nearby breadboard hole and
+    // deform the group. Keep single-part placement help, but preserve relative
+    // geometry whenever the user explicitly selected more than one component.
+    if (selectedIds.length === 1 && componentIds.length === 1) {
+      const id = componentIds[0]!;
+      const part = next.components.find((item) => item.id === id);
+      if (part && part.kind !== 'breadboard') next = snapComponentToBreadboard(next, id);
+    }
+    commitDocument(next, 'Положение изменено с клавиатуры.');
+  }
+
+  const shortcutActionsRef = useRef<{
+    readonly undo: () => unknown;
+    readonly redo: () => unknown;
+    readonly copy: () => void;
+    readonly paste: () => void;
+    readonly duplicate: () => void;
+    readonly remove: () => void;
+    readonly rotate: () => void;
+    readonly selectAll: () => void;
+    readonly nudge: (dx: number, dy: number) => void;
+    readonly cancel: () => void;
+  } | null>(null);
+  shortcutActionsRef.current = {
+    undo,
+    redo,
+    copy: copySelected,
+    paste: pasteCopied,
+    duplicate: duplicateSelected,
+    remove: removeSelection,
+    rotate: rotateSelected,
+    selectAll: () => {
+      const current = getCurrentDocument();
+      const ids = current?.components.map((component) => component.id) ?? [];
+      setSelection(ids.length > 0 ? { kind: 'component', id: ids[0]!, ids } : null);
+    },
+    nudge: nudgeSelection,
+    cancel: () => {
+      cancelInteraction();
+      setCatalogPlacementState(null);
+      setPendingTerminal(null);
+      setWireDraftVertices([]);
+      setWirePreviewEnd(null);
+      setSelection(null);
+      setReconnectEndpoint(null);
+      setNotice(null);
+    },
+  };
+
   useEffect(() => {
     function keyDown(event: globalThis.KeyboardEvent): void {
-      if (event.code === 'Space' && !(event.target instanceof HTMLInputElement))
+      if (event.code === 'Space' && !targetConsumesSpace(event.target)) {
         spacePressedRef.current = true;
-      const editable =
-        event.target instanceof HTMLInputElement ||
-        event.target instanceof HTMLTextAreaElement ||
-        event.target instanceof HTMLSelectElement;
-      if (editable) return;
-      const modifier = event.ctrlKey || event.metaKey;
-      if (modifier && event.key.toLowerCase() === 'z') {
-        event.preventDefault();
-        if (event.shiftKey) redo();
-        else undo();
-      } else if (modifier && event.key.toLowerCase() === 'y') {
-        event.preventDefault();
-        redo();
-      } else if (modifier && event.key.toLowerCase() === 'c') {
-        event.preventDefault();
-        copySelected();
-      } else if (modifier && event.key.toLowerCase() === 'v') {
-        event.preventDefault();
-        pasteCopied();
-      } else if (modifier && event.key.toLowerCase() === 'd') {
-        event.preventDefault();
-        duplicateSelected();
-      } else if (event.key === 'Delete' || event.key === 'Backspace') {
-        event.preventDefault();
-        removeSelection();
-      } else if (event.key.toLowerCase() === 'r' && selection?.kind === 'component') {
-        event.preventDefault();
-        rotateSelected();
-      } else if (event.key === 'Escape') {
-        cancelInteraction();
-        setCatalogPlacementState(null);
-        setPendingTerminal(null);
-        setWireDraftVertices([]);
-        setWirePreviewEnd(null);
-        setSelection(null);
-        setReconnectEndpoint(null);
-        setNotice(null);
       }
+      if (isEditableShortcutTarget(event.target)) return;
+
+      const command = resolveWorkbenchShortcut(event);
+      const actions = shortcutActionsRef.current;
+      if (!command || !actions) return;
+      if (command !== 'escape') event.preventDefault();
+
+      if (command === 'undo') actions.undo();
+      else if (command === 'redo') actions.redo();
+      else if (command === 'copy') actions.copy();
+      else if (command === 'paste') actions.paste();
+      else if (command === 'duplicate') actions.duplicate();
+      else if (command === 'delete') actions.remove();
+      else if (command === 'rotate') actions.rotate();
+      else if (command === 'select-all') actions.selectAll();
+      else if (command === 'nudge-up')
+        actions.nudge(0, -(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP));
+      else if (command === 'nudge-down')
+        actions.nudge(0, event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP);
+      else if (command === 'nudge-left')
+        actions.nudge(-(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP), 0);
+      else if (command === 'nudge-right')
+        actions.nudge(event.shiftKey ? KEYBOARD_NUDGE_LARGE_STEP : KEYBOARD_NUDGE_STEP, 0);
+      else if (command === 'escape') actions.cancel();
     }
     function keyUp(event: globalThis.KeyboardEvent): void {
       if (event.code === 'Space') spacePressedRef.current = false;
@@ -2074,7 +2581,7 @@ export function useElectronicsWorkbench(projectId: string) {
       window.removeEventListener('keydown', keyDown);
       window.removeEventListener('keyup', keyUp);
     };
-  });
+  }, []);
 
   const filteredCatalog = useMemo(() => {
     const query = libraryQuery.trim().toLocaleLowerCase('ru');
@@ -2086,7 +2593,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }, [category, libraryQuery]);
 
   const selectedComponent =
-    selection?.kind === 'component'
+    selection?.kind === 'component' && selection.ids.length === 1
       ? (runtimeDocument?.components.find((item) => item.id === selection.id) ?? null)
       : null;
   const selectedWire =
@@ -2102,6 +2609,18 @@ export function useElectronicsWorkbench(projectId: string) {
     for (const item of result?.components ?? []) map.set(item.componentId, item);
     return map;
   }, [result]);
+  const staticPreflightResult = useMemo(() => {
+    if (!document || simulationRunning) return null;
+    return calculateSimulationPreflight({
+      ...document,
+      simulation: { ...document.simulation, running: true },
+    });
+  }, [document, simulationRunning]);
+  const diagnosticResult = simulationRunning ? result : (staticPreflightResult ?? result);
+  const runtimePresentationResultByComponent = useMemo(
+    () => (simulationRunning ? resultByComponent : new Map<string, ComponentResult>()),
+    [resultByComponent, simulationRunning],
+  );
 
   const terminalConnections = useMemo(() => {
     const connections = new Map<string, TerminalRef[]>();
@@ -2152,12 +2671,14 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function componentLedBrightness(component: SchematicComponent): number {
     if (component.kind !== 'led' || !simulationRunning) return 0;
-    return Math.round(clamp(resultByComponent.get(component.id)?.brightness ?? 0, 0, 100));
+    return Math.round(
+      clamp(runtimePresentationResultByComponent.get(component.id)?.brightness ?? 0, 0, 100),
+    );
   }
 
   const diagnosticsByComponent = useMemo(() => {
-    return diagnosticsGroupedByComponent(result?.diagnostics ?? []);
-  }, [result]);
+    return diagnosticsGroupedByComponent(diagnosticResult?.diagnostics ?? []);
+  }, [diagnosticResult]);
   const errorDiagnosticComponentIds = useMemo(() => {
     const ids = new Set<string>();
     for (const [componentId, diagnostics] of diagnosticsByComponent) {
@@ -2172,20 +2693,20 @@ export function useElectronicsWorkbench(projectId: string) {
     if (component.kind === 'switch') return component.state ? 'on' : 'default';
     if (component.kind === 'button') return component.state ? 'pressed' : 'default';
     if (component.kind === 'lamp' && simulationRunning) {
-      return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
+      return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
     if ((component.kind !== 'led' && component.kind !== 'rgb-led') || !simulationRunning)
       return 'default';
-    const componentResult = resultByComponent.get(component.id);
+    const componentResult = runtimePresentationResultByComponent.get(component.id);
     const calculatedState = componentResult?.presentationState;
     if (component.kind === 'rgb-led') {
       if (calculatedState === 'failed') return 'burned';
       if (calculatedState === 'destructive') {
-        return resultByComponent.get(component.id)?.stressState === 'burned'
+        return runtimePresentationResultByComponent.get(component.id)?.stressState === 'burned'
           ? 'burned'
           : 'overcurrent';
       }
-      return resultByComponent.get(component.id)?.lit ? 'lit' : 'off';
+      return runtimePresentationResultByComponent.get(component.id)?.lit ? 'lit' : 'off';
     }
     return ordinaryLedVisualState(componentResult);
   }
@@ -2222,7 +2743,9 @@ export function useElectronicsWorkbench(projectId: string) {
     setSelection,
     pendingTerminal,
     wireDraftVertices,
+    wirePreviewVertices,
     wirePreviewEnd,
+    wireGuide,
     activeWireColor,
     orthogonalWireMode,
     simulationRunning,
@@ -2246,6 +2769,7 @@ export function useElectronicsWorkbench(projectId: string) {
     canRedo,
     undo,
     redo,
+    documentMutationEpoch,
     duplicateSelected,
     copySelected,
     pasteCopied,
@@ -2275,6 +2799,8 @@ export function useElectronicsWorkbench(projectId: string) {
     reconnectEndpoint,
     reconnectHover,
     clickTerminal,
+    consumeTerminalClick,
+    startWireTerminalPointer,
     startComponentDrag,
     startPotentiometerControl,
     selectComponent,
@@ -2302,6 +2828,7 @@ export function useElectronicsWorkbench(projectId: string) {
     selectedEntry,
     selectedFamily,
     resultByComponent,
+    runtimePresentationResultByComponent,
     terminalConnectionCount,
     terminalConnectionLabel,
     diagnosticsByComponent,

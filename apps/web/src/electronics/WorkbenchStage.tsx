@@ -21,6 +21,13 @@ import {
   diagnosticBadgeGeometry,
   roundedWirePath,
   stageReadoutGeometry,
+  TERMINAL_HIT_RADIUS,
+  TERMINAL_MARKER_SIZE,
+  TERMINAL_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_HIT_RADIUS,
+  WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_VISIBLE_RADIUS,
+  wireGuideAxes,
   wirePoints,
 } from './workbench-geometry';
 import {
@@ -197,11 +204,14 @@ export function WorkbenchStage({
     groupId: string;
   } | null>(null);
   const [, setHitMaskRevision] = useState(0);
+  const pointerSequenceRef = useRef(0);
   const lastWireClick = useRef<{
     wireId: string;
     x: number;
     y: number;
     at: number;
+    mutationEpoch: number;
+    pointerSequence: number;
   } | null>(null);
   const lastVertexClick = useRef<{
     wireId: string;
@@ -210,6 +220,19 @@ export function WorkbenchStage({
     y: number;
     at: number;
   } | null>(null);
+
+  useEffect(() => {
+    // Count every physical pointer-down in capture order. A wire double-click
+    // is valid only when its two wire presses are adjacent in that global
+    // sequence. Any toolbar, inspector, canvas, or other-pointer press breaks
+    // the pair even if it does not mutate the document.
+    const advancePointerSequence = (): void => {
+      pointerSequenceRef.current += 1;
+    };
+    globalThis.document.addEventListener('pointerdown', advancePointerSequence, true);
+    return () =>
+      globalThis.document.removeEventListener('pointerdown', advancePointerSequence, true);
+  }, []);
 
   function isRepeatedClick(
     previous: { x: number; y: number; at: number } | null,
@@ -232,20 +255,29 @@ export function WorkbenchStage({
     // along (and onto) other wires. Swallowing the event here made cable
     // management impossible — the bend simply never happened.
     if (c.pendingTerminal) return;
-    // Wire hit areas are deliberately above the parts for editing. During
-    // simulation they must not swallow a physical button press underneath:
-    // use the same pointer-capture/release path as pressing the button body.
-    if (c.simulationRunning) {
-      const component = componentAtClientPoint(event.clientX, event.clientY);
-      if (component?.kind === 'button') {
-        c.startComponentDrag(event, component);
-        return;
+    // Ordinary parts are painted above wires, but their owner artwork uses the
+    // alpha-mask fallback rather than a rectangular SVG hit box. Resolve that
+    // same alpha silhouette here before a transparent wire target can claim the
+    // pointer. Breadboards are intentionally excluded: wires are painted above
+    // their substrate and must remain directly selectable there.
+    const foregroundComponent = componentAtClientPoint(event.clientX, event.clientY);
+    if (foregroundComponent && foregroundComponent.kind !== 'breadboard') {
+      if (event.shiftKey) {
+        c.selectComponent(foregroundComponent.id, true);
+        event.stopPropagation();
+      } else {
+        c.startComponentDrag(event, foregroundComponent);
       }
+      return;
     }
     event.stopPropagation();
     const previous = lastWireClick.current;
-    const repeated = previous?.wireId === wireId && isRepeatedClick(previous, event);
-    if (event.detail >= 2 || repeated) {
+    const repeated =
+      previous?.wireId === wireId &&
+      previous.mutationEpoch === c.documentMutationEpoch() &&
+      previous.pointerSequence + 1 === pointerSequenceRef.current &&
+      isRepeatedClick(previous, event);
+    if (repeated) {
       lastWireClick.current = null;
       c.addWireVertexAt(event, wireId);
       return;
@@ -255,6 +287,8 @@ export function WorkbenchStage({
       x: event.clientX,
       y: event.clientY,
       at: Date.now(),
+      mutationEpoch: c.documentMutationEpoch(),
+      pointerSequence: pointerSequenceRef.current,
     };
     if (segmentIndex === undefined) {
       c.setSelection({ kind: 'wire', id: wireId });
@@ -413,7 +447,7 @@ export function WorkbenchStage({
       bounds,
       componentAssetVisibleBounds(entry, baseSize.width, baseSize.height),
     );
-    const result = c.resultByComponent.get(component.id);
+    const result = c.runtimePresentationResultByComponent.get(component.id);
     const rpm = c.simulationRunning
       ? Number(isGearmotor ? (result?.outputRpm ?? 0) : (result?.motorRpm ?? 0))
       : 0;
@@ -475,7 +509,7 @@ export function WorkbenchStage({
       const isRgbLed = entry.key === 'rgb-led';
       const ledBurned =
         (isLedIndicator || isRgbLed) &&
-        (c.resultByComponent.get(component.id)?.presentationState === 'failed' ||
+        (c.runtimePresentationResultByComponent.get(component.id)?.presentationState === 'failed' ||
           (isRgbLed && diagnostics.includes('led_burnout')));
       const ledOvercurrent = isLedIndicator && diagnostics.includes('led_overcurrent');
       const primaryDiagnostic = ledBurned
@@ -610,6 +644,418 @@ export function WorkbenchStage({
         </g>
       );
     });
+  function renderComponentBody(component: SchematicComponent): JSX.Element | null {
+    const entry = catalogEntry(component);
+    if (!entry?.asset || !entry.terminals) return null;
+    const baseSize = renderedSize(entry, 0);
+    const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
+    const visualState = c.componentVisualState(component);
+    const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
+    const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
+    const photoresistorPercent = Math.round(
+      Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) * 100,
+    );
+    const photoresistorLux = photoresistorIlluminanceLux(component);
+    const photoresistorResistance = photoresistorResistanceOhm(component);
+    const photoresistorLightText = `${photoresistorLightCondition(
+      photoresistorLux,
+    )}: ${formatIlluminanceLux(photoresistorLux)}`;
+    return (
+      <g
+        key={component.id}
+        className={`${selected ? 'workbench-component-selected' : ''}${
+          c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
+            ? ' workbench-component-diagnostic'
+            : ''
+        }${c.simulationRunning && component.state ? ' workbench-component-actuator-active' : ''}`}
+        data-testid="schematic-component"
+        data-component-id={component.id}
+        data-kind={component.kind}
+        data-presentation-state={
+          c.runtimePresentationResultByComponent.get(component.id)?.presentationState
+        }
+        data-source-operating-mode={
+          c.runtimePresentationResultByComponent.get(component.id)?.sourceOperatingMode
+        }
+        data-component-type={component.componentTypeId}
+        data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
+        data-hole-ids={Object.entries(component.holeBindings ?? {})
+          .map(([pinId, binding]) => `${pinId}:${binding.holeId}`)
+          .join(',')}
+        data-diagnostics={diagnostics.join(',')}
+        data-x={component.position.x}
+        data-y={component.position.y}
+      >
+        {Object.keys(component.holeBindings ?? {}).length > 0 ? (
+          <g className="workbench-mounted-leads" pointerEvents="none" aria-hidden="true">
+            {Object.keys(component.holeBindings ?? {}).map((terminal) => {
+              const physicalPoint = terminalPosition(
+                component,
+                component.position,
+                terminal,
+                component.rotation ?? 0,
+              );
+              const landingPoint = terminalPositionInDocument(document, component, terminal);
+              if (!physicalPoint || !landingPoint) return null;
+              return (
+                <line
+                  key={terminal}
+                  className={`workbench-mounted-lead${
+                    component.kind === 'source' && terminal === 'BAT+'
+                      ? ' positive'
+                      : component.kind === 'source' && terminal === 'BAT-'
+                        ? ' negative'
+                        : ''
+                  }`}
+                  data-mounted-terminal={terminal}
+                  x1={physicalPoint.x}
+                  y1={physicalPoint.y}
+                  x2={landingPoint.x}
+                  y2={landingPoint.y}
+                  vectorEffect="non-scaling-stroke"
+                />
+              );
+            })}
+          </g>
+        ) : null}
+        <g
+          className={`workbench-part${selected ? ' selected' : ''}`}
+          transform={componentTransform(component)}
+          onPointerDown={(e) => {
+            if (isVisibleComponentBody(e, entry, baseSize)) {
+              c.startComponentDrag(e, component);
+            }
+          }}
+          onClick={(e) => {
+            if (!isVisibleComponentBody(e, entry, baseSize)) return;
+            e.stopPropagation();
+            c.selectComponent(component.id, e.shiftKey);
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`${entry.label}. Перетащите для перемещения.`}
+          onKeyDown={(e: ReactKeyboardEvent<SVGGElement>) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              c.selectComponent(component.id, e.shiftKey);
+            }
+          }}
+        >
+          <rect
+            className="workbench-component-body-hit"
+            data-hit-surface="owner-alpha-mask"
+            x={0}
+            y={0}
+            width={baseSize.width}
+            height={baseSize.height}
+            fill="#ffffff"
+            fillOpacity={0.001}
+            pointerEvents="none"
+          />
+          <ProductionComponentVisual
+            entry={entry}
+            component={component}
+            width={baseSize.width}
+            height={baseSize.height}
+            visualState={visualState}
+            effectiveBrightness={c.componentLedBrightness(component)}
+            result={c.runtimePresentationResultByComponent.get(component.id)}
+            selected={selected}
+            selectionOffset={1.6 / c.viewport.zoom}
+            simulationRunning={c.simulationRunning}
+            simulationTimeMs={c.simulationTimeMs}
+            onArduinoReset={
+              entry.key === 'arduino-uno' ? () => c.resetArduinoRuntime(component.id) : undefined
+            }
+            onSwitchActuate={
+              c.simulationRunning && component.kind === 'switch'
+                ? () => c.toggleComponentState(component.id)
+                : undefined
+            }
+            onMultimeterModeChange={
+              entry.key === 'multimeter'
+                ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
+                : undefined
+            }
+            onRegulatedPowerSupplyChange={
+              entry.key === 'regulated-power-supply'
+                ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
+                : undefined
+            }
+            onSignalGeneratorChange={
+              entry.key === 'signal-generator'
+                ? (patch) => c.setSignalGeneratorControls(component.id, patch)
+                : undefined
+            }
+          />
+          {component.kind === 'potentiometer' && c.simulationRunning ? (
+            <circle
+              className="workbench-potentiometer-hit"
+              data-hit-surface="potentiometer-knob-face"
+              cx={baseSize.width * (71.5 / 144)}
+              cy={baseSize.height * (71 / 164)}
+              r={Math.min(baseSize.width / 144, baseSize.height / 164) * 71}
+              onPointerDown={(event) => c.startPotentiometerControl(event, component)}
+              aria-label="Повернуть ручку потенциометра"
+            />
+          ) : null}
+          {component.kind === 'photoresistor' && c.simulationRunning && selected ? (
+            <foreignObject
+              className="workbench-photoresistor-control-object"
+              data-testid="photoresistor-light-control"
+              x={(baseSize.width - 150) / 2}
+              y={-54}
+              width={150}
+              height={48}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <label className="workbench-photoresistor-control">
+                <span className="workbench-photoresistor-level" aria-hidden="true" />
+                <output title={photoresistorLightText}>
+                  {formatIlluminanceLux(photoresistorLux)}
+                </output>
+                <span
+                  className="workbench-photoresistor-range"
+                  style={
+                    {
+                      '--photoresistor-position': `${photoresistorPercent}%`,
+                      '--photoresistor-thumb-shift': `-${photoresistorPercent}%`,
+                      '--photoresistor-fill-adjustment': `${(20 * photoresistorPercent) / 100}px`,
+                    } as CSSProperties
+                  }
+                >
+                  <span className="workbench-photoresistor-rail" aria-hidden="true" />
+                  <span className="workbench-photoresistor-fill" aria-hidden="true" />
+                  <span className="workbench-photoresistor-thumb" aria-hidden="true" />
+                  <input
+                    aria-label="Освещённость фоторезистора"
+                    type="range"
+                    min="0"
+                    max="100"
+                    step="1"
+                    value={photoresistorPercent}
+                    aria-valuetext={`${photoresistorLightText}; сопротивление ${Math.round(
+                      photoresistorResistance,
+                    )} Ом`}
+                    onChange={(event) => {
+                      const illumination = Number(event.currentTarget.value) / 100;
+                      const preview = {
+                        ...component,
+                        stateProperties: {
+                          ...component.stateProperties,
+                          illumination,
+                        },
+                      };
+                      c.setSelectedProperties(
+                        { illumination },
+                        `Освещённость: ${formatIlluminanceLux(
+                          photoresistorIlluminanceLux(preview),
+                        )}.`,
+                      );
+                    }}
+                  />
+                </span>
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <circle cx="12" cy="12" r="4" />
+                  <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
+                </svg>
+              </label>
+            </foreignObject>
+          ) : null}
+        </g>
+      </g>
+    );
+  }
+
+  function renderComponentTerminalOverlay(component: SchematicComponent): JSX.Element | null {
+    const entry = catalogEntry(component);
+    if (!entry?.asset || !entry.terminals) return null;
+    const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
+    return (
+      <g
+        key={'terminals:' + component.id}
+        className={selected ? 'workbench-component-selected' : undefined}
+        data-testid="component-terminal-overlay"
+        data-component-id={component.id}
+        data-kind={component.kind}
+      >
+        {/* Several hundred invisible hover targets, each recomputing its
+            world position from the board's. While something is being
+            dragged they have nothing to respond to, and drawing them is
+            the difference between the board following the pointer and
+            crawling after it. */}
+        {component.kind === 'breadboard' && !c.draggingComponents
+          ? (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map((hole) => {
+              const point = componentPointPosition(
+                component,
+                component.position,
+                hole,
+                component.rotation ?? 0,
+              );
+              if (!point) return null;
+              const dropTarget =
+                c.reconnectHover?.componentId === component.id &&
+                c.reconnectHover.terminal === hole.id;
+              const pending =
+                (c.pendingTerminal?.componentId === component.id &&
+                  c.pendingTerminal.terminal === hole.id) ||
+                dropTarget;
+              const connected =
+                hoveredBreadboardNet?.boardId === component.id &&
+                hoveredBreadboardNet.groupId === hole.groupId;
+              return (
+                <g
+                  key={hole.id}
+                  className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${
+                    dropTarget ? ' drop-target' : ''
+                  }${connected ? ' connected' : ''}`}
+                  data-hole-id={hole.id}
+                  data-group-id={hole.groupId}
+                  onPointerEnter={() =>
+                    setHoveredBreadboardNet({
+                      boardId: component.id,
+                      groupId: hole.groupId,
+                    })
+                  }
+                  onPointerLeave={() => setHoveredBreadboardNet(null)}
+                >
+                  <circle
+                    className="workbench-breadboard-hole-hit"
+                    cx={point.x}
+                    cy={point.y}
+                    r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+                    data-terminal-component-id={component.id}
+                    data-terminal-id={hole.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${entry.label}: отверстие ${hole.id}`}
+                    onPointerDown={(event) =>
+                      c.startWireTerminalPointer(event, component.id, hole.id)
+                    }
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      if (!c.consumeTerminalClick()) {
+                        c.clickTerminal(component.id, hole.id, event.shiftKey, {
+                          x: event.clientX,
+                          y: event.clientY,
+                        });
+                      }
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        c.clickTerminal(component.id, hole.id);
+                      }
+                    }}
+                  />
+                  <rect
+                    className="workbench-contact-square"
+                    x={point.x - TERMINAL_MARKER_SIZE / 2}
+                    y={point.y - TERMINAL_MARKER_SIZE / 2}
+                    width={TERMINAL_MARKER_SIZE}
+                    height={TERMINAL_MARKER_SIZE}
+                    rx={1}
+                  />
+                  <circle className="workbench-breadboard-hole" cx={point.x} cy={point.y} r="2.3" />
+                  <circle
+                    className="workbench-breadboard-net-ring"
+                    cx={point.x}
+                    cy={point.y}
+                    r="4.5"
+                  />
+                </g>
+              );
+            })
+          : null}
+        {Object.keys(entry.terminals).map((terminal) => {
+          if (component.kind === 'breadboard') return null;
+          if (component.holeBindings?.[terminal]) return null;
+          const terminalSpec = entry.terminals[terminal];
+          if (!terminalSpec) return null;
+          const point = terminalPosition(
+            component,
+            component.position,
+            terminal,
+            component.rotation ?? 0,
+          );
+          if (!point) return null;
+          const dropTarget =
+            c.reconnectHover?.componentId === component.id &&
+            c.reconnectHover.terminal === terminal;
+          const pending =
+            (c.pendingTerminal?.componentId === component.id &&
+              c.pendingTerminal.terminal === terminal) ||
+            dropTarget;
+          const connected = c.terminalConnectionCount(component.id, terminal) > 0;
+          return (
+            <g
+              key={terminal}
+              className={`workbench-terminal${pending ? ' pending' : ''}${
+                dropTarget ? ' drop-target' : ''
+              }${connected ? ' connected' : ''}`}
+              transform={`translate(${point.x} ${point.y})`}
+              data-connected={connected ? 'true' : 'false'}
+            >
+              <circle
+                className="workbench-terminal-hit"
+                r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+                data-terminal-component-id={component.id}
+                data-terminal-id={terminal}
+                onPointerDown={(event) => c.startWireTerminalPointer(event, component.id, terminal)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!c.consumeTerminalClick()) {
+                    c.clickTerminal(component.id, terminal, event.shiftKey, {
+                      x: event.clientX,
+                      y: event.clientY,
+                    });
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`${entry.label}: вывод ${terminalSpec.label}, ${
+                  connected ? 'подключён' : 'свободен'
+                }`}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    c.clickTerminal(component.id, terminal);
+                  }
+                }}
+              />
+              <rect
+                className="workbench-terminal-dot"
+                x={-TERMINAL_MARKER_SIZE / 2}
+                y={-TERMINAL_MARKER_SIZE / 2}
+                width={TERMINAL_MARKER_SIZE}
+                height={TERMINAL_MARKER_SIZE}
+                rx={1}
+              />
+              {(() => {
+                const label = terminalSpec.label;
+                const tooltip = tooltipPlacement(label, point, c.viewBox, c.viewport.zoom);
+                return (
+                  <g className="workbench-terminal-tooltip">
+                    <text
+                      x={tooltip.x + tooltip.width / 2}
+                      y={tooltip.textY}
+                      fontSize={12 / c.viewport.zoom}
+                    >
+                      {label}
+                    </text>
+                  </g>
+                );
+              })()}
+            </g>
+          );
+        })}
+      </g>
+    );
+  }
+
+  const alignmentGuideAxes = c.wireGuide ? wireGuideAxes(c.wireGuide) : [];
+
   return (
     <section className="workbench-stage" aria-label="Рабочее поле электронной схемы">
       <PickedUpPart controller={c} />
@@ -644,405 +1090,14 @@ export function WorkbenchStage({
           height="7000"
           fill={showGrid ? 'url(#asa-grid-large)' : '#f4f5f6'}
         />
-        {orderedComponents
-          .filter((component) => component.kind !== 'wire')
-          .map((component) => {
-            const entry = catalogEntry(component);
-            if (!entry?.asset || !entry.terminals) return null;
-            const baseSize = renderedSize(entry, 0);
-            const selected =
-              c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
-            const visualState = c.componentVisualState(component);
-            const componentDiagnostics = c.diagnosticsByComponent.get(component.id) ?? [];
-            const diagnostics = componentDiagnostics.map((diagnostic) => diagnostic.code);
-            const photoresistorPercent = Math.round(
-              Math.min(1, Math.max(0, Number(component.stateProperties?.['illumination'] ?? 0.5))) *
-                100,
-            );
-            const photoresistorLux = photoresistorIlluminanceLux(component);
-            const photoresistorResistance = photoresistorResistanceOhm(component);
-            const photoresistorLightText = `${photoresistorLightCondition(
-              photoresistorLux,
-            )}: ${formatIlluminanceLux(photoresistorLux)}`;
-            return (
-              <g
-                key={component.id}
-                className={`${selected ? 'workbench-component-selected' : ''}${
-                  c.simulationRunning && selected && c.errorDiagnosticComponentIds.has(component.id)
-                    ? ' workbench-component-diagnostic'
-                    : ''
-                }${
-                  c.simulationRunning && component.state
-                    ? ' workbench-component-actuator-active'
-                    : ''
-                }`}
-                data-testid="schematic-component"
-                data-component-id={component.id}
-                data-kind={component.kind}
-                data-presentation-state={c.resultByComponent.get(component.id)?.presentationState}
-                data-source-operating-mode={
-                  c.resultByComponent.get(component.id)?.sourceOperatingMode
-                }
-                data-component-type={component.componentTypeId}
-                data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
-                data-hole-ids={Object.entries(component.holeBindings ?? {})
-                  .map(([pinId, binding]) => `${pinId}:${binding.holeId}`)
-                  .join(',')}
-                data-diagnostics={diagnostics.join(',')}
-                data-x={component.position.x}
-                data-y={component.position.y}
-              >
-                {Object.keys(component.holeBindings ?? {}).length > 0 ? (
-                  <g className="workbench-mounted-leads" pointerEvents="none" aria-hidden="true">
-                    {Object.keys(component.holeBindings ?? {}).map((terminal) => {
-                      const physicalPoint = terminalPosition(
-                        component,
-                        component.position,
-                        terminal,
-                        component.rotation ?? 0,
-                      );
-                      const landingPoint = terminalPositionInDocument(
-                        document,
-                        component,
-                        terminal,
-                      );
-                      if (!physicalPoint || !landingPoint) return null;
-                      return (
-                        <line
-                          key={terminal}
-                          className={`workbench-mounted-lead${
-                            component.kind === 'source' && terminal === 'BAT+'
-                              ? ' positive'
-                              : component.kind === 'source' && terminal === 'BAT-'
-                                ? ' negative'
-                                : ''
-                          }`}
-                          data-mounted-terminal={terminal}
-                          x1={physicalPoint.x}
-                          y1={physicalPoint.y}
-                          x2={landingPoint.x}
-                          y2={landingPoint.y}
-                          vectorEffect="non-scaling-stroke"
-                        />
-                      );
-                    })}
-                  </g>
-                ) : null}
-                <g
-                  className={`workbench-part${selected ? ' selected' : ''}`}
-                  transform={componentTransform(component)}
-                  onPointerDown={(e) => {
-                    if (isVisibleComponentBody(e, entry, baseSize)) {
-                      c.startComponentDrag(e, component);
-                    }
-                  }}
-                  onClick={(e) => {
-                    if (!isVisibleComponentBody(e, entry, baseSize)) return;
-                    e.stopPropagation();
-                    c.selectComponent(component.id, e.shiftKey);
-                  }}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${entry.label}. Перетащите для перемещения.`}
-                  onKeyDown={(e: ReactKeyboardEvent<SVGGElement>) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      c.selectComponent(component.id, e.shiftKey);
-                    }
-                  }}
-                >
-                  <rect
-                    className="workbench-component-body-hit"
-                    data-hit-surface="owner-alpha-mask"
-                    x={0}
-                    y={0}
-                    width={baseSize.width}
-                    height={baseSize.height}
-                    fill="#ffffff"
-                    fillOpacity={0.001}
-                    pointerEvents="none"
-                  />
-                  <ProductionComponentVisual
-                    entry={entry}
-                    component={component}
-                    width={baseSize.width}
-                    height={baseSize.height}
-                    visualState={visualState}
-                    effectiveBrightness={c.componentLedBrightness(component)}
-                    result={c.resultByComponent.get(component.id)}
-                    selected={selected}
-                    selectionOffset={1.6 / c.viewport.zoom}
-                    simulationRunning={c.simulationRunning}
-                    simulationTimeMs={c.simulationTimeMs}
-                    onArduinoReset={
-                      entry.key === 'arduino-uno'
-                        ? () => c.resetArduinoRuntime(component.id)
-                        : undefined
-                    }
-                    onSwitchActuate={
-                      c.simulationRunning && component.kind === 'switch'
-                        ? () => c.toggleComponentState(component.id)
-                        : undefined
-                    }
-                    onMultimeterModeChange={
-                      entry.key === 'multimeter'
-                        ? (mode) => c.setMultimeterMeasurementMode(component.id, mode)
-                        : undefined
-                    }
-                    onRegulatedPowerSupplyChange={
-                      entry.key === 'regulated-power-supply'
-                        ? (patch) => c.setRegulatedPowerSupplyControls(component.id, patch)
-                        : undefined
-                    }
-                    onSignalGeneratorChange={
-                      entry.key === 'signal-generator'
-                        ? (patch) => c.setSignalGeneratorControls(component.id, patch)
-                        : undefined
-                    }
-                  />
-                  {component.kind === 'potentiometer' && c.simulationRunning ? (
-                    <circle
-                      className="workbench-potentiometer-hit"
-                      data-hit-surface="potentiometer-knob-face"
-                      cx={baseSize.width * (71.5 / 144)}
-                      cy={baseSize.height * (71 / 164)}
-                      r={Math.min(baseSize.width / 144, baseSize.height / 164) * 71}
-                      onPointerDown={(event) => c.startPotentiometerControl(event, component)}
-                      aria-label="Повернуть ручку потенциометра"
-                    />
-                  ) : null}
-                  {component.kind === 'photoresistor' && c.simulationRunning && selected ? (
-                    <foreignObject
-                      className="workbench-photoresistor-control-object"
-                      data-testid="photoresistor-light-control"
-                      x={(baseSize.width - 150) / 2}
-                      y={-54}
-                      width={150}
-                      height={48}
-                      onPointerDown={(event) => event.stopPropagation()}
-                      onClick={(event) => event.stopPropagation()}
-                    >
-                      <label className="workbench-photoresistor-control">
-                        <span className="workbench-photoresistor-level" aria-hidden="true" />
-                        <output title={photoresistorLightText}>
-                          {formatIlluminanceLux(photoresistorLux)}
-                        </output>
-                        <span
-                          className="workbench-photoresistor-range"
-                          style={
-                            {
-                              '--photoresistor-position': `${photoresistorPercent}%`,
-                              '--photoresistor-thumb-shift': `-${photoresistorPercent}%`,
-                              '--photoresistor-fill-adjustment': `${(20 * photoresistorPercent) / 100}px`,
-                            } as CSSProperties
-                          }
-                        >
-                          <span className="workbench-photoresistor-rail" aria-hidden="true" />
-                          <span className="workbench-photoresistor-fill" aria-hidden="true" />
-                          <span className="workbench-photoresistor-thumb" aria-hidden="true" />
-                          <input
-                            aria-label="Освещённость фоторезистора"
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="1"
-                            value={photoresistorPercent}
-                            aria-valuetext={`${photoresistorLightText}; сопротивление ${Math.round(
-                              photoresistorResistance,
-                            )} Ом`}
-                            onChange={(event) => {
-                              const illumination = Number(event.currentTarget.value) / 100;
-                              const preview = {
-                                ...component,
-                                stateProperties: {
-                                  ...component.stateProperties,
-                                  illumination,
-                                },
-                              };
-                              c.setSelectedProperties(
-                                { illumination },
-                                `Освещённость: ${formatIlluminanceLux(
-                                  photoresistorIlluminanceLux(preview),
-                                )}.`,
-                              );
-                            }}
-                          />
-                        </span>
-                        <svg viewBox="0 0 24 24" aria-hidden="true">
-                          <circle cx="12" cy="12" r="4" />
-                          <path d="M12 1v3M12 20v3M1 12h3M20 12h3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M19.8 4.2l-2.1 2.1M6.3 17.7l-2.1 2.1" />
-                        </svg>
-                      </label>
-                    </foreignObject>
-                  ) : null}
-                </g>
-                {/* Several hundred invisible hover targets, each recomputing its
-                    world position from the board's. While something is being
-                    dragged they have nothing to respond to, and drawing them is
-                    the difference between the board following the pointer and
-                    crawling after it. */}
-                {component.kind === 'breadboard' && !c.draggingComponents
-                  ? (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map(
-                      (hole) => {
-                        const point = componentPointPosition(
-                          component,
-                          component.position,
-                          hole,
-                          component.rotation ?? 0,
-                        );
-                        if (!point) return null;
-                        const pending =
-                          (c.pendingTerminal?.componentId === component.id &&
-                            c.pendingTerminal.terminal === hole.id) ||
-                          (c.reconnectHover?.componentId === component.id &&
-                            c.reconnectHover.terminal === hole.id);
-                        const connected =
-                          hoveredBreadboardNet?.boardId === component.id &&
-                          hoveredBreadboardNet.groupId === hole.groupId;
-                        return (
-                          <g
-                            key={hole.id}
-                            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${connected ? ' connected' : ''}`}
-                            data-hole-id={hole.id}
-                            data-group-id={hole.groupId}
-                            onPointerEnter={() =>
-                              setHoveredBreadboardNet({
-                                boardId: component.id,
-                                groupId: hole.groupId,
-                              })
-                            }
-                            onPointerLeave={() => setHoveredBreadboardNet(null)}
-                          >
-                            <circle
-                              className="workbench-breadboard-hole-hit"
-                              cx={point.x}
-                              cy={point.y}
-                              r={(coarseInteraction ? 10 : 5) / c.viewport.zoom}
-                              data-terminal-component-id={component.id}
-                              data-terminal-id={hole.id}
-                              role="button"
-                              tabIndex={0}
-                              aria-label={`${entry.label}: отверстие ${hole.id}`}
-                              onPointerDown={(event) => event.stopPropagation()}
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                c.clickTerminal(component.id, hole.id);
-                              }}
-                              onKeyDown={(event) => {
-                                if (event.key === 'Enter' || event.key === ' ') {
-                                  event.preventDefault();
-                                  c.clickTerminal(component.id, hole.id);
-                                }
-                              }}
-                            />
-                            <rect
-                              className="workbench-contact-square"
-                              x={point.x - 5 / c.viewport.zoom}
-                              y={point.y - 5 / c.viewport.zoom}
-                              width={10 / c.viewport.zoom}
-                              height={10 / c.viewport.zoom}
-                              rx={1 / c.viewport.zoom}
-                            />
-                            <circle
-                              className="workbench-breadboard-hole"
-                              cx={point.x}
-                              cy={point.y}
-                              r="2.3"
-                            />
-                            <circle
-                              className="workbench-breadboard-net-ring"
-                              cx={point.x}
-                              cy={point.y}
-                              r="4.5"
-                            />
-                          </g>
-                        );
-                      },
-                    )
-                  : null}
-                {Object.keys(entry.terminals).map((terminal) => {
-                  if (component.kind === 'breadboard') return null;
-                  if (component.holeBindings?.[terminal]) return null;
-                  const terminalSpec = entry.terminals[terminal];
-                  if (!terminalSpec) return null;
-                  const point = terminalPosition(
-                    component,
-                    component.position,
-                    terminal,
-                    component.rotation ?? 0,
-                  );
-                  if (!point) return null;
-                  const pending =
-                    (c.pendingTerminal?.componentId === component.id &&
-                      c.pendingTerminal.terminal === terminal) ||
-                    (c.reconnectHover?.componentId === component.id &&
-                      c.reconnectHover.terminal === terminal);
-                  const connected = c.terminalConnectionCount(component.id, terminal) > 0;
-                  return (
-                    <g
-                      key={terminal}
-                      className={`workbench-terminal${pending ? ' pending' : ''}${
-                        connected ? ' connected' : ''
-                      }`}
-                      transform={`translate(${point.x} ${point.y})`}
-                      data-connected={connected ? 'true' : 'false'}
-                    >
-                      <circle
-                        className="workbench-terminal-hit"
-                        r={(coarseInteraction ? 14 : 8) / c.viewport.zoom}
-                        data-terminal-component-id={component.id}
-                        data-terminal-id={terminal}
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          c.clickTerminal(component.id, terminal);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`${entry.label}: вывод ${terminalSpec.label}, ${
-                          connected ? 'подключён' : 'свободен'
-                        }`}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            c.clickTerminal(component.id, terminal);
-                          }
-                        }}
-                      />
-                      <rect
-                        className="workbench-terminal-dot"
-                        x={-5 / c.viewport.zoom}
-                        y={-5 / c.viewport.zoom}
-                        width={10 / c.viewport.zoom}
-                        height={10 / c.viewport.zoom}
-                        rx={1 / c.viewport.zoom}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                      {(() => {
-                        const label = terminalSpec.label;
-                        const tooltip = tooltipPlacement(label, point, c.viewBox, c.viewport.zoom);
-                        return (
-                          <g className="workbench-terminal-tooltip">
-                            <text
-                              x={tooltip.x + tooltip.width / 2}
-                              y={tooltip.textY}
-                              fontSize={12 / c.viewport.zoom}
-                            >
-                              {label}
-                            </text>
-                          </g>
-                        );
-                      })()}
-                    </g>
-                  );
-                })}
-              </g>
-            );
-          })}
-        {/* Pointer targets are painted after components, so a visible wire stays
-            selectable even where it crosses a board or another part. The
-            rendered wire itself remains non-interactive and keeps its physical
-            width; these transparent paths are the steady screen-sized target. */}
+        <g data-testid="breadboard-body-layer">
+          {orderedComponents
+            .filter((component) => component.kind === 'breadboard')
+            .map((component) => renderComponentBody(component))}
+        </g>
+        {/* Wire hit geometry shares the saved-wire paint layer. Ordinary
+            components are painted later, so an invisible wire target cannot
+            steal input where the wire is visually hidden beneath a part. */}
         <g className="workbench-wire-layer workbench-wire-hit-layer">
           {routedWires.map(({ wire, path }) => (
             <path
@@ -1096,69 +1151,108 @@ export function WorkbenchStage({
                   stroke={wire.color ?? '#e3212b'}
                   pointerEvents="none"
                 />
-                {selected
-                  ? (wire.vertices ?? []).map((vertex, index) => (
-                      <circle
-                        key={`${wire.id}-vertex-${index}`}
-                        className={`workbench-wire-vertex${
-                          c.selection?.kind === 'wire' &&
-                          c.selection.id === wire.id &&
-                          c.selection.vertexIndex === index
-                            ? ' active'
-                            : ''
-                        }`}
-                        cx={vertex.x}
-                        cy={vertex.y}
-                        r={4.5 / c.viewport.zoom}
-                        fill={wire.color ?? '#e3212b'}
-                        data-testid="wire-vertex"
-                        data-wire-id={wire.id}
-                        data-wire-vertex-index={index}
-                        onClick={(event) => event.stopPropagation()}
-                        onPointerDown={(event) => {
-                          event.stopPropagation();
-                          const previous = lastVertexClick.current;
-                          const repeated =
-                            previous?.wireId === wire.id &&
-                            previous.vertexIndex === index &&
-                            isRepeatedClick(previous, event);
-                          if (event.detail >= 2 || repeated) {
-                            lastVertexClick.current = null;
-                            c.removeWireVertexAt(wire.id, index);
-                            return;
-                          }
-                          lastVertexClick.current = {
-                            wireId: wire.id,
-                            vertexIndex: index,
-                            x: event.clientX,
-                            y: event.clientY,
-                            at: Date.now(),
-                          };
-                          c.startVertexDrag(event, wire.id, index);
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === 'Delete' || event.key === 'Backspace') {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            c.removeWireVertexAt(wire.id, index);
-                          }
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        aria-label={`Изгиб провода ${index + 1}`}
-                      />
-                    ))
-                  : null}
               </g>
             );
           })}
           {c.pendingStart && c.wirePreviewEnd ? (
             <path
               className="workbench-wire-preview"
-              d={roundedWirePath(wirePoints(c.pendingStart, c.wirePreviewEnd, c.wireDraftVertices))}
+              d={roundedWirePath(
+                wirePoints(c.pendingStart, c.wirePreviewEnd, c.wirePreviewVertices),
+              )}
               stroke={c.activeWireColor}
             />
           ) : null}
+        </g>
+        <g data-testid="component-body-layer">
+          {orderedComponents
+            .filter((component) => component.kind !== 'wire' && component.kind !== 'breadboard')
+            .map((component) => renderComponentBody(component))}
+        </g>
+        <g data-testid="terminal-overlay-layer">
+          {orderedComponents
+            .filter((component) => component.kind !== 'wire')
+            .map((component) => renderComponentTerminalOverlay(component))}
+        </g>
+        <g
+          className="workbench-wire-layer workbench-wire-editor-layer"
+          data-testid="wire-editor-layer"
+        >
+          {routedWires.map(({ wire, selected }) => (
+            <g key={wire.id} data-wire-id={wire.id}>
+              {selected
+                ? (wire.vertices ?? []).map((vertex, index) => (
+                    <circle
+                      key={`${wire.id}-vertex-${index}`}
+                      className={`workbench-wire-vertex${
+                        c.selection?.kind === 'wire' &&
+                        c.selection.id === wire.id &&
+                        c.selection.vertexIndex === index
+                          ? ' active'
+                          : ''
+                      }`}
+                      cx={vertex.x}
+                      cy={vertex.y}
+                      r={4.5 / c.viewport.zoom}
+                      fill={wire.color ?? '#e3212b'}
+                      data-testid="wire-vertex"
+                      data-wire-id={wire.id}
+                      data-wire-vertex-index={index}
+                      onClick={(event) => event.stopPropagation()}
+                      onPointerDown={(event) => {
+                        event.stopPropagation();
+                        const previous = lastVertexClick.current;
+                        const repeated =
+                          previous?.wireId === wire.id &&
+                          previous.vertexIndex === index &&
+                          isRepeatedClick(previous, event);
+                        if (event.detail >= 2 || repeated) {
+                          lastVertexClick.current = null;
+                          c.removeWireVertexAt(wire.id, index);
+                          return;
+                        }
+                        lastVertexClick.current = {
+                          wireId: wire.id,
+                          vertexIndex: index,
+                          x: event.clientX,
+                          y: event.clientY,
+                          at: Date.now(),
+                        };
+                        c.startVertexDrag(event, wire.id, index);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Delete' || event.key === 'Backspace') {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          c.removeWireVertexAt(wire.id, index);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Изгиб провода ${index + 1}`}
+                    />
+                  ))
+                : null}
+            </g>
+          ))}
+          {alignmentGuideAxes.map((axis, index) => (
+            <line
+              key={`${axis.orientation}:${axis.coordinate}:${index}`}
+              className="workbench-wire-guide"
+              data-testid="wire-alignment-guide"
+              data-guide-axis={axis.orientation}
+              x1={axis.orientation === 'horizontal' ? c.viewBox.x : axis.coordinate}
+              y1={axis.orientation === 'horizontal' ? axis.coordinate : c.viewBox.y}
+              x2={
+                axis.orientation === 'horizontal' ? c.viewBox.x + c.viewBox.width : axis.coordinate
+              }
+              y2={
+                axis.orientation === 'horizontal' ? axis.coordinate : c.viewBox.y + c.viewBox.height
+              }
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          ))}
         </g>
         {selectedWire && selectedWireFrom && selectedWireTo ? (
           <g className="workbench-wire-control-layer" data-testid="wire-control-layer">
@@ -1174,25 +1268,36 @@ export function WorkbenchStage({
               const displayed =
                 c.reconnectEndpoint === endpoint && c.wirePreviewEnd ? c.wirePreviewEnd : point;
               return (
-                <circle
-                  key={endpoint}
-                  className="workbench-wire-endpoint"
-                  data-testid="wire-endpoint"
-                  data-wire-id={selectedWire.id}
-                  data-wire-endpoint={endpoint}
-                  cx={displayed.x}
-                  cy={displayed.y}
-                  r={5 / c.viewport.zoom}
-                  // The endpoint in hand rides exactly under the pointer. It must
-                  // not eat hit-testing: the terminal beneath it still needs the
-                  // hover highlight and the drop target lookup.
-                  pointerEvents={c.reconnectEndpoint === endpoint ? 'none' : undefined}
-                  fill={selectedWire.color ?? '#e3212b'}
-                  onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${endpoint === 'from' ? 'Начало' : 'Конец'} провода`}
-                />
+                <g key={endpoint} data-wire-endpoint-control={endpoint}>
+                  <circle
+                    className="workbench-wire-endpoint-hit"
+                    data-testid="wire-endpoint"
+                    data-wire-id={selectedWire.id}
+                    data-wire-endpoint={endpoint}
+                    cx={displayed.x}
+                    cy={displayed.y}
+                    r={
+                      coarseInteraction ? WIRE_ENDPOINT_TOUCH_HIT_RADIUS : WIRE_ENDPOINT_HIT_RADIUS
+                    }
+                    pointerEvents={c.reconnectEndpoint === endpoint ? 'none' : undefined}
+                    onPointerDown={(event) => c.startEndpointDrag(event, selectedWire.id, endpoint)}
+                    role="button"
+                    tabIndex={0}
+                    aria-label={endpoint === 'from' ? 'Начало провода' : 'Конец провода'}
+                  />
+                  <circle
+                    className="workbench-wire-endpoint"
+                    data-testid="wire-endpoint-visible"
+                    data-wire-id={selectedWire.id}
+                    data-wire-endpoint={endpoint}
+                    cx={displayed.x}
+                    cy={displayed.y}
+                    r={WIRE_ENDPOINT_VISIBLE_RADIUS}
+                    fill={selectedWire.color ?? '#e3212b'}
+                    pointerEvents="none"
+                    aria-hidden="true"
+                  />
+                </g>
               );
             })}
           </g>
