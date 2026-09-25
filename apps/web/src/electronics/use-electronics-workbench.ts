@@ -700,10 +700,12 @@ export function useElectronicsWorkbench(projectId: string) {
       viewportProjectRef.current = project.id;
       const stored = readLocalElectronicsViewport(project.id);
       const restored =
-        stored ??
-        (document.components.length === 0
+        document.components.length === 0 && !compactWorkbench()
           ? emptyInitialViewport()
-          : (document.viewport ?? DEFAULT_VIEWPORT));
+          : (stored ??
+            (document.components.length === 0
+              ? emptyInitialViewport()
+              : (document.viewport ?? DEFAULT_VIEWPORT)));
       // A document saved while the editor allowed a wider range would otherwise
       // reopen at a zoom the server will not accept back, and every save from
       // then on would fail for a reason the drawing does not explain.
