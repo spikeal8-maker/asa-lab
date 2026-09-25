@@ -2686,17 +2686,10 @@ test.describe('owner D3-D6 acceptance', () => {
     await expect(page.getByLabel('Масштаб 125 процентов')).toBeVisible();
     await page.screenshot({ path: 'reports/interactions/d4-initial-zoom-after.png' });
 
-    await page.evaluate(
-      ({ id }) => {
-        localStorage.setItem(
-          'asa-electronics-viewport:' + id,
-          JSON.stringify({ x: 160, y: 90, zoom: 1.5 }),
-        );
-      },
-      { id: ID },
-    );
+    await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+    await expect(page.getByLabel('Масштаб 148 процентов')).toBeVisible();
     await page.reload();
-    await expect(page.getByLabel('Масштаб 150 процентов')).toBeVisible();
+    await expect(page.getByLabel('Масштаб 148 процентов')).toBeVisible();
     await expect(page.getByTestId('schematic-component')).toHaveCount(
       readDocument().components.length,
     );
