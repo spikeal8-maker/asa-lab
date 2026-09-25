@@ -962,12 +962,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function updateSelectedResistanceValue(valueOhms: number, unit: string): void {
-    if (
-      !document ||
-      !Number.isFinite(valueOhms) ||
-      valueOhms < 0 ||
-      !structuralEditAllowed()
-    ) {
+    if (!document || !Number.isFinite(valueOhms) || valueOhms < 0 || !structuralEditAllowed()) {
       return;
     }
     const withValue = updateSelectionValue(document, selection, valueOhms);
@@ -1069,17 +1064,13 @@ export function useElectronicsWorkbench(projectId: string) {
       } else if (component?.kind === 'photoresistor') {
         runtimeOnlyControl = keys.every((key) => key === 'illumination');
       } else if (component?.componentTypeId === 'multimeter') {
-        runtimeOnlyControl = keys.every(
-          (key) => key === 'measurementMode' || key === 'meterRange',
-        );
+        runtimeOnlyControl = keys.every((key) => key === 'measurementMode' || key === 'meterRange');
       } else if (component?.componentTypeId === 'pir-sensor') {
         runtimeOnlyControl = keys.every((key) => key === 'motionDetected');
       } else if (component?.componentTypeId === 'oscilloscope') {
         runtimeOnlyControl = keys.every(
           (key) =>
-            key === 'voltsPerDivision' ||
-            key === 'timePerDivisionMs' ||
-            key === 'triggerLevelVolt',
+            key === 'voltsPerDivision' || key === 'timePerDivisionMs' || key === 'triggerLevelVolt',
         );
       }
 

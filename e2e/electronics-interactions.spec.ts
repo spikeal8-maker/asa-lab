@@ -2152,9 +2152,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
 
       const potPoint = await pointOnBody(page, 'runtime-pot');
       await page.mouse.click(potPoint.x, potPoint.y);
-      await page
-        .getByRole('button', { name: /Техническое состояние Потенциометр/ })
-        .click();
+      await page.getByRole('button', { name: /Техническое состояние Потенциометр/ }).click();
       const slider = page.getByRole('slider', { name: 'Положение движка' });
       await expect(slider).toBeVisible();
       await slider.press('Home');
