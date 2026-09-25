@@ -5818,9 +5818,9 @@ html.arduino-palette-resizing * {
   }
 
   .workbench-inspector:not(.wire-selected) .workbench-inspector-heading {
-    min-height: 30px;
+    min-height: 44px;
     gap: 4px;
-    padding: 2px 4px 2px 6px;
+    padding: 0 4px 0 6px;
   }
 
   .workbench-inspector:not(.wire-selected) .workbench-inspector-heading span {
@@ -5833,8 +5833,8 @@ html.arduino-palette-resizing * {
   }
 
   .workbench-inspector:not(.wire-selected) .workbench-inspector-help {
-    width: 36px;
-    height: 36px;
+    width: 44px;
+    height: 44px;
     font-size: 13px;
   }
 
