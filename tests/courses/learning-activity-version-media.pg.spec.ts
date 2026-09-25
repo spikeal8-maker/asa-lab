@@ -312,20 +312,14 @@ describe('UX1A2 immutable LearningActivityVersion sample', () => {
     const v2 = await publish(activityId, 2, 'ux1a2:no-image:v2:0001');
     expect(v2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
 
-    const [v1After, v2Image] = await Promise.all([
-      admin.query('SELECT * FROM learning_activity_version_sample_get($1,$2,$3,$4)', [
-        ownerPrincipalId,
-        owner.tenantId,
-        activityId,
-        v1.activity_version_id,
-      ]),
-      admin.query('SELECT * FROM learning_activity_version_sample_get($1,$2,$3,$4)', [
-        ownerPrincipalId,
-        owner.tenantId,
-        activityId,
-        v2.activity_version_id,
-      ]),
-    ]);
+    const v1After = await admin.query(
+      'SELECT * FROM learning_activity_version_sample_get($1,$2,$3,$4)',
+      [ownerPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
+    );
+    const v2Image = await admin.query(
+      'SELECT * FROM learning_activity_version_sample_get($1,$2,$3,$4)',
+      [ownerPrincipalId, owner.tenantId, activityId, v2.activity_version_id],
+    );
     expect(v1After.rows[0].result_code).toBe('sample_not_found');
     expect(v2Image.rows[0]).toMatchObject({
       result_code: 'ok',
