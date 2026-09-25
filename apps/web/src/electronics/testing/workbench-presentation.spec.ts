@@ -290,8 +290,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('data-testid="photoresistor-reference-profile"');
     expect(sidebarSource).toContain('Сопротивление сейчас');
     expect(sidebarSource).toContain('Больше света → меньше сопротивление');
+    expect(controllerModuleSource).toContain("component?.kind === 'photoresistor'");
     expect(controllerModuleSource).toContain(
-      "component?.kind === 'photoresistor' && keys.every((key) => key === 'illumination')",
+      "runtimeOnlyControl = keys.every((key) => key === 'illumination')",
     );
   });
 
