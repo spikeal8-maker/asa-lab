@@ -348,3 +348,150 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await expect(page.getByText('Выбрать файл', { exact: true })).toBeVisible();
   expect(legacyMutations).toEqual([]);
 });
+
+test('published task image stays immutable across versions', async ({ page }) => {
+  test.setTimeout(150000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Published image ' + unique;
+  const imageA = solidPng(210, 45, 45);
+  const imageB = solidPng(35, 75, 215);
+
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(`${unique}@published-image.test`);
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('v' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор версии');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Возможности', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+
+  await page.goto('/#/challenges');
+  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Содержание', { exact: true }).fill('Опубликованная схема A/B.');
+  const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
+  await fileInput.setInputFiles({
+    name: 'published-a.png',
+    mimeType: 'image/png',
+    buffer: imageA,
+  });
+
+  const v1ResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const v1Response = await v1ResponsePromise;
+  expect(v1Response.ok()).toBe(true);
+  const v1Receipt = (await v1Response.json()) as { id: string; versionNumber: number };
+  expect(v1Receipt.versionNumber).toBe(1);
+  const activityMatch = /\/api\/learning\/activities\/([^/]+)\/publish$/.exec(
+    new URL(v1Response.url()).pathname,
+  );
+  expect(activityMatch).toBeTruthy();
+  const activityId = decodeURIComponent(activityMatch![1]!);
+
+  const preview = page.getByTestId('learner-preview');
+  const publishedButton = page.getByRole('button', {
+    name: 'Как ученик: опубликованная версия',
+  });
+  const draftButton = page.getByRole('button', { name: 'Как ученик: сохранённый черновик' });
+
+  await publishedButton.click();
+  const publishedV1Image = preview.getByRole('img', { name: `Образец: ${title}` });
+  await expect(publishedV1Image).toBeVisible();
+  const publishedV1Source = await publishedV1Image.getAttribute('src');
+  expect(publishedV1Source).toBeTruthy();
+  const publishedV1Bytes = await page.request.get(
+    new URL(publishedV1Source!, page.url()).toString(),
+  );
+  expect(publishedV1Bytes.ok()).toBe(true);
+  expect(Buffer.compare(await publishedV1Bytes.body(), imageA)).toBe(0);
+
+  await fileInput.setInputFiles({
+    name: 'published-b.png',
+    mimeType: 'image/png',
+    buffer: imageB,
+  });
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+
+  await draftButton.click();
+  const draftBImage = preview.getByRole('img', { name: `Образец: ${title}` });
+  await expect(draftBImage).toBeVisible();
+  const draftBSource = await draftBImage.getAttribute('src');
+  expect(draftBSource).toBeTruthy();
+  const draftBBytes = await page.request.get(new URL(draftBSource!, page.url()).toString());
+  expect(draftBBytes.ok()).toBe(true);
+  expect(Buffer.compare(await draftBBytes.body(), imageB)).toBe(0);
+
+  await publishedButton.click();
+  const v1StillAImage = preview.getByRole('img', { name: `Образец: ${title}` });
+  const v1StillASource = await v1StillAImage.getAttribute('src');
+  expect(v1StillASource).toBeTruthy();
+  const v1StillABytes = await page.request.get(new URL(v1StillASource!, page.url()).toString());
+  expect(v1StillABytes.ok()).toBe(true);
+  expect(Buffer.compare(await v1StillABytes.body(), imageA)).toBe(0);
+
+  const v2ResponsePromise = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const v2Response = await v2ResponsePromise;
+  expect(v2Response.ok()).toBe(true);
+  const v2Receipt = (await v2Response.json()) as { id: string; versionNumber: number };
+  expect(v2Receipt.versionNumber).toBe(2);
+  expect(v2Receipt.id).not.toBe(v1Receipt.id);
+
+  await publishedButton.click();
+  const publishedV2Image = preview.getByRole('img', { name: `Образец: ${title}` });
+  await expect(publishedV2Image).toBeVisible();
+  const publishedV2Source = await publishedV2Image.getAttribute('src');
+  expect(publishedV2Source).toBeTruthy();
+  const publishedV2Bytes = await page.request.get(
+    new URL(publishedV2Source!, page.url()).toString(),
+  );
+  expect(publishedV2Bytes.ok()).toBe(true);
+  expect(Buffer.compare(await publishedV2Bytes.body(), imageB)).toBe(0);
+
+  const exactV1Preview = await page.request.get(
+    new URL(
+      `/api/learning/activities/${encodeURIComponent(activityId)}/preview?source=published&versionId=${encodeURIComponent(v1Receipt.id)}`,
+      page.url(),
+    ).toString(),
+  );
+  expect(exactV1Preview.ok()).toBe(true);
+  const exactV1 = (await exactV1Preview.json()) as { assignment: { sampleImage: string | null } };
+  expect(exactV1.assignment.sampleImage).toBeTruthy();
+  const exactV1Bytes = await page.request.get(
+    new URL(exactV1.assignment.sampleImage!, page.url()).toString(),
+  );
+  expect(exactV1Bytes.ok()).toBe(true);
+  expect(Buffer.compare(await exactV1Bytes.body(), imageA)).toBe(0);
+
+  const exactV2Preview = await page.request.get(
+    new URL(
+      `/api/learning/activities/${encodeURIComponent(activityId)}/preview?source=published&versionId=${encodeURIComponent(v2Receipt.id)}`,
+      page.url(),
+    ).toString(),
+  );
+  expect(exactV2Preview.ok()).toBe(true);
+  const exactV2 = (await exactV2Preview.json()) as { assignment: { sampleImage: string | null } };
+  expect(exactV2.assignment.sampleImage).toBeTruthy();
+  const exactV2Bytes = await page.request.get(
+    new URL(exactV2.assignment.sampleImage!, page.url()).toString(),
+  );
+  expect(exactV2Bytes.ok()).toBe(true);
+  expect(Buffer.compare(await exactV2Bytes.body(), imageB)).toBe(0);
+});
