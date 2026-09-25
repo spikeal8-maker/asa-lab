@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpException,
   Inject,
@@ -9,8 +10,9 @@ import {
   Put,
   Query,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { effectiveAccountActions } from '@asa-lab/identity';
@@ -35,6 +37,18 @@ function error(code: string, message: string) {
 
 function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function decodeDraftImage(raw: string): { bytes: Buffer; contentType: string } {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
+  if (!match) {
+    throw new HttpException(error('validation_error', 'Подойдёт PNG, JPEG или WebP.'), 400);
+  }
+  const bytes = Buffer.from(match[2] as string, 'base64');
+  if (bytes.byteLength < 1 || bytes.byteLength > 400_000) {
+    throw new HttpException(error('validation_error', 'Картинка должна быть до 400 КБ.'), 400);
+  }
+  return { bytes, contentType: match[1] as string };
 }
 
 type DraftInput = {
@@ -169,6 +183,23 @@ export class LearningActivitiesController {
     );
   }
 
+  private draftSampleError(code: string | undefined): HttpException {
+    const status = code === 'invalid_media' ? 400 : code === 'revision_conflict' ? 409 : 404;
+    const message =
+      code === 'sample_not_found'
+        ? 'Картинки нет.'
+        : code === 'revision_conflict'
+          ? 'Черновик изменён в другом окне.'
+          : code === 'invalid_media'
+            ? 'Подойдёт PNG, JPEG или WebP до 400 КБ.'
+            : 'Материал недоступен.';
+    return new HttpException(error(code ?? 'draft_sample_failed', message), status);
+  }
+
+  private draftSampleUrl(activityId: string, contentHash: string): string {
+    return `/api/learning/activities/${encodeURIComponent(activityId)}/draft-sample?v=${encodeURIComponent(contentHash)}`;
+  }
+
   @Get()
   async list(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
@@ -267,7 +298,8 @@ export class LearningActivitiesController {
   async get(@Req() request: FastifyRequest, @Param('activityId') activityId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(activityId, 'activity');
-    const result = await this.requirePool().query(
+    const pool = this.requirePool();
+    const result = await pool.query(
       `SELECT activity_id, tenant_id, title, kind, owner_scope, visibility_policy,
               draft_revision, draft_payload, current_published_version_id, archived_at
          FROM learning_activity_get($1, $2, $3)`,
@@ -275,6 +307,20 @@ export class LearningActivitiesController {
     );
     const row = result.rows[0];
     if (!row) throw this.resultError('activity_not_found');
+    const sample = await pool.query(
+      `SELECT result_code, content_hash
+         FROM learning_activity_draft_sample_meta($1,$2,$3,NULL)`,
+      [context.principalId, context.tenantId, activityId],
+    );
+    const sampleRow = sample.rows[0];
+    const sampleCode = sampleRow?.['result_code'] as string | undefined;
+    if (
+      sampleCode !== 'ok' &&
+      sampleCode !== 'sample_not_found' &&
+      sampleCode !== 'activity_not_found'
+    ) {
+      throw this.draftSampleError(sampleCode);
+    }
     return {
       id: String(row['activity_id']),
       tenantId: String(row['tenant_id']),
@@ -284,11 +330,113 @@ export class LearningActivitiesController {
       visibility: String(row['visibility_policy']),
       draftRevision: Number(row['draft_revision']),
       draft: row['draft_payload'],
+      draftSampleImage:
+        sampleCode === 'ok' && sampleRow?.['content_hash']
+          ? this.draftSampleUrl(activityId, String(sampleRow['content_hash']))
+          : null,
       currentPublishedVersionId: row['current_published_version_id']
         ? String(row['current_published_version_id'])
         : null,
       archivedAt: row['archived_at'] ? iso(row['archived_at'] as Date | string) : null,
     };
+  }
+
+  @Get(':activityId/draft-sample')
+  async getDraftSample(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    const result = await this.requirePool().query(
+      `SELECT result_code, content_type, bytes, content_hash, draft_revision
+         FROM learning_activity_draft_sample_get($1,$2,$3)`,
+      [context.principalId, context.tenantId, activityId],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['bytes']) {
+      throw this.draftSampleError(row?.['result_code'] as string | undefined);
+    }
+    return reply
+      .header('content-type', String(row['content_type']))
+      .header('cache-control', 'private, no-store')
+      .header('etag', `"${String(row['content_hash'])}"`)
+      .send(row['bytes'] as Buffer);
+  }
+
+  @Put(':activityId/draft-sample')
+  async putDraftSample(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    const shape = checkBodyShape(rawBody, ['imageDataUrl', 'expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const imageDataUrl = shape.body['imageDataUrl'];
+    const expectedRevision = shape.body['expectedRevision'];
+    if (
+      typeof imageDataUrl !== 'string' ||
+      !Number.isSafeInteger(expectedRevision) ||
+      Number(expectedRevision) < 1 ||
+      Number(expectedRevision) > 2147483647
+    ) {
+      throw new HttpException(error('validation_error', 'Проверьте изображение и редакцию.'), 400);
+    }
+    const image = decodeDraftImage(imageDataUrl);
+    const result = await this.requirePool().query(
+      `SELECT result_code, draft_revision, content_hash
+         FROM learning_activity_draft_sample_set($1,$2,$3,$4,$5,$6)`,
+      [
+        context.principalId,
+        context.tenantId,
+        activityId,
+        Number(expectedRevision),
+        image.bytes,
+        image.contentType,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['content_hash']) {
+      throw this.draftSampleError(row?.['result_code'] as string | undefined);
+    }
+    return {
+      draftRevision: Number(row['draft_revision']),
+      contentHash: String(row['content_hash']),
+      url: this.draftSampleUrl(activityId, String(row['content_hash'])),
+    };
+  }
+
+  @Delete(':activityId/draft-sample')
+  async deleteDraftSample(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    const shape = checkBodyShape(rawBody, ['expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const expectedRevision = shape.body['expectedRevision'];
+    if (
+      !Number.isSafeInteger(expectedRevision) ||
+      Number(expectedRevision) < 1 ||
+      Number(expectedRevision) > 2147483647
+    ) {
+      throw new HttpException(error('validation_error', 'Проверьте редакцию.'), 400);
+    }
+    const result = await this.requirePool().query(
+      `SELECT result_code, draft_revision
+         FROM learning_activity_draft_sample_delete($1,$2,$3,$4)`,
+      [context.principalId, context.tenantId, activityId, Number(expectedRevision)],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok') {
+      throw this.draftSampleError(row?.['result_code'] as string | undefined);
+    }
+    return { draftRevision: Number(row['draft_revision']) };
   }
 
   @Get(':activityId/preview')
@@ -321,7 +469,8 @@ export class LearningActivitiesController {
     } else {
       throw new HttpException(error('validation_error', 'preview source is invalid'), 400);
     }
-    const result = await this.requirePool().query(
+    const pool = this.requirePool();
+    const result = await pool.query(
       `SELECT result_code,activity_id,source_kind,source_id,draft_revision,version_number,
               title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest
          FROM learning_activity_preview_as_author($1,$2,$3,$4,$5,$6)`,
@@ -341,6 +490,28 @@ export class LearningActivitiesController {
     if (!row || code !== 'ok') {
       throw new HttpException(error(code ?? 'preview_failed', 'preview source is invalid'), 400);
     }
+    let draftSampleImage: string | null = null;
+    if (source === 'draft') {
+      const sample = await pool.query(
+        `SELECT result_code, content_hash, draft_revision
+           FROM learning_activity_draft_sample_meta($1,$2,$3,$4)`,
+        [context.principalId, context.tenantId, activityId, Number(row['draft_revision'])],
+      );
+      const sampleRow = sample.rows[0];
+      const sampleCode = sampleRow?.['result_code'] as string | undefined;
+      if (sampleCode === 'revision_conflict') {
+        throw new HttpException(
+          error('preview_revision_conflict', 'saved draft revision changed'),
+          409,
+        );
+      }
+      if (sampleCode === 'ok' && sampleRow?.['content_hash']) {
+        draftSampleImage = this.draftSampleUrl(activityId, String(sampleRow['content_hash']));
+      } else if (sampleCode !== 'sample_not_found' && sampleCode !== 'activity_not_found') {
+        throw this.draftSampleError(sampleCode);
+      }
+    }
+
     return {
       source: {
         kind: String(row['source_kind']) as 'draft' | 'published',
@@ -359,7 +530,7 @@ export class LearningActivitiesController {
         title: String(row['title']),
         goal: null,
         brief: row['instructions'] === null ? null : String(row['instructions']),
-        sampleImage: null,
+        sampleImage: source === 'draft' ? draftSampleImage : null,
       },
       moduleKey: row['module_key'] === null ? null : String(row['module_key']),
       resultMode: String(row['result_mode']) as 'ungraded' | 'completion' | 'graded',
