@@ -166,10 +166,11 @@ describe('UX1A2 immutable LearningActivityVersion sample', () => {
     const hashB = replaceB.rows[0].content_hash as string;
     expect(hashB).not.toBe(hashA);
 
-    const draftB = await admin.query(
-      'SELECT * FROM learning_activity_draft_sample_get($1,$2,$3)',
-      [ownerPrincipalId, owner.tenantId, activityId],
-    );
+    const draftB = await admin.query('SELECT * FROM learning_activity_draft_sample_get($1,$2,$3)', [
+      ownerPrincipalId,
+      owner.tenantId,
+      activityId,
+    ]);
     expect(draftB.rows[0]).toMatchObject({
       result_code: 'ok',
       content_type: 'image/webp',
