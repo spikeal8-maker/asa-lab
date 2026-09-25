@@ -2086,9 +2086,9 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
           fontWeight: style.fontWeight,
         };
       });
-      expect(runningStyle.background).not.toBe('rgba(0, 0, 0, 0)');
-      expect(runningStyle.background).not.toBe('transparent');
-      expect(runningStyle.color).toBe('rgb(255, 255, 255)');
+      expect(runningStyle.background).toBe('rgb(234, 245, 252)');
+      expect(runningStyle.background).not.toBe('rgb(180, 35, 24)');
+      expect(runningStyle.color).toBe('rgb(33, 107, 157)');
       expect(Number.parseInt(runningStyle.fontWeight, 10)).toBeGreaterThanOrEqual(700);
       await page.screenshot({ path: 'reports/interactions/d2-simulation-running.png' });
 
