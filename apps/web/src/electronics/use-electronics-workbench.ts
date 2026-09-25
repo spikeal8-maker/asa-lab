@@ -435,7 +435,7 @@ export function useElectronicsWorkbench(projectId: string) {
   } | null>(null);
   const [activeWireColor, setActiveWireColor] = useState('#149447');
   const [orthogonalWireMode, setOrthogonalWireMode] = useState(false);
-  const [libraryOpen, setLibraryOpen] = useState(() => !compactWorkbench());
+  const [libraryOpen, setLibraryOpen] = useState(true);
   const [libraryQuery, setLibraryQuery] = useState('');
   const [category, setCategory] = useState<ComponentCategory>('all');
   const [libraryView, setLibraryView] = useState<'grid' | 'list'>('grid');
