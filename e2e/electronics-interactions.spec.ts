@@ -541,7 +541,7 @@ test.describe('interaction: electronics input and responsive layout', () => {
         await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
         await page.getByRole('button', { name: 'Код на половину экрана', exact: true }).click();
         await page.getByRole('button', { name: 'Закрыть панель кода', exact: true }).click();
-        await page.getByRole('button', { name: 'Каталог деталей', exact: true }).click();
+        await expect(page.locator('.workbench-library')).not.toHaveClass(/collapsed/);
         const grid = page.locator('.workbench-catalog-grid');
         expect(await grid.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
         expect(await grid.evaluate((el) => getComputedStyle(el).touchAction)).toBe(
@@ -1639,6 +1639,10 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await openEditor(page, wiredDocument());
+      const library = page.locator('.workbench-library');
+      await expect(library).not.toHaveClass(/collapsed/);
+      await page.locator('.workbench-library-collapse').click();
+      await expect(library).toHaveClass(/collapsed/);
       const wirePoint = await pathScreenPoint(page.getByTestId('wire-hit').first(), 0.5);
       await page.mouse.click(wirePoint.x, wirePoint.y);
 
