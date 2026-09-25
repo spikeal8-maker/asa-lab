@@ -1639,10 +1639,10 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
     async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await openEditor(page, wiredDocument());
-      const library = page.locator('.workbench-library');
-      await expect(library).not.toHaveClass(/collapsed/);
+      const componentShelf = page.locator('.workbench-library');
+      await expect(componentShelf).not.toHaveClass(/collapsed/);
       await page.locator('.workbench-library-collapse').click();
-      await expect(library).toHaveClass(/collapsed/);
+      await expect(componentShelf).toHaveClass(/collapsed/);
       const wirePoint = await pathScreenPoint(page.getByTestId('wire-hit').first(), 0.5);
       await page.mouse.click(wirePoint.x, wirePoint.y);
 
