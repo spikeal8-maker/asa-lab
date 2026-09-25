@@ -86,7 +86,7 @@ services:
       - ALL
 
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z
+    image: docker.io/minio/mc:RELEASE.2024-09-16T17-43-14Z
     user: '1000:1000'
     restart: 'no'
     depends_on:
