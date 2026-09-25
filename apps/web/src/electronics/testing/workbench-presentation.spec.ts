@@ -381,6 +381,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(iconSource).not.toContain('<path d="M10 11v5M14 11v5" />');
     expect(headerSource).toContain('aria-pressed={c.simulationRunning}');
     expect(workbenchCss).toContain('@keyframes workbench-simulation-running-pulse');
+    expect(workbenchCss).toMatch(
+      /\.workbench-toolbar-group\.right \.workbench-pill\.simulate\.running\s*\{[^}]*background:\s*#b42318;[^}]*color:\s*#fff;[^}]*font-weight:\s*700;/s,
+    );
+    expect(headerSource).toContain('{c.simulationRunning ? <StopIcon /> : <PlayIcon />}');
     expect(controllerModuleSource).toContain("useState<ComponentCategory>('all')");
     expect(controllerModuleSource).toContain('DESKTOP_INITIAL_ZOOM = 1.25');
     expect(controllerModuleSource).toContain('KEYBOARD_NUDGE_STEP = 5');
@@ -456,10 +460,11 @@ describe('owner-reference Electronics presentation contract', () => {
       'terminalTargetAt(event.clientX, event.clientY) ?? { componentId, terminal }',
     );
 
-    // Structural edits leave a running simulation centrally and continue the
-    // same gesture. Runtime actuator/measurement paths remain separate.
-    expect(controllerSource).toContain('function ensureEditModeForStructuralAction(): void');
-    expect(controllerSource).toContain('ensureEditModeForStructuralAction();');
+    // Running simulation is a rigid structural lock. Only catalog pickup has
+    // the explicit auto-stop path; runtime actuator/measurement paths stay live.
+    expect(controllerSource).toContain('function structuralEditAllowed(): boolean');
+    expect(controllerSource).toContain('function stopSimulationForCatalogPlacement(): void');
+    expect(controllerSource).toContain('stopSimulationForCatalogPlacement();');
     expect(controllerSource).toContain('simulationWorkerRef.current?.stop();');
     const componentDrag = controllerSource.slice(
       controllerSource.indexOf('function startComponentDrag'),
@@ -467,21 +472,22 @@ describe('owner-reference Electronics presentation contract', () => {
     );
     expect(componentDrag).toContain("simulationRunning && component.kind === 'button'");
     expect(componentDrag).toContain("simulationRunning && component.kind === 'switch'");
-    expect(componentDrag).not.toContain('ensureEditModeForStructuralAction();');
-    expect(componentDrag).toContain('startedInSimulation: simulationRunning');
+    expect(componentDrag).toContain('if (simulationRunning) {');
+    expect(componentDrag).toContain(
+      "setSelection({ kind: 'component', id: component.id, ids: [component.id] });",
+    );
     const componentMove = controllerSource.slice(
       controllerSource.indexOf('const drag = componentDragRef.current;'),
       controllerSource.indexOf('const pan = panDragRef.current;'),
     );
-    expect(componentMove).toContain('drag.startedInSimulation');
-    expect(componentMove).toContain('drag.structuralEditStarted = true');
-    expect(componentMove).toContain('ensureEditModeForStructuralAction();');
+    expect(componentMove).not.toContain('stopSimulationForCatalogPlacement();');
+    expect(componentMove).not.toContain('structuralEditStarted = true');
     const vertexDrag = controllerSource.slice(controllerSource.indexOf('function startVertexDrag'));
-    expect(vertexDrag.slice(0, 360)).toContain('ensureEditModeForStructuralAction();');
+    expect(vertexDrag.slice(0, 360)).toContain('if (!structuralEditAllowed()) return;');
     const endpointDrag = controllerSource.slice(
       controllerSource.indexOf('function startEndpointDrag'),
     );
-    expect(endpointDrag.slice(0, 360)).toContain('ensureEditModeForStructuralAction();');
+    expect(endpointDrag.slice(0, 360)).toContain('if (!structuralEditAllowed()) return;');
     expect(controllerSource).toContain('onEmptyCanvas && !event.shiftKey');
     expect(stageSource).toContain('onPointerDownCapture={c.beginStagePointer}');
     expect(controllerSource).toContain('placeCatalogComponent(event)');

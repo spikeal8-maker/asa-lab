@@ -223,13 +223,13 @@ export function useElectronicsWorkbench(projectId: string) {
   };
 
   const undo = () => {
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectUndo();
   };
 
   const redo = () => {
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     markDocumentMutation();
     return projectRedo();
   };
@@ -282,7 +282,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const resetSimulationRef = useRef(resetSimulation);
   resetSimulationRef.current = resetSimulation;
 
-  function ensureEditModeForStructuralAction(): void {
+  function stopSimulationForCatalogPlacement(): void {
     if (!simulationRunning) return;
     simulationWorkerRef.current?.stop();
     resetSimulation();
@@ -291,6 +291,12 @@ export function useElectronicsWorkbench(projectId: string) {
     setRequestedHorizonMicroseconds(0);
     setLiveResult(null);
     setArduinoSerialByBoard({});
+  }
+
+  function structuralEditAllowed(): boolean {
+    if (!simulationRunning) return true;
+    setNotice('Моделирование запущено. Остановите его, чтобы изменить существующую схему.');
+    return false;
   }
 
   useEffect(() => {
@@ -712,7 +718,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }, [notice, setNotice]);
 
   function addComponent(componentTypeId: string, at?: Point): void {
-    if (!document) return;
+    if (!document || simulationRunning) return;
     const family = familyForVariant(componentTypeId);
     if (!family?.enabled) return;
     const placedCount = document.components.filter((component) => component.kind !== 'wire').length;
@@ -759,7 +765,7 @@ export function useElectronicsWorkbench(projectId: string) {
   ): void {
     const family = familyById(familyId);
     if (!family?.enabled) return;
-    ensureEditModeForStructuralAction();
+    stopSimulationForCatalogPlacement();
     const variant = selectedFamilyVariant(family, null);
     cancelInteraction();
     const next: CatalogPlacement = {
@@ -872,7 +878,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function duplicateSelected(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument || selection?.kind !== 'component') return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const duplicated = duplicateComponentInDocument(
       currentDocument,
       selection,
@@ -897,7 +903,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function pasteCopied(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument || clipboardSelection?.kind !== 'component') return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const duplicated = duplicateComponentInDocument(
       currentDocument,
       clipboardSelection,
@@ -920,7 +926,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function removeSelection(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument || !selection) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     if (selection.kind === 'wire' && selection.vertexIndex !== undefined) {
       removeWireVertexAt(selection.id, selection.vertexIndex);
       return;
@@ -935,7 +941,7 @@ export function useElectronicsWorkbench(projectId: string) {
   function rotateSelected(): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const next = rotateSelectionInDocument(currentDocument, selection);
     if (next) commitDocument(next, 'Элемент повернут на 45° вокруг центра — провода обновлены.');
   }
@@ -943,20 +949,26 @@ export function useElectronicsWorkbench(projectId: string) {
   function mirrorSelected(axis: 'horizontal' | 'vertical'): void {
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const next = mirrorSelectionInDocument(currentDocument, selection, axis);
     if (next)
       commitDocument(next, axis === 'horizontal' ? 'Элемент отражён.' : 'Элемент перевёрнут.');
   }
 
   function updateSelectedValue(value: number): void {
-    if (!document) return;
+    if (!document || !structuralEditAllowed()) return;
     const next = updateSelectionValue(document, selection, value);
     if (next) commitDocument(next);
   }
 
   function updateSelectedResistanceValue(valueOhms: number, unit: string): void {
-    if (!document || !Number.isFinite(valueOhms) || valueOhms < 0) return;
+    if (
+      !document ||
+      !Number.isFinite(valueOhms) ||
+      valueOhms < 0 ||
+      !structuralEditAllowed()
+    )
+      return;
     const withValue = updateSelectionValue(document, selection, valueOhms);
     if (!withValue) return;
     const withUnit = updateSelectionProperties(withValue, selection, { resistanceUnit: unit });
@@ -964,7 +976,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function updateSelectedName(name: string): void {
-    if (!document) return;
+    if (!document || !structuralEditAllowed()) return;
     const next = updateSelectionName(document, selection, name);
     if (next) commitDocument(next);
   }
@@ -1058,6 +1070,7 @@ export function useElectronicsWorkbench(projectId: string) {
       setRuntimeComponentOverride(selection.id, { stateProperties: properties });
       return;
     }
+    if (!structuralEditAllowed()) return;
     const next = updateSelectionProperties(document, selection, properties);
     if (next) commitDocument(next, message);
   }
@@ -1251,7 +1264,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function setSelectedVariant(variantId: string): void {
     if (!document || selection?.kind !== 'component') return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const family = familyForVariant(
       selectedComponent?.variantId ?? selectedComponent?.componentTypeId,
     );
@@ -1270,6 +1283,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function setWireColor(color: string): void {
+    if (!structuralEditAllowed()) return;
     setActiveWireColor(color);
     if (!document) return;
     const next = updateSelectedWireColor(document, selection, color);
@@ -1277,7 +1291,7 @@ export function useElectronicsWorkbench(projectId: string) {
   }
 
   function toggleWireRoute(): void {
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const nextMode = !orthogonalWireMode;
     setOrthogonalWireMode(nextMode);
     if (nextMode && document && selection?.kind === 'wire') {
@@ -1292,14 +1306,14 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeWireBends(): void {
     if (!document) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const next = removeSelectedWireBends(document, selection);
     if (next) commitDocument(next, 'Изгибы провода удалены.');
   }
 
   function beginReconnect(endpoint: 'from' | 'to'): void {
     if (selection?.kind !== 'wire') return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     setReconnectEndpoint(endpoint);
     setReconnectHover(null);
     setWirePreviewEnd(null);
@@ -1324,7 +1338,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function beginWireAtTerminal(componentId: string, terminal: Terminal): void {
     if (!document) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const source = { componentId, terminal };
     setSelection(null);
     setPendingTerminal(source);
@@ -1344,7 +1358,10 @@ export function useElectronicsWorkbench(projectId: string) {
     forceOrthogonal = false,
     sourceOverride?: TerminalRef,
   ): boolean {
-    if (!document) return false;
+    if (!document || !structuralEditAllowed()) {
+      clearPendingWire();
+      return false;
+    }
     const source = sourceOverride ?? pendingTerminal;
     if (!source) return false;
     if (source.componentId === target.componentId && source.terminal === target.terminal) {
@@ -1393,6 +1410,12 @@ export function useElectronicsWorkbench(projectId: string) {
     if (event.button !== 0 || !document || reconnectEndpoint || pendingTerminal) {
       return;
     }
+    if (simulationRunning) {
+      selectComponent(componentId, event.shiftKey);
+      suppressTerminalClickRef.current = true;
+      event.preventDefault();
+      return;
+    }
     // Terminal hit areas intentionally remain generous. On compact parts they
     // can cover almost the whole body, so Shift+click must still honor the
     // workbench multi-selection gesture instead of unexpectedly starting a wire.
@@ -1427,7 +1450,7 @@ export function useElectronicsWorkbench(projectId: string) {
       selectComponent(target.componentId, true);
       return;
     }
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     if (reconnectEndpoint && selection?.kind === 'wire') {
       const next = reconnectWireEndpoint(document, selection.id, reconnectEndpoint, target);
       if (next) commitDocument(next, 'Конец провода переподключён.');
@@ -1637,9 +1660,14 @@ export function useElectronicsWorkbench(projectId: string) {
       event.preventDefault();
       return;
     }
-    // A press can still be an ordinary selection click while modelling.
-    // Structural intent begins only after the existing 3 px drag threshold is
-    // crossed; then the same pointer gesture continues in edit mode.
+    // Existing geometry is rigid while simulation runs. A normal component
+    // press still selects it, but no drag state or pointer capture is created.
+    if (simulationRunning) {
+      setSelection({ kind: 'component', id: component.id, ids: [component.id] });
+      event.stopPropagation();
+      event.preventDefault();
+      return;
+    }
     if (!document) return;
     const point = toWorld(event);
     const selectedComponentIds =
@@ -2025,14 +2053,6 @@ export function useElectronicsWorkbench(projectId: string) {
     const drag = componentDragRef.current;
     if (drag && drag.pointerId === event.pointerId && document) {
       const delta = componentDragDelta(drag, client);
-      if (
-        drag.startedInSimulation &&
-        !drag.structuralEditStarted &&
-        (delta.x !== 0 || delta.y !== 0)
-      ) {
-        drag.structuralEditStarted = true;
-        ensureEditModeForStructuralAction();
-      }
       visualFrameRef.current?.schedule(() => {
         const stage = stageRef.current;
         if (!stage || componentDragRef.current !== drag) return;
@@ -2288,7 +2308,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     vertexIndex: number,
   ): void {
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const previous = lastVertexPressRef.current;
     const repeated =
       previous?.wireId === wireId &&
@@ -2330,7 +2350,7 @@ export function useElectronicsWorkbench(projectId: string) {
     segmentIndex: number,
   ): void {
     if (pendingTerminal || !document) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     // WorkbenchStage is the single arbiter of wire click sequences. Starting
     // a segment drag must never reinterpret a rejected pair as a double-click.
     segmentDragRef.current = {
@@ -2347,7 +2367,7 @@ export function useElectronicsWorkbench(projectId: string) {
 
   function removeWireVertexAt(wireId: string, vertexIndex: number): void {
     if (!document) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const next = removeWireVertex(document, wireId, vertexIndex);
     commitDocument(next, 'Точка изгиба удалена.');
     setSelection({ kind: 'wire', id: wireId });
@@ -2358,7 +2378,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
     endpoint: 'from' | 'to',
   ): void {
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     endpointDragRef.current = { pointerId: event.pointerId, wireId, endpoint };
     setSelection({ kind: 'wire', id: wireId });
     setReconnectEndpoint(endpoint);
@@ -2374,7 +2394,7 @@ export function useElectronicsWorkbench(projectId: string) {
     wireId: string,
   ): void {
     if (!document) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     const next = insertWireVertex(document, wireId, toWorld(event));
     if (next === document) return;
     commitDocument(next, 'Точка управления проводом добавлена.');
@@ -2454,7 +2474,7 @@ export function useElectronicsWorkbench(projectId: string) {
       y: clamp(dy, -980 - bounds.minY, 3980 - bounds.maxY),
     };
     if (delta.x === 0 && delta.y === 0) return;
-    ensureEditModeForStructuralAction();
+    if (!structuralEditAllowed()) return;
     let next = translatedDragDocument(current, componentIds, delta);
     // A multi-selection is one rigid body for keyboard nudges. Snapping every
     // member independently can pull one part onto a nearby breadboard hole and

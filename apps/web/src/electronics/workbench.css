@@ -5652,29 +5652,38 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* Owner D2: modelling must read as an explicit locked runtime mode. */
+/* Running simulation is an explicit locked mode. Keep the signal on the
+   control itself: a solid stop state plus a quiet halo that also reads on mobile. */
 @keyframes workbench-simulation-running-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 2px rgba(31, 143, 91, 0.12);
+    box-shadow:
+      0 0 0 2px rgba(168, 35, 27, 0.2),
+      0 0 0 0 rgba(168, 35, 27, 0);
   }
   50% {
     box-shadow:
-      0 0 0 3px rgba(31, 143, 91, 0.18),
-      0 0 14px rgba(31, 143, 91, 0.16);
+      0 0 0 3px rgba(168, 35, 27, 0.24),
+      0 0 0 7px rgba(168, 35, 27, 0.1);
   }
 }
 .workbench-toolbar-group.right .workbench-pill.simulate.running {
-  border-color: #2c9865;
-  background: #e9f7ef;
-  color: #176b46;
-  font-weight: 600;
+  border-color: #a8231b;
+  background: #b42318;
+  color: #fff;
+  font-weight: 700;
   animation: workbench-simulation-running-pulse 1.8s ease-in-out infinite;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running:hover:not(:disabled) {
+  background: #9f1f17;
+}
+.workbench-toolbar-group.right .workbench-pill.simulate.running svg {
+  fill: currentColor;
 }
 @media (prefers-reduced-motion: reduce) {
   .workbench-toolbar-group.right .workbench-pill.simulate.running {
     animation: none;
-    box-shadow: 0 0 0 2px rgba(31, 143, 91, 0.14);
+    box-shadow: 0 0 0 3px rgba(168, 35, 27, 0.22);
   }
 }
 

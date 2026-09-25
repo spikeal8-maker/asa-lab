@@ -2027,139 +2027,165 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await page.screenshot({ path: 'reports/interactions/e7-e8-shortcuts-editable.png' });
   });
 
-  touchVideoTest(
-    'E2 running simulation exits to edit mode and continues the same structural gesture',
-    async ({ page, context }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      const fixture = addComponentToDocument(
+  wireVideoTest(
+    'E2 running simulation locks existing structure; only catalog pickup exits the mode',
+    async ({ page }) => {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      let fixture = addComponentToDocument(
         documentFixture(),
         'button-tactile-6mm',
         { x: 1070, y: 420 },
         'runtime-button',
       ).document;
+      fixture = addComponentToDocument(
+        fixture,
+        'switch-spdt',
+        { x: 1030, y: 610 },
+        'runtime-switch',
+      ).document;
+      fixture = addComponentToDocument(
+        fixture,
+        'potentiometer',
+        { x: 790, y: 610 },
+        'runtime-pot',
+      ).document;
+      fixture = {
+        ...fixture,
+        connections: [
+          ...fixture.connections,
+          {
+            id: 'simulation-lock-wire',
+            from: { componentId: 'battery', terminal: 'BAT+' },
+            to: { componentId: 'led', terminal: 'cathode' },
+            color: '#149447',
+            vertices: [{ x: 820, y: 430 }],
+          },
+        ],
+      };
       const { readDocument } = await openEditor(page, fixture);
-      const session = await context.newCDPSession(page);
-      const send = (
-        type: 'touchStart' | 'touchMove' | 'touchEnd',
-        touchPoints: { id: number; x: number; y: number }[],
-      ) => session.send('Input.dispatchTouchEvent', { type, touchPoints });
+      await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
 
-      await page
-        .getByRole('button', {
-          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        })
-        .click();
-      const runningSimulation = page.getByRole('button', {
-        name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-      });
+      await page.getByRole('button', { name: 'Начать моделирование' }).click();
+      const runningSimulation = page.getByRole('button', { name: 'Остановить моделирование' });
       await expect(runningSimulation).toBeVisible();
       await expect(runningSimulation).toHaveAttribute('aria-pressed', 'true');
       const runningStyle = await runningSimulation.evaluate((element) => {
         const style = getComputedStyle(element);
         return {
           background: style.backgroundColor,
-          border: style.borderColor,
           color: style.color,
           fontWeight: style.fontWeight,
         };
       });
       expect(runningStyle.background).not.toBe('rgba(0, 0, 0, 0)');
       expect(runningStyle.background).not.toBe('transparent');
-      expect(Number.parseInt(runningStyle.fontWeight, 10)).toBeGreaterThanOrEqual(600);
+      expect(runningStyle.color).toBe('rgb(255, 255, 255)');
+      expect(Number.parseInt(runningStyle.fontWeight, 10)).toBeGreaterThanOrEqual(700);
       await page.screenshot({ path: 'reports/interactions/d2-simulation-running.png' });
 
-      const buttonPoint = await pointOnBody(page, 'runtime-button');
-      await page.touchscreen.tap(buttonPoint.x, buttonPoint.y);
-      await expect(
-        page.getByRole('button', {
-          name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        }),
-      ).toBeVisible();
+      const batteryPosition = () => {
+        const item = readDocument().components.find((component) => component.id === 'battery');
+        if (!item) throw new Error('Battery disappeared');
+        return { ...item.position };
+      };
+      const baseline = structuredClone(readDocument());
 
-      await page
-        .getByRole('button', {
-          name: '\u041a\u0430\u0442\u0430\u043b\u043e\u0433 \u0434\u0435\u0442\u0430\u043b\u0435\u0439',
-          exact: true,
-        })
-        .click();
-      const card = page.getByRole('button', {
-        name: '\u0420\u0435\u0437\u0438\u0441\u0442\u043e\u0440',
-        exact: true,
-      });
+      const batteryPoint = await pointOnBody(page, 'battery');
+      await page.mouse.click(batteryPoint.x, batteryPoint.y);
+      await expect(part(page, 'battery')).toHaveClass(/workbench-component-selected/);
+      await expect(runningSimulation).toBeVisible();
+
+      const beforeDrag = batteryPosition();
+      await page.mouse.move(batteryPoint.x, batteryPoint.y);
+      await page.mouse.down();
+      await page.mouse.move(batteryPoint.x + 80, batteryPoint.y + 50, { steps: 6 });
+      await page.mouse.up();
+      expect(batteryPosition()).toEqual(beforeDrag);
+      await expect(runningSimulation).toBeVisible();
+
+      await page.keyboard.press('ArrowRight');
+      await page.keyboard.press('Shift+ArrowDown');
+      await page.keyboard.press('Control+c');
+      await page.keyboard.press('Control+v');
+      await page.keyboard.press('Control+d');
+      await page.keyboard.press('KeyR');
+      await page.keyboard.press('Delete');
+      await page.keyboard.press('Control+z');
+      await page.keyboard.press('Control+Shift+z');
+      expect(readDocument()).toEqual(baseline);
+      await expect(runningSimulation).toBeVisible();
+
+      const wireHit = page.locator('[data-testid="wire-hit"][data-wire-id="simulation-lock-wire"]');
+      await wireHit.click();
+      const vertex = page.locator(
+        '[data-testid="wire-vertex"][data-wire-id="simulation-lock-wire"]',
+      );
+      await expect(vertex).toHaveCount(1);
+      const vertexPoint = await locatorCenter(vertex);
+      await page.mouse.move(vertexPoint.x, vertexPoint.y);
+      await page.mouse.down();
+      await page.mouse.move(vertexPoint.x + 70, vertexPoint.y + 40, { steps: 5 });
+      await page.mouse.up();
+      expect(readDocument()).toEqual(baseline);
+
+      const source = wireTerminal(page, 'battery', 'BAT+');
+      const sourcePoint = await locatorCenter(source);
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
+      expect(readDocument()).toEqual(baseline);
+      await expect(runningSimulation).toBeVisible();
+
+      const buttonPoint = await pointOnBody(page, 'runtime-button');
+      await page.mouse.move(buttonPoint.x, buttonPoint.y);
+      await page.mouse.down();
+      await expect(part(page, 'runtime-button')).toHaveClass(/workbench-component-actuator-active/);
+      await expect(runningSimulation).toBeVisible();
+      await page.mouse.up();
+
+      const switchActuator = part(page, 'runtime-switch').getByTestId('spdt-actuator');
+      await switchActuator.click();
+      await expect(part(page, 'runtime-switch')).toHaveClass(/workbench-component-actuator-active/);
+      await expect(runningSimulation).toBeVisible();
+
+      const potPoint = await pointOnBody(page, 'runtime-pot');
+      await page.mouse.click(potPoint.x, potPoint.y);
+      const slider = page.getByRole('slider', { name: 'Положение движка' });
+      await expect(slider).toBeVisible();
+      await slider.press('Home');
+      await slider.press('End');
+      await expect(runningSimulation).toBeVisible();
+      expect(readDocument()).toEqual(baseline);
+
+      const card = page.locator('.workbench-catalog-card[data-family-id="resistor"]');
       await card.scrollIntoViewIfNeeded();
       const cardPoint = await locatorCenter(card);
       const stage = await page.locator('.workbench-stage').boundingBox();
-      if (!stage) throw new Error('Missing stage for structural edit acceptance');
-      const drop = { x: stage.x + stage.width * 0.62, y: stage.y + stage.height * 0.48 };
+      if (!stage) throw new Error('Missing stage for catalog placement');
+      const drop = { x: stage.x + stage.width * 0.55, y: stage.y + stage.height * 0.42 };
       const beforeCount = readDocument().components.length;
-
-      await send('touchStart', [{ id: 1, ...cardPoint }]);
-      await send('touchMove', [{ id: 1, x: cardPoint.x, y: cardPoint.y - 14 }]);
-      await expect(
-        page.getByRole('button', {
-          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        }),
-      ).toBeVisible();
+      await page.mouse.move(cardPoint.x, cardPoint.y);
+      await page.mouse.down();
+      await page.mouse.move(cardPoint.x - 10, cardPoint.y - 12, { steps: 2 });
+      await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
       await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(1);
-      for (let step = 1; step <= 8; step++) {
-        await send('touchMove', [
-          {
-            id: 1,
-            x: cardPoint.x + ((drop.x - cardPoint.x) * step) / 8,
-            y: cardPoint.y - 14 + ((drop.y - cardPoint.y + 14) * step) / 8,
-          },
-        ]);
-      }
-      await send('touchEnd', []);
+      await page.mouse.move(drop.x, drop.y, { steps: 10 });
+      await page.mouse.up();
       await expect.poll(() => readDocument().components.length).toBe(beforeCount + 1);
 
-      await page
-        .getByRole('button', {
-          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        })
-        .click();
-      const batteryBefore = readDocument().components.find(
-        (item) => item.id === 'battery',
-      )!.position;
-      const batteryPoint = await pointOnBody(page, 'battery');
-      await send('touchStart', [{ id: 2, ...batteryPoint }]);
-      await send('touchMove', [{ id: 2, x: batteryPoint.x + 24, y: batteryPoint.y + 18 }]);
-      await expect(
-        page.getByRole('button', {
-          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        }),
-      ).toBeVisible();
-      await send('touchEnd', []);
-      await expect
-        .poll(() => readDocument().components.find((item) => item.id === 'battery')?.position)
-        .not.toEqual(batteryBefore);
+      await page.getByRole('button', { name: 'Начать моделирование' }).click();
+      await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+      await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+      await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
 
-      await page
-        .getByRole('button', {
-          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        })
-        .click();
-      await expect(
-        page.getByRole('button', {
-          name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        }),
-      ).toBeVisible();
-      const wireSource = wireTerminal(page, 'battery', 'BAT+');
-      const wireSourcePoint = await locatorCenter(wireSource);
-      await page.touchscreen.tap(wireSourcePoint.x, wireSourcePoint.y);
-      await expect(
-        page.getByRole('button', {
-          name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
-        }),
-      ).toBeVisible();
-      await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
-      await page.keyboard.press('Escape');
-      await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
-
-      await page.screenshot({ path: 'reports/interactions/e2-simulation-to-edit.png' });
+      const unlockedPoint = await pointOnBody(page, 'battery');
+      const unlockedBefore = batteryPosition();
+      await page.mouse.move(unlockedPoint.x, unlockedPoint.y);
+      await page.mouse.down();
+      await page.mouse.move(unlockedPoint.x + 55, unlockedPoint.y + 30, { steps: 6 });
+      await page.mouse.up();
+      await expect.poll(batteryPosition).not.toEqual(unlockedBefore);
     },
-  );
-});
+  );});
 
 for (const zoom of [1, 2, 4] as const) {
   wireVideoTest(
