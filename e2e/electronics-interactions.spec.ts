@@ -2767,6 +2767,63 @@ test.describe('owner D3-D6 acceptance', () => {
     await expect(page.getByRole('button', { name: 'Светодиод', exact: true })).toBeVisible();
   });
 
+  test('mobile selected component inspector stays compact and fully operable', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openEditor(page, documentFixture());
+
+    const library = page.locator('.workbench-library');
+    await expect(library).not.toHaveClass(/collapsed/);
+    await page.locator('.workbench-library-collapse').click();
+    await expect(library).toHaveClass(/collapsed/);
+
+    const selectedPoint = await pointOnBody(page, 'led');
+    await page.mouse.click(selectedPoint.x, selectedPoint.y);
+
+    const panel = page.locator('.workbench-inspector:not(.wire-selected)');
+    await expect(panel).toBeVisible();
+    await expect(panel).toHaveAttribute('aria-label', 'Параметры выделения');
+    await expect(panel.getByTestId('component-compact-properties')).toBeVisible();
+
+    const panelBox = await panel.boundingBox();
+    const stageBox = await page.locator('.workbench-stage').boundingBox();
+    const headingBox = await panel.locator('.workbench-inspector-heading').boundingBox();
+    const nameInput = panel.getByRole('textbox').first();
+    const inputBox = await nameInput.boundingBox();
+    if (!panelBox || !stageBox || !headingBox || !inputBox) {
+      throw new Error('Missing mobile component inspector geometry');
+    }
+
+    expect(panelBox.width).toBeLessThanOrEqual(230);
+    expect(panelBox.height).toBeLessThanOrEqual(420);
+    expect(stageBox.width - panelBox.width).toBeGreaterThanOrEqual(150);
+    expect(headingBox.height).toBeLessThanOrEqual(40);
+    expect(inputBox.height).toBeLessThanOrEqual(36);
+
+    await expect(panel.getByRole('button', { name: /Техническое состояние/ })).toBeVisible();
+    await expect(panel.getByRole('button', { name: /Справка о компоненте/ })).toBeVisible();
+    await expect(nameInput).toBeVisible();
+
+    const horizontalOverflow = await panel
+      .locator('input, select, button')
+      .evaluateAll((controls) =>
+        controls.some((control) => {
+          const box = control.getBoundingClientRect();
+          const panel = control.closest('.workbench-inspector')?.getBoundingClientRect();
+          return Boolean(panel && (box.left < panel.left - 1 || box.right > panel.right + 1));
+        }),
+      );
+    expect(horizontalOverflow).toBe(false);
+
+    await page.screenshot({
+      path: 'reports/interactions/mobile-component-inspector-compact.png',
+    });
+
+    await page.keyboard.press('Escape');
+    await expect(panel).toHaveCount(0);
+  });
+
   test('D6 component shelf opens on All and search/categories remain functional', async ({
     page,
   }) => {
