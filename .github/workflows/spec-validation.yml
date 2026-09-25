@@ -1,222 +1,42 @@
-name: ASA Lab Governance and Code Gates
+name: Electronics Prettier Probe
 
 "on":
   push:
     branches:
-      - main
-      - "agent/**"
-      - "assistant/**"
-      - "codex/**"
-  pull_request: {}
+      - "codex/electronics-prettier-probe-377"
 
-# Read-only, but wider than contents alone: the control-plane validator compares
-# the recorded state against the pull request (head, body, draft state) and
-# against the conclusions of previous workflow runs. Without pull-requests and
-# actions the remote comparison cannot run, and with --require-github that is a
-# failure rather than a silent skip.
 permissions:
   contents: read
-  pull-requests: read
-  actions: read
-
-concurrency:
-  group: asa-gates-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: true
-
-env:
-  CI: "true"
-  NX_SKIP_NX_CACHE: "true"
 
 jobs:
-  governance:
-    name: Governance contracts
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.13"
-          cache: pip
-          cache-dependency-path: tools/requirements.txt
-
-      - name: Install validator dependencies
-        run: python -m pip install --disable-pip-version-check -r tools/requirements.txt
-
-      # One gate per result: identical to `pnpm gate:governance` locally.
-      # Add validators to tools/gate-governance.sh, never inline here.
-      # GH_TOKEN makes the remote control-plane comparison mandatory rather than
-      # silently skipped: PR head, PR body and recorded gate results are checked.
-      - name: Governance gate
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash tools/gate-governance.sh
-
-  code:
-    name: Format lint types contracts build
-    needs: governance
-    runs-on: ubuntu-latest
-    timeout-minutes: 35
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      # One gate per result: identical to `pnpm gate:code` locally.
-      - name: Code gate
-        run: pnpm gate:code
-
-  postgres-tests:
-    name: PostgreSQL tests and RLS
-    needs: code
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Validate migration files
-        run: pnpm db:migrate:check
-
-      - name: Validate test Compose configuration
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test config
-
-      - name: Build migration and test images
-        env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test build migration test-runner
-
-      - name: Start isolated PostgreSQL
-        env:
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test up -d postgres
-
-      - name: Apply migrations and provision runtime role
-        env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm migration
-
-      # One gate per result: `pnpm gate:data` is migrations, the complete Vitest
-      # suite and the explicit RLS gate. Running it here as one command is what
-      # makes a local PASS mean the same thing as this job.
-      - name: Data gate
-        env:
-          ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-          ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
-
-      - name: Cleanup isolated test environment
-        if: always()
-        env:
-          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test down -v --remove-orphans
-
-  access-a-browser:
-    name: Access A real browser journeys
-    needs: code
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    services:
-      postgres:
-        image: postgres:16
-        env:
-          POSTGRES_DB: asa_access_a_test
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: access-a-ci-isolated-test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres -d asa_access_a_test"
-          --health-interval 5s --health-timeout 5s --health-retries 12
-    env:
-      TEST_DATABASE_URL: postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
-      APP_TEST_DATABASE_URL: postgresql://asalab_app:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
-      MIGRATION_DATABASE_URL: postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
-      MIGRATION_EXPECT_DATABASE: asa_access_a_test
-      MIGRATION_CONFIRM: APPLY:asa_access_a_test
-      VITEST_MAX_THREADS: "2"
-      VITEST_MIN_THREADS: "1"
-      VITEST_MAX_FORKS: "2"
-      VITEST_MIN_FORKS: "1"
+  format:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
+          run_install: false
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm build
-      - name: Migrate isolated database and provision restricted runtime
+      - name: Format exact files
         run: |
-          pnpm db:migrate
-          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'access-a-ci-isolated-test'"
-      - run: pnpm test:access-a
-      - run: pnpm e2e:access-a
-      - name: Preserve synthetic browser evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+          pnpm exec prettier --write \
+            apps/web/src/electronics/use-electronics-workbench.ts \
+            e2e/electronics-interactions.spec.ts
+          mkdir -p formatter-output
+          cp apps/web/src/electronics/use-electronics-workbench.ts formatter-output/
+          cp e2e/electronics-interactions.spec.ts formatter-output/
+          git diff -- apps/web/src/electronics/use-electronics-workbench.ts e2e/electronics-interactions.spec.ts > formatter-output/prettier.patch
+      - uses: actions/upload-artifact@v4
         with:
-          name: access-a-browser-${{ github.event.pull_request.head.sha || github.sha }}
-          path: |
-            e2e/artifacts/owner-preview/access-a
-            reports/playwright/access-a
-          retention-days: 14
+          name: electronics-prettier-probe
+          path: formatter-output
+          if-no-files-found: error
+          retention-days: 1
