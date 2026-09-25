@@ -1735,6 +1735,7 @@ export const api = {
       id: string;
       title: string;
       draftRevision: number;
+      draftSampleImage: string | null;
       currentPublishedVersionId: string | null;
       draft: AuthoredActivityDraft;
     }>(`/api/learning/activities/${encodeURIComponent(id)}`),
@@ -1752,6 +1753,22 @@ export const api = {
       {
         method: 'PUT',
         body: JSON.stringify({ ...draft, expectedRevision }),
+      },
+    ),
+  saveAuthoredActivityDraftSample: (id: string, expectedRevision: number, imageDataUrl: string) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-sample`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ expectedRevision, imageDataUrl }),
+      },
+    ),
+  deleteAuthoredActivityDraftSample: (id: string, expectedRevision: number) =>
+    call<{ draftRevision: number }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-sample`,
+      {
+        method: 'DELETE',
+        body: JSON.stringify({ expectedRevision }),
       },
     ),
   createActivityDraft: (draft: AuthoredActivityDraft, requestId: string) =>
