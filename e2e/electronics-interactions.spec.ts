@@ -2116,7 +2116,8 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       await expect(runningSimulation).toBeVisible();
 
       const wireHit = page.locator('[data-testid="wire-hit"][data-wire-id="simulation-lock-wire"]');
-      await wireHit.click();
+      const wirePoint = await pathScreenPoint(wireHit, 0.5);
+      await page.mouse.click(wirePoint.x, wirePoint.y);
       const vertex = page.locator(
         '[data-testid="wire-vertex"][data-wire-id="simulation-lock-wire"]',
       );
@@ -2149,6 +2150,9 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
 
       const potPoint = await pointOnBody(page, 'runtime-pot');
       await page.mouse.click(potPoint.x, potPoint.y);
+      await page
+        .getByRole('button', { name: /Техническое состояние Потенциометр/ })
+        .click();
       const slider = page.getByRole('slider', { name: 'Положение движка' });
       await expect(slider).toBeVisible();
       await slider.press('Home');

@@ -216,8 +216,8 @@ export function useElectronicsWorkbench(projectId: string) {
   };
 
   const commitDocument = (...args: Parameters<typeof projectCommitDocument>) => {
-    // Parameter/value edits can remain live during modelling. Structural
-    // entrypoints leave simulation explicitly before they call this wrapper.
+    // Runtime/environment inputs may remain live while modelling. Structural
+    // entrypoints reject mutation until the user stops simulation.
     markDocumentMutation();
     return projectCommitDocument(...args);
   };
@@ -967,8 +967,9 @@ export function useElectronicsWorkbench(projectId: string) {
       !Number.isFinite(valueOhms) ||
       valueOhms < 0 ||
       !structuralEditAllowed()
-    )
+    ) {
       return;
+    }
     const withValue = updateSelectionValue(document, selection, valueOhms);
     if (!withValue) return;
     const withUnit = updateSelectionProperties(withValue, selection, { resistanceUnit: unit });
@@ -1050,25 +1051,39 @@ export function useElectronicsWorkbench(projectId: string) {
     message?: string,
   ): void {
     if (!document) return;
-    if (
-      simulationRunning &&
-      selection?.kind === 'component' &&
-      (() => {
-        const component = runtimeDocument?.components.find((item) => item.id === selection.id);
-        return (
-          (component?.kind === 'photoresistor' &&
-            Object.keys(properties).every((key) => key === 'illumination')) ||
-          (component?.componentTypeId === 'multimeter' &&
-            Object.keys(properties).every(
-              (key) => key === 'measurementMode' || key === 'meterRange',
-            )) ||
-          (component?.componentTypeId === 'pir-sensor' &&
-            Object.keys(properties).every((key) => key === 'motionDetected'))
-        );
-      })()
-    ) {
-      setRuntimeComponentOverride(selection.id, { stateProperties: properties });
-      return;
+    if (simulationRunning && selection?.kind === 'component') {
+      const component = runtimeDocument?.components.find((item) => item.id === selection.id);
+      const keys = Object.keys(properties);
+      const persistentEnvironmentInput =
+        (component?.componentTypeId === 'temperature-sensor' &&
+          keys.every((key) => key === 'temperatureCelsius')) ||
+        (component?.componentTypeId === 'soil-moisture-sensor' &&
+          keys.every((key) => key === 'moisturePercent')) ||
+        ((component?.componentTypeId === 'ultrasonic-sensor' ||
+          component?.componentTypeId === 'ultrasonic-hc-sr04') &&
+          keys.every((key) => key === 'distanceMeters'));
+      if (persistentEnvironmentInput) {
+        const next = updateSelectionProperties(document, selection, properties);
+        if (next) commitDocument(next, message);
+        return;
+      }
+      const runtimeOnlyControl =
+        (component?.kind === 'photoresistor' && keys.every((key) => key === 'illumination')) ||
+        (component?.componentTypeId === 'multimeter' &&
+          keys.every((key) => key === 'measurementMode' || key === 'meterRange')) ||
+        (component?.componentTypeId === 'pir-sensor' &&
+          keys.every((key) => key === 'motionDetected')) ||
+        (component?.componentTypeId === 'oscilloscope' &&
+          keys.every(
+            (key) =>
+              key === 'voltsPerDivision' ||
+              key === 'timePerDivisionMs' ||
+              key === 'triggerLevelVolt',
+          ));
+      if (runtimeOnlyControl) {
+        setRuntimeComponentOverride(selection.id, { stateProperties: properties });
+        return;
+      }
     }
     if (!structuralEditAllowed()) return;
     const next = updateSelectionProperties(document, selection, properties);
