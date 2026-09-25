@@ -342,6 +342,30 @@ export class AssignmentsController {
     return { ok: true as const };
   }
 
+  /** Immutable canonical sample, authorized through an exact pinned direct assignment. */
+  @Get('activity-versions/:versionId/sample')
+  async activityVersionSample(
+    @Req() request: FastifyRequest,
+    @Param('versionId') versionId: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    this.requireUuid(versionId, 'version');
+    const viewer = await this.requireViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT sample_bytes, sample_content_type, content_hash
+         FROM learning_activity_version_sample_for_viewer($1, $2, $3, $4)`,
+      [versionId, viewer.tenantId, viewer.accountId, viewer.seatId],
+    );
+    const row = result.rows[0] as
+      { sample_bytes: Buffer; sample_content_type: string; content_hash: string } | undefined;
+    if (!row) throw new HttpException(error('sample_not_found', 'Картинки нет.'), 404);
+    return reply
+      .header('content-type', row.sample_content_type)
+      .header('cache-control', 'private, max-age=31536000, immutable')
+      .header('etag', `"${row.content_hash}"`)
+      .send(row.sample_bytes);
+  }
+
   /** The picture itself, only for a viewer who may see this assignment. */
   @Get(':assignmentId/sample')
   async sample(
