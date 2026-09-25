@@ -291,7 +291,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(sidebarSource).toContain('Сопротивление сейчас');
     expect(sidebarSource).toContain('Больше света → меньше сопротивление');
     expect(controllerModuleSource).toContain(
-      "Object.keys(properties).every((key) => key === 'illumination')",
+      "component?.kind === 'photoresistor' && keys.every((key) => key === 'illumination')",
     );
   });
 
