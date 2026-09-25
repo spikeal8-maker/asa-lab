@@ -286,6 +286,7 @@ BEGIN
         END,
         'provenance', jsonb_build_object(
             'authoringOrigin', v_activity.authoring_origin,
+            'sourceVersionId', v_activity.draft_base_version_id,
             'sourceTeacherAssignmentId', v_activity.source_teacher_assignment_id,
             'sourceDraftRevision', v_activity.draft_revision
         )
@@ -329,7 +330,7 @@ BEGIN
     END IF;
 
     UPDATE public.learning_activities
-       SET current_published_version_id = v_id
+       SET current_published_version_id = v_id, draft_base_version_id = NULL
      WHERE id = p_activity_id;
 
     RETURN QUERY SELECT 'ok'::varchar, v_id, v_number, v_digest, false;
