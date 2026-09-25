@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { PNG } from 'pngjs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -31,6 +32,18 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await admin.end();
 });
+
+function solidPng(red: number, green: number, blue: number): Buffer {
+  const image = new PNG({ width: 3, height: 3 });
+  for (let pixel = 0; pixel < 9; pixel += 1) {
+    const offset = pixel * 4;
+    image.data[offset] = red;
+    image.data[offset + 1] = green;
+    image.data[offset + 2] = blue;
+    image.data[offset + 3] = 255;
+  }
+  return PNG.sync.write(image);
+}
 
 async function createPublishedProjectActivity(title: string): Promise<void> {
   const identity = await admin.query(
@@ -82,8 +95,9 @@ async function createClassWithStudents(
   page: Page,
   className: string,
   students: ReadonlyArray<{ label: string; handle: string }>,
+  alreadyAuthenticated = false,
 ): Promise<string> {
-  await loginWithOrganization(page, teacher);
+  if (!alreadyAuthenticated) await loginWithOrganization(page, teacher);
   await openPortalSection(page, 'Классы');
   await page
     .getByRole('button', { name: /^Создать(?: новый)? класс$/ })
@@ -236,4 +250,159 @@ test('teacher selects two learners and the third learner cannot see the assignme
   await excluded.context.close();
 
   failures.assertEmpty();
+});
+
+test('learner exact published task image stays pinned across v1 and v2', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const token = ++sequence;
+  const title = `Exact learner image ${token}`;
+  const imageA = solidPng(205, 45, 45);
+  const imageB = solidPng(40, 75, 210);
+
+  await loginWithOrganization(page, teacher);
+  await page.goto('/#/challenges');
+  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по точному образцу.');
+  const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
+  await fileInput.setInputFiles({
+    name: 'learner-exact-a.png',
+    mimeType: 'image/png',
+    buffer: imageA,
+  });
+  const publishV1 = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const v1Response = await publishV1;
+  expect(v1Response.ok()).toBe(true);
+  const v1 = (await v1Response.json()) as { id: string; versionNumber: number };
+  expect(v1.versionNumber).toBe(1);
+
+  const joinCodeV1 = await createClassWithStudents(
+    page,
+    `UX1A3 V1 ${token}`,
+    [{ label: `Learner A ${token}`, handle: `ux1a3-a-${token}` }],
+    true,
+  );
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2027-09-30' });
+
+  const learnerA = await learnerAssignments(browser, joinCodeV1, `ux1a3-a-${token}`);
+  const learnerAFailures = collectBrowserFailures(learnerA.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  let rowA = learnerA.page.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
+  const cardImageA = rowA.getByRole('img', { name: `Образец: ${title}` });
+  await expect(cardImageA).toBeVisible();
+  const cardSourceA = await cardImageA.getAttribute('src');
+  expect(cardSourceA).toContain(`/api/assignments/activity-versions/${v1.id}/sample`);
+  const cardBytesA = await learnerA.page.request.get(
+    new URL(cardSourceA!, learnerA.page.url()).toString(),
+  );
+  expect(cardBytesA.ok()).toBe(true);
+  expect(Buffer.compare(await cardBytesA.body(), imageA)).toBe(0);
+
+  await rowA.getByRole('button', { name: title, exact: true }).click();
+  const assignmentViewA = rowA.getByTestId('assignment-view');
+  const detailImageA = assignmentViewA.getByRole('img', { name: `Образец: ${title}` });
+  await expect(detailImageA).toBeVisible();
+  await assignmentViewA.getByRole('button', { name: `Открыть образец: ${title}` }).click();
+  const homeLightbox = learnerA.page.getByRole('dialog', { name: `Образец: ${title}` });
+  await expect(homeLightbox).toBeVisible();
+  await homeLightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(homeLightbox).toHaveCount(0);
+
+  await rowA.getByRole('button', { name: 'Открыть', exact: true }).click();
+  const briefAnchor = learnerA.page.getByTestId('assignment-brief-anchor');
+  await expect(briefAnchor).toBeVisible({ timeout: 60_000 });
+  await briefAnchor.click();
+  const brief = learnerA.page.getByTestId('assignment-brief');
+  await expect(brief).toBeVisible();
+  const briefImageA = brief.getByRole('img', { name: `Образец: ${title}` });
+  await expect(briefImageA).toBeVisible();
+  await brief.getByRole('button', { name: `Открыть образец: ${title}` }).click();
+  const briefLightbox = learnerA.page.getByRole('dialog', { name: `Образец: ${title}` });
+  await expect(briefLightbox).toBeVisible();
+  await briefLightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: title, exact: true }).click();
+  const replaceInput = page.getByLabel('Файл схемы или изображения', { exact: true });
+  await replaceInput.setInputFiles({
+    name: 'learner-exact-b.png',
+    mimeType: 'image/png',
+    buffer: imageB,
+  });
+  const saveImageB = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-sample$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  const savedImageB = await saveImageB;
+  expect(savedImageB.ok()).toBe(true);
+  const publishV2 = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const v2Response = await publishV2;
+  expect(v2Response.ok()).toBe(true);
+  const v2 = (await v2Response.json()) as { id: string; versionNumber: number };
+  expect(v2.versionNumber).toBe(2);
+  expect(v2.id).not.toBe(v1.id);
+
+  await learnerA.page.goto('/#/');
+  await openPortalSection(learnerA.page, 'Моё обучение');
+  rowA = learnerA.page.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
+  const v1StillA = rowA.getByRole('img', { name: `Образец: ${title}` });
+  await expect(v1StillA).toBeVisible();
+  const v1StillASource = await v1StillA.getAttribute('src');
+  expect(v1StillASource).toContain(`/api/assignments/activity-versions/${v1.id}/sample`);
+  const v1StillABytes = await learnerA.page.request.get(
+    new URL(v1StillASource!, learnerA.page.url()).toString(),
+  );
+  expect(v1StillABytes.ok()).toBe(true);
+  expect(Buffer.compare(await v1StillABytes.body(), imageA)).toBe(0);
+
+  const joinCodeV2 = await createClassWithStudents(
+    page,
+    `UX1A3 V2 ${token}`,
+    [{ label: `Learner B ${token}`, handle: `ux1a3-b-${token}` }],
+    true,
+  );
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2027-10-07' });
+  const learnerB = await learnerAssignments(browser, joinCodeV2, `ux1a3-b-${token}`);
+  const learnerBFailures = collectBrowserFailures(learnerB.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  const rowB = learnerB.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: title });
+  const cardImageB = rowB.getByRole('img', { name: `Образец: ${title}` });
+  await expect(cardImageB).toBeVisible();
+  const cardSourceB = await cardImageB.getAttribute('src');
+  expect(cardSourceB).toContain(`/api/assignments/activity-versions/${v2.id}/sample`);
+  const cardBytesB = await learnerB.page.request.get(
+    new URL(cardSourceB!, learnerB.page.url()).toString(),
+  );
+  expect(cardBytesB.ok()).toBe(true);
+  expect(Buffer.compare(await cardBytesB.body(), imageB)).toBe(0);
+
+  failures.assertEmpty();
+  learnerAFailures.assertEmpty();
+  learnerBFailures.assertEmpty();
+  await learnerA.context.close();
+  await learnerB.context.close();
 });

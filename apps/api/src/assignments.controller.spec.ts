@@ -7,6 +7,7 @@ import type { SeatContextUseCase } from './seat-context.js';
 
 const ASSIGNMENT_ID = '123e4567-e89b-42d3-a456-426614174000';
 const IMAGE_ID = '123e4567-e89b-42d3-a456-426614174001';
+const VERSION_ID = '123e4567-e89b-42d3-a456-426614174002';
 
 function request(cookies: Record<string, string> = {}): FastifyRequest {
   return { cookies } as unknown as FastifyRequest;
@@ -67,6 +68,61 @@ describe('assignment media authorization', () => {
     expect(target.query).toHaveBeenCalledWith(
       expect.stringContaining('assignment_sample_for_viewer'),
       [ASSIGNMENT_ID, 'principal-account', 'account-id', 'tenant-id', null],
+    );
+  });
+
+  it('passes the signed-in Account learner identity to the exact version sample reader', async () => {
+    const target = controller({
+      account: {
+        principalId: 'principal-account',
+        accountId: 'account-id',
+        tenantId: 'tenant-id',
+      },
+      rows: [
+        {
+          sample_bytes: Buffer.from('version-image'),
+          sample_content_type: 'image/png',
+          content_hash: 'a'.repeat(64),
+        },
+      ],
+    });
+    await target.value.activityVersionSample(
+      request({ asa_session: 'session' }),
+      VERSION_ID,
+      reply(),
+    );
+
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_version_sample_for_viewer'),
+      [VERSION_ID, 'tenant-id', 'account-id', null],
+    );
+  });
+
+  it('passes the exact StudentSeat identity to the exact version sample reader', async () => {
+    const target = controller({
+      account: null,
+      seat: {
+        principalId: 'principal-seat',
+        tenantId: 'tenant-id',
+        seatId: 'seat-id',
+      },
+      rows: [
+        {
+          sample_bytes: Buffer.from('version-image'),
+          sample_content_type: 'image/webp',
+          content_hash: 'b'.repeat(64),
+        },
+      ],
+    });
+    await target.value.activityVersionSample(
+      request({ asa_student_session: 'student-session' }),
+      VERSION_ID,
+      reply(),
+    );
+
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_version_sample_for_viewer'),
+      [VERSION_ID, 'tenant-id', null, 'seat-id'],
     );
   });
 
