@@ -349,7 +349,6 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   expect(legacyMutations).toEqual([]);
 });
 
-
 test('published task image stays immutable across versions', async ({ page }) => {
   test.setTimeout(150000);
   const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
@@ -379,7 +378,11 @@ test('published task image stays immutable across versions', async ({ page }) =>
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Опубликованная схема A/B.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
-  await fileInput.setInputFiles({ name: 'published-a.png', mimeType: 'image/png', buffer: imageA });
+  await fileInput.setInputFiles({
+    name: 'published-a.png',
+    mimeType: 'image/png',
+    buffer: imageA,
+  });
 
   const v1ResponsePromise = page.waitForResponse(
     (response) =>
@@ -414,7 +417,11 @@ test('published task image stays immutable across versions', async ({ page }) =>
   expect(publishedV1Bytes.ok()).toBe(true);
   expect(Buffer.compare(await publishedV1Bytes.body(), imageA)).toBe(0);
 
-  await fileInput.setInputFiles({ name: 'published-b.png', mimeType: 'image/png', buffer: imageB });
+  await fileInput.setInputFiles({
+    name: 'published-b.png',
+    mimeType: 'image/png',
+    buffer: imageB,
+  });
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
 
