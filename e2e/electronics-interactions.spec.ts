@@ -2767,9 +2767,7 @@ test.describe('owner D3-D6 acceptance', () => {
     await expect(page.getByRole('button', { name: 'Светодиод', exact: true })).toBeVisible();
   });
 
-  test('mobile selected component inspector stays compact and fully operable', async ({
-    page,
-  }) => {
+  test('mobile selected component inspector stays compact and fully operable', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await openEditor(page, documentFixture());
 
@@ -2816,9 +2814,7 @@ test.describe('owner D3-D6 acceptance', () => {
       );
     expect(horizontalOverflow).toBe(false);
 
-    await page.screenshot({
-      path: 'reports/interactions/mobile-component-inspector-compact.png',
-    });
+    await page.screenshot({ path: 'reports/interactions/mobile-component-inspector-compact.png' });
 
     await page.keyboard.press('Escape');
     await expect(panel).toHaveCount(0);
