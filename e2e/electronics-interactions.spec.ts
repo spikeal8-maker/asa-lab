@@ -2065,6 +2065,15 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       const { readDocument } = await openEditor(page, fixture);
       await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
 
+      const wireHit = page.locator('[data-testid="wire-hit"][data-wire-id="simulation-lock-wire"]');
+      const wirePoint = await pathScreenPoint(wireHit, 0.5);
+      await page.mouse.click(wirePoint.x, wirePoint.y);
+      const vertex = page.locator(
+        '[data-testid="wire-vertex"][data-wire-id="simulation-lock-wire"]',
+      );
+      await expect(vertex).toHaveCount(1);
+      const vertexPoint = await locatorCenter(vertex);
+
       await page.getByRole('button', { name: 'Начать моделирование' }).click();
       const runningSimulation = page.getByRole('button', { name: 'Остановить моделирование' });
       await expect(runningSimulation).toBeVisible();
@@ -2115,19 +2124,12 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       expect(readDocument()).toEqual(baseline);
       await expect(runningSimulation).toBeVisible();
 
-      const wireHit = page.locator('[data-testid="wire-hit"][data-wire-id="simulation-lock-wire"]');
-      const wirePoint = await pathScreenPoint(wireHit, 0.5);
-      await page.mouse.click(wirePoint.x, wirePoint.y);
-      const vertex = page.locator(
-        '[data-testid="wire-vertex"][data-wire-id="simulation-lock-wire"]',
-      );
-      await expect(vertex).toHaveCount(1);
-      const vertexPoint = await locatorCenter(vertex);
       await page.mouse.move(vertexPoint.x, vertexPoint.y);
       await page.mouse.down();
       await page.mouse.move(vertexPoint.x + 70, vertexPoint.y + 40, { steps: 5 });
       await page.mouse.up();
       expect(readDocument()).toEqual(baseline);
+      await expect(runningSimulation).toBeVisible();
 
       const source = wireTerminal(page, 'battery', 'BAT+');
       const sourcePoint = await locatorCenter(source);

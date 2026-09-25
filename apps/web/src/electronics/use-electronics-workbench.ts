@@ -1054,32 +1054,40 @@ export function useElectronicsWorkbench(projectId: string) {
     if (simulationRunning && selection?.kind === 'component') {
       const component = runtimeDocument?.components.find((item) => item.id === selection.id);
       const keys = Object.keys(properties);
-      const persistentEnvironmentInput =
-        (component?.componentTypeId === 'temperature-sensor' &&
-          keys.every((key) => key === 'temperatureCelsius')) ||
-        (component?.componentTypeId === 'soil-moisture-sensor' &&
-          keys.every((key) => key === 'moisturePercent')) ||
-        ((component?.componentTypeId === 'ultrasonic-sensor' ||
-          component?.componentTypeId === 'ultrasonic-hc-sr04') &&
-          keys.every((key) => key === 'distanceMeters'));
+      let persistentEnvironmentInput = false;
+      let runtimeOnlyControl = false;
+
+      if (component?.componentTypeId === 'temperature-sensor') {
+        persistentEnvironmentInput = keys.every((key) => key === 'temperatureCelsius');
+      } else if (component?.componentTypeId === 'soil-moisture-sensor') {
+        persistentEnvironmentInput = keys.every((key) => key === 'moisturePercent');
+      } else if (
+        component?.componentTypeId === 'ultrasonic-sensor' ||
+        component?.componentTypeId === 'ultrasonic-hc-sr04'
+      ) {
+        persistentEnvironmentInput = keys.every((key) => key === 'distanceMeters');
+      } else if (component?.kind === 'photoresistor') {
+        runtimeOnlyControl = keys.every((key) => key === 'illumination');
+      } else if (component?.componentTypeId === 'multimeter') {
+        runtimeOnlyControl = keys.every(
+          (key) => key === 'measurementMode' || key === 'meterRange',
+        );
+      } else if (component?.componentTypeId === 'pir-sensor') {
+        runtimeOnlyControl = keys.every((key) => key === 'motionDetected');
+      } else if (component?.componentTypeId === 'oscilloscope') {
+        runtimeOnlyControl = keys.every(
+          (key) =>
+            key === 'voltsPerDivision' ||
+            key === 'timePerDivisionMs' ||
+            key === 'triggerLevelVolt',
+        );
+      }
+
       if (persistentEnvironmentInput) {
         const next = updateSelectionProperties(document, selection, properties);
         if (next) commitDocument(next, message);
         return;
       }
-      const runtimeOnlyControl =
-        (component?.kind === 'photoresistor' && keys.every((key) => key === 'illumination')) ||
-        (component?.componentTypeId === 'multimeter' &&
-          keys.every((key) => key === 'measurementMode' || key === 'meterRange')) ||
-        (component?.componentTypeId === 'pir-sensor' &&
-          keys.every((key) => key === 'motionDetected')) ||
-        (component?.componentTypeId === 'oscilloscope' &&
-          keys.every(
-            (key) =>
-              key === 'voltsPerDivision' ||
-              key === 'timePerDivisionMs' ||
-              key === 'triggerLevelVolt',
-          ));
       if (runtimeOnlyControl) {
         setRuntimeComponentOverride(selection.id, { stateProperties: properties });
         return;
