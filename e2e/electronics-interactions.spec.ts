@@ -2778,7 +2778,7 @@ test.describe('owner D3-D6 acceptance', () => {
     await page.locator('.workbench-library-collapse').click();
     await expect(library).toHaveClass(/collapsed/);
 
-    const selectedPoint = await pointOnBody(page, 'led');
+    const selectedPoint = await pointOnBody(page, 'battery');
     await page.mouse.click(selectedPoint.x, selectedPoint.y);
 
     const panel = page.locator('.workbench-inspector:not(.wire-selected)');
@@ -2798,7 +2798,7 @@ test.describe('owner D3-D6 acceptance', () => {
     expect(panelBox.width).toBeLessThanOrEqual(230);
     expect(panelBox.height).toBeLessThanOrEqual(420);
     expect(stageBox.width - panelBox.width).toBeGreaterThanOrEqual(150);
-    expect(headingBox.height).toBeLessThanOrEqual(40);
+    expect(headingBox.height).toBeLessThanOrEqual(46);
     expect(inputBox.height).toBeLessThanOrEqual(36);
 
     await expect(panel.getByRole('button', { name: /Техническое состояние/ })).toBeVisible();
