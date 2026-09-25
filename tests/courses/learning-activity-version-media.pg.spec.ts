@@ -6,7 +6,6 @@ let admin: pg.Pool;
 let app: pg.Pool;
 let owner: SeededTeacher;
 let ownerPrincipalId: string;
-let ownerAccountId: string;
 let foreignPrincipalId: string;
 let requestSequence = 0;
 
@@ -63,7 +62,6 @@ beforeAll(async () => {
     [owner.tenantId, owner.teacherId],
   );
   ownerPrincipalId = identity.rows[0].principal_id as string;
-  ownerAccountId = identity.rows[0].account_id as string;
 
   const workspace = await admin.query(
     `SELECT id AS workspace_id
