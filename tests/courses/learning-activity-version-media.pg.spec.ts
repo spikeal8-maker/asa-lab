@@ -139,11 +139,7 @@ describe('UX1A2 immutable LearningActivityVersion sample', () => {
       content_digest: v1.content_digest,
       reused: true,
     });
-    const sameRevisionRetry = await publish(
-      activityId,
-      2,
-      'ux1a2:publish:a:alternate',
-    );
+    const sameRevisionRetry = await publish(activityId, 2, 'ux1a2:publish:a:alternate');
     expect(sameRevisionRetry).toMatchObject({
       result_code: 'ok',
       activity_version_id: v1.activity_version_id,
@@ -255,9 +251,7 @@ describe('UX1A2 immutable LearningActivityVersion sample', () => {
       [v1.activity_version_id, 'image/png', hashA, hashB],
     );
     expect(digestProof.rows[0].content_digest).toBe(digestProof.rows[0].expected_a);
-    expect(digestProof.rows[0].content_digest).not.toBe(
-      digestProof.rows[0].alternate_b,
-    );
+    expect(digestProof.rows[0].content_digest).not.toBe(digestProof.rows[0].alternate_b);
 
     await expect(
       admin.query(
