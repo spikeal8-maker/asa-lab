@@ -258,7 +258,7 @@ Compact contract зарегистрирован глобально и долже
 защит, прошивкой нового IP/домена в product code, созданием второго постоянного
 Compose stack или тихой сменой host port. Network discovery и browser trust —
 разные механизмы. Если MUST-инвариант неприменим, требуется явный versioned
-architecture exception по EXC-001.
+architecture exception по DPL-EXC-001.
 
 ASA-specific конвергенция ведётся по
 [Issue #396 plan](docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md);
