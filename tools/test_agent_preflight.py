@@ -159,6 +159,20 @@ class AgentPreflightTests(unittest.TestCase):
             ["contexts/electronics/state.txt"],
         )
 
+    def test_clean_worktree_with_cyrillic_path_is_not_a_false_handoff(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            build_repo(root)
+            other = root.parent / f"{root.name}-моделирование"
+            git(root, "branch", "other")
+            git(root, "worktree", "add", "-q", str(other), "other")
+            try:
+                result = self.build(root)
+            finally:
+                git(root, "worktree", "remove", "--force", str(other))
+        self.assertEqual(result["mode"], "SAFE_TO_START")
+        self.assertEqual(result["worktree_overlaps"], [])
+
     def test_acceptance_blocker_does_not_block_bounded_implementation(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

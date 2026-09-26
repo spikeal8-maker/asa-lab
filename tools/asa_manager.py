@@ -11,7 +11,7 @@ import shutil
 import sys
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
-from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, exact_origin, in_window, require, verify_backup
+from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
 
@@ -62,6 +62,7 @@ def first_environment(root, profile):
               "ASA_OBJECT_STORAGE_SECRET_KEY": secrets.token_hex(32), "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE": "true",
               "ASA_WEB_PORT": "4610", "ASA_API_PORT": "4611", "ASA_BLOCKS_PORT": "4613",
               "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610", "ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610",
+              "ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4610",
               "ASA_SEED_DEV": "true" if profile == "dev" else "false",
               "ASA_SEED_WORKSPACE": "school-1580", "ASA_SEED_TEACHER_EMAIL": "teacher@school-1580.local",
               "ASA_SEED_TEACHER_PASSWORD": secrets.token_hex(24)}
@@ -102,6 +103,9 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             "Inspect logs and readiness, repair the cause, then explicitly acknowledge the failure.")
     doctor(install, existing=not fresh)
     clean_checkout(install)
+    attest_editor_env(install.env.get('ASA_UPDATE_ENTRY_ORIGIN'),
+                      install.env.get('ASA_BLOCKS_PARENT_ORIGIN'),
+                      install.env.get('ASA_BLOCKS_RUNTIME_ORIGIN'), install.profile)
     release = discover_release()
     assert_ci(release)
     before = None if fresh else install.readiness()
@@ -111,7 +115,9 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         records = install.identity()
         for name, expected in release["images"].items():
             require(records.get(name, {}).get("image") == expected, "IMAGE_DRIFT", f"Running {name} differs from the pinned release.")
+        verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
         print("NO_CHANGE the verified release is already running; no backup or restart")
+        print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
         return
     if check:
         print(f"AVAILABLE revision={release['revision']} schema={release['schema']}; no installation changes")
@@ -145,12 +151,15 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             install.compose("stop", "web", "api", "scratch")
         install.compose("up", "-d", "--no-build")
         install.wait_ready(release["revision"], release["schema"])
+        verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
         install.identity()
         atomic_json(install.state / "installed-release.json", release)
         save_settings(install, install.settings.get("automaticUpdates", False))
-        install.receipt({"status": "success", **operation})
+        install.receipt({"status": "success", "entryOrigin": install.env['ASA_UPDATE_ENTRY_ORIGIN'],
+                         "entryHttp": "pass", "userFlow": "not_run", **operation})
         (install.state / "maintenance.json").unlink()
         print(f"UPDATED {release['revision']} schema={release['schema']}")
+        print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
     except BaseException:
         atomic_json(install.state / "failed-switch.json", operation)
         install.receipt({"status": "failed_switch", **operation, "automaticDatabaseRestore": False})

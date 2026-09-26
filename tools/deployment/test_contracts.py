@@ -11,7 +11,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
                                   attest_database_targets, attest_embedded_editor, exact_origin, in_window, inventory_files, read_env, safe_member,
-                                  validate_release, verify_backup)
+                                  validate_release, verify_backup, verify_embedded_entry_http)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
 from deployment.releases import assert_ci, validate_resolved_images
@@ -39,16 +39,64 @@ class EmbeddedEntryTests(unittest.TestCase):
                              'scratch': {'environment': {'ASA_BLOCKS_PARENT_ORIGIN': parent}}}}
 
     def test_single_local_or_explicit_public_portal_is_valid(self):
-        attest_embedded_editor(self.config('http://127.0.0.1:4610', 'http://127.0.0.1:4610'))
-        attest_embedded_editor(self.config('https://asa-lab.ru', 'https://asa-lab.ru', 'https://asa-lab.ru'))
+        attest_embedded_editor(self.config('http://127.0.0.1:4610', 'http://127.0.0.1:4610'),
+                               'http://127.0.0.1:4610', 'dev')
+        attest_embedded_editor(self.config('http://127.0.0.1:4610', 'http://127.0.0.1:4610'),
+                               'http://127.0.0.1:4610', 'production')
+        attest_embedded_editor(self.config('http://172.23.104.170:4610', 'http://172.23.104.170:4610'),
+                               'http://172.23.104.170:4610', 'dev')
+        attest_embedded_editor(self.config('https://asa-lab.ru', 'https://asa-lab.ru', 'https://asa-lab.ru'),
+                               'https://asa-lab.ru', 'production')
 
     def test_old_saved_separate_origin_blocks_before_service_switch(self):
         for origin, parent, public in [('http://localhost:4613', 'http://127.0.0.1:4610', ''),
                                        ('https://scratch.example.test', 'https://asa-lab.ru', 'https://asa-lab.ru'),
                                        ('https://scratch.example.test', 'https://scratch.example.test', 'https://asa-lab.ru')]:
             with self.subTest(origin=origin), self.assertRaises(Blocked) as problem:
-                attest_embedded_editor(self.config(origin, parent, public))
+                attest_embedded_editor(self.config(origin, parent, public), 'https://asa-lab.ru', 'production')
             self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
+
+    def test_owner_lan_address_must_not_silently_fall_back_to_localhost(self):
+        with self.assertRaises(Blocked) as problem:
+            attest_embedded_editor(self.config('http://localhost:4610', 'http://localhost:4610'),
+                                   'http://172.23.104.170:4610', 'dev')
+        self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
+
+    def test_missing_owner_entry_blocks_before_update(self):
+        with self.assertRaises(Blocked) as problem:
+            attest_embedded_editor(self.config('http://127.0.0.1:4610', 'http://127.0.0.1:4610'), None, 'dev')
+        self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
+
+    def test_non_loopback_production_http_is_rejected(self):
+        origin = 'http://172.23.104.170:4610'
+        with self.assertRaises(Blocked) as problem:
+            attest_embedded_editor(self.config(origin, origin), origin, 'production')
+        self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
+
+    def test_http_probe_requires_same_revision_and_runtime_origin(self):
+        origin, revision = 'http://172.23.104.170:4610', 'a' * 40
+        responses = {
+            '/health/ready': json.dumps({'status': 'ready', 'deployment': {'revision': revision, 'synchronized': True}}),
+            '/build-metadata.json': json.dumps({'revision': revision}),
+            '/runtime-config.js': 'globalThis.__ASA_RUNTIME_CONFIG__=' + json.dumps({'blocksRuntimeOrigin': origin}) + ';',
+            '/internal/blocks/': '<html data-asa-scratch-host="m1-002a">Scratch</html>',
+            '/internal/blocks/healthz': 'ok',
+        }
+        verify_embedded_entry_http(origin, revision, responses.__getitem__)
+        responses['/runtime-config.js'] = 'globalThis.__ASA_RUNTIME_CONFIG__={"blocksRuntimeOrigin":"http://localhost:4610"};'
+        with self.assertRaises(Blocked) as problem:
+            verify_embedded_entry_http(origin, revision, responses.__getitem__)
+        self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
+        responses['/runtime-config.js'] = 'globalThis.__ASA_RUNTIME_CONFIG__=' + json.dumps({'blocksRuntimeOrigin': origin}) + ';'
+        responses['/internal/blocks/'] = '<html>Portal SPA fallback</html>'
+        with self.assertRaises(Blocked) as problem:
+            verify_embedded_entry_http(origin, revision, responses.__getitem__)
+        self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
+        responses['/internal/blocks/'] = '<html data-asa-scratch-host="m1-002a">Scratch</html>'
+        responses['/internal/blocks/healthz'] = '<html>Portal SPA fallback</html>'
+        with self.assertRaises(Blocked) as problem:
+            verify_embedded_entry_http(origin, revision, responses.__getitem__)
+        self.assertEqual(problem.exception.code, 'EDITOR_ENTRY')
 
 
 class WindowTests(unittest.TestCase):
@@ -295,18 +343,39 @@ class IdentityTests(unittest.TestCase):
 
 
 class UpdateBoundaryTests(unittest.TestCase):
+    def test_missing_owner_entry_stops_before_release_or_backup(self):
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as root:
+            install = MagicMock()
+            install.state = Path(root)
+            install.profile = 'dev'
+            install.env = {'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
+            with patch.object(asa_manager, 'doctor'), patch.object(asa_manager, 'clean_checkout'), \
+                    patch.object(asa_manager, 'discover_release') as discover, \
+                    patch.object(asa_manager, 'export_backup') as backup, self.assertRaises(Blocked):
+                asa_manager.update(install, check=True)
+            discover.assert_not_called()
+            backup.assert_not_called()
+            install.compose.assert_not_called()
+
     def test_same_release_does_not_stop_or_back_up(self):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
             install.state = Path(root)
+            install.profile = 'dev'
+            install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
             candidate = release()
             atomic_json(install.state / "installed-release.json", candidate)
             install.readiness.return_value = {"revision": candidate["revision"], "schema": candidate["schema"]}
             install.identity.return_value = {name: {"image": ref} for name, ref in candidate["images"].items()}
             with patch.object(asa_manager, "doctor"), patch.object(asa_manager, "clean_checkout"), \
                     patch.object(asa_manager, "discover_release", return_value=candidate), \
-                    patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "export_backup") as backup, \
+                    patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "verify_embedded_entry_http"), \
+                    patch.object(asa_manager, "export_backup") as backup, \
                     patch.object(asa_manager, "selected_source") as switch:
                 asa_manager.update(install)
             backup.assert_not_called()
@@ -318,6 +387,10 @@ class UpdateBoundaryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             install = MagicMock()
             install.root = install.state = Path(root)
+            install.profile = 'dev'
+            install.env = {'ASA_UPDATE_ENTRY_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_PARENT_ORIGIN': 'http://127.0.0.1:4610',
+                           'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
             with patch.object(asa_manager, "doctor"), patch.object(asa_manager, "clean_checkout"), \
                     patch.object(asa_manager, "discover_release", return_value=release()), \
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "fetch_images"), \
