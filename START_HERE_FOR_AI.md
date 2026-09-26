@@ -24,6 +24,12 @@ AGENTS.md
 и компактный [deployment contract](docs/agent/contracts/deployment.yaml). Они отделяют
 application identity от machine/network identity и запрещают лечить переносимость
 ручной прошивкой IP/домена или отключением browser security.
+Текущий ASA baseline пока имеет `COMPLIANCE_STATUS: TRANSITIONAL_NON_COMPLIANT`;
+известные MUST-исключения и временные компенсирующие controls зафиксированы в
+[transition ADR](docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md).
+Targeted context не подмешивает глобальный deployment contract автоматически:
+для deployment-sensitive изменения root policy выше остаётся обязательной даже
+если `--path/--surface/--control` показывает только локальные invariants.
 GitHub-first protocol задаёт рабочую модель: GitHub хранит каноническое состояние и
 изменения, локальный компьютер используется только как короткий runner, а тяжёлые
 production Docker/browser/data evidence выполняются в GitHub Actions. Политика не
