@@ -57,6 +57,7 @@ async function createPublishedProjectActivity(
   moduleKey = 'electronics',
   brief = 'Соберите рабочую электрическую цепь.',
   sample?: { readonly bytes: Buffer; readonly contentType: 'image/png' | 'image/jpeg' | 'image/webp' },
+  canonicalRoot = sample !== undefined,
 ): Promise<void> {
   const identity = await admin.query(
     `SELECT principal_id FROM legacy_user_account_links
@@ -64,7 +65,7 @@ async function createPublishedProjectActivity(
     [teacher.tenantId, teacher.teacherId],
   );
   const principalId = identity.rows[0].principal_id as string;
-  const authored = sample
+  const authored = canonicalRoot
     ? null
     : await admin.query(
         `INSERT INTO teacher_assignments
