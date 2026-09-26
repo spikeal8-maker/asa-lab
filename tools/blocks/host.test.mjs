@@ -1373,8 +1373,9 @@ test('accepted child INIT exposes validated bootstrap but keeps capability proto
   assert.equal(protocol.getRuntimeToken(), null);
 });
 
-test('child INIT accepts canonical Scratch costume without md5ext when the asset is declared', () => {
+test('child INIT accepts canonical Scratch media without md5ext when assets are declared', () => {
   const assetId = 'd'.repeat(32);
+  const soundId = 'f'.repeat(32);
   const { handlers, parent, calls, rejections } = protocolHarness();
   handlers.get('message')({
     source: parent,
@@ -1384,17 +1385,44 @@ test('child INIT accepts canonical Scratch costume without md5ext when the asset
         targets: [
           {
             costumes: [{ assetId, dataFormat: 'svg' }],
-            sounds: [],
+            sounds: [{ assetId: soundId, dataFormat: 'wav' }],
           },
         ],
         monitors: [],
         extensions: [],
       },
-      assets: [{ assetId, dataFormat: 'svg', sha256: 'e'.repeat(64), sizeBytes: 1 }],
+      assets: [
+        { assetId, dataFormat: 'svg', sha256: 'e'.repeat(64), sizeBytes: 1 },
+        { assetId: soundId, dataFormat: 'wav', sha256: 'a'.repeat(64), sizeBytes: 1 },
+      ],
     }),
   });
   assert.equal(calls.length, 1);
   assert.deepEqual(rejections, []);
+});
+
+test('child INIT rejects an incorrect declared sound md5ext', () => {
+  const assetId = 'f'.repeat(32);
+  const { handlers, parent, calls, rejections } = protocolHarness();
+  handlers.get('message')({
+    source: parent,
+    origin: API_ORIGIN,
+    data: validInitMessage({
+      projectJson: {
+        targets: [
+          {
+            costumes: [],
+            sounds: [{ assetId, dataFormat: 'wav', md5ext: `${'e'.repeat(32)}.wav` }],
+          },
+        ],
+        monitors: [],
+        extensions: [],
+      },
+      assets: [{ assetId, dataFormat: 'wav', sha256: 'a'.repeat(64), sizeBytes: 1 }],
+    }),
+  });
+  assert.equal(calls.length, 0);
+  assert.ok(rejections.includes('bootstrap'));
 });
 
 for (const [name, override] of [
