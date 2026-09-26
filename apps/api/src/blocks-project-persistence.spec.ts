@@ -309,6 +309,21 @@ function harness(reuse?: string) {
   };
 }
 describe('Scratch manual save → existing Project Core → fresh-reader open', () => {
+  it('persists and reopens a Scratch project whose media omit the optional md5ext field', async () => {
+    const h = harness();
+    const projectJson = graph();
+    const input = { ...h.input(), projectJson };
+    for (const target of projectJson.targets) {
+      for (const media of [...target.costumes, ...target.sounds]) {
+        Reflect.deleteProperty(media, 'md5ext');
+      }
+    }
+    const saved = await h.service.save(input, h.source);
+    expect(saved).toMatchObject({ ok: true, value: { revision: 2 } });
+    const reopened = await harness(h.dir).service.open({ tenantId, projectId, actor });
+    expect(reopened).toMatchObject({ ok: true, value: { document: { projectJson } } });
+  });
+
   it('persists edited program, deduplicates shared costume/sound and opens exact bytes in a fresh instance', async () => {
     const h = harness(),
       input = h.input();
@@ -476,6 +491,25 @@ const envelope = () => ({
   assets: [{ ...REF_PNG }, { ...REF_WAV }],
 });
 describe('durability validation uses the pinned Scratch parser and exact reference set', () => {
+  it('accepts omitted md5ext but rejects a mismatched value when present', async () => {
+    const projectJson = graph();
+    Reflect.deleteProperty(projectJson.targets[0]!.costumes[0]!, 'md5ext');
+    Reflect.deleteProperty(projectJson.targets[1]!.sounds[0]!, 'md5ext');
+    expect((await inspectScratchProject(projectJson)).projectJson).toEqual(projectJson);
+    await expect(inspectBlocksDocument({ ...envelope(), projectJson })).resolves.toMatchObject({
+      projectJson,
+    });
+    projectJson.targets[0]!.costumes[0]!.md5ext = `${'a'.repeat(32)}.png`;
+    await expect(inspectScratchProject(projectJson)).rejects.toThrow(
+      'blocks_asset_identity_invalid',
+    );
+    Reflect.deleteProperty(projectJson.targets[0]!.costumes[0]!, 'md5ext');
+    projectJson.targets[1]!.sounds[0]!.md5ext = `${'b'.repeat(32)}.wav`;
+    await expect(inspectScratchProject(projectJson)).rejects.toThrow(
+      'blocks_asset_identity_invalid',
+    );
+  });
+
   it('accepts a real Scratch3 shape and deduplicates repeated graph references', async () => {
     const inspected = await inspectScratchProject(graph());
     expect(inspected.expectedAssets).toHaveLength(2);

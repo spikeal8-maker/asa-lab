@@ -127,7 +127,7 @@ export async function inspectScratchProject(
           !/^[a-f0-9]{32}$/.test(item.assetId) ||
           typeof item.dataFormat !== 'string' ||
           !(formats as readonly string[]).includes(item.dataFormat) ||
-          item.md5ext !== `${item.assetId}.${item.dataFormat}`
+          (item.md5ext !== undefined && item.md5ext !== `${item.assetId}.${item.dataFormat}`)
         )
           rejectDocument('blocks_asset_identity_invalid');
         const ref = { assetId: item.assetId, dataFormat: item.dataFormat as BlocksAssetFormat };

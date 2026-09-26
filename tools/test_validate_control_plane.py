@@ -777,6 +777,25 @@ def direct_main_state_edited(_):
             cp.bind_root(saved)
 
 
+@case("direct main may update execution state on main", expect="")
+def direct_main_main_state_edited(_):
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw) / "repo"
+        build_repo(root, main_state=BASE_STATE, branch_state=None)
+        git("checkout", "-q", "main", cwd=root)
+        (root / "docs/execution/current.yaml").write_text(BASE_STATE + "  pr: 72\n", encoding="utf-8")
+        saved = cp.ROOT
+        try:
+            cp.bind_root(root)
+            errors: list[str] = []
+            notes: list[str] = []
+            cp.check_execution_branch_policy(True, [{"branch": "main"}], [], errors, notes)
+            assert any("updated in place" in note for note in notes), notes
+            return errors
+        finally:
+            cp.bind_root(saved)
+
+
 @case("the task branch leaves the state file alone", expect="")
 def state_untouched(_):
     errors, notes = state_file_case(BASE_STATE, None)

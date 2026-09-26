@@ -29,17 +29,26 @@ describe('Blocks runtime transport', () => {
     { 'sec-fetch-site': 'same-origin', referer: 'https://foreign.test/internal/blocks/' },
     { 'sec-fetch-site': 'same-site', referer: 'https://asa-lab.ru/internal/blocks/' },
     { 'sec-fetch-site': 'same-origin' },
-  ])('rejects untrusted embedded read metadata at the transport hook: %j', async (headers) => {
-    app = Fastify();
-    app.addHook('onRequest', async (request, reply) => {
-      if (!applyBlocksRuntimeCors(request, reply, 'https://asa-lab.ru'))
-        return reply.code(403).send();
-    });
-    app.get('/api/blocks/runtime/probe', async () => ({ ok: true }));
-    const response = await app.inject({ method: 'GET', url: '/api/blocks/runtime/probe', headers });
-    expect(response.statusCode).toBe(403);
-    expect(response.headers['access-control-allow-origin']).toBeUndefined();
-  });
+  ])(
+    'rejects untrusted embedded read metadata at the transport hook: %j',
+    async (headers) => {
+      app = Fastify();
+      app.addHook('onRequest', async (request, reply) => {
+        if (!applyBlocksRuntimeCors(request, reply, 'https://asa-lab.ru'))
+          return reply.code(403).send();
+      });
+      app.get('/api/blocks/runtime/probe', async () => ({ ok: true }));
+      const response = await app.inject({
+        method: 'GET',
+        url: '/api/blocks/runtime/probe',
+        headers,
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.headers['access-control-allow-origin']).toBeUndefined();
+    },
+    // Cold Fastify startup can exceed Vitest's 5s default under parallel Windows workers.
+    15_000,
+  );
   it('recognizes an embedded same-origin asset GET without granting cookie authority', () => {
     expect(
       blocksRuntimeRequestOrigin({

@@ -1228,7 +1228,7 @@ def check_execution_branch_policy(
         revisions = lane.get("revisions") or {}
         if revisions.get("kind") == "split_history":
             protected_tasks.extend(revisions[role] for role in ("recovery", "bounded_review"))
-    check_state_file_is_canonical(protected_tasks, errors, notes)
+    check_state_file_is_canonical(protected_tasks, errors, notes, direct_main=direct_main)
     if direct_main:
         notes.append(
             "direct_main mode: leases, lane path ownership, product branches and PRs "
@@ -1242,7 +1242,8 @@ def check_execution_branch_policy(
 
 
 def check_state_file_is_canonical(
-    task: dict[str, Any] | list[dict[str, Any]], errors: list[str], notes: list[str]
+    task: dict[str, Any] | list[dict[str, Any]], errors: list[str], notes: list[str],
+    *, direct_main: bool = False,
 ) -> None:
     """The branch doing the work inherits programme state; it does not author it.
 
@@ -1264,6 +1265,9 @@ def check_state_file_is_canonical(
     code, branch = run(["git", "rev-parse", "--abbrev-ref", "HEAD"])
     if code != 0:
         notes.append("cannot determine the current branch; canonical-copy check skipped")
+        return
+    if direct_main and branch == "main":
+        notes.append("direct_main on main: execution state may be updated in place")
         return
     tasks = task if isinstance(task, list) else [task]
     product_task = next(

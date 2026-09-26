@@ -15,8 +15,8 @@ task:
   base_branch: main
   pr: null
   pr_draft: false
-  status: done
-  checkpoint: production_single_entry_deployed_verified_owner_review_pending
+  status: in_progress
+  checkpoint: owner_reported_scratch_save_validation_repair
   owner_acceptance: pending
 
 revisions:
