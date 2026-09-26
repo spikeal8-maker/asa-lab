@@ -25,15 +25,15 @@ path only. A review-found code repair must be explicitly returned to an executab
 
 Choose the task kind and resolve human keywords/component IDs in [COMPONENT_MAP.yaml](COMPONENT_MAP.yaml).
 
-For the owner-selected four-part workbench usability repair (assisted wire routing,
-zoom-scaled terminal targets, native mobile catalog drag and compact wire controls),
-read [TASK-ELECTRONICS-UX-REPAIR-001](tasks/TASK-ELECTRONICS-UX-REPAIR-001.md).
-It supersedes the earlier task-local blanket ban on axis assistance with bounded soft
-alignment; it does not activate itself or authorize deployment/general refactoring.
+For cleanup, technical-debt reduction, decomposition, legacy retirement, test-output
+hygiene or Electronics asset-packaging work, first confirm the selected task and then read
+[Maintenance, Cleanup & Optimization Execution Specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md)
+at the exact `WP-*` section named by that task card. The specification describes the whole
+programme but never activates a work package by itself.
 
 | Task kind | Next document |
 | --- | --- |
-| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
+| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); ordinary cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |\n| cleanup / optimization programme | Selected concrete task card → exact `WP-*` in [maintenance execution specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md) → [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) when deletion/decomposition/legacy applies |
 | `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md) |
 | `analysis/inventory` | Selected concrete inventory card; [read-only contract](AGENT_GUIDE.md#analysisinventory) |
 | `design-decision` | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md) |

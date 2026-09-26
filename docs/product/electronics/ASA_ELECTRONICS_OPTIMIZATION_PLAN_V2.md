@@ -72,6 +72,11 @@ DPL-* deployment gates are cross-cutting and occur only after accepted integrati
 
 The [Engineering Hygiene and Legacy Retirement Contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) is cross-cutting. A hygiene checkpoint is mandatory after every three accepted production-changing slices (`implementation`, `component/peripheral`, plus `maintenance`/`repair` that changed tracked production source) or before transition between major E-OPT stages, whichever occurs first. Canonical replacement of a provisional/legacy path may force an earlier checkpoint.
 
+The ordered maintenance/cleanup/decomposition programme is defined by the
+[Maintenance, Cleanup & Optimization Execution Specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md).
+That specification owns cleanup work-package structure only: it neither changes E-OPT dependency
+order nor selects executable work.
+
 A due hygiene checkpoint blocks another production-changing slice until accepted, except for a bounded repair required to restore a broken governance/gate condition. Hygiene does not alter roadmap dependencies and never authorizes the next feature by itself.
 
 ## 3. E-OPT-0 — Baseline, golden corpus and benchmark harness
