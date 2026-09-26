@@ -13,13 +13,24 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 STANDARD = "docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md"
 CONTRACT = "docs/agent/contracts/deployment.yaml"
+TRANSITION = "docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md"
 PLAN = "docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md"
 REGISTRY = "docs/agent/document-registry.yaml"
 AGENTS = "AGENTS.md"
 START = "START_HERE_FOR_AI.md"
 GATE = "tools/gate-governance.sh"
 
-REQUIREMENT_RE = re.compile(r"^### (DPL-[A-Z]+-\d{3})\b", re.MULTILINE)
+REQUIREMENT_HEADING_RE = re.compile(r"^### (DPL-[A-Z]+-\d{3})\b.*$", re.MULTILINE)
+LEVEL_RE = re.compile(r"^\*\*(MUST|SHOULD|MAY)\.\*\*", re.MULTILINE)
+SEMANTIC_LIMIT_MARKER = "does not prove natural-language semantic equivalence"
+TRANSITION_MARKERS = (
+    "COMPLIANCE_STATUS:** TRANSITIONAL_NON_COMPLIANT",
+    "FULL_COMPLIANCE_CLAIM:** BLOCKED",
+    "DPL-AUTO-001",
+    "DPL-NET-002 / DPL-NET-003",
+    "DPL-NET-004",
+    "DPL-TST-003",
+)
 
 EXPECTED_REGISTRY: dict[str, dict[str, Any]] = {
     "PORTABLE-DEPLOYMENT-STANDARD": {
@@ -33,6 +44,12 @@ EXPECTED_REGISTRY: dict[str, dict[str, Any]] = {
         "status": "canonical",
         "authority": "deployment_portability_invariants",
         "context_role": "compact",
+    },
+    "ADR-PORTABLE-DEPLOYMENT-TRANSITION-001": {
+        "path": TRANSITION,
+        "status": "canonical",
+        "authority": "asa_portable_deployment_transition_exception",
+        "context_role": "escalation",
     },
     "PORTABLE-DEPLOYMENT-PLAN": {
         "path": PLAN,
@@ -70,21 +87,48 @@ def _yaml(root: Path, relative: str, errors: list[str]) -> dict[str, Any]:
     return value
 
 
+def _standard_requirements(text: str, errors: list[str]) -> dict[str, str]:
+    matches = list(REQUIREMENT_HEADING_RE.finditer(text))
+    if not matches:
+        errors.append(f"{STANDARD}: no requirement IDs found")
+        return {}
+
+    result: dict[str, str] = {}
+    for index, match in enumerate(matches):
+        req_id = match.group(1)
+        if req_id in result:
+            errors.append(f"{STANDARD}: duplicate requirement ID {req_id}")
+            continue
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(text)
+        block = text[match.end():end]
+        level = LEVEL_RE.search(block)
+        if level is None:
+            errors.append(f"{STANDARD}: {req_id} missing normative MUST/SHOULD/MAY level")
+            continue
+        result[req_id] = level.group(1)
+    return result
+
+
 def validate_root(root: Path) -> list[str]:
     errors: list[str] = []
     standard = _read(root, STANDARD, errors)
     contract = _yaml(root, CONTRACT, errors)
+    transition = _read(root, TRANSITION, errors)
     registry = _yaml(root, REGISTRY, errors)
     agents = _read(root, AGENTS, errors)
     start = _read(root, START, errors)
     gate = _read(root, GATE, errors)
     plan = _read(root, PLAN, errors)
 
-    standard_ids = REQUIREMENT_RE.findall(standard)
-    if not standard_ids:
-        errors.append(f"{STANDARD}: no requirement IDs found")
-    if len(standard_ids) != len(set(standard_ids)):
-        errors.append(f"{STANDARD}: duplicate requirement IDs")
+    standard_requirements = _standard_requirements(standard, errors)
+    if SEMANTIC_LIMIT_MARKER not in standard:
+        errors.append(
+            f"{STANDARD}: machine-enforcement boundary must state that semantic equivalence is not proven"
+        )
+
+    for marker in TRANSITION_MARKERS:
+        if marker not in transition:
+            errors.append(f"{TRANSITION}: missing transition marker {marker!r}")
 
     if contract.get("schema_version") != "1.0.0":
         errors.append(f"{CONTRACT}: schema_version must be 1.0.0")
@@ -96,11 +140,10 @@ def validate_root(root: Path) -> list[str]:
         errors.append(f"{CONTRACT}: master_documents must contain only PORTABLE-DEPLOYMENT-STANDARD")
 
     invariants = contract.get("invariants")
+    contract_ids: list[str] = []
     if not isinstance(invariants, list) or not invariants:
         errors.append(f"{CONTRACT}: invariants must be a non-empty array")
-        contract_ids: list[str] = []
     else:
-        contract_ids = []
         for index, item in enumerate(invariants):
             label = f"{CONTRACT}: invariants[{index}]"
             if not isinstance(item, dict):
@@ -111,20 +154,39 @@ def validate_root(root: Path) -> list[str]:
                 errors.append(f"{label}.id invalid")
                 continue
             contract_ids.append(req_id)
-            if item.get("level") not in {"MUST", "SHOULD", "MAY"}:
+
+            level = item.get("level")
+            if level not in {"MUST", "SHOULD", "MAY"}:
                 errors.append(f"{label}.level must be MUST/SHOULD/MAY")
+            expected_level = standard_requirements.get(req_id)
+            if expected_level is not None and level != expected_level:
+                errors.append(
+                    f"{label}.level {level!r} does not match {STANDARD} level {expected_level!r}"
+                )
+
+            expected_refs = [
+                {"document": "PORTABLE-DEPLOYMENT-STANDARD", "section": req_id}
+            ]
+            if item.get("master_refs") != expected_refs:
+                errors.append(f"{label}.master_refs must equal {expected_refs!r}")
+
             if not isinstance(item.get("statement"), str) or not item["statement"].strip():
                 errors.append(f"{label}.statement must be non-empty")
             for field in ("applies_to", "forbid"):
                 value = item.get(field)
-                if not isinstance(value, list) or not value or not all(isinstance(x, str) and x for x in value):
+                if (
+                    not isinstance(value, list)
+                    or not value
+                    or not all(isinstance(x, str) and x for x in value)
+                ):
                     errors.append(f"{label}.{field} must be a non-empty string array")
+
         if len(contract_ids) != len(set(contract_ids)):
             errors.append(f"{CONTRACT}: duplicate invariant IDs")
 
-    if set(standard_ids) != set(contract_ids):
-        missing_contract = sorted(set(standard_ids) - set(contract_ids))
-        missing_standard = sorted(set(contract_ids) - set(standard_ids))
+    if set(standard_requirements) != set(contract_ids):
+        missing_contract = sorted(set(standard_requirements) - set(contract_ids))
+        missing_standard = sorted(set(contract_ids) - set(standard_requirements))
         errors.append(
             "requirement ID mismatch"
             f"; missing in contract={missing_contract}"
@@ -152,7 +214,7 @@ def validate_root(root: Path) -> list[str]:
             errors.append(f"{REGISTRY}: {doc_id}.read_when must be non-empty")
 
     for relative, text in ((AGENTS, agents), (START, start)):
-        for marker in (STANDARD, CONTRACT):
+        for marker in (STANDARD, CONTRACT, TRANSITION):
             if marker not in text:
                 errors.append(f"{relative}: missing route to {marker}")
 
@@ -163,7 +225,7 @@ def validate_root(root: Path) -> list[str]:
         if marker not in gate:
             errors.append(f"{GATE}: missing governance invocation {marker}")
 
-    for marker in ("#396", STANDARD, CONTRACT):
+    for marker in ("#396", STANDARD, CONTRACT, TRANSITION):
         if marker not in plan:
             errors.append(f"{PLAN}: missing marker {marker!r}")
 
@@ -178,6 +240,8 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
         return 1
     print("portable deployment standard: PASS")
+    print("- structural parity: IDs + normative levels + exact master_refs")
+    print("- semantic equivalence: NOT machine-proven; L3 review remains required")
     return 0
 
 
