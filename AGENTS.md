@@ -227,11 +227,14 @@ Browser origin редактора совпадает с порталом.
 обход ошибки. Не выбирать TEST или диагностический контейнер вместо production.
 Проверяй working_dir/config_files и принадлежность сервисов одной установке;
 одной метки project/service или похожего имени контейнера недостаточно.
-Перед обновлением явно укажи **фактический адрес входа владельца в ASA**:
+До закрытия [transition exception](docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md)
+перед обновлением явно укажи **фактический адрес входа владельца в ASA**:
 `-EntryOrigin` для Windows source updater, `ASA_UPDATE_ENTRY_ORIGIN` для Linux
-и переносимого менеджера. Это адрес портала, не отдельный адрес Scratch.
-Preflight обязан сравнить его с обоими `ASA_BLOCKS_*_ORIGIN` до backup и
-переключения; после запуска — проверить `/internal/blocks/` через этот адрес.
+и переносимого менеджера. Это временный компенсирующий контроль DPL-AUTO-001,
+а не целевое portable-поведение: обычное обновление в целевой модели не должно
+повторно просить уже известный внешний выбор. Пока replacement не доказан,
+preflight обязан сравнить EntryOrigin с обоими `ASA_BLOCKS_*_ORIGIN` до backup
+и переключения; после запуска — проверить `/internal/blocks/` через этот адрес.
 Здоровые контейнеры и одинаковый SHA доказывают техническую готовность, но не
 пользовательский сценарий сохранения: без браузерной проверки он `NOT_RUN`.
 
@@ -250,9 +253,15 @@ migration или нового self-hosted сервиса обязательны:
 - [Portable Self-Hosted Deployment Standard](docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md);
 - [compact deployment contract](docs/agent/contracts/deployment.yaml).
 
-Compact contract зарегистрирован глобально и должен приходить через agent context
-как read-first invariant set; полный стандарт читается при изменении самой
-архитектуры развёртывания или при нерешённом конфликте требований.
+Маршрутизация намеренно различается по режимам agent context:
+
+- широкий `agent:context --scope <lane>` включает глобальный canonical compact deployment contract в `read_first`;
+- targeted `--path/--surface/--control` не инжектит все глобальные compact contracts автоматически и показывает только invariant IDs выбранной Surface Map.
+
+Поэтому для install/update/backup/restore/network/host-migration изменения root policy
+требует прочитать deployment contract/standard напрямую (и при необходимости
+использовать широкий `--scope`), даже если targeted context их не вывел.
+Такое различие является сознательным ограничением context budget и покрывается regression tests.
 
 Запрещено исправлять переносимость отключением origin/source/capability/CSRF
 защит, прошивкой нового IP/домена в product code, созданием второго постоянного
