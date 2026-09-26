@@ -150,9 +150,9 @@ parallel_lanes:
       branch: codex/electronics-natural-wire-routing-377
       base_branch: main
       pr: 378
-      pr_draft: true
-      status: in_progress
-      checkpoint: r1_r4_implementation
+      pr_draft: false
+      status: done
+      checkpoint: merged_to_main
       owner_acceptance: pending
     revisions:
       convergence_baseline_sha: eb7204267b21c11fb9201c95020ddc6a2d4b44cc
