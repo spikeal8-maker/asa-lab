@@ -56,7 +56,10 @@ async function createPublishedProjectActivity(
   title: string,
   moduleKey = 'electronics',
   brief = 'Соберите рабочую электрическую цепь.',
-  sample?: { readonly bytes: Buffer; readonly contentType: 'image/png' | 'image/jpeg' | 'image/webp' },
+  sample?: {
+    readonly bytes: Buffer;
+    readonly contentType: 'image/png' | 'image/jpeg' | 'image/webp';
+  },
   canonicalRoot = sample !== undefined,
 ): Promise<void> {
   const identity = await admin.query(
@@ -514,10 +517,7 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   const beforeMove = (await reference.boundingBox())!;
   const drag = reference.getByTestId('task-image-reference-drag');
   const dragBox = (await drag.boundingBox())!;
-  await learner.page.mouse.move(
-    dragBox.x + dragBox.width / 2,
-    dragBox.y + dragBox.height / 2,
-  );
+  await learner.page.mouse.move(dragBox.x + dragBox.width / 2, dragBox.y + dragBox.height / 2);
   await learner.page.mouse.down();
   await learner.page.mouse.move(
     dragBox.x + dragBox.width / 2 - 140,
@@ -567,9 +567,7 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   brief = learner.page.getByTestId('assignment-brief');
   await anchor.click();
   await expect(brief).toBeVisible();
-  await expect(
-    brief.getByRole('button', { name: 'Открыть отдельно', exact: true }),
-  ).toHaveCount(0);
+  await expect(brief.getByRole('button', { name: 'Открыть отдельно', exact: true })).toHaveCount(0);
 
   await learner.page.goto('/#/learning');
   await openPortalSection(learner.page, 'Моё обучение');
@@ -583,12 +581,8 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   if ((await anchor.getAttribute('aria-expanded')) !== 'true') await anchor.click();
   await expect(brief).toBeVisible();
   await expect(brief).toHaveClass(/is-mobile/);
-  await expect(
-    brief.getByRole('button', { name: 'Открыть отдельно', exact: true }),
-  ).toHaveCount(0);
-  await brief
-    .getByRole('button', { name: `Открыть образец: ${titleWithImage}` })
-    .click();
+  await expect(brief.getByRole('button', { name: 'Открыть отдельно', exact: true })).toHaveCount(0);
+  await brief.getByRole('button', { name: `Открыть образец: ${titleWithImage}` }).click();
   const lightbox = learner.page.getByRole('dialog', {
     name: `Образец: ${titleWithImage}`,
   });
