@@ -240,6 +240,30 @@ Preflight обязан сравнить его с обоими `ASA_BLOCKS_*_ORI
 запрос обновить основную установку такого разрешения не даёт. Найденные старые
 стенды и их данные не удаляются автоматически.
 
+
+### 4.2. Portable deployment — обязательный cross-cutting contract
+
+Для любого изменения установки, Compose/Docker, host ports, browser origins,
+reverse proxy/tunnel, network discovery, update, backup, restore, export/host
+migration или нового self-hosted сервиса обязательны:
+
+- [Portable Self-Hosted Deployment Standard](docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md);
+- [compact deployment contract](docs/agent/contracts/deployment.yaml).
+
+Compact contract зарегистрирован глобально и должен приходить через agent context
+как read-first invariant set; полный стандарт читается при изменении самой
+архитектуры развёртывания или при нерешённом конфликте требований.
+
+Запрещено исправлять переносимость отключением origin/source/capability/CSRF
+защит, прошивкой нового IP/домена в product code, созданием второго постоянного
+Compose stack или тихой сменой host port. Network discovery и browser trust —
+разные механизмы. Если MUST-инвариант неприменим, требуется явный versioned
+architecture exception по EXC-001.
+
+ASA-specific конвергенция ведётся по
+[Issue #396 plan](docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md);
+сам план не даёт разрешения начинать следующий runtime/database/deployment slice.
+
 ## 5. Инварианты симуляции
 
 Это долговременные инженерные требования к электрическому ядру, а не статус
