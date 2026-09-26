@@ -16,6 +16,22 @@ The terms **MUST**, **MUST NOT**, **SHOULD**, **SHOULD NOT** and **MAY** are nor
 
 This standard describes product/deployment invariants. It does not authorize a live deployment, database restore, destructive migration, network publication or secret rotation.
 
+## 0.1. ASA Lab adoption status
+
+This standard is canonical immediately. The current ASA Lab baseline is **not yet fully compliant** with every MUST requirement.
+
+Its known transitional deviations are governed by:
+
+- `docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md`
+
+While that ADR has `COMPLIANCE_STATUS: TRANSITIONAL_NON_COMPLIANT`, ASA Lab MUST NOT claim full Portable Deployment Standard compliance. The exception preserves current fail-closed safety controls while P1/P2/P6 remove the documented gaps; it does not weaken this standard for future projects.
+
+## 0.2. Machine-enforcement boundary
+
+The governance validator proves **structural parity** between this standard and the compact deployment contract: requirement IDs, normative levels (MUST/SHOULD/MAY), and exact `master_refs` back to the matching requirement section.
+
+It **does not prove natural-language semantic equivalence** between this prose and the YAML `statement`, `applies_to` or `forbid` fields. A semantic change to either representation remains an L3 review concern and requires human/independent challenge review even when structural parity is green.
+
 ## 1. Core model
 
 The governing invariant is:
