@@ -430,6 +430,177 @@ test('named audience excludes the third learner from read, start and submit', as
   await excluded.context.close();
 });
 
+test('UX1A4 keeps an exact task image in an independent desktop reference window', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  await page.setViewportSize(desktopV1Viewport);
+  const teacherFailures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const token = ++sequence;
+  const titleWithImage = `UX1A4 exact image ${token}`;
+  const titleWithoutImage = `UX1A4 no image ${token}`;
+  const handle = `ux1a4-${token}`;
+  const imageA = solidPng(205, 45, 45);
+
+  await createPublishedProjectActivity(
+    titleWithImage,
+    'electronics',
+    'Соберите схему по точному опубликованному образцу.',
+    { bytes: imageA, contentType: 'image/png' },
+  );
+  await createPublishedProjectActivity(
+    titleWithoutImage,
+    'electronics',
+    'Задание без изображения.',
+    undefined,
+    true,
+  );
+
+  const joinCode = await createClassWithStudents(page, `UX1A4 ${token}`, [
+    { label: `Ученик UX1A4 ${token}`, handle },
+  ]);
+  await openAssignments(page);
+  await assignFromUi(page, { title: titleWithImage, due: '2027-06-01' });
+  await assignFromUi(page, { title: titleWithoutImage, due: '2027-06-02' });
+
+  const learner = await learnerAssignments(browser, joinCode, handle, desktopV1Viewport);
+  const learnerFailures = collectBrowserFailures(learner.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+
+  let row = assignmentRow(learner.page, titleWithImage);
+  await expect(row).toContainText('Не начато');
+  await row.getByRole('button', { name: 'Открыть', exact: true }).click();
+  await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
+
+  let anchor = learner.page.getByTestId('assignment-brief-anchor');
+  let brief = learner.page.getByTestId('assignment-brief');
+  await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+  await anchor.click();
+  await expect(brief).toBeVisible();
+
+  const briefImage = brief.getByRole('img', { name: `Образец: ${titleWithImage}` });
+  await expect(briefImage).toBeVisible();
+  const briefSource = await briefImage.getAttribute('src');
+  expect(briefSource).toBeTruthy();
+  const briefBytes = await learner.page.request.get(
+    new URL(briefSource!, learner.page.url()).toString(),
+  );
+  expect(briefBytes.ok()).toBe(true);
+  expect(Buffer.compare(await briefBytes.body(), imageA)).toBe(0);
+
+  const openReference = brief.getByRole('button', { name: 'Открыть отдельно', exact: true });
+  await expect(openReference).toBeVisible();
+  await openReference.click();
+
+  let reference = learner.page.getByTestId('task-image-reference-window');
+  await expect(reference).toBeVisible();
+  await expect(reference).toContainText('Схема');
+  const referenceImage = reference.getByTestId('task-image-reference-image');
+  await expect(referenceImage).toBeVisible();
+  await expect(referenceImage).toHaveAttribute('src', briefSource!);
+  const referenceBytes = await learner.page.request.get(
+    new URL(briefSource!, learner.page.url()).toString(),
+  );
+  expect(referenceBytes.ok()).toBe(true);
+  expect(Buffer.compare(await referenceBytes.body(), imageA)).toBe(0);
+
+  await anchor.click();
+  await expect(brief).toHaveCount(0);
+  await expect(reference).toBeVisible();
+
+  const beforeMove = (await reference.boundingBox())!;
+  const drag = reference.getByTestId('task-image-reference-drag');
+  const dragBox = (await drag.boundingBox())!;
+  await learner.page.mouse.move(
+    dragBox.x + dragBox.width / 2,
+    dragBox.y + dragBox.height / 2,
+  );
+  await learner.page.mouse.down();
+  await learner.page.mouse.move(
+    dragBox.x + dragBox.width / 2 - 140,
+    dragBox.y + dragBox.height / 2 + 70,
+    { steps: 12 },
+  );
+  await learner.page.mouse.up();
+  const afterMove = (await reference.boundingBox())!;
+  expect(afterMove.x).toBeLessThan(beforeMove.x - 40);
+  expect(afterMove.y).toBeGreaterThan(beforeMove.y + 20);
+
+  const beforeResize = (await reference.boundingBox())!;
+  const resize = reference.getByTestId('task-image-reference-resize-bottom-right');
+  const resizeBox = (await resize.boundingBox())!;
+  await learner.page.mouse.move(
+    resizeBox.x + resizeBox.width / 2,
+    resizeBox.y + resizeBox.height / 2,
+  );
+  await learner.page.mouse.down();
+  await learner.page.mouse.move(
+    resizeBox.x + resizeBox.width / 2 + 100,
+    resizeBox.y + resizeBox.height / 2 + 70,
+    { steps: 10 },
+  );
+  await learner.page.mouse.up();
+  const afterResize = (await reference.boundingBox())!;
+  expect(afterResize.width).toBeGreaterThan(beforeResize.width + 40);
+  expect(afterResize.height).toBeGreaterThan(beforeResize.height + 20);
+
+  await reference.getByRole('button', { name: 'Закрыть схему' }).click();
+  await expect(reference).toHaveCount(0);
+
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  await brief.getByRole('button', { name: 'Открыть отдельно', exact: true }).click();
+  reference = learner.page.getByTestId('task-image-reference-window');
+  await expect(reference).toBeVisible();
+
+  await learner.page.goto('/#/learning');
+  await openPortalSection(learner.page, 'Моё обучение');
+  row = assignmentRow(learner.page, titleWithoutImage);
+  await row.getByRole('button', { name: 'Открыть', exact: true }).click();
+  await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
+  await expect(learner.page.getByTestId('task-image-reference-window')).toHaveCount(0);
+
+  anchor = learner.page.getByTestId('assignment-brief-anchor');
+  brief = learner.page.getByTestId('assignment-brief');
+  await anchor.click();
+  await expect(brief).toBeVisible();
+  await expect(
+    brief.getByRole('button', { name: 'Открыть отдельно', exact: true }),
+  ).toHaveCount(0);
+
+  await learner.page.goto('/#/learning');
+  await openPortalSection(learner.page, 'Моё обучение');
+  row = assignmentRow(learner.page, titleWithImage);
+  await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+  await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
+  await learner.page.setViewportSize(mobileV1Viewports[0]);
+
+  anchor = learner.page.getByTestId('assignment-brief-anchor');
+  brief = learner.page.getByTestId('assignment-brief');
+  if ((await anchor.getAttribute('aria-expanded')) !== 'true') await anchor.click();
+  await expect(brief).toBeVisible();
+  await expect(brief).toHaveClass(/is-mobile/);
+  await expect(
+    brief.getByRole('button', { name: 'Открыть отдельно', exact: true }),
+  ).toHaveCount(0);
+  await brief
+    .getByRole('button', { name: `Открыть образец: ${titleWithImage}` })
+    .click();
+  const lightbox = learner.page.getByRole('dialog', {
+    name: `Образец: ${titleWithImage}`,
+  });
+  await expect(lightbox).toBeVisible();
+  await lightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(lightbox).toHaveCount(0);
+
+  teacherFailures.assertEmpty();
+  learnerFailures.assertEmpty();
+  await learner.context.close();
+});
+
 test('A0 desktop Electronics uses a permanent anchor and compact movable task panel', async ({
   browser,
   page,
