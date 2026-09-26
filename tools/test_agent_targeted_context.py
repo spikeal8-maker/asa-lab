@@ -297,5 +297,64 @@ class TargetedAgentContextTests(unittest.TestCase):
         self.assertIn("budget is 8000", output)
 
 
+    def test_global_compact_deployment_route_is_not_injected_into_targeted_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fixture(root)
+            write_yaml(
+                root / "docs/agent/contracts/deployment.yaml",
+                {
+                    "schema_version": "1.0.0",
+                    "contract_id": "DEPLOYMENT-DOMAIN",
+                    "domain": "deployment",
+                    "registry_document_id": "PORTABLE-DEPLOYMENT-CONTRACT",
+                    "master_documents": ["PORTABLE-DEPLOYMENT-STANDARD"],
+                    "invariants": [
+                        {
+                            "id": "DPL-ARCH-001",
+                            "statement": "Application identity is independent of host identity.",
+                            "master_refs": [
+                                {
+                                    "document": "PORTABLE-DEPLOYMENT-STANDARD",
+                                    "section": "DPL-ARCH-001",
+                                }
+                            ],
+                            "applies_to": ["deployment"],
+                            "forbid": ["host_identity_as_app_identity"],
+                        }
+                    ],
+                },
+            )
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            registry["documents"].append(
+                {
+                    "id": "PORTABLE-DEPLOYMENT-CONTRACT",
+                    "path": "docs/agent/contracts/deployment.yaml",
+                    "scope": "global",
+                    "lanes": ["*"],
+                    "status": "canonical",
+                    "context_role": "compact",
+                    "authority": "deployment_portability_invariants",
+                    "read_when": ["deployment"],
+                }
+            )
+            write_yaml(registry_path, registry)
+
+            broad = run_cli(root, "--scope", "electronics")
+            targeted = run_cli(
+                root, "--path", "apps/web/src/electronics/TestSurface.tsx"
+            )
+
+        broad_output = text(broad)
+        targeted_output = text(targeted)
+        self.assertEqual(broad.returncode, 0, broad_output)
+        self.assertEqual(targeted.returncode, 0, targeted_output)
+        self.assertIn("docs/agent/contracts/deployment.yaml", broad_output)
+        self.assertNotIn("docs/agent/contracts/deployment.yaml", targeted_output)
+        self.assertNotIn("DPL-ARCH-001", targeted_output)
+        self.assertIn("ELEC-DOM-001", targeted_output)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
