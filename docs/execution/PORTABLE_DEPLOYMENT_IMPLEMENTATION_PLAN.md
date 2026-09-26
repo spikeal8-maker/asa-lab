@@ -107,7 +107,7 @@ Work:
 
 Work:
 
-- audit release manifest against REL-001/REL-002;
+- audit release manifest against DPL-REL-001/DPL-REL-002;
 - pin immutable artifact identity for all required services;
 - make update phases explicit/recoverable;
 - prove retry after interruption;
