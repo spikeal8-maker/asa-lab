@@ -28,119 +28,119 @@ Automation means: infer everything that is deterministic; request an external ch
 
 ## 2. Requirements
 
-### ARCH-001 — Application identity is independent of host and network
+### DPL-ARCH-001 — Application identity is independent of host and network
 
 **MUST.** Changing a supported host, LAN address, DHCP lease, router, building or network MUST NOT require source-code modification or manual reconfiguration of internal service identities.
 
-### ARCH-002 — Internal services form one product boundary
+### DPL-ARCH-002 — Internal services form one product boundary
 
 **MUST.** Web, API, database, object storage, embedded editors, workers and other project services MUST be operated as components of one installation unless an explicit architecture exception defines a separate product boundary.
 
-### HOST-001 — Supported hosts are explicit
+### DPL-HOST-001 — Supported hosts are explicit
 
 **MUST.** Every project MUST publish a support matrix for operating systems, CPU architectures, runtime versions, minimum disk/RAM and supported browsers. “Portable” means portable across the declared matrix, not arbitrary computers.
 
-### AUTO-001 — Automation is deterministic, not guesswork
+### DPL-AUTO-001 — Automation is deterministic, not guesswork
 
 **MUST.** Install/update tooling MUST automatically resolve deterministic values. When an external decision is required (for example a public domain, tunnel credential or administrator permission), tooling MAY request it once and MUST persist it in installation configuration.
 
-### NET-001 — Internal service discovery uses stable identities
+### DPL-NET-001 — Internal service discovery uses stable identities
 
 **MUST.** Intra-stack communication MUST use stable service discovery names or an equivalent service registry. Container/host IP addresses MUST NOT be persisted as identities of internal services.
 
-### NET-002 — Dynamic host addresses are not application identity
+### DPL-NET-002 — Dynamic host addresses are not application identity
 
 **MUST.** Discovered LAN/VPN/Tailscale addresses MAY be shown as access options but MUST NOT become permanent identity for API, embedded editors, storage or other business/runtime components.
 
-### NET-003 — External entry belongs to deployment/ingress state
+### DPL-NET-003 — External entry belongs to deployment/ingress state
 
 **MUST.** Public domains, LAN entry addresses, reverse proxies and tunnels MUST be modeled at the deployment/ingress boundary. Application modules MUST NOT contain installation-specific domains or IP addresses.
 
-### NET-004 — Network discovery is classified and verifiable
+### DPL-NET-004 — Network discovery is classified and verifiable
 
 **MUST.** Automatic address discovery MUST classify loopback, LAN, VPN and virtual adapters; it MUST NOT select the first IPv4 blindly. Ambiguous candidates SHOULD be presented as verified access options rather than silently trusted.
 
-### NET-005 — Host ports are stable installation state
+### DPL-NET-005 — Host ports are stable installation state
 
 **MUST.** A selected host port MUST remain stable across restart and update. If it becomes unavailable, the operation MUST block with a clear diagnostic instead of silently choosing another port.
 
-### NET-006 — Embedded components prefer one browser origin
+### DPL-NET-006 — Embedded components prefer one browser origin
 
 **SHOULD.** Embedded editors and project modules SHOULD be exposed through the primary application entry (for example /internal/<component>/). A separate origin requires an architecture exception and explicit cross-origin security/testing.
 
-### SEC-001 — Embedded messaging preserves origin, source and capability checks
+### DPL-SEC-001 — Embedded messaging preserves origin, source and capability checks
 
 **MUST.** iframe/postMessage integrations MUST validate the expected parent/source, exact allowed origin, message schema/protocol and active resource capability/session. Portability MUST NOT be achieved by using wildcard origins or disabling authorization.
 
-### SEC-002 — Discovery does not grant browser trust
+### DPL-SEC-002 — Discovery does not grant browser trust
 
 **MUST.** A network address becoming discoverable MUST NOT automatically make it a trusted mutation/origin source. Trust policy and network discovery are separate mechanisms.
 
-### CFG-001 — Deploy-specific configuration is external and versioned
+### DPL-CFG-001 — Deploy-specific configuration is external and versioned
 
 **MUST.** Hostnames, public URLs, credentials, host ports, provider settings and similar deploy-specific values MUST live outside reusable application code and MUST have an explicit configuration schema version.
 
-### CFG-002 — Configuration has validation, precedence and migration
+### DPL-CFG-002 — Configuration has validation, precedence and migration
 
 **MUST.** Installation tooling MUST define configuration defaults, precedence, validation, unknown/deprecated-key behavior and forward migration between supported configuration schema versions.
 
-### SEC-003 — Secrets have an independent lifecycle
+### DPL-SEC-003 — Secrets have an independent lifecycle
 
 **MUST.** Secrets MUST be generated/stored separately from ordinary public configuration, MUST survive routine updates, MUST NOT be committed to source control, and MUST have explicit rotation plus protected export/restore semantics.
 
-### DAT-001 — Persistent data is outside replaceable containers
+### DPL-DAT-001 — Persistent data is outside replaceable containers
 
 **MUST.** User/database/object data MUST reside in declared persistent stores. Replacing Web/API/editor/worker containers MUST NOT destroy user data.
 
-### REL-001 — A release is immutable and machine-identifiable
+### DPL-REL-001 — A release is immutable and machine-identifiable
 
 **MUST.** Each deployable release MUST identify source revision, immutable service artifacts (preferably image digests), database schema expectation and configuration schema version in one release manifest or equivalent immutable record.
 
-### REL-002 — Running services agree on release identity
+### DPL-REL-002 — Running services agree on release identity
 
 **MUST.** Acceptance MUST reject a mixed installation where required services report incompatible release identity or schema expectations.
 
-### UPD-001 — One canonical operator update path
+### DPL-UPD-001 — One canonical operator update path
 
 **MUST.** A project MUST expose one canonical update operation. Routine update MUST NOT require manual editing of source, Compose files or internal service addresses.
 
-### UPD-002 — Update is a recoverable state machine
+### DPL-UPD-002 — Update is a recoverable state machine
 
 **MUST.** Update MUST persist enough state to distinguish preflight, prepared, backed-up, switching, verifying, accepted and failed states. Retry/recovery MUST be idempotent and MUST NOT depend on chat history or operator memory.
 
-### BAK-001 — Risky update requires a verified backup
+### DPL-BAK-001 — Risky update requires a verified backup
 
 **MUST.** Before a migration or switch that can make persisted data incompatible with the previous release, tooling MUST create and verify the required backup before downtime/switch.
 
-### BAK-002 — Backup covers cross-store consistency and restore
+### DPL-BAK-002 — Backup covers cross-store consistency and restore
 
 **MUST.** When data spans PostgreSQL, object storage, files or secrets, backup metadata MUST tie the required stores to one recovery set. A backup strategy is incomplete until restore is tested.
 
-### MIG-001 — Released migrations are immutable and upgrade-tested
+### DPL-MIG-001 — Released migrations are immutable and upgrade-tested
 
 **MUST.** Released database migrations MUST NOT be edited in place. Upgrade testing MUST cover supported prior installation histories, not only an empty database. Recovery from an incompatible schema MUST use a defined forward repair or verified backup procedure.
 
-### MOV-001 — Host migration is a first-class operation
+### DPL-MOV-001 — Host migration is a first-class operation
 
 **MUST.** A maintained self-hosted product MUST define export/restore or an equivalent host-migration procedure that preserves persistent data, required secrets and release/install identity without carrying an old DHCP/LAN address as application identity.
 
-### TST-001 — Health is not product acceptance
+### DPL-TST-001 — Health is not product acceptance
 
 **MUST.** Container running state, HTTP 200 and dependency health MUST NOT be reported as full installation/update success when a critical user journey has not been exercised.
 
-### TST-002 — Each project declares an acceptance manifest
+### DPL-TST-002 — Each project declares an acceptance manifest
 
 **MUST.** Every self-hosted project MUST identify its critical product journeys and the evidence required for install/update acceptance. ASA Lab includes authentication and persistent project/editor save/reopen journeys.
 
-### TST-003 — Portability is tested through real entry modes
+### DPL-TST-003 — Portability is tested through real entry modes
 
 **MUST.** Where a mode is supported, CI or controlled acceptance MUST cover local entry, LAN/host entry and public/reverse-proxy entry as distinct environments. A loopback-only smoke test MUST NOT be used as proof of LAN/public portability.
 
-### OPS-001 — One manager owns lifecycle operations
+### DPL-OPS-001 — One manager owns lifecycle operations
 
 **SHOULD.** A project SHOULD expose one operator surface for install/start/stop/status/doctor/update/backup/restore/export/addresses. Low-level Docker commands remain implementation/debug tools rather than the ordinary owner workflow.
 
-### EXC-001 — Exceptions are explicit and reviewable
+### DPL-EXC-001 — Exceptions are explicit and reviewable
 
 **MUST.** Any intentional deviation from a MUST requirement requires a versioned architecture exception/ADR with scope, reason, risk, compensating controls, owner and verification. Silent exceptions are non-compliant.
 
