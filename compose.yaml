@@ -86,7 +86,7 @@ services:
       - ALL
 
   minio-init:
-    image: quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z
+    image: ${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}
     user: '1000:1000'
     restart: 'no'
     depends_on:
