@@ -19,7 +19,7 @@ AGENTS = "AGENTS.md"
 START = "START_HERE_FOR_AI.md"
 GATE = "tools/gate-governance.sh"
 
-REQUIREMENT_RE = re.compile(r"^### ([A-Z]+-\d{3})\b", re.MULTILINE)
+REQUIREMENT_RE = re.compile(r"^### (DPL-[A-Z]+-\d{3})\b", re.MULTILINE)
 
 EXPECTED_REGISTRY: dict[str, dict[str, Any]] = {
     "PORTABLE-DEPLOYMENT-STANDARD": {
@@ -107,7 +107,7 @@ def validate_root(root: Path) -> list[str]:
                 errors.append(f"{label} must be a mapping")
                 continue
             req_id = item.get("id")
-            if not isinstance(req_id, str) or not re.fullmatch(r"[A-Z]+-\d{3}", req_id):
+            if not isinstance(req_id, str) or not re.fullmatch(r"DPL-[A-Z]+-\d{3}", req_id):
                 errors.append(f"{label}.id invalid")
                 continue
             contract_ids.append(req_id)
