@@ -1,0 +1,152 @@
+schema_version: 1.0.0
+contract_id: DEPLOYMENT-PORTABILITY
+domain: deployment
+registry_document_id: PORTABLE-DEPLOYMENT-CONTRACT
+master_documents:
+  - PORTABLE-DEPLOYMENT-STANDARD
+invariants:
+  - id: ARCH-001
+    level: MUST
+    statement: Application identity is independent of supported host and network identity.
+    applies_to: [install, update, host_migration, network_change]
+    forbid: [source_edit_for_ip_change, internal_identity_bound_to_dhcp]
+  - id: ARCH-002
+    level: MUST
+    statement: Internal services are components of one installation unless an explicit architecture exception defines another product boundary.
+    applies_to: [compose, routing, embedded_services]
+    forbid: [accidental_second_product_stack]
+  - id: HOST-001
+    level: MUST
+    statement: Every project declares its supported host/browser/runtime matrix.
+    applies_to: [release, install, documentation]
+    forbid: [claim_any_computer_without_matrix]
+  - id: AUTO-001
+    level: MUST
+    statement: Deterministic deployment values are automatic; external choices are requested once and persisted.
+    applies_to: [installer, updater, configuration]
+    forbid: [repeat_manual_entry_on_routine_update, silent_guess_of_external_choice]
+  - id: NET-001
+    level: MUST
+    statement: Intra-stack communication uses stable service discovery identities, never persisted container or host IP identities.
+    applies_to: [compose, api, database, storage, embedded_services]
+    forbid: [container_ip_as_service_identity, host_ip_as_internal_service_identity]
+  - id: NET-002
+    level: MUST
+    statement: Discovered LAN/VPN addresses are access options and never permanent application identity.
+    applies_to: [network_discovery, runtime_config]
+    forbid: [persist_discovered_ip_as_module_identity]
+  - id: NET-003
+    level: MUST
+    statement: Public/LAN entry addresses and transport belong to deployment or ingress state, not reusable application modules.
+    applies_to: [ingress, reverse_proxy, tunnel, application_code]
+    forbid: [installation_specific_domain_in_module, installation_specific_ip_in_module]
+  - id: NET-004
+    level: MUST
+    statement: Network discovery classifies interfaces and verifies candidates instead of selecting the first IPv4.
+    applies_to: [installer, doctor, addresses]
+    forbid: [first_ipv4_wins]
+  - id: NET-005
+    level: MUST
+    statement: Selected host ports are stable installation state and never change silently on update/restart.
+    applies_to: [ports, update, restart]
+    forbid: [silent_port_reallocation]
+  - id: NET-006
+    level: SHOULD
+    statement: Embedded components use the primary browser origin unless an explicit reviewed exception requires cross-origin deployment.
+    applies_to: [iframe, scratch, cad, embedded_editor]
+    forbid: [unreviewed_second_origin]
+  - id: SEC-001
+    level: MUST
+    statement: Embedded messaging validates source, exact allowed origin, protocol/schema and active capability/session.
+    applies_to: [iframe, postmessage, embedded_editor]
+    forbid: [wildcard_target_origin, disabled_origin_check, ui_only_authorization]
+  - id: SEC-002
+    level: MUST
+    statement: Discovering a network address does not automatically trust it as a browser mutation origin.
+    applies_to: [network_discovery, csrf, origin_policy]
+    forbid: [discovery_implies_trust]
+  - id: CFG-001
+    level: MUST
+    statement: Deploy-specific configuration is external to reusable code and carries an explicit schema version.
+    applies_to: [configuration, installer, application]
+    forbid: [hardcoded_installation_config, unversioned_install_config]
+  - id: CFG-002
+    level: MUST
+    statement: Configuration defines defaults, precedence, validation, deprecated/unknown-key behavior and forward migration.
+    applies_to: [configuration, update]
+    forbid: [silent_unknown_config, config_reset_on_update]
+  - id: SEC-003
+    level: MUST
+    statement: Secrets have protected storage/export/rotation semantics and survive routine updates.
+    applies_to: [secrets, backup, restore, update]
+    forbid: [secret_in_git, regenerate_secret_on_update, plaintext_export]
+  - id: DAT-001
+    level: MUST
+    statement: Persistent user data is outside replaceable runtime containers.
+    applies_to: [database, object_storage, uploads, containers]
+    forbid: [only_copy_of_user_data_in_replaceable_container]
+  - id: REL-001
+    level: MUST
+    statement: A release immutably identifies source, service artifacts, database schema expectation and configuration schema.
+    applies_to: [release, registry, deployment]
+    forbid: [mutable_tag_as_only_identity, release_without_schema_identity]
+  - id: REL-002
+    level: MUST
+    statement: Required running services must agree on one compatible release identity.
+    applies_to: [readiness, deployment, acceptance]
+    forbid: [mixed_service_release_accepted]
+  - id: UPD-001
+    level: MUST
+    statement: One canonical update operation performs routine update without manual source/Compose/internal-address edits.
+    applies_to: [update, operator_workflow]
+    forbid: [manual_compose_edit_for_update, manual_internal_origin_edit_for_update]
+  - id: UPD-002
+    level: MUST
+    statement: Update persists recoverable state and supports idempotent retry/recovery.
+    applies_to: [update, recovery]
+    forbid: [operator_memory_as_update_state, blind_retry_after_failure]
+  - id: BAK-001
+    level: MUST
+    statement: A verified backup precedes any switch/migration that can make persisted data incompatible with the previous release.
+    applies_to: [update, migration, backup]
+    forbid: [risky_migration_before_verified_backup]
+  - id: BAK-002
+    level: MUST
+    statement: Recovery metadata ties all required persistent stores to one recovery set and restore is tested.
+    applies_to: [postgres, object_storage, secrets, restore]
+    forbid: [independent_unrelated_backups_claimed_consistent, untested_restore]
+  - id: MIG-001
+    level: MUST
+    statement: Released migrations are immutable and upgrades are tested from supported prior histories.
+    applies_to: [migration, database, update]
+    forbid: [edit_released_migration, empty_db_only_upgrade_evidence]
+  - id: MOV-001
+    level: MUST
+    statement: Self-hosted distribution defines host export/restore without carrying old dynamic network identity as application identity.
+    applies_to: [host_migration, export, restore]
+    forbid: [old_dhcp_address_required_after_restore]
+  - id: TST-001
+    level: MUST
+    statement: Infrastructure health alone is never reported as full product acceptance.
+    applies_to: [health, acceptance, update, install]
+    forbid: [docker_healthy_equals_product_pass]
+  - id: TST-002
+    level: MUST
+    statement: Every project defines critical product journeys and acceptance evidence.
+    applies_to: [testing, release, install, update]
+    forbid: [release_without_product_acceptance_definition]
+  - id: TST-003
+    level: MUST
+    statement: Supported entry modes are tested as distinct portability environments; loopback-only evidence cannot prove LAN/public portability.
+    applies_to: [local, lan, public, reverse_proxy, browser]
+    forbid: [loopback_only_claims_network_portability]
+  - id: OPS-001
+    level: SHOULD
+    statement: One operator surface owns lifecycle commands and presents status/doctor/addresses.
+    applies_to: [operations, installer, updater]
+    forbid: [ordinary_owner_requires_low_level_docker_sequence]
+  - id: EXC-001
+    level: MUST
+    statement: A MUST deviation requires a versioned architecture exception with risk, compensating controls, owner and verification.
+    applies_to: [architecture, compliance]
+    forbid: [silent_exception]
