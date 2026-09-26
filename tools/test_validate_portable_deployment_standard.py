@@ -27,9 +27,9 @@ class PortableDeploymentStandardValidatorTests(unittest.TestCase):
             (root / directory).mkdir(parents=True, exist_ok=True)
 
         standard = """# Standard
-### ARCH-001 — A
+### DPL-ARCH-001 — A
 **MUST.** A.
-### NET-001 — B
+### DPL-NET-001 — B
 **MUST.** B.
 """
         (root / "docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md").write_text(
@@ -37,20 +37,20 @@ class PortableDeploymentStandardValidatorTests(unittest.TestCase):
         )
         contract = {
             "schema_version": "1.0.0",
-            "contract_id": "DEPLOYMENT-PORTABILITY",
+            "contract_id": "DEPLOYMENT-DOMAIN",
             "domain": "deployment",
             "registry_document_id": "PORTABLE-DEPLOYMENT-CONTRACT",
             "master_documents": ["PORTABLE-DEPLOYMENT-STANDARD"],
             "invariants": [
                 {
-                    "id": "ARCH-001",
+                    "id": "DPL-ARCH-001",
                     "level": "MUST",
                     "statement": "A",
                     "applies_to": ["install"],
                     "forbid": ["bad_a"],
                 },
                 {
-                    "id": "NET-001",
+                    "id": "DPL-NET-001",
                     "level": "MUST",
                     "statement": "B",
                     "applies_to": ["network"],
