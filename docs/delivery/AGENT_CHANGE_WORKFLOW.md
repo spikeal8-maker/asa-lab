@@ -112,20 +112,25 @@ Scratch — сервис того же Compose project, не отдельная 
 Сначала только проверка, без изменения runtime:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production -CheckOnly
+powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production -EntryOrigin https://asa-lab.ru -CheckOnly
 ```
 
 ```bash
-ASA_COMPOSE_PROFILE=production bash tools/docker-update.sh --check
+ASA_COMPOSE_PROFILE=production ASA_UPDATE_ENTRY_ORIGIN=https://asa-lab.ru bash tools/docker-update.sh --check
 ```
 
-Только после прямого поручения на обновление запусти ту же команду без
-`-CheckOnly` или `--check`. Защищённый updater проверяет чистоту checkout,
+Вместо примерного HTTPS-адреса укажи фактический URL входа владельца; для
+локальной сети это может быть `http://172.23.104.170:4610` в `dev`. Не
+используй `localhost`, если владелец входит по IP. Только после прямого
+поручения на обновление запусти ту же команду без `-CheckOnly` или `--check`.
+Защищённый updater проверяет чистоту checkout,
 fast-forward, зелёный CI точного SHA, создаёт проверенный backup, обновляет
 Compose и ждёт `/health/ready`. Дополнительно он привязывает запуск к каталогу
 работающей PostgreSQL, запрещает смешение контейнеров из разных checkout и
 требует одинаковый точный SHA от API, Web `build-metadata.json` и Scratch
-`asa-commit.txt`. Host-порт и пользовательский путь проверяются дополнительно. Подробности:
+`asa-commit.txt`. Он также проверяет ASA и `/internal/blocks/` через указанный
+адрес. Браузерный вход, сохранение и повторное открытие проекта остаются
+`NOT_RUN` до отдельной приёмки; HTTP-health не заменяет этот путь. Подробности:
 [`../deployment/GUARDED_UPDATE.md`](../deployment/GUARDED_UPDATE.md).
 
 Не меняй `COMPOSE_PROJECT_NAME`: другое имя подключит другой PostgreSQL volume

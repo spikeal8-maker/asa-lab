@@ -80,7 +80,7 @@ def apply_release_environment(install, release):
 
 def validate_resolved_images(install, release):
     config = json.loads(install.compose("config", "--format", "json", capture=True))
-    attest_embedded_editor(config)
+    attest_embedded_editor(config, install.env.get('ASA_UPDATE_ENTRY_ORIGIN'), install.profile)
     attest_database_targets(config, config["services"]["postgres"]["environment"])
     for service in (*SERVICES, "migration"):
         expected = release["images"]["api" if service == "migration" else service]
