@@ -6,14 +6,7 @@ export interface TaskImageReferenceRect {
 }
 
 export type TaskImageReferenceResizeEdge =
-  | 'top'
-  | 'right'
-  | 'bottom'
-  | 'left'
-  | 'top-left'
-  | 'top-right'
-  | 'bottom-right'
-  | 'bottom-left';
+  'top' | 'right' | 'bottom' | 'left' | 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left';
 
 export const TASK_IMAGE_REFERENCE_EDGE_INSET = 16;
 export const TASK_IMAGE_REFERENCE_TOP_INSET = 58;
@@ -133,10 +126,7 @@ export function resizeTaskImageReferenceRect(
     ...candidate,
     ...(edge.includes('left')
       ? {
-          x: Math.max(
-            TASK_IMAGE_REFERENCE_EDGE_INSET,
-            rect.x + rect.width - candidate.width,
-          ),
+          x: Math.max(TASK_IMAGE_REFERENCE_EDGE_INSET, rect.x + rect.width - candidate.width),
         }
       : {}),
     ...(edge.includes('top')
