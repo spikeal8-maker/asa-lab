@@ -77,7 +77,8 @@
           !isRecord(sound) ||
           !ASSET_ID_RE.test(sound.assetId ?? '') ||
           !SOUND_FORMATS.has(sound.dataFormat) ||
-          sound.md5ext !== mediaKey(sound.assetId, sound.dataFormat)
+          (typeof sound.md5ext !== 'undefined' &&
+            sound.md5ext !== mediaKey(sound.assetId, sound.dataFormat))
         ) {
           return null;
         }

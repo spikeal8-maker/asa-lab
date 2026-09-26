@@ -78,6 +78,12 @@ prerequisites:
 
 The task card must map to exactly one primary `WP-*` outcome. If one work package proves too large, split it into multiple sequential task cards rather than broadening one card.
 
+Repeatable migration/extraction families use one stable programme ID, for example
+`WP-TEST-MIGRATE`, `WP-CTRL-EXTRACT`, `WP-STAGE-EXTRACT`,
+`WP-SOLVER-MIGRATE` and `WP-ARD-CONVERGE`. Multiple sequential task cards may cite
+the same family ID while naming one bounded target each. Agents must not invent synthetic
+IDs such as `WP-TEST-03` or `WP-SOLVER-04` that do not exist as headings in this specification.
+
 ### 0.4 Definition of Ready
 
 A cleanup task is ready to execute only when all are true:
@@ -412,7 +418,7 @@ Do not begin artifact cleanup in the same change.
 
 ### Question
 
-Can the existing control-plane/agent validation detect the class of drift where `current.yaml` claims an Electronics PR/task is active after GitHub has already completed it?
+Can the existing control-plane/agent validation detect the class of drift where `current.yaml` claims an Electronics PR/task is active after GitHub has already completed it, including when `development_policy.mode = direct_main`?
 
 ### Acceptance
 
@@ -537,14 +543,15 @@ No moves or deletions in this task.
 
 **Kind:** maintenance  
 **Semantic change:** no  
-**Risk:** medium because protected assets move location even though bytes must not change.
+**Risk:** medium because Web artifact contents/public URL exposure change; this work package does not authorize moving protected asset source paths.
 
 ### Rules
 
 - never redraw/normalize/recompress owner assets;
 - preserve exact bytes and provenance metadata;
 - runtime URLs for `component-database/` remain stable unless separately designed;
-- move or package provenance-only roots outside the Web public runtime;
+- prefer build/package exclusion that leaves protected source paths and bytes untouched;
+- moving protected owner-asset paths is not authorized by this work package; if packaging exclusion cannot solve the problem, STOP for a separately selected owner-asset/governance decision;
 - update only documentation/tests that actually own those paths.
 
 ### Acceptance
@@ -592,7 +599,7 @@ Do not rewrite hundreds of assertions in one task.
 
 ---
 
-## WP-TEST-02..N — Migrate source-text assertions in small groups
+## WP-TEST-MIGRATE — Repeatable: migrate source-text assertions in small groups
 
 **Kind:** maintenance  
 **Semantic change:** no
@@ -821,7 +828,7 @@ Likely candidates:
 
 ---
 
-## WP-CTRL-03..N — Continue one domain at a time
+## WP-CTRL-EXTRACT — Repeatable: continue one controller domain at a time
 
 Wire interaction and simulation/runtime coordination are higher risk and should be extracted later than simple viewport/selection concerns.
 
@@ -843,7 +850,7 @@ No render-layer movement until z-order and pointer behaviour are explicitly docu
 
 ---
 
-## WP-STAGE-02..N — Extract one render layer at a time
+## WP-STAGE-EXTRACT — Repeatable: extract one render layer at a time
 
 Every extraction must prove unchanged z-order, hit-testing and pointer semantics.
 
@@ -925,7 +932,7 @@ No equations move in this task.
 
 ---
 
-## WP-SOLVER-02..N — Move one model family at a time
+## WP-SOLVER-MIGRATE — Repeatable: move one model family at a time
 
 Each semantic move is a separately selected high-risk task with:
 
@@ -958,7 +965,7 @@ No runtime change.
 
 ---
 
-## WP-ARD-02..N — Converge one caller class at a time
+## WP-ARD-CONVERGE — Repeatable: converge one caller class at a time
 
 Possible classes:
 
@@ -1157,14 +1164,16 @@ After this specification is integrated, the recommended first owner-selectable s
 ```text
 1. WP-HYG-01   reconcile stale Electronics execution state
 2. STOP + verify
-3. WP-ART-03   eliminate disposable interaction-report pollution
+3. WP-HYG-02   prove/repair stale completed-task detection in direct_main
 4. STOP + verify
-5. WP-ART-01   inventory tracked screenshots
-6. STOP + owner decides evidence retention policy
-7. WP-ASSET-01 prove runtime/provenance asset boundary
-8. STOP + owner review
-9. WP-ASSET-02 remove provenance-only assets from Web public packaging
-10. STOP + verify exact Web/runtime behavior
+5. WP-ART-03   eliminate disposable interaction-report pollution
+6. STOP + verify
+7. WP-ART-01   inventory tracked screenshots
+8. STOP + owner decides evidence retention policy
+9. WP-ASSET-01 prove runtime/provenance asset boundary
+10. STOP + owner review
+11. WP-ASSET-02 exclude provenance-only assets from Web runtime packaging
+12. STOP + verify exact Web/runtime behavior
 ```
 
 Only after those low-risk foundations should CSS/test/UI decomposition begin.

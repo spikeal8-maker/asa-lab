@@ -432,6 +432,16 @@ documents:
     context_role: trace
     read_when: [electronics_task_start, electronics_review, electronics_maintenance]
 
+  - id: ELECTRONICS-MAINTENANCE-SPEC
+    path: docs/product/electronics/ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md
+    scope: electronics
+    lanes: [electronics]
+    kind: process_contract
+    status: canonical
+    authority: electronics_maintenance_execution
+    context_role: target
+    read_when: [electronics_cleanup_programme, electronics_maintenance, electronics_decomposition, electronics_legacy_retirement]
+
   - id: ELECTRONICS-MASTER
     path: docs/product/electronics/README.md
     scope: electronics

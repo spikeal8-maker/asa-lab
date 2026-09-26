@@ -15,7 +15,7 @@ Three concepts are distinct:
 
 ```text
 Scratch compatibility identity:
-  assetId + dataFormat + md5ext
+  assetId + dataFormat; optional md5ext must agree when present
 
 ASA content integrity:
   SHA-256 of exact bytes
@@ -49,7 +49,7 @@ For v1 project assets:
 
 ```text
 assetId = lowercase 32-hex MD5 of exact bytes
-md5ext  = assetId + '.' + dataFormat
+md5ext, when present = assetId + '.' + dataFormat
 sha256  = lowercase 64-hex SHA-256 of exact bytes
 ```
 

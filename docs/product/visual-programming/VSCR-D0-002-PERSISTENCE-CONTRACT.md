@@ -189,7 +189,7 @@ serialised size <= configured projectJson limit
 plain JSON object
 Scratch 3 top-level shape
 all target costume/sound references are structurally valid
-all assetId/dataFormat/md5ext fields satisfy v1 identity rules
+all assetId/dataFormat fields and any present md5ext satisfy v1 identity rules
 ```
 
 The M0 synchronous validator is intentionally not a full semantic Scratch parser. The
@@ -213,8 +213,8 @@ The server derives the expected set from `projectJson`; it does not trust the su
 For each target:
 
 ```text
-costumes[] → (assetId, dataFormat, md5ext)
-sounds[]   → (assetId, dataFormat, md5ext)
+costumes[] → (assetId, dataFormat, optional md5ext)
+sounds[]   → (assetId, dataFormat, optional md5ext)
 ```
 
 The expected set is unique by:
@@ -227,8 +227,12 @@ For v1:
 
 ```text
 assetId = lowercase 32-hex
-md5ext = assetId + '.' + lower-case dataFormat
+when present, md5ext = assetId + '.' + lower-case dataFormat
 ```
+
+Scratch 3 permits `md5ext` to be absent. Preserve that valid source shape in
+`projectJson`; do not invent the field during persistence. The server still
+verifies the referenced asset against tenant-private metadata and exact bytes.
 
 Duplicate references in the Scratch graph are allowed; duplicate canonical entries in
 `assets[]` are not.
