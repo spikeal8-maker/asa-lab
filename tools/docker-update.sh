@@ -51,6 +51,19 @@ env_value() {
   sed -n "s/^${name}=//p" .env | tail -n 1
 }
 
+assert_embedded_entry_configuration() {
+  entry_origin=${ASA_UPDATE_ENTRY_ORIGIN:-}
+  [ -n "$entry_origin" ] || die 'ASA_UPDATE_ENTRY_ORIGIN is required: use the exact ASA portal origin opened by the owner, not a separate Scratch address'
+  runtime_origin=$(env_value ASA_BLOCKS_RUNTIME_ORIGIN)
+  parent_origin=$(env_value ASA_BLOCKS_PARENT_ORIGIN)
+  node tools/deployment/editor-entry-check.mjs config "$entry_origin" "$runtime_origin" "$parent_origin" "$profile" || die 'EDITOR_ENTRY: correct the existing .env after a verified backup; do not deploy a second Scratch'
+  printf 'EDITOR ENTRY CONFIG OK: %s (single ASA installation)\n' "$entry_origin"
+}
+
+assert_embedded_entry_reachable() {
+  node tools/deployment/editor-entry-check.mjs http "$entry_origin" "$ASA_BUILD_REVISION" || return 1
+}
+
 random_hex() {
   bytes=${1:-32}
   od -An -N"$bytes" -tx1 /dev/urandom | tr -d ' \n'
@@ -248,6 +261,8 @@ main() {
   docker compose version >/dev/null
 
   [ -f .env ] || die '.env is missing; guarded update never invents production secrets'
+  command -v node >/dev/null 2>&1 || die 'Node.js is required for the embedded entry check'
+  assert_embedded_entry_configuration
   project_name=$(env_value COMPOSE_PROJECT_NAME)
   [ -n "$project_name" ] || die 'COMPOSE_PROJECT_NAME is required to preserve the existing PostgreSQL volume'
   if [ "$profile" = production ]; then
@@ -321,6 +336,7 @@ main() {
       printf 'CHECK NOTE: full update will generate the missing private self-hosted Blocks object-storage configuration.\n'
     fi
     printf 'CHECK OK: no code, container or database changes were made.\n'
+    printf '%s\n' 'USER FLOW NOT RUN: browser login, editor save and reopen require a separate acceptance check.'
     exit 0
   fi
 
@@ -367,7 +383,7 @@ main() {
   export ASA_BUILD_REVISION ASA_IMAGE_TAG ASA_EXPECTED_SCHEMA_VERSION
   receipt_path="$backup_root/update-$stamp-$(printf '%.8s' "$new_revision").receipt.txt"
 
-  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh compose.yaml 'compose.*.yaml')
+  bootstrap_changed=$(git diff --name-only "$old_revision" "$new_revision" -- tools/docker-update.sh tools/deployment/editor-entry-check.mjs compose.yaml 'compose.*.yaml')
   if [ -n "$bootstrap_changed" ]; then
     write_receipt "$receipt_path" \
       'status=retry_with_updated_updater' "updated_at_utc=$stamp" "compose_project=$project_name" \
@@ -395,7 +411,7 @@ main() {
   fi
   if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity &&
     compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan &&
-    compose up -d --no-build && wait_exact_readiness &&
+    compose up -d --no-build && wait_exact_readiness && assert_embedded_entry_reachable &&
     [ -z "$(mixed_origin_services)" ]; then
     write_receipt "$receipt_path" \
       'status=success' "updated_at_utc=$stamp" "compose_project=$project_name" \
@@ -403,7 +419,8 @@ main() {
       "deployed_revision=$new_revision" "schema_version=$schema_version" \
       "backup_path=$backup_path" "backup_sha256=$backup_sha256" \
       "rollback_api_image=$rollback_api" "rollback_web_image=$rollback_web" \
-      "rollback_scratch_image=$rollback_scratch" "scratch_revision=$new_revision"
+      "rollback_scratch_image=$rollback_scratch" "scratch_revision=$new_revision" \
+      "entry_origin=$entry_origin" 'entry_http=pass' 'user_flow=not_run'
   else
     write_receipt "$receipt_path" \
       'status=failed_after_backup' "updated_at_utc=$stamp" "compose_project=$project_name" \
@@ -417,6 +434,7 @@ main() {
   fi
 
   printf 'UPDATE OK: revision=%s schema=%s synchronized=true\n' "$new_revision" "$schema_version"
+  printf '%s\n' 'USER FLOW NOT RUN: login, editor save and reopen still require a browser acceptance check.'
   printf 'RECEIPT: %s\n' "$receipt_path"
   printf '%s\n' 'The PostgreSQL volume was preserved.'
 }

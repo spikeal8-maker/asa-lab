@@ -8,6 +8,8 @@ on:
       - 'compose*.yaml'
       - 'tools/asa-lab.*'
       - 'tools/docker-update.*'
+      - 'tools/deployment/editor-entry-check.mjs'
+      - 'tools/deployment/test-editor-entry.mjs'
       - 'tools/installation-identity.*'
       - 'contexts/blocks/**'
       - 'apps/api/package.json'
@@ -35,6 +37,8 @@ on:
       - 'compose*.yaml'
       - 'tools/asa-lab.*'
       - 'tools/docker-update.*'
+      - 'tools/deployment/editor-entry-check.mjs'
+      - 'tools/deployment/test-editor-entry.mjs'
       - 'tools/installation-identity.*'
       - 'contexts/blocks/**'
       - 'apps/api/package.json'
@@ -216,6 +220,11 @@ jobs:
           ./tools/asa-lab.ps1 -Action up -Profile dev
           if ($before -ne (Get-FileHash .env).Hash) { throw 'Repeated startup changed credentials' }
           ./tools/docker-update.ps1 -SelfTest
+
+      - name: Source and portable updater embedded-entry guard unit tests
+        run: |
+          node --test tools/deployment/test-editor-entry.mjs
+          python -m unittest tools.deployment.test_contracts
 
       - name: Real default-port Scratch journey from fresh install
         env:

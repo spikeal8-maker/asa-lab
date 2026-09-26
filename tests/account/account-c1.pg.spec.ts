@@ -574,6 +574,169 @@ describe('Account C1 profile and sessions', () => {
   });
 });
 
+describe('AS-01B canonical organization authentication', () => {
+  it('uses the canonical Account password and creates only a SessionV2 organization session', async () => {
+    const teacher = await seedTeacher(admin, 'as-01b-canonical');
+    const foreign = await seedTeacher(admin, 'as-01b-foreign');
+    const link = await admin.query(
+      `SELECT account_id
+         FROM legacy_user_account_links
+        WHERE tenant_id = $1 AND user_id = $2`,
+      [teacher.tenantId, teacher.teacherId],
+    );
+    const accountId = link.rows[0]?.account_id as string | undefined;
+    expect(accountId).toBeDefined();
+
+    const organization = await admin.query(
+      `SELECT id
+         FROM workspaces
+        WHERE tenant_id = $1
+          AND kind = 'organization'
+          AND status = 'active'
+        LIMIT 1`,
+      [teacher.tenantId],
+    );
+    const organizationWorkspaceId = organization.rows[0]?.id as string | undefined;
+    expect(organizationWorkspaceId).toBeDefined();
+
+    const passwordNew = `Canonical-${unique('as01b')}-Password`;
+    await admin.query(`UPDATE accounts SET password_hash = $2 WHERE id = $1`, [
+      accountId,
+      hashPassword(passwordNew),
+    ]);
+    const authorities = await admin.query(
+      `SELECT u.password_hash AS user_hash, a.password_hash AS account_hash
+         FROM users u
+         JOIN legacy_user_account_links l
+           ON l.tenant_id = u.tenant_id AND l.user_id = u.id
+         JOIN accounts a ON a.id = l.account_id
+        WHERE u.tenant_id = $1 AND u.id = $2`,
+      [teacher.tenantId, teacher.teacherId],
+    );
+    expect(authorities.rows[0]?.user_hash).toBeTruthy();
+    expect(authorities.rows[0]?.account_hash).toBeTruthy();
+    expect(authorities.rows[0]?.user_hash).not.toBe(authorities.rows[0]?.account_hash);
+
+    const staleLegacyPassword = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: teacher.workspace,
+        email: teacher.email,
+        password: teacher.password,
+      },
+    });
+    expect(staleLegacyPassword.statusCode).toBe(401);
+    expect(staleLegacyPassword.json().error.code).toBe('invalid_credentials');
+
+    const canonicalLogin = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: teacher.workspace,
+        email: teacher.email,
+        password: passwordNew,
+      },
+    });
+    expect(canonicalLogin.statusCode).toBe(200);
+    expect(canonicalLogin.json().activeWorkspace.workspaceId).toBe(organizationWorkspaceId);
+    const token = sessionCookie(canonicalLogin);
+    const tokenHash = hashSessionToken(token);
+
+    const storage = await admin.query(
+      `SELECT
+         EXISTS(SELECT 1 FROM sessions_v2 WHERE token_hash = $1) AS in_v2,
+         EXISTS(SELECT 1 FROM sessions WHERE token_hash = $1) AS in_legacy,
+         (SELECT active_workspace_id FROM sessions_v2 WHERE token_hash = $1) AS active_workspace_id,
+         EXISTS(
+           SELECT 1
+             FROM sessions_v2 s
+             JOIN session_refresh_families f ON f.session_id = s.id
+            WHERE s.token_hash = $1
+              AND f.revoked_at IS NULL
+              AND f.source = 'organization'
+         ) AS refresh_family_attached`,
+      [tokenHash],
+    );
+    expect(storage.rows[0]).toMatchObject({
+      in_v2: true,
+      in_legacy: false,
+      active_workspace_id: organizationWorkspaceId,
+      refresh_family_attached: true,
+    });
+
+    for (const url of [
+      '/api/auth/me',
+      '/api/account/profile',
+      '/api/account/password',
+      '/api/account/sessions',
+    ]) {
+      const response = await inject(app, {
+        method: 'GET',
+        url,
+        cookies: { asa_session: token },
+      });
+      expect(response.statusCode, url).toBe(200);
+    }
+
+    const unknownWorkspace = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: `ghost-${crypto.randomUUID().slice(0, 8)}`,
+        email: teacher.email,
+        password: passwordNew,
+      },
+    });
+    expect(unknownWorkspace.statusCode).toBe(401);
+    expect(unknownWorkspace.json().error.code).toBe('invalid_credentials');
+
+    const unknownAccount = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: teacher.workspace,
+        email: `missing-${crypto.randomUUID()}@account.test`,
+        password: passwordNew,
+      },
+    });
+    expect(unknownAccount.statusCode).toBe(401);
+    expect(unknownAccount.json().error.code).toBe('invalid_credentials');
+
+    const wrongPassword = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: teacher.workspace,
+        email: teacher.email,
+        password: 'definitely-wrong-password',
+      },
+    });
+    expect(wrongPassword.statusCode).toBe(401);
+    expect(wrongPassword.json().error.code).toBe('invalid_credentials');
+
+    const foreignOrganization = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: foreign.workspace,
+        email: teacher.email,
+        password: passwordNew,
+      },
+    });
+    expect(foreignOrganization.statusCode).toBe(401);
+    expect(foreignOrganization.json().error.code).toBe('invalid_credentials');
+
+    const malformed = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { workspace: 'BAD SLUG', email: 'bad', password: '' },
+    });
+    expect(malformed.statusCode).toBe(400);
+    expect(malformed.json().error.code).toBe('validation_error');
+  });
+});
+
 describe('Account C1 compatibility', () => {
   it('preserves personal projects and the migrated legacy teacher bridge', async () => {
     const account = await register('project-preserved');

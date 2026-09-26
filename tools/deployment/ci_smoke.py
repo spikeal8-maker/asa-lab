@@ -57,7 +57,9 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         with archive.open("rb") as input_stream:
             result = subprocess.run(["docker", "cp", "-a", "-", f"{records['minio']['id']}:/data"], stdin=input_stream)
         require(result.returncode == 0, "SMOKE", "Object restore failed.")
-        install.compose("start", "minio")
+        # Container start is asynchronous; mc alias set probes the endpoint.
+        # Wait for the service healthcheck before verifying restored objects.
+        install.compose("up", "-d", "--no-build", "--wait", "--wait-timeout", "120", "minio")
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "/bin/sh", "minio-init", "-eu", "-c",
                         mc_prefix + 'mc ready local; test "$(mc cat "local/$ASA_OBJECT_STORAGE_BUCKET/delivery-fixture.txt")" = synthetic-project-media')
         restore_check(install, backup, "asalab_delivery_restore_test")

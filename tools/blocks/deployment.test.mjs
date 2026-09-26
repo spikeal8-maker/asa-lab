@@ -64,7 +64,7 @@ test('private Blocks object storage stays inside the canonical Compose project',
   assert.equal(minio.image, '${ASA_MINIO_IMAGE:-asa-lab-minio:${ASA_IMAGE_TAG:-local}}');
   assert.equal(minio.build.context, '.');
   assert.equal(minio.build.dockerfile, 'infra/minio/Dockerfile');
-  assert.equal(init.image, 'quay.io/minio/mc:RELEASE.2024-09-16T17-43-14Z');
+  assert.equal(init.image, minio.image);
   assert.equal(minio.user, '1000:1000');
   assert.equal(init.user, '1000:1000');
   assert.equal(minio.read_only, true);
@@ -79,7 +79,9 @@ test('private Blocks object storage stays inside the canonical Compose project',
   assert.match(String(init.entrypoint.join(' ')), /anonymous set none/);
   assert.doesNotMatch(String(minio.command), /console-address/);
   const recipe = read('infra/minio/Dockerfile');
-  assert.match(recipe, /FROM quay\.io\/minio\/minio:RELEASE\.2024-09-13T20-26-02Z/);
+  assert.match(recipe, /minio\.linux-amd64\.RELEASE\.2024-09-13T20-26-02Z/);
+  assert.match(recipe, /mc\.linux-amd64\.RELEASE\.2024-09-16T17-43-14Z/);
+  assert.equal((recipe.match(/ADD --checksum=sha256:[0-9a-f]{64}/g) ?? []).length, 2);
   assert.match(recipe, /USER 1000:1000/);
   assert.doesNotMatch(recipe, /:latest/);
   for (const name of ['ASA_OBJECT_STORAGE_ACCESS_KEY', 'ASA_OBJECT_STORAGE_SECRET_KEY']) {

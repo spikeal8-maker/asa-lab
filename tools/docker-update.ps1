@@ -5,6 +5,7 @@ param(
   [ValidateSet('auto', 'none', 'frp')]
   [string]$Transport = 'auto',
   [string]$BackupDirectory = 'backups',
+  [string]$EntryOrigin = $env:ASA_UPDATE_ENTRY_ORIGIN,
   [switch]$CheckOnly,
   [switch]$SelfTest
 )
@@ -39,6 +40,60 @@ function Get-EnvValue {
     Select-Object -Last 1
   if (-not $line) { return $null }
   return ($line -split '=', 2)[1].Trim()
+}
+
+function Assert-EmbeddedEntryConfiguration {
+  param(
+    [string]$ExpectedEntryOrigin = $EntryOrigin,
+    [string]$ParentOrigin = (Get-EnvValue 'ASA_BLOCKS_PARENT_ORIGIN'),
+    [string]$RuntimeOrigin = (Get-EnvValue 'ASA_BLOCKS_RUNTIME_ORIGIN'),
+    [string]$EntryProfile = $Profile
+  )
+  if (-not $ExpectedEntryOrigin) {
+    throw 'ASA_UPDATE_ENTRY_ORIGIN (or -EntryOrigin) is required: supply the exact ASA portal origin used by the owner, not a separate Scratch address.'
+  }
+  $uri = $null
+  if (-not [Uri]::TryCreate($ExpectedEntryOrigin, [UriKind]::Absolute, [ref]$uri) -or
+      $uri.Scheme -notin @('http', 'https') -or
+      $uri.UserInfo -or $uri.Query -or $uri.Fragment -or
+      $uri.AbsolutePath -ne '/' -or
+      $uri.GetLeftPart([UriPartial]::Authority) -cne $ExpectedEntryOrigin) {
+    throw 'ASA_UPDATE_ENTRY_ORIGIN must be an exact HTTP(S) origin without a path, credentials, query or trailing slash.'
+  }
+  if ($EntryProfile -in @('production', 'staging') -and $uri.Host -ne '127.0.0.1' -and $uri.Scheme -ne 'https') {
+    throw 'Non-loopback production and staging ASA entry origins must use HTTPS.'
+  }
+  if ($ParentOrigin -cne $ExpectedEntryOrigin -or $RuntimeOrigin -cne $ExpectedEntryOrigin) {
+    throw "EDITOR_ENTRY: Scratch and ASA must use the same owner entry origin ($ExpectedEntryOrigin). Correct the existing .env with a verified backup before updating; do not deploy a second Scratch."
+  }
+  Write-Host "EDITOR ENTRY CONFIG OK: $ExpectedEntryOrigin (single ASA installation)"
+}
+
+function Assert-EmbeddedEntryReachable {
+  param([Parameter(Mandatory = $true)][string]$Revision)
+
+  $ready = Invoke-RestMethod -Uri "$EntryOrigin/health/ready" -TimeoutSec 15 -MaximumRedirection 0
+  $metadata = Invoke-RestMethod -Uri "$EntryOrigin/build-metadata.json" -TimeoutSec 15 -MaximumRedirection 0
+  $runtimeResponse = Invoke-WebRequest -UseBasicParsing -Uri "$EntryOrigin/runtime-config.js" -TimeoutSec 15 -MaximumRedirection 0
+  $editorResponse = Invoke-WebRequest -UseBasicParsing -Uri "$EntryOrigin/internal/blocks/" -TimeoutSec 15 -MaximumRedirection 0
+  $scratchHealth = Invoke-WebRequest -UseBasicParsing -Uri "$EntryOrigin/internal/blocks/healthz" -TimeoutSec 15 -MaximumRedirection 0
+  if ($ready.status -ne 'ready' -or $ready.deployment.revision -ne $Revision -or
+      $ready.deployment.synchronized -ne $true -or $metadata.revision -ne $Revision -or
+      $editorResponse.StatusCode -ne 200 -or $scratchHealth.StatusCode -ne 200 -or
+      ([string]$editorResponse.Content) -notmatch 'data-asa-scratch-host=' -or
+      ([string]$scratchHealth.Content).Trim() -cne 'ok') {
+    throw 'EDITOR_ENTRY: the owner portal URL does not serve the ready ASA and embedded Scratch at the expected revision.'
+  }
+  $prefix = 'globalThis.__ASA_RUNTIME_CONFIG__='
+  $configText = ([string]$runtimeResponse.Content).Trim()
+  if (-not $configText.StartsWith($prefix, [StringComparison]::Ordinal)) {
+    throw 'EDITOR_ENTRY: portal runtime-config.js has an unexpected format.'
+  }
+  $config = $configText.Substring($prefix.Length).TrimEnd(';') | ConvertFrom-Json
+  if ($config.blocksRuntimeOrigin -cne $EntryOrigin) {
+    throw 'EDITOR_ENTRY: the browser receives a Scratch origin different from the owner portal URL.'
+  }
+  Write-Host "EDITOR ENTRY HTTP OK: $EntryOrigin/internal/blocks/ revision=$Revision"
 }
 
 function New-UpdateRandomHex {
@@ -345,6 +400,7 @@ function Invoke-GuardedUpdate {
   if (-not (Test-Path -LiteralPath '.env')) {
     throw '.env is missing; guarded update never creates or guesses production secrets.'
   }
+  Assert-EmbeddedEntryConfiguration
   $projectName = Get-EnvValue 'COMPOSE_PROJECT_NAME'
   if (-not $projectName) {
     throw 'COMPOSE_PROJECT_NAME is missing from .env; the existing PostgreSQL volume cannot be identified safely.'
@@ -418,6 +474,7 @@ function Invoke-GuardedUpdate {
       Write-Host 'CHECK NOTE: full update will generate the missing private self-hosted Blocks object-storage configuration.'
     }
     Write-Host 'CHECK OK: no code, container or database changes were made.'
+    Write-Host 'USER FLOW NOT RUN: browser login, editor save and reopen require a separate acceptance check.'
     return
   }
 
@@ -485,6 +542,7 @@ function Invoke-GuardedUpdate {
     Invoke-Compose -Arguments @('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
+    Assert-EmbeddedEntryReachable -Revision $newRevision
     $remainingOriginDrift = @(Get-MixedOriginServices)
     if ($remainingOriginDrift.Count -gt 0) {
       throw "Containers still have mixed Compose working directories: $($remainingOriginDrift -join '; ')"
@@ -504,6 +562,9 @@ function Invoke-GuardedUpdate {
       rollback_web_image = $rollbackWeb
       rollback_scratch_image = $rollbackScratch
       scratch_revision = $newRevision
+      entry_origin = $EntryOrigin
+      entry_http = 'pass'
+      user_flow = 'not_run'
     })
   }
   catch {
@@ -528,11 +589,22 @@ function Invoke-GuardedUpdate {
   }
 
   Write-Host "UPDATE OK: revision=$newRevision schema=$schemaVersion synchronized=true"
+  Write-Host 'USER FLOW NOT RUN: login, editor save and reopen still require a browser acceptance check.'
   Write-Host "RECEIPT: $receiptPath"
   Write-Host 'The PostgreSQL volume was preserved.'
 }
 
 function Invoke-UpdaterSelfTest {
+  $lanOrigin = 'http://172.23.104.170:4610'
+  Assert-EmbeddedEntryConfiguration -ExpectedEntryOrigin $lanOrigin -ParentOrigin $lanOrigin -RuntimeOrigin $lanOrigin -EntryProfile dev
+  $localOrigin = 'http://127.0.0.1:4610'
+  Assert-EmbeddedEntryConfiguration -ExpectedEntryOrigin $localOrigin -ParentOrigin $localOrigin -RuntimeOrigin $localOrigin -EntryProfile production
+  try {
+    Assert-EmbeddedEntryConfiguration -ExpectedEntryOrigin $lanOrigin -ParentOrigin 'http://localhost:4610' -RuntimeOrigin 'http://localhost:4610' -EntryProfile dev
+    throw 'Updater self-test failed to reject a LAN/localhost editor mismatch.'
+  } catch {
+    if ($_.Exception.Message -notmatch '^EDITOR_ENTRY:') { throw }
+  }
   $revision = '0123456789abcdef0123456789abcdef01234567'
   $runsJson = @"
 [

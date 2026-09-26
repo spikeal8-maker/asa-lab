@@ -24,6 +24,14 @@ Scratch уже входит в основной `compose.yaml` как серви
 Порт 4613 — предусмотренный endpoint компонента, не новый портал. Не выбирать
 новый порт или вторую установку при ошибке.
 
+До preflight зафиксируйте точный адрес, которым владелец открывает ASA (без
+пути и конечного `/`). Он должен совпадать с `ASA_BLOCKS_PARENT_ORIGIN` и
+`ASA_BLOCKS_RUNTIME_ORIGIN` в существующей `.env`. При расхождении updater
+останавливается **до backup и замены контейнеров**. Сначала сохраните полный
+backup конфигурации и устраните причину в той же установке; не отключайте
+origin-защиту и не создавайте второй Scratch. Для Linux source updater нужен
+Node.js на хосте для этой проверки; Windows использует PowerShell.
+
 [Обязательная проверка идентичности установки](SCRATCH_INSTALLATION.md) выполняется
 до изменения. Зелёный CI/merge не заменяет deployment и проверку пути пользователя
 «главная → программа → Scratch». Внешние DNS/TLS/FRP меняются только по отдельному
@@ -99,13 +107,13 @@ updater разрешён только из каталога, записанно�
 Windows:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production -CheckOnly
+powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production -EntryOrigin https://asa-lab.ru -CheckOnly
 ```
 
 Linux:
 
 ```bash
-ASA_COMPOSE_PROFILE=production ./tools/docker-update.sh --check
+ASA_COMPOSE_PROFILE=production ASA_UPDATE_ENTRY_ORIGIN=https://asa-lab.ru ./tools/docker-update.sh --check
 ```
 
 ## Обновление
@@ -113,19 +121,30 @@ ASA_COMPOSE_PROFILE=production ./tools/docker-update.sh --check
 Windows:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production
+powershell -ExecutionPolicy Bypass -File .\tools\docker-update.ps1 -Profile production -EntryOrigin https://asa-lab.ru
 ```
 
 Linux:
 
 ```bash
-ASA_COMPOSE_PROFILE=production ./tools/docker-update.sh
+ASA_COMPOSE_PROFILE=production ASA_UPDATE_ENTRY_ORIGIN=https://asa-lab.ru ./tools/docker-update.sh
 ```
 
 Если рядом с `compose.yaml` существует локальный игнорируемый файл
 `compose.frp.yaml`, режим `auto` включает его и явно печатает
 `transport=frp`. Это сохраняет локальную маршрутизацию при обновлении, но не
 публикует её настройки в GitHub. Управлять поведением можно явно:
+
+Для локального входа по сети вместо примера HTTPS укажите **реальный** адрес
+портала, например `-Profile dev -EntryOrigin http://172.23.104.170:4610`
+на Windows или `ASA_COMPOSE_PROFILE=dev ASA_UPDATE_ENTRY_ORIGIN=http://172.23.104.170:4610`
+на Linux. Не подставляйте `localhost`, если владелец входит по IP.
+
+После запуска updater проверяет `/health/ready`, `/runtime-config.js` и
+`/internal/blocks/` через указанный адрес. Квитанция `entry_http=pass` означает
+только техническую HTTP-проверку. Вход в редактор, сохранение и повторное
+открытие проекта остаются `user_flow=not_run`, пока браузерный сценарий
+на фактическом адресе не выполнен; бот не вправе назвать его `PASS` по health.
 
 ```powershell
 # Требовать FRP-файл или заведомо не использовать его

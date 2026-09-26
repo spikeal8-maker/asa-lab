@@ -80,12 +80,14 @@ def apply_release_environment(install, release):
 
 def validate_resolved_images(install, release):
     config = json.loads(install.compose("config", "--format", "json", capture=True))
-    attest_embedded_editor(config)
+    attest_embedded_editor(config, install.env.get('ASA_UPDATE_ENTRY_ORIGIN'), install.profile)
     attest_database_targets(config, config["services"]["postgres"]["environment"])
     for service in (*SERVICES, "migration"):
         expected = release["images"]["api" if service == "migration" else service]
         require(config["services"][service]["image"] == expected, "IMAGE_OVERRIDE", f"Compose overrides the pinned {service} image.",
                 "Review the transport overlay; do not deploy mixed artifacts.")
+    require(config["services"]["minio-init"]["image"] == release["images"]["minio"], "IMAGE_OVERRIDE",
+            "Compose overrides the pinned minio-init image.", "Use the verified MinIO image for both server and bucket initialization.")
     if install.profile in ("production", "staging"):
         require(str(config["services"]["migration"]["environment"].get("ASA_SEED_DEV")).lower() == "false",
                 "SEED", "A real-data installation cannot run development seeding.")

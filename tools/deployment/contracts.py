@@ -7,6 +7,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 from urllib.parse import urlsplit, unquote
+from urllib.request import urlopen
 
 REPOSITORY = "spikeal8-maker/asa-lab"
 REGISTRY = f"ghcr.io/{REPOSITORY}"
@@ -67,15 +68,56 @@ def attest_database_targets(config, postgres_env, api_env=None):
             "DATABASE_TARGET", "Migration target attestations differ from the backed-up database.")
 
 
-def attest_embedded_editor(config):
+def attest_editor_env(entry_origin, parent, runtime, profile):
+    require(bool(entry_origin), 'EDITOR_ENTRY', 'ASA_UPDATE_ENTRY_ORIGIN is required for the owner portal URL.',
+            'Set it in the existing private .env after confirming the address used by the owner; do not create a separate Scratch installation.')
+    exact_origin(entry_origin)
+    require(profile in ('base', 'dev', 'staging', 'production'), 'PROFILE', 'Unsupported profile.')
+    if profile in ('staging', 'production') and not entry_origin.startswith('http://127.0.0.1:'):
+        require(entry_origin.startswith('https://'), 'EDITOR_ENTRY', 'Non-loopback production and staging ASA entry origins must use HTTPS.')
+    require(runtime == parent == entry_origin, 'EDITOR_ENTRY',
+            'The saved editor origin does not match the single ASA application entry.',
+            'Keep the running version. Back up the existing installation, then set both Blocks origins to the approved portal origin using the controlled configuration transition; do not create an editor domain.')
+
+
+def attest_embedded_editor(config, entry_origin, profile):
     api = config['services']['api']['environment']
     parent = config['services']['scratch']['environment'].get('ASA_BLOCKS_PARENT_ORIGIN')
     origin = api.get('ASA_BLOCKS_RUNTIME_ORIGIN')
-    allowed = {f"http://127.0.0.1:{api.get('ASA_WEB_PORT', '4610')}"}
-    allowed.update(value.strip() for value in api.get('ASA_PUBLIC_WEB_ORIGINS', '').split(',') if value.strip())
-    require(origin == parent and origin in allowed, 'EDITOR_ENTRY',
-            'The saved editor origin does not match the single ASA application entry.',
-            'Keep the running version. Back up the existing installation, then set both Blocks origins to the approved portal origin using the controlled configuration transition; do not create an editor domain.')
+    attest_editor_env(entry_origin, parent, origin, profile)
+    local_web_origin = f"http://127.0.0.1:{api.get('ASA_WEB_PORT', '4610')}"
+    if profile in ('staging', 'production') and entry_origin != local_web_origin:
+        public = {value.strip() for value in api.get('ASA_PUBLIC_WEB_ORIGINS', '').split(',') if value.strip()}
+        require(entry_origin in public, 'EDITOR_ENTRY',
+                'The public ASA entry must be HTTPS and listed in ASA_PUBLIC_WEB_ORIGINS.')
+
+
+def verify_embedded_entry_http(entry_origin, revision, fetch_text=None):
+    """Check the deployed ASA URL, not just loopback/container health. No login or writes."""
+    exact_origin(entry_origin)
+
+    def fetch(path):
+        with urlopen(entry_origin + path, timeout=15) as response:
+            actual = urlsplit(response.geturl())
+            require(response.status == 200 and response.geturl() == entry_origin + path,
+                    'EDITOR_ENTRY', f'The owner portal URL redirected or failed at {path}.')
+            return response.read(1024 * 1024).decode('utf-8')
+
+    read = fetch_text or fetch
+    ready = json.loads(read('/health/ready'))
+    metadata = json.loads(read('/build-metadata.json'))
+    script = read('/runtime-config.js').strip()
+    editor = read('/internal/blocks/')
+    health = read('/internal/blocks/healthz')
+    prefix = 'globalThis.__ASA_RUNTIME_CONFIG__='
+    require(script.startswith(prefix), 'EDITOR_ENTRY', 'Portal runtime-config.js has an unexpected format.')
+    runtime = json.loads(script[len(prefix):].removesuffix(';'))
+    deployment = ready.get('deployment') or {}
+    require(ready.get('status') == 'ready' and deployment.get('revision') == revision
+            and deployment.get('synchronized') is True and metadata.get('revision') == revision
+            and runtime.get('blocksRuntimeOrigin') == entry_origin
+            and 'data-asa-scratch-host=' in editor and health.strip() == 'ok', 'EDITOR_ENTRY',
+            'The owner portal URL does not serve the same ready ASA and embedded Scratch revision.')
 
 
 def validate_window(window):
