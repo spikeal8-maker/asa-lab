@@ -8,6 +8,7 @@ import {
 } from 'react';
 import { api, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
+import { TaskImageReferenceWindow } from './TaskImageReferenceWindow';
 import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
 import { courseAssignmentShape } from './SeatCourses';
@@ -94,6 +95,10 @@ export function AssignmentBrief({
   readonly seatLearner: boolean;
 }): JSX.Element | null {
   const [assignment, setAssignment] = useState<SeatAssignment | null>(null);
+  const [referenceOwner, setReferenceOwner] = useState<{
+    readonly projectId: string;
+    readonly assignmentId: string;
+  } | null>(null);
   const [open, setOpen] = useState(() => readOpen(projectId));
   const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches);
   const [rect, setRect] = useState<AssignmentBriefRect>(readRect);
@@ -130,6 +135,7 @@ export function AssignmentBrief({
 
   useEffect(() => {
     setOpen(readOpen(projectId));
+    setReferenceOwner(null);
     const next = readRect();
     compactRectRef.current = next;
     rectRef.current = next;
@@ -144,6 +150,14 @@ export function AssignmentBrief({
     media.addEventListener('change', update);
     return () => media.removeEventListener('change', update);
   }, []);
+
+  useEffect(() => {
+    if (mobile) setReferenceOwner(null);
+  }, [mobile]);
+
+  useEffect(() => {
+    setReferenceOwner(null);
+  }, [assignment?.id, projectId]);
 
   useEffect(() => {
     const onResize = (): void => {
@@ -410,7 +424,23 @@ export function AssignmentBrief({
                 {error}
               </p>
             ) : null}
-            <AssignmentView assignment={assignment} compact />
+            <AssignmentView
+              assignment={assignment}
+              compact
+              sampleAction={
+                !mobile && assignment.sampleImage ? (
+                  <button
+                    type="button"
+                    className="assignment-brief-reference-open"
+                    onClick={() =>
+                      setReferenceOwner({ projectId, assignmentId: assignment.id })
+                    }
+                  >
+                    Открыть отдельно
+                  </button>
+                ) : undefined
+              }
+            />
           </div>
 
           <footer className="assignment-brief-footer">
@@ -465,6 +495,17 @@ export function AssignmentBrief({
               ))
             : null}
         </aside>
+      ) : null}
+
+      {!mobile &&
+      assignment.sampleImage &&
+      referenceOwner?.projectId === projectId &&
+      referenceOwner.assignmentId === assignment.id ? (
+        <TaskImageReferenceWindow
+          src={assignment.sampleImage}
+          assignmentTitle={assignment.title}
+          onClose={() => setReferenceOwner(null)}
+        />
       ) : null}
 
       <button
