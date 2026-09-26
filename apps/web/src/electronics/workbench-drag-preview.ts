@@ -102,10 +102,19 @@ export function createWireDragPreview(
   source: SchematicDocument,
   wireId: string,
 ) {
-  const group = stage.querySelector<SVGGElement>(
-    '.workbench-wire-overlay > g[data-wire-id="' + CSS.escape(wireId) + '"]',
+  const escapedWireId = CSS.escape(wireId);
+  const overlayGroup = stage.querySelector<SVGGElement>(
+    '.workbench-wire-overlay > g[data-wire-id="' + escapedWireId + '"]',
   );
-  const nodes = group ? Array.from(group.querySelectorAll<SVGElement>('path, circle')) : [];
+  const editorGroup = stage.querySelector<SVGGElement>(
+    '.workbench-wire-editor-layer > g[data-wire-id="' + escapedWireId + '"]',
+  );
+  const nodes = [
+    ...(overlayGroup ? Array.from(overlayGroup.querySelectorAll<SVGElement>('path')) : []),
+    ...(editorGroup
+      ? Array.from(editorGroup.querySelectorAll<SVGElement>('circle[data-wire-vertex-index]'))
+      : []),
+  ];
   const original = nodes.map((node) => ({
     node,
     d: node.getAttribute('d'),

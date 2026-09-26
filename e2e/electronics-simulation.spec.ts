@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
@@ -8,6 +8,7 @@ import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const ARTIFACT_DIR = 'e2e/artifacts/electronics-simulation';
+const persistenceVideoTest = test.extend({ video: 'on' });
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;
@@ -2032,19 +2033,22 @@ for (const scenario of [
         const box = await buttons.nth(index).locator('.workbench-part').boundingBox();
         if (!box) throw new Error('Button is not visible');
         if (scenario.mode === 'buttons' && index === 0) {
-          // This fixture deliberately crosses the button with a wire. Its
-          // transparent editing hit area must not swallow a running input.
-          expect(
-            await page.evaluate(
-              ({ x, y }) =>
-                Boolean(
-                  document
-                    .elementFromPoint(x, y)
-                    ?.closest('.workbench-wire-hit, .workbench-wire-segment-hit'),
-                ),
-              { x: box.x + box.width / 2, y: box.y + box.height / 2 },
-            ),
-          ).toBe(true);
+          // F2: this fixture deliberately crosses the foreground button with a
+          // wire. The hidden wire hit geometry must not own the pointer through
+          // the component body; the button remains the interactive surface.
+          const pointerOwner = await page.evaluate(
+            ({ x, y }) => {
+              const top = document.elementFromPoint(x, y);
+              return {
+                wire: Boolean(top?.closest('.workbench-wire-hit, .workbench-wire-segment-hit')),
+                componentType: top?.closest<SVGElement>('[data-testid="schematic-component"]')
+                  ?.dataset['componentType'],
+              };
+            },
+            { x: box.x + box.width / 2, y: box.y + box.height / 2 },
+          );
+          expect(pointerOwner.wire).toBe(false);
+          expect(pointerOwner.componentType).toBe('button-tactile-6mm');
         }
         await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
         await page.mouse.down();
@@ -2703,6 +2707,7 @@ test('NPN key exposes its calculated operating point through I', async ({ page }
 
   const variant = inspector.getByLabel('Вариант Транзистор в проекте');
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await variant.selectOption('transistor-fet');
   await expect(component(page, 'transistor-fet')).toBeVisible();
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
@@ -3129,6 +3134,430 @@ test('catalog placement is one hold-drag-release gesture and snaps on the first 
   failures.assertEmpty();
 });
 
+persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
+  persistenceVideoTest(
+    'real API wire workflow autosaves endpoints colour and vertices across reload',
+    async ({ page }) => {
+      test.setTimeout(120_000);
+      const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await loginWithOrganization(page, teacher);
+      const projectId = await createProject(page, 'R1-R4 wire persistence acceptance');
+      const base = circuitDocument({ switchClosed: false, resistorOhms: 220, reversedLed: false });
+      const persistenceDocument: SchematicDocument = {
+        ...base,
+        components: base.components.filter((item) => item.id === 'source' || item.id === 'led'),
+        connections: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        simulation: { running: false, maxIterations: 24 },
+      };
+      await saveDocument(page, projectId, persistenceDocument);
+      await page.goto(`/#/home/${projectId}`);
+      await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(2);
+
+      const stageBox = await page.locator('.workbench-stage').boundingBox();
+      if (!stageBox) throw new Error('workbench stage is not rendered');
+      await dragCatalogComponent(page, 'Резистор', {
+        x: stageBox.x + stageBox.width * 0.26,
+        y: stageBox.y + stageBox.height * 0.72,
+      });
+      await expect(component(page, 'resistor-axial')).toHaveCount(1);
+
+      const source = page.locator(
+        '.workbench-terminal-hit[data-terminal-component-id="source"][data-terminal-id="BAT+"]',
+      );
+      const target = page.locator(
+        '.workbench-terminal-hit[data-terminal-component-id="led"][data-terminal-id="anode"]',
+      );
+      const sourceBox = await source.boundingBox();
+      const targetBox = await target.boundingBox();
+      if (!sourceBox || !targetBox) throw new Error('wire acceptance terminals are not rendered');
+      const sourcePoint = {
+        x: sourceBox.x + sourceBox.width / 2,
+        y: sourceBox.y + sourceBox.height / 2,
+      };
+      const targetPoint = {
+        x: targetBox.x + targetBox.width / 2,
+        y: targetBox.y + targetBox.height / 2,
+      };
+      const bendPoint = {
+        x: stageBox.x + stageBox.width * 0.46,
+        y: stageBox.y + stageBox.height * 0.48,
+      };
+
+      await page.mouse.click(sourcePoint.x, sourcePoint.y);
+      const pendingPreview = page.locator('.workbench-wire-preview');
+      await expect(pendingPreview).toHaveCount(1);
+      await page.mouse.move(bendPoint.x, bendPoint.y);
+      await expect
+        .poll(() =>
+          pendingPreview.evaluate((element) => (element as SVGPathElement).getTotalLength()),
+        )
+        .toBeGreaterThan(1);
+      await page.mouse.click(bendPoint.x, bendPoint.y);
+      await page.mouse.click(targetPoint.x, targetPoint.y);
+      const wire = page.getByTestId('schematic-wire');
+      await expect(wire).toHaveCount(1);
+      const stableWireId = await wire.getAttribute('data-wire-id');
+      if (!stableWireId) throw new Error('created wire has no stable ID');
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+
+      const wirePanel = page.getByTestId('wire-inspector-compact');
+      await expect(wirePanel).toBeVisible();
+      const colourButtons = wirePanel.locator('.workbench-wire-swatches button');
+      await expect(colourButtons).toHaveCount(6);
+      const originalColour = await wire.getAttribute('stroke');
+      await wirePanel.locator('.workbench-wire-swatches button:not(.active)').first().click();
+      await expect.poll(() => wire.getAttribute('stroke')).not.toBe(originalColour);
+
+      const vertex = page.getByTestId('wire-vertex').first();
+      const vertexBox = await vertex.boundingBox();
+      if (!vertexBox) throw new Error('wire bend is not rendered');
+      const originalPath = await wire.getAttribute('d');
+      const originalVertex = await vertex.evaluate((node) => ({
+        x: Number(node.getAttribute('cx')),
+        y: Number(node.getAttribute('cy')),
+      }));
+      const terminalWorld = async (terminal: Locator) =>
+        terminal.evaluate((node) => {
+          const transform = node.parentElement?.getAttribute('transform') ?? '';
+          const match = /^translate\(([-+0-9.eE]+)[ ,]+([-+0-9.eE]+)\)$/.exec(transform);
+          if (!match) throw new Error('terminal overlay has no canonical translate()');
+          return { x: Number(match[1]), y: Number(match[2]) };
+        });
+      const sourceWorld = await terminalWorld(source);
+      const targetWorld = await terminalWorld(target);
+      const softCanonical = { x: sourceWorld.x, y: targetWorld.y };
+      const softCanonicalClient = await page
+        .locator('.workbench-canvas')
+        .evaluate((node, point) => {
+          const svg = node as SVGSVGElement;
+          const local = svg.createSVGPoint();
+          local.x = point.x;
+          local.y = point.y;
+          const screen = local.matrixTransform(svg.getScreenCTM()!);
+          return { x: screen.x, y: screen.y };
+        }, softCanonical);
+
+      await page.mouse.move(vertexBox.x + vertexBox.width / 2, vertexBox.y + vertexBox.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(softCanonicalClient.x + 4, softCanonicalClient.y + 3, { steps: 12 });
+      await expect(page.getByTestId('wire-alignment-guide')).toHaveCount(2);
+      await page.mouse.up();
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('wire-vertex')
+            .first()
+            .evaluate((node) => ({
+              x: Number(node.getAttribute('cx')),
+              y: Number(node.getAttribute('cy')),
+            })),
+        )
+        .toEqual(softCanonical);
+      await expect.poll(() => wire.getAttribute('d')).not.toBe(originalPath);
+
+      await page
+        .getByRole('button', {
+          name: '\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c (Ctrl+Z)',
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('wire-vertex')
+            .first()
+            .evaluate((node) => ({
+              x: Number(node.getAttribute('cx')),
+              y: Number(node.getAttribute('cy')),
+            })),
+        )
+        .toEqual(originalVertex);
+
+      await page
+        .getByRole('button', {
+          name: '\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c (Ctrl+Shift+Z)',
+          exact: true,
+        })
+        .click();
+      await expect
+        .poll(() =>
+          page
+            .getByTestId('wire-vertex')
+            .first()
+            .evaluate((node) => ({
+              x: Number(node.getAttribute('cx')),
+              y: Number(node.getAttribute('cy')),
+            })),
+        )
+        .toEqual(softCanonical);
+
+      await page.evaluate((wireId) => {
+        const times: number[] = [];
+        (window as unknown as { persistenceWireClickTimes: number[] }).persistenceWireClickTimes =
+          times;
+        document.addEventListener(
+          'pointerdown',
+          (event) => {
+            const target = event.target instanceof Element ? event.target : null;
+            if (target?.closest('[data-wire-id]')?.getAttribute('data-wire-id') === wireId)
+              times.push(event.timeStamp);
+          },
+          { capture: true },
+        );
+      }, stableWireId);
+      const selectWire = async () => {
+        const point = await page
+          .getByTestId('wire-hit')
+          .first()
+          .evaluate((element) => {
+            const path = element as SVGPathElement;
+            const screen = path
+              .getPointAtLength(path.getTotalLength() * 0.25)
+              .matrixTransform(path.getScreenCTM()!);
+            return { x: screen.x, y: screen.y };
+          });
+        await page.mouse.click(point.x, point.y);
+        await expect(wirePanel).toBeVisible();
+      };
+      const editorVertices = () =>
+        page.getByTestId('wire-vertex').evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            x: Number(node.getAttribute('cx')),
+            y: Number(node.getAttribute('cy')),
+          })),
+        );
+
+      await selectWire();
+      const verticesBeforeStraighten = await editorVertices();
+      expect(verticesBeforeStraighten).toHaveLength(1);
+      await wirePanel.getByRole('button', { name: 'Выпрямить провод', exact: true }).click();
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
+      await page.getByRole('button', { name: /Отменить/ }).click();
+
+      // This assertion happens before the second select. It catches a broken
+      // straighten/Undo independently from the double-click recognizer.
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      const verticesAfterStraightenUndo = await editorVertices();
+      expect(verticesAfterStraightenUndo).toEqual(verticesBeforeStraighten);
+
+      // Keep the original rapid select → straighten → Undo → select sequence.
+      // The second select itself must not add a vertex.
+      await selectWire();
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
+      const quickSelectTimes = await page.evaluate(
+        () =>
+          (window as unknown as { persistenceWireClickTimes: number[] }).persistenceWireClickTimes,
+      );
+      expect(quickSelectTimes).toHaveLength(2);
+      const quickReselectGapMs = quickSelectTimes[1]! - quickSelectTimes[0]!;
+      // Persist the observed interval as evidence without coupling this real-API
+      // acceptance to host speed. The focused interaction regression separately
+      // proves the interrupted pair inside the 420 ms double-click window.
+      await wirePanel.getByRole('button', { name: 'Удалить провод', exact: true }).click();
+      await expect(wire).toHaveCount(0);
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await expect(wire).toHaveCount(1);
+      await expect(wire).toHaveAttribute('data-wire-id', stableWireId);
+      // Wire vertices are edit handles and are rendered only for a selected wire.
+      // Select it first, then prove that delete -> Undo restored the exact route.
+      await selectWire();
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+      expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
+      for (const [end, componentId, terminal] of [
+        ['from', 'source', 'BAT-'],
+        ['to', 'led', 'cathode'],
+      ] as const) {
+        const handle = page.locator(`[data-testid="wire-endpoint"][data-wire-endpoint="${end}"]`);
+        const destination = page.locator(
+          `[data-terminal-component-id="${componentId}"][data-terminal-id="${terminal}"]`,
+        );
+        const before = await handle.boundingBox();
+        const target = await destination.boundingBox();
+        if (!before || !target) throw new Error('Missing visible reconnect geometry');
+        await page.mouse.move(before.x + before.width / 2, before.y + before.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, {
+          steps: 12,
+        });
+        await expect(destination.locator('..')).toHaveClass(/drop-target/);
+        await page.mouse.up();
+        const after = await handle.boundingBox();
+        if (!after) throw new Error('Missing reconnected endpoint');
+        expect(
+          Math.hypot(
+            after.x + after.width / 2 - target.x - target.width / 2,
+            after.y + after.height / 2 - target.y - target.height / 2,
+          ),
+        ).toBeLessThanOrEqual(0.5);
+        await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
+        expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
+      }
+
+      await expect(page.locator('.workbench-main')).toHaveAttribute(
+        'data-project-save-status',
+        'saved',
+        { timeout: 15_000 },
+      );
+      const readSavedWire = async () => {
+        const response = await page.context().request.get(`/api/projects/${projectId}`, {
+          headers: { origin: new URL(page.url()).origin },
+        });
+        expect(response.status()).toBe(200);
+        const payload = (await response.json()) as { draft: { document: SchematicDocument } };
+        const savedWire = payload.draft.document.connections[0];
+        if (!savedWire) throw new Error('saved real-API document has no acceptance wire');
+        return savedWire;
+      };
+      const beforeReload = await readSavedWire();
+      expect(beforeReload.id).toBe(stableWireId);
+      expect(beforeReload.from).toEqual({ componentId: 'source', terminal: 'BAT-' });
+      expect(beforeReload.to).toEqual({ componentId: 'led', terminal: 'cathode' });
+      expect(beforeReload.vertices).toEqual(await editorVertices());
+      expect(beforeReload.vertices).toHaveLength(1);
+      expect(beforeReload.color).toBe(await wire.getAttribute('stroke'));
+      await page.screenshot({
+        path: `${ARTIFACT_DIR}/r1-r4-wire-persistence-before-reload.png`,
+        fullPage: true,
+      });
+
+      await page.reload();
+      await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
+      await expect(page.getByTestId('schematic-wire')).toHaveAttribute(
+        'data-wire-id',
+        stableWireId,
+      );
+      const afterReload = await readSavedWire();
+      expect(afterReload.id).toBe(stableWireId);
+      expect(afterReload.from).toEqual(beforeReload.from);
+      expect(afterReload.to).toEqual(beforeReload.to);
+      expect(afterReload.color).toBe(beforeReload.color);
+      expect(afterReload.vertices).toEqual(beforeReload.vertices);
+
+      const hit = page.getByTestId('wire-hit').first();
+      const hitPoint = await hit.evaluate((element) => {
+        const path = element as SVGPathElement;
+        const point = path
+          .getPointAtLength(path.getTotalLength() * 0.5)
+          .matrixTransform(path.getScreenCTM()!);
+        return { x: point.x, y: point.y };
+      });
+      await page.mouse.click(hitPoint.x, hitPoint.y);
+      await expect(page.getByTestId('wire-vertex')).toHaveCount(beforeReload.vertices?.length ?? 0);
+      expect(await editorVertices()).toEqual(beforeReload.vertices ?? []);
+      await expect(page.getByTestId('schematic-wire')).toHaveAttribute(
+        'data-wire-id',
+        stableWireId,
+      );
+      await expect(page.getByTestId('schematic-wire')).toHaveAttribute(
+        'stroke',
+        beforeReload.color!,
+      );
+      await page.screenshot({
+        path: `${ARTIFACT_DIR}/r1-r4-wire-persistence-after-reload.png`,
+        fullPage: true,
+      });
+
+      failures.assertEmpty();
+      const metadataResponse = await page.context().request.get('/build-metadata.json');
+      expect(metadataResponse.ok()).toBe(true);
+      const build = (await metadataResponse.json()) as { revision: string; builtAt: string };
+      const exactHead = build.revision;
+      expect(exactHead).toMatch(/^[0-9a-f]{40}$/);
+      const requestedHead = process.env['ASA_BUILD_REVISION'] ?? process.env['GITHUB_SHA'];
+      if (requestedHead && /^[0-9a-f]{40}$/.test(requestedHead)) {
+        expect(exactHead).toBe(requestedHead);
+      }
+      mkdirSync('reports', { recursive: true });
+      writeFileSync(
+        'reports/electronics-ux-repair-evidence.json',
+        JSON.stringify(
+          {
+            task: 'TASK-ELECTRONICS-UX-REPAIR-001',
+            issue: 377,
+            pr: 378,
+            exactHead,
+            build,
+            persistenceStatus: 'passed',
+            quickReselectGapMs,
+            f3SoftCanonical: softCanonical,
+            wireBeforeReload: beforeReload,
+            wireAfterReload: afterReload,
+            persistenceViewport: page.viewportSize(),
+            aggregateStatusSource: 'Complete Playwright run; image paths alone are not acceptance',
+            browser: 'chromium',
+            browserVersion: page.context().browser()?.version(),
+            os: process.platform,
+            evidence: {
+              R1: [
+                'reports/interactions/r1-soft-wire-guide.png',
+                'reports/interactions/r1-click-click-connected.png',
+                'reports/interactions/r1-shift-orthogonal.png',
+                'reports/interactions/r1-mode90-orthogonal.png',
+              ],
+              R2: [
+                'reports/interactions/r2-terminal-scale-4x.png',
+                'reports/interactions/r2-dense-terminal-resolver.png',
+              ],
+              R3: [
+                'reports/interactions/r3-touch-drag-preview.png',
+                'reports/interactions/r3-touch-direct-placement.png',
+                'reports/playwright/**/video.webm',
+              ],
+              R4: [
+                'reports/interactions/r4-wire-panel-desktop.png',
+                'reports/interactions/r4-wire-panel-mobile.png',
+              ],
+              persistence: [
+                `${ARTIFACT_DIR}/r1-r4-wire-persistence-before-reload.png`,
+                `${ARTIFACT_DIR}/r1-r4-wire-persistence-after-reload.png`,
+              ],
+              ownerFeedback: {
+                F1: [
+                  'reports/interactions/f1-marker-zoom-1x.png',
+                  'reports/interactions/f1-marker-zoom-2x.png',
+                  'reports/interactions/f1-marker-zoom-4x.png',
+                  'reports/interactions/r2-dense-terminal-resolver.png',
+                ],
+                F2: ['reports/interactions/f2-scene-layering.png'],
+                F3: [
+                  'reports/interactions/f3-bend-soft-lock.png',
+                  'reports/playwright/**/video.webm',
+                ],
+                F4: [
+                  'reports/interactions/r4-wire-panel-desktop.png',
+                  'reports/interactions/r4-wire-panel-mobile.png',
+                ],
+              },
+            },
+            viewports: [
+              '320x568',
+              '390x844',
+              '430x932',
+              '768x1024',
+              '568x320',
+              '844x390',
+              '932x430',
+              '1024x768',
+              '1440x1000',
+              '1920x1080',
+            ],
+            pointerTypes: ['mouse', 'native-cdp-touch'],
+          },
+          null,
+          2,
+        ),
+        'utf8',
+      );
+      failures.assertEmpty();
+    },
+  );
+});
+
 async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void> {
   // Do not race pagehide's legitimate autosave with the next API fixture PUT.
   // This is the controller's actual state, not the delayed/transient indicator.
@@ -3171,8 +3600,14 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(page.locator('[data-testid="schematic-wire"]')).toHaveCount(5);
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-wired.png`, fullPage: true });
 
-  const sourcePositive = component(page, 'battery-holder-aa-2').locator(
-    '.workbench-terminal-hit[data-terminal-id="BAT+"]',
+  const sourceComponentId = await component(page, 'battery-holder-aa-2').getAttribute(
+    'data-component-id',
+  );
+  if (!sourceComponentId) throw new Error('battery source has no component identity');
+  const sourcePositive = page.locator(
+    '.workbench-terminal-hit[data-terminal-component-id="' +
+      sourceComponentId +
+      '"][data-terminal-id="BAT+"]',
   );
   await sourcePositive.click();
   const previewWire = page.locator('.workbench-wire-preview');
@@ -3205,12 +3640,16 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(switchComponent).toHaveClass(/workbench-component-actuator-active/);
   const colourBrightness = new Map<string, number>();
   for (const colour of ['red', 'orange', 'yellow', 'green', 'blue', 'white']) {
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
     await selectLed(page);
     await page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ }).selectOption(colour);
     await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
       'data-led-colour',
       colour,
     );
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await switchComponent.getByTestId('spdt-actuator').click();
+    await selectLed(page);
     await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
     await expect(led.locator('image:not([filter])')).toHaveAttribute(
       'href',
@@ -3218,7 +3657,12 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     );
     colourBrightness.set(colour, await brightnessValue(page));
   }
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await selectLed(page);
   await page.getByRole('combobox', { name: /^Цвет(?: светодиода)?$/ }).selectOption('red');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await switchComponent.getByTestId('spdt-actuator').click();
+  await selectLed(page);
   await expect.poll(() => brightnessValue(page)).toBe(colourBrightness.get('red'));
   const brightAt50Ohms = await brightnessValue(page);
   await expect(led.locator('.workbench-production-visual')).toHaveAttribute(
@@ -3236,12 +3680,15 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   await expect(ledInspector.getByText(/Яркость|Ток|Напряжение/)).toHaveCount(0);
   await page.screenshot({ path: `${ARTIFACT_DIR}/electronics-running.png`, fullPage: true });
 
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await resistor.locator('.workbench-part').press('Enter');
   const resistanceInput = page
     .locator('.workbench-inspector label')
     .filter({ hasText: 'Сопротивление' })
     .locator('input[type="number"]');
   await resistanceInput.fill('1');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await switchComponent.getByTestId('spdt-actuator').click();
   await selectLed(page);
   const warningBadge = diagnostic(page, 'led-5mm', 'led-diagnostic-badge');
   await expect(warningBadge).toBeVisible();
@@ -3258,13 +3705,13 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   // Runtime damage is intentionally persistent until Stop/new Start. Move the
   // resistor back into a safe range, restart the simulation and prove that the
   // fresh run uses the edited circuit rather than carrying the failed LED.
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await resistor.locator('.workbench-part').press('Enter');
   await page
     .locator('.workbench-inspector label')
     .filter({ hasText: 'Сопротивление' })
     .locator('input[type="number"]')
     .fill('100');
-  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   // Runtime actuator overrides reset with a new run as well as thermal
   // damage, so close the SPDT again before checking the safe resistor value.
@@ -3276,12 +3723,15 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
   let previousBrightness = await brightnessValue(page);
   let persistedArbitraryBrightness = previousBrightness;
   for (const resistance of [166.7]) {
+    await page.getByRole('button', { name: 'Остановить моделирование' }).click();
     await resistor.locator('.workbench-part').press('Enter');
     const arbitraryResistanceInput = page
       .locator('.workbench-inspector label')
       .filter({ hasText: 'Сопротивление' })
       .locator('input[type="number"]');
     await arbitraryResistanceInput.fill(String(resistance));
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await switchComponent.getByTestId('spdt-actuator').click();
     await selectLed(page);
     await expect.poll(() => brightnessValue(page)).toBeLessThan(previousBrightness);
     await expect.poll(() => brightnessValue(page)).toBeGreaterThan(0);
@@ -3605,8 +4055,7 @@ test('independent and parallel sources keep diagnostics local and expose current
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   const conflictProjectId = await createProject(page, 'R4-M1 parallel source modes');
   await saveDocument(page, conflictProjectId, conflictingParallelSourcesDocument());
-  await page.goto(`/#/home/${conflictProjectId}`);
-  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await page.goto('/#/home/' + conflictProjectId);
 
   const highSource = page.locator(
     '[data-testid="schematic-component"][data-component-id="source-high"]',
@@ -3614,13 +4063,62 @@ test('independent and parallel sources keep diagnostics local and expose current
   const lowSource = page.locator(
     '[data-testid="schematic-component"][data-component-id="source-low"]',
   );
+
+  // E1: static/preflight diagnostics remain available in edit mode, but
+  // runtime operating/presentation state is absent until modeling starts.
+  await expect(
+    page.getByRole('button', {
+      name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    }),
+  ).toBeVisible();
+  await expect(highSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(lowSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(highSource).not.toHaveAttribute('data-presentation-state');
+  await expect(lowSource).not.toHaveAttribute('data-presentation-state');
+  await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await page.screenshot({
+    path: ARTIFACT_DIR + '/electronics-source-conflict-simulation-off.png',
+    fullPage: true,
+  });
+
+  await page
+    .getByRole('button', {
+      name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    })
+    .click();
   await expect(highSource).toHaveAttribute('data-source-operating-mode', 'delivering');
   await expect(lowSource).toHaveAttribute('data-source-operating-mode', 'absorbing');
   await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
   await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
-  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await expect(
+    page.getByRole('button', {
+      name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    }),
+  ).toBeVisible();
   await page.screenshot({
-    path: `${ARTIFACT_DIR}/electronics-parallel-source-conflict.png`,
+    path: ARTIFACT_DIR + '/electronics-parallel-source-conflict.png',
+    fullPage: true,
+  });
+
+  await page
+    .getByRole('button', {
+      name: '\u041e\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    })
+    .click();
+  await expect(
+    page.getByRole('button', {
+      name: '\u041d\u0430\u0447\u0430\u0442\u044c \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u0435',
+    }),
+  ).toBeVisible();
+  await expect(highSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(lowSource).not.toHaveAttribute('data-source-operating-mode');
+  await expect(highSource).not.toHaveAttribute('data-presentation-state');
+  await expect(lowSource).not.toHaveAttribute('data-presentation-state');
+  await expect(highSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await expect(lowSource).toHaveAttribute('data-diagnostics', /conflicting_sources/);
+  await page.screenshot({
+    path: ARTIFACT_DIR + '/electronics-source-conflict-after-stop.png',
     fullPage: true,
   });
   failures.assertEmpty();

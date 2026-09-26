@@ -200,6 +200,15 @@ export class LearningActivitiesController {
     return `/api/learning/activities/${encodeURIComponent(activityId)}/draft-sample?v=${encodeURIComponent(contentHash)}`;
   }
 
+  private versionSampleUrl(activityId: string, versionId: string, contentHash: string): string {
+    return `/api/learning/activities/${encodeURIComponent(activityId)}/versions/${encodeURIComponent(versionId)}/sample?v=${encodeURIComponent(contentHash)}`;
+  }
+
+  private versionSampleError(code: string | undefined): HttpException {
+    const message = code === 'sample_not_found' ? 'Картинки нет.' : 'Версия недоступна.';
+    return new HttpException(error(code ?? 'version_sample_failed', message), 404);
+  }
+
   @Get()
   async list(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
@@ -439,6 +448,32 @@ export class LearningActivitiesController {
     return { draftRevision: Number(row['draft_revision']) };
   }
 
+  @Get(':activityId/versions/:versionId/sample')
+  async getVersionSample(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Param('versionId') versionId: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    this.requireUuid(versionId, 'version');
+    const result = await this.requirePool().query(
+      `SELECT result_code, content_type, bytes, content_hash
+         FROM learning_activity_version_sample_get($1,$2,$3,$4)`,
+      [context.principalId, context.tenantId, activityId, versionId],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['bytes']) {
+      throw this.versionSampleError(row?.['result_code'] as string | undefined);
+    }
+    return reply
+      .header('content-type', String(row['content_type']))
+      .header('cache-control', 'private, max-age=31536000, immutable')
+      .header('etag', `"${String(row['content_hash'])}"`)
+      .send(row['bytes'] as Buffer);
+  }
+
   @Get(':activityId/preview')
   async previewAsLearner(
     @Req() request: FastifyRequest,
@@ -490,7 +525,7 @@ export class LearningActivitiesController {
     if (!row || code !== 'ok') {
       throw new HttpException(error(code ?? 'preview_failed', 'preview source is invalid'), 400);
     }
-    let draftSampleImage: string | null = null;
+    let sampleImage: string | null = null;
     if (source === 'draft') {
       const sample = await pool.query(
         `SELECT result_code, content_hash, draft_revision
@@ -506,9 +541,26 @@ export class LearningActivitiesController {
         );
       }
       if (sampleCode === 'ok' && sampleRow?.['content_hash']) {
-        draftSampleImage = this.draftSampleUrl(activityId, String(sampleRow['content_hash']));
+        sampleImage = this.draftSampleUrl(activityId, String(sampleRow['content_hash']));
       } else if (sampleCode !== 'sample_not_found' && sampleCode !== 'activity_not_found') {
         throw this.draftSampleError(sampleCode);
+      }
+    } else {
+      const sample = await pool.query(
+        `SELECT result_code, content_hash
+           FROM learning_activity_version_sample_meta($1,$2,$3,$4)`,
+        [context.principalId, context.tenantId, activityId, versionId],
+      );
+      const sampleRow = sample.rows[0];
+      const sampleCode = sampleRow?.['result_code'] as string | undefined;
+      if (sampleCode === 'ok' && sampleRow?.['content_hash']) {
+        sampleImage = this.versionSampleUrl(
+          activityId,
+          versionId!,
+          String(sampleRow['content_hash']),
+        );
+      } else if (sampleCode !== 'sample_not_found') {
+        throw this.versionSampleError(sampleCode);
       }
     }
 
@@ -530,7 +582,7 @@ export class LearningActivitiesController {
         title: String(row['title']),
         goal: null,
         brief: row['instructions'] === null ? null : String(row['instructions']),
-        sampleImage: source === 'draft' ? draftSampleImage : null,
+        sampleImage,
       },
       moduleKey: row['module_key'] === null ? null : String(row['module_key']),
       resultMode: String(row['result_mode']) as 'ungraded' | 'completion' | 'graded',

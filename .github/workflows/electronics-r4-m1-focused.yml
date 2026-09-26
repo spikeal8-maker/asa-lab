@@ -68,7 +68,6 @@ jobs:
       - name: Focused Electronics M1 gate
         run: pnpm gate:electronics-m1
 
-
   benchmark:
     name: Electronics E-OPT benchmark integrity
     needs: focused
@@ -118,6 +117,7 @@ jobs:
             reports/electronics-opt0-*.md
           if-no-files-found: ignore
           retention-days: 14
+
   browser:
     name: Actual editor live simulation journey
     needs: focused
@@ -143,15 +143,25 @@ jobs:
           mkdir -p e2e/artifacts/electronics-simulation reports
           chmod -R 0777 e2e/artifacts reports
 
-      - name: Build isolated Electronics browser stack
+      - name: Build isolated Electronics browser images
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           build migration api web test-runner
 
-      - name: Start isolated PostgreSQL, migrations, API and web
+      - name: Start isolated PostgreSQL
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
-          up -d --wait --wait-timeout 240 postgres api web
+          up -d --wait --wait-timeout 120 postgres
+
+      - name: Apply isolated migrations
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          run --rm --no-deps migration
+
+      - name: Start Electronics API and Web without unrelated media services
+        run: >-
+          docker compose -f compose.yaml -f compose.test.yaml --profile test
+          up -d --wait --wait-timeout 240 --no-deps api web
 
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
@@ -182,3 +192,51 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           down -v --remove-orphans
+
+  review-images:
+    name: Package exact-head review images
+    needs: [focused, benchmark, browser]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+
+      - name: Build exact API and Web review images
+        run: docker compose -f compose.yaml build api web
+
+      - name: Verify exact revision labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-api:${ASA_IMAGE_TAG}")"
+          web_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-web:${ASA_IMAGE_TAG}")"
+          test "$api_revision" = "$ASA_BUILD_REVISION"
+          test "$web_revision" = "$ASA_BUILD_REVISION"
+
+      - name: Export ready-to-load review images
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p review-images
+          docker save "asa-lab-api:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-api-${ASA_IMAGE_TAG}.tar.gz"
+          docker save "asa-lab-web:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-web-${ASA_IMAGE_TAG}.tar.gz"
+          printf 'revision=%s\napi=%s\nweb=%s\n' \
+            "$ASA_BUILD_REVISION" \
+            "asa-lab-api:${ASA_IMAGE_TAG}" \
+            "asa-lab-web:${ASA_IMAGE_TAG}" > review-images/MANIFEST.txt
+          sha256sum review-images/*.tar.gz > review-images/SHA256SUMS
+
+      - name: Upload exact-head review images
+        uses: actions/upload-artifact@v4
+        with:
+          name: electronics-review-images-${{ github.run_id }}
+          path: review-images
+          if-no-files-found: error
+          retention-days: 14

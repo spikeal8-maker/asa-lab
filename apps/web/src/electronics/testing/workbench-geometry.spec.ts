@@ -1,19 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import {
   clientToWorld,
+  completeOrthogonalRoute,
   gestureViewport,
   fitViewportToScreen,
   diagnosticBadgeGeometry,
   freeWirePoint,
   lockOrthogonalPoint,
-  magneticWirePoint,
   moveWireSegmentVertices,
   potentiometerWiperPosition,
+  resolveWireAssist,
+  resolveWireVertexAssist,
   stageReadoutGeometry,
-  viewportViewBox,
+  TERMINAL_HIT_RADIUS,
+  TERMINAL_MARKER_SIZE,
+  TERMINAL_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_HIT_RADIUS,
+  WIRE_ENDPOINT_TOUCH_HIT_RADIUS,
+  WIRE_ENDPOINT_VISIBLE_RADIUS,
+  wireGuideAxes,
   wireSegmentParallelDelta,
+  worldToClient,
   type Point,
-  type Viewport,
 } from '../workbench-geometry';
 
 describe('shared screen gesture transform', () => {
@@ -52,24 +60,24 @@ describe('shared screen gesture transform', () => {
     expect(b.x).toBeLessThanOrEqual(size.width - 27.99);
     expect(b.y).toBeLessThanOrEqual(size.height - 27.99);
   });
-});
 
-function worldToClient(
-  point: Point,
-  rect: Pick<DOMRect, 'left' | 'top' | 'width' | 'height'>,
-  viewport: Viewport,
-  canvasWidth: number,
-  canvasHeight: number,
-): Point {
-  const box = viewportViewBox(viewport, canvasWidth, canvasHeight);
-  const scale = Math.max(rect.width / box.width, rect.height / box.height);
-  const offsetX = (rect.width - box.width * scale) / 2;
-  const offsetY = (rect.height - box.height * scale) / 2;
-  return {
-    x: rect.left + offsetX + (point.x - box.x) * scale,
-    y: rect.top + offsetY + (point.y - box.y) * scale,
-  };
-}
+  it('fits compact content outside the left stage controls with asymmetric screen insets', () => {
+    const rect = { width: 320, height: 472, left: 0, top: 0 };
+    const bounds = { minX: 0, minY: 0, maxX: 500, maxY: 300 };
+    const viewport = fitViewportToScreen(bounds, rect, 1600, 980, 0.2, 8, {
+      left: 64,
+      right: 28,
+      top: 28,
+      bottom: 28,
+    });
+    const a = worldToClient({ x: bounds.minX, y: bounds.minY }, rect, viewport, 1600, 980);
+    const b = worldToClient({ x: bounds.maxX, y: bounds.maxY }, rect, viewport, 1600, 980);
+    expect(a.x).toBeGreaterThanOrEqual(63.99);
+    expect(b.x).toBeLessThanOrEqual(rect.width - 27.99);
+    expect(a.y).toBeGreaterThanOrEqual(27.99);
+    expect(b.y).toBeLessThanOrEqual(rect.height - 27.99);
+  });
+});
 
 describe('workbench pointer coordinates', () => {
   it.each([
@@ -157,7 +165,7 @@ describe('what the canvas is allowed to move', () => {
     { at: { x: -21, y: 99 } },
     { at: { x: 1004.4, y: 55.6 } },
   ])('leaves a free wire point at $at', ({ at }) => {
-    expect(freeWirePoint(at)).toEqual({ x: Math.round(at.x), y: Math.round(at.y) });
+    expect(freeWirePoint(at)).toEqual(at);
   });
 
   it('still aligns when the 90° mode asks for it', () => {
@@ -167,19 +175,143 @@ describe('what the canvas is allowed to move', () => {
     expect(locked.x % 10).toBe(0);
   });
 
-  it('magnetically holds a nearly horizontal or vertical draft without moving a free diagonal', () => {
-    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 220, y: 106 }, 10)).toEqual({
-      x: 220,
-      y: 100,
+  it('enters soft alignment only after the minimum distance and exits through hysteresis', () => {
+    const anchor = { x: 100, y: 100 };
+    expect(resolveWireAssist(anchor, { x: 123, y: 101 }, null).axis).toBeNull();
+
+    const entered = resolveWireAssist(anchor, { x: 220, y: 105 }, null);
+    expect(entered).toEqual({ axis: 'horizontal', point: { x: 220, y: 100 } });
+
+    const held = resolveWireAssist(anchor, { x: 220, y: 109 }, entered.axis);
+    expect(held).toEqual({ axis: 'horizontal', point: { x: 220, y: 100 } });
+
+    const exited = resolveWireAssist(anchor, { x: 220, y: 111 }, held.axis);
+    expect(exited).toEqual({ axis: null, point: { x: 220, y: 111 } });
+
+    expect(resolveWireAssist(anchor, { x: 220, y: 111 }, exited.axis).axis).toBeNull();
+  });
+
+  it('derives the full-stage construction axes without changing snap geometry', () => {
+    expect(
+      wireGuideAxes({
+        from: { x: 100, y: 220 },
+        to: { x: 600, y: 220 },
+      }),
+    ).toEqual([{ orientation: 'horizontal', coordinate: 220 }]);
+
+    expect(
+      wireGuideAxes({
+        from: { x: 100, y: 100 },
+        via: { x: 100, y: 220 },
+        to: { x: 600, y: 220 },
+      }),
+    ).toEqual([
+      { orientation: 'vertical', coordinate: 100 },
+      { orientation: 'horizontal', coordinate: 220 },
+    ]);
+  });
+
+  it('renders only the necessary full-stage guide axes', () => {
+    expect(wireGuideAxes({ from: { x: 20, y: 50 }, to: { x: 400, y: 50 } })).toEqual([
+      { orientation: 'horizontal', coordinate: 50 },
+    ]);
+
+    expect(
+      wireGuideAxes({
+        from: { x: 100, y: 120 },
+        via: { x: 100, y: 460 },
+        to: { x: 700, y: 460 },
+      }),
+    ).toEqual([
+      { orientation: 'vertical', coordinate: 100 },
+      { orientation: 'horizontal', coordinate: 460 },
+    ]);
+  });
+
+  it('keeps visible terminal and endpoint markers smaller than their collision targets', () => {
+    expect(TERMINAL_MARKER_SIZE).toBe(8);
+    expect(TERMINAL_HIT_RADIUS).toBe(9);
+    expect(TERMINAL_TOUCH_HIT_RADIUS).toBe(14);
+    expect(WIRE_ENDPOINT_VISIBLE_RADIUS).toBe(4);
+    expect(WIRE_ENDPOINT_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_VISIBLE_RADIUS);
+    expect(WIRE_ENDPOINT_TOUCH_HIT_RADIUS).toBeGreaterThan(WIRE_ENDPOINT_HIT_RADIUS);
+  });
+
+  it('soft-locks a dragged bend to one canonical elbow with hysteresis and Alt disable', () => {
+    const previous = { x: 100, y: 100 };
+    const next = { x: 220, y: 220 };
+
+    const entered = resolveWireVertexAssist(previous, next, { x: 106, y: 216 }, null);
+    expect(entered).toEqual({
+      target: 'previous-x-next-y',
+      point: { x: 100, y: 220 },
     });
-    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 94, y: 220 }, 10)).toEqual({
-      x: 100,
-      y: 220,
+
+    const held = resolveWireVertexAssist(previous, next, { x: 108, y: 228 }, entered.target);
+    expect(held).toEqual({
+      target: 'previous-x-next-y',
+      point: { x: 100, y: 220 },
     });
-    expect(magneticWirePoint({ x: 100, y: 100 }, { x: 220, y: 140 }, 10)).toEqual({
-      x: 220,
-      y: 140,
+
+    const exited = resolveWireVertexAssist(previous, next, { x: 113, y: 220 }, held.target);
+    expect(exited).toEqual({ target: null, point: { x: 113, y: 220 } });
+
+    const other = resolveWireVertexAssist(previous, next, { x: 216, y: 104 }, exited.target);
+    expect(other).toEqual({
+      target: 'next-x-previous-y',
+      point: { x: 220, y: 100 },
     });
+
+    expect(resolveWireVertexAssist(previous, next, { x: 102, y: 218 }, null, true)).toEqual({
+      target: null,
+      point: { x: 102, y: 218 },
+    });
+  });
+
+  it('keeps a free diagonal exact, supports vertical assist, and Alt-style disable wins', () => {
+    expect(resolveWireAssist({ x: 100, y: 100 }, { x: 220, y: 140 }, null)).toEqual({
+      axis: null,
+      point: { x: 220, y: 140 },
+    });
+    expect(resolveWireAssist({ x: 100, y: 100 }, { x: 104, y: 220 }, null)).toEqual({
+      axis: 'vertical',
+      point: { x: 100, y: 220 },
+    });
+    expect(resolveWireAssist({ x: 100, y: 100 }, { x: 220, y: 104 }, null, true)).toEqual({
+      axis: null,
+      point: { x: 220, y: 104 },
+    });
+  });
+
+  it('finishes every forced-orthogonal segment on the exact off-grid terminal', () => {
+    const start = { x: 0, y: 0 };
+    const target = { x: 103, y: 57 };
+    const vertices = completeOrthogonalRoute(start, target, []);
+    expect(vertices).toEqual([{ x: 103, y: 0 }]);
+
+    const route = [start, ...vertices, target];
+    for (let index = 1; index < route.length; index += 1) {
+      const previous = route[index - 1] as Point;
+      const current = route[index] as Point;
+      expect(current.x === previous.x || current.y === previous.y).toBe(true);
+    }
+    expect(route.at(-1)).toEqual(target);
+  });
+
+  it('orthogonalizes multi-bend fractional and negative routes without moving the terminal', () => {
+    const start = { x: -12.5, y: 7.25 };
+    const target = { x: 103.75, y: -57.5 };
+    const vertices = completeOrthogonalRoute(start, target, [
+      { x: 23.2, y: 19.9 },
+      { x: 23.2, y: -10.4 },
+    ]);
+    const route = [start, ...vertices, target];
+    for (let index = 1; index < route.length; index += 1) {
+      const previous = route[index - 1] as Point;
+      const current = route[index] as Point;
+      expect(current.x === previous.x || current.y === previous.y).toBe(true);
+    }
+    expect(route.at(-1)).toEqual(target);
   });
 
   it('moves a whole wire segment parallel and creates bends beside fixed terminals', () => {

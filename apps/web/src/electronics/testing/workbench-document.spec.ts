@@ -397,10 +397,20 @@ describe('Electronics M1 editor document operations', () => {
       { componentId: 'resistor', terminal: 'a' },
       'wire-1',
       '#e3212b',
+      [{ x: 333, y: 222 }],
     );
     expect(connected.kind).toBe('created');
     if (connected.kind !== 'created') return;
-    document = connected.document;
+    const external = connectTerminals(
+      connected.document,
+      { componentId: 'resistor', terminal: 'b' },
+      { componentId: 'led', terminal: 'a' },
+      'wire-external',
+      '#149447',
+    );
+    expect(external.kind).toBe('created');
+    if (external.kind !== 'created') return;
+    document = external.document;
     const selection = { kind: 'component' as const, id: 'source', ids: ['source', 'resistor'] };
     const rotated = rotateSelectionInDocument(document, selection);
     expect(
@@ -414,8 +424,17 @@ describe('Electronics M1 editor document operations', () => {
       'copy',
     );
     expect(duplicated?.document.components).toHaveLength(10);
-    expect(duplicated?.document.connections).toHaveLength(2);
+    expect(duplicated?.document.connections).toHaveLength(3);
     expect(duplicated?.components.map((item) => item.id)).toEqual(['copy-1', 'copy-2']);
+    const copiedWire = duplicated?.document.connections.find((wire) => wire.id === 'copy-wire-1');
+    expect(copiedWire?.from.componentId).toBe('copy-1');
+    expect(copiedWire?.to.componentId).toBe('copy-2');
+    expect(copiedWire?.vertices).toEqual([{ x: 361, y: 250 }]);
+    expect(
+      duplicated?.document.connections.some(
+        (wire) => wire.from.componentId.startsWith('copy-') && wire.to.componentId === 'led',
+      ),
+    ).toBe(false);
     const removed = removeSelectionFromDocument(document, selection);
     expect(removed.components.some((item) => selection.ids.includes(item.id))).toBe(false);
     expect(removed.connections).toHaveLength(0);

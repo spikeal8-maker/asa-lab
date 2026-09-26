@@ -26,7 +26,7 @@ large_sources:
     rationale: Active sidebar surface contains multiple inspector/library responsibilities and needs bounded responsibility review before further growth.
   - path: apps/web/src/electronics/use-electronics-workbench.ts
     class: decomposition-candidate
-    reviewed_bytes: 84980
+    reviewed_bytes: 103385
     rationale: Active workbench controller coordinates interaction and simulation concerns; E-OPT-3 is complete, while any structural extraction remains a separately selected E-OPT-7/maintenance responsibility change.
   - path: contexts/electronics/domain/arduino-program-runtime.ts
     class: decomposition-candidate
