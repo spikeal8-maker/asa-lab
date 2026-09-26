@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { PNG } from 'pngjs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -39,10 +40,23 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+function solidPng(red: number, green: number, blue: number): Buffer {
+  const image = new PNG({ width: 3, height: 3 });
+  for (let pixel = 0; pixel < 9; pixel += 1) {
+    const offset = pixel * 4;
+    image.data[offset] = red;
+    image.data[offset + 1] = green;
+    image.data[offset + 2] = blue;
+    image.data[offset + 3] = 255;
+  }
+  return PNG.sync.write(image);
+}
+
 async function createPublishedProjectActivity(
   title: string,
   moduleKey = 'electronics',
   brief = 'Соберите рабочую электрическую цепь.',
+  sample?: { readonly bytes: Buffer; readonly contentType: 'image/png' | 'image/jpeg' | 'image/webp' },
 ): Promise<void> {
   const identity = await admin.query(
     `SELECT principal_id FROM legacy_user_account_links
@@ -75,10 +89,27 @@ async function createPublishedProjectActivity(
         `vs002:e2e:create:${++sequence}`,
       ],
     );
-    await client.query(`SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)`, [
+    let revision = 1;
+    if (sample) {
+      const media = await client.query(
+        `SELECT * FROM learning_activity_draft_sample_set($1,$2,$3,$4,$5,$6)`,
+        [
+          principalId,
+          teacher.tenantId,
+          created.rows[0].activity_id,
+          revision,
+          sample.bytes,
+          sample.contentType,
+        ],
+      );
+      expect(media.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+      revision = Number(media.rows[0].draft_revision);
+    }
+    await client.query(`SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)`, [
       principalId,
       teacher.tenantId,
       created.rows[0].activity_id,
+      revision,
       `vs002:e2e:publish:${++sequence}`,
     ]);
     await client.query('COMMIT');
