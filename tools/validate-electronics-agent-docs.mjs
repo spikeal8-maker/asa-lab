@@ -406,7 +406,7 @@ function validateMaintenanceExecutionSpec() {
       errors.push(`maintenance execution specification missing work package heading: ${id}`);
     }
   }
-  if (/^## WP-[^\\n]*\\.\\.N\\b/m.test(spec)) {
+  if (/^## WP-[^\n]*\.\.N\b/m.test(spec)) {
     errors.push(
       'maintenance execution specification must use stable repeatable WP family IDs, not ..N headings',
     );

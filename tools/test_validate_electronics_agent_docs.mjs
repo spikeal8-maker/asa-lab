@@ -87,7 +87,7 @@ function check(mutate = () => {}, args = []) {
       'WP-ART-03',
       '## 11. Repository integration contract',
       '',
-    ].join('\\n');
+    ].join('\n');
     fixture.files[`${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`] = '# Hygiene contract\n';
     fixture.files[`${docs}/evidence/hygiene-baseline.yaml`] = YAML.stringify({
       schema_version: '1.0.0',
@@ -105,7 +105,7 @@ function check(mutate = () => {}, args = []) {
       fixture.files[`${docs}/tasks/${kind}_TASK_TEMPLATE.md`] = '# Template\n';
     }
     fixture.files[`${docs}/tasks/MAINTENANCE_TASK_TEMPLATE.md`] =
-      '# Template\\nASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md\\n';
+      '# Template\nASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md\n';
     mutate(fixture, component);
     put(`${docs}/COMPONENT_MAP.yaml`, YAML.stringify(fixture.map));
     put(`${docs}/components/example.yaml`, YAML.stringify(fixture.card));
@@ -153,7 +153,7 @@ test('rejects ranged repeatable work-package IDs', () => {
 test('rejects cleanup sequence that skips stale-state prevention', () => {
   const result = check((f) => {
     const path = `${docs}/ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md`;
-    f.files[path] = f.files[path].replace('WP-HYG-02\\n', '');
+    f.files[path] = f.files[path].replace('WP-HYG-02\n', '');
   });
   assert.equal(result.status, 1, result.output);
   assert.match(result.output, /WP-HYG-01 then WP-HYG-02 before WP-ART-03/);
@@ -161,10 +161,10 @@ test('rejects cleanup sequence that skips stale-state prevention', () => {
 
 test('rejects literal backslash-n in Electronics cleanup routing table', () => {
   const result = check((f) => {
-    f.files[`${docs}/START_HERE.md`] += '| broken |\\\\n| row |\n';
+    f.files[`${docs}/START_HERE.md`] += '| broken |\\n| row |\n';
   });
   assert.equal(result.status, 1, result.output);
-  assert.match(result.output, /literal \\\\n/);
+  assert.match(result.output, /literal \\n/);
 });
 
 test('accepts exact canonical EOPT1A selection and mapped contract/source/test', () => {
