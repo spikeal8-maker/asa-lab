@@ -24,14 +24,7 @@ describe('UX1A4 task image reference window geometry', () => {
     expect(moved.x).toBeLessThan(start.x);
     expect(moved.y).toBeGreaterThan(start.y);
 
-    const resized = resizeTaskImageReferenceRect(
-      moved,
-      'bottom-right',
-      120,
-      80,
-      1440,
-      900,
-    );
+    const resized = resizeTaskImageReferenceRect(moved, 'bottom-right', 120, 80, 1440, 900);
     expect(resized.width).toBeGreaterThan(moved.width);
     expect(resized.height).toBeGreaterThan(moved.height);
 
