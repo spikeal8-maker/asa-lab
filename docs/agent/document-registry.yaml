@@ -107,6 +107,22 @@ documents:
       - host_migration
       - new_self_hosted_project
 
+  - id: ADR-PORTABLE-DEPLOYMENT-TRANSITION-001
+    path: docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md
+    scope: deployment
+    lanes: ['*']
+    kind: architecture_exception
+    status: canonical
+    authority: asa_portable_deployment_transition_exception
+    revision: '1.0'
+    context_role: escalation
+    read_when:
+      - installation
+      - update
+      - network_entry
+      - host_migration
+      - portable_deployment_compliance
+
   - id: PORTABLE-DEPLOYMENT-PLAN
     path: docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md
     scope: deployment
