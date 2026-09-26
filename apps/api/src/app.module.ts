@@ -9,7 +9,6 @@ import {
   PgSessionStore,
   PgSessionV2Store,
   PgTenantLocator,
-  PgUserDirectory,
   RegisterAccountUseCase,
   SessionUseCase,
 } from '@asa-lab/identity';
@@ -221,8 +220,8 @@ export class AppModule {
           useFactory: () =>
             new LoginUseCase(
               new PgTenantLocator(requirePool()),
-              new PgUserDirectory(requirePool()),
-              new PgSessionStore(requirePool()),
+              new PgAccountDirectory(requirePool()),
+              new PgSessionV2Store(requirePool()),
             ),
         },
         {

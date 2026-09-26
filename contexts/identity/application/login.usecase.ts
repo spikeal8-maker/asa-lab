@@ -1,28 +1,34 @@
 import { verifyAgainstDecoy, verifyPasswordAsync } from '../domain/password.js';
 import { createSessionToken, hashSessionToken } from '../domain/session-token.js';
 import { isValidEmail, isValidWorkspace, normalizeEmail } from '../domain/validation.js';
-import type {
-  SessionContext,
-  SessionStorePort,
-  TenantLocatorPort,
-  UserDirectoryPort,
-} from './ports.js';
+import type { AccountDirectoryPort, SessionV2StorePort } from './account.ports.js';
+import type { TenantLocatorPort } from './ports.js';
+import { SESSION_TTL_HOURS } from './register-account.usecase.js';
 
 export type LoginResult =
-  | { readonly ok: true; readonly token: string; readonly context: SessionContext }
+  | {
+      readonly ok: true;
+      readonly token: string;
+      readonly accountId: string;
+      readonly workspaceId: string;
+    }
   | { readonly ok: false; readonly code: 'validation_error' | 'invalid_credentials' };
 
-const SESSION_TTL_HOURS = 12;
+type OrganizationLoginAccounts = Pick<
+  AccountDirectoryPort,
+  'findByEmail' | 'workspaces' | 'personalWorkspace' | 'legacyActor' | 'accountForUser'
+>;
+type OrganizationLoginSessions = Pick<SessionV2StorePort, 'create'>;
 
 /**
- * Teacher login. The workspace slug locates the tenant; afterwards the tenant
- * context comes exclusively from the stored server-side session.
+ * Organization compatibility login. The workspace slug selects an active
+ * organization context, while the Account remains the sole password authority.
  */
 export class LoginUseCase {
   constructor(
     private readonly tenants: TenantLocatorPort,
-    private readonly users: UserDirectoryPort,
-    private readonly sessions: SessionStorePort,
+    private readonly accounts: OrganizationLoginAccounts,
+    private readonly sessions: OrganizationLoginSessions,
   ) {}
 
   async execute(input: {
@@ -30,9 +36,6 @@ export class LoginUseCase {
     email: unknown;
     password: unknown;
   }): Promise<LoginResult> {
-    // Normalize identifiers before validation and lookup: workspace and email
-    // are case-insensitive locators. The password is used verbatim (no trim)
-    // and is never logged.
     const workspace =
       typeof input.workspace === 'string' ? input.workspace.trim().toLowerCase() : input.workspace;
     const email = typeof input.email === 'string' ? normalizeEmail(input.email) : input.email;
@@ -44,32 +47,61 @@ export class LoginUseCase {
     ) {
       return { ok: false, code: 'validation_error' };
     }
+
     const tenantId = await this.tenants.findTenantIdBySlug(workspace);
     if (tenantId === null) {
       return { ok: false, code: 'invalid_credentials' };
     }
-    const user = await this.users.findActiveTeacherByEmail(tenantId, email);
-    // A missing user still pays for a hash, so response time does not reveal
-    // whether the address belongs to anybody in this workspace.
-    if (user === null) {
+
+    const account = await this.accounts.findByEmail(email);
+    if (account === null) {
       await verifyAgainstDecoy(input.password);
       return { ok: false, code: 'invalid_credentials' };
     }
-    if (!(await verifyPasswordAsync(input.password, user.passwordHash))) {
+    if (!(await verifyPasswordAsync(input.password, account.passwordHash))) {
       return { ok: false, code: 'invalid_credentials' };
     }
+
+    const organization = (await this.accounts.workspaces(account.id)).find(
+      (candidate) => candidate.kind === 'organization' && candidate.tenantId === tenantId,
+    );
+    if (!organization) {
+      return { ok: false, code: 'invalid_credentials' };
+    }
+
+    // The principal is account-wide. Canonical Accounts resolve it through
+    // their personal workspace. A narrow compatibility fallback keeps historic
+    // linked teacher rows usable without consulting their legacy password hash.
+    const personal = await this.accounts.personalWorkspace(account.id);
+    let principalId = personal?.principalId ?? null;
+    if (principalId === null) {
+      const legacy = await this.accounts.legacyActor(account.id);
+      if (!legacy || legacy.tenantId !== tenantId) {
+        return { ok: false, code: 'invalid_credentials' };
+      }
+      const linked = await this.accounts.accountForUser(legacy.tenantId, legacy.userId);
+      if (
+        !linked ||
+        linked.accountId !== account.id ||
+        linked.workspaceId !== organization.workspaceId
+      ) {
+        return { ok: false, code: 'invalid_credentials' };
+      }
+      principalId = linked.principalId;
+    }
+
     const token = createSessionToken();
-    await this.sessions.create(tenantId, user.id, hashSessionToken(token), SESSION_TTL_HOURS);
+    await this.sessions.create(
+      principalId,
+      organization.workspaceId,
+      hashSessionToken(token),
+      SESSION_TTL_HOURS,
+    );
     return {
       ok: true,
       token,
-      context: {
-        tenantId,
-        userId: user.id,
-        email: user.email,
-        displayName: user.displayName,
-        schoolId: user.schoolId,
-      },
+      accountId: account.id,
+      workspaceId: organization.workspaceId,
     };
   }
 }
