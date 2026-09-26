@@ -14,7 +14,7 @@ from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, a
                                   validate_release, verify_backup)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
-from deployment.releases import assert_ci
+from deployment.releases import assert_ci, validate_resolved_images
 import asa_manager
 
 
@@ -73,6 +73,23 @@ class WindowTests(unittest.TestCase):
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_minio_init_must_use_the_verified_server_image(self):
+        from unittest.mock import MagicMock
+        candidate = release()
+        services = {name: {"image": candidate["images"][name]} for name in SERVICES}
+        services["migration"] = {"image": candidate["images"]["api"]}
+        services["minio-init"] = {"image": candidate["images"]["minio"]}
+        services["postgres"] = {"environment": {}}
+        config = {"services": services}
+        install = MagicMock(profile="dev")
+        install.compose.return_value = json.dumps(config)
+        with patch("deployment.releases.attest_embedded_editor"), patch("deployment.releases.attest_database_targets"):
+            self.assertEqual(validate_resolved_images(install, candidate), config)
+            services["minio-init"]["image"] = "docker.io/minio/mc:unverified"
+            install.compose.return_value = json.dumps(config)
+            with self.assertRaisesRegex(Blocked, "minio-init"):
+                validate_resolved_images(install, candidate)
+
     def test_publication_and_general_ci_must_both_match(self):
         publication = {"name": "Release " + "a" * 40, "path": ".github/workflows/portable-release.yml",
                        "display_title": "Release " + "a" * 40, "head_branch": "main",
