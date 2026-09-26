@@ -432,9 +432,7 @@ export function AssignmentBrief({
                   <button
                     type="button"
                     className="assignment-brief-reference-open"
-                    onClick={() =>
-                      setReferenceOwner({ projectId, assignmentId: assignment.id })
-                    }
+                    onClick={() => setReferenceOwner({ projectId, assignmentId: assignment.id })}
                   >
                     Открыть отдельно
                   </button>
