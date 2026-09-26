@@ -59,6 +59,12 @@
   line-height: 1.4;
 }
 
+.assignment-view-sample-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 /* Образец во весь экран: в колонке его не разглядеть. */
 .assignment-lightbox {
   position: fixed;

@@ -55,12 +55,15 @@ export function AssignmentView({
   assignment,
   compact = false,
   aside,
+  sampleAction,
 }: {
   readonly assignment: AssignmentViewData;
   /** В узкой колонке образец и текст идут друг под другом. */
   readonly compact?: boolean;
   /** Что показать рядом с заданием: работу ученика, отклик, кнопки. */
   readonly aside?: ReactNode;
+  /** Optional action that belongs specifically to the visible sample image. */
+  readonly sampleAction?: ReactNode;
 }): JSX.Element {
   const [zoomed, setZoomed] = useState(false);
 
@@ -89,6 +92,9 @@ export function AssignmentView({
                 <img src={assignment.sampleImage} alt={`Образец: ${assignment.title}`} />
               </button>
               <figcaption>Что должно получиться · нажмите, чтобы рассмотреть</figcaption>
+              {sampleAction ? (
+                <div className="assignment-view-sample-action">{sampleAction}</div>
+              ) : null}
             </figure>
           ) : null}
           {aside}
