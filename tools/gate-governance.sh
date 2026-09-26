@@ -50,6 +50,8 @@ run "$PYTHON" tools/test_agent_context.py
 run "$PYTHON" tools/test_agent_targeted_context.py
 run "$PYTHON" tools/test_validate_document_registry.py
 run "$PYTHON" tools/validate_document_registry.py
+run "$PYTHON" tools/test_validate_portable_deployment_standard.py
+run "$PYTHON" tools/validate_portable_deployment_standard.py
 run "$PYTHON" tools/test_validate_task_document_refs.py
 run "$PYTHON" tools/validate_task_document_refs.py
 run "$PYTHON" tools/test_validate_learning_spec_rebaseline.py
