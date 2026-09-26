@@ -88,8 +88,8 @@ def validate_root(root: Path) -> list[str]:
 
     if contract.get("schema_version") != "1.0.0":
         errors.append(f"{CONTRACT}: schema_version must be 1.0.0")
-    if contract.get("contract_id") != "DEPLOYMENT-PORTABILITY":
-        errors.append(f"{CONTRACT}: contract_id must be DEPLOYMENT-PORTABILITY")
+    if contract.get("contract_id") != "DEPLOYMENT-DOMAIN":
+        errors.append(f"{CONTRACT}: contract_id must be DEPLOYMENT-DOMAIN")
     if contract.get("registry_document_id") != "PORTABLE-DEPLOYMENT-CONTRACT":
         errors.append(f"{CONTRACT}: registry_document_id mismatch")
     if contract.get("master_documents") != ["PORTABLE-DEPLOYMENT-STANDARD"]:
