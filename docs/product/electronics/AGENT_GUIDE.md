@@ -87,6 +87,12 @@ Exceeding a budget is not automatically forbidden, but the task card must explai
 
 May repair/refine an already implemented capability. Must not begin a future roadmap capability, change architecture to make the fix easier, or deploy. Cleanup/decomposition work also follows the [engineering hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md): never delete by appearance, record deletion proof, and treat large-file thresholds as review triggers rather than automatic split orders.
 
+When the selected task belongs to the Electronics cleanup/optimization programme, its card
+must cite exactly one work package from
+[ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md).
+Read only that selected `WP-*` section plus the mapped component/contract context. The programme
+specification never selects the next task and must not be used to batch adjacent cleanup work.
+
 ### `implementation`
 
 May implement exactly one selected roadmap slice. The task must name its prerequisite acceptance. Completion never authorises the next roadmap slice.

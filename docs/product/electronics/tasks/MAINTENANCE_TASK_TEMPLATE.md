@@ -63,6 +63,12 @@ Default budget: one component, ≤5 production files, ≤2 focused test files.
 
 If this maintenance task removes legacy/dead code or decomposes a hotspot, also read [ENGINEERING_HYGIENE_CONTRACT](../contracts/ENGINEERING_HYGIENE_CONTRACT.md) and the current `../evidence/hygiene-baseline.yaml`.
 
+If this task is part of the cleanup/optimization programme, add exactly one prerequisite
+link to the selected `WP-*` section in
+[ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md](../ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md).
+One concrete task card owns one primary work-package outcome; if the work package cannot fit the
+bounded task budget, split it into sequential cards rather than combining neighbouring packages.
+
 Before deletion, record the required runtime/import/export/persistence/contract/ownership/replacement/test evidence. Unknown evidence means classify the artifact and STOP deletion.
 
 For a source above 50,000 bytes, the size is a review trigger rather than an automatic split order. If the file grew beyond 20% of its reviewed baseline, update the baseline only after a selected bounded responsibility review.
