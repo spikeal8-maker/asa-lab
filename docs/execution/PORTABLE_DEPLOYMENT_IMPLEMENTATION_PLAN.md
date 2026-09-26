@@ -3,7 +3,8 @@
 **Issue:** #396  
 **Branch for Slice 1:** architecture/portable-deployment-standard-396  
 **Canonical standard:** docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md  
-**Compact contract:** docs/agent/contracts/deployment.yaml
+**Compact contract:** docs/agent/contracts/deployment.yaml  
+**Transition exception:** docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md
 
 ## 1. Purpose
 
@@ -31,6 +32,16 @@ Confirmed gaps/debt:
 5. `apps/web/src/components/StudentAccessCards.tsx` contains the fixed public origin `https://asa-lab.ru`.
 6. `tools/blocks/portable-smoke.mjs` proves the editor journey through `127.0.0.1:4610`, not through a real LAN/public entry.
 
+## 2.1. Current compliance status
+
+`COMPLIANCE_STATUS = TRANSITIONAL_NON_COMPLIANT`.
+
+Known active MUST deviations are versioned in
+`docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md`.
+That ADR is the DPL-EXC-001 bridge for the current baseline; it blocks a full-compliance claim while preserving the existing fail-closed EntryOrigin/origin guards until their bounded replacement is proven.
+
+The audit-only items below are not silently waived: if an audit confirms another MUST deviation, the transition exception must be revised before any compliance claim.
+
 Items requiring dedicated audit before claiming compliance:
 
 - configuration schema/version migration;
@@ -54,7 +65,7 @@ Deliverables:
 - governance validator + tests;
 - this implementation plan.
 
-Acceptance: governance gate fails if the standard, machine contract, routing or requirement-ID parity drifts.
+Acceptance: governance gate fails if the standard, machine contract, transition status, routing, requirement IDs, normative levels or exact master_refs drift. Natural-language semantic equivalence remains an explicit L3 review responsibility.
 
 ### P1 — Dynamic entry/origin convergence
 
