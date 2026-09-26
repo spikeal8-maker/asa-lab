@@ -407,7 +407,9 @@ function validateMaintenanceExecutionSpec() {
     }
   }
   if (/^## WP-[^\\n]*\\.\\.N\\b/m.test(spec)) {
-    errors.push('maintenance execution specification must use stable repeatable WP family IDs, not ..N headings');
+    errors.push(
+      'maintenance execution specification must use stable repeatable WP family IDs, not ..N headings',
+    );
   }
 
   const sequenceStart = spec.indexOf('## 10. Recommended immediate sequence');
@@ -420,7 +422,9 @@ function validateMaintenanceExecutionSpec() {
   const hyg02 = sequence.indexOf('WP-HYG-02');
   const art03 = sequence.indexOf('WP-ART-03');
   if (!(hyg01 >= 0 && hyg02 > hyg01 && art03 > hyg02)) {
-    errors.push('recommended cleanup sequence must complete WP-HYG-01 then WP-HYG-02 before WP-ART-03');
+    errors.push(
+      'recommended cleanup sequence must complete WP-HYG-01 then WP-HYG-02 before WP-ART-03',
+    );
   }
 }
 
