@@ -64,6 +64,30 @@ function check(mutate = () => {}, args = []) {
     ]) {
       fixture.files[`${docs}/${name}.md`] = '# Fixture\n';
     }
+    const maintenanceSpecName = 'ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md';
+    fixture.files[`${docs}/START_HERE.md`] = `# Fixture\n${maintenanceSpecName}\n`;
+    fixture.files[`${docs}/AGENT_GUIDE.md`] = `# Fixture\n${maintenanceSpecName}\n`;
+    fixture.files[`${docs}/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md`] =
+      `# Fixture\n${maintenanceSpecName}\n`;
+    fixture.files[`${docs}/${maintenanceSpecName}`] = [
+      '# Maintenance fixture',
+      '## WP-HYG-01 — fixture',
+      '## WP-HYG-02 — fixture',
+      '## WP-ART-03 — fixture',
+      '## WP-ASSET-01 — fixture',
+      '## WP-ASSET-02 — fixture',
+      '## WP-TEST-MIGRATE — fixture',
+      '## WP-CTRL-EXTRACT — fixture',
+      '## WP-STAGE-EXTRACT — fixture',
+      '## WP-SOLVER-MIGRATE — fixture',
+      '## WP-ARD-CONVERGE — fixture',
+      '## 10. Recommended immediate sequence',
+      'WP-HYG-01',
+      'WP-HYG-02',
+      'WP-ART-03',
+      '## 11. Repository integration contract',
+      '',
+    ].join('\\n');
     fixture.files[`${docs}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`] = '# Hygiene contract\n';
     fixture.files[`${docs}/evidence/hygiene-baseline.yaml`] = YAML.stringify({
       schema_version: '1.0.0',
@@ -80,6 +104,8 @@ function check(mutate = () => {}, args = []) {
     for (const kind of ['IMPLEMENTATION', 'MAINTENANCE', 'DESIGN', 'DEPLOYMENT']) {
       fixture.files[`${docs}/tasks/${kind}_TASK_TEMPLATE.md`] = '# Template\n';
     }
+    fixture.files[`${docs}/tasks/MAINTENANCE_TASK_TEMPLATE.md`] =
+      '# Template\\nASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md\\n';
     mutate(fixture, component);
     put(`${docs}/COMPONENT_MAP.yaml`, YAML.stringify(fixture.map));
     put(`${docs}/components/example.yaml`, YAML.stringify(fixture.card));
@@ -103,6 +129,43 @@ function check(mutate = () => {}, args = []) {
     rmSync(root, { recursive: true, force: true });
   }
 }
+
+test('rejects missing Electronics maintenance execution specification', () => {
+  const result = check((f) => {
+    delete f.files[`${docs}/ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md`];
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /missing maintenance execution specification/);
+});
+
+test('rejects ranged repeatable work-package IDs', () => {
+  const result = check((f) => {
+    const path = `${docs}/ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md`;
+    f.files[path] = f.files[path].replace(
+      '## WP-TEST-MIGRATE — fixture',
+      '## WP-TEST-02..N — fixture',
+    );
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /stable repeatable WP family IDs/);
+});
+
+test('rejects cleanup sequence that skips stale-state prevention', () => {
+  const result = check((f) => {
+    const path = `${docs}/ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md`;
+    f.files[path] = f.files[path].replace('WP-HYG-02\\n', '');
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /WP-HYG-01 then WP-HYG-02 before WP-ART-03/);
+});
+
+test('rejects literal backslash-n in Electronics cleanup routing table', () => {
+  const result = check((f) => {
+    f.files[`${docs}/START_HERE.md`] += '| broken |\\\\n| row |\n';
+  });
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /literal \\\\n/);
+});
 
 test('accepts exact canonical EOPT1A selection and mapped contract/source/test', () => {
   assert.equal(check().status, 0);

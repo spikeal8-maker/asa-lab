@@ -33,7 +33,8 @@ programme but never activates a work package by itself.
 
 | Task kind | Next document |
 | --- | --- |
-| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); ordinary cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |\n| cleanup / optimization programme | Selected concrete task card → exact `WP-*` in [maintenance execution specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md) → [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) when deletion/decomposition/legacy applies |
+| `maintenance` / `repair` | Selected bounded card using [maintenance template](tasks/MAINTENANCE_TASK_TEMPLATE.md); ordinary cleanup/decomposition also reads the [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) |
+| cleanup / optimization programme | Selected concrete task card → exact `WP-*` in [maintenance execution specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md) → [hygiene contract](contracts/ENGINEERING_HYGIENE_CONTRACT.md) when deletion/decomposition/legacy applies |
 | `implementation` or `component/peripheral` | Selected concrete card and its exact [roadmap](ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md) stage; [implementation template](tasks/IMPLEMENTATION_TASK_TEMPLATE.md) |
 | `analysis/inventory` | Selected concrete inventory card; [read-only contract](AGENT_GUIDE.md#analysisinventory) |
 | `design-decision` | Selected concrete card using [design template](tasks/DESIGN_TASK_TEMPLATE.md) |

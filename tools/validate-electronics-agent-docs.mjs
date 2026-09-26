@@ -20,6 +20,7 @@ const hygieneCountedTaskKinds = [
 ];
 const hygieneContractPath = `${docsRoot}/contracts/ENGINEERING_HYGIENE_CONTRACT.md`;
 const hygieneBaselinePath = `${docsRoot}/evidence/hygiene-baseline.yaml`;
+const maintenanceSpecPath = `${docsRoot}/ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md`;
 const hygieneSourceRoots = ['contexts/electronics/domain', 'apps/web/src/electronics'];
 const hygieneSourceExtensions = new Set(['.ts', '.tsx', '.js', '.mjs', '.css']);
 const hygieneLifecycleClasses = new Set([
@@ -359,6 +360,70 @@ function nonEmptyString(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function validateMaintenanceExecutionSpec() {
+  const startHerePath = `${docsRoot}/START_HERE.md`;
+  const agentGuidePath = `${docsRoot}/AGENT_GUIDE.md`;
+  const maintenanceTemplatePath = `${docsRoot}/tasks/MAINTENANCE_TASK_TEMPLATE.md`;
+  const roadmapPath = `${docsRoot}/ASA_ELECTRONICS_OPTIMIZATION_PLAN_V2.md`;
+  const requiredRoutePaths = [startHerePath, agentGuidePath, maintenanceTemplatePath, roadmapPath];
+
+  if (!existsSync(resolve(root, maintenanceSpecPath))) {
+    errors.push(`missing maintenance execution specification: ${maintenanceSpecPath}`);
+    return;
+  }
+
+  const spec = readFileSync(resolve(root, maintenanceSpecPath), 'utf8');
+  const specName = 'ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md';
+  for (const path of requiredRoutePaths) {
+    if (!existsSync(resolve(root, path))) continue;
+    const content = readFileSync(resolve(root, path), 'utf8');
+    if (!content.includes(specName)) {
+      errors.push(`Electronics cleanup routing must reference ${specName}: ${path}`);
+    }
+  }
+
+  const startHere = existsSync(resolve(root, startHerePath))
+    ? readFileSync(resolve(root, startHerePath), 'utf8')
+    : '';
+  if (startHere.includes('|\\n|')) {
+    errors.push('START_HERE contains a literal \\n inside the cleanup routing table');
+  }
+
+  const requiredWorkPackages = [
+    'WP-HYG-01',
+    'WP-HYG-02',
+    'WP-ART-03',
+    'WP-ASSET-01',
+    'WP-ASSET-02',
+    'WP-TEST-MIGRATE',
+    'WP-CTRL-EXTRACT',
+    'WP-STAGE-EXTRACT',
+    'WP-SOLVER-MIGRATE',
+    'WP-ARD-CONVERGE',
+  ];
+  for (const id of requiredWorkPackages) {
+    if (!new RegExp(`^## ${id}\\b`, 'm').test(spec)) {
+      errors.push(`maintenance execution specification missing work package heading: ${id}`);
+    }
+  }
+  if (/^## WP-[^\\n]*\\.\\.N\\b/m.test(spec)) {
+    errors.push('maintenance execution specification must use stable repeatable WP family IDs, not ..N headings');
+  }
+
+  const sequenceStart = spec.indexOf('## 10. Recommended immediate sequence');
+  const sequenceEnd = spec.indexOf('## 11. Repository integration contract');
+  const sequence =
+    sequenceStart >= 0
+      ? spec.slice(sequenceStart, sequenceEnd > sequenceStart ? sequenceEnd : undefined)
+      : '';
+  const hyg01 = sequence.indexOf('WP-HYG-01');
+  const hyg02 = sequence.indexOf('WP-HYG-02');
+  const art03 = sequence.indexOf('WP-ART-03');
+  if (!(hyg01 >= 0 && hyg02 > hyg01 && art03 > hyg02)) {
+    errors.push('recommended cleanup sequence must complete WP-HYG-01 then WP-HYG-02 before WP-ART-03');
+  }
+}
+
 function validateHygieneBaseline() {
   const baseline = readYaml(hygieneBaselinePath);
   if (!baseline) return;
@@ -605,6 +670,7 @@ for (const required of [
   `${docsRoot}/tasks/E-OPT-1A.md`,
   hygieneContractPath,
   hygieneBaselinePath,
+  maintenanceSpecPath,
 ]) {
   if (!existsSync(resolve(root, required))) {
     errors.push(`missing required routing document: ${required}`);
@@ -685,6 +751,7 @@ if (map) {
   validateDependencyCycles(map, cards);
 }
 
+validateMaintenanceExecutionSpec();
 validateHygieneBaseline();
 
 const taskCards = readTaskCards();
