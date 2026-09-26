@@ -64,13 +64,15 @@ async function createPublishedProjectActivity(
     [teacher.tenantId, teacher.teacherId],
   );
   const principalId = identity.rows[0].principal_id as string;
-  const authored = await admin.query(
-    `INSERT INTO teacher_assignments
-       (tenant_id,owner_principal_id,title,brief,module_key,visibility)
-     VALUES ($1,$2,$3,$4,$5,'private')
-     RETURNING id`,
-    [teacher.tenantId, principalId, title, brief, moduleKey],
-  );
+  const authored = sample
+    ? null
+    : await admin.query(
+        `INSERT INTO teacher_assignments
+           (tenant_id,owner_principal_id,title,brief,module_key,visibility)
+         VALUES ($1,$2,$3,$4,$5,'private')
+         RETURNING id`,
+        [teacher.tenantId, principalId, title, brief, moduleKey],
+      );
   const client = await admin.connect();
   try {
     await client.query('BEGIN');
@@ -85,7 +87,7 @@ async function createPublishedProjectActivity(
         title,
         JSON.stringify(policies),
         moduleKey,
-        authored.rows[0].id,
+        authored?.rows[0]?.id ?? null,
         `vs002:e2e:create:${++sequence}`,
       ],
     );
