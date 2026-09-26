@@ -18,6 +18,12 @@ AGENTS.md
 Для установки, расписания обновлений и полного экспорта данных входная точка —
 [`PORTABLE_OPERATIONS.md`](docs/deployment/PORTABLE_OPERATIONS.md). Сначала найдите
 канонический каталог PostgreSQL; не разворачивайте вторую копию из worktree.
+Для любых изменений install/update/backup/restore, сетевого входа, origin/ports,
+переноса на другой host или добавления нового self-hosted сервиса также обязательны
+[Portable Self-Hosted Deployment Standard](docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md)
+и компактный [deployment contract](docs/agent/contracts/deployment.yaml). Они отделяют
+application identity от machine/network identity и запрещают лечить переносимость
+ручной прошивкой IP/домена или отключением browser security.
 GitHub-first protocol задаёт рабочую модель: GitHub хранит каноническое состояние и
 изменения, локальный компьютер используется только как короткий runner, а тяжёлые
 production Docker/browser/data evidence выполняются в GitHub Actions. Политика не
