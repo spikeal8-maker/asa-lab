@@ -79,12 +79,12 @@ invariants:
     forbid: [silent_port_reallocation]
   - id: DPL-NET-006
     level: SHOULD
-    statement: Embedded components use the primary browser origin unless an explicit reviewed exception requires cross-origin deployment.
+    statement: Embedded editors and project modules SHOULD use the primary application browser origin; a separate origin requires an architecture exception and explicit cross-origin security and cross-origin testing.
     master_refs:
       - document: PORTABLE-DEPLOYMENT-STANDARD
         section: DPL-NET-006
     applies_to: [iframe, scratch, cad, embedded_editor]
-    forbid: [unreviewed_second_origin]
+    forbid: [unreviewed_second_origin, separate_origin_without_cross_origin_security, separate_origin_without_cross_origin_tests]
   - id: DPL-SEC-001
     level: MUST
     statement: Embedded messaging validates source, exact allowed origin, protocol/schema and active capability/session.
@@ -119,12 +119,12 @@ invariants:
     forbid: [silent_unknown_config, config_reset_on_update]
   - id: DPL-SEC-003
     level: MUST
-    statement: Secrets have protected storage/export/rotation semantics and survive routine updates.
+    statement: Secrets MUST be generated and stored separately from ordinary public configuration, survive routine updates, never be committed to source control, and have explicit rotation and protected export and restore semantics.
     master_refs:
       - document: PORTABLE-DEPLOYMENT-STANDARD
         section: DPL-SEC-003
     applies_to: [secrets, backup, restore, update]
-    forbid: [secret_in_git, regenerate_secret_on_update, plaintext_export]
+    forbid: [secret_in_git, regenerate_secret_on_update, plaintext_export, secret_in_public_configuration, unprotected_secret_export_or_restore]
   - id: DPL-DAT-001
     level: MUST
     statement: Persistent user data is outside replaceable runtime containers.
@@ -159,7 +159,7 @@ invariants:
     forbid: [manual_compose_edit_for_update, manual_internal_origin_edit_for_update]
   - id: DPL-UPD-002
     level: MUST
-    statement: Update persists recoverable state and supports idempotent retry/recovery.
+    statement: Update MUST persist state distinguishing preflight, prepared, backed-up, switching, verifying, accepted and failed; retry and recovery MUST be idempotent and MUST NOT depend on chat history or operator memory.
     master_refs:
       - document: PORTABLE-DEPLOYMENT-STANDARD
         section: DPL-UPD-002
@@ -183,20 +183,20 @@ invariants:
     forbid: [independent_unrelated_backups_claimed_consistent, untested_restore]
   - id: DPL-MIG-001
     level: MUST
-    statement: Released migrations are immutable and upgrades are tested from supported prior histories.
+    statement: Released database migrations MUST remain immutable; upgrade tests MUST cover supported prior installation histories, not only an empty database; incompatible-schema recovery MUST use a defined forward repair or verified backup procedure.
     master_refs:
       - document: PORTABLE-DEPLOYMENT-STANDARD
         section: DPL-MIG-001
     applies_to: [migration, database, update]
-    forbid: [edit_released_migration, empty_db_only_upgrade_evidence]
+    forbid: [edit_released_migration, empty_db_only_upgrade_evidence, incompatible_schema_without_forward_repair_or_verified_backup]
   - id: DPL-MOV-001
     level: MUST
-    statement: Self-hosted distribution defines host export/restore without carrying old dynamic network identity as application identity.
+    statement: A maintained self-hosted product MUST define host export/restore or equivalent migration that preserves persistent data, required secrets and release/install identity without carrying the old DHCP/LAN address as application identity.
     master_refs:
       - document: PORTABLE-DEPLOYMENT-STANDARD
         section: DPL-MOV-001
     applies_to: [host_migration, export, restore]
-    forbid: [old_dhcp_address_required_after_restore]
+    forbid: [old_dhcp_address_required_after_restore, old_dhcp_or_lan_address_as_application_identity, host_migration_loses_persistent_data, host_migration_loses_required_secrets, host_migration_loses_release_or_install_identity]
   - id: DPL-TST-001
     level: MUST
     statement: Infrastructure health alone is never reported as full product acceptance.
@@ -231,9 +231,9 @@ invariants:
     forbid: [ordinary_owner_requires_low_level_docker_sequence]
   - id: DPL-EXC-001
     level: MUST
-    statement: A MUST deviation requires a versioned architecture exception with risk, compensating controls, owner and verification.
+    statement: Any intentional deviation from a MUST requirement MUST have a versioned architecture exception/ADR with scope, reason, risk, compensating controls, owner and verification; silent exceptions are non-compliant.
     master_refs:
       - document: PORTABLE-DEPLOYMENT-STANDARD
         section: DPL-EXC-001
     applies_to: [architecture, compliance]
-    forbid: [silent_exception]
+    forbid: [silent_exception, incomplete_exception_metadata]

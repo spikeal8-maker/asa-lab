@@ -114,7 +114,7 @@ documents:
     kind: architecture_exception
     status: canonical
     authority: asa_portable_deployment_transition_exception
-    revision: '1.0'
+    revision: '1.1'
     context_role: escalation
     read_when:
       - installation

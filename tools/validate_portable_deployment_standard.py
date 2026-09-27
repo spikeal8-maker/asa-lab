@@ -22,6 +22,9 @@ GATE = "tools/gate-governance.sh"
 
 REQUIREMENT_HEADING_RE = re.compile(r"^### (DPL-[A-Z]+-\d{3})\b.*$", re.MULTILINE)
 LEVEL_RE = re.compile(r"^\*\*(MUST|SHOULD|MAY)\.\*\*", re.MULTILINE)
+TRANSITION_REVISION_RE = re.compile(
+    r"^\*\*Revision:\*\*[ \t]*(\d+(?:\.\d+)+)(?=[ \t\\]|$)", re.MULTILINE
+)
 SEMANTIC_LIMIT_MARKER = "does not prove natural-language semantic equivalence"
 TRANSITION_MARKERS = (
     "COMPLIANCE_STATUS:** TRANSITIONAL_NON_COMPLIANT",
@@ -200,6 +203,16 @@ def validate_root(root: Path) -> list[str]:
         for item in documents or []
         if isinstance(item, dict) and isinstance(item.get("id"), str)
     }
+    transition_revisions = TRANSITION_REVISION_RE.findall(transition)
+    if len(transition_revisions) != 1:
+        errors.append(f"{TRANSITION}: must declare exactly one numeric Revision")
+    else:
+        transition_entry = by_id.get("ADR-PORTABLE-DEPLOYMENT-TRANSITION-001")
+        if transition_entry is not None and transition_entry.get("revision") != transition_revisions[0]:
+            errors.append(
+                f"{REGISTRY}: ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.revision"
+                f" must match {TRANSITION} Revision {transition_revisions[0]!r}"
+            )
     for doc_id, expected in EXPECTED_REGISTRY.items():
         item = by_id.get(doc_id)
         if item is None:
@@ -241,7 +254,7 @@ def main() -> int:
             print(f"- {error}", file=sys.stderr)
         return 1
     print("portable deployment standard: PASS")
-    print("- structural parity: IDs + normative levels + exact master_refs")
+    print("- structural parity: IDs + normative levels + exact master_refs + transition ADR revision")
     print("- semantic equivalence: NOT machine-proven; L3 review remains required")
     return 0
 

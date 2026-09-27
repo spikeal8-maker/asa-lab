@@ -42,6 +42,7 @@ The validator does not prove natural-language semantic equivalence.
             standard, encoding="utf-8"
         )
         transition = """# Transition
+**Revision:** 1.1
 **FULL_COMPLIANCE_CLAIM:** BLOCKED
 **COMPLIANCE_STATUS:** TRANSITIONAL_NON_COMPLIANT
 DPL-AUTO-001
@@ -137,6 +138,7 @@ StudentAccessCards class-join QR uses https://asa-lab.ru.
                     "authority": authority,
                     "context_role": role,
                     "read_when": ["deployment"],
+                    **({"revision": "1.1"} if doc_id == "ADR-PORTABLE-DEPLOYMENT-TRANSITION-001" else {}),
                 }
             )
         (root / "docs/agent/document-registry.yaml").write_text(
@@ -213,6 +215,18 @@ StudentAccessCards class-join QR uses https://asa-lab.ru.
         )
         path.write_text(text, encoding="utf-8")
         self.assertTrue(any("TRANSITIONAL_NON_COMPLIANT" in error for error in validate_root(root)))
+
+    def test_transition_revision_drift_is_rejected(self) -> None:
+        root = self.make_fixture()
+        path = root / "docs/agent/document-registry.yaml"
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        transition = next(
+            item for item in data["documents"]
+            if item["id"] == "ADR-PORTABLE-DEPLOYMENT-TRANSITION-001"
+        )
+        transition["revision"] = "1.0"
+        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        self.assertTrue(any("revision must match" in error for error in validate_root(root)))
 
     def test_missing_class_join_exception_is_rejected(self) -> None:
         root = self.make_fixture()
