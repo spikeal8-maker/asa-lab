@@ -73,6 +73,12 @@
   letter-spacing: 0.09em;
 }
 
+.student-access-selector code {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
 .student-access-print-sheet {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -293,8 +299,11 @@
 }
 
 .student-access-card-copy > header span {
+  min-width: 0;
   font-size: 0.78rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .student-access-card h3 {
   margin: 7px 0 1px;
@@ -325,6 +334,7 @@
 
 .student-access-card .student-access-instruction {
   margin-top: 6px;
+  overflow-wrap: anywhere;
 }
 
 .student-access-qr {
@@ -368,24 +378,37 @@
 
 @media print {
   body.student-access-printing .student-access-print-sheet {
-    grid-auto-rows: 44mm;
+    grid-auto-rows: 53mm;
   }
 
   body.student-access-printing .student-access-card {
-    min-height: 44mm;
-    height: 44mm;
+    min-height: 53mm;
+    height: 53mm;
     grid-template-columns: minmax(0, 1fr) 31mm;
     gap: 3mm;
     padding: 3mm;
   }
 
   body.student-access-printing .student-access-card-copy > header {
+    align-items: flex-start;
     padding-bottom: 1mm;
+  }
+
+  body.student-access-printing .student-access-card-copy > header strong {
+    flex-shrink: 0;
+    font-size: 9pt;
+    white-space: nowrap;
+  }
+
+  body.student-access-printing .student-access-card-copy > header span {
+    font-size: 7pt;
+    line-height: 1.1;
   }
 
   body.student-access-printing .student-access-card h3 {
     margin: 1.5mm 0 0.5mm;
-    font-size: 10.5pt;
+    font-size: 9.5pt;
+    line-height: 1.1;
   }
 
   body.student-access-printing .student-access-class {
@@ -406,8 +429,9 @@
   }
 
   body.student-access-printing .student-access-card .student-access-instruction {
-    margin-top: 1mm;
+    margin-top: 0.5mm;
     font-size: 5.8pt;
+    line-height: 1.2;
   }
 
   body.student-access-printing .student-access-qr {
@@ -418,6 +442,7 @@
   body.student-access-printing .student-access-qr .class-qr {
     width: 27mm;
     max-width: 27mm;
+    margin: 0;
   }
 
   body.student-access-printing .student-access-qr strong {

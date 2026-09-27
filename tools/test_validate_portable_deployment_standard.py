@@ -28,16 +28,17 @@ class PortableDeploymentStandardValidatorTests(unittest.TestCase):
 
         (root / STANDARD).write_text((ROOT / STANDARD).read_text(encoding="utf-8"), encoding="utf-8")
         transition = """# Transition
-**Revision:** 1.1
+**Revision:** 1.2
 **FULL_COMPLIANCE_CLAIM:** BLOCKED
 **COMPLIANCE_STATUS:** TRANSITIONAL_NON_COMPLIANT
 DPL-AUTO-001
 DPL-NET-002 / DPL-NET-003
 DPL-NET-004
 DPL-TST-003
-### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin
+### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: class-join entry acceptance pending
 
-StudentAccessCards class-join QR uses https://asa-lab.ru.
+StudentAccessCards class-join QR uses the current portal entry.
+EX-05 remains **OPEN**.
 """
         (root / "docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md").write_text(
             transition, encoding="utf-8"
@@ -87,7 +88,7 @@ StudentAccessCards class-join QR uses https://asa-lab.ru.
                     "authority": authority,
                     "context_role": role,
                     "read_when": ["deployment"],
-                    **({"revision": "1.1"} if doc_id == "ADR-PORTABLE-DEPLOYMENT-TRANSITION-001" else {}),
+                    **({"revision": "1.2"} if doc_id == "ADR-PORTABLE-DEPLOYMENT-TRANSITION-001" else {}),
                 }
             )
         (root / "docs/agent/document-registry.yaml").write_text(
@@ -197,12 +198,20 @@ StudentAccessCards class-join QR uses https://asa-lab.ru.
         root = self.make_fixture()
         path = root / "docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md"
         text = path.read_text(encoding="utf-8").replace(
-            "### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin\n"
-            "\nStudentAccessCards class-join QR uses https://asa-lab.ru.\n",
+            "### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: class-join entry acceptance pending\n"
+            "\nStudentAccessCards class-join QR uses the current portal entry.\n"
+            "EX-05 remains **OPEN**.\n",
             "",
         )
         path.write_text(text, encoding="utf-8")
         self.assertTrue(any("EX-05" in error for error in validate_root(root)))
+
+    def test_class_join_exception_must_remain_open_without_acceptance(self) -> None:
+        root = self.make_fixture()
+        path = root / "docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md"
+        text = path.read_text(encoding="utf-8").replace("EX-05 remains **OPEN**.", "EX-05 closed.")
+        path.write_text(text, encoding="utf-8")
+        self.assertTrue(any("EX-05 remains" in error for error in validate_root(root)))
 
     def test_missing_registry_route_is_rejected(self) -> None:
         root = self.make_fixture()
