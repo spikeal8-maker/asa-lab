@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
-import { hashPassword, hashSessionToken } from '../../contexts/identity/dist/index.js';
+import { hashPassword, hashSessionToken, verifyPasswordAsync } from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
@@ -737,6 +737,281 @@ describe('AS-01B canonical organization authentication', () => {
   });
 });
 
+describe('AS-02 password change global revocation', () => {
+  it('changes the canonical password and revokes every other Account session model', async () => {
+    const teacher = await seedTeacher(admin, 'as-02-global-revocation');
+    const passwordA = teacher.password;
+    const passwordB = `Global-${unique('as02')}-Password`;
+
+    const link = await admin.query(
+      `SELECT account_id
+         FROM legacy_user_account_links
+        WHERE tenant_id = $1 AND user_id = $2`,
+      [teacher.tenantId, teacher.teacherId],
+    );
+    const accountId = link.rows[0]?.account_id as string;
+    expect(accountId).toBeTruthy();
+
+    const authorityBefore = await admin.query(
+      `SELECT u.password_hash AS user_hash, a.password_hash AS account_hash
+         FROM users u
+         JOIN legacy_user_account_links l
+           ON l.tenant_id = u.tenant_id AND l.user_id = u.id
+         JOIN accounts a ON a.id = l.account_id
+        WHERE l.account_id = $1
+          AND u.tenant_id = $2
+          AND u.id = $3`,
+      [accountId, teacher.tenantId, teacher.teacherId],
+    );
+    expect(authorityBefore.rowCount).toBe(1);
+    expect(authorityBefore.rows[0]?.user_hash).toBe(authorityBefore.rows[0]?.account_hash);
+
+    const personalSlug = `personal-${accountId.replaceAll('-', '').slice(0, 32)}`;
+    const personalTenant = await admin.query(
+      `INSERT INTO tenants (workspace_slug, title)
+       VALUES ($1, $2)
+       RETURNING id`,
+      [personalSlug, 'AS-02 Personal Workspace'],
+    );
+    const personalTenantId = personalTenant.rows[0].id as string;
+    await admin.query(
+      `INSERT INTO tenant_placements (tenant_id, mode)
+       VALUES ($1, 'SHARED_CLUSTER')`,
+      [personalTenantId],
+    );
+    const personalWorkspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id, kind, title)
+       VALUES ($1, 'personal', $2)
+       RETURNING id`,
+      [personalTenantId, 'AS-02 Personal Workspace'],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id, workspace_id, role)
+       VALUES ($1, $2, 'owner')`,
+      [accountId, personalWorkspace.rows[0].id],
+    );
+
+    const personalContext = await admin.query(
+      `SELECT * FROM auth_personal_workspace($1)`,
+      [accountId],
+    );
+    expect(personalContext.rowCount).toBe(1);
+    const membershipCounts = await admin.query(
+      `SELECT
+         count(*) FILTER (WHERE w.kind = 'personal')::int AS personal_count,
+         count(*) FILTER (WHERE w.kind = 'organization')::int AS organization_count
+       FROM workspace_memberships m
+       JOIN workspaces w ON w.id = m.workspace_id
+       WHERE m.account_id = $1`,
+      [accountId],
+    );
+    expect(membershipCounts.rows[0]).toEqual({
+      personal_count: 1,
+      organization_count: 1,
+    });
+
+    const organizationLogin = async (): Promise<string> => {
+      const response = await inject(app, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          workspace: teacher.workspace,
+          email: teacher.email,
+          password: passwordA,
+        },
+      });
+      expect(response.statusCode).toBe(200);
+      return sessionCookie(response);
+    };
+
+    const currentToken = await organizationLogin();
+    const secondToken = await organizationLogin();
+    const currentTokenHash = hashSessionToken(currentToken);
+    const secondTokenHash = hashSessionToken(secondToken);
+
+    const secondBefore = await admin.query(
+      `SELECT
+         s.id AS session_id,
+         s.revoked_at AS session_revoked_at,
+         f.id AS family_id,
+         f.source,
+         f.revoked_at AS family_revoked_at,
+         count(t.id)::int AS refresh_token_count,
+         count(t.id) FILTER (WHERE t.revoked_at IS NULL)::int AS active_refresh_token_count
+       FROM sessions_v2 s
+       JOIN session_refresh_families f ON f.session_id = s.id
+       LEFT JOIN session_refresh_tokens t ON t.family_id = f.id
+       WHERE s.token_hash = $1
+       GROUP BY s.id, s.revoked_at, f.id, f.source, f.revoked_at`,
+      [secondTokenHash],
+    );
+    expect(secondBefore.rowCount).toBe(1);
+    expect(secondBefore.rows[0]).toMatchObject({
+      session_revoked_at: null,
+      source: 'organization',
+      family_revoked_at: null,
+    });
+    expect(secondBefore.rows[0].refresh_token_count).toBeGreaterThan(0);
+    expect(secondBefore.rows[0].active_refresh_token_count).toBe(
+      secondBefore.rows[0].refresh_token_count,
+    );
+
+    const legacyRawToken = `legacy-${crypto.randomUUID()}`;
+    const legacyTokenHash = hashSessionToken(legacyRawToken);
+    await admin.query(`SELECT auth_create_session($1, $2, $3, 24)`, [
+      teacher.tenantId,
+      teacher.teacherId,
+      legacyTokenHash,
+    ]);
+    const legacyBefore = await admin.query(
+      `SELECT revoked_at FROM sessions WHERE token_hash = $1`,
+      [legacyTokenHash],
+    );
+    expect(legacyBefore.rowCount).toBe(1);
+    expect(legacyBefore.rows[0]?.revoked_at).toBeNull();
+    const legacyBeforeMe = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: legacyRawToken },
+    });
+    expect(legacyBeforeMe.statusCode).toBe(200);
+
+    const changed = await inject(app, {
+      method: 'POST',
+      url: '/api/account/password',
+      cookies: { asa_session: currentToken },
+      payload: { currentPassword: passwordA, newPassword: passwordB },
+    });
+    expect(changed.statusCode).toBe(200);
+    expect(changed.json()).toEqual({ changed: true });
+
+    const currentAlive = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: currentToken },
+    });
+    expect(currentAlive.statusCode).toBe(200);
+    const currentAfter = await admin.query(
+      `SELECT
+         s.revoked_at AS session_revoked_at,
+         f.source,
+         f.revoked_at AS family_revoked_at
+       FROM sessions_v2 s
+       JOIN session_refresh_families f ON f.session_id = s.id
+       WHERE s.token_hash = $1`,
+      [currentTokenHash],
+    );
+    expect(currentAfter.rowCount).toBe(1);
+    expect(currentAfter.rows[0]).toMatchObject({
+      session_revoked_at: null,
+      source: 'organization',
+      family_revoked_at: null,
+    });
+
+    const secondRevoked = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: secondToken },
+    });
+    expect(secondRevoked.statusCode).toBe(401);
+    const secondAfter = await admin.query(
+      `SELECT
+         s.revoked_at AS session_revoked_at,
+         f.revoked_at AS family_revoked_at,
+         count(t.id)::int AS refresh_token_count,
+         count(t.id) FILTER (WHERE t.revoked_at IS NULL)::int AS active_refresh_token_count
+       FROM sessions_v2 s
+       JOIN session_refresh_families f ON f.session_id = s.id
+       LEFT JOIN session_refresh_tokens t ON t.family_id = f.id
+       WHERE s.token_hash = $1
+       GROUP BY s.id, s.revoked_at, f.id, f.revoked_at`,
+      [secondTokenHash],
+    );
+    expect(secondAfter.rowCount).toBe(1);
+    expect(secondAfter.rows[0]?.session_revoked_at).not.toBeNull();
+    expect(secondAfter.rows[0]?.family_revoked_at).not.toBeNull();
+    expect(secondAfter.rows[0].refresh_token_count).toBeGreaterThan(0);
+    expect(secondAfter.rows[0].active_refresh_token_count).toBe(0);
+
+    const legacyRevoked = await inject(app, {
+      method: 'GET',
+      url: '/api/auth/me',
+      cookies: { asa_session: legacyRawToken },
+    });
+    expect(legacyRevoked.statusCode).toBe(401);
+    const legacyAfter = await admin.query(
+      `SELECT revoked_at FROM sessions WHERE token_hash = $1`,
+      [legacyTokenHash],
+    );
+    expect(legacyAfter.rowCount).toBe(1);
+    expect(legacyAfter.rows[0]?.revoked_at).not.toBeNull();
+
+    const normalOld = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { identifier: teacher.email, password: passwordA },
+    });
+    expect(normalOld.statusCode).toBe(401);
+    const normalNew = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { identifier: teacher.email, password: passwordB },
+    });
+    expect(normalNew.statusCode).toBe(200);
+
+    const organizationOld = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: teacher.workspace,
+        email: teacher.email,
+        password: passwordA,
+      },
+    });
+    expect(organizationOld.statusCode).toBe(401);
+    const organizationNew = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: {
+        workspace: teacher.workspace,
+        email: teacher.email,
+        password: passwordB,
+      },
+    });
+    expect(organizationNew.statusCode).toBe(200);
+
+    const authorityAfter = await admin.query(
+      `SELECT u.password_hash AS user_hash, a.password_hash AS account_hash
+         FROM users u
+         JOIN legacy_user_account_links l
+           ON l.tenant_id = u.tenant_id AND l.user_id = u.id
+         JOIN accounts a ON a.id = l.account_id
+        WHERE l.account_id = $1
+          AND u.tenant_id = $2
+          AND u.id = $3`,
+      [accountId, teacher.tenantId, teacher.teacherId],
+    );
+    expect(authorityAfter.rowCount).toBe(1);
+    expect(authorityAfter.rows[0]?.user_hash).toBe(authorityBefore.rows[0]?.user_hash);
+    expect(authorityAfter.rows[0]?.account_hash).not.toBe(authorityBefore.rows[0]?.account_hash);
+    expect(await verifyPasswordAsync(passwordA, authorityAfter.rows[0].user_hash)).toBe(true);
+    expect(await verifyPasswordAsync(passwordB, authorityAfter.rows[0].user_hash)).toBe(false);
+
+    const audit = await admin.query(
+      `SELECT action, payload_json
+         FROM audit_events
+        WHERE entity_id = $1
+          AND action = 'auth.password_changed'`,
+      [accountId],
+    );
+    expect(audit.rowCount).toBe(1);
+    expect(audit.rows[0]?.action).toBe('auth.password_changed');
+    const serializedAudit = JSON.stringify(audit.rows[0]);
+    for (const secret of [passwordA, passwordB, currentToken, secondToken, legacyRawToken]) {
+      expect(serializedAudit).not.toContain(secret);
+    }
+  });
+});
 describe('Account C1 compatibility', () => {
   it('preserves personal projects and the migrated legacy teacher bridge', async () => {
     const account = await register('project-preserved');
