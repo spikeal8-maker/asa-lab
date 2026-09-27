@@ -47,6 +47,11 @@ Manual re-entry is non-portable and can be mistyped or become stale after a netw
 - the updater verifies the unified ASA/Scratch entry after start;
 - no second Scratch public endpoint or fallback wildcard origin is allowed.
 
+**Verification**
+
+- `tools/docker-update.ps1` (`Assert-EmbeddedEntryConfiguration`) requires `-EntryOrigin` or `ASA_UPDATE_ENTRY_ORIGIN` and compares it with both saved Blocks origins before the backup/switch path; `tools/docker-update.sh` (`assert_embedded_entry_configuration`) applies the same explicit check on Linux.
+- Both guarded updaters check `/internal/blocks/` through that entry after switching. `tools/deployment/editor-entry-check.mjs` checks exact origin equality. These are source-level checks of the current guard, not evidence that automatic entry persistence exists or that an update was run for this ADR.
+
 **Closure**
 
 P1/P2 must replace repeat manual entry with a persisted/discovered installation entry model while preserving exact browser-origin/security checks.
@@ -72,6 +77,11 @@ A host/network move can leave persisted runtime origin state coupled to the prev
 - the updater blocks entry-origin mismatch instead of silently accepting it;
 - no wildcard origin or arbitrary Host-header trust is introduced.
 
+**Verification**
+
+- `tools/asa_manager.py:first_environment` writes loopback `ASA_BLOCKS_PARENT_ORIGIN`, `ASA_BLOCKS_RUNTIME_ORIGIN` and `ASA_UPDATE_ENTRY_ORIGIN`; `apps/api/src/blocks-runtime-config.ts` requires the saved runtime origin. This verifies the coupling that remains open.
+- `docker/web/Caddyfile` routes `/internal/blocks/*` inside the primary Web entry; `apps/web/src/blocks/BlocksEditor.tsx` derives its browser origin from `window.location.origin` and rejects a session whose `runtimeOrigin` differs. The existing exact-origin updater checks above are compensating guards, not proof of portability after a host move.
+
 **Closure**
 
 P1 must remove host/DHCP entry as persistent module identity and prove local + LAN behavior with foreign-origin rejection.
@@ -96,6 +106,11 @@ Operators cannot yet rely on one automatic address-discovery workflow when movin
 - current update paths fail closed on explicit mismatches;
 - host ports are not silently reallocated as a workaround.
 
+**Verification**
+
+- `tools/asa_manager.py` currently exposes `doctor/configure/install/check/update/backup/verify-backup/restore-check/acknowledge`; it has no `addresses` action or classified adapter selection. `tools/docker-update.ps1` and `tools/docker-update.sh` require an explicit entry origin and block mismatches.
+- This source inspection verifies the present gap and explicit guard only. Classified loopback/LAN/VPN/virtual-adapter discovery and second-host access remain unverified until P2/P6.
+
 **Closure**
 
 P2 implements classified adapter discovery, verified candidate addresses and persistent local/LAN/public installation profiles.
@@ -119,6 +134,11 @@ A green loopback smoke could be mistaken for proof that a moved/LAN/public insta
 - loopback smoke is explicitly classified as loopback evidence only;
 - full LAN/public portability MUST NOT be claimed from it;
 - existing browser/security checks remain required.
+
+**Verification**
+
+- `tools/blocks/portable-smoke.mjs` fixes `origin` to `http://127.0.0.1:4610` and exercises the Scratch edit/save/fresh-reopen journey through that origin. Its configured address limits what that smoke can prove.
+- The P0 source review found no second-host LAN or public/reverse-proxy run in this exception's evidence. Those acceptance results are `NOT_RUN` for this ADR; a green loopback smoke cannot close EX-04.
 
 **Closure**
 

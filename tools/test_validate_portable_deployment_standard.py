@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from validate_portable_deployment_standard import validate_root
+from validate_portable_deployment_standard import CONTRACT, ROOT, STANDARD, validate_root
 
 
 class PortableDeploymentStandardValidatorTests(unittest.TestCase):
@@ -26,21 +26,7 @@ class PortableDeploymentStandardValidatorTests(unittest.TestCase):
         ):
             (root / directory).mkdir(parents=True, exist_ok=True)
 
-        standard = """# Standard
-
-The validator does not prove natural-language semantic equivalence.
-
-### DPL-ARCH-001 — A
-
-**MUST.** A.
-
-### DPL-NET-001 — B
-
-**SHOULD.** B.
-"""
-        (root / "docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md").write_text(
-            standard, encoding="utf-8"
-        )
+        (root / STANDARD).write_text((ROOT / STANDARD).read_text(encoding="utf-8"), encoding="utf-8")
         transition = """# Transition
 **Revision:** 1.1
 **FULL_COMPLIANCE_CLAIM:** BLOCKED
@@ -57,44 +43,7 @@ StudentAccessCards class-join QR uses https://asa-lab.ru.
             transition, encoding="utf-8"
         )
 
-        contract = {
-            "schema_version": "1.0.0",
-            "contract_id": "DEPLOYMENT-DOMAIN",
-            "domain": "deployment",
-            "registry_document_id": "PORTABLE-DEPLOYMENT-CONTRACT",
-            "master_documents": ["PORTABLE-DEPLOYMENT-STANDARD"],
-            "invariants": [
-                {
-                    "id": "DPL-ARCH-001",
-                    "level": "MUST",
-                    "statement": "A",
-                    "master_refs": [
-                        {
-                            "document": "PORTABLE-DEPLOYMENT-STANDARD",
-                            "section": "DPL-ARCH-001",
-                        }
-                    ],
-                    "applies_to": ["install"],
-                    "forbid": ["bad_a"],
-                },
-                {
-                    "id": "DPL-NET-001",
-                    "level": "SHOULD",
-                    "statement": "B",
-                    "master_refs": [
-                        {
-                            "document": "PORTABLE-DEPLOYMENT-STANDARD",
-                            "section": "DPL-NET-001",
-                        }
-                    ],
-                    "applies_to": ["network"],
-                    "forbid": ["bad_b"],
-                },
-            ],
-        }
-        (root / "docs/agent/contracts/deployment.yaml").write_text(
-            yaml.safe_dump(contract, sort_keys=False), encoding="utf-8"
-        )
+        (root / CONTRACT).write_text((ROOT / CONTRACT).read_text(encoding="utf-8"), encoding="utf-8")
 
         documents = []
         for doc_id, path, status, authority, role in (
@@ -172,6 +121,22 @@ StudentAccessCards class-join QR uses https://asa-lab.ru.
         data["invariants"] = data["invariants"][:1]
         path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
         self.assertTrue(any("requirement ID mismatch" in error for error in validate_root(root)))
+
+    def test_paired_deletion_from_standard_and_contract_is_rejected(self) -> None:
+        root = self.make_fixture()
+        standard_path = root / STANDARD
+        standard = standard_path.read_text(encoding="utf-8")
+        start = standard.index("### DPL-NET-005 ")
+        end = standard.index("### DPL-NET-006 ", start)
+        standard_path.write_text(standard[:start] + standard[end:], encoding="utf-8")
+        contract_path = root / CONTRACT
+        contract = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+        contract["invariants"] = [
+            item for item in contract["invariants"] if item["id"] != "DPL-NET-005"
+        ]
+        contract_path.write_text(yaml.safe_dump(contract, sort_keys=False), encoding="utf-8")
+        errors = validate_root(root)
+        self.assertTrue(any("canonical requirement ID mismatch" in error and "DPL-NET-005" in error for error in errors))
 
     def test_normative_level_drift_is_rejected(self) -> None:
         root = self.make_fixture()

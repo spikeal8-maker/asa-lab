@@ -26,6 +26,16 @@ TRANSITION_REVISION_RE = re.compile(
     r"^\*\*Revision:\*\*[ \t]*(\d+(?:\.\d+)+)(?=[ \t\\]|$)", re.MULTILINE
 )
 SEMANTIC_LIMIT_MARKER = "does not prove natural-language semantic equivalence"
+CANONICAL_REQUIREMENT_IDS = frozenset({
+    "DPL-ARCH-001", "DPL-ARCH-002", "DPL-HOST-001", "DPL-AUTO-001",
+    "DPL-NET-001", "DPL-NET-002", "DPL-NET-003", "DPL-NET-004",
+    "DPL-NET-005", "DPL-NET-006", "DPL-SEC-001", "DPL-SEC-002",
+    "DPL-CFG-001", "DPL-CFG-002", "DPL-SEC-003", "DPL-DAT-001",
+    "DPL-REL-001", "DPL-REL-002", "DPL-UPD-001", "DPL-UPD-002",
+    "DPL-BAK-001", "DPL-BAK-002", "DPL-MIG-001", "DPL-MOV-001",
+    "DPL-TST-001", "DPL-TST-002", "DPL-TST-003", "DPL-OPS-001",
+    "DPL-EXC-001",
+})
 TRANSITION_MARKERS = (
     "COMPLIANCE_STATUS:** TRANSITIONAL_NON_COMPLIANT",
     "FULL_COMPLIANCE_CLAIM:** BLOCKED",
@@ -125,6 +135,18 @@ def validate_root(root: Path) -> list[str]:
     plan = _read(root, PLAN, errors)
 
     standard_requirements = _standard_requirements(standard, errors)
+    raw_invariants = contract.get("invariants")
+    declared_contract_ids = {
+        item["id"] for item in raw_invariants
+        if isinstance(item, dict) and isinstance(item.get("id"), str)
+    } if isinstance(raw_invariants, list) else set()
+    for source, ids in ((STANDARD, set(standard_requirements)), (CONTRACT, declared_contract_ids)):
+        if ids != CANONICAL_REQUIREMENT_IDS:
+            errors.append(
+                f"{source}: canonical requirement ID mismatch"
+                f"; missing={sorted(CANONICAL_REQUIREMENT_IDS - ids)}"
+                f"; unexpected={sorted(ids - CANONICAL_REQUIREMENT_IDS)}"
+            )
     if SEMANTIC_LIMIT_MARKER not in standard:
         errors.append(
             f"{STANDARD}: machine-enforcement boundary must state that semantic equivalence is not proven"

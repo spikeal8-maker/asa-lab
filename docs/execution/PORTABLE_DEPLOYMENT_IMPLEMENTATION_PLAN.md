@@ -152,11 +152,16 @@ Extract a reusable blueprint for future self-hosted projects:
 - standard manager command contract;
 - release manifest schema;
 - configuration schema pattern;
+- secret lifecycle template covering generation, storage, routine-update preservation, rotation and protected export/restore;
+- recoverable update state-machine template covering preflight, prepared, backed-up, switching, verifying, accepted, failed and idempotent retry;
 - backup/recovery-set manifest;
+- host-migration export/restore pattern preserving data, secrets and release/install identity without an old host address;
 - compliance validator starter;
 - CI acceptance template.
 
 A future project adopts the standard rather than cloning ASA-specific IP/domain assumptions.
+
+P7 acceptance gate: instantiate the blueprint in a synthetic example project with no ASA-specific domain, IP, credentials or service names; run its structural validator and example install/update/backup/restore/export acceptance checks, then review the generated contract and evidence against all applicable DPL IDs. This is a planned P7 deliverable and gate, not P0 execution evidence or authorization to start P7.
 
 ## 4. Slice rules
 
