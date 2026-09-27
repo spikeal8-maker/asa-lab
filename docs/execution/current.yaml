@@ -145,24 +145,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-REPORT-HYGIENE-001
-      issue: 400
+      id: TASK-ELECTRONICS-CONTROL-001
+      issue: 402
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: wp_art_03_verified
+      status: in_progress
+      checkpoint: stale_pr_372_reconciliation_selected
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6d6731debba3abf2610caaf6849db7552146317b
+      convergence_baseline_sha: 7449ca1f0d5892a4c9ec05c443b3a64697be657d
       head_sha: null
-      observed_at: '2026-09-27T10:11:10Z'
+      observed_at: '2026-09-27T13:24:48Z'
       main:
         branch: main
-        sha: 6d6731debba3abf2610caaf6849db7552146317b
-      observation_note: Dated observation at WP-ART-03 selection; not a live remote HEAD; fetch main before writes.
+        sha: 7449ca1f0d5892a4c9ec05c443b3a64697be657d
+      observation_note: Dated observation at stale PR reconciliation selection; not a live remote HEAD; fetch main before writes.
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned
