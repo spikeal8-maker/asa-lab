@@ -29,7 +29,7 @@ rg -n 'docker-electronics|electronics-(desktop|mobile|blocks|cpp|simulation)|rea
 
 ## Field key and evidence
 
-Each primary-inventory row and each of the 22 individually classified cross-surface rows supplies path, provenance/owner, document reference, writer/consumer, proposed class, and unresolved dependency. The earlier 36 cross-surface entries record scope and unresolved retention without an Electronics lifecycle class. Repeated evidence is keyed here to keep the path list auditable.
+Each of the 116 included paths supplies path, provenance/owner, document reference, writer/consumer, proposed class, and unresolved dependency. A proposed class describes the available evidence for that path, including cross-surface paths; it does not assign Electronics ownership or authorize retention changes. Repeated evidence is keyed here to keep the path list auditable.
 
 | Key | Meaning |
 | --- | --- |
@@ -133,51 +133,55 @@ The four `LC` paths have the explicit `electronics` module suffix. The `VS` imag
 
 ## Cross-surface boundary (58 tracked paths)
 
-These paths are documented so a later retention decision cannot mistake an Electronics seed, course title, or visible class/environment for a complete Electronics screenshot inventory. The first 36 paths document Learning assignment, gradebook, or audience UI. The next 17 document course-sharing, classroom, Project Hub, or assignment-library UI with explicit Electronics context in the scenario or tracked pixels. The final 5 document historical Creator Portal UI with visible Electronics content. They are **outside the 58-path Electronics lifecycle classification** because their captured surface is not the Electronics workbench or an explicitly named Electronics evidence frame. No deletion or disposable status is inferred; each surface owner's retention decision remains open. The final column states what would need to be resolved before any broader cross-surface evidence policy.
+These paths are documented so a later retention decision cannot mistake an Electronics seed, course title, or visible class/environment for a complete Electronics screenshot inventory. The first 36 paths document Learning assignment, gradebook, or audience UI. The next 17 document course-sharing, classroom, Project Hub, or assignment-library UI with explicit Electronics context in the scenario or tracked pixels. The final 5 document historical Creator Portal UI with visible Electronics content. They are **outside the 58-path primary Electronics inventory** because their captured surface is not the Electronics workbench or an explicitly named Electronics evidence frame. No deletion or disposable status is inferred; each surface owner's retention decision remains open. For rows classified `generated/reproducible output`, reproducibility means a current capture operation at the path, not byte-stable output or permission to discard the tracked frame.
 
-| Exact tracked path | Provenance / owner | Document reference | Writer / consumer | Scope conclusion and unresolved dependency |
-| --- | --- | --- | --- | --- |
-| `e2e/artifacts/learning/vs-001/current-after-start.png` | V1 / Learning | VS-002 execution spec | Current writer unknown / no image assertion found | Learning state capture; verify historical author and retention |
-| `e2e/artifacts/learning/vs-001/current-after-submit.png` | V1 / Learning | VS-002 execution spec | Current writer unknown / no image assertion found | Learning state capture; verify historical author and retention |
-| `e2e/artifacts/learning/vs-001/dialog-two-learners.png` | V1 / Learning | VS-001 scenario | V1 spec / none found | Learning assignment dialog; owner retention open |
-| `e2e/artifacts/learning/vs-001/dialog-whole-class.png` | V1 / Learning | VS-001 scenario | V1 spec / none found | Learning assignment dialog; owner retention open |
-| `e2e/artifacts/learning/vs-001/learner-third-excluded.png` | V1 / Learning | VS-001 scenario | V1 spec / none found | Learning audience exclusion; owner retention open |
-| `e2e/artifacts/learning/vs-001/learner-whole-class.png` | V1 / Learning | VS-001 scenario | V1 spec / none found | Learning assignment row; owner retention open |
-| `e2e/artifacts/learning/vs-001/teacher-two-learners.png` | V1 / Learning | VS-001 scenario | V1 spec / none found | Learning assignment row; owner retention open |
-| `e2e/artifacts/learning/vs-001/teacher-whole-class.png` | V1 / Learning | VS-001 scenario | V1 spec / none found | Learning assignment row; owner retention open |
-| `e2e/artifacts/learning/m0-007/regression-a-learner-submitted.png` | M0 / Learning | M0 convergence report | M0 spec / none found | Learning submission row; owner retention open |
-| `e2e/artifacts/learning/m0-007/regression-a-teacher-gradebook.png` | M0 / Learning | M0 convergence report | M0 spec / none found | Learning gradebook; owner retention open |
-| `e2e/artifacts/learning/m0-007/regression-b-changes-requested.png` | M0 / Learning | M0 convergence report | M0 spec / none found | Learning grading state; owner retention open |
-| `e2e/artifacts/learning/m0-007/regression-c-learner-result.png` | M0 / Learning | M0 convergence report | M0 spec / none found | Learning result row; owner retention open |
-| `e2e/artifacts/learning/m0-007/regression-c-teacher-result.png` | M0 / Learning | M0 convergence report | M0 spec / none found | Learning result row; owner retention open |
-| `e2e/artifacts/learning/m0-007/regression-d-unknown-grading.png` | M0 / Learning | M0 convergence report | M0 spec / none found | Learning gradebook; owner retention open |
-| `e2e/artifacts/learning/vs-002/learner-excluded.png` | VS / Learning | VS-002 execution spec | VS spec / none found | Learning audience exclusion; owner retention open |
-| `e2e/artifacts/learning/vs-002/learner-in-progress.png` | VS / Learning | VS-002 execution spec | VS spec / none found | Learning assignment row; owner retention open |
-| `e2e/artifacts/learning/vs-002/learner-not-started.png` | VS / Learning | VS-002 execution spec | VS spec / none found | Learning assignment row; owner retention open |
-| `e2e/artifacts/learning/vs-002/learner-submitted.png` | VS / Learning | VS-002 execution spec | VS spec / none found | Learning submission row; owner retention open |
-| `e2e/artifacts/learning/vs-002/teacher-submitted.png` | VS / Learning | VS-002 execution spec | VS spec / none found | Learning assignment row; owner retention open |
+### Learning VS-001, VS-002, and M0-007 boundary (19 tracked paths)
 
-The remaining 17 generic `course-01` paths are owned by Learning and can be generated in flows that create an Electronics activity, but they show course/assignment/gradebook controls rather than the Electronics editor. Some capture functions are called for both `electronics` and `three-d`, so the current committed bytes are **unknown** as to module. The writer is `e2e/learning-course-01.spec.ts` where a current screenshot call exists; `account-course-completed.png` has no exact current writer found. `docs/review/LRN_E1_MAIN_CONVERGENCE_2026_09_13.md` lists the historical course-01 image set. These paths stay outside the Electronics-specific lifecycle table, under Learning retention ownership:
+| Exact tracked path | Provenance / owner | Document reference | Writer / consumer | Proposed class | Unresolved retention dependency |
+| --- | --- | --- | --- | --- | --- |
+| `e2e/artifacts/learning/vs-001/current-after-start.png` | V1 / Learning; historical author unknown | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | Current writer unknown / no image assertion found | unknown | Verify historical capture provenance and Learning owner retention |
+| `e2e/artifacts/learning/vs-001/current-after-submit.png` | V1 / Learning; historical author unknown | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | Current writer unknown / no image assertion found | unknown | Verify historical capture provenance and Learning owner retention |
+| `e2e/artifacts/learning/vs-001/dialog-two-learners.png` | V1 / Learning; acceptance unconfirmed | No exact-file prose reference found; VS-001 scenario in V1 spec | V1 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment dialog |
+| `e2e/artifacts/learning/vs-001/dialog-whole-class.png` | V1 / Learning; acceptance unconfirmed | No exact-file prose reference found; VS-001 scenario in V1 spec | V1 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment dialog |
+| `e2e/artifacts/learning/vs-001/learner-third-excluded.png` | V1 / Learning; acceptance unconfirmed | No exact-file prose reference found; VS-001 scenario in V1 spec | V1 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked audience exclusion |
+| `e2e/artifacts/learning/vs-001/learner-whole-class.png` | V1 / Learning; acceptance unconfirmed | No exact-file prose reference found; VS-001 scenario in V1 spec | V1 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment row |
+| `e2e/artifacts/learning/vs-001/teacher-two-learners.png` | V1 / Learning; acceptance unconfirmed | No exact-file prose reference found; VS-001 scenario in V1 spec | V1 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment row |
+| `e2e/artifacts/learning/vs-001/teacher-whole-class.png` | V1 / Learning; acceptance unconfirmed | No exact-file prose reference found; VS-001 scenario in V1 spec | V1 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment row |
+| `e2e/artifacts/learning/m0-007/regression-a-learner-submitted.png` | M0 / Learning; acceptance unconfirmed | `docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md` exact path | M0 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked submission row |
+| `e2e/artifacts/learning/m0-007/regression-a-teacher-gradebook.png` | M0 / Learning; acceptance unconfirmed | `docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md` exact path | M0 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked gradebook |
+| `e2e/artifacts/learning/m0-007/regression-b-changes-requested.png` | M0 / Learning; acceptance unconfirmed | `docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md` exact path | M0 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked grading state |
+| `e2e/artifacts/learning/m0-007/regression-c-learner-result.png` | M0 / Learning; acceptance unconfirmed | `docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md` exact path | M0 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked result row |
+| `e2e/artifacts/learning/m0-007/regression-c-teacher-result.png` | M0 / Learning; acceptance unconfirmed | `docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md` exact path | M0 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked result row |
+| `e2e/artifacts/learning/m0-007/regression-d-unknown-grading.png` | M0 / Learning; acceptance unconfirmed | `docs/product/learning/current/LRN_M0_SURFACE_CONVERGENCE_REPORT.md` exact path | M0 spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked gradebook |
+| `e2e/artifacts/learning/vs-002/learner-excluded.png` | VS / Learning; acceptance unconfirmed | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | VS spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked audience exclusion |
+| `e2e/artifacts/learning/vs-002/learner-in-progress.png` | VS / Learning; acceptance unconfirmed | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | VS spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment row |
+| `e2e/artifacts/learning/vs-002/learner-not-started.png` | VS / Learning; acceptance unconfirmed | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | VS spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment row |
+| `e2e/artifacts/learning/vs-002/learner-submitted.png` | VS / Learning; acceptance unconfirmed | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | VS spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked submission row |
+| `e2e/artifacts/learning/vs-002/teacher-submitted.png` | VS / Learning; acceptance unconfirmed | `docs/product/learning/execution/LRN-VS-002_EXECUTION_SPEC.md` exact path | VS spec capture / no image assertion found | generated/reproducible output | Learning owner must decide retention of tracked assignment row |
 
-```text
-e2e/artifacts/learning/course-01/account-course-completed.png
-e2e/artifacts/learning/course-01/author-teaching-same-material.png
-e2e/artifacts/learning/course-01/authored-material-published.png
-e2e/artifacts/learning/course-01/course-authored-published.png
-e2e/artifacts/learning/course-01/dialog-two-learners.png
-e2e/artifacts/learning/course-01/dialog-whole-class.png
-e2e/artifacts/learning/course-01/graded-correction-history.png
-e2e/artifacts/learning/course-01/graded-stale-correction-denied.png
-e2e/artifacts/learning/course-01/learner-third-excluded.png
-e2e/artifacts/learning/course-01/learner-whole-class.png
-e2e/artifacts/learning/course-01/matrix-30x10-desktop.png
-e2e/artifacts/learning/course-01/matrix-30x10-mobile.png
-e2e/artifacts/learning/course-01/muted-inbox-queue-independent.png
-e2e/artifacts/learning/course-01/named-audience-withdrawn.png
-e2e/artifacts/learning/course-01/teacher-two-learners.png
-e2e/artifacts/learning/course-01/teacher-whole-class.png
-e2e/artifacts/learning/course-01/ungraded-official-review.png
-```
+### Generic Learning `course-01` boundary (17 tracked paths)
+
+These captures show course, assignment, or gradebook controls rather than the Electronics editor. Some capture functions run for both `electronics` and `three-d`; current committed bytes cannot be attributed to either module from the filename or writer alone. `docs/review/LRN_E1_MAIN_CONVERGENCE_2026_09_13.md` lists every path as historical Learning evidence, but does not establish acceptance of the individual bytes. `unknown` keeps the module attribution and lifecycle decision open even where a current capture operation exists.
+
+| Exact tracked path | Provenance / owner | Document reference | Writer / consumer | Proposed class | Unresolved retention dependency |
+| --- | --- | --- | --- | --- | --- |
+| `e2e/artifacts/learning/course-01/account-course-completed.png` | Learning; capture author and module unknown | E1 convergence review, exact path | Current exact writer unknown / no image assertion found | unknown | Learning owner must establish capture provenance and retention |
+| `e2e/artifacts/learning/course-01/author-teaching-same-material.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/authored-material-published.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/course-authored-published.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/dialog-two-learners.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec conditional capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/dialog-whole-class.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec conditional capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/graded-correction-history.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/graded-stale-correction-denied.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/learner-third-excluded.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/learner-whole-class.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/matrix-30x10-desktop.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/matrix-30x10-mobile.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/muted-inbox-queue-independent.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/named-audience-withdrawn.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/teacher-two-learners.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/teacher-whole-class.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
+| `e2e/artifacts/learning/course-01/ungraded-official-review.png` | Learning; module attribution unknown | E1 convergence review, exact path | LC spec capture / no image assertion found | unknown | Confirm module context and Learning owner retention |
 
 The other four `course-01` paths outside the primary inventory are explicitly named for 3D: `account-course-three-d-completed.png`, `account-course-three-d-submitted.png`, `gradebook-accepted-three-d.png`, and `three-d-exact-submission.png` in that directory. Thus all 25 tracked course-01 PNGs have been considered: 4 included Electronics paths, 17 generic Learning boundary paths, and 4 explicit 3D exclusions.
 
