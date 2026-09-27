@@ -151,8 +151,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: wp_hyg_02_analysis_selected
+      status: done
+      checkpoint: wp_hyg_02_repair_verified
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
