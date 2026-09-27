@@ -42,7 +42,10 @@ export function defaultTaskImageReferenceRect(
   return clampTaskImageReferenceRect(
     {
       x: viewportWidth - width - TASK_IMAGE_REFERENCE_EDGE_INSET,
-      y: TASK_IMAGE_REFERENCE_TOP_INSET + TASK_IMAGE_REFERENCE_EDGE_INSET,
+      y: Math.max(
+        TASK_IMAGE_REFERENCE_TOP_INSET + TASK_IMAGE_REFERENCE_EDGE_INSET,
+        Math.round((viewportHeight - height) / 2),
+      ),
       width,
       height,
     },

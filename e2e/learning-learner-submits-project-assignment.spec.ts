@@ -72,7 +72,7 @@ async function createPublishedProjectActivity(
     await client.query(`SELECT set_config('app.tenant_id',$1,true)`, [teacher.tenantId]);
     const created = await client.query(
       `SELECT * FROM learning_activity_create(
-        $1,$2,'school','private','project',$3,'ignored','completion',NULL,
+        $1,$2,'school','private','project',$3,$8,'completion',NULL,
         $4::jsonb,$5,NULL,NULL,$6,$7)`,
       [
         principalId,
@@ -82,6 +82,7 @@ async function createPublishedProjectActivity(
         moduleKey,
         authored?.rows[0]?.id ?? null,
         `vs002:e2e:create:${++sequence}`,
+        canonicalRoot ? brief : 'ignored',
       ],
     );
     let revision = 1;
@@ -495,9 +496,16 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
 
   let reference = learner.page.getByTestId('task-image-reference-window');
   await expect(reference).toBeVisible();
+  expect((await reference.boundingBox())!.y).toBeGreaterThan(120);
   await expect(reference).toContainText('Схема');
   const referenceImage = reference.getByTestId('task-image-reference-image');
   await expect(referenceImage).toBeVisible();
+  const bodyBox = (await reference.locator('.task-image-reference-body').boundingBox())!;
+  const imageBox = (await referenceImage.boundingBox())!;
+  expect(imageBox.x).toBeGreaterThanOrEqual(bodyBox.x - 1);
+  expect(imageBox.y).toBeGreaterThanOrEqual(bodyBox.y - 1);
+  expect(imageBox.x + imageBox.width).toBeLessThanOrEqual(bodyBox.x + bodyBox.width + 1);
+  expect(imageBox.y + imageBox.height).toBeLessThanOrEqual(bodyBox.y + bodyBox.height + 1);
   await learner.page.screenshot({
     path: `${ux1a4EvidenceDir}/reference-open-1440.png`,
     fullPage: false,

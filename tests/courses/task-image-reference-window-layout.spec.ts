@@ -13,7 +13,8 @@ describe('UX1A4 task image reference window geometry', () => {
     expect(rect.width).toBe(360);
     expect(rect.height).toBe(320);
     expect(rect.x).toBeGreaterThan(900);
-    expect(rect.y).toBeGreaterThan(58);
+    expect(rect.y).toBeGreaterThan(200);
+    expect(rect.y).toBeLessThan(400);
     expect(rect.width).toBeLessThan(1440 / 2);
     expect(rect.height).toBeLessThan(900 / 2);
   });
