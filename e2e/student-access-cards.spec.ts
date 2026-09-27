@@ -252,6 +252,101 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   await cards.screenshot({ path: `${evidence}/dialog.png` });
   await firstCard.screenshot({ path: `${evidence}/card.png` });
 
+  // Exercise the live card DOM with the actual print stylesheet. The second case
+  // substitutes a representative portable ingress host while keeping the ten-card grid.
+  await page.emulateMedia({ media: 'print' });
+  await page.evaluate(() => document.body.classList.add('student-access-printing'));
+  for (const host of [
+    new URL(portalOrigin).host,
+    'classroom-really-long-installation-name.example.org',
+  ]) {
+    const layout = await page.evaluate((printedHost) => {
+      const sheet = document.querySelector<HTMLElement>('.student-access-print-sheet')!;
+      const cards = Array.from(sheet.querySelectorAll<HTMLElement>('.student-access-card'));
+      for (const card of cards) {
+        card.querySelector<HTMLElement>('.student-access-card-copy > header span')!.textContent =
+          printedHost;
+        card.querySelector<HTMLElement>('.student-access-instruction')!.textContent =
+          `Вручную: ${printedHost} → код класса → код ученика.`;
+      }
+      const sheetBounds = sheet.getBoundingClientRect();
+      return {
+        sheetWidth: sheetBounds.width,
+        gridColumns: getComputedStyle(sheet).gridTemplateColumns.split(' ').length,
+        cards: cards.map((card) => {
+          const bounds = card.getBoundingClientRect();
+          const copy = card.querySelector<HTMLElement>('.student-access-card-copy')!;
+          const instruction = card.querySelector<HTMLElement>('.student-access-instruction')!;
+          const hostLabel = card.querySelector<HTMLElement>(
+            '.student-access-card-copy > header span',
+          )!;
+          const qr = card.querySelector<HTMLElement>('.class-qr')!;
+          return {
+            left: bounds.left,
+            right: bounds.right,
+            top: bounds.top,
+            bottom: bounds.bottom,
+            verticalOverflow: card.scrollHeight - card.clientHeight,
+            copyBottom: copy.getBoundingClientRect().bottom,
+            instructionBottom: instruction.getBoundingClientRect().bottom,
+            hostOverflow: hostLabel.scrollWidth - hostLabel.clientWidth,
+            qrBottom: qr.getBoundingClientRect().bottom,
+          };
+        }),
+      };
+    }, host);
+    const mm = 96 / 25.4;
+    expect(layout.cards, `${host}: ten printable cards`).toHaveLength(10);
+    expect(layout.gridColumns, `${host}: two print columns`).toBe(2);
+    expect(layout.sheetWidth, `${host}: A4 printable width`).toBeLessThanOrEqual(196 * mm + 2);
+    for (let row = 0; row < 5; row += 1) {
+      const left = layout.cards[row * 2]!;
+      const right = layout.cards[row * 2 + 1]!;
+      expect(left.left, `${host}: row ${row} left card`).toBeLessThan(right.left);
+      expect(Math.abs(left.top - right.top), `${host}: row ${row} alignment`).toBeLessThanOrEqual(
+        1,
+      );
+      if (row > 0) {
+        expect(left.top, `${host}: row ${row} follows previous row`).toBeGreaterThanOrEqual(
+          layout.cards[(row - 1) * 2]!.bottom,
+        );
+      }
+    }
+    expect(
+      layout.cards[9]!.bottom - layout.cards[0]!.top,
+      `${host}: A4 portrait height`,
+    ).toBeLessThanOrEqual(283 * mm);
+    for (const [index, card] of layout.cards.entries()) {
+      expect(card.verticalOverflow, `${host}: card ${index} vertical overflow`).toBeLessThanOrEqual(
+        1,
+      );
+      expect(card.copyBottom, `${host}: card ${index} copy containment`).toBeLessThanOrEqual(
+        card.bottom - 1,
+      );
+      expect(
+        card.instructionBottom,
+        `${host}: card ${index} instruction containment`,
+      ).toBeLessThanOrEqual(card.bottom - 1);
+      expect(card.qrBottom, `${host}: card ${index} QR containment`).toBeLessThanOrEqual(
+        card.bottom - 1,
+      );
+      expect(card.hostOverflow, `${host}: card ${index} complete host`).toBeLessThanOrEqual(1);
+    }
+    if (host.startsWith('classroom-really')) {
+      await firstCard.screenshot({ path: `${evidence}/card-print-long-host.png` });
+    }
+  }
+  await page.evaluate((host) => {
+    for (const card of document.querySelectorAll<HTMLElement>('.student-access-card')) {
+      card.querySelector<HTMLElement>('.student-access-card-copy > header span')!.textContent =
+        host;
+      card.querySelector<HTMLElement>('.student-access-instruction')!.textContent =
+        `Вручную: ${host} → код класса → код ученика.`;
+    }
+    document.body.classList.remove('student-access-printing');
+  }, new URL(portalOrigin).host);
+  await page.emulateMedia({ media: 'screen' });
+
   // Exact current portal origin is proven by independent decode above. Route behavior
   // is then exercised against the isolated local test server using that exact hash.
   await signInFromRoute(
