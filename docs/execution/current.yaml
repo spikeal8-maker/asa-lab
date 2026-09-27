@@ -151,8 +151,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: stale_pr_372_reconciliation_selected
+      status: done
+      checkpoint: stale_pr_372_superseded_verified
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
