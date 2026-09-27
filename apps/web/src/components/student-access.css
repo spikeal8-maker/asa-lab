@@ -293,8 +293,11 @@
 }
 
 .student-access-card-copy > header span {
+  min-width: 0;
   font-size: 0.78rem;
   font-weight: 700;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 .student-access-card h3 {
   margin: 7px 0 1px;
@@ -325,6 +328,7 @@
 
 .student-access-card .student-access-instruction {
   margin-top: 6px;
+  overflow-wrap: anywhere;
 }
 
 .student-access-qr {

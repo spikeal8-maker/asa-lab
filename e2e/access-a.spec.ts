@@ -344,6 +344,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     { name: 'asa_session', value: teacherCookie.slice('asa_session='.length), url: origin },
   ]);
   const teacherPage = await teacherContext.newPage();
+  await teacherPage.setViewportSize({ width: 1440, height: 900 });
   await teacherPage.goto(`${origin}/#/classrooms/${classId}`);
   await teacherPage.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
   const cards = teacherPage.getByRole('dialog').filter({
@@ -354,7 +355,9 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   await expect(cards).toContainText(first.student.studentCode);
   await expect(cards).toContainText(second.student.studentCode);
   await expect(cards).toContainText(classCode);
-  await expect(cards).toContainText('asa-lab.ru');
+  const portalOrigin = await teacherPage.evaluate(() => window.location.origin);
+  const portalHost = new URL(portalOrigin).host;
+  await expect(cards).toContainText(portalHost);
   await expect(cards.getByText('/#/join-class', { exact: false })).toHaveCount(0);
   const firstCard = cards
     .locator('.student-access-card')
@@ -365,11 +368,22 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   for (const card of [firstCard, secondCard]) {
     await expect(card.getByTestId('class-join-qr')).toHaveCount(1);
     const qrUrl = (await card.getAttribute('data-qr-url')) ?? '';
-    expect(qrUrl).toContain('https://asa-lab.ru/#/join-class?code=');
+    expect(qrUrl).toBe(`${portalOrigin}/#/join-class?code=${encodeURIComponent(classCode)}`);
     expect(qrUrl).not.toContain(first.student.studentCode);
     expect(qrUrl).not.toContain(second.student.studentCode);
   }
-  await shot(teacherPage, 'H-reusable-access-cards');
+  for (const width of [1440, 1024, 390, 320]) {
+    await teacherPage.setViewportSize({ width, height: width <= 390 ? 844 : 900 });
+    await expect(cards.getByRole('button', { name: /^Распечатать/ })).toBeVisible();
+    expect(
+      await teacherPage.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+    if (width === 1440 || width === 390) {
+      await shot(teacherPage, `H-reusable-access-cards-${width}`);
+    }
+  }
   await cards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
   await expect(
     teacherPage.getByRole('heading', { name: 'Карточки доступа', exact: true }),

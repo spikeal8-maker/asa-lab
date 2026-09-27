@@ -3,8 +3,23 @@ import type { ClassroomStudentSeat } from '../api';
 import { ClassJoinQr } from './ClassJoinQr';
 import './student-access.css';
 
-const PUBLIC_SITE_LABEL = 'asa-lab.ru';
-const PUBLIC_SITE_ORIGIN = 'https://asa-lab.ru';
+function portalEntry(): { origin: string; label: string } | null {
+  if (typeof window === 'undefined') return null;
+  const browserOrigin = window.location.origin;
+  try {
+    const url = new URL(browserOrigin);
+    if (
+      !['http:', 'https:'].includes(window.location.protocol) ||
+      url.protocol !== window.location.protocol ||
+      url.origin !== browserOrigin
+    ) {
+      return null;
+    }
+    return { origin: url.origin, label: url.host };
+  } catch {
+    return null;
+  }
+}
 
 export function StudentAccessCards({
   classroomTitle,
@@ -32,12 +47,13 @@ export function StudentAccessCards({
       ),
   );
   const selectedStudents = available.filter((student) => selected.has(student.id));
-  const classJoinUrl = classCode
-    ? `${PUBLIC_SITE_ORIGIN}/#/join-class?code=${encodeURIComponent(classCode)}`
-    : `${PUBLIC_SITE_ORIGIN}/#/join-class`;
+  const entry = portalEntry();
+  const classJoinUrl = entry
+    ? `${entry.origin}/#/join-class${classCode ? `?code=${encodeURIComponent(classCode)}` : ''}`
+    : null;
 
   function printCards(): void {
-    if (!classCode || selectedStudents.length === 0) return;
+    if (!classCode || !classJoinUrl || selectedStudents.length === 0) return;
     const className = 'student-access-printing';
     const cleanup = () => document.body.classList.remove(className);
     document.body.classList.add(className);
@@ -71,6 +87,13 @@ export function StudentAccessCards({
           <p className="form-error no-print">
             Вход в класс сейчас закрыт. Сначала выдайте новый код класса, затем распечатайте
             карточки.
+          </p>
+        ) : null}
+
+        {!entry ? (
+          <p className="form-error no-print">
+            Адрес входа в портал не определён. Откройте ASA Lab по адресу HTTP или HTTPS и повторите
+            печать карточек.
           </p>
         ) : null}
 
@@ -111,11 +134,15 @@ export function StudentAccessCards({
 
         <div className="student-access-print-sheet" aria-label="Карточки доступа для печати">
           {selectedStudents.map((student) => (
-            <article className="student-access-card" key={student.id} data-qr-url={classJoinUrl}>
+            <article
+              className="student-access-card"
+              key={student.id}
+              data-qr-url={classJoinUrl ?? undefined}
+            >
               <div className="student-access-card-copy">
                 <header>
                   <strong>ASA Lab</strong>
-                  <span>{PUBLIC_SITE_LABEL}</span>
+                  <span>{entry?.label ?? 'Адрес недоступен'}</span>
                 </header>
                 <h3>{student.displayLabel}</h3>
                 <p className="student-access-class">{classroomTitle}</p>
@@ -130,12 +157,14 @@ export function StudentAccessCards({
                   </div>
                 </div>
                 <p className="student-access-instruction">
-                  Вручную: {PUBLIC_SITE_LABEL} → код класса → код ученика.
+                  Вручную: {entry?.label ?? 'адрес портала'} → код класса → код ученика.
                 </p>
               </div>
               <aside className="student-access-qr" aria-label="QR для входа в класс">
-                <ClassJoinQr url={classJoinUrl} label={`Войти в класс ${classroomTitle}`} />
-                <strong>Войти в класс</strong>
+                {classJoinUrl ? (
+                  <ClassJoinQr url={classJoinUrl} label={`Войти в класс ${classroomTitle}`} />
+                ) : null}
+                {classJoinUrl ? <strong>Войти в класс</strong> : null}
               </aside>
             </article>
           ))}
@@ -148,7 +177,7 @@ export function StudentAccessCards({
           <button
             type="button"
             className="btn-primary"
-            disabled={!classCode || selectedStudents.length === 0}
+            disabled={!classCode || !classJoinUrl || selectedStudents.length === 0}
             onClick={printCards}
           >
             Распечатать {selectedStudents.length > 0 ? `(${selectedStudents.length})` : ''}
