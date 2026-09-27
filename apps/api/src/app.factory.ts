@@ -17,6 +17,7 @@ import {
   isAllowedMutationOrigin,
   resolveAdditionalWebOrigins,
   resolveCanonicalWebOrigin,
+  resolveLocalApiOrigin,
 } from './origin-policy.js';
 import { MutationAbuseProtection } from './abuse-protection.js';
 import {
@@ -187,6 +188,7 @@ export async function createApiApp(
 ): Promise<NestFastifyApplication> {
   const pool = options.pool !== undefined ? options.pool : defaultPool();
   const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
+  const allowedLocalApiOrigin = resolveLocalApiOrigin(process.env['API_PORT']);
   const additionalAllowedOrigins =
     options.additionalAllowedOrigins ??
     resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS']);
@@ -304,9 +306,8 @@ export async function createApiApp(
     if (!runtimePath && path !== '/api/auth/max/webhook') {
       const allowed = isAllowedMutationOrigin({
         origin: request.headers.origin,
-        requestHost: request.headers.host,
-        requestProtocol: request.protocol,
         allowedWebOrigin,
+        allowedLocalApiOrigin,
         additionalAllowedOrigins,
         secFetchSite:
           typeof request.headers['sec-fetch-site'] === 'string'

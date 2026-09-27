@@ -177,7 +177,7 @@ describe('strict browser-origin policy', () => {
     return { workspace: teacher.workspace, email: teacher.email, password: teacher.password };
   }
 
-  it('accepts the configured web origin and the same-origin host', async () => {
+  it('accepts the configured Web origin and the configured direct local API entry', async () => {
     const payload = await loginPayload();
     const webOrigin = await fastifyOf(app).inject({
       method: 'POST',
@@ -186,13 +186,13 @@ describe('strict browser-origin policy', () => {
       payload,
     });
     expect(webOrigin.statusCode).toBe(200);
-    const sameOrigin = await fastifyOf(app).inject({
+    const localApiOrigin = await fastifyOf(app).inject({
       method: 'POST',
       url: '/api/auth/login',
-      headers: { origin: 'http://localhost:8080', host: 'localhost:8080' },
+      headers: { origin: 'http://127.0.0.1:4611', host: '127.0.0.1:4611' },
       payload,
     });
-    expect(sameOrigin.statusCode).toBe(200);
+    expect(localApiOrigin.statusCode).toBe(200);
   });
 
   it('rejects 5173, any other loopback port, malformed and cross-site origins with 403', async () => {
@@ -201,6 +201,7 @@ describe('strict browser-origin policy', () => {
       'http://127.0.0.1:5173',
       'http://127.0.0.1:4999',
       'http://localhost:5173',
+      'http://localhost:8080',
       'not-a-url',
       'https://evil.example',
     ]) {

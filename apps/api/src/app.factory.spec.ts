@@ -179,6 +179,42 @@ describe('API application factory', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
+  it('never grants mutation origin trust from Host or forwarded headers', async () => {
+    const app = await createApiApp({ pool: null, webDist: null });
+    apps.push(app);
+    const fastify = app.getHttpAdapter().getInstance();
+
+    for (const headers of [
+      { host: 'evil.example', origin: 'https://evil.example' },
+      { host: '127.0.0.1:5173', origin: 'http://127.0.0.1:5173' },
+      {
+        host: '127.0.0.1:4611',
+        origin: 'https://evil.example',
+        'x-forwarded-host': 'evil.example',
+        'x-forwarded-proto': 'https',
+      },
+    ]) {
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        headers: { ...headers, 'content-type': 'application/json' },
+        payload: {},
+      });
+      expect(response.statusCode).toBe(403);
+      expect(response.json().error.code).toBe('origin_forbidden');
+    }
+
+    for (const origin of ['http://127.0.0.1:4610', 'http://127.0.0.1:4611']) {
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        headers: { host: 'evil.example', origin, 'content-type': 'application/json' },
+        payload: {},
+      });
+      expect(response.statusCode).toBe(400);
+    }
+  });
+
   it('accepts only the explicitly configured public production origin', async () => {
     const query = vi.fn(async () => ({ rows: [] }));
     const pool = {
