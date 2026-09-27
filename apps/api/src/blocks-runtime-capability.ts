@@ -65,6 +65,7 @@ const CLAIM_KEYS = [
   'tenantId',
   'projectId',
   'moduleKey',
+  'runtimeOrigin',
   'mode',
   'versionId',
   'permissions',
@@ -114,12 +115,13 @@ function validTime(value: unknown): value is number {
     typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 8640000000000
   );
 }
-function grantOf(payload: JWTPayload): Readonly<BlocksRuntimeGrant> | null {
+function grantOf(payload: JWTPayload, runtimeOrigin: string): Readonly<BlocksRuntimeGrant> | null {
   if (
     !exactKeys(payload, CLAIM_KEYS) ||
     payload.iss !== ISSUER ||
     payload.aud !== AUDIENCE ||
-    payload['moduleKey'] !== 'blocks'
+    payload['moduleKey'] !== 'blocks' ||
+    payload['runtimeOrigin'] !== runtimeOrigin
   )
     return null;
   const binding = bindingOf({
@@ -222,6 +224,7 @@ export class BlocksRuntimeCapabilityService {
         tenantId: binding.tenantId,
         projectId: binding.projectId,
         moduleKey: 'blocks',
+        runtimeOrigin: this.#runtimeOrigin,
         mode: binding.mode,
         versionId: binding.versionId,
         permissions: [...profile(binding.mode)],
@@ -286,7 +289,7 @@ export class BlocksRuntimeCapabilityService {
             : 'invalid_token',
         );
       }
-      const grant = grantOf(payload);
+      const grant = grantOf(payload, this.#runtimeOrigin);
       if (!grant || grant.issuedAt > startedAt) return denied('invalid_token');
       if (
         BINDING_KEYS.some(

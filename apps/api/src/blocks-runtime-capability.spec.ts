@@ -70,6 +70,7 @@ describe('Blocks runtime capability core (not HTTP/session wiring)', () => {
         aud: 'asa-blocks-runtime',
         sub: f.binding.principalId,
         moduleKey: 'blocks',
+        runtimeOrigin: ORIGIN,
         iat: START,
         nbf: START,
         exp: START + 600,
@@ -122,6 +123,42 @@ describe('Blocks runtime capability core (not HTTP/session wiring)', () => {
     expect(
       await f.service.verify({ token, origin, binding: f.binding, permission: 'project:read' }),
     ).toEqual({ ok: false, code: 'forbidden_origin' });
+    expect(f.allows).not.toHaveBeenCalled();
+  });
+  it('rejects a capability issued for another exact origin with the same signing key', async () => {
+    const issuer = fixture();
+    const token = await issuer.issue();
+    const verifierAuthority = vi.fn(async () => true);
+    const verifier = new BlocksRuntimeCapabilityService({
+      key: issuer.key,
+      runtimeOrigin: 'https://other.asa.example',
+      authority: { allows: verifierAuthority },
+      now: () => START,
+    });
+    expect(
+      await verifier.verify({
+        token,
+        origin: 'https://other.asa.example',
+        binding: issuer.binding,
+        permission: 'project:read',
+      }),
+    ).toEqual({ ok: false, code: 'invalid_token' });
+    expect(verifierAuthority).not.toHaveBeenCalled();
+  });
+  it('rejects legacy and mismatched signed origin claims before authority lookup', async () => {
+    const f = fixture();
+    const issued = await f.issue();
+    const legacy = decodeJwt<Record<string, unknown>>(issued);
+    delete legacy.runtimeOrigin;
+    const legacyToken = await new SignJWT(legacy)
+      .setProtectedHeader({ alg: 'HS256', typ: 'asa-blocks-runtime+jwt' })
+      .sign(f.key);
+    const mismatchedToken = await resign(issued, f.key, {
+      runtimeOrigin: 'https://other.asa.example',
+    });
+    f.allows.mockClear();
+    expect(await f.verify(legacyToken)).toEqual({ ok: false, code: 'invalid_token' });
+    expect(await f.verify(mismatchedToken)).toEqual({ ok: false, code: 'invalid_token' });
     expect(f.allows).not.toHaveBeenCalled();
   });
   it.each(['tenantId', 'principalId', 'projectId'] as const)(
@@ -177,6 +214,8 @@ describe('Blocks runtime capability core (not HTTP/session wiring)', () => {
     { aud: 'other' },
     { aud: ['asa-blocks-runtime', 'other'] },
     { moduleKey: 'electronics' },
+    { runtimeOrigin: ORIGIN + '/' },
+    { runtimeOrigin: null },
     { admin: true },
     { sub: '' },
     { jti: 'bad' },
@@ -411,6 +450,7 @@ describe('Blocks runtime capability core (not HTTP/session wiring)', () => {
     'tenantId',
     'projectId',
     'moduleKey',
+    'runtimeOrigin',
     'mode',
     'versionId',
     'permissions',
