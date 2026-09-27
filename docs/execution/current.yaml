@@ -145,24 +145,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-CONTROL-001
-      issue: 402
+      id: TASK-ELECTRONICS-SCREENSHOT-INVENTORY-001
+      issue: 404
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: stale_pr_372_superseded_verified
+      status: in_progress
+      checkpoint: wp_art_01_inventory_selected
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 7449ca1f0d5892a4c9ec05c443b3a64697be657d
+      convergence_baseline_sha: fac8324b86f2e0f9ce33212d725746af3fdeb69d
       head_sha: null
-      observed_at: '2026-09-27T13:24:48Z'
+      observed_at: '2026-09-27T13:55:26Z'
       main:
         branch: main
-        sha: 7449ca1f0d5892a4c9ec05c443b3a64697be657d
-      observation_note: Dated observation at stale PR reconciliation selection; not a live remote HEAD; fetch main before writes.
+        sha: fac8324b86f2e0f9ce33212d725746af3fdeb69d
+      observation_note: Dated observation at WP-ART-01 selection; not a live remote HEAD; fetch main before writes.
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned
