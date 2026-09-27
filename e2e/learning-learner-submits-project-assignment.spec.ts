@@ -489,6 +489,8 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
 
   const openReference = brief.getByRole('button', { name: 'Открыть отдельно', exact: true });
   await expect(openReference).toBeVisible();
+  await expect(openReference).toHaveCSS('cursor', 'pointer');
+  await expect(openReference).toHaveCSS('border-radius', '999px');
   await openReference.click();
 
   let reference = learner.page.getByTestId('task-image-reference-window');

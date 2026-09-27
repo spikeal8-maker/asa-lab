@@ -30,7 +30,7 @@
   margin: 0;
 }
 
-.assignment-view-sample button {
+.assignment-view-sample > button {
   display: block;
   width: 100%;
   padding: 0;
@@ -41,7 +41,7 @@
   cursor: zoom-in;
 }
 
-.assignment-view-sample button:hover {
+.assignment-view-sample > button:hover {
   border-color: #0b82ba;
 }
 
