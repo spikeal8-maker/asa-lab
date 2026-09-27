@@ -3,10 +3,12 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import {
   clampTaskImageReferenceRect,
+  defaultTaskImageReferenceRect,
   moveTaskImageReferenceRect,
   parseTaskImageReferenceRect,
   resizeTaskImageReferenceRect,
@@ -162,6 +164,61 @@ export function TaskImageReferenceWindow({
     };
   }
 
+  function moveWithKeyboard(event: ReactKeyboardEvent<HTMLButtonElement>): void {
+    const step = event.shiftKey ? 40 : 10;
+    let deltaX = 0;
+    let deltaY = 0;
+    switch (event.key) {
+      case 'ArrowLeft':
+        deltaX = -step;
+        break;
+      case 'ArrowRight':
+        deltaX = step;
+        break;
+      case 'ArrowUp':
+        deltaY = -step;
+        break;
+      case 'ArrowDown':
+        deltaY = step;
+        break;
+      default:
+        return;
+    }
+    event.preventDefault();
+    const next = moveTaskImageReferenceRect(
+      rectRef.current,
+      deltaX,
+      deltaY,
+      window.innerWidth,
+      window.innerHeight,
+    );
+    rectRef.current = next;
+    setRect(next);
+    window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
+  }
+
+  function changeSize(delta: number): void {
+    const next = clampTaskImageReferenceRect(
+      {
+        ...rectRef.current,
+        width: rectRef.current.width + delta,
+        height: rectRef.current.height + Math.round(delta * 0.75),
+      },
+      window.innerWidth,
+      window.innerHeight,
+    );
+    rectRef.current = next;
+    setRect(next);
+    window.localStorage.setItem(RECT_KEY, JSON.stringify(next));
+  }
+
+  function resetRect(): void {
+    const next = defaultTaskImageReferenceRect(window.innerWidth, window.innerHeight);
+    rectRef.current = next;
+    setRect(next);
+    window.localStorage.removeItem(RECT_KEY);
+  }
+
   const style: CSSProperties = {
     left: rect.x,
     top: rect.y,
@@ -183,11 +240,40 @@ export function TaskImageReferenceWindow({
           className="task-image-reference-drag"
           data-testid="task-image-reference-drag"
           aria-label="Переместить окно схемы"
-          title="Переместить окно схемы"
+          aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
+          title="Переместить окно схемы мышью или стрелками"
           onPointerDown={beginMove}
+          onKeyDown={moveWithKeyboard}
         >
           <span id="task-image-reference-title">Схема</span>
           <span aria-hidden="true">⠿</span>
+        </button>
+        <button
+          type="button"
+          className="task-image-reference-action"
+          aria-label="Уменьшить окно схемы"
+          title="Уменьшить окно схемы"
+          onClick={() => changeSize(-40)}
+        >
+          −
+        </button>
+        <button
+          type="button"
+          className="task-image-reference-action"
+          aria-label="Увеличить окно схемы"
+          title="Увеличить окно схемы"
+          onClick={() => changeSize(40)}
+        >
+          +
+        </button>
+        <button
+          type="button"
+          className="task-image-reference-action"
+          aria-label="Сбросить положение схемы"
+          title="Сбросить положение и размер схемы"
+          onClick={resetRect}
+        >
+          ↺
         </button>
         <button
           type="button"

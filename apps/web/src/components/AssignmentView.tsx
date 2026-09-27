@@ -1,4 +1,5 @@
 import { useEffect, useState, type JSX, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { AssignmentGoal, BriefText } from './BriefText';
 import './assignment-view.css';
 
@@ -101,13 +102,16 @@ export function AssignmentView({
         </div>
       ) : null}
 
-      {zoomed && assignment.sampleImage ? (
-        <Lightbox
-          src={assignment.sampleImage}
-          alt={`Образец: ${assignment.title}`}
-          onClose={() => setZoomed(false)}
-        />
-      ) : null}
+      {zoomed && assignment.sampleImage
+        ? createPortal(
+            <Lightbox
+              src={assignment.sampleImage}
+              alt={`Образец: ${assignment.title}`}
+              onClose={() => setZoomed(false)}
+            />,
+            document.body,
+          )
+        : null}
     </div>
   );
 }

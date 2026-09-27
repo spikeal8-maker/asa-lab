@@ -1,6 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
-import { PNG } from 'pngjs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -41,18 +40,6 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await admin.end();
 });
-
-function solidPng(red: number, green: number, blue: number): Buffer {
-  const image = new PNG({ width: 3, height: 3 });
-  for (let pixel = 0; pixel < 9; pixel += 1) {
-    const offset = pixel * 4;
-    image.data[offset] = red;
-    image.data[offset + 1] = green;
-    image.data[offset + 2] = blue;
-    image.data[offset + 3] = 255;
-  }
-  return PNG.sync.write(image);
-}
 
 async function createPublishedProjectActivity(
   title: string,
@@ -446,13 +433,13 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   const titleWithImage = `UX1A4 exact image ${token}`;
   const titleWithoutImage = `UX1A4 no image ${token}`;
   const handle = `ux1a4-${token}`;
-  const imageA = solidPng(205, 45, 45);
+  const imageA = readFileSync('apps/web/public/assets/assignments/demo-robot.jpg');
 
   await createPublishedProjectActivity(
     titleWithImage,
     'electronics',
     'Соберите схему по точному опубликованному образцу.',
-    { bytes: imageA, contentType: 'image/png' },
+    { bytes: imageA, contentType: 'image/jpeg' },
   );
   await createPublishedProjectActivity(
     titleWithoutImage,
@@ -525,6 +512,13 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
     name: `Образец: ${titleWithImage}`,
   });
   await expect(desktopLightbox).toBeVisible();
+  const referenceBox = (await reference.boundingBox())!;
+  expect(
+    await learner.page.evaluate(
+      ({ x, y }) => document.elementFromPoint(x, y)?.closest('.assignment-lightbox') !== null,
+      { x: referenceBox.x + referenceBox.width / 2, y: referenceBox.y + referenceBox.height / 2 },
+    ),
+  ).toBe(true);
   await learner.page.screenshot({
     path: `${ux1a4EvidenceDir}/image-enlarged-1440.png`,
     fullPage: false,
@@ -576,6 +570,23 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
     path: `${ux1a4EvidenceDir}/reference-moved-resized-1440.png`,
     fullPage: false,
   });
+
+  await drag.focus();
+  await drag.press('ArrowLeft');
+  const afterKeyboardMove = (await reference.boundingBox())!;
+  expect(afterKeyboardMove.x).toBeLessThan(afterResize.x - 5);
+  await reference.getByRole('button', { name: 'Увеличить окно схемы' }).click();
+  const afterKeyboardResize = (await reference.boundingBox())!;
+  expect(afterKeyboardResize.width).toBeGreaterThan(afterResize.width + 20);
+  await reference.getByRole('button', { name: 'Сбросить положение схемы' }).click();
+  const afterReset = (await reference.boundingBox())!;
+  expect(afterReset.x).toBeGreaterThan(afterKeyboardMove.x + 20);
+  expect(afterReset.width).toBeLessThan(afterKeyboardResize.width - 20);
+  expect(
+    await learner.page.evaluate(() =>
+      window.localStorage.getItem('asa-task-image-reference-rect-v1'),
+    ),
+  ).toBeNull();
 
   await reference.getByRole('button', { name: 'Закрыть схему' }).click();
   await expect(reference).toHaveCount(0);

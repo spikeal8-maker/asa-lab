@@ -52,6 +52,7 @@
   font-weight: 400;
 }
 
+.task-image-reference-action,
 .task-image-reference-close {
   display: grid;
   flex: 0 0 auto;
@@ -64,11 +65,13 @@
   background: transparent;
   color: #526773;
   font: inherit;
-  font-size: 22px;
+  font-size: 20px;
   line-height: 1;
   cursor: pointer;
 }
 
+.task-image-reference-action:hover,
+.task-image-reference-action:focus-visible,
 .task-image-reference-close:hover,
 .task-image-reference-close:focus-visible {
   background: rgba(11, 111, 159, 0.09);
