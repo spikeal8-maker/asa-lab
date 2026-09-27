@@ -334,7 +334,10 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       expect(card.hostOverflow, `${host}: card ${index} complete host`).toBeLessThanOrEqual(1);
     }
     if (host.startsWith('classroom-really')) {
-      await firstCard.screenshot({ path: `${evidence}/card-print-long-host.png` });
+      await page
+        .locator('.student-access-card')
+        .first()
+        .screenshot({ path: `${evidence}/card-print-long-host.png` });
     }
   }
   await page.evaluate((host) => {
