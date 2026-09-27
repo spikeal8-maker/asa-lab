@@ -151,8 +151,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: wp_asset_01_boundary_selected
+      status: done
+      checkpoint: wp_asset_01_map_verified
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
