@@ -19,6 +19,7 @@ Run: python tools/test_validate_control_plane.py
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 import tempfile
@@ -254,6 +255,112 @@ def pr_open_while_done(_):
 @case("a task called done whose pull request was merged", expect="")
 def pr_merged_while_done(_):
     return state_error("done", "MERGED")
+
+
+def recorded_pr_dispatch_case(
+    *, pr: int | None, status: str = "in_progress", state: str = "OPEN",
+    require_remote: bool = False, unavailable: bool = False,
+    malformed: bool = False, returned_number: int | None = None,
+) -> tuple[list[str], list[str]]:
+    calls: list[list[str]] = []
+    saved_run = cp.run
+    saved_canonical = cp.check_state_file_is_canonical
+
+    def fake_run(command: list[str], cwd=None) -> tuple[int, str]:
+        calls.append(command)
+        assert command[:3] == ["gh", "pr", "view"], command
+        if unavailable:
+            return 1, "GitHub unavailable"
+        if malformed:
+            return 0, "{unreadable"
+        return 0, json.dumps({
+            "number": pr if returned_number is None else returned_number,
+            "state": state,
+        })
+
+    try:
+        cp.run = fake_run
+        cp.check_state_file_is_canonical = lambda *_args, **_kwargs: None
+        errors: list[str] = []
+        notes: list[str] = []
+        cp.check_execution_branch_policy(
+            True,
+            [{"id": "TASK-ELECTRONICS-GOVERNANCE-004", "branch": "main", "pr": pr,
+              "status": status}],
+            [], errors, notes, require_remote,
+        )
+        assert len(calls) == (0 if pr is None else 1), calls
+        return errors, notes
+    finally:
+        cp.run = saved_run
+        cp.check_state_file_is_canonical = saved_canonical
+
+
+@case("direct main without recorded PR skips remote lookup")
+def direct_main_null_pr_skips_remote(_):
+    errors, _ = recorded_pr_dispatch_case(pr=None, require_remote=True)
+    return errors
+
+
+@case("direct main rejects in-progress merged recorded PR", expect="still names it")
+def direct_main_in_progress_merged(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, state="MERGED")
+    return errors
+
+
+@case("direct main accepts in-progress open recorded PR")
+def direct_main_in_progress_open(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, state="OPEN")
+    return errors
+
+
+@case("direct main rejects in-review closed recorded PR", expect="still names it")
+def direct_main_in_review_closed(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, status="in_review", state="CLOSED")
+    return errors
+
+
+@case("direct main accepts in-review open recorded PR")
+def direct_main_in_review_open(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, status="in_review", state="OPEN")
+    return errors
+
+
+@case("direct main accepts done merged recorded PR")
+def direct_main_done_merged(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, status="done", state="MERGED")
+    return errors
+
+
+@case("direct main rejects done open recorded PR", expect="a merged one")
+def direct_main_done_open(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, status="done", state="OPEN")
+    return errors
+
+
+@case("direct main required recorded PR fails when GitHub is unavailable", expect="cannot verify")
+def direct_main_required_pr_unavailable(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, unavailable=True, require_remote=True)
+    return errors
+
+
+@case("direct main required recorded PR fails on unreadable response", expect="cannot verify")
+def direct_main_required_pr_unreadable(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, malformed=True, require_remote=True)
+    return errors
+
+
+@case("direct main optional remote check skips unavailable GitHub")
+def direct_main_optional_pr_unavailable(_):
+    errors, notes = recorded_pr_dispatch_case(pr=123, unavailable=True)
+    assert any("skipped" in note for note in notes), notes
+    return errors
+
+
+@case("direct main rejects mismatched recorded PR identity", expect="returned PR #124")
+def direct_main_wrong_pr_number(_):
+    errors, _ = recorded_pr_dispatch_case(pr=123, returned_number=124)
+    return errors
 
 
 def gate_result_case(status: str) -> list[str]:
