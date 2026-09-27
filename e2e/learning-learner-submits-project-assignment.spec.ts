@@ -9,6 +9,7 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-002';
 const workShellV1EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
+const ux1a4EvidenceDir = 'e2e/artifacts/learning/ux1a4-reference-window';
 const desktopV1Viewport = { width: 1440, height: 900 } as const;
 const mobileV1Viewports = [
   { width: 390, height: 844 },
@@ -34,6 +35,7 @@ test.beforeAll(async () => {
   teacher = await seedTeacher(admin, 'learning-vs-002-browser');
   mkdirSync(evidenceDir, { recursive: true });
   mkdirSync(workShellV1EvidenceDir, { recursive: true });
+  mkdirSync(ux1a4EvidenceDir, { recursive: true });
 });
 
 test.afterAll(async () => {
@@ -486,6 +488,10 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
 
   const briefImage = brief.getByRole('img', { name: `Образец: ${titleWithImage}` });
   await expect(briefImage).toBeVisible();
+  await learner.page.screenshot({
+    path: `${ux1a4EvidenceDir}/assignment-brief-1440.png`,
+    fullPage: false,
+  });
   const briefSource = await briefImage.getAttribute('src');
   expect(briefSource).toBeTruthy();
   const briefBytes = await learner.page.request.get(
@@ -503,6 +509,10 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   await expect(reference).toContainText('Схема');
   const referenceImage = reference.getByTestId('task-image-reference-image');
   await expect(referenceImage).toBeVisible();
+  await learner.page.screenshot({
+    path: `${ux1a4EvidenceDir}/reference-open-1440.png`,
+    fullPage: false,
+  });
   await expect(referenceImage).toHaveAttribute('src', briefSource!);
   const referenceBytes = await learner.page.request.get(
     new URL(briefSource!, learner.page.url()).toString(),
@@ -510,9 +520,25 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   expect(referenceBytes.ok()).toBe(true);
   expect(Buffer.compare(await referenceBytes.body(), imageA)).toBe(0);
 
+  await brief.getByRole('button', { name: `Открыть образец: ${titleWithImage}` }).click();
+  const desktopLightbox = learner.page.getByRole('dialog', {
+    name: `Образец: ${titleWithImage}`,
+  });
+  await expect(desktopLightbox).toBeVisible();
+  await learner.page.screenshot({
+    path: `${ux1a4EvidenceDir}/image-enlarged-1440.png`,
+    fullPage: false,
+  });
+  await desktopLightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await expect(desktopLightbox).toHaveCount(0);
+
   await anchor.click();
   await expect(brief).toHaveCount(0);
   await expect(reference).toBeVisible();
+  await learner.page.screenshot({
+    path: `${ux1a4EvidenceDir}/brief-collapsed-reference-visible-1440.png`,
+    fullPage: false,
+  });
 
   const beforeMove = (await reference.boundingBox())!;
   const drag = reference.getByTestId('task-image-reference-drag');
@@ -546,6 +572,10 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   const afterResize = (await reference.boundingBox())!;
   expect(afterResize.width).toBeGreaterThan(beforeResize.width + 40);
   expect(afterResize.height).toBeGreaterThan(beforeResize.height + 20);
+  await learner.page.screenshot({
+    path: `${ux1a4EvidenceDir}/reference-moved-resized-1440.png`,
+    fullPage: false,
+  });
 
   await reference.getByRole('button', { name: 'Закрыть схему' }).click();
   await expect(reference).toHaveCount(0);
@@ -574,21 +604,32 @@ test('UX1A4 keeps an exact task image in an independent desktop reference window
   row = assignmentRow(learner.page, titleWithImage);
   await row.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await expect(learner.page.locator('.workbench-shell')).toBeVisible({ timeout: 60_000 });
-  await learner.page.setViewportSize(mobileV1Viewports[0]);
-
-  anchor = learner.page.getByTestId('assignment-brief-anchor');
-  brief = learner.page.getByTestId('assignment-brief');
-  if ((await anchor.getAttribute('aria-expanded')) !== 'true') await anchor.click();
-  await expect(brief).toBeVisible();
-  await expect(brief).toHaveClass(/is-mobile/);
-  await expect(brief.getByRole('button', { name: 'Открыть отдельно', exact: true })).toHaveCount(0);
-  await brief.getByRole('button', { name: `Открыть образец: ${titleWithImage}` }).click();
-  const lightbox = learner.page.getByRole('dialog', {
-    name: `Образец: ${titleWithImage}`,
-  });
-  await expect(lightbox).toBeVisible();
-  await lightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
-  await expect(lightbox).toHaveCount(0);
+  for (const viewport of mobileV1Viewports) {
+    await learner.page.setViewportSize(viewport);
+    anchor = learner.page.getByTestId('assignment-brief-anchor');
+    brief = learner.page.getByTestId('assignment-brief');
+    if ((await anchor.getAttribute('aria-expanded')) !== 'true') await anchor.click();
+    await expect(brief).toBeVisible();
+    await expect(brief).toHaveClass(/is-mobile/);
+    await expect(brief.getByRole('button', { name: 'Открыть отдельно', exact: true })).toHaveCount(
+      0,
+    );
+    await learner.page.screenshot({
+      path: `${ux1a4EvidenceDir}/assignment-brief-${viewport.width}.png`,
+      fullPage: false,
+    });
+    await brief.getByRole('button', { name: `Открыть образец: ${titleWithImage}` }).click();
+    const lightbox = learner.page.getByRole('dialog', {
+      name: `Образец: ${titleWithImage}`,
+    });
+    await expect(lightbox).toBeVisible();
+    await learner.page.screenshot({
+      path: `${ux1a4EvidenceDir}/image-enlarged-${viewport.width}.png`,
+      fullPage: false,
+    });
+    await lightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    await expect(lightbox).toHaveCount(0);
+  }
 
   teacherFailures.assertEmpty();
   learnerFailures.assertEmpty();
