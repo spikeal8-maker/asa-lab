@@ -706,6 +706,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       learningActivityVersionId: blockA.versionId,
       sourceKind: 'course',
       courseBlockId: 'activity-a',
+      courseLessonId: a.lesson_id,
       goal: null,
       sampleImage: null,
     });

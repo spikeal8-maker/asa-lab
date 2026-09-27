@@ -30,7 +30,7 @@ type WorkRow = {
   seatStatus: string;
   participationStatus: string | null;
   participationExcused: boolean | null;
-  effectiveConditions: { values?: Record<string, unknown> } | null;
+  effectiveConditions: { values?: Record<string, unknown>; teacherUnlocked?: boolean } | null;
   submittedAt: string | null;
   snapshotRevision: number | null;
   updatedAt: string | null;
@@ -112,11 +112,15 @@ function timeAllowsAction(row: WorkRow, asOf: string): boolean {
   const closes = typeof values['closesAt'] === 'string' ? Date.parse(values['closesAt']) : null;
   if (opens !== null && (!Number.isFinite(opens) || now < opens)) return false;
   if (closes !== null && (!Number.isFinite(closes) || now > closes)) return false;
-  if (
-    due !== null &&
-    (!Number.isFinite(due) || (now > due && values['latePolicy'] === 'block_at_due'))
-  )
-    return false;
+  if (due !== null) {
+    if (!Number.isFinite(due)) return false;
+    if (
+      now > due &&
+      values['latePolicy'] === 'block_at_due' &&
+      row.effectiveConditions?.teacherUnlocked !== true
+    )
+      return false;
+  }
   return true;
 }
 
@@ -143,6 +147,15 @@ export async function learningWorkContextForProject(
   if (result.rows.length !== 1) return { state: 'unavailable', projectId };
   const row = result.rows[0]!.context;
   const projection = projections.get(canonicalProjectionKey(row.seatId, row.classroomAssignmentId));
+  const conflicts = projection?.state.provenance.conflicts ?? [];
+  const expectedReturnedMismatch =
+    projection?.surface.workflowState === 'changes_requested' &&
+    projection.state.provenance.workflowAuthority === 'latest_attempt' &&
+    row.attemptId !== null &&
+    row.submissionId !== null &&
+    row.submittedAt === null &&
+    conflicts.length === 1 &&
+    conflicts[0] === 'attempt_legacy_submission_mismatch';
   if (
     row.projectId !== projectId ||
     !row.learningActivityVersionId ||
@@ -160,7 +173,7 @@ export async function learningWorkContextForProject(
     projection.projectId !== projectId ||
     projection.state.provenance.activityRunId !== row.activityRunId ||
     projection.state.provenance.workflowAttemptId !== row.attemptId ||
-    projection.state.provenance.conflicts.length > 0
+    (conflicts.length > 0 && !expectedReturnedMismatch)
   )
     return { state: 'unavailable', projectId };
   if (

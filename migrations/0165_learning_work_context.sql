@@ -76,13 +76,15 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
       JOIN public.principals viewer ON viewer.id = p_viewer_principal_id
       LEFT JOIN public.teacher_assignments teacher ON teacher.id = assignment.assignment_id
       LEFT JOIN public.classroom_course_runs course ON course.id = assignment.course_run_id
+      LEFT JOIN public.activity_runs run
+        ON run.source_classroom_assignment_id = assignment.id
       LEFT JOIN public.classroom_course_run_lessons lesson
-        ON lesson.classroom_assignment_id = assignment.id
+        ON lesson.run_id = assignment.course_run_id
+       AND ((run.id IS NOT NULL AND lesson.id = run.source_course_lesson_id)
+            OR (run.id IS NULL AND lesson.classroom_assignment_id = assignment.id))
       LEFT JOIN public.course_version_media course_media
         ON course_media.version_id = course.course_version_id
        AND course_media.source_lesson_id = lesson.source_lesson_id
-      LEFT JOIN public.activity_runs run
-        ON run.source_classroom_assignment_id = assignment.id
       LEFT JOIN public.learner_identity_links link
         ON link.tenant_id = assignment.tenant_id
        AND link.school_id = classroom.school_id
