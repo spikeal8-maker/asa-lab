@@ -213,6 +213,25 @@
   font-size: 12px;
 }
 
+.assignment-brief-reference-open {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid #a9cfdf;
+  border-radius: 999px;
+  background: #f8fcfe;
+  color: #0b6f9f;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.assignment-brief-reference-open:hover,
+.assignment-brief-reference-open:focus-visible {
+  border-color: #6faec8;
+  background: #eef8fc;
+}
+
 .assignment-brief-body .assignment-view {
   grid-template-columns: minmax(0, 1fr);
   gap: 12px;
