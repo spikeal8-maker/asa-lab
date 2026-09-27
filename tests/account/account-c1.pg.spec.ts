@@ -1,6 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
-import { hashPassword, hashSessionToken, verifyPasswordAsync } from '../../contexts/identity/dist/index.js';
+import {
+  hashPassword,
+  hashSessionToken,
+  verifyPasswordAsync,
+} from '../../contexts/identity/dist/index.js';
 import { buildTestApp, inject, type NestApp } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
@@ -791,10 +795,9 @@ describe('AS-02 password change global revocation', () => {
       [accountId, personalWorkspace.rows[0].id],
     );
 
-    const personalContext = await admin.query(
-      `SELECT * FROM auth_personal_workspace($1)`,
-      [accountId],
-    );
+    const personalContext = await admin.query(`SELECT * FROM auth_personal_workspace($1)`, [
+      accountId,
+    ]);
     expect(personalContext.rowCount).toBe(1);
     const membershipCounts = await admin.query(
       `SELECT
@@ -939,10 +942,9 @@ describe('AS-02 password change global revocation', () => {
       cookies: { asa_session: legacyRawToken },
     });
     expect(legacyRevoked.statusCode).toBe(401);
-    const legacyAfter = await admin.query(
-      `SELECT revoked_at FROM sessions WHERE token_hash = $1`,
-      [legacyTokenHash],
-    );
+    const legacyAfter = await admin.query(`SELECT revoked_at FROM sessions WHERE token_hash = $1`, [
+      legacyTokenHash,
+    ]);
     expect(legacyAfter.rowCount).toBe(1);
     expect(legacyAfter.rows[0]?.revoked_at).not.toBeNull();
 
