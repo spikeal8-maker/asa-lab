@@ -135,6 +135,8 @@ export interface ApiFactoryOptions {
   readonly allowedWebOrigin?: string;
   /** Additional explicit HTTPS origins used by the production deployment. */
   readonly additionalAllowedOrigins?: readonly string[];
+  /** Actual local API listener port when supplied by the runtime. */
+  readonly localApiPort?: number;
   /** One structured line per response. Defaults on, off under the test runner. */
   readonly logRequests?: boolean;
 }
@@ -188,7 +190,9 @@ export async function createApiApp(
 ): Promise<NestFastifyApplication> {
   const pool = options.pool !== undefined ? options.pool : defaultPool();
   const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
-  const allowedLocalApiOrigin = resolveLocalApiOrigin(process.env['API_PORT']);
+  const allowedLocalApiOrigin = resolveLocalApiOrigin(
+    options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
+  );
   const additionalAllowedOrigins =
     options.additionalAllowedOrigins ??
     resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS']);

@@ -1,3 +1,4 @@
+import { createServer } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
 import type { TelemetryLifecycle } from './runtime.js';
 import { launchApiRuntime, type ApiApplication } from './runtime.js';
@@ -23,7 +24,48 @@ function fakeApp(events: string[], closeError?: Error): ApiApplication {
   };
 }
 
+async function availableLoopbackPort(): Promise<number> {
+  const server = createServer();
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+  if (address === null || typeof address === 'string') {
+    throw new Error('Expected a TCP loopback port');
+  }
+  return address.port;
+}
+
 describe('API runtime lifecycle', () => {
+  it('trusts the actual listener port instead of a stale API_PORT origin', async () => {
+    const port = await availableLoopbackPort();
+    expect(port).not.toBe(4611);
+    vi.stubEnv('ASA_WEB_PORT', '4610');
+    vi.stubEnv('ASA_WEB_ORIGIN', 'http://127.0.0.1:4610');
+    vi.stubEnv('API_PORT', '4611');
+
+    try {
+      const runtime = await launchApiRuntime({ port, telemetry: fakeTelemetry([]) });
+      try {
+        const post = (origin: string) =>
+          fetch(`http://127.0.0.1:${port}/api/auth/login`, {
+            method: 'POST',
+            headers: { origin, 'content-type': 'application/json' },
+            body: '{}',
+          });
+        expect((await post(`http://127.0.0.1:${port}`)).status).toBe(400);
+        expect((await post('http://127.0.0.1:4611')).status).toBe(403);
+        expect((await post('http://127.0.0.1:4610')).status).toBe(400);
+      } finally {
+        await runtime.stop();
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('starts telemetry before creating/listening to the app', async () => {
     const events: string[] = [];
     const app = fakeApp(events);

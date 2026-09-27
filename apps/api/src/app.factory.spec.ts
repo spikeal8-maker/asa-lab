@@ -215,6 +215,26 @@ describe('API application factory', () => {
     }
   });
 
+  it('uses an explicit listener-port override instead of the stale default API port', async () => {
+    const app = await createApiApp({ pool: null, webDist: null, localApiPort: 4612 });
+    apps.push(app);
+    const fastify = app.getHttpAdapter().getInstance();
+
+    for (const [origin, status] of [
+      ['http://127.0.0.1:4611', 403],
+      ['http://127.0.0.1:4612', 400],
+      ['http://127.0.0.1:4610', 400],
+    ] as const) {
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/auth/login',
+        headers: { origin, 'content-type': 'application/json' },
+        payload: {},
+      });
+      expect(response.statusCode, origin).toBe(status);
+    }
+  });
+
   it('accepts only the explicitly configured public production origin', async () => {
     const query = vi.fn(async () => ({ rows: [] }));
     const pool = {
