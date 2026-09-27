@@ -69,6 +69,72 @@ documents:
     authority: agent_documentation_architecture
     context_role: escalation
     read_when: [documentation_system_change, agent_context_change]
+  - id: PORTABLE-DEPLOYMENT-STANDARD
+    path: docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md
+    scope: global
+    lanes: ['*']
+    kind: architecture_contract
+    status: canonical
+    authority: portable_self_hosted_deployment_standard
+    revision: '1.1'
+    context_role: escalation
+    read_when:
+      - deployment_architecture_change
+      - installation
+      - update
+      - backup
+      - restore
+      - network_entry
+      - host_migration
+      - new_self_hosted_project
+
+  - id: PORTABLE-DEPLOYMENT-CONTRACT
+    path: docs/agent/contracts/deployment.yaml
+    scope: global
+    lanes: ['*']
+    kind: cross_cutting_contract
+    status: canonical
+    authority: deployment_portability_invariants
+    revision: '1.0'
+    context_role: compact
+    read_when:
+      - agent_entry
+      - installation
+      - update
+      - backup
+      - restore
+      - network_entry
+      - host_migration
+      - new_self_hosted_project
+
+  - id: ADR-PORTABLE-DEPLOYMENT-TRANSITION-001
+    path: docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md
+    scope: deployment
+    lanes: ['*']
+    kind: architecture_exception
+    status: canonical
+    authority: asa_portable_deployment_transition_exception
+    revision: '1.1'
+    context_role: escalation
+    read_when:
+      - installation
+      - update
+      - network_entry
+      - host_migration
+      - portable_deployment_compliance
+
+  - id: PORTABLE-DEPLOYMENT-PLAN
+    path: docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md
+    scope: deployment
+    lanes: ['*']
+    kind: execution_blueprint
+    status: supporting
+    authority: none
+    context_role: trace
+    read_when:
+      - portable_deployment_implementation
+      - issue_396
+
   - id: PRODUCT-TARGET-BLUEPRINT
     path: docs/product/ASA_TARGET_PLATFORM_BLUEPRINT.md
     scope: product
