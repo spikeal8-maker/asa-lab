@@ -24,15 +24,11 @@ run "$PYTHON" -m compileall -q tools
 # docs/execution/current.yaml, so a drifted control plane must fail loudly here
 # rather than silently steering the rest of the run.
 #
-# The GitHub half of that check (PR head, PR body, recorded gate results) is
-# skippable only where no token exists. Wherever one does — CI always, and any
-# developer machine with gh logged in — a skip would make the remote comparison
-# optional, which is the same as not having it.
+# With credentials, require the applicable GitHub checks: full PR checks in
+# coordinated mode and recorded-PR state checks in direct_main. Local runs
+# without credentials can still validate the repository offline.
 CONTROL_PLANE_ARGS=()
-DEVELOPMENT_MODE="$($PYTHON -c 'import yaml; print((yaml.safe_load(open("docs/execution/current.yaml", encoding="utf-8")) or {}).get("development_policy", {}).get("mode", "coordinated_lanes"))')"
-if [ "$DEVELOPMENT_MODE" = "direct_main" ]; then
-  echo "── direct_main: branch, PR and lease remote checks are disabled"
-elif [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] || gh auth status >/dev/null 2>&1; then
+if [ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ] || gh auth status >/dev/null 2>&1; then
   CONTROL_PLANE_ARGS+=(--require-github)
 else
   echo "── warning: no GitHub credentials; remote control-plane checks will be skipped"

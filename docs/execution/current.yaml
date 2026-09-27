@@ -145,18 +145,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-UX-REPAIR-001
-      issue: 377
-      branch: codex/electronics-natural-wire-routing-377
+      id: TASK-ELECTRONICS-GOVERNANCE-004
+      issue: 398
+      branch: main
       base_branch: main
-      pr: 378
-      pr_draft: true
-      status: in_progress
-      checkpoint: r1_r4_implementation
+      pr: null
+      pr_draft: false
+      status: done
+      checkpoint: wp_hyg_02_repair_verified
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: eb7204267b21c11fb9201c95020ddc6a2d4b44cc
-      head_sha: f150219098d5f2a92239cf438d52dc063def5359
+      kind: observed_snapshot
+      convergence_baseline_sha: 7a6f23748454ebabdcb36210d9f7e00e5989b95a
+      head_sha: null
+      observed_at: '2026-09-27T08:17:26Z'
+      main:
+        branch: main
+        sha: 7a6f23748454ebabdcb36210d9f7e00e5989b95a
+      observation_note: Dated observation at WP-HYG-02 selection; not a live remote HEAD; fetch main before writes.
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned
