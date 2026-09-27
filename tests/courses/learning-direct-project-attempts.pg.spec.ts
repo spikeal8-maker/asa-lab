@@ -1407,6 +1407,33 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       reused: true,
     });
 
+    const workContext = await inTenant((client) =>
+      client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+        learnerPrincipal,
+        projectId,
+      ]),
+    );
+    expect(workContext.rows).toHaveLength(1);
+    expect(workContext.rows[0].context).toMatchObject({
+      projectId,
+      seatId,
+      classroomAssignmentId: assignmentId,
+      learningActivityVersionId: versionId,
+      sourceKind: 'direct',
+      participationId: first.participation_id,
+      attemptId: first.attempt_id,
+    });
+    expect(
+      (
+        await inTenant((client) =>
+          client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+            teacherPrincipal,
+            projectId,
+          ]),
+        )
+      ).rows,
+    ).toEqual([]);
+
     const lineage = await admin.query(
       `SELECT attempt.activity_participation_id,attempt.learner_identity_id,
               attempt.state,participation.status,run.source_classroom_assignment_id

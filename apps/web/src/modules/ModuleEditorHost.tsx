@@ -247,7 +247,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       <ProjectSaveEvidence key={props.projectId}>
         {/* What to make, while you are making it. Renders nothing for anyone
           whose project is not work a teacher set. */}
-        <AssignmentBrief projectId={props.projectId} seatLearner={props.seatLearner ?? false} />
+        <AssignmentBrief projectId={props.projectId} />
         <Suspense fallback={<AppBootShell label="Открываем рабочую среду" />}>
           <Editor
             projectId={props.projectId}
