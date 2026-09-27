@@ -159,7 +159,8 @@ invariants:
   - id: IDA-SEAT-002
     statement: StudentSeat admission uses failure-only rate budgets of 60 invalid resolve/source/10m, 5 invalid
       candidate/class/10m, 180 invalid source+class/10m and 300 invalid source/10m; valid requests do not consume those
-      budgets, and the class-only QR uses https://asa-lab.ru without Student Code.
+      budgets; the class-only QR navigates to the approved current portal entry without Student Code
+      (https://asa-lab.ru for the current ASA public installation), and its URL grants no authorization.
     master_refs:
     - document: IDENTITY-ACCESS-V22
       section: §9.2 / §9.3

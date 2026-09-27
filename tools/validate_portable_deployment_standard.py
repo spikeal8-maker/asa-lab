@@ -43,7 +43,8 @@ TRANSITION_MARKERS = (
     "DPL-NET-002 / DPL-NET-003",
     "DPL-NET-004",
     "DPL-TST-003",
-    "### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin",
+    "### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001:",
+    "EX-05 remains **OPEN**.",
 )
 
 EXPECTED_REGISTRY: dict[str, dict[str, Any]] = {

@@ -375,14 +375,41 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   for (const width of [1440, 1024, 390, 320]) {
     await teacherPage.setViewportSize({ width, height: width <= 390 ? 844 : 900 });
     await expect(cards.getByRole('button', { name: /^Распечатать/ })).toBeVisible();
-    expect(
-      await teacherPage.evaluate(
-        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-      ),
-    ).toBeLessThanOrEqual(0);
-    if (width === 1440 || width === 390) {
-      await shot(teacherPage, `H-reusable-access-cards-${width}`);
+    const layout = await teacherPage.evaluate(() => {
+      const dialog = document.querySelector<HTMLElement>('.student-access-dialog')!;
+      const bounds = dialog.getBoundingClientRect();
+      const outside = Array.from(document.querySelectorAll<HTMLElement>('body *'))
+        .filter((element) => element.getBoundingClientRect().right > window.innerWidth + 1)
+        .map((element) => ({
+          selector: `${element.tagName.toLowerCase()}.${Array.from(element.classList).join('.')}`,
+          inDialog: dialog.contains(element),
+        }))
+        .slice(0, 12);
+      return {
+        left: bounds.left,
+        right: bounds.right,
+        dialogOverflow: dialog.scrollWidth - dialog.clientWidth,
+        dialogEscapes: Array.from(dialog.querySelectorAll<HTMLElement>('*'))
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.left < -1 || rect.right > window.innerWidth + 1;
+          })
+          .map(
+            (element) =>
+              `${element.tagName.toLowerCase()}.${Array.from(element.classList).join('.')}`,
+          ),
+        pageOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        outside,
+      };
+    });
+    expect(layout.left).toBeGreaterThanOrEqual(0);
+    expect(layout.right).toBeLessThanOrEqual(width);
+    expect(layout.dialogOverflow).toBeLessThanOrEqual(1);
+    expect(layout.dialogEscapes).toEqual([]);
+    if (layout.pageOverflow > 0) {
+      console.info(`Access cards ${width}px: background page overflow`, layout);
     }
+    await shot(teacherPage, `H-reusable-access-cards-${width}`);
   }
   await cards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
   await expect(

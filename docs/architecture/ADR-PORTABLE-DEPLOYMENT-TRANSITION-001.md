@@ -1,7 +1,7 @@
 # ADR-PORTABLE-DEPLOYMENT-TRANSITION-001 — ASA Lab transition to the portable deployment standard
 
 **Status:** ACTIVE TRANSITION EXCEPTION  
-**Revision:** 1.1\
+**Revision:** 1.2\
 **Scope:** ASA Lab current self-hosted installation/update architecture only  
 **Standard:** docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md v1.1  
 **Owner:** ASA Lab repository owner  
@@ -144,36 +144,39 @@ A green loopback smoke could be mistaken for proof that a moved/LAN/public insta
 
 P6 adds acceptance for every supported entry mode and ties compliance claims to those results.
 
-### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin
+### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: class-join entry acceptance pending
 
-**Current behavior**
+**Source-level transition**
 
-`apps/web/src/components/StudentAccessCards.tsx` sets `PUBLIC_SITE_ORIGIN` to `https://asa-lab.ru` and uses it to build the class-join URL encoded in printable student-card QR codes. The printed site label and manual-entry instruction use the same fixed public site.
+The P0 baseline fixed the printable class-join QR and site label to `https://asa-lab.ru`. The P1-C1 source derives the QR destination and printed host label from the current portal browser origin, accepts only a canonical HTTP(S) origin, and disables printing when no valid entry exists. The installed ASA entry and previously printed cards are not changed by this source-level repair.
 
-**Reason**
+**Reason for keeping the exception open**
 
-This is a legacy public-entry assumption that has not yet moved to the portable deployment entry model. The runtime change belongs to P1, not this P0 governance slice.
+The source change does not prove that a second device can use a printed card through an approved LAN/public ingress. It also does not validate print/scan behavior or authorize a production deployment.
 
 **Risk**
 
-On an installation entered through another domain or address, a printed QR or class-join instruction can lead away from that installation. Reusable application code remains coupled to one installation-specific public origin, contrary to DPL-NET-003 and DPL-CFG-001.
+Until real entry-mode acceptance, a card printed from an unintended or unreachable entry could still direct a student to an unusable address. The deployment/ingress profile must establish the approved reachable entry; browser URL generation alone does not establish that trust or availability.
 
 **Compensating controls**
 
 - The QR URL contains the class code but not the student code. The class-join page asks for the student code separately, and the API validates both codes before StudentSeat sign-in.
-- The fixed URL is a navigation target only. It is not a browser-trust allowlist or authorization source; this exception does not permit using it as either.
-- No existing control makes these printed URLs portable. Full-compliance and LAN/public portability claims remain blocked while this gap is open.
+- The QR URL is a navigation target only. It is not a browser-trust allowlist or authorization source; this exception does not permit using it as either.
+- Invalid/non-HTTP(S) browser origins produce no QR and disable printing rather than substituting an installation-specific fallback.
+- Full-compliance and LAN/public portability claims remain blocked while this gap is open.
 
 **Verification**
 
-- `apps/web/src/components/StudentAccessCards.tsx`: `PUBLIC_SITE_ORIGIN`, `classJoinUrl`, `data-qr-url` and `ClassJoinQr` show the fixed QR target and absence of a student code in that URL.
+- `apps/web/src/components/StudentAccessCards.tsx`: `portalEntry`, `classJoinUrl`, `data-qr-url` and `ClassJoinQr` show the browser-entry target and absence of a student code in that URL.
 - `apps/web/src/pages/JoinClassPage.tsx` and `apps/api/src/classroom-join.controller.ts`: class-code resolution is followed by a separate student-code sign-in that validates both codes.
-- `e2e/access-a.spec.ts`: the current card assertion expects `https://asa-lab.ru/#/join-class?code=` and checks that student codes are absent from the QR URL; this is evidence of current behavior, not portability acceptance.
-- `docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md` records the fixed-origin gap and assigns removal of the fixed domain to P1.
+- `apps/web/src/components/testing/student-access-cards.spec.ts`: local, LAN and public URL generation plus invalid-origin rejection are source-level regression tests, not second-device evidence.
+- `e2e/access-a.spec.ts`: the browser assertion requires the exact current portal origin and no student code in the QR; it checks 1440/1024/390/320 layouts in isolated CI, not a real LAN/public installation.
+- `docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md` records the fixed-origin gap at the P0 baseline and assigns its removal to P1.
+- Second-device LAN/public card print/scan and sign-in acceptance: **NOT_RUN**. EX-05 remains **OPEN**.
 
 **Closure**
 
-P1 must remove the hardcoded class-join public origin from reusable application code, derive the entry from the approved deployment/ingress model, and provide regression plus browser evidence for the supported entry modes without weakening browser-origin or authorization checks. Only then may this exception be closed.
+EX-05 may close only after a supported approved LAN/public entry is exercised from a second device with a printed/scanned card, exact destination and separate Student Code sign-in, while browser-origin and authorization checks remain intact. A local deep link, generated URL or isolated browser test alone does not close it.
 
 ## 3. Known gaps that are not silently classified
 

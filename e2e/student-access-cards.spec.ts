@@ -5,7 +5,6 @@ import { PNG } from 'pngjs';
 import { e2eAdminPool } from './seed';
 
 const origin = 'http://127.0.0.1:4612';
-const productionOrigin = 'https://asa-lab.ru';
 const evidence = 'e2e/artifacts/owner-preview/e1-fix-03/after';
 const admin = e2eAdminPool();
 
@@ -229,9 +228,10 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
 
   await page.setViewportSize({ width: 1440, height: 1000 });
   let cards = await openCards(page, classroomId);
+  const portalOrigin = await page.evaluate(() => window.location.origin);
   await expect(cards.locator('.student-access-card')).toHaveCount(10);
-  await expect(cards).toContainText('asa-lab.ru');
-  await expect(cards).not.toContainText('Asolab.ru');
+  await expect(cards).toContainText(new URL(portalOrigin).host);
+  await expect(cards).not.toContainText('asa-lab.ru');
   await expect(cards.getByText('https://', { exact: false })).toHaveCount(0);
   await expect(cards.getByText('/#/join-class', { exact: false })).toHaveCount(0);
 
@@ -244,7 +244,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     `${evidence}/qr-a.png`,
   );
   const urlA = new URL(decodedA);
-  expect(urlA.origin).toBe(productionOrigin);
+  expect(urlA.origin).toBe(portalOrigin);
   expect(urlA.hash.split('?')[0]).toBe('#/join-class');
   expect(new URLSearchParams(urlA.hash.split('?')[1] ?? '').get('code')).toBe(classCodeA);
   for (const student of students) expect(decodedA).not.toContain(student.studentCode);
@@ -252,8 +252,8 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   await cards.screenshot({ path: `${evidence}/dialog.png` });
   await firstCard.screenshot({ path: `${evidence}/card.png` });
 
-  // Production origin is proven by independent decode above. Route behavior is
-  // then exercised against the isolated local test server using that exact hash.
+  // Exact current portal origin is proven by independent decode above. Route behavior
+  // is then exercised against the isolated local test server using that exact hash.
   await signInFromRoute(
     browser,
     `${origin}/${urlA.hash}`,
@@ -378,7 +378,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     `${evidence}/qr-b.png`,
   );
   const urlB = new URL(decodedB);
-  expect(urlB.origin).toBe(productionOrigin);
+  expect(urlB.origin).toBe(portalOrigin);
   expect(new URLSearchParams(urlB.hash.split('?')[1] ?? '').get('code')).toBe(classCodeB);
   expect(decodedB).not.toBe(decodedA);
   for (const student of students) expect(decodedB).not.toContain(student.studentCode);
