@@ -1048,6 +1048,41 @@ def pull_request_state_error(status: str, state: str, task_id: str, pr: Any) -> 
     return None
 
 
+def check_recorded_pr_state(
+    task: dict[str, Any], errors: list[str], notes: list[str], require: bool
+) -> None:
+    """Check a voluntarily recorded PR in direct_main without feature-branch rules."""
+    pr = task.get("pr")
+    if pr is None:
+        return
+    code, payload = run(["gh", "pr", "view", str(pr), "--json", "number,state"])
+    if code != 0:
+        message = f"recorded PR #{pr}: cannot verify GitHub state; PR is unavailable or unreadable"
+        (errors if require else notes).append(message if require else f"{message}; remote check skipped")
+        return
+    try:
+        data = json.loads(payload)
+    except (json.JSONDecodeError, TypeError):
+        data = None
+    if not isinstance(data, dict) or data.get("state") not in {"OPEN", "CLOSED", "MERGED"}:
+        message = f"recorded PR #{pr}: cannot verify GitHub state; response is unreadable"
+        (errors if require else notes).append(message if require else f"{message}; remote check skipped")
+        return
+    if data.get("number") != pr:
+        errors.append(f"recorded PR #{pr}: GitHub returned PR #{data.get('number')!r}")
+        return
+    problem = pull_request_state_error(
+        status=str(task.get("status")),
+        state=data["state"],
+        task_id=str(task.get("id")),
+        pr=pr,
+    )
+    if problem:
+        errors.append(problem)
+    else:
+        notes.append(f"recorded PR #{pr}: state={data['state']} matches task status")
+
+
 def check_github(task: dict[str, Any], errors: list[str], notes: list[str], require: bool) -> None:
     code, _ = run(["gh", "auth", "status"])
     if code != 0:
@@ -1234,6 +1269,9 @@ def check_execution_branch_policy(
             "direct_main mode: leases, lane path ownership, product branches and PRs "
             "are advisory; docs/execution/current.yaml is still canonical on main"
         )
+        for lane_task in lane_tasks:
+            if lane_task.get("pr") is not None:
+                check_recorded_pr_state(lane_task, errors, notes, require_remote)
         return
     check_lane_branch_scopes(lanes, errors, notes, require_remote)
     for lane_task in lane_tasks:
