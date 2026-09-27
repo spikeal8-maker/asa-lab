@@ -68,6 +68,7 @@ __pycache__/
 reports/playwright/
 reports/games/
 reports/blocks/
+/reports/interactions/
 
 # dev orchestrator graceful stop marker
 .asa-dev-stop
