@@ -1727,6 +1727,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     sections: Array<{
       lessons: Array<{
         activityOccurrences: Array<{
+          blockId: string;
+          activityRunId: string;
+          classroomAssignmentId: string;
+          learningActivityVersionId: string;
           title: string;
           projectId: string | null;
           canonicalState: { workflowState: string } | null;
@@ -1781,6 +1785,50 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(electronicsEvidence.projectId).not.toBe('');
   expect(electronicsEvidence.addedComponentId).toBeTruthy();
 
+  const firstOccurrence = occurrenceFromCourseRun(
+    await (async () => {
+      const response = await learner.page.request.get('/api/class-join/me/course-runs');
+      expect(response.ok()).toBe(true);
+      const payload = (await response.json()) as { items: D5CourseRunRead[] };
+      return payload.items.find((run) => run.id === courseRunId)!;
+    })(),
+    electronicsTitle,
+  );
+  const firstContextResponse = await learner.page.request.get(
+    `/api/learning/projects/${electronicsEvidence.projectId}/context`,
+  );
+  expect(firstContextResponse.ok()).toBe(true);
+  const firstContext = await firstContextResponse.json();
+  expect(firstContext).toMatchObject({
+    state: 'ready',
+    origin: {
+      courseBlockId: firstOccurrence.blockId,
+      activityRunId: firstOccurrence.activityRunId,
+      classroomAssignmentId: firstOccurrence.classroomAssignmentId,
+      learningActivityVersionId: firstOccurrence.learningActivityVersionId,
+    },
+    task: { title: electronicsTitle },
+  });
+  const a1EvidenceDir = 'e2e/artifacts/learning/work-context-a1';
+  mkdirSync(a1EvidenceDir, { recursive: true });
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await learner.page.setViewportSize(viewport);
+    const anchor = learner.page.getByTestId('assignment-brief-anchor');
+    await expect(anchor).toBeVisible();
+    if ((await anchor.getAttribute('aria-expanded')) === 'false') await anchor.click();
+    await expect(learner.page.getByTestId('assignment-brief')).toContainText(electronicsTitle);
+    await learner.page.screenshot({
+      path: `${a1EvidenceDir}/course-block-${viewport.width}.png`,
+      fullPage: false,
+    });
+  }
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
+
   await openCourse();
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
@@ -1826,6 +1874,21 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(threeDEvidence.projectId).not.toBe('');
   expect(threeDEvidence.projectId).not.toBe(electronicsEvidence.projectId);
 
+  const secondContextResponse = await learner.page.request.get(
+    `/api/learning/projects/${threeDEvidence.projectId}/context`,
+  );
+  expect(secondContextResponse.ok()).toBe(true);
+  const secondContext = await secondContextResponse.json();
+  expect(secondContext).toMatchObject({
+    state: 'ready',
+    task: { title: threeDTitle },
+    origin: { sourceKind: 'course' },
+  });
+  expect(secondContext.origin.courseBlockId).not.toBe(firstContext.origin.courseBlockId);
+  expect(secondContext.origin.learningActivityVersionId).not.toBe(
+    firstContext.origin.learningActivityVersionId,
+  );
+
   const afterThreeDStart = await openCourse();
   const electronicsAfterThreeD = occurrenceFromCourseRun(afterThreeDStart, electronicsTitle);
   const startedThreeD = occurrenceFromCourseRun(afterThreeDStart, threeDTitle);
@@ -1866,6 +1929,25 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(learner.page.locator('.asa3d-object-count')).toContainText(
     new RegExp(`^${threeDEvidence.expectedObjectCount} `),
   );
+
+  await learner.page.route(
+    `**/api/learning/projects/${threeDEvidence.projectId}/context`,
+    (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ state: 'unavailable', projectId: threeDEvidence.projectId }),
+      }),
+  );
+  await learner.page.setViewportSize({ width: 390, height: 844 });
+  await learner.page.reload();
+  await expect(learner.page.getByTestId('learning-work-context-state')).toContainText(
+    'Не удалось загрузить учебное задание.',
+  );
+  await learner.page.screenshot({
+    path: `${a1EvidenceDir}/unavailable-390.png`,
+    fullPage: false,
+  });
 
   learnerFailures.assertEmpty();
   await learner.context.close();
