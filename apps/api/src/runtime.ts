@@ -14,7 +14,7 @@ export interface TelemetryLifecycle {
 export interface ApiRuntimeOptions {
   readonly host?: string;
   readonly port?: number;
-  readonly createApp?: () => Promise<ApiApplication>;
+  readonly createApp?: (listenerPort: number) => Promise<ApiApplication>;
   readonly telemetry?: TelemetryLifecycle;
 }
 
@@ -37,14 +37,15 @@ export async function launchApiRuntime(options: ApiRuntimeOptions = {}): Promise
   const port = options.port ?? 4611;
   const telemetry =
     options.telemetry ?? createTelemetry({ serviceName: 'asa-lab-api', mode: 'disabled' });
-  const createApp = options.createApp ?? createApiApp;
+  const createApp =
+    options.createApp ?? ((listenerPort: number) => createApiApp({ localApiPort: listenerPort }));
 
   let app: ApiApplication | null = null;
   let telemetryStarted = false;
   try {
     telemetry.start();
     telemetryStarted = true;
-    app = await createApp();
+    app = await createApp(port);
     await app.listen({ host, port });
   } catch (startupError) {
     const cleanupErrors: unknown[] = [];
