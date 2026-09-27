@@ -6,12 +6,11 @@ import {
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
 } from 'react';
-import { api, type SeatAssignment } from '../api';
+import { api, type LearningWorkContext, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
 import { TaskImageReferenceWindow } from './TaskImageReferenceWindow';
 import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
-import { courseAssignmentShape } from './SeatCourses';
 import {
   assignmentBriefResultText,
   assignmentBriefSubmitLabel,
@@ -87,14 +86,31 @@ function readRect(): AssignmentBriefRect {
   );
 }
 
-export function AssignmentBrief({
-  projectId,
-  seatLearner,
-}: {
-  readonly projectId: string;
-  readonly seatLearner: boolean;
-}): JSX.Element | null {
-  const [assignment, setAssignment] = useState<SeatAssignment | null>(null);
+function assignmentFromContext(
+  context: Extract<LearningWorkContext, { state: 'ready' }>,
+): SeatAssignment {
+  return {
+    id: context.origin.classroomAssignmentId,
+    title: context.task.title,
+    brief: context.task.brief,
+    goal: context.task.goal,
+    moduleKey: context.moduleKey,
+    dueAt: context.task.dueAt,
+    status: context.task.status,
+    sampleImage: context.task.sampleImage,
+    projectId: context.projectId,
+    submittedAt: context.workflow.submittedAt,
+    snapshotRevision: context.workflow.snapshotRevision,
+    updatedAt: context.workflow.updatedAt,
+    canonicalState: context.workflow.canonicalState,
+  };
+}
+
+export function AssignmentBrief({ projectId }: { readonly projectId: string }): JSX.Element | null {
+  const [context, setContext] = useState<LearningWorkContext | { state: 'resolving' }>({
+    state: 'resolving',
+  });
+  const assignment = context.state === 'ready' ? assignmentFromContext(context) : null;
   const [referenceOwner, setReferenceOwner] = useState<{
     readonly projectId: string;
     readonly assignmentId: string;
@@ -116,22 +132,13 @@ export function AssignmentBrief({
   expandedRef.current = expanded;
 
   const load = useCallback(async () => {
-    const [direct, courses] = await Promise.all([
-      seatLearner ? api.seatAssignments() : api.attendedAssignments(),
-      seatLearner ? api.seatCourseRuns() : api.accountCourseRuns(),
-    ]);
-    const items: SeatAssignment[] = direct.ok ? direct.data.items : [];
-    if (courses.ok)
-      for (const run of courses.data.items)
-        for (const section of run.sections) {
-          items.push(
-            ...section.lessons
-              .filter((lesson) => lesson.kind === 'assignment')
-              .map((lesson) => courseAssignmentShape(run, lesson)),
-          );
-        }
-    return items.find((item) => item.projectId === projectId) ?? null;
-  }, [projectId, seatLearner]);
+    const result = await api.learningWorkContext(projectId);
+    if (result.ok) return result.data;
+    return {
+      state: result.status === 403 || result.status === 404 ? 'denied' : 'unavailable',
+      projectId,
+    } as LearningWorkContext;
+  }, [projectId]);
 
   useEffect(() => {
     setOpen(readOpen(projectId));
@@ -225,17 +232,45 @@ export function AssignmentBrief({
 
   useEffect(() => {
     let cancelled = false;
-    // Resolve the same delivery through the authenticated Account or Seat reader.
+    setContext({ state: 'resolving' });
     void load().then((result) => {
       if (cancelled) return;
-      setAssignment(result);
+      setContext(result);
     });
     return () => {
       cancelled = true;
     };
   }, [load]);
 
-  if (!assignment) return null;
+  if (context.state === 'not_learning') return null;
+  if (context.state !== 'ready' || !assignment) {
+    const message =
+      context.state === 'resolving'
+        ? 'Ищем учебное задание…'
+        : context.state === 'denied'
+          ? 'Эта учебная работа недоступна.'
+          : 'Не удалось загрузить учебное задание.';
+    return (
+      <div
+        className="assignment-brief-state-card"
+        data-testid="learning-work-context-state"
+        role="status"
+      >
+        <span>{message}</span>
+        {context.state === 'unavailable' ? (
+          <button
+            type="button"
+            onClick={() => {
+              setContext({ state: 'resolving' });
+              void load().then(setContext);
+            }}
+          >
+            Повторить
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
   function toggle(): void {
     setOpen((current) => {
@@ -316,14 +351,22 @@ export function AssignmentBrief({
   }
 
   async function submit(): Promise<void> {
-    if (!assignment || revision === null) return;
+    if (!assignment || context.state !== 'ready' || revision === null) return;
     setBusy(true);
     setError(null);
     if (assignment.canonicalState?.workflowState === 'changes_requested') {
+      if (!context.allowedActions.resumeAfterChangesRequested) {
+        setBusy(false);
+        return;
+      }
       const started = await api.startSeatAssignment(assignment.id, projectId);
       setBusy(false);
-      if (started.ok) setAssignment(await load());
+      if (started.ok) setContext(await load());
       else setError(started.error.message);
+      return;
+    }
+    if (!context.allowedActions.submit) {
+      setBusy(false);
       return;
     }
     if (submissionRequest.current?.revision !== revision)
@@ -336,7 +379,7 @@ export function AssignmentBrief({
     );
     setBusy(false);
     if (result.ok) {
-      setAssignment((await load()) ?? { ...assignment, submittedAt: result.data.submittedAt });
+      setContext(await load());
       submissionRequest.current = null;
     } else setError(result.error.message);
   }
@@ -459,7 +502,9 @@ export function AssignmentBrief({
                 <button
                   type="button"
                   className="assignment-brief-submit"
-                  disabled={busy || revision === null}
+                  disabled={
+                    busy || revision === null || !context.allowedActions.resumeAfterChangesRequested
+                  }
                   onClick={() => void submit()}
                 >
                   {busy ? 'Открываем…' : 'Продолжить'}
@@ -473,7 +518,7 @@ export function AssignmentBrief({
                 <button
                   type="button"
                   className="assignment-brief-submit"
-                  disabled={busy || revision === null}
+                  disabled={busy || revision === null || !context.allowedActions.submit}
                   onClick={() => void submit()}
                 >
                   {busy ? 'Отправляем…' : assignmentBriefSubmitLabel(assignment.canonicalState)}

@@ -383,6 +383,8 @@ async function openEditor(page: Page, initial = documentFixture()) {
       revision++;
       requests.push(path);
       body = { draft: draft(), result: null };
+    } else if (path === '/api/learning/projects/' + ID + '/context') {
+      body = { state: 'not_learning', projectId: ID };
     } else if (path === '/api/account/avatar') body = { avatarDataUrl: null };
     else if (path.endsWith('/status')) body = { available: false };
     else if (path.endsWith('/me')) body = { authenticated: false, administrator: false };

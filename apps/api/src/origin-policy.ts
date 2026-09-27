@@ -1,13 +1,27 @@
 export interface MutationOriginInput {
   readonly origin: string | undefined;
-  readonly requestHost: string | undefined;
-  readonly requestProtocol: string;
   readonly allowedWebOrigin: string;
+  readonly allowedLocalApiOrigin: string;
   readonly additionalAllowedOrigins?: readonly string[];
   readonly secFetchSite?: string | undefined;
 }
 
 const FORBIDDEN_PORTS = new Set([3000, 3100, 5173]);
+
+function resolveLocalPort(rawPort: string | undefined, fallback: string, name: string): number {
+  const source = rawPort?.trim() || fallback;
+  const port = Number.parseInt(source, 10);
+  if (
+    !Number.isInteger(port) ||
+    String(port) !== source ||
+    port < 1024 ||
+    port > 65535 ||
+    FORBIDDEN_PORTS.has(port)
+  ) {
+    throw new Error(`${name} is invalid or forbidden: ${source}`);
+  }
+  return port;
+}
 
 function normalizeOrigin(value: string): string | null {
   try {
@@ -33,17 +47,7 @@ export function resolveCanonicalWebOrigin(
   rawPort: string | undefined,
   explicitOrigin?: string | undefined,
 ): string {
-  const source = rawPort?.trim() || '4610';
-  const port = Number.parseInt(source, 10);
-  if (
-    !Number.isInteger(port) ||
-    String(port) !== source ||
-    port < 1024 ||
-    port > 65535 ||
-    FORBIDDEN_PORTS.has(port)
-  ) {
-    throw new Error(`ASA_WEB_PORT is invalid or forbidden: ${source}`);
-  }
+  const port = resolveLocalPort(rawPort, '4610', 'ASA_WEB_PORT');
 
   const expected = `http://127.0.0.1:${port}`;
   if (explicitOrigin !== undefined && explicitOrigin.trim() !== '') {
@@ -55,6 +59,11 @@ export function resolveCanonicalWebOrigin(
     }
   }
   return expected;
+}
+
+/** The built SPA served directly by the API has one configured loopback origin. */
+export function resolveLocalApiOrigin(rawPort: string | undefined): string {
+  return `http://127.0.0.1:${resolveLocalPort(rawPort, '4611', 'API_PORT')}`;
 }
 
 /**
@@ -96,7 +105,7 @@ export function resolveAdditionalWebOrigins(raw: string | undefined): readonly s
  * Browser mutation policy for the Teacher Portal.
  *
  * Browser requests carrying Origin are accepted only from the canonical Vite
- * origin or from the API's own same-origin built SPA. We deliberately do not
+ * origin or from the API's configured local built SPA endpoint. We deliberately do not
  * trust an arbitrary localhost/127.0.0.1 port: another local project (notably
  * the owner's service on 5173) must not become a trusted origin accidentally.
  *
@@ -114,18 +123,16 @@ export function isAllowedMutationOrigin(input: MutationOriginInput): boolean {
   }
 
   const requestOrigin = normalizeOrigin(input.origin);
-  const allowedOrigins = [input.allowedWebOrigin, ...(input.additionalAllowedOrigins ?? [])]
+  const allowedOrigins = [
+    input.allowedWebOrigin,
+    input.allowedLocalApiOrigin,
+    ...(input.additionalAllowedOrigins ?? []),
+  ]
     .map(normalizeOrigin)
     .filter((origin): origin is string => origin !== null);
   if (requestOrigin === null || allowedOrigins.length === 0) {
     return false;
   }
 
-  const sameOrigin = input.requestHost
-    ? normalizeOrigin(`${input.requestProtocol}://${input.requestHost}`)
-    : null;
-
-  return (
-    allowedOrigins.includes(requestOrigin) || (sameOrigin !== null && requestOrigin === sameOrigin)
-  );
+  return allowedOrigins.includes(requestOrigin);
 }

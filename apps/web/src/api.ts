@@ -859,6 +859,62 @@ export interface SeatAssignment {
   canonicalState: CanonicalLearningSurfaceState | null;
 }
 
+/** A project-scoped, server-resolved Learning origin and learner workflow. */
+export type LearningWorkContext =
+  | { state: 'not_learning' | 'denied' | 'unavailable'; projectId: string }
+  | {
+      state: 'ready';
+      projectId: string;
+      moduleKey: string;
+      origin: {
+        participationId: string | null;
+        activityRunId: string | null;
+        learningActivityVersionId: string;
+        sourceKind: 'direct' | 'course';
+        classroomAssignmentId: string;
+        courseRunId: string | null;
+        courseLessonId: string | null;
+        courseBlockId: string | null;
+      };
+      task: {
+        id: string;
+        versionNumber: number;
+        contentDigest: string;
+        title: string;
+        brief: string | null;
+        goal: string | null;
+        sampleImage: string | null;
+        dueAt: string | null;
+        status: 'open' | 'closed';
+      };
+      workflow: {
+        canonicalState: CanonicalLearningSurfaceState;
+        attemptId: string | null;
+        attemptNumber: number | null;
+        submissionId: string | null;
+        submittedProjectVersionId: string | null;
+        submittedAt: string | null;
+        snapshotRevision: number | null;
+        updatedAt: string | null;
+      };
+      allowedActions: {
+        edit: boolean;
+        submit: boolean;
+        resumeAfterChangesRequested: boolean;
+        moveToLearningArchive: boolean;
+        restoreFromLearningArchive: boolean;
+        createPersonalCopy: boolean;
+        changeGenericProjectStatus: boolean;
+        publishOriginal: boolean;
+      };
+      presentation: {
+        learnerCollectionState: 'working' | 'review' | 'completed';
+        classroomTitle: string;
+        courseTitle: string | null;
+        lessonTitle: string | null;
+      };
+    };
+
 export type QuizQuestionType =
   'single_choice' | 'multiple_choice' | 'boolean' | 'numeric' | 'short_text';
 
@@ -2579,6 +2635,8 @@ export const api = {
       `/api/classrooms/${encodeURIComponent(classroomId)}/assignments/${encodeURIComponent(assignmentId)}/progress`,
     ),
   seatAssignments: () => call<{ items: SeatAssignment[] }>('/api/class-join/me/assignments'),
+  learningWorkContext: (projectId: string) =>
+    call<LearningWorkContext>(`/api/learning/projects/${encodeURIComponent(projectId)}/context`),
   seatQuizzes: () => call<{ items: LearnerQuiz[] }>('/api/class-join/me/quizzes'),
   seatResults: () => call<{ items: LearnerResult[] }>('/api/class-join/me/results'),
   accountResults: () => call<{ items: LearnerResult[] }>('/api/class-join/account/results'),

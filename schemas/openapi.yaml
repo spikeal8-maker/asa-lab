@@ -2733,6 +2733,28 @@ paths:
         '200': { description: Co-teacher membership created }
         '403': { description: The signed-in account is not an educator }
         '410': { description: Invitation expired, was revoked or was already used }
+  /api/learning/projects/{projectId}/context:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      operationId: getLearningWorkContext
+      summary: Resolve one accessible project to its exact learner assignment origin
+      description: >-
+        Project access is checked before Learning lookup. Unknown and inaccessible
+        projects share the denied state. A genuinely personal project is
+        not_learning; ambiguous or incomplete Learning evidence is unavailable.
+      responses:
+        '200':
+          description: Explicit project-scoped Learning context state
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningWorkContext' }
+        '400': { description: Invalid project ID }
+        '401': { description: No active Account or StudentSeat session }
+        '503': { description: Learning read dependency unavailable }
   /api/learning/activities:
     get:
       operationId: listLearningActivities
@@ -3786,6 +3808,110 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    LearningWorkContext:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [state, projectId]
+          properties:
+            state: { type: string, enum: [not_learning, denied, unavailable] }
+            projectId: { type: string, format: uuid }
+        - type: object
+          additionalProperties: false
+          required:
+            [state, projectId, moduleKey, origin, task, workflow, allowedActions, presentation]
+          properties:
+            state: { type: string, const: ready }
+            projectId: { type: string, format: uuid }
+            moduleKey: { type: string }
+            origin:
+              type: object
+              required:
+                [
+                  participationId,
+                  activityRunId,
+                  learningActivityVersionId,
+                  sourceKind,
+                  classroomAssignmentId,
+                  courseRunId,
+                  courseLessonId,
+                  courseBlockId,
+                ]
+              properties:
+                participationId: { type: [string, 'null'], format: uuid }
+                activityRunId: { type: [string, 'null'], format: uuid }
+                learningActivityVersionId: { type: string, format: uuid }
+                sourceKind: { type: string, enum: [direct, course] }
+                classroomAssignmentId: { type: string, format: uuid }
+                courseRunId: { type: [string, 'null'], format: uuid }
+                courseLessonId: { type: [string, 'null'], format: uuid }
+                courseBlockId: { type: [string, 'null'] }
+            task:
+              type: object
+              required:
+                [id, versionNumber, contentDigest, title, brief, goal, sampleImage, dueAt, status]
+              properties:
+                id: { type: string, format: uuid }
+                versionNumber: { type: integer, minimum: 1 }
+                contentDigest: { type: string }
+                title: { type: string }
+                brief: { type: [string, 'null'] }
+                goal: { type: [string, 'null'] }
+                sampleImage: { type: [string, 'null'] }
+                dueAt: { type: [string, 'null'], format: date-time }
+                status: { type: string, enum: [open, closed] }
+            workflow:
+              type: object
+              required:
+                [
+                  canonicalState,
+                  attemptId,
+                  attemptNumber,
+                  submissionId,
+                  submittedProjectVersionId,
+                  submittedAt,
+                  snapshotRevision,
+                  updatedAt,
+                ]
+              properties:
+                canonicalState: { type: object }
+                attemptId: { type: [string, 'null'], format: uuid }
+                attemptNumber: { type: [integer, 'null'] }
+                submissionId: { type: [string, 'null'], format: uuid }
+                submittedProjectVersionId: { type: [string, 'null'], format: uuid }
+                submittedAt: { type: [string, 'null'], format: date-time }
+                snapshotRevision: { type: [integer, 'null'] }
+                updatedAt: { type: [string, 'null'], format: date-time }
+            allowedActions:
+              type: object
+              required:
+                [
+                  edit,
+                  submit,
+                  resumeAfterChangesRequested,
+                  moveToLearningArchive,
+                  restoreFromLearningArchive,
+                  createPersonalCopy,
+                  changeGenericProjectStatus,
+                  publishOriginal,
+                ]
+              properties:
+                edit: { type: boolean }
+                submit: { type: boolean }
+                resumeAfterChangesRequested: { type: boolean }
+                moveToLearningArchive: { type: boolean }
+                restoreFromLearningArchive: { type: boolean }
+                createPersonalCopy: { type: boolean }
+                changeGenericProjectStatus: { type: boolean }
+                publishOriginal: { type: boolean }
+            presentation:
+              type: object
+              required: [learnerCollectionState, classroomTitle, courseTitle, lessonTitle]
+              properties:
+                learnerCollectionState: { type: string, enum: [working, review, completed] }
+                classroomTitle: { type: string }
+                courseTitle: { type: [string, 'null'] }
+                lessonTitle: { type: [string, 'null'] }
     LearningTeacherReviewContext:
       {
         'type': 'object',

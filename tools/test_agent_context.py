@@ -560,5 +560,44 @@ class AgentContextTests(unittest.TestCase):
         self.assertIn("observations grant no authority", rendered)
 
 
+    def test_global_deployment_contract_is_read_first_for_scope_context(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            document = fixture(root)
+            contract_path = root / "docs/agent/contracts/deployment.yaml"
+            contract_path.parent.mkdir(parents=True, exist_ok=True)
+            contract_path.write_text(
+                "schema_version: 1.0.0\ncontract_id: DEPLOYMENT-DOMAIN\n",
+                encoding="utf-8",
+            )
+            registry_path = root / "docs/agent/document-registry.yaml"
+            registry = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
+            registry["documents"].append(
+                {
+                    "id": "PORTABLE-DEPLOYMENT-CONTRACT",
+                    "path": "docs/agent/contracts/deployment.yaml",
+                    "scope": "global",
+                    "lanes": ["*"],
+                    "status": "canonical",
+                    "context_role": "compact",
+                    "authority": "deployment_portability_invariants",
+                    "read_when": ["deployment"],
+                }
+            )
+            registry_path.write_text(
+                yaml.safe_dump(registry, sort_keys=False), encoding="utf-8"
+            )
+            context = MODULE.build_context(
+                root, document, lane(document), git_status=available()
+            )
+            rendered = MODULE.render_text(context)
+
+        read_first_ids = [
+            item["id"] for item in context["document_routes"]["read_first"]
+        ]
+        self.assertIn("PORTABLE-DEPLOYMENT-CONTRACT", read_first_ids)
+        self.assertIn("docs/agent/contracts/deployment.yaml", rendered)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

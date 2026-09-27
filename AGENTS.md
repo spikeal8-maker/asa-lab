@@ -227,11 +227,14 @@ Browser origin редактора совпадает с порталом.
 обход ошибки. Не выбирать TEST или диагностический контейнер вместо production.
 Проверяй working_dir/config_files и принадлежность сервисов одной установке;
 одной метки project/service или похожего имени контейнера недостаточно.
-Перед обновлением явно укажи **фактический адрес входа владельца в ASA**:
+До закрытия [transition exception](docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md)
+перед обновлением явно укажи **фактический адрес входа владельца в ASA**:
 `-EntryOrigin` для Windows source updater, `ASA_UPDATE_ENTRY_ORIGIN` для Linux
-и переносимого менеджера. Это адрес портала, не отдельный адрес Scratch.
-Preflight обязан сравнить его с обоими `ASA_BLOCKS_*_ORIGIN` до backup и
-переключения; после запуска — проверить `/internal/blocks/` через этот адрес.
+и переносимого менеджера. Это временный компенсирующий контроль DPL-AUTO-001,
+а не целевое portable-поведение: обычное обновление в целевой модели не должно
+повторно просить уже известный внешний выбор. Пока replacement не доказан,
+preflight обязан сравнить EntryOrigin с обоими `ASA_BLOCKS_*_ORIGIN` до backup
+и переключения; после запуска — проверить `/internal/blocks/` через этот адрес.
 Здоровые контейнеры и одинаковый SHA доказывают техническую готовность, но не
 пользовательский сценарий сохранения: без браузерной проверки он `NOT_RUN`.
 
@@ -239,6 +242,36 @@ Preflight обязан сравнить его с обоими `ASA_BLOCKS_*_ORI
 требует явного разрешения на его назначение, адреса и последующее удаление;
 запрос обновить основную установку такого разрешения не даёт. Найденные старые
 стенды и их данные не удаляются автоматически.
+
+
+### 4.2. Portable deployment — обязательный cross-cutting contract
+
+Для любого изменения установки, Compose/Docker, host ports, browser origins,
+reverse proxy/tunnel, network discovery, update, backup, restore, export/host
+migration или нового self-hosted сервиса обязательны:
+
+- [Portable Self-Hosted Deployment Standard](docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md);
+- [compact deployment contract](docs/agent/contracts/deployment.yaml).
+
+Маршрутизация намеренно различается по режимам agent context:
+
+- широкий `agent:context --scope <lane>` включает глобальный canonical compact deployment contract в `read_first`;
+- targeted `--path/--surface/--control` не инжектит все глобальные compact contracts автоматически и показывает только invariant IDs выбранной Surface Map.
+
+Поэтому для install/update/backup/restore/network/host-migration изменения root policy
+требует прочитать deployment contract/standard напрямую (и при необходимости
+использовать широкий `--scope`), даже если targeted context их не вывел.
+Такое различие является сознательным ограничением context budget и покрывается regression tests.
+
+Запрещено исправлять переносимость отключением origin/source/capability/CSRF
+защит, прошивкой нового IP/домена в product code, созданием второго постоянного
+Compose stack или тихой сменой host port. Network discovery и browser trust —
+разные механизмы. Если MUST-инвариант неприменим, требуется явный versioned
+architecture exception по DPL-EXC-001.
+
+ASA-specific конвергенция ведётся по
+[Issue #396 plan](docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md);
+сам план не даёт разрешения начинать следующий runtime/database/deployment slice.
 
 ## 5. Инварианты симуляции
 

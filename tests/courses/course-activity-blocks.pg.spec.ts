@@ -693,6 +693,34 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
 
     const afterSeat = await readSeat();
     const afterAccount = await readAccount();
+    const exactContext = await inTenant(author, (client) =>
+      client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+        principalId,
+        projectId,
+      ]),
+    );
+    expect(exactContext.rows).toHaveLength(1);
+    expect(exactContext.rows[0].context).toMatchObject({
+      projectId,
+      seatId: seat,
+      learningActivityVersionId: blockA.versionId,
+      sourceKind: 'course',
+      courseBlockId: 'activity-a',
+      courseLessonId: a.lesson_id,
+      goal: null,
+      sampleImage: null,
+    });
+    expect(exactContext.rows[0].context.activityRunId).toBe(a.activity_run_id);
+    expect(
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+            outsiderPrincipalId,
+            projectId,
+          ]),
+        )
+      ).rows,
+    ).toEqual([]);
     for (const rows of [afterSeat, afterAccount]) {
       const projectedA = rows.find((row) => row.block_id === 'activity-a');
       const projectedB = rows.find((row) => row.block_id === 'activity-b');
@@ -748,5 +776,41 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     const legacyRuntimeLesson = legacyRows.find((row) => row.source_lesson_id === legacyLessonId);
     expect(legacyRuntimeLesson?.classroom_assignment_id).toBeTruthy();
     expect(afterSeat.every((row) => row.lesson_id !== legacyRuntimeLesson?.lesson_id)).toBe(true);
+
+    const legacyProjectId = (
+      await admin.query(
+        `INSERT INTO projects
+           (tenant_id,project_scope,module_key,title,owner_principal_id)
+         VALUES($1,'personal','electronics',$2,$3) RETURNING id`,
+        [author.tenantId, `D4b legacy lesson work ${++sequence}`, principalId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [author.tenantId, legacyProjectId, principalId],
+    );
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_assignment_work_start($1,$2,$3)', [
+        seat,
+        legacyRuntimeLesson!.classroom_assignment_id,
+        legacyProjectId,
+      ]),
+    );
+    const legacyContext = await inTenant(author, (client) =>
+      client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+        principalId,
+        legacyProjectId,
+      ]),
+    );
+    expect(legacyContext.rows).toHaveLength(1);
+    expect(legacyContext.rows[0].context).toMatchObject({
+      projectId: legacyProjectId,
+      learningActivityVersionId: blockA.versionId,
+      sourceKind: 'course',
+      courseBlockId: null,
+      courseLessonId: legacyRuntimeLesson!.lesson_id,
+    });
   });
 });

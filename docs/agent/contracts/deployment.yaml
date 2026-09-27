@@ -1,0 +1,239 @@
+schema_version: 1.0.0
+contract_id: DEPLOYMENT-DOMAIN
+domain: deployment
+registry_document_id: PORTABLE-DEPLOYMENT-CONTRACT
+master_documents:
+  - PORTABLE-DEPLOYMENT-STANDARD
+invariants:
+  - id: DPL-ARCH-001
+    level: MUST
+    statement: Changing a supported host or network MUST NOT require source edits or manual reconfiguration of internal service identities.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-ARCH-001
+    applies_to: [install, update, host_migration, network_change]
+    forbid: [source_edit_for_ip_change, manual_internal_service_identity_reconfiguration_on_move, internal_identity_bound_to_dhcp]
+  - id: DPL-ARCH-002
+    level: MUST
+    statement: Internal services are components of one installation unless an explicit architecture exception defines another product boundary.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-ARCH-002
+    applies_to: [compose, routing, embedded_services]
+    forbid: [accidental_second_product_stack]
+  - id: DPL-HOST-001
+    level: MUST
+    statement: Every project publishes a support matrix covering operating systems, CPU architectures, runtime versions, minimum disk and RAM, and supported browsers.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-HOST-001
+    applies_to: [release, install, documentation]
+    forbid: [claim_any_computer_without_matrix, omit_supported_os_or_cpu_arch, omit_runtime_versions_or_minimum_disk_ram_or_browsers]
+  - id: DPL-AUTO-001
+    level: MUST
+    statement: Deterministic deployment values are automatic; external choices are requested once and persisted.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-AUTO-001
+    applies_to: [installer, updater, configuration]
+    forbid: [repeat_manual_entry_on_routine_update, silent_guess_of_external_choice]
+  - id: DPL-NET-001
+    level: MUST
+    statement: Intra-stack communication uses stable service discovery identities, never persisted container or host IP identities.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-NET-001
+    applies_to: [compose, api, database, storage, embedded_services]
+    forbid: [container_ip_as_service_identity, host_ip_as_internal_service_identity]
+  - id: DPL-NET-002
+    level: MUST
+    statement: Discovered LAN/VPN addresses are access options and never permanent application identity.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-NET-002
+    applies_to: [network_discovery, runtime_config]
+    forbid: [persist_discovered_ip_as_module_identity]
+  - id: DPL-NET-003
+    level: MUST
+    statement: Public/LAN entry addresses and transport belong to deployment or ingress state, not reusable application modules.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-NET-003
+    applies_to: [ingress, reverse_proxy, tunnel, application_code]
+    forbid: [installation_specific_domain_in_module, installation_specific_ip_in_module]
+  - id: DPL-NET-004
+    level: MUST
+    statement: Network discovery MUST classify loopback, LAN, VPN and virtual adapters and MUST NOT select the first IPv4 blindly; ambiguous candidates SHOULD be presented as verified access options rather than silently trusted.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-NET-004
+    applies_to: [installer, doctor, addresses]
+    forbid: [first_ipv4_wins, unclassified_adapter_selection]
+  - id: DPL-NET-005
+    level: MUST
+    statement: Selected host ports remain stable across restart and update; an unavailable selected port MUST block the operation with a clear diagnostic.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-NET-005
+    applies_to: [ports, update, restart]
+    forbid: [silent_port_reallocation, continue_with_unavailable_selected_port, block_without_clear_port_diagnostic]
+  - id: DPL-NET-006
+    level: SHOULD
+    statement: Embedded editors and project modules SHOULD use the primary application browser origin; a separate origin requires an architecture exception and explicit cross-origin security and cross-origin testing.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-NET-006
+    applies_to: [iframe, scratch, cad, embedded_editor]
+    forbid: [unreviewed_second_origin, separate_origin_without_cross_origin_security, separate_origin_without_cross_origin_tests]
+  - id: DPL-SEC-001
+    level: MUST
+    statement: Embedded messaging validates source, exact allowed origin, protocol/schema and active capability/session.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-SEC-001
+    applies_to: [iframe, postmessage, embedded_editor]
+    forbid: [wildcard_target_origin, disabled_origin_check, ui_only_authorization]
+  - id: DPL-SEC-002
+    level: MUST
+    statement: Discovering a network address does not automatically trust it as a browser mutation origin.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-SEC-002
+    applies_to: [network_discovery, csrf, origin_policy]
+    forbid: [discovery_implies_trust]
+  - id: DPL-CFG-001
+    level: MUST
+    statement: Deploy-specific configuration is external to reusable code and carries an explicit schema version.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-CFG-001
+    applies_to: [configuration, installer, application]
+    forbid: [hardcoded_installation_config, unversioned_install_config]
+  - id: DPL-CFG-002
+    level: MUST
+    statement: Configuration defines defaults, precedence, validation, deprecated/unknown-key behavior and forward migration.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-CFG-002
+    applies_to: [configuration, update]
+    forbid: [silent_unknown_config, config_reset_on_update]
+  - id: DPL-SEC-003
+    level: MUST
+    statement: Secrets MUST be generated and stored separately from ordinary public configuration, survive routine updates, never be committed to source control, and have explicit rotation and protected export and restore semantics.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-SEC-003
+    applies_to: [secrets, backup, restore, update]
+    forbid: [secret_in_git, regenerate_secret_on_update, plaintext_export, secret_in_public_configuration, unprotected_secret_export_or_restore]
+  - id: DPL-DAT-001
+    level: MUST
+    statement: Persistent user data is outside replaceable runtime containers.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-DAT-001
+    applies_to: [database, object_storage, uploads, containers]
+    forbid: [only_copy_of_user_data_in_replaceable_container]
+  - id: DPL-REL-001
+    level: MUST
+    statement: A release immutably identifies source, service artifacts, database schema expectation and configuration schema.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-REL-001
+    applies_to: [release, registry, deployment]
+    forbid: [mutable_tag_as_only_identity, release_without_schema_identity]
+  - id: DPL-REL-002
+    level: MUST
+    statement: Required running services must agree on one compatible release identity.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-REL-002
+    applies_to: [readiness, deployment, acceptance]
+    forbid: [mixed_service_release_accepted]
+  - id: DPL-UPD-001
+    level: MUST
+    statement: One canonical update operation performs routine update without manual source/Compose/internal-address edits.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-UPD-001
+    applies_to: [update, operator_workflow]
+    forbid: [manual_compose_edit_for_update, manual_internal_origin_edit_for_update]
+  - id: DPL-UPD-002
+    level: MUST
+    statement: Update MUST persist state distinguishing preflight, prepared, backed-up, switching, verifying, accepted and failed; retry and recovery MUST be idempotent and MUST NOT depend on chat history or operator memory.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-UPD-002
+    applies_to: [update, recovery]
+    forbid: [operator_memory_as_update_state, blind_retry_after_failure]
+  - id: DPL-BAK-001
+    level: MUST
+    statement: Before a migration or switch that can make persisted data incompatible with the previous release, a required backup MUST be created and verified before downtime or switch.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-BAK-001
+    applies_to: [update, migration, backup]
+    forbid: [risky_migration_before_verified_backup, downtime_before_required_verified_backup]
+  - id: DPL-BAK-002
+    level: MUST
+    statement: Recovery metadata ties all required persistent stores to one recovery set and restore is tested.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-BAK-002
+    applies_to: [postgres, object_storage, secrets, restore]
+    forbid: [independent_unrelated_backups_claimed_consistent, untested_restore]
+  - id: DPL-MIG-001
+    level: MUST
+    statement: Released database migrations MUST remain immutable; upgrade tests MUST cover supported prior installation histories, not only an empty database; incompatible-schema recovery MUST use a defined forward repair or verified backup procedure.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-MIG-001
+    applies_to: [migration, database, update]
+    forbid: [edit_released_migration, empty_db_only_upgrade_evidence, incompatible_schema_without_forward_repair_or_verified_backup]
+  - id: DPL-MOV-001
+    level: MUST
+    statement: A maintained self-hosted product MUST define host export/restore or equivalent migration that preserves persistent data, required secrets and release/install identity without carrying the old DHCP/LAN address as application identity.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-MOV-001
+    applies_to: [host_migration, export, restore]
+    forbid: [old_dhcp_address_required_after_restore, old_dhcp_or_lan_address_as_application_identity, host_migration_loses_persistent_data, host_migration_loses_required_secrets, host_migration_loses_release_or_install_identity]
+  - id: DPL-TST-001
+    level: MUST
+    statement: Infrastructure health alone is never reported as full product acceptance.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-TST-001
+    applies_to: [health, acceptance, update, install]
+    forbid: [docker_healthy_equals_product_pass]
+  - id: DPL-TST-002
+    level: MUST
+    statement: Every project defines critical product journeys and acceptance evidence.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-TST-002
+    applies_to: [testing, release, install, update]
+    forbid: [release_without_product_acceptance_definition]
+  - id: DPL-TST-003
+    level: MUST
+    statement: Supported entry modes are tested as distinct portability environments; loopback-only evidence cannot prove LAN/public portability.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-TST-003
+    applies_to: [local, lan, public, reverse_proxy, browser]
+    forbid: [loopback_only_claims_network_portability]
+  - id: DPL-OPS-001
+    level: SHOULD
+    statement: One operator surface SHOULD expose install/start/stop/status/doctor/update/backup/restore/export/addresses as the ordinary owner workflow.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-OPS-001
+    applies_to: [operations, installer, updater]
+    forbid: [ordinary_owner_requires_low_level_docker_sequence, missing_lifecycle_command_surface]
+  - id: DPL-EXC-001
+    level: MUST
+    statement: Any intentional deviation from a MUST requirement MUST have a versioned architecture exception/ADR with scope, reason, risk, compensating controls, owner and verification; silent exceptions are non-compliant.
+    master_refs:
+      - document: PORTABLE-DEPLOYMENT-STANDARD
+        section: DPL-EXC-001
+    applies_to: [architecture, compliance]
+    forbid: [silent_exception, incomplete_exception_metadata]
