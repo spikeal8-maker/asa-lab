@@ -47,9 +47,6 @@ gates:
 primary_lane:
   id: data-migration
   worktree_id: data-migration-main
-  milestone:
-    id: DATA-MERGE-01
-    owner_authorization: accepted
   owned_paths:
     - tools/data-merge/**
     - tests/data-merge/**
