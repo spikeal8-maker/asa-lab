@@ -317,9 +317,10 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       `${host}: A4 portrait height`,
     ).toBeLessThanOrEqual(283 * mm);
     for (const [index, card] of layout.cards.entries()) {
-      expect(card.verticalOverflow, `${host}: card ${index} vertical overflow`).toBeLessThanOrEqual(
-        1,
-      );
+      expect(
+        card.verticalOverflow,
+        `${host}: card ${index} vertical overflow ${JSON.stringify(card)}`,
+      ).toBeLessThanOrEqual(1);
       expect(card.copyBottom, `${host}: card ${index} copy containment`).toBeLessThanOrEqual(
         card.bottom - 1,
       );
