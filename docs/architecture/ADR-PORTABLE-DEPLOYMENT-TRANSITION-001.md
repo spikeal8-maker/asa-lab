@@ -1,7 +1,7 @@
 # ADR-PORTABLE-DEPLOYMENT-TRANSITION-001 — ASA Lab transition to the portable deployment standard
 
 **Status:** ACTIVE TRANSITION EXCEPTION  
-**Revision:** 1.0  
+**Revision:** 1.1\
 **Scope:** ASA Lab current self-hosted installation/update architecture only  
 **Standard:** docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md v1.1  
 **Owner:** ASA Lab repository owner  
@@ -123,6 +123,37 @@ A green loopback smoke could be mistaken for proof that a moved/LAN/public insta
 **Closure**
 
 P6 adds acceptance for every supported entry mode and ties compliance claims to those results.
+
+### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin
+
+**Current behavior**
+
+`apps/web/src/components/StudentAccessCards.tsx` sets `PUBLIC_SITE_ORIGIN` to `https://asa-lab.ru` and uses it to build the class-join URL encoded in printable student-card QR codes. The printed site label and manual-entry instruction use the same fixed public site.
+
+**Reason**
+
+This is a legacy public-entry assumption that has not yet moved to the portable deployment entry model. The runtime change belongs to P1, not this P0 governance slice.
+
+**Risk**
+
+On an installation entered through another domain or address, a printed QR or class-join instruction can lead away from that installation. Reusable application code remains coupled to one installation-specific public origin, contrary to DPL-NET-003 and DPL-CFG-001.
+
+**Compensating controls**
+
+- The QR URL contains the class code but not the student code. The class-join page asks for the student code separately, and the API validates both codes before StudentSeat sign-in.
+- The fixed URL is a navigation target only. It is not a browser-trust allowlist or authorization source; this exception does not permit using it as either.
+- No existing control makes these printed URLs portable. Full-compliance and LAN/public portability claims remain blocked while this gap is open.
+
+**Verification**
+
+- `apps/web/src/components/StudentAccessCards.tsx`: `PUBLIC_SITE_ORIGIN`, `classJoinUrl`, `data-qr-url` and `ClassJoinQr` show the fixed QR target and absence of a student code in that URL.
+- `apps/web/src/pages/JoinClassPage.tsx` and `apps/api/src/classroom-join.controller.ts`: class-code resolution is followed by a separate student-code sign-in that validates both codes.
+- `e2e/access-a.spec.ts`: the current card assertion expects `https://asa-lab.ru/#/join-class?code=` and checks that student codes are absent from the QR URL; this is evidence of current behavior, not portability acceptance.
+- `docs/execution/PORTABLE_DEPLOYMENT_IMPLEMENTATION_PLAN.md` records the fixed-origin gap and assigns removal of the fixed domain to P1.
+
+**Closure**
+
+P1 must remove the hardcoded class-join public origin from reusable application code, derive the entry from the approved deployment/ingress model, and provide regression plus browser evidence for the supported entry modes without weakening browser-origin or authorization checks. Only then may this exception be closed.
 
 ## 3. Known gaps that are not silently classified
 

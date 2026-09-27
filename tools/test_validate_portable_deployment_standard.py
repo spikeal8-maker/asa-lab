@@ -48,6 +48,9 @@ DPL-AUTO-001
 DPL-NET-002 / DPL-NET-003
 DPL-NET-004
 DPL-TST-003
+### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin
+
+StudentAccessCards class-join QR uses https://asa-lab.ru.
 """
         (root / "docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md").write_text(
             transition, encoding="utf-8"
@@ -210,6 +213,17 @@ DPL-TST-003
         )
         path.write_text(text, encoding="utf-8")
         self.assertTrue(any("TRANSITIONAL_NON_COMPLIANT" in error for error in validate_root(root)))
+
+    def test_missing_class_join_exception_is_rejected(self) -> None:
+        root = self.make_fixture()
+        path = root / "docs/architecture/ADR-PORTABLE-DEPLOYMENT-TRANSITION-001.md"
+        text = path.read_text(encoding="utf-8").replace(
+            "### EX-05 — DPL-NET-003 / DPL-CFG-001 / DPL-EXC-001: fixed class-join origin\n"
+            "\nStudentAccessCards class-join QR uses https://asa-lab.ru.\n",
+            "",
+        )
+        path.write_text(text, encoding="utf-8")
+        self.assertTrue(any("EX-05" in error for error in validate_root(root)))
 
     def test_missing_registry_route_is_rejected(self) -> None:
         root = self.make_fixture()
