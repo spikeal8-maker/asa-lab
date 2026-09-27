@@ -145,18 +145,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-UX-REPAIR-001
-      issue: 377
-      branch: codex/electronics-natural-wire-routing-377
+      id: TASK-ELECTRONICS-REPORT-HYGIENE-001
+      issue: 400
+      branch: main
       base_branch: main
-      pr: 378
+      pr: null
       pr_draft: false
-      status: done
-      checkpoint: merged_to_main
+      status: in_progress
+      checkpoint: wp_art_03_selected
       owner_acceptance: pending
     revisions:
-      convergence_baseline_sha: eb7204267b21c11fb9201c95020ddc6a2d4b44cc
-      head_sha: f150219098d5f2a92239cf438d52dc063def5359
+      kind: observed_snapshot
+      convergence_baseline_sha: 6d6731debba3abf2610caaf6849db7552146317b
+      head_sha: null
+      observed_at: '2026-09-27T10:11:10Z'
+      main:
+        branch: main
+        sha: 6d6731debba3abf2610caaf6849db7552146317b
+      observation_note: Dated observation at WP-ART-03 selection; not a live remote HEAD; fetch main before writes.
     execution_lease:
       executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
       holder: unassigned

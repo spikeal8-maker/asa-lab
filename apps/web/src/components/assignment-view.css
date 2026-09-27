@@ -30,7 +30,7 @@
   margin: 0;
 }
 
-.assignment-view-sample button {
+.assignment-view-sample > button {
   display: block;
   width: 100%;
   padding: 0;
@@ -41,7 +41,7 @@
   cursor: zoom-in;
 }
 
-.assignment-view-sample button:hover {
+.assignment-view-sample > button:hover {
   border-color: #0b82ba;
 }
 
@@ -57,6 +57,12 @@
   color: var(--ink-muted);
   font-size: 12px;
   line-height: 1.4;
+}
+
+.assignment-view-sample-action {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
 }
 
 /* Образец во весь экран: в колонке его не разглядеть. */
