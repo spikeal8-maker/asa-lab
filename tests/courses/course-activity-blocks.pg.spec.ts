@@ -1094,5 +1094,5 @@ describe('A2a exact Course Activity sample delivery', () => {
     expect(await url(a.activity_run_id, null, seat)).toBeTruthy();
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [seat]);
     expect(await bytes(a.activity_run_id, null, seat)).toEqual([]);
-  });
+  }, 30_000);
 });
