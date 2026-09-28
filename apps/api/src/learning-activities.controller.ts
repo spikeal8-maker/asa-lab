@@ -24,6 +24,10 @@ import { checkBodyShape } from './validation.js';
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const KINDS = new Set(['quiz', 'project', 'essay', 'file', 'manual']);
 const RESULT_MODES = new Set(['ungraded', 'completion', 'graded']);
+const SOURCE_IMPORT_UNIQUE_INDEXES = new Set([
+  'learning_activities_teacher_source_idx',
+  'learning_activities_creation_request_idx',
+]);
 const POLICY_KEYS = [
   'attemptPolicy',
   'resultSelectionPolicy',
@@ -104,6 +108,27 @@ function error(code: string, message: string) {
 
 function iso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
+}
+
+function retryableSourceImportError(failure: unknown): boolean {
+  if (!failure || typeof failure !== 'object') return false;
+  const sql = failure as { code?: unknown; constraint?: unknown };
+  return (
+    sql.code === '40001' ||
+    (sql.code === '23505' && SOURCE_IMPORT_UNIQUE_INDEXES.has(String(sql.constraint)))
+  );
+}
+
+async function retrySourceImport<T>(create: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await create();
+    } catch (failure) {
+      if (attempt >= 2 || !retryableSourceImportError(failure)) throw failure;
+      // Retry the entire transaction. Its next source read needs a new
+      // REPEATABLE READ snapshot after a concurrent import commits.
+    }
+  }
 }
 
 function decodeDraftImage(raw: string): { bytes: Buffer; contentType: string } {
@@ -400,37 +425,39 @@ export class LearningActivitiesController {
     const pool = this.requirePool();
     const result =
       typeof sourceTeacherAssignmentId === 'string'
-        ? await withTenantContext(
-            pool,
-            context.tenantId,
-            async (client) => {
-              // The source check and SQL normalization must see the same source
-              // module. READ COMMITTED would allow a concurrent assignment edit
-              // to change it between these two queries.
-              const source = await client.query(
-                `SELECT module_key
+        ? await retrySourceImport(() =>
+            withTenantContext(
+              pool,
+              context.tenantId,
+              async (client) => {
+                // The source check and SQL normalization must see the same source
+                // module. READ COMMITTED would allow a concurrent assignment edit
+                // to change it between these two queries.
+                const source = await client.query(
+                  `SELECT module_key
                    FROM teacher_assignments
                   WHERE id = $1 AND tenant_id = $2 AND owner_principal_id = $3`,
-                [sourceTeacherAssignmentId, context.tenantId, context.principalId],
-              );
-              const sourceModuleKey = source.rows[0]?.['module_key'];
-              if (typeof sourceModuleKey !== 'string') {
-                throw new HttpException(error('source_forbidden', 'Источник недоступен.'), 403);
-              }
-              if (
-                (draft.moduleKey !== null && sourceModuleKey !== draft.moduleKey) ||
-                !this.modules
-                  .listLearningAssignable()
-                  .some((module) => module.moduleKey === sourceModuleKey)
-              ) {
-                throw new HttpException(
-                  error('validation_error', 'Среда исходного задания недоступна.'),
-                  400,
+                  [sourceTeacherAssignmentId, context.tenantId, context.principalId],
                 );
-              }
-              return client.query(createSql, createParams);
-            },
-            { isolationLevel: 'repeatable read' },
+                const sourceModuleKey = source.rows[0]?.['module_key'];
+                if (typeof sourceModuleKey !== 'string') {
+                  throw new HttpException(error('source_forbidden', 'Источник недоступен.'), 403);
+                }
+                if (
+                  (draft.moduleKey !== null && sourceModuleKey !== draft.moduleKey) ||
+                  !this.modules
+                    .listLearningAssignable()
+                    .some((module) => module.moduleKey === sourceModuleKey)
+                ) {
+                  throw new HttpException(
+                    error('validation_error', 'Среда исходного задания недоступна.'),
+                    400,
+                  );
+                }
+                return client.query(createSql, createParams);
+              },
+              { isolationLevel: 'repeatable read' },
+            ),
           )
         : await pool.query(createSql, createParams);
     const row = result.rows[0];

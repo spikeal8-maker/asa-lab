@@ -265,20 +265,76 @@ describe('canonical learning activity API', () => {
     expect(accepted.query).not.toHaveBeenCalled();
   });
 
-  it('rolls back an imported source on a serialization failure without retrying on the pool', async () => {
+  it.each([
+    { code: '40001' },
+    { code: '23505', constraint: 'learning_activities_teacher_source_idx' },
+    { code: '23505', constraint: 'learning_activities_creation_request_idx' },
+  ])(
+    'retries an imported source in a fresh tenant transaction after $code $constraint',
+    async (sql) => {
+      const api = target();
+      const failure = Object.assign(new Error('concurrent import'), sql);
+      let createCalls = 0;
+      api.sourceQuery.mockImplementation(async (statement) => {
+        if (statement.includes('FROM teacher_assignments')) {
+          return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
+        }
+        if (statement.includes('learning_activity_create')) {
+          if (++createCalls === 1) throw failure;
+          return {
+            rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+            command: 'SELECT',
+          };
+        }
+        return { rows: [], command: statement === 'COMMIT' ? 'COMMIT' : statement };
+      });
+      await expect(
+        api.value.create(request(), {
+          kind: 'project',
+          requestId: 'create:source:retry',
+          title: 'Imported task',
+          resultMode: 'completion',
+          policies,
+          moduleKey: 'electronics',
+          sourceTeacherAssignmentId: ACTIVITY_ID,
+        }),
+      ).resolves.toEqual({ id: ACTIVITY_ID, draftRevision: 1 });
+      expect(api.sourceQuery.mock.calls.map(([statement]) => statement)).toEqual([
+        'BEGIN ISOLATION LEVEL REPEATABLE READ',
+        "SELECT set_config('app.tenant_id', $1, true)",
+        expect.stringContaining('FROM teacher_assignments'),
+        expect.stringContaining('learning_activity_create'),
+        'ROLLBACK',
+        'BEGIN ISOLATION LEVEL REPEATABLE READ',
+        "SELECT set_config('app.tenant_id', $1, true)",
+        expect.stringContaining('FROM teacher_assignments'),
+        expect.stringContaining('learning_activity_create'),
+        'COMMIT',
+      ]);
+      expect(api.connect).toHaveBeenCalledTimes(2);
+      expect(api.release).toHaveBeenCalledTimes(2);
+      expect(api.query).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { code: '23505', constraint: 'unrelated_unique_idx' },
+    { code: '23505' },
+    { code: '23503', constraint: 'learning_activities_teacher_source_fk' },
+  ])('does not retry an unrelated SQL error $code $constraint', async (sql) => {
     const api = target();
-    const failure = Object.assign(new Error('serialization failure'), { code: '40001' });
-    api.sourceQuery.mockImplementation(async (sql) => {
-      if (sql.includes('FROM teacher_assignments')) {
+    const failure = Object.assign(new Error('SQL failure'), sql);
+    api.sourceQuery.mockImplementation(async (statement) => {
+      if (statement.includes('FROM teacher_assignments')) {
         return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
       }
-      if (sql.includes('learning_activity_create')) throw failure;
-      return { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : sql };
+      if (statement.includes('learning_activity_create')) throw failure;
+      return { rows: [], command: statement === 'COMMIT' ? 'COMMIT' : statement };
     });
     await expect(
       api.value.create(request(), {
         kind: 'project',
-        requestId: 'create:source:serialize',
+        requestId: 'create:source:no-retry',
         title: 'Imported task',
         resultMode: 'completion',
         policies,
@@ -287,8 +343,34 @@ describe('canonical learning activity API', () => {
       }),
     ).rejects.toBe(failure);
     expect(api.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
+    expect(api.connect).toHaveBeenCalledTimes(1);
     expect(api.release).toHaveBeenCalledTimes(1);
-    expect(api.query).not.toHaveBeenCalled();
+  });
+
+  it('stops source import after three failed fresh snapshots', async () => {
+    const api = target();
+    const failure = Object.assign(new Error('serialization failure'), { code: '40001' });
+    api.sourceQuery.mockImplementation(async (statement) => {
+      if (statement.includes('FROM teacher_assignments')) {
+        return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
+      }
+      if (statement.includes('learning_activity_create')) throw failure;
+      return { rows: [], command: statement === 'COMMIT' ? 'COMMIT' : statement };
+    });
+    await expect(
+      api.value.create(request(), {
+        kind: 'project',
+        requestId: 'create:source:limit',
+        title: 'Imported task',
+        resultMode: 'completion',
+        policies,
+        moduleKey: 'electronics',
+        sourceTeacherAssignmentId: ACTIVITY_ID,
+      }),
+    ).rejects.toBe(failure);
+    expect(api.connect).toHaveBeenCalledTimes(3);
+    expect(api.release).toHaveBeenCalledTimes(3);
+    expect(api.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
   });
 
   it.each(['ungraded', 'completion'])('does not fabricate maxPoints for %s', async (resultMode) => {
