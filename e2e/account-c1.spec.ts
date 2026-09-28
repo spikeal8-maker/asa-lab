@@ -236,9 +236,7 @@ test('owner completes Account C1 and existing project modules remain available',
     const url = new URL(response.url());
     return response.request().method() === 'POST' && url.pathname === '/api/account/password';
   });
-  await settingsContent
-    .getByRole('button', { name: 'Сохранить пароль', exact: true })
-    .click();
+  await settingsContent.getByRole('button', { name: 'Сохранить пароль', exact: true }).click();
   expect((await passwordChangeResponsePromise).status()).toBe(200);
   await expect(
     settingsContent.getByText('Пароль изменён. Остальные входы завершены.'),
