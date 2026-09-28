@@ -2214,6 +2214,428 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/workspaces:
+    get:
+      operationId: getAccountWorkspaces
+      summary: List workspaces available to the active Account
+      responses:
+        '200':
+          description: Available workspaces and the active workspace identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountWorkspaceCollection'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Account was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/capabilities/educator/self-attest:
+    post:
+      operationId: selfAttestEducator
+      summary: Self-attest the educator capability for the active Account
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '201':
+          description: Educator capability is active or already active
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EducatorAttestationResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Account is underage for educator self-attestation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Educator capability is suspended or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/role:
+    put:
+      operationId: putAccountRole
+      summary: Select creator or educator mode for the active Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountRoleRequest'
+      responses:
+        '200':
+          description: Account role selection applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountRoleResponse'
+        '400':
+          description: Invalid role or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Educator mode is unavailable to an underage Account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Educator capability is suspended or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/schools:
+    post:
+      operationId: postAccountSchool
+      summary: Create an organization workspace for an educator Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchoolWorkspaceRequest'
+      responses:
+        '201':
+          description: School workspace created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateSchoolWorkspaceResponse'
+        '400':
+          description: Invalid school title or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Educator capability is required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/profile:
+    get:
+      operationId: getAccountProfile
+      summary: Read the active Account profile
+      responses:
+        '200':
+          description: Account profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountProfile'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Account was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: patchAccountProfile
+      summary: Update editable Account profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountProfilePatchRequest'
+      responses:
+        '200':
+          description: Updated Account profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountProfile'
+        '400':
+          description: Invalid profile fields or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Account was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Username is already taken
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/time-zone:
+    put:
+      operationId: putAccountTimeZone
+      summary: Set the IANA time zone used for Account classroom dates
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountTimeZoneRequest'
+      responses:
+        '200':
+          description: Effective Account time zone
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountTimeZoneResponse'
+        '400':
+          description: Invalid time zone or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/avatar:
+    get:
+      operationId: getAccountAvatar
+      summary: Read the Account avatar data URL
+      responses:
+        '200':
+          description: Account avatar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountAvatar'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Account was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      operationId: patchAccountAvatar
+      summary: Replace or clear the Account avatar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountAvatar'
+      responses:
+        '200':
+          description: Updated Account avatar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountAvatar'
+        '400':
+          description: Invalid avatar data URL or request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Account was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/sessions:
+    get:
+      operationId: getAccountSessions
+      summary: List Account sessions and identify the current session
+      responses:
+        '200':
+          description: Account sessions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSessionsEnvelope'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/sessions/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    delete:
+      operationId: deleteAccountSession
+      summary: Revoke another Account session
+      responses:
+        '200':
+          description: Session revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OkResponse'
+        '400':
+          description: Session id is not a UUID
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Session was not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current session must be ended with logout instead
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/sessions/revoke-all:
+    post:
+      operationId: postAccountSessionsRevokeAll
+      summary: Revoke every other Account session and keep the current session
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        '201':
+          description: Other Account sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountSessionsRevokedResponse'
+        '400':
+          description: Invalid request body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/account/password:
+    get:
+      operationId: getAccountPasswordStatus
+      summary: Read whether the Account password is configured and can be reset without current password
+      responses:
+        '200':
+          description: Account password status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountPasswordStatus'
+        '401':
+          description: No active session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      operationId: postAccountPassword
+      summary: Change the canonical Account password and keep the current session active
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AccountPasswordChangeRequest'
+      responses:
+        '200':
+          description: Canonical Account password changed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AccountPasswordChangeResponse'
+        '400':
+          description: validation_error or current_password_invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/admin/v1/me:
     get:
       operationId: getAdminMe
@@ -5523,9 +5945,12 @@ components:
     Workspace:
       type: object
       additionalProperties: false
-      required: [workspaceId, kind, title, role]
+      required: [workspaceId, tenantId, kind, title, role]
       properties:
         workspaceId:
+          type: string
+          format: uuid
+        tenantId:
           type: string
           format: uuid
         kind:
@@ -5572,6 +5997,850 @@ components:
       properties:
         activeWorkspace:
           $ref: '#/components/schemas/ActiveWorkspace'
+    AccountWorkspaceCollection:
+      type: object
+      additionalProperties: false
+      required: [items, activeWorkspaceId]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+        activeWorkspaceId:
+          type: string
+          format: uuid
+    EducatorAttestationResponse:
+      type: object
+      additionalProperties: false
+      required: [capability, state, created]
+      properties:
+        capability:
+          type: string
+          const: educator
+        state:
+          type: string
+        created:
+          type: boolean
+    AccountRoleRequest:
+      type: object
+      additionalProperties: false
+      required: [role]
+      properties:
+        role:
+          type: string
+          enum: [creator, educator]
+    AccountRoleResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, role, state, changed]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        role:
+          type: string
+          enum: [creator, educator]
+        state:
+          type: [string, 'null']
+        changed:
+          type: boolean
+    CreateSchoolWorkspaceRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 2
+          maxLength: 120
+    SchoolWorkspace:
+      type: object
+      additionalProperties: false
+      required: [workspaceId, tenantId, schoolId, userId, title, role]
+      properties:
+        workspaceId:
+          type: string
+          format: uuid
+        tenantId:
+          type: string
+          format: uuid
+        schoolId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        title:
+          type: string
+        role:
+          type: string
+          const: school_admin
+    CreateSchoolWorkspaceResponse:
+      type: object
+      additionalProperties: false
+      required: [ok, school]
+      properties:
+        ok:
+          type: boolean
+          const: true
+        school:
+          $ref: '#/components/schemas/SchoolWorkspace'
+    AccountProfile:
+      type: object
+      additionalProperties: false
+      required:
+        [email, emailVerificationState, username, displayName, bio, birthDate, country, capabilities, workspaces]
+      properties:
+        email:
+          type: string
+          format: email
+        emailVerificationState:
+          type: string
+        username:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: string
+        birthDate:
+          type: string
+          format: date
+        country:
+          type: string
+        capabilities:
+          type: array
+          items:
+            $ref: '#/components/schemas/Capability'
+        workspaces:
+          type: array
+          items:
+            $ref: '#/components/schemas/Workspace'
+    AccountProfilePatchRequest:
+      type: object
+      additionalProperties: false
+      required: [username, displayName]
+      properties:
+        username:
+          type: string
+        displayName:
+          type: string
+        bio:
+          type: string
+    AccountTimeZoneRequest:
+      type: object
+      additionalProperties: false
+      required: [timeZone]
+      properties:
+        timeZone:
+          type: string
+        onlyIfUnset:
+          type: boolean
+    AccountTimeZoneResponse:
+      type: object
+      additionalProperties: false
+      required: [timeZone]
+      properties:
+        timeZone:
+          type: [string, 'null']
+    AccountAvatar:
+      type: object
+      additionalProperties: false
+      required: [avatarDataUrl]
+      properties:
+        avatarDataUrl:
+          type: [string, 'null']
+          maxLength: 300000
+          pattern: '^data:image/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}      type: object
+      additionalProperties: false
+      required: [title, ageBand, topicKeys, safeModeDefault]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        ageBand:
+          type: string
+          enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
+        topicKeys:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            pattern: '^[a-z0-9-]{1,32}$'
+        safeModeDefault:
+          type: boolean
+    ClassroomDetailsRequest:
+      description: >-
+        Every field is optional: a teacher fixing a name should not have to
+        restate the age band. Anything omitted keeps its stored value.
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        ageBand:
+          type: string
+          enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
+        topicKeys:
+          type: array
+          maxItems: 12
+          items:
+            type: string
+            pattern: '^[a-z0-9-]{1,32}$'
+        safeModeDefault:
+          type: boolean
+    Classroom:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - status
+        - ageBand
+        - topicKeys
+        - safeModeDefault
+        - studentCount
+        - joinCodeVersion
+        - joinCodeStatus
+        - joinCode
+        - teacherRole
+        - workspaceKind
+        - workspaceTitle
+        - createdAt
+        - archivedAt
+      properties:
+        learningContext:
+          type: object
+          additionalProperties: false
+          required: [id, kind, schoolId]
+          properties:
+            id: { type: string, format: uuid }
+            kind: { type: string, enum: [school, independent_teaching] }
+            schoolId: { type: [string, 'null'], format: uuid }
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        status:
+          description: >-
+            active while the class is running, archived once it is put away.
+            A removed class is never returned.
+          type: string
+          enum: [active, archived]
+        ageBand:
+          type: string
+          enum: ['6-8', '9-10', '11-12', '13-15', '16-18', mixed]
+        topicKeys:
+          type: array
+          items: { type: string }
+        safeModeDefault:
+          type: boolean
+        studentCount:
+          type: integer
+          minimum: 0
+        joinCodeVersion:
+          type: [integer, 'null']
+        joinCodeStatus:
+          type: [string, 'null']
+          enum: [active, revoked, null]
+        joinCode:
+          type: [string, 'null']
+          pattern: '^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$'
+        teacherRole:
+          type: string
+          enum: [owner, co_teacher]
+        workspaceKind:
+          type: string
+          enum: [personal, organization]
+        workspaceTitle:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        archivedAt:
+          description: When the class was put away; null while it is running.
+          type: [string, 'null']
+          format: date-time
+    ClassroomTeacher:
+      type: object
+      additionalProperties: false
+      required: [accountId, displayName, avatarDataUrl, role, joinedAt]
+      properties:
+        accountId: { type: string, format: uuid }
+        displayName: { type: string }
+        avatarDataUrl: { type: [string, 'null'] }
+        role:
+          type: string
+          enum: [owner, co_teacher]
+        joinedAt: { type: string, format: date-time }
+    ClassroomTeacherInvitation:
+      type: object
+      additionalProperties: false
+      required: [id, status, expiresAt, createdAt]
+      properties:
+        id: { type: string, format: uuid }
+        status:
+          type: string
+          enum: [pending, accepted, expired]
+        expiresAt: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+    ClassroomTeacherInvitationWithPath:
+      allOf:
+        - $ref: '#/components/schemas/ClassroomTeacherInvitation'
+        - type: object
+          required: [invitePath]
+          properties:
+            invitePath: { type: string }
+    ClassroomTeacherInvitationPreview:
+      type: object
+      additionalProperties: false
+      required: [classroomId, classroomTitle, ownerDisplayName, status, expiresAt]
+      properties:
+        classroomId: { type: string, format: uuid }
+        classroomTitle: { type: string }
+        ownerDisplayName: { type: string }
+        status:
+          type: string
+          enum: [pending, accepted, revoked, expired]
+        expiresAt: { type: string, format: date-time }
+    ClassroomTeacherTeam:
+      type: object
+      additionalProperties: false
+      required: [items, invitations]
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ClassroomTeacher' }
+        invitations:
+          type: array
+          items: { $ref: '#/components/schemas/ClassroomTeacherInvitation' }
+    CreateStudentSeatRequest:
+      type: object
+      additionalProperties: false
+      required: [displayLabel, safeMode]
+      properties:
+        displayLabel: { type: string, minLength: 1, maxLength: 120 }
+        safeMode: { type: boolean }
+    StudentSeatBatchInput:
+      type: object
+      additionalProperties: false
+      required: [displayLabel]
+      properties:
+        displayLabel: { type: string, minLength: 1, maxLength: 120 }
+        safeMode: { type: boolean, default: true }
+    StudentSeatBatchPreviewRequest:
+      type: object
+      additionalProperties: false
+      required: [students, requestId]
+      properties:
+        students:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/StudentSeatBatchInput' }
+        requestId: { type: string, format: uuid }
+    StudentSeatBatchPreviewRow:
+      type: object
+      additionalProperties: false
+      required: [index, displayLabel, studentCode, loginHandle, safeMode, status, reasonCode]
+      properties:
+        index: { type: integer, minimum: 0, maximum: 99 }
+        displayLabel: { type: [string, 'null'] }
+        studentCode:
+          type: [string, 'null']
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
+        loginHandle:
+          type: [string, 'null']
+          deprecated: true
+          description: Case-preserving compatibility alias for studentCode.
+        safeMode: { type: [boolean, 'null'] }
+        status:
+          type: string
+          enum: [valid, duplicate, conflict, invalid]
+        reasonCode: { type: string }
+    StudentSeatBatchPreviewResponse:
+      type: object
+      additionalProperties: false
+      required: [results]
+      properties:
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/StudentSeatBatchPreviewRow' }
+    StudentSeatBatchCommitRequest:
+      type: object
+      additionalProperties: false
+      required: [students, requestId]
+      properties:
+        students:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items: { $ref: '#/components/schemas/StudentSeatBatchInput' }
+        requestId: { type: string, format: uuid }
+    StudentSeatBatchCommitRow:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          index,
+          status,
+          reasonCode,
+          displayLabel,
+          studentCode,
+          loginHandle,
+          safeMode,
+          seatId,
+          credentialVersion,
+          credential,
+        ]
+      properties:
+        index: { type: integer, minimum: 0, maximum: 99 }
+        status:
+          type: string
+          enum: [created, duplicate, conflict, invalid]
+        reasonCode: { type: string }
+        displayLabel: { type: [string, 'null'] }
+        studentCode:
+          type: [string, 'null']
+          pattern: '^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$'
+        loginHandle:
+          type: [string, 'null']
+          deprecated: true
+          description: Case-preserving compatibility alias for studentCode.
+        safeMode: { type: [boolean, 'null'] }
+        seatId: { type: [string, 'null'], format: uuid }
+        credentialVersion: { type: [integer, 'null'], minimum: 1 }
+        credential:
+          type: [string, 'null']
+          description: Legacy compatibility field; null in the Student Code flow.
+    StudentSeatBatchCommitResponse:
+      type: object
+      additionalProperties: false
+      required: [requestId, reused, created, credentialsAvailable, results]
+      properties:
+        requestId: { type: string, format: uuid }
+        reused: { type: boolean }
+        created: { type: integer, minimum: 0, maximum: 100 }
+        credentialsAvailable:
+          type: boolean
+          description: Legacy compatibility flag; false in the Student Code flow.
+        results:
+          type: array
+          items: { $ref: '#/components/schemas/StudentSeatBatchCommitRow' }
+    ClassroomStudentSeat:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          id,
+          displayLabel,
+          studentCode,
+          loginHandle,
+          safeMode,
+          status,
+          lastActiveAt,
+          createdAt,
+          assignedCount,
+          submittedCount,
+          awaitingReview,
+        ]
+      properties:
+        id: { type: string, format: uuid }
+        displayLabel: { type: string }
+        studentCode:
+          type: string
+          pattern: '^[A-Za-z0-9]{4,10}$'
+          description: Current teacher-visible Student Code used with the class code.
+        loginHandle:
+          type: string
+          deprecated: true
+          description: Case-preserving storage compatibility alias for studentCode.
+        safeMode: { type: boolean }
+        status:
+          type: string
+          enum: [issued, active, suspended]
+        lastActiveAt:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        assignedCount: { type: integer, minimum: 0 }
+        submittedCount:
+          type: integer
+          minimum: 0
+          description: Count derived from canonical workflow states when canonical reads are enabled.
+        awaitingReview:
+          type: integer
+          minimum: 0
+          description: Count of canonical waiting_review states only.
+    ClassroomEnvelope:
+      type: object
+      additionalProperties: false
+      required: [classroom, created]
+      properties:
+        classroom:
+          $ref: '#/components/schemas/Classroom'
+        created:
+          type: boolean
+    ClassroomCollection:
+      type: object
+      additionalProperties: false
+      required: [items, meta]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Classroom'
+        meta:
+          type: object
+          additionalProperties: false
+          required: [total]
+          properties:
+            total:
+              type: integer
+    ProjectStatus:
+      type: string
+      enum: [active, archived, trashed]
+    Project:
+      type: object
+      additionalProperties: false
+      required: [id, scope, classroomId, moduleKey, title, status, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        scope:
+          type: string
+          enum: [personal, classroom]
+        classroomId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        moduleKey:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ProjectCollection:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        nextCursor:
+          type: [string, 'null']
+          description: Present only for bounded requests; null ends pagination. An exactly full final page may be followed by an empty page.
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Project'
+    ProjectEnvelope:
+      type: object
+      additionalProperties: false
+      required: [project, created]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        created:
+          type: boolean
+    ProjectOnlyEnvelope:
+      type: object
+      additionalProperties: false
+      required: [project]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+    CreateProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, module]
+      anyOf:
+        - required: [title]
+        - required: [automaticTitle]
+          properties:
+            automaticTitle: { const: true }
+      properties:
+        scope:
+          type: string
+          enum: [personal, classroom]
+        classroomId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        module:
+          type: string
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        automaticTitle:
+          type: boolean
+          description: Allocate the module-specific name atomically; title may be omitted.
+    RenameProjectRequest:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+    ChangeProjectStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          $ref: '#/components/schemas/ProjectStatus'
+    BlocksAssetReference:
+      type: object
+      additionalProperties: false
+      required: [assetId, dataFormat, sha256, sizeBytes]
+      properties:
+        assetId:
+          type: string
+          pattern: '^[a-f0-9]{32}$'
+        dataFormat:
+          type: string
+          enum: [svg, png, jpg, wav, mp3]
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        sizeBytes:
+          type: integer
+          minimum: 1
+    BlocksRuntimeSessionEnvelope:
+      type: object
+      additionalProperties: false
+      required: [runtimeOrigin, runtimeToken, expiresAt, draftRevision, projectJson, assets]
+      properties:
+        runtimeOrigin:
+          type: string
+          format: uri
+        runtimeToken:
+          type: string
+        expiresAt:
+          type: integer
+          minimum: 1
+        draftRevision:
+          type: integer
+          minimum: 0
+        projectJson:
+          type: [object, 'null']
+        assets:
+          type: array
+          items:
+            $ref: '#/components/schemas/BlocksAssetReference'
+    BlocksRuntimeAssetUploadEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, asset]
+      properties:
+        status:
+          const: ok
+        asset:
+          $ref: '#/components/schemas/BlocksAssetReference'
+    BlocksRuntimeDraftSaveEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, revision]
+      properties:
+        status:
+          const: ok
+        revision:
+          type: integer
+          minimum: 1
+    SaveProjectDraftRequest:
+      type: object
+      additionalProperties: false
+      required: [document, baseRevision, mutationId]
+      properties:
+        document: {}
+        baseRevision:
+          type: integer
+          minimum: 0
+        mutationId:
+          type: string
+          format: uuid
+    SaveProjectSnapshotRequest:
+      type: object
+      additionalProperties: false
+      required: [imageDataUrl, sourceRevision]
+      properties:
+        imageDataUrl:
+          type: string
+        sourceRevision:
+          type: integer
+          minimum: 1
+    ProjectSnapshot:
+      type: object
+      additionalProperties: false
+      required: [projectId, contentType, width, height, sourceRevision, capturedAt]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        contentType:
+          type: string
+          enum: [image/png, image/webp]
+        width:
+          type: integer
+        height:
+          type: integer
+        sourceRevision:
+          type: integer
+          minimum: 1
+        capturedAt:
+          type: string
+          format: date-time
+    SaveProjectSnapshotEnvelope:
+      type: object
+      additionalProperties: false
+      required: [snapshot]
+      properties:
+        snapshot:
+          $ref: '#/components/schemas/ProjectSnapshot'
+    ProjectDraft:
+      type: object
+      required: [projectId, document, revision, updatedAt]
+      properties:
+        projectId:
+          type: string
+          format: uuid
+        document: {}
+        revision:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+    ProjectVersion:
+      type: object
+      additionalProperties: false
+      required: [id, projectId, versionNo, label, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        projectId:
+          type: string
+          format: uuid
+        versionNo:
+          type: integer
+        label:
+          oneOf:
+            - type: string
+            - type: 'null'
+        createdAt:
+          type: string
+          format: date-time
+    OpenProjectEnvelope:
+      type: object
+      additionalProperties: false
+      required: [project, draft, versions, result]
+      properties:
+        project:
+          $ref: '#/components/schemas/Project'
+        draft:
+          $ref: '#/components/schemas/ProjectDraft'
+        versions:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProjectVersion'
+        result: {}
+    SaveProjectDraftEnvelope:
+      type: object
+      additionalProperties: false
+      required: [draft, result]
+      properties:
+        draft:
+          $ref: '#/components/schemas/ProjectDraft'
+        result: {}
+
+    AccountSession:
+      type: object
+      additionalProperties: false
+      required: [id, createdAt, lastSeenAt, expiresAt, current, userAgentSummary]
+      properties:
+        id:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        current:
+          type: boolean
+        userAgentSummary:
+          type: [string, 'null']
+    AccountSessionsEnvelope:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/AccountSession'
+    OkResponse:
+      type: object
+      additionalProperties: false
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+          const: true
+    AccountSessionsRevokedResponse:
+      type: object
+      additionalProperties: false
+      required: [revoked]
+      properties:
+        revoked:
+          type: integer
+          minimum: 0
+    AccountPasswordStatus:
+      type: object
+      additionalProperties: false
+      required: [configured, canResetWithoutCurrent]
+      properties:
+        configured:
+          type: boolean
+        canResetWithoutCurrent:
+          type: boolean
+    AccountPasswordChangeRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+        newPassword:
+          type: string
+          minLength: 10
+          maxLength: 200
+    AccountPasswordChangeResponse:
+      type: object
+      additionalProperties: false
+      required: [changed]
+      properties:
+        changed:
+          type: boolean
+          const: true
     CreateClassroomRequest:
       type: object
       additionalProperties: false
