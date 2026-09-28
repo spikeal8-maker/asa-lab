@@ -196,7 +196,7 @@ describe('A2d immutable ordered task image', () => {
     const staleImage = await admin.query(
       `SELECT * FROM learning_activity_draft_put(
          $1,$2,$3,3,'Stale image','Build the exact circuit',
-         'completion',NULL,$4::jsonb,'electronics',NULL,NULL,NULL,$5::jsonb,$6::jsonb)`,
+         'completion',NULL,$4::jsonb,'electronics',NULL,NULL,$5::jsonb,$6::jsonb)`,
       [
         principalId,
         owner.tenantId,
