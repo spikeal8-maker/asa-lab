@@ -34,6 +34,12 @@ const CHECKERS_MANIFEST = {
   previewKind: 'board',
   iconKey: 'checkers',
   categories: ['logic', 'games', 'training'],
+  learningCapabilities: {
+    assignable: false,
+    editableEvidence: false,
+    submitProjectVersion: false,
+    preview: 'none',
+  },
 } as const;
 
 function invalidDocument(message: string): readonly ModuleDiagnostic[] {

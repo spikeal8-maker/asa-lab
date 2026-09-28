@@ -1196,6 +1196,12 @@ export interface ModuleSummary {
   iconKey: string;
   categories: string[];
   creatable: boolean;
+  learningCapabilities: {
+    assignable: boolean;
+    editableEvidence: boolean;
+    submitProjectVersion: boolean;
+    preview: 'snapshot' | 'interactive' | 'summary' | 'none';
+  };
 }
 
 export interface ProjectDraft<TDocument = unknown> {

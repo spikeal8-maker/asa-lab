@@ -1,6 +1,11 @@
 import { AuthorVersionHistory } from '../components/AuthorVersionHistory';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { api, type AuthoredActivityDraft, type AuthoredActivityLearnerPreview } from '../api';
+import {
+  api,
+  type AuthoredActivityDraft,
+  type AuthoredActivityLearnerPreview,
+  type ModuleSummary,
+} from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
 
@@ -27,7 +32,7 @@ const initial: AuthoredActivityDraft = {
   title: '',
   goal: null,
   instructions: '',
-  moduleKey: 'electronics',
+  moduleKey: '',
   resultMode: 'completion',
   maxPoints: null,
   policies: {
@@ -40,7 +45,13 @@ const initial: AuthoredActivityDraft = {
   },
 };
 
-function LearnerPreviewPanel({ preview }: { readonly preview: AuthoredActivityLearnerPreview }) {
+function LearnerPreviewPanel({
+  preview,
+  modules,
+}: {
+  readonly preview: AuthoredActivityLearnerPreview;
+  readonly modules: readonly ModuleSummary[];
+}) {
   const maxAttempts = (preview.policies['attemptPolicy'] as Record<string, unknown> | null)?.[
     'maxAttempts'
   ];
@@ -74,13 +85,10 @@ function LearnerPreviewPanel({ preview }: { readonly preview: AuthoredActivityLe
         <div>
           <dt>Среда</dt>
           <dd>
-            {preview.moduleKey === 'electronics'
-              ? 'Электроника'
-              : preview.moduleKey === 'three-d'
-                ? '3D'
-                : preview.moduleKey === null
-                  ? 'Без редактора проекта'
-                  : 'Среда проекта'}
+            {preview.moduleKey === null
+              ? 'Без редактора проекта'
+              : (modules.find((module) => module.moduleKey === preview.moduleKey)?.displayName ??
+                preview.moduleKey)}
           </dd>
         </div>
         <div>
@@ -122,6 +130,11 @@ export function AuthoredMaterialsPage({
     { id: string; title: string; draftRevision: number; currentPublishedVersionId: string | null }[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(true);
+  const assignableModules = modules.filter(
+    (module) => module.creatable && module.learningCapabilities.assignable,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -155,6 +168,29 @@ export function AuthoredMaterialsPage({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  useEffect(() => {
+    let cancelled = false;
+    void api.listModules().then((result) => {
+      if (cancelled) return;
+      if (result.ok) {
+        const assignable = result.data.items.filter(
+          (module) => module.creatable && module.learningCapabilities.assignable,
+        );
+        setModules(result.data.items);
+        setDraft((current) =>
+          current.moduleKey === ''
+            ? { ...current, moduleKey: assignable[0]?.moduleKey ?? '' }
+            : current,
+        );
+      } else {
+        setError(result.error.message || 'Список учебных сред недоступен.');
+      }
+      setModulesLoading(false);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   async function open(id: string) {
     previewRequest.current += 1;
     setPreview(null);
@@ -192,7 +228,7 @@ export function AuthoredMaterialsPage({
   }
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || !draft.title.trim()) return null;
+    if (busy || !draft.title.trim() || draft.moduleKey === '') return null;
     const payload = JSON.stringify(draft);
     const textDirty = !opened || savedPayload.current !== payload;
     if (!textDirty && pendingDraftSample === null) return opened;
@@ -460,7 +496,7 @@ export function AuthoredMaterialsPage({
             savedPayload.current = null;
             setDraftSampleImage(null);
             setPendingDraftSample(null);
-            setDraft(initial);
+            setDraft({ ...initial, moduleKey: assignableModules[0]?.moduleKey ?? '' });
             setInheritedGoal(null);
             setNotice(null);
             setError(null);
@@ -568,12 +604,23 @@ export function AuthoredMaterialsPage({
             Среда проекта
             <select
               value={draft.moduleKey ?? ''}
-              disabled={busy || draft.moduleKey === null}
+              disabled={
+                busy || draft.moduleKey === null || modulesLoading || assignableModules.length === 0
+              }
               onChange={(event) => setDraft({ ...draft, moduleKey: event.target.value })}
             >
               {draft.moduleKey === null ? <option value="">Материал без редактора</option> : null}
-              <option value="electronics">Электроника</option>
-              <option value="three-d">3D-моделирование</option>
+              {draft.moduleKey &&
+              !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
+                <option value={draft.moduleKey}>
+                  {draft.moduleKey} · недоступно для назначения
+                </option>
+              ) : null}
+              {assignableModules.map((module) => (
+                <option key={module.moduleKey} value={module.moduleKey}>
+                  {module.displayName}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -693,7 +740,10 @@ export function AuthoredMaterialsPage({
               type="submit"
               className="btn-primary"
               disabled={
-                busy || !draft.title.trim() || (draft.resultMode === 'graded' && !draft.maxPoints)
+                busy ||
+                !draft.title.trim() ||
+                draft.moduleKey === '' ||
+                (draft.resultMode === 'graded' && !draft.maxPoints)
               }
             >
               {busy ? 'Сохраняем…' : opened ? 'Сохранить' : 'Создать материал'}
@@ -702,7 +752,10 @@ export function AuthoredMaterialsPage({
               type="button"
               className="btn-secondary"
               disabled={
-                busy || !draft.title.trim() || (draft.resultMode === 'graded' && !draft.maxPoints)
+                busy ||
+                !draft.title.trim() ||
+                draft.moduleKey === '' ||
+                (draft.resultMode === 'graded' && !draft.maxPoints)
               }
               onClick={() => void publish()}
             >
@@ -751,7 +804,9 @@ export function AuthoredMaterialsPage({
               {preview.message}
             </p>
           ) : null}
-          {preview?.kind === 'ready' ? <LearnerPreviewPanel preview={preview.data} /> : null}
+          {preview?.kind === 'ready' ? (
+            <LearnerPreviewPanel preview={preview.data} modules={modules} />
+          ) : null}
         </form>
       </div>
     </Root>

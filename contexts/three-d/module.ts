@@ -110,6 +110,12 @@ const THREE_D_MANIFEST = {
   previewKind: 'scene',
   iconKey: 'three-d',
   categories: ['design', 'engineering', 'creative'],
+  learningCapabilities: {
+    assignable: true,
+    editableEvidence: true,
+    submitProjectVersion: true,
+    preview: 'snapshot',
+  },
 } as const;
 
 function invalidDocument(message: string): readonly ModuleDiagnostic[] {

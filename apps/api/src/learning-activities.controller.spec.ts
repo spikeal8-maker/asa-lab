@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
+import { createApiModuleRegistry } from './module-registry.js';
 import { LearningActivitiesController } from './learning-activities.controller.js';
 
 const PRINCIPAL_ID = '123e4567-e89b-42d3-a456-426614174001';
@@ -41,9 +42,14 @@ function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
     ),
   } as unknown as AccountDirectoryPort;
   return {
-    value: new LearningActivitiesController(activeContext, accounts, {
-      query,
-    } as unknown as pg.Pool),
+    value: new LearningActivitiesController(
+      activeContext,
+      accounts,
+      {
+        query,
+      } as unknown as pg.Pool,
+      createApiModuleRegistry(),
+    ),
     query,
   };
 }
@@ -144,6 +150,32 @@ describe('canonical learning activity API', () => {
       );
     },
   );
+
+  it('rejects nonassignable and unknown project modules before authoring SQL', async () => {
+    const api = target();
+    for (const moduleKey of ['blocks', 'chess', 'robotics', 'unknown-module']) {
+      await expect(
+        api.value.create(request(), {
+          kind: 'project',
+          requestId: 'create:module:0001',
+          title: 'New task',
+          resultMode: 'completion',
+          policies,
+          moduleKey,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(
+        api.value.putDraft(request(), ACTIVITY_ID, {
+          expectedRevision: 1,
+          title: 'New task',
+          resultMode: 'completion',
+          policies,
+          moduleKey,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(api.query).not.toHaveBeenCalled();
+  });
 
   it.each(['ungraded', 'completion'])('does not fabricate maxPoints for %s', async (resultMode) => {
     const api = target({

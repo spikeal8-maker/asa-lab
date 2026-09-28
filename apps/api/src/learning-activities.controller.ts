@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { effectiveAccountActions } from '@asa-lab/identity';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
@@ -136,6 +137,7 @@ export class LearningActivitiesController {
     @Inject(TOKENS.activeContextUseCase) private readonly activeContext: ActiveContextUseCase,
     @Inject(TOKENS.accountDirectory) private readonly accounts: AccountDirectoryPort,
     @Inject(TOKENS.pool) private readonly pool: pg.Pool | null,
+    @Inject(TOKENS.moduleRegistry) private readonly modules: ModuleRegistry,
   ) {}
 
   private requirePool(): pg.Pool {
@@ -233,6 +235,8 @@ export class LearningActivitiesController {
       }) ||
       (moduleKey !== null &&
         (typeof moduleKey !== 'string' || !/^[a-z0-9-]{1,64}$/.test(moduleKey))) ||
+      (typeof moduleKey === 'string' &&
+        !this.modules.listLearningAssignable().some((module) => module.moduleKey === moduleKey)) ||
       (quizVersionId !== null &&
         (typeof quizVersionId !== 'string' || !UUID_PATTERN.test(quizVersionId))) ||
       (starterProjectVersionId !== null &&

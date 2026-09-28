@@ -29,6 +29,12 @@ const FUTURE_MODULES: readonly RegisteredModule[] = [
     previewKind: 'scene',
     iconKey: 'robot',
     categories: ['robotics', 'coding'],
+    learningCapabilities: {
+      assignable: false,
+      editableEvidence: false,
+      submitProjectVersion: false,
+      preview: 'none',
+    },
   }),
   future({
     moduleKey: 'drawing',
@@ -44,6 +50,12 @@ const FUTURE_MODULES: readonly RegisteredModule[] = [
     previewKind: 'drawing',
     iconKey: 'drawing',
     categories: ['design', 'creative'],
+    learningCapabilities: {
+      assignable: false,
+      editableEvidence: false,
+      submitProjectVersion: false,
+      preview: 'none',
+    },
   }),
 ];
 

@@ -22,6 +22,12 @@ const electronicsManifest: ModuleManifestV1 = {
   previewKind: 'schematic',
   iconKey: 'circuit',
   categories: ['engineering'],
+  learningCapabilities: {
+    assignable: true,
+    editableEvidence: true,
+    submitProjectVersion: true,
+    preview: 'snapshot',
+  },
 };
 
 const electronics = defineModule(electronicsManifest, {
@@ -45,6 +51,12 @@ const blocks = defineFutureModule({
   previewKind: 'stage',
   iconKey: 'blocks',
   categories: ['coding'],
+  learningCapabilities: {
+    assignable: false,
+    editableEvidence: false,
+    submitProjectVersion: false,
+    preview: 'none',
+  },
 });
 
 describe('ModuleRegistry', () => {
@@ -57,6 +69,9 @@ describe('ModuleRegistry', () => {
         .sort(),
     ).toEqual(['blocks', 'electronics']);
     expect(registry.listCreatable().map((module) => module.moduleKey)).toEqual(['electronics']);
+    expect(registry.listLearningAssignable().map((module) => module.moduleKey)).toEqual([
+      'electronics',
+    ]);
     expect(registry.getCreatable('electronics')?.provider?.createEmptyProject()).toEqual({
       schemaVersion: 1,
       components: [],
@@ -93,5 +108,79 @@ describe('ModuleRegistry', () => {
           }),
         ]),
     ).toThrow(/invalid moduleKey/);
+  });
+
+  it('adds an active future subject to the learning chooser solely through capabilities', () => {
+    const futureSubject = defineModule(
+      {
+        ...electronicsManifest,
+        moduleKey: 'future-subject',
+        displayName: 'Новая лаборатория',
+        learningCapabilities: {
+          assignable: true,
+          editableEvidence: true,
+          submitProjectVersion: true,
+          preview: 'interactive',
+        },
+      },
+      electronics.provider!,
+    );
+    const registry = new ModuleRegistry([electronics, futureSubject, blocks]);
+    expect(
+      registry
+        .listLearningAssignable()
+        .map((module) => module.moduleKey)
+        .sort(),
+    ).toEqual(['electronics', 'future-subject']);
+    expect(
+      registry.listLearningAssignable().find((module) => module.moduleKey === 'future-subject')
+        ?.learningCapabilities.preview,
+    ).toBe('interactive');
+  });
+
+  it('fails closed on absent or incoherent learning capabilities', () => {
+    const invalid = [
+      { ...electronicsManifest, learningCapabilities: undefined },
+      {
+        ...electronicsManifest,
+        learningCapabilities: {
+          assignable: false,
+          editableEvidence: true,
+          submitProjectVersion: true,
+          preview: 'snapshot',
+        },
+      },
+      {
+        ...electronicsManifest,
+        learningCapabilities: {
+          assignable: true,
+          editableEvidence: false,
+          submitProjectVersion: true,
+          preview: 'none',
+        },
+      },
+    ];
+    for (const manifest of invalid) {
+      expect(
+        () =>
+          new ModuleRegistry([
+            { manifest: manifest as ModuleManifestV1, provider: electronics.provider },
+          ]),
+      ).toThrow(/invalid learningCapabilities/);
+    }
+    expect(
+      () =>
+        new ModuleRegistry([
+          defineFutureModule({
+            ...blocks.manifest,
+            learningCapabilities: {
+              assignable: true,
+              editableEvidence: true,
+              submitProjectVersion: true,
+              preview: 'snapshot',
+            },
+          }),
+        ]),
+    ).toThrow(/invalid learningCapabilities/);
   });
 });

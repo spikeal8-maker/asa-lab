@@ -3,7 +3,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { api, type AuthoredActivityDraft } from '../../api';
+import { api, type AuthoredActivityDraft, type ModuleSummary } from '../../api';
 import { AuthoredMaterialsPage } from '../../pages/AuthoredMaterialsPage';
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
@@ -59,6 +59,11 @@ afterEach(async () => {
 
 describe('authored material legacy goal', () => {
   it('keeps an omitted teacher goal absent during unrelated edits and sends an explicit clear after goal editing', async () => {
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
     vi.spyOn(api, 'authoredActivities').mockResolvedValue({
       ok: true,
       status: 200,
@@ -145,5 +150,125 @@ describe('authored material legacy goal', () => {
     });
     expect(save).toHaveBeenCalledTimes(2);
     expect(save.mock.calls[1]?.[2]).toHaveProperty('goal', null);
+  });
+
+  it('offers an assignable future laboratory from the registry while excluding active unassignable modules', async () => {
+    const module = (moduleKey: string, assignable: boolean): ModuleSummary => ({
+      moduleKey,
+      moduleVersion: '1.0.0',
+      displayName: moduleKey === 'new-lab' ? 'Новая лаборатория' : moduleKey,
+      shortDescription: 'Test laboratory',
+      defaultProjectTitlePrefix: 'Project',
+      projectType: 'test',
+      schemaVersion: 1,
+      editorRoute: '/projects/:projectId/test',
+      viewerRoute: '/view/projects/:versionId/test',
+      safeModeSupported: true,
+      availability: 'active',
+      previewKind: 'summary',
+      iconKey: 'test',
+      categories: ['test'],
+      creatable: true,
+      learningCapabilities: {
+        assignable,
+        editableEvidence: assignable,
+        submitProjectVersion: assignable,
+        preview: assignable ? 'summary' : 'none',
+      },
+    });
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [module('new-lab', true), module('blocks', false)] },
+    });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            id: activityId,
+            title: 'Новая работа',
+            kind: 'project',
+            draftRevision: 1,
+            currentPublishedVersionId: null,
+          },
+        ],
+      },
+    });
+    vi.spyOn(api, 'authoredActivity').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        id: activityId,
+        title: 'Новая работа',
+        draftRevision: 1,
+        draftSampleImage: null,
+        currentPublishedVersionId: null,
+        draft: { ...legacyDraft, title: 'Новая работа', moduleKey: 'new-lab', goal: null },
+        inheritedGoal: null,
+      },
+    });
+    vi.spyOn(api, 'authorVersions').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'previewAuthoredActivityDraft').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        source: {
+          kind: 'draft',
+          id: activityId,
+          draftRevision: 1,
+          versionNumber: null,
+          contentDigest: 'test',
+        },
+        assignment: {
+          title: 'Новая работа',
+          goal: null,
+          blocks: [],
+          brief: null,
+          sampleImage: null,
+        },
+        moduleKey: 'new-lab',
+        resultMode: 'completion',
+        maxPoints: null,
+        policies: legacyDraft.policies,
+        learnerRuntime: false,
+      },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage));
+      await flush();
+    });
+    const chooser = [...container.querySelectorAll('label')]
+      .find((label) => label.textContent?.includes('Среда проекта'))
+      ?.querySelector('select');
+    expect(chooser?.value).toBe('new-lab');
+    expect([...chooser!.options].map((option) => option.textContent)).toEqual([
+      'Новая лаборатория',
+    ]);
+    const item = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Новая работа',
+    );
+    await act(async () => {
+      item?.click();
+      await flush();
+    });
+    const preview = [...container.querySelectorAll('button')].find((button) =>
+      button.textContent?.includes('Как ученик: сохранённый черновик'),
+    );
+    await act(async () => {
+      preview?.click();
+      await flush();
+    });
+    expect(container.querySelector('[data-testid="learner-preview"]')?.textContent).toContain(
+      'Новая лаборатория',
+    );
   });
 });
