@@ -24,8 +24,9 @@ BEGIN
             IF v_block ? 'items' OR NOT (v_block ? 'text')
                OR jsonb_typeof(v_block -> 'text') <> 'string' THEN RETURN false; END IF;
             v_text := trim(v_block ->> 'text');
-            IF length(v_text) < 1 OR length(v_text) >
-               CASE WHEN v_type IN ('heading','link') THEN 160 ELSE 12000 END THEN RETURN false; END IF;
+            IF length(v_text) < 1 THEN RETURN false; END IF;
+            IF v_type IN ('heading','link') AND length(v_text) > 160 THEN RETURN false; END IF;
+            IF v_type IN ('paragraph','callout') AND length(v_text) > 12000 THEN RETURN false; END IF;
             IF v_type = 'link' THEN
                 IF NOT (v_block ? 'href') OR jsonb_typeof(v_block -> 'href') <> 'string'
                    OR length(v_block ->> 'href') > 2048
