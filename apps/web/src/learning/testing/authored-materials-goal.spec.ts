@@ -84,6 +84,50 @@ afterEach(async () => {
 });
 
 describe('authored material legacy goal', () => {
+  it('reloads the module catalogue after a transient failure without a page reload', async () => {
+    const listModules = vi.spyOn(api, 'listModules');
+    listModules
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        error: { code: 'unavailable', message: 'Список учебных сред недоступен.' },
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        data: { items: [module('electronics', true)] },
+      });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage));
+      await flush();
+    });
+    const chooser = [...container.querySelectorAll('label')]
+      .find((label) => label.textContent?.includes('Среда проекта'))
+      ?.querySelector('select');
+    expect(chooser?.disabled).toBe(true);
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain(
+      'Список учебных сред недоступен.',
+    );
+    await act(async () => {
+      [...container!.querySelectorAll('button')]
+        .find((button) => button.textContent?.includes('Повторить чтение'))
+        ?.click();
+      await flush();
+    });
+    expect(listModules).toHaveBeenCalledTimes(2);
+    expect(chooser?.disabled).toBe(false);
+    expect(chooser?.value).toBe('electronics');
+    expect(container.querySelector('[role="alert"]')).toBeNull();
+  });
+
   it('starts new material in Electronics even when another assignable module comes first', async () => {
     vi.spyOn(api, 'listModules').mockResolvedValue({
       ok: true,

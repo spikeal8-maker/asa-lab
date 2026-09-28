@@ -24,8 +24,13 @@ function request(): FastifyRequest {
   return { cookies: { asa_session: 'session' } } as unknown as FastifyRequest;
 }
 
-function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
+function target(options: { educator?: boolean; rows?: unknown[]; sourceRows?: unknown[] } = {}) {
   const query = vi.fn(async () => ({ rows: options.rows ?? [] }));
+  const sourceQuery = vi.fn(async (sql: string) =>
+    sql.includes('FROM teacher_assignments')
+      ? { rows: options.sourceRows ?? [{ module_key: 'electronics' }], command: 'SELECT' }
+      : { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : sql },
+  );
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: PRINCIPAL_ID,
@@ -47,10 +52,12 @@ function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
       accounts,
       {
         query,
+        connect: vi.fn(async () => ({ query: sourceQuery, release: vi.fn() })),
       } as unknown as pg.Pool,
       createApiModuleRegistry(),
     ),
     query,
+    sourceQuery,
   };
 }
 
@@ -175,6 +182,41 @@ describe('canonical learning activity API', () => {
       ).rejects.toMatchObject({ status: 400 });
     }
     expect(api.query).not.toHaveBeenCalled();
+  });
+
+  it('checks the owned source assignment module in the current tenant before canonical creation', async () => {
+    const body = {
+      kind: 'project',
+      requestId: 'create:source:0001',
+      title: 'Imported task',
+      resultMode: 'completion',
+      policies,
+      moduleKey: 'electronics',
+      sourceTeacherAssignmentId: ACTIVITY_ID,
+    };
+    const accepted = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+    });
+    await expect(accepted.value.create(request(), body)).resolves.toEqual({
+      id: ACTIVITY_ID,
+      draftRevision: 1,
+    });
+    expect(accepted.sourceQuery).toHaveBeenCalledWith(
+      expect.stringContaining('FROM teacher_assignments'),
+      [ACTIVITY_ID, TENANT_ID, PRINCIPAL_ID],
+    );
+    expect(accepted.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_create'),
+      expect.arrayContaining([ACTIVITY_ID]),
+    );
+
+    for (const sourceRows of [[], [{ module_key: 'blocks' }], [{ module_key: 'three-d' }]]) {
+      const rejected = target({ sourceRows });
+      await expect(rejected.value.create(request(), body)).rejects.toMatchObject({
+        status: sourceRows.length === 0 ? 403 : 400,
+      });
+      expect(rejected.query).not.toHaveBeenCalled();
+    }
   });
 
   it.each(['ungraded', 'completion'])('does not fabricate maxPoints for %s', async (resultMode) => {

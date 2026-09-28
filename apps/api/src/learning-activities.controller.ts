@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import { withTenantContext } from '@asa-lab/database';
 import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { effectiveAccountActions } from '@asa-lab/identity';
@@ -372,6 +373,31 @@ export class LearningActivitiesController {
       !/^[A-Za-z0-9._:-]{8,128}$/.test(requestId)
     ) {
       throw new HttpException(error('validation_error', 'Проверьте владельца активности.'), 400);
+    }
+    if (typeof sourceTeacherAssignmentId === 'string') {
+      const source = await withTenantContext(this.requirePool(), context.tenantId, async (client) =>
+        client.query(
+          `SELECT module_key
+             FROM teacher_assignments
+            WHERE id = $1 AND tenant_id = $2 AND owner_principal_id = $3`,
+          [sourceTeacherAssignmentId, context.tenantId, context.principalId],
+        ),
+      );
+      const sourceModuleKey = source.rows[0]?.['module_key'];
+      if (typeof sourceModuleKey !== 'string') {
+        throw new HttpException(error('source_forbidden', 'Источник недоступен.'), 403);
+      }
+      if (
+        sourceModuleKey !== draft.moduleKey ||
+        !this.modules
+          .listLearningAssignable()
+          .some((module) => module.moduleKey === sourceModuleKey)
+      ) {
+        throw new HttpException(
+          error('validation_error', 'Среда исходного задания недоступна.'),
+          400,
+        );
+      }
     }
     const result = await this.requirePool().query(
       `SELECT result_code, activity_id, draft_revision

@@ -167,6 +167,7 @@ export function AuthoredMaterialsPage({
   const request = useRef<{ payload: string; id: string } | null>(null);
   const savedPayload = useRef<string | null>(null);
   const previewRequest = useRef(0);
+  const modulesRequest = useRef(0);
   useEffect(() => {
     previewRequest.current += 1;
     setPreview(null);
@@ -181,10 +182,11 @@ export function AuthoredMaterialsPage({
   useEffect(() => {
     void refresh();
   }, [refresh]);
-  useEffect(() => {
-    let cancelled = false;
-    void api.listModules().then((result) => {
-      if (cancelled) return;
+  const refreshModules = useCallback(async () => {
+    const requestId = ++modulesRequest.current;
+    setModulesLoading(true);
+    const result = await api.listModules();
+    if (requestId === modulesRequest.current) {
       if (result.ok) {
         setModules(result.data.items);
         setDraft((current) =>
@@ -196,11 +198,14 @@ export function AuthoredMaterialsPage({
         setError(result.error.message || 'Список учебных сред недоступен.');
       }
       setModulesLoading(false);
-    });
-    return () => {
-      cancelled = true;
-    };
+    }
   }, []);
+  useEffect(() => {
+    void refreshModules();
+    return () => {
+      modulesRequest.current += 1;
+    };
+  }, [refreshModules]);
   async function open(id: string) {
     previewRequest.current += 1;
     setPreview(null);
@@ -518,7 +523,13 @@ export function AuthoredMaterialsPage({
       {error ? (
         <p className="form-error" role="alert">
           {error}{' '}
-          <button type="button" onClick={() => void refresh()}>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              void Promise.all([refresh(), refreshModules()]);
+            }}
+          >
             Повторить чтение
           </button>
         </p>
