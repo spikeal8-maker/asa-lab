@@ -5,6 +5,9 @@ on:
     branches:
       - main
     paths:
+      - 'compose.test.yaml'
+      - 'apps/api/src/origin-policy.ts'
+      - 'apps/api/src/app.factory.ts'
       - 'contexts/chess/**'
       - 'contexts/chess-live/**'
       - 'apps/api/src/chess-live.controller.ts'
