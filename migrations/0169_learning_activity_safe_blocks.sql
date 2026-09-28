@@ -417,8 +417,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
         'title', COALESCE(version.title, lesson.assignment_title, teacher.title),
         'brief', CASE WHEN run.source_course_block_id IS NOT NULL THEN version.instructions
                       ELSE COALESCE(version.instructions, lesson.assignment_brief, teacher.brief) END,
-        'blocks', CASE WHEN version.blocks_snapshot_present THEN version.blocks ELSE NULL END,
-        'blocksSnapshotPresent', version.blocks_snapshot_present,
+        'blocks', CASE WHEN version.blocks_snapshot_present
+                         AND (assignment.course_run_id IS NULL OR cardinality.exact_run)
+                       THEN version.blocks ELSE NULL END,
+        'blocksSnapshotPresent', version.blocks_snapshot_present
+                                 AND (assignment.course_run_id IS NULL OR cardinality.exact_run),
         'goal', CASE WHEN version.goal_snapshot_present THEN version.goal
                      WHEN run.source_course_block_id IS NOT NULL THEN NULL
                      ELSE COALESCE(lesson.assignment_goal, teacher.goal) END,
@@ -474,6 +477,11 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
       LEFT JOIN public.classroom_course_runs course ON course.id = assignment.course_run_id
       LEFT JOIN public.activity_runs run
         ON run.source_classroom_assignment_id = assignment.id
+      LEFT JOIN LATERAL (
+          SELECT count(*) = 1 AS exact_run FROM public.activity_runs sibling
+           WHERE sibling.tenant_id = assignment.tenant_id
+             AND sibling.source_classroom_assignment_id = assignment.id
+      ) cardinality ON true
       LEFT JOIN public.classroom_course_run_lessons lesson
         ON lesson.run_id = assignment.course_run_id
        AND ((run.id IS NOT NULL AND lesson.id = run.source_course_lesson_id)
@@ -643,22 +651,26 @@ BEGIN
 END;
 $$;
 
--- A learner-facing read returns the pinned blocks only for their exact
--- version, after effective opening, or with historical bound work.
-CREATE FUNCTION public.learning_activity_blocks_for_seat(p_seat uuid,p_assignment uuid)
+-- Course occurrences pass their exact ActivityRun. A handout can own sibling
+-- runs, and its work row cannot prove which sibling the learner started.
+CREATE FUNCTION public.learning_activity_blocks_for_seat(
+    p_seat uuid,p_assignment uuid,p_activity_run uuid
+)
 RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
     SELECT CASE WHEN version.canonical_contract_version=1 THEN jsonb_build_object(
-        'present',true,'blocks',CASE WHEN work.project_id IS NOT NULL OR EXISTS (
-            SELECT 1 FROM public.activity_runs runtime
-            JOIN public.learner_identity_links link
-              ON link.tenant_id=runtime.tenant_id AND link.school_id=runtime.school_id
-             AND link.seat_id=seat.id AND link.link_kind='student_seat' AND link.status='active'
+        'present',true,'blocks',CASE WHEN
+            (assignment.course_run_id IS NULL AND work.project_id IS NOT NULL)
+            OR (assignment.course_run_id IS NOT NULL AND work.project_id IS NOT NULL
+                AND cardinality.exact_run)
+            OR EXISTS (
+            SELECT 1 FROM public.learner_identity_links link
             JOIN public.activity_participations participation
               ON participation.tenant_id=runtime.tenant_id AND participation.school_id=runtime.school_id
              AND participation.activity_run_id=runtime.id
              AND participation.learner_identity_id=link.learner_identity_id
-           WHERE runtime.source_classroom_assignment_id=assignment.id
-             AND runtime.learning_activity_version_id=version.id
+           WHERE runtime.id IS NOT NULL
+             AND link.tenant_id=runtime.tenant_id AND link.school_id=runtime.school_id
+             AND link.seat_id=seat.id AND link.link_kind='student_seat' AND link.status='active'
              AND runtime.lifecycle_status='active' AND classroom.status='active'
              AND assignment.status='open' AND participation.status IN ('assigned','active')
              AND ((runtime.source_kind='direct'
@@ -684,19 +696,39 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog,
     JOIN public.classroom_assignments assignment
       ON assignment.id=p_assignment AND assignment.tenant_id=seat.tenant_id
      AND assignment.classroom_id=seat.classroom_id
+    LEFT JOIN LATERAL (
+        SELECT candidate.* FROM public.activity_runs candidate
+         WHERE candidate.tenant_id=assignment.tenant_id
+           AND candidate.source_classroom_assignment_id=assignment.id
+           AND ((assignment.course_run_id IS NULL AND p_activity_run IS NULL
+                 AND candidate.source_kind='direct')
+             OR (assignment.course_run_id IS NOT NULL
+                 AND candidate.id=p_activity_run
+                 AND candidate.source_kind='course'
+                 AND candidate.source_course_run_id=assignment.course_run_id))
+         ORDER BY candidate.id LIMIT 1
+    ) runtime ON true
+    LEFT JOIN LATERAL (
+        SELECT count(*) = 1 AS exact_run FROM public.activity_runs sibling
+         WHERE sibling.tenant_id = assignment.tenant_id
+           AND sibling.source_classroom_assignment_id = assignment.id
+    ) cardinality ON true
     JOIN public.learning_activity_versions version
-      ON version.id=COALESCE((
-          SELECT runtime.learning_activity_version_id
-            FROM public.activity_runs runtime
-           WHERE runtime.tenant_id=assignment.tenant_id
-             AND runtime.source_classroom_assignment_id=assignment.id
-           ORDER BY runtime.id LIMIT 1
-      ),assignment.learning_activity_version_id)
+      ON version.id=COALESCE(runtime.learning_activity_version_id,
+                             assignment.learning_activity_version_id)
      AND version.tenant_id=assignment.tenant_id
     LEFT JOIN public.classroom_assignment_work work
       ON work.assignment_id=assignment.id AND work.seat_id=seat.id
     WHERE seat.id=p_seat AND seat.status='active'
+      AND ((assignment.course_run_id IS NULL AND p_activity_run IS NULL)
+        OR (assignment.course_run_id IS NOT NULL AND runtime.id=p_activity_run))
       AND (assignment.status='open' OR work.project_id IS NOT NULL);
+$$;
+
+-- Only direct assignments have a unique version without an ActivityRun key.
+CREATE FUNCTION public.learning_activity_blocks_for_seat(p_seat uuid,p_assignment uuid)
+RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT public.learning_activity_blocks_for_seat(p_seat,p_assignment,NULL::uuid);
 $$;
 
 REVOKE ALL ON FUNCTION public.learning_safe_task_blocks_valid(jsonb) FROM PUBLIC;
@@ -705,7 +737,9 @@ REVOKE ALL ON FUNCTION public.learning_activity_draft_put(uuid,uuid,uuid,integer
 REVOKE ALL ON FUNCTION public.learning_activity_create(uuid,uuid,varchar,varchar,varchar,varchar,varchar,varchar,integer,jsonb,varchar,uuid,uuid,uuid,varchar,jsonb,jsonb) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.learning_activity_blocks_preview_as_author(uuid,uuid,uuid,varchar,uuid,integer) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.learning_activity_blocks_for_seat(uuid,uuid) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.learning_activity_blocks_for_seat(uuid,uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.learning_activity_draft_put(uuid,uuid,uuid,integer,varchar,varchar,varchar,integer,jsonb,varchar,uuid,uuid,jsonb,jsonb) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.learning_activity_create(uuid,uuid,varchar,varchar,varchar,varchar,varchar,varchar,integer,jsonb,varchar,uuid,uuid,uuid,varchar,jsonb,jsonb) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.learning_activity_blocks_preview_as_author(uuid,uuid,uuid,varchar,uuid,integer) TO asalab_app;
 GRANT EXECUTE ON FUNCTION public.learning_activity_blocks_for_seat(uuid,uuid) TO asalab_app;
+GRANT EXECUTE ON FUNCTION public.learning_activity_blocks_for_seat(uuid,uuid,uuid) TO asalab_app;

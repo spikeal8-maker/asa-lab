@@ -1101,7 +1101,7 @@ export class ClassroomJoinController {
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
-                learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id) AS task_blocks,
+                learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL
                 ) AS sample_image
@@ -1246,7 +1246,7 @@ export class ClassroomJoinController {
       this.canonical().forSeat(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
-                learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id) AS task_blocks,
+                learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
                 ) AS sample_image
