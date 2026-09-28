@@ -55,29 +55,36 @@ function Lightbox({
 export function AssignmentView({
   assignment,
   compact = false,
+  sampleOnly = false,
   aside,
   sampleAction,
 }: {
   readonly assignment: AssignmentViewData;
   /** В узкой колонке образец и текст идут друг под другом. */
   readonly compact?: boolean;
+  /** Reuse the image/lightbox without adding a second task description in a course card. */
+  readonly sampleOnly?: boolean;
   /** Что показать рядом с заданием: работу ученика, отклик, кнопки. */
   readonly aside?: ReactNode;
   /** Optional action that belongs specifically to the visible sample image. */
   readonly sampleAction?: ReactNode;
 }): JSX.Element {
   const [zoomed, setZoomed] = useState(false);
+  const [sampleUnavailable, setSampleUnavailable] = useState(false);
+  useEffect(() => setSampleUnavailable(false), [assignment.sampleImage]);
 
   return (
     <div className={`assignment-view${compact ? ' is-compact' : ''}`} data-testid="assignment-view">
-      <div className="assignment-view-main">
-        <AssignmentGoal goal={assignment.goal} />
-        {assignment.brief ? (
-          <BriefText text={assignment.brief} />
-        ) : (
-          <p className="account-hint">Преподаватель объяснит задание на уроке.</p>
-        )}
-      </div>
+      {sampleOnly ? null : (
+        <div className="assignment-view-main">
+          <AssignmentGoal goal={assignment.goal} />
+          {assignment.brief ? (
+            <BriefText text={assignment.brief} />
+          ) : (
+            <p className="account-hint">Преподаватель объяснит задание на уроке.</p>
+          )}
+        </div>
+      )}
 
       {assignment.sampleImage || aside ? (
         <div className="assignment-view-aside">
@@ -85,15 +92,25 @@ export function AssignmentView({
             <figure className="assignment-view-sample">
               {/* Образец нажимается: в колонке он маленький, а разглядеть надо
                   именно его — это половина задания. */}
-              <button
-                type="button"
-                onClick={() => setZoomed(true)}
-                aria-label={`Открыть образец: ${assignment.title}`}
-              >
-                <img src={assignment.sampleImage} alt={`Образец: ${assignment.title}`} />
-              </button>
-              <figcaption>Что должно получиться · нажмите, чтобы рассмотреть</figcaption>
-              {sampleAction ? (
+              {sampleUnavailable ? (
+                <p role="alert">Образец сейчас недоступен. Обновите задание и попробуйте снова.</p>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setZoomed(true)}
+                    aria-label={`Открыть образец: ${assignment.title}`}
+                  >
+                    <img
+                      src={assignment.sampleImage}
+                      alt={`Образец: ${assignment.title}`}
+                      onError={() => setSampleUnavailable(true)}
+                    />
+                  </button>
+                  <figcaption>Что должно получиться · нажмите, чтобы рассмотреть</figcaption>
+                </>
+              )}
+              {!sampleUnavailable && sampleAction ? (
                 <div className="assignment-view-sample-action">{sampleAction}</div>
               ) : null}
             </figure>
@@ -102,7 +119,7 @@ export function AssignmentView({
         </div>
       ) : null}
 
-      {zoomed && assignment.sampleImage
+      {zoomed && assignment.sampleImage && !sampleUnavailable
         ? createPortal(
             <Lightbox
               src={assignment.sampleImage}

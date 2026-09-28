@@ -64,7 +64,7 @@ export function courseActivityAssignmentShape(
         ? run.dueAt
         : occurrence.canonicalState.effectiveDueAt,
     status: run.status,
-    sampleImage: null,
+    sampleImage: occurrence.sampleImage,
     projectId: occurrence.projectId,
     submittedAt: occurrence.submittedAt,
     snapshotRevision: occurrence.snapshotRevision,
@@ -325,6 +325,9 @@ export function SeatCourses({
                         {courseActivityModuleLabel(activityAssignment.moduleKey)} · {activityStatus}
                       </small>
                     </div>
+                    {activityAssignment.sampleImage ? (
+                      <AssignmentView assignment={activityAssignment} compact sampleOnly />
+                    ) : null}
                     <div className="seat-course-activity-actions">
                       {activityAssignment.projectId ? (
                         <>

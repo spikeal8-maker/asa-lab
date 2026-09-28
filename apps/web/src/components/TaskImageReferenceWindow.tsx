@@ -67,9 +67,12 @@ export function TaskImageReferenceWindow({
   readonly onClose: () => void;
 }): JSX.Element {
   const [rect, setRect] = useState<TaskImageReferenceRect>(readRect);
+  const [unavailable, setUnavailable] = useState(false);
   const rectRef = useRef(rect);
   const operation = useRef<PointerOperation | null>(null);
   rectRef.current = rect;
+
+  useEffect(() => setUnavailable(false), [src]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent): void => {
@@ -286,12 +289,17 @@ export function TaskImageReferenceWindow({
         </button>
       </header>
       <div className="task-image-reference-body">
-        <img
-          data-testid="task-image-reference-image"
-          src={src}
-          alt={`Схема задания: ${assignmentTitle}`}
-          draggable={false}
-        />
+        {unavailable ? (
+          <p role="alert">Образец сейчас недоступен. Обновите задание и попробуйте снова.</p>
+        ) : (
+          <img
+            data-testid="task-image-reference-image"
+            src={src}
+            alt={`Схема задания: ${assignmentTitle}`}
+            draggable={false}
+            onError={() => setUnavailable(true)}
+          />
+        )}
       </div>
       {RESIZE_EDGES.map((edge) => (
         <span

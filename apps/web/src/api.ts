@@ -450,6 +450,7 @@ export interface CourseActivityOccurrence {
   learningActivityVersionId: string;
   title: string;
   moduleKey: string;
+  sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
   snapshotRevision: number | null;
