@@ -34,14 +34,30 @@ const POLICY_KEYS = [
 type SafeTaskBlock =
   | { type: 'heading' | 'paragraph' | 'callout'; text: string }
   | { type: 'list'; items: string[] }
-  | { type: 'link'; text: string; href: string };
+  | { type: 'link'; text: string; href: string }
+  | { type: 'image'; alt: string; contentHash: string; src?: string };
 
 function safeTaskBlocks(value: unknown): value is SafeTaskBlock[] {
   if (!Array.isArray(value) || value.length > 32) return false;
+  if (
+    value.filter((item: unknown) => (item as Record<string, unknown> | null)?.['type'] === 'image')
+      .length > 1
+  )
+    return false;
   return value.every((item: unknown) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const block = item as Record<string, unknown>;
     const type = block['type'];
+    if (type === 'image') {
+      return (
+        Object.keys(block).every((key) => ['type', 'alt', 'contentHash'].includes(key)) &&
+        typeof block['alt'] === 'string' &&
+        block['alt'].trim().length >= 1 &&
+        block['alt'].trim().length <= 160 &&
+        typeof block['contentHash'] === 'string' &&
+        /^[0-9a-f]{64}$/.test(block['contentHash'])
+      );
+    }
     if (type === 'list') {
       return (
         Object.keys(block).every((key) => ['type', 'items'].includes(key)) &&
@@ -249,7 +265,12 @@ export class LearningActivitiesController {
   }
 
   private draftSampleError(code: string | undefined): HttpException {
-    const status = code === 'invalid_media' ? 400 : code === 'revision_conflict' ? 409 : 404;
+    const status =
+      code === 'invalid_media' || code === 'invalid_draft'
+        ? 400
+        : code === 'revision_conflict'
+          ? 409
+          : 404;
     const message =
       code === 'sample_not_found'
         ? 'Картинки нет.'
@@ -257,7 +278,9 @@ export class LearningActivitiesController {
           ? 'Черновик изменён в другом окне.'
           : code === 'invalid_media'
             ? 'Подойдёт PNG, JPEG или WebP до 400 КБ.'
-            : 'Материал недоступен.';
+            : code === 'invalid_draft'
+              ? 'В содержании слишком много блоков для изображения.'
+              : 'Материал недоступен.';
     return new HttpException(error(code ?? 'draft_sample_failed', message), status);
   }
 
@@ -267,6 +290,14 @@ export class LearningActivitiesController {
 
   private versionSampleUrl(activityId: string, versionId: string, contentHash: string): string {
     return `/api/learning/activities/${encodeURIComponent(activityId)}/versions/${encodeURIComponent(versionId)}/sample?v=${encodeURIComponent(contentHash)}`;
+  }
+
+  private draftTaskImageUrl(activityId: string, contentHash: string): string {
+    return `/api/learning/activities/${encodeURIComponent(activityId)}/draft-task-image?v=${encodeURIComponent(contentHash)}`;
+  }
+
+  private versionTaskImageUrl(activityId: string, versionId: string, contentHash: string): string {
+    return `/api/learning/activities/${encodeURIComponent(activityId)}/versions/${encodeURIComponent(versionId)}/task-image?v=${encodeURIComponent(contentHash)}`;
   }
 
   private versionSampleError(code: string | undefined): HttpException {
@@ -456,6 +487,75 @@ export class LearningActivitiesController {
       .send(row['bytes'] as Buffer);
   }
 
+  @Get(':activityId/draft-task-image')
+  async getDraftTaskImage(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Query('v') contentHash: string | undefined,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    if (!contentHash || !/^[0-9a-f]{64}$/.test(contentHash))
+      throw new HttpException(error('validation_error', 'image hash is invalid'), 400);
+    const result = await this.requirePool().query(
+      `SELECT result_code, content_type, bytes, content_hash
+         FROM learning_activity_draft_task_image_get($1,$2,$3)`,
+      [context.principalId, context.tenantId, activityId],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['bytes'])
+      throw this.draftSampleError(row?.['result_code'] as string | undefined);
+    if (row['content_hash'] !== contentHash)
+      throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
+    return reply
+      .header('content-type', String(row['content_type']))
+      .header('cache-control', 'private, no-store')
+      .header('etag', `"${String(row['content_hash'])}"`)
+      .send(row['bytes'] as Buffer);
+  }
+
+  @Put(':activityId/draft-task-image')
+  async putDraftTaskImage(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    const shape = checkBodyShape(rawBody, ['imageDataUrl', 'expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const revision = shape.body['expectedRevision'];
+    if (
+      typeof shape.body['imageDataUrl'] !== 'string' ||
+      !Number.isSafeInteger(revision) ||
+      Number(revision) < 1 ||
+      Number(revision) > 2147483647
+    )
+      throw new HttpException(error('validation_error', 'Проверьте изображение и редакцию.'), 400);
+    const image = decodeDraftImage(shape.body['imageDataUrl']);
+    const result = await this.requirePool().query(
+      `SELECT result_code, draft_revision, content_hash
+         FROM learning_activity_draft_task_image_set($1,$2,$3,$4,$5,$6)`,
+      [
+        context.principalId,
+        context.tenantId,
+        activityId,
+        Number(revision),
+        image.bytes,
+        image.contentType,
+      ],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['content_hash'])
+      throw this.draftSampleError(row?.['result_code'] as string | undefined);
+    return {
+      draftRevision: Number(row['draft_revision']),
+      contentHash: String(row['content_hash']),
+      url: this.draftTaskImageUrl(activityId, String(row['content_hash'])),
+    };
+  }
+
   @Put(':activityId/draft-sample')
   async putDraftSample(
     @Req() request: FastifyRequest,
@@ -552,6 +652,36 @@ export class LearningActivitiesController {
     return reply
       .header('content-type', String(row['content_type']))
       .header('cache-control', 'private, max-age=31536000, immutable')
+      .header('etag', `"${String(row['content_hash'])}"`)
+      .send(row['bytes'] as Buffer);
+  }
+
+  @Get(':activityId/versions/:versionId/task-image')
+  async getVersionTaskImage(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Param('versionId') versionId: string,
+    @Query('v') contentHash: string | undefined,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    this.requireUuid(versionId, 'version');
+    if (!contentHash || !/^[0-9a-f]{64}$/.test(contentHash))
+      throw new HttpException(error('validation_error', 'image hash is invalid'), 400);
+    const result = await this.requirePool().query(
+      `SELECT result_code, content_type, bytes, content_hash
+         FROM learning_activity_version_task_image_get($1,$2,$3,$4)`,
+      [context.principalId, context.tenantId, activityId, versionId],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['bytes'])
+      throw this.versionSampleError(row?.['result_code'] as string | undefined);
+    if (row['content_hash'] !== contentHash)
+      throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
+    return reply
+      .header('content-type', String(row['content_type']))
+      .header('cache-control', 'private, no-store')
       .header('etag', `"${String(row['content_hash'])}"`)
       .send(row['bytes'] as Buffer);
   }
@@ -678,7 +808,17 @@ export class LearningActivitiesController {
         title: String(row['title']),
         goal: row['goal'] == null ? null : String(row['goal']),
         brief: row['instructions'] === null ? null : String(row['instructions']),
-        blocks: blockRow['blocks'] as SafeTaskBlock[],
+        blocks: (blockRow['blocks'] as SafeTaskBlock[]).map((block) =>
+          block.type === 'image'
+            ? {
+                ...block,
+                src:
+                  source === 'draft'
+                    ? this.draftTaskImageUrl(activityId, block.contentHash)
+                    : this.versionTaskImageUrl(activityId, versionId!, block.contentHash),
+              }
+            : block,
+        ),
         sampleImage,
       },
       moduleKey: row['module_key'] === null ? null : String(row['module_key']),

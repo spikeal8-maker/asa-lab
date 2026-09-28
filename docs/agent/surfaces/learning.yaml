@@ -107,9 +107,12 @@ surfaces:
     - apps/web/src/App.tsx
     - apps/web/src/pages/AssignmentLibraryPage.tsx
     - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/components/AuthoredTaskBlocksEditor.tsx
+    - apps/web/src/components/TaskBlocks.tsx
     - apps/web/src/components/CoursesPanel.tsx
     - apps/web/src/api.ts
     - apps/api/src/learning-activities.controller.ts
+    - apps/api/src/assignments.controller.ts
     - apps/api/src/courses.controller.ts
   invariants:
   - LRN-ARCH-001
@@ -196,6 +199,32 @@ surfaces:
     - TST-LRN-COURSE-E1-E2E-001
     commands:
     - preview_authored_activity_as_learner
+  - id: CTRL-AUTHOR-TASK-IMAGE
+    label: Add one image to ordered task content and publish exact immutable bytes
+    change_class: L3_CRITICAL
+    files:
+    - apps/web/src/pages/AuthoredMaterialsPage.tsx
+    - apps/web/src/components/AuthoredTaskBlocksEditor.tsx
+    - apps/web/src/components/TaskBlocks.tsx
+    - apps/web/src/components/task-blocks.css
+    - apps/web/src/api.ts
+    - apps/api/src/learning-activities.controller.ts
+    - apps/api/src/assignments.controller.ts
+    - migrations/0172_learning_activity_task_image.sql
+    - tests/courses/learning-activity-task-image.pg.spec.ts
+    - e2e/learning-author-preview.spec.ts
+    invariants:
+    - LRN-VER-001
+    - LRN-RUN-001
+    - LRN-AUTH-001
+    - LRN-PRV-001
+    tests:
+    - TST-LRN-COURSE-E1-CORE-001
+    - TST-LRN-COURSE-E1-E2E-001
+    commands:
+    - create_authored_activity
+    - course_publish
+    - preview_authored_activity_as_learner
 - id: SURF-LEARNER-LEARNING
   routes:
   - '#/learning'
@@ -205,9 +234,12 @@ surfaces:
     - apps/web/src/pages/AttendedClassesPage.tsx
     - apps/web/src/components/SeatCourses.tsx
     - apps/web/src/components/SeatAssignments.tsx
+    - apps/web/src/components/AssignmentView.tsx
+    - apps/web/src/components/TaskBlocks.tsx
     - apps/web/src/components/SeatResults.tsx
     - apps/web/src/api.ts
     - apps/api/src/classroom-join.controller.ts
+    - apps/api/src/assignments.controller.ts
     - apps/api/src/courses.controller.ts
     - apps/api/src/learning-canonical-projection.service.ts
   invariants:

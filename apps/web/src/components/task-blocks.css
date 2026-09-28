@@ -31,6 +31,26 @@
   overflow-wrap: anywhere;
 }
 
+.task-block-image {
+  min-width: 0;
+}
+.task-block-image img,
+.task-block-editor-image {
+  display: block;
+  max-width: 100%;
+  max-height: 30rem;
+  object-fit: contain;
+  border-radius: 0.4rem;
+}
+.task-block-image figcaption {
+  margin-top: 0.35rem;
+  font-size: 0.9rem;
+  color: var(--muted-color, #5b6575);
+}
+.task-block-editor-image {
+  max-height: 12rem;
+}
+
 .task-block-editor {
   min-width: 0;
   border: 1px solid var(--border-color, #d6dce8);

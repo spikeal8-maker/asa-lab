@@ -321,9 +321,9 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await editor.screenshot({ path: 'e2e/artifacts/learning/version-draft/published-v4.png' });
 });
 
-function solidPng(red: number, green: number, blue: number): Buffer {
-  const image = new PNG({ width: 3, height: 3 });
-  for (let pixel = 0; pixel < 9; pixel += 1) {
+function solidPng(red: number, green: number, blue: number, width = 3, height = 3): Buffer {
+  const image = new PNG({ width, height });
+  for (let pixel = 0; pixel < width * height; pixel += 1) {
     const offset = pixel * 4;
     image.data[offset] = red;
     image.data[offset + 1] = green;
@@ -332,6 +332,95 @@ function solidPng(red: number, green: number, blue: number): Buffer {
   }
   return PNG.sync.write(image);
 }
+
+test('first-class image block survives draft reload and pins exact published bytes', async ({
+  page,
+}) => {
+  test.setTimeout(150000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Image block ' + unique;
+  const imageA = solidPng(210, 40, 40, 240, 120);
+  const imageB = solidPng(40, 70, 210, 240, 120);
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(`${unique}@task-image.test`);
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('i' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор изображения');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Возможности', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  await page.goto('/#/challenges');
+  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Содержание', { exact: true }).fill('Сначала прочитайте инструкцию.');
+  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  await page.getByLabel('Файл блока изображения').setInputFiles({
+    name: 'task-a.png',
+    mimeType: 'image/png',
+    buffer: imageA,
+  });
+  await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
+  await page.getByLabel('Описание блока 1').fill('Первая схема');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.reload();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await expect(page.getByLabel('Описание блока 1')).toHaveValue('Первая схема');
+  const preview = page.getByTestId('learner-preview');
+  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
+  const draftImage = preview.getByRole('img', { name: 'Первая схема' });
+  await expect(draftImage).toBeVisible();
+  const draftSource = await draftImage.getAttribute('src');
+  expect(draftSource).toContain('/draft-task-image?v=');
+  const draftBytes = await page.request.get(new URL(draftSource!, page.url()).toString());
+  expect(draftBytes.ok()).toBe(true);
+  expect(Buffer.compare(await draftBytes.body(), imageA)).toBe(0);
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  const versionImage = preview.getByRole('img', { name: 'Первая схема' });
+  await expect(versionImage).toBeVisible();
+  const v1Source = await versionImage.getAttribute('src');
+  expect(v1Source).toContain('/versions/');
+  await page.setViewportSize({ width: 320, height: 844 });
+  await versionImage.scrollIntoViewIfNeeded();
+  await expect(versionImage).toHaveJSProperty('naturalWidth', 240);
+  await expect(versionImage).toHaveJSProperty('naturalHeight', 120);
+  const imageBounds = await versionImage.boundingBox();
+  expect(imageBounds).not.toBeNull();
+  expect(imageBounds!.width).toBeGreaterThanOrEqual(200);
+  expect(imageBounds!.height).toBeGreaterThanOrEqual(100);
+  expect(imageBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(imageBounds!.x + imageBounds!.width).toBeLessThanOrEqual(320);
+  mkdirSync('e2e/artifacts/learning/task-image-a2d', { recursive: true });
+  await preview.screenshot({ path: 'e2e/artifacts/learning/task-image-a2d/published-v1-320.png' });
+
+  await page.getByLabel('Заменить файл блока 1').setInputFiles({
+    name: 'task-b.png',
+    mimeType: 'image/png',
+    buffer: imageB,
+  });
+  await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
+  const staleDraftBytes = await page.request.get(new URL(draftSource!, page.url()).toString());
+  expect(staleDraftBytes.status()).toBe(404);
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  const pinnedBytes = await page.request.get(new URL(v1Source!, page.url()).toString());
+  expect(Buffer.compare(await pinnedBytes.body(), imageA)).toBe(0);
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText(/Опубликована версия 2/)).toBeVisible();
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  const v2Source = await preview.getByRole('img', { name: 'Первая схема' }).getAttribute('src');
+  expect(v2Source).not.toBe(v1Source);
+  const v2Bytes = await page.request.get(new URL(v2Source!, page.url()).toString());
+  expect(Buffer.compare(await v2Bytes.body(), imageB)).toBe(0);
+});
 
 test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   test.setTimeout(120000);
