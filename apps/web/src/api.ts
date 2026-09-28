@@ -22,6 +22,7 @@ export interface AuthoredActivityDraft {
   quizVersionId?: string | null;
   starterProjectVersionId?: string | null;
   title: string;
+  goal?: string | null;
   instructions: string | null;
   moduleKey: string | null;
   resultMode: 'ungraded' | 'completion' | 'graded';
@@ -284,6 +285,7 @@ export interface PublishedAuthorVersion {
   id: string;
   versionNumber: number;
   title?: string;
+  goal?: string | null;
   instructions?: string | null;
   outline?: {
     course: { title: string; summary: string | null };
@@ -449,6 +451,7 @@ export interface CourseActivityOccurrence {
   classroomAssignmentId: string;
   learningActivityVersionId: string;
   title: string;
+  goal: string | null;
   moduleKey: string;
   sampleImage: string | null;
   projectId: string | null;
@@ -1795,6 +1798,7 @@ export const api = {
       draftSampleImage: string | null;
       currentPublishedVersionId: string | null;
       draft: AuthoredActivityDraft;
+      inheritedGoal: string | null;
     }>(`/api/learning/activities/${encodeURIComponent(id)}`),
   previewAuthoredActivityDraft: (id: string, draftRevision: number) =>
     call<AuthoredActivityLearnerPreview>(

@@ -107,6 +107,7 @@ export function AuthorVersionHistory({
       {version ? (
         <article aria-label={'Опубликованная версия ' + version.versionNumber}>
           <h3>{version.outline?.course.title ?? version.title}</h3>
+          {kind === 'activity' && version.goal ? <p>Цель: {version.goal}</p> : null}
           <p>{version.outline?.course.summary ?? version.instructions}</p>
           {kind === 'course' && items.length > 1 ? (
             <div className="author-version-diff" data-testid="author-version-diff">

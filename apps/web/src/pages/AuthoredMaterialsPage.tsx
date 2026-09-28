@@ -24,6 +24,7 @@ function checkDraftImage(file: File): string | null {
 
 const initial: AuthoredActivityDraft = {
   title: '',
+  goal: null,
   instructions: '',
   moduleKey: 'electronics',
   resultMode: 'completion',
@@ -124,6 +125,7 @@ export function AuthoredMaterialsPage({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [draft, setDraft] = useState<AuthoredActivityDraft>(initial);
+  const [inheritedGoal, setInheritedGoal] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ id: string; revision: number } | null>(null);
   const [publishedVersionId, setPublishedVersionId] = useState<string | null>(null);
   const [draftSampleImage, setDraftSampleImage] = useState<string | null>(null);
@@ -164,9 +166,14 @@ export function AuthoredMaterialsPage({
       setOpened({ id, revision: result.data.draftRevision });
       setPublishedVersionId(result.data.currentPublishedVersionId);
       setDraftSampleImage(result.data.draftSampleImage);
+      setInheritedGoal(result.data.inheritedGoal);
       setPendingDraftSample(null);
       const loaded: AuthoredActivityDraft = {
         title: value.title,
+        // A legacy teacher-source draft may have no goal key. Keep that
+        // absence until the author edits the goal, so another field's save
+        // still inherits the teacher goal when the version is published.
+        ...('goal' in value ? { goal: value.goal } : {}),
         instructions: value.instructions,
         resultMode: value.resultMode,
         maxPoints: value.maxPoints,
@@ -396,6 +403,7 @@ export function AuthoredMaterialsPage({
             setDraftSampleImage(null);
             setPendingDraftSample(null);
             setDraft(initial);
+            setInheritedGoal(null);
             setNotice(null);
             setError(null);
           }}
@@ -455,6 +463,26 @@ export function AuthoredMaterialsPage({
               onChange={(event) => setDraft({ ...draft, title: event.target.value })}
             />
           </label>
+          <label>
+            Цель задания
+            <input
+              aria-label="Цель задания"
+              maxLength={160}
+              value={draft.goal === undefined ? (inheritedGoal ?? '') : (draft.goal ?? '')}
+              disabled={busy}
+              onChange={(event) => setDraft({ ...draft, goal: event.target.value })}
+            />
+          </label>
+          {(draft.goal === undefined ? inheritedGoal !== null : draft.goal !== null) && (
+            <button
+              type="button"
+              className="account-inline-action"
+              disabled={busy}
+              onClick={() => setDraft({ ...draft, goal: null })}
+            >
+              Очистить цель задания
+            </button>
+          )}
           <label>
             Содержание
             <textarea

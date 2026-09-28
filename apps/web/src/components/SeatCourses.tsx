@@ -10,6 +10,7 @@ import {
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { courseCompletion, lessonComplete, lessonExcused } from '../learning/course-completion';
 import { AssignmentView } from './AssignmentView';
+import { AssignmentGoal } from './BriefText';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
 import './seat-courses.css';
@@ -57,7 +58,7 @@ export function courseActivityAssignmentShape(
     id: occurrence.classroomAssignmentId,
     title: occurrence.title,
     brief: null,
-    goal: null,
+    goal: occurrence.goal,
     moduleKey: occurrence.moduleKey,
     dueAt:
       occurrence.canonicalState?.effectiveDueAt === undefined
@@ -325,6 +326,7 @@ export function SeatCourses({
                         {courseActivityModuleLabel(activityAssignment.moduleKey)} · {activityStatus}
                       </small>
                     </div>
+                    <AssignmentGoal goal={activityAssignment.goal} />
                     {activityAssignment.sampleImage ? (
                       <AssignmentView assignment={activityAssignment} compact sampleOnly />
                     ) : null}
