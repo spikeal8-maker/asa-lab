@@ -2,6 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 
 export function ClassroomGradingScheme({ classroomId }: { classroomId: string }) {
+  return <ClassroomGradingSchemeForClass key={classroomId} classroomId={classroomId} />;
+}
+
+function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }) {
   const [title, setTitle] = useState(''),
     [bands, setBands] = useState([
       { min: '0', label: '' },
@@ -14,11 +18,17 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
   const request = useRef<{ payload: string; id: string } | null>(null);
   const latestLoad = useRef(0),
     editRevision = useRef(0);
+  const active = useRef(false);
   const load = useCallback(async () => {
     const loadId = ++latestLoad.current;
     const revisionAtStart = editRevision.current;
     const r = await api.classroomGradingScheme(classroomId);
-    if (loadId !== latestLoad.current || revisionAtStart !== editRevision.current) return;
+    if (
+      !active.current ||
+      loadId !== latestLoad.current ||
+      revisionAtStart !== editRevision.current
+    )
+      return;
     if (r.ok) {
       setTitle(r.data.title ?? '');
       setVersion(r.data.version);
@@ -34,6 +44,13 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
       setError(null);
     } else setError(r.error.message);
   }, [classroomId]);
+  useEffect(() => {
+    active.current = true;
+    return () => {
+      active.current = false;
+      latestLoad.current += 1;
+    };
+  }, []);
   useEffect(() => {
     void load();
   }, [load]);
@@ -65,6 +82,7 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
     setBusy(true);
     setError(null);
     const result = await api.publishGradingScheme(classroomId, title, values, request.current.id);
+    if (!active.current) return;
     setBusy(false);
     if (result.ok) await load();
     else setError(result.error.message);

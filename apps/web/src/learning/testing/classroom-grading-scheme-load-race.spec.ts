@@ -8,6 +8,7 @@ import { ClassroomGradingScheme } from '../../components/ClassroomGradingScheme'
 
 const reactTestGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
 type SchemeResponse = Awaited<ReturnType<typeof api.classroomGradingScheme>>;
+type PublishResponse = Awaited<ReturnType<typeof api.publishGradingScheme>>;
 
 const emptyScheme: SchemeResponse = {
   ok: true,
@@ -23,6 +24,18 @@ const publishedScheme: SchemeResponse = {
     bands: [
       { minBasisPoints: 0, label: 'Нужна практика' },
       { minBasisPoints: 7000, label: 'Освоено' },
+    ],
+  },
+};
+const otherClassScheme: SchemeResponse = {
+  ok: true,
+  status: 200,
+  data: {
+    title: 'Шкала другого класса',
+    version: 2,
+    bands: [
+      { minBasisPoints: 0, label: 'Старт' },
+      { minBasisPoints: 8000, label: 'Готово' },
     ],
   },
 };
@@ -68,6 +81,12 @@ async function render(strict = false): Promise<HTMLDivElement> {
     root?.render(strict ? createElement(StrictMode, null, form) : form);
   });
   return container;
+}
+
+async function switchClass(classroomId: string): Promise<void> {
+  await act(async () => {
+    root?.render(createElement(ClassroomGradingScheme, { classroomId }));
+  });
 }
 
 beforeAll(() => {
@@ -149,4 +168,56 @@ it('reloads on Cancel, but a later edit wins over a delayed Cancel response', as
   expect(input(form, 'Название шкалы').value).toBe('');
   expect(input(form, 'Порог 2, %').value).toBe('');
   expect(input(form, 'Обозначение оценки 1').value).toBe('');
+});
+
+it('clears the previous class draft and ignores its delayed publish after switching classes', async () => {
+  const publishOldClass = deferred<PublishResponse>();
+  const loadOtherClass = deferred<SchemeResponse>();
+  const get = vi
+    .spyOn(api, 'classroomGradingScheme')
+    .mockResolvedValueOnce(publishedScheme)
+    .mockReturnValueOnce(loadOtherClass.promise)
+    .mockResolvedValue(otherClassScheme);
+  const publish = vi
+    .spyOn(api, 'publishGradingScheme')
+    .mockReturnValueOnce(publishOldClass.promise)
+    .mockResolvedValue({ ok: true, status: 200, data: { id: 'scheme-b', version: 3 } });
+
+  const form = await render();
+  await act(async () => setInput(input(form, 'Название шкалы'), 'Черновик первого класса'));
+  await act(async () => button(form, 'Сохранить шкалу для новых заданий').click());
+  expect(publish).toHaveBeenCalledWith(
+    'class-1',
+    'Черновик первого класса',
+    expect.any(Array),
+    expect.any(String),
+  );
+
+  await switchClass('class-2');
+  expect(get).toHaveBeenNthCalledWith(2, 'class-2');
+  expect(form.textContent).not.toContain('Черновик первого класса');
+  expect(form.textContent).not.toContain('Два уровня');
+  expect(form.querySelector('input')).toBeNull();
+
+  await act(async () =>
+    publishOldClass.resolve({ ok: true, status: 200, data: { id: 'scheme-a', version: 2 } }),
+  );
+  expect(get).toHaveBeenCalledTimes(2);
+  expect(form.querySelector('input')).toBeNull();
+
+  await act(async () => loadOtherClass.resolve(otherClassScheme));
+  expect(input(form, 'Название шкалы').value).toBe('Шкала другого класса');
+  expect(input(form, 'Обозначение оценки 2').value).toBe('Готово');
+  expect(button(form, 'Сохранить шкалу для новых заданий').disabled).toBe(false);
+  await act(async () => setInput(input(form, 'Название шкалы'), 'Изменено во втором классе'));
+  await act(async () => button(form, 'Сохранить шкалу для новых заданий').click());
+  expect(publish).toHaveBeenLastCalledWith(
+    'class-2',
+    'Изменено во втором классе',
+    [
+      { minBasisPoints: 0, label: 'Старт' },
+      { minBasisPoints: 8000, label: 'Готово' },
+    ],
+    expect.any(String),
+  );
 });
