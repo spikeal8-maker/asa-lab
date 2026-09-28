@@ -1786,7 +1786,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   }
 
   let courseRunId: string | null = null;
-  async function openCourse(): Promise<D5CourseRunRead> {
+  async function openCourse(
+    options: { reloadAfterExternalChange?: boolean } = {},
+  ): Promise<D5CourseRunRead> {
     const response = await learner.page.request.get('/api/class-join/me/course-runs');
     expect(response.ok()).toBe(true);
     const payload = (await response.json()) as { items: D5CourseRunRead[] };
@@ -1795,7 +1797,20 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     const run = matchingRuns[0]!;
     if (courseRunId === null) courseRunId = run.id;
     expect(run.id).toBe(courseRunId);
-    await learner.page.goto('/#/learning?courseRun=' + encodeURIComponent(courseRunId));
+    if (options.reloadAfterExternalChange) {
+      // An admin SQL update does not notify the mounted player. Reload the
+      // document so SeatCourses fetches the current occurrence projection.
+      const refreshed = learner.page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/class-join/me/course-runs') &&
+          response.request().method() === 'GET' &&
+          response.ok(),
+      );
+      await learner.page.reload();
+      await refreshed;
+    } else {
+      await learner.page.goto('/#/learning?courseRun=' + encodeURIComponent(courseRunId));
+    }
     await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
     return run;
   }
@@ -1847,7 +1862,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   );
   const earlySample = await learner.page.request.get(electronicsOccurrence.sampleImage!);
   expect(earlySample.status()).toBe(404);
-  const earlyRun = await openCourse();
+  const earlyRun = await openCourse({ reloadAfterExternalChange: true });
   expect(occurrenceFromCourseRun(earlyRun, electronicsTitle).goal).toBeNull();
   await expect(
     player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle }),
@@ -1855,9 +1870,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
     electronicsOccurrence.activityRunId,
   ]);
-  await openCourse();
+  await openCourse({ reloadAfterExternalChange: true });
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText(electronicsGoal);
   await expect(
     electronicsCard.getByRole('img', { name: `Образец: ${electronicsTitle}` }),
   ).toBeVisible();
