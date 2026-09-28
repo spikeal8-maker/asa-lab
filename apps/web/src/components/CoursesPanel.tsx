@@ -494,23 +494,32 @@ function CourseEditor({
   const [error, setError] = useState<string | null>(null);
 
   const loadOutline = useCallback(
-    async (force = false, acknowledgedGeneration?: number) => {
+    async (force = false) => {
       if (localDirtyRef.current && !force) return false;
       const generation = editGeneration.current;
       const result = await api.courseOutline(course.id);
       if (!result.ok) {
-        if (!force) setSections([]);
+        if (!force && !localDirtyRef.current && generation === editGeneration.current) {
+          setSections([]);
+        }
         setError(result.error.message);
         return false;
       }
       if (result.data.draftRevision < draftRevisionRef.current) return false;
+      if (localDirtyRef.current) {
+        if (result.data.draftRevision > draftRevisionRef.current) {
+          setError('Курс изменён в другом окне. Локальные правки сохранены в форме.');
+          return false;
+        }
+        // A saved lesson may move to another section/position while the author
+        // types again. Applying that outline would remount and discard the form.
+        return true;
+      }
       draftRevisionRef.current = result.data.draftRevision;
       setDraftRevision(result.data.draftRevision);
       if (generation !== editGeneration.current) return true;
-      if (!localDirtyRef.current || acknowledgedGeneration === editGeneration.current) {
-        localDirtyRef.current = false;
-        setLocalDirty(false);
-      }
+      localDirtyRef.current = false;
+      setLocalDirty(false);
       setSections(result.data.sections);
       setSelectedLessonId((current) => {
         if (
@@ -573,8 +582,7 @@ function CourseEditor({
   async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
     const savingGeneration = editGeneration.current;
     if (revisionRefreshRef.current) {
-      const ready = await revisionRefreshRef.current;
-      if (!ready && !(await loadOutline(true))) return;
+      await revisionRefreshRef.current;
       revisionRefreshRef.current = null;
     }
     const expectedRevision = draftRevisionRef.current;
@@ -586,6 +594,18 @@ function CourseEditor({
       setError(result.error.message);
       return;
     }
+    if (
+      !Number.isSafeInteger(result.data.draftRevision) ||
+      result.data.draftRevision <= expectedRevision
+    ) {
+      if (!lessonId) createdLessonIdRef.current = result.data.id;
+      setError(
+        'Не удалось подтвердить версию курса. Обновите страницу перед повторным сохранением.',
+      );
+      return;
+    }
+    draftRevisionRef.current = result.data.draftRevision;
+    setDraftRevision(result.data.draftRevision);
     const editedSinceSave = editGeneration.current !== savingGeneration;
     setError(null);
     setNotice(
@@ -604,7 +624,7 @@ function CourseEditor({
       setNewLessonSectionId(null);
       setSelectedLessonId(result.data.id);
     }
-    const refresh = loadOutline(true, savingGeneration);
+    const refresh = loadOutline(true);
     revisionRefreshRef.current = refresh;
     if (await refresh) revisionRefreshRef.current = null;
     onChanged();

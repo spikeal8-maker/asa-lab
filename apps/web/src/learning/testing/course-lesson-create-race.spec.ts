@@ -49,6 +49,35 @@ function setInput(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+function testLesson(title: string, position = 1): CourseLesson {
+  return {
+    id: 'lesson-1',
+    title,
+    summary: null,
+    content: null,
+    blocks: [{ id: 'intro', type: 'paragraph', text: '' }],
+    kind: 'material',
+    assignmentId: null,
+    learningActivityVersionId: null,
+    assignmentTitle: null,
+    moduleKey: null,
+    estimatedMinutes: null,
+    position,
+    hidden: false,
+  };
+}
+
+function testSection(id: string, lessons: CourseLesson[]): CourseSection {
+  return {
+    id,
+    title: id,
+    summary: null,
+    position: id === 'section-1' ? 1 : 2,
+    hidden: false,
+    lessons,
+  };
+}
+
 async function flush(): Promise<void> {
   await Promise.resolve();
   await Promise.resolve();
@@ -133,7 +162,7 @@ it('creates a second lesson even when a late outline reload selects the first le
       if (lessonId) lessons[lessons.findIndex((entry) => entry.id === lessonId)] = lesson;
       else lessons.push(lesson);
       revision += 1;
-      return { ok: true, status: 200, data: { id } };
+      return { ok: true, status: 200, data: { id, draftRevision: revision } };
     });
 
   container = document.createElement('div');
@@ -290,7 +319,7 @@ it('keeps edits made during a create request and updates that lesson on the next
       expect(lessonId).toBe('lesson-1');
       lessons[0] = { ...lessons[0]!, title: input.title };
       revision += 2;
-      return { ok: true, status: 200, data: { id: lessonId! } };
+      return { ok: true, status: 200, data: { id: lessonId!, draftRevision: revision } };
     });
 
   container = document.createElement('div');
@@ -339,7 +368,7 @@ it('keeps edits made during a create request and updates that lesson on the next
   });
   revision = 3;
   await act(async () => {
-    pendingCreate.resolve({ ok: true, status: 200, data: { id: 'lesson-1' } });
+    pendingCreate.resolve({ ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 3 } });
     await flush();
   });
   expect(title?.value).toBe('Edited during save');
@@ -360,4 +389,196 @@ it('keeps edits made during a create request and updates that lesson on the next
     expectedRevision: 3,
   });
   expect(lessons.map((lesson) => lesson.title)).toEqual(['Edited during save']);
+});
+
+it('retains post-submit edits when the acknowledged PATCH moves an existing lesson', async () => {
+  const pendingPatch = deferred<Awaited<ReturnType<typeof api.saveCourseLesson>>>();
+  let revision = 1;
+  let savedLesson = testLesson('Original');
+  let moved = false;
+  const outline = () => ({
+    sections: [
+      testSection('section-1', moved ? [] : [savedLesson]),
+      testSection('section-2', moved ? [savedLesson] : []),
+    ],
+    draftRevision: revision,
+  });
+  vi.spyOn(api, 'listCourses').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: { items: [{ ...course, draftRevision: revision, sectionCount: 2, lessonCount: 1 }] },
+  }));
+  vi.spyOn(api, 'courseOutline').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: outline(),
+  }));
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+  vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [] },
+  });
+  const save = vi
+    .spyOn(api, 'saveCourseLesson')
+    .mockReturnValueOnce(pendingPatch.promise)
+    .mockImplementation(async (_courseId, lessonId, input) => {
+      expect(lessonId).toBe('lesson-1');
+      expect(input.expectedRevision).toBe(3);
+      savedLesson = { ...savedLesson, title: input.title };
+      revision = 5;
+      return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 5 } };
+    });
+
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(
+      createElement(CoursesPanel, { assignments: [], canTeach: true, onChanged: vi.fn() }),
+    );
+    await flush();
+  });
+  await act(async () =>
+    container
+      ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
+      ?.click(),
+  );
+  const title = container.querySelector<HTMLInputElement>(
+    '.course-lesson-editor input[maxlength="160"]',
+  );
+  const section = container.querySelector<HTMLSelectElement>('.course-lesson-editor select');
+  expect(title?.value).toBe('Original');
+  expect(section).not.toBeNull();
+  await act(async () => {
+    setInput(title!, 'Submitted title');
+    section!.value = 'section-2';
+    section!.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(save.mock.calls[0]?.[2]).toMatchObject({
+    title: 'Submitted title',
+    sectionId: 'section-2',
+    expectedRevision: 1,
+  });
+  await act(async () => setInput(title!, 'Typed after submit'));
+  savedLesson = testLesson('Submitted title', 2);
+  moved = true;
+  revision = 3;
+  await act(async () => {
+    pendingPatch.resolve({ ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 3 } });
+    await flush();
+  });
+  expect(
+    container.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]'),
+  ).toBe(title);
+  expect(title?.value).toBe('Typed after submit');
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1]?.[2]).toMatchObject({
+    title: 'Typed after submit',
+    sectionId: 'section-2',
+    expectedRevision: 3,
+  });
+  expect(savedLesson.title).toBe('Typed after submit');
+});
+
+it('does not adopt a concurrent revision while preserving edits made after save', async () => {
+  const pendingOutline = deferred<Awaited<ReturnType<typeof api.courseOutline>>>();
+  let revision = 1;
+  let savedLesson = testLesson('Original');
+  const outline = () => ({
+    sections: [testSection('section-1', [savedLesson])],
+    draftRevision: revision,
+  });
+  vi.spyOn(api, 'listCourses').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: { items: [{ ...course, draftRevision: revision, lessonCount: 1 }] },
+  }));
+  vi.spyOn(api, 'courseOutline')
+    .mockImplementationOnce(async () => ({ ok: true, status: 200, data: outline() }))
+    .mockReturnValueOnce(pendingOutline.promise)
+    .mockImplementation(async () => ({ ok: true, status: 200, data: outline() }));
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+  vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [] },
+  });
+  const save = vi
+    .spyOn(api, 'saveCourseLesson')
+    .mockImplementation(async (_courseId, lessonId, input) => {
+      expect(lessonId).toBe('lesson-1');
+      if (input.expectedRevision !== revision) {
+        return {
+          ok: false,
+          status: 409,
+          error: { code: 'draft_conflict', message: 'Remote conflict' },
+        };
+      }
+      savedLesson = { ...savedLesson, title: input.title };
+      revision = 2;
+      return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 2 } };
+    });
+
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(
+      createElement(CoursesPanel, { assignments: [], canTeach: true, onChanged: vi.fn() }),
+    );
+    await flush();
+  });
+  await act(async () =>
+    container
+      ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
+      ?.click(),
+  );
+  const title = container.querySelector<HTMLInputElement>(
+    '.course-lesson-editor input[maxlength="160"]',
+  );
+  expect(title?.value).toBe('Original');
+  await act(async () => setInput(title!, 'Saved by me'));
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(1);
+  await act(async () => setInput(title!, 'My unsaved follow-up'));
+  savedLesson = testLesson('Changed remotely');
+  revision = 3;
+  await act(async () => {
+    pendingOutline.resolve({ ok: true, status: 200, data: outline() });
+    await flush();
+  });
+  expect(title?.value).toBe('My unsaved follow-up');
+  expect(container.textContent).toContain('Курс изменён в другом окне');
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1]?.[2]).toMatchObject({
+    title: 'My unsaved follow-up',
+    expectedRevision: 2,
+  });
+  expect(savedLesson.title).toBe('Changed remotely');
+  expect(container.textContent).toContain('Remote conflict');
 });
