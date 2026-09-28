@@ -77,7 +77,7 @@ it('creates a second lesson even when a late outline reload selects the first le
   const lateOutline = deferred<Awaited<ReturnType<typeof api.courseOutline>>>();
   const lessons: CourseLesson[] = [];
   let revision = 1;
-  let failNextCreate = false;
+  let failNextUpdate = false;
   const outline = (): { sections: CourseSection[]; draftRevision: number } => ({
     sections: [
       {
@@ -99,7 +99,6 @@ it('creates a second lesson even when a late outline reload selects the first le
   const readOutline = vi
     .spyOn(api, 'courseOutline')
     .mockImplementationOnce(async () => ({ ok: true, status: 200, data: outline() }))
-    .mockImplementationOnce(async () => ({ ok: true, status: 200, data: outline() }))
     .mockReturnValueOnce(lateOutline.promise)
     .mockImplementation(async () => ({ ok: true, status: 200, data: outline() }));
   vi.spyOn(api, 'authorVersions').mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
@@ -111,8 +110,8 @@ it('creates a second lesson even when a late outline reload selects the first le
   const save = vi
     .spyOn(api, 'saveCourseLesson')
     .mockImplementation(async (_courseId, lessonId, input) => {
-      if (failNextCreate && lessonId === null) {
-        failNextCreate = false;
+      if (failNextUpdate && lessonId === 'lesson-2') {
+        failNextUpdate = false;
         return { ok: false, status: 503, error: { code: 'unavailable', message: 'Try again' } };
       }
       const id = lessonId ?? `lesson-${lessons.length + 1}`;
@@ -151,12 +150,15 @@ it('creates a second lesson even when a late outline reload selects the first le
   );
   expect(openCourse).not.toBeNull();
   await act(async () => openCourse?.click());
+  expect(readOutline).toHaveBeenCalledTimes(1);
   await act(async () => button(container!, '+ Урок').click());
   const firstTitle = container.querySelector<HTMLInputElement>(
     '.course-lesson-editor input[maxlength="160"]',
   );
   expect(firstTitle).not.toBeNull();
   await act(async () => setInput(firstTitle!, 'First lesson'));
+  await act(async () => button(container!, '+ Урок').click());
+  expect(container.textContent).toContain('Сначала сохраните изменения урока');
   await act(async () => {
     container
       ?.querySelector('.course-lesson-editor')
@@ -165,31 +167,34 @@ it('creates a second lesson even when a late outline reload selects the first le
   });
   expect(save).toHaveBeenCalledTimes(1);
   expect(save.mock.calls[0]?.[1]).toBeNull();
-  expect(readOutline).toHaveBeenCalledTimes(3);
+  expect(readOutline).toHaveBeenCalledTimes(2);
 
   await act(async () => button(container!, '+ Урок').click());
-  expect(container.textContent).toContain('Новый урок');
-  await act(async () => lateOutline.resolve({ ok: true, status: 200, data: outline() }));
   expect(container.textContent).toContain('Новый урок');
   const secondTitle = container.querySelector<HTMLInputElement>(
     '.course-lesson-editor input[maxlength="160"]',
   );
   expect(secondTitle).not.toBeNull();
   await act(async () => setInput(secondTitle!, 'Second lesson'));
-  failNextCreate = true;
   await act(async () => {
     container
       ?.querySelector('.course-lesson-editor')
       ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush();
   });
+  expect(save).toHaveBeenCalledTimes(1);
+  await act(async () => setInput(secondTitle!, 'Second lesson revised'));
+  await act(async () => lateOutline.resolve({ ok: true, status: 200, data: outline() }));
+  expect(container.textContent).toContain('Новый урок');
 
   expect(save).toHaveBeenCalledTimes(2);
   expect(save.mock.calls[1]?.[1]).toBeNull();
   expect(save.mock.calls[1]?.[2]).toMatchObject({ title: 'Second lesson', expectedRevision: 2 });
-  expect(lessons.map((lesson) => lesson.title)).toEqual(['First lesson']);
-  expect(secondTitle?.value).toBe('Second lesson');
-  expect(container.textContent).toContain('Try again');
+  expect(lessons.map((lesson) => lesson.title)).toEqual(['First lesson', 'Second lesson']);
+  expect(secondTitle?.value).toBe('Second lesson revised');
+  await act(async () => button(container!, '+ Урок').click());
+  expect(container.textContent).toContain('Сначала сохраните изменения урока');
+  failNextUpdate = true;
   await act(async () => {
     container
       ?.querySelector('.course-lesson-editor')
@@ -197,9 +202,25 @@ it('creates a second lesson even when a late outline reload selects the first le
     await flush();
   });
   expect(save).toHaveBeenCalledTimes(3);
-  expect(save.mock.calls[2]?.[1]).toBeNull();
-  expect(save.mock.calls[2]?.[2]).toMatchObject({ title: 'Second lesson', expectedRevision: 2 });
-  expect(lessons.map((lesson) => lesson.title)).toEqual(['First lesson', 'Second lesson']);
+  expect(save.mock.calls[2]?.[1]).toBe('lesson-2');
+  expect(save.mock.calls[2]?.[2]).toMatchObject({
+    title: 'Second lesson revised',
+    expectedRevision: 3,
+  });
+  expect(container.textContent).toContain('Try again');
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(4);
+  expect(save.mock.calls[3]?.[1]).toBe('lesson-2');
+  expect(save.mock.calls[3]?.[2]).toMatchObject({
+    title: 'Second lesson revised',
+    expectedRevision: 3,
+  });
+  expect(lessons.map((lesson) => lesson.title)).toEqual(['First lesson', 'Second lesson revised']);
   expect(container.querySelectorAll('.course-outline-section li')).toHaveLength(2);
 
   const firstLesson = [
@@ -218,10 +239,125 @@ it('creates a second lesson even when a late outline reload selects the first le
       ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     await flush();
   });
-  expect(save.mock.calls[3]?.[1]).toBe('lesson-1');
-  expect(save.mock.calls[3]?.[2]).toMatchObject({
+  expect(save.mock.calls[4]?.[1]).toBe('lesson-1');
+  expect(save.mock.calls[4]?.[2]).toMatchObject({
     title: 'Updated first lesson',
+    expectedRevision: 4,
+  });
+  expect(lessons.map((lesson) => lesson.title)).toEqual([
+    'Updated first lesson',
+    'Second lesson revised',
+  ]);
+});
+
+it('keeps edits made during a create request and updates that lesson on the next save', async () => {
+  const pendingCreate = deferred<Awaited<ReturnType<typeof api.saveCourseLesson>>>();
+  const lessons: CourseLesson[] = [];
+  let revision = 1;
+  const outline = () => ({
+    sections: [
+      {
+        id: 'section-1',
+        title: 'Section',
+        summary: null,
+        position: 1,
+        hidden: false,
+        lessons: [...lessons],
+      },
+    ] satisfies CourseSection[],
+    draftRevision: revision,
+  });
+  vi.spyOn(api, 'listCourses').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: { items: [{ ...course, draftRevision: revision, lessonCount: lessons.length }] },
+  }));
+  vi.spyOn(api, 'courseOutline').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: outline(),
+  }));
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+  vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [] },
+  });
+  const save = vi
+    .spyOn(api, 'saveCourseLesson')
+    .mockReturnValueOnce(pendingCreate.promise)
+    .mockImplementation(async (_courseId, lessonId, input) => {
+      expect(lessonId).toBe('lesson-1');
+      lessons[0] = { ...lessons[0]!, title: input.title };
+      revision += 2;
+      return { ok: true, status: 200, data: { id: lessonId! } };
+    });
+
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(
+      createElement(CoursesPanel, { assignments: [], canTeach: true, onChanged: vi.fn() }),
+    );
+    await flush();
+  });
+  await act(async () =>
+    container
+      ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
+      ?.click(),
+  );
+  await act(async () => button(container!, '+ Урок').click());
+  const title = container.querySelector<HTMLInputElement>(
+    '.course-lesson-editor input[maxlength="160"]',
+  );
+  expect(title).not.toBeNull();
+  await act(async () => setInput(title!, 'First version'));
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(save.mock.calls[0]?.[1]).toBeNull();
+  await act(async () => setInput(title!, 'Edited during save'));
+  lessons.push({
+    id: 'lesson-1',
+    title: 'First version',
+    summary: null,
+    content: null,
+    blocks: [{ id: 'intro', type: 'paragraph', text: '' }],
+    kind: 'material',
+    assignmentId: null,
+    learningActivityVersionId: null,
+    assignmentTitle: null,
+    moduleKey: null,
+    estimatedMinutes: null,
+    position: 1,
+    hidden: false,
+  });
+  revision = 3;
+  await act(async () => {
+    pendingCreate.resolve({ ok: true, status: 200, data: { id: 'lesson-1' } });
+    await flush();
+  });
+  expect(title?.value).toBe('Edited during save');
+  expect(container.textContent).toContain('Новый урок');
+  await act(async () => button(container!, '+ Урок').click());
+  expect(container.textContent).toContain('Сначала сохраните изменения урока');
+
+  await act(async () => {
+    container
+      ?.querySelector('.course-lesson-editor')
+      ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1]?.[1]).toBe('lesson-1');
+  expect(save.mock.calls[1]?.[2]).toMatchObject({
+    title: 'Edited during save',
     expectedRevision: 3,
   });
-  expect(lessons.map((lesson) => lesson.title)).toEqual(['Updated first lesson', 'Second lesson']);
+  expect(lessons.map((lesson) => lesson.title)).toEqual(['Edited during save']);
 });

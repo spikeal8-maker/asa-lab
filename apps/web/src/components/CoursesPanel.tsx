@@ -482,8 +482,11 @@ function CourseEditor({
   };
   const [sections, setSections] = useState<CourseSection[] | null>(null);
   const [draftRevision, setDraftRevision] = useState(course.draftRevision);
+  const draftRevisionRef = useRef(course.draftRevision);
+  const revisionRefreshRef = useRef<Promise<boolean> | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [newLessonSectionId, setNewLessonSectionId] = useState<string | null>(null);
+  const createdLessonIdRef = useRef<string | null>(null);
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
   const [preview, setPreview] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -491,20 +494,24 @@ function CourseEditor({
   const [error, setError] = useState<string | null>(null);
 
   const loadOutline = useCallback(
-    async (force = false) => {
-      if (localDirtyRef.current && !force) return;
+    async (force = false, acknowledgedGeneration?: number) => {
+      if (localDirtyRef.current && !force) return false;
       const generation = editGeneration.current;
       const result = await api.courseOutline(course.id);
-      if (generation !== editGeneration.current) return;
       if (!result.ok) {
-        setSections([]);
+        if (!force) setSections([]);
         setError(result.error.message);
-        return;
+        return false;
       }
-      localDirtyRef.current = false;
-      setLocalDirty(false);
-      setSections(result.data.sections);
+      if (result.data.draftRevision < draftRevisionRef.current) return false;
+      draftRevisionRef.current = result.data.draftRevision;
       setDraftRevision(result.data.draftRevision);
+      if (generation !== editGeneration.current) return true;
+      if (!localDirtyRef.current || acknowledgedGeneration === editGeneration.current) {
+        localDirtyRef.current = false;
+        setLocalDirty(false);
+      }
+      setSections(result.data.sections);
       setSelectedLessonId((current) => {
         if (
           current &&
@@ -516,6 +523,7 @@ function CourseEditor({
         }
         return result.data.sections.flatMap((section) => section.lessons)[0]?.id ?? null;
       });
+      return true;
     },
     [course.id, course.draftRevision],
   );
@@ -546,6 +554,10 @@ function CourseEditor({
       setError('Сначала сохраните изменения урока. Структура курса не изменена.');
       return false;
     }
+    if (revisionRefreshRef.current) {
+      setError('Дождитесь обновления содержания курса и повторите действие.');
+      return false;
+    }
     const result = await run();
     if (!result.ok) {
       setError(result.error?.message ?? 'Не получилось.');
@@ -559,19 +571,42 @@ function CourseEditor({
   }
 
   async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
+    const savingGeneration = editGeneration.current;
+    if (revisionRefreshRef.current) {
+      const ready = await revisionRefreshRef.current;
+      if (!ready && !(await loadOutline(true))) return;
+      revisionRefreshRef.current = null;
+    }
+    const expectedRevision = draftRevisionRef.current;
     const result = await api.saveCourseLesson(course.id, lessonId, {
       ...input,
-      expectedRevision: draftRevision,
+      expectedRevision,
     });
     if (!result.ok) {
       setError(result.error.message);
       return;
     }
+    const editedSinceSave = editGeneration.current !== savingGeneration;
     setError(null);
-    setNotice(lessonId ? 'Урок сохранён.' : 'Урок добавлен.');
-    setNewLessonSectionId(null);
-    setSelectedLessonId(result.data.id);
-    await loadOutline(true);
+    setNotice(
+      editedSinceSave
+        ? 'Урок сохранён. Последние изменения ещё не сохранены.'
+        : lessonId
+          ? 'Урок сохранён.'
+          : 'Урок добавлен.',
+    );
+    if (editedSinceSave) {
+      if (!lessonId) createdLessonIdRef.current = result.data.id;
+    } else {
+      localDirtyRef.current = false;
+      setLocalDirty(false);
+      createdLessonIdRef.current = null;
+      setNewLessonSectionId(null);
+      setSelectedLessonId(result.data.id);
+    }
+    const refresh = loadOutline(true, savingGeneration);
+    revisionRefreshRef.current = refresh;
+    if (await refresh) revisionRefreshRef.current = null;
     onChanged();
   }
 
@@ -589,6 +624,10 @@ function CourseEditor({
 
   async function publishCourse(): Promise<void> {
     if (publishing || localDirtyRef.current || lessonCount === 0) return;
+    if (revisionRefreshRef.current) {
+      setError('Дождитесь обновления содержания курса и повторите публикацию.');
+      return;
+    }
     setPublishing(true);
     const result = await api.publishCourse(
       course.id,
@@ -965,6 +1004,7 @@ function CourseEditor({
                       className="course-add-lesson"
                       onClick={() =>
                         withSavedDraft(() => {
+                          createdLessonIdRef.current = null;
                           setSelectedLessonId(null);
                           setNewLessonSectionId(section.id);
                         })
@@ -985,7 +1025,7 @@ function CourseEditor({
                   sectionId={newLessonSectionId}
                   lesson={null}
                   assignments={assignments}
-                  onSave={(input) => saveLesson(null, input)}
+                  onSave={(input) => saveLesson(createdLessonIdRef.current, input)}
                   onDirty={markDirty}
                   onDelete={null}
                 />
@@ -1009,7 +1049,10 @@ function CourseEditor({
                     type="button"
                     className="btn-primary"
                     onClick={() =>
-                      withSavedDraft(() => setNewLessonSectionId(sections[0]?.id ?? null))
+                      withSavedDraft(() => {
+                        createdLessonIdRef.current = null;
+                        setNewLessonSectionId(sections[0]?.id ?? null);
+                      })
                     }
                   >
                     Добавить урок
