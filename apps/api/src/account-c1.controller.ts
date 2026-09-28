@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   HttpException,
   Inject,
   Param,
@@ -268,6 +269,7 @@ export class AccountC1Controller {
   }
 
   @Post('account/password')
+  @HttpCode(200)
   async changePassword(@Req() request: FastifyRequest, @Body() rawBody: unknown) {
     const context = await this.requireContext(request);
     const shape = checkBodyShape(rawBody, ['currentPassword', 'newPassword']);
