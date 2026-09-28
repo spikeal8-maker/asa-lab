@@ -202,11 +202,17 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     }
 
     const request = { cookies: { asa_session: 'isolated-test' } } as unknown as FastifyRequest;
-    function body(sourceTeacherAssignmentId: string, title: string, requestId: string) {
+    function body(
+      sourceTeacherAssignmentId: string,
+      title: string,
+      requestId: string,
+      goal?: string,
+    ) {
       return {
         kind: 'project',
         title,
         requestId,
+        ...(goal === undefined ? {} : { goal }),
         sourceTeacherAssignmentId,
         moduleKey: 'electronics',
         resultMode: 'completion',
@@ -231,11 +237,11 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     const results = await Promise.allSettled([
       conflicting.create(
         request,
-        body(conflictingSource, 'First import', 'source:race:conflict:1'),
+        body(conflictingSource, 'Conflicting import', 'source:race:conflict:1', 'First goal'),
       ),
       conflicting.create(
         request,
-        body(conflictingSource, 'Second import', 'source:race:conflict:2'),
+        body(conflictingSource, 'Conflicting import', 'source:race:conflict:2', 'Second goal'),
       ),
     ]);
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
@@ -244,10 +250,11 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       reason: { status: 409, response: { error: { code: 'source_conflict' } } },
     });
     const conflictRows = await admin.query(
-      'SELECT count(*)::integer AS count FROM learning_activities WHERE source_teacher_assignment_id=$1',
+      "SELECT draft_payload ->> 'goal' AS goal FROM learning_activities WHERE source_teacher_assignment_id=$1",
       [conflictingSource],
     );
-    expect(conflictRows.rows[0].count).toBe(1);
+    expect(conflictRows.rows).toHaveLength(1);
+    expect(['First goal', 'Second goal']).toContain(conflictRows.rows[0].goal);
   });
 
   it('pins a normalized goal for direct Seat and Account readers, previews and later edits', async () => {
