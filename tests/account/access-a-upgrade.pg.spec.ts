@@ -177,18 +177,17 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
     ])
   ).rows[0] as { id: string; title: string } | undefined;
   expect(task).toBeTruthy();
-  const started = await inject(app, {
-    method: 'POST',
-    url: `/api/class-join/me/assignments/${task.id}/work`,
-    headers: { cookie: seatCookie },
-    payload: { projectId: project.json().project.id },
-  });
-  expect(started.statusCode, started.body).toBe(200);
-  // Populate the 0103 fixture with its actual four-argument SQL interface.
-  // The integrated E1 HTTP submit handler requires a later schema and is not
-  // the pre-upgrade application. Full 0106→E1 is covered by the Learning suite.
+  // Populate the 0103 fixture with its actual four-argument SQL interfaces.
+  // Today's HTTP work handlers require later schema, so they cannot exercise
+  // this historical pre-upgrade state. Full 0106→E1 is covered by the Learning suite.
   const seatPrincipal = (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seatId]))
     .rows[0].id;
+  const started = await admin.query(
+    'SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)',
+    [seatPrincipal, seatId, task.id, project.json().project.id],
+  );
+  expect(started.rows[0].result_code).toBe('ok');
+  expect(started.rows[0].project_id).toBe(project.json().project.id);
   const submitted = await admin.query(
     'SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4)',
     [seatPrincipal, seatId, task.id, `upgrade-${unique}`],
