@@ -104,6 +104,7 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
