@@ -227,6 +227,7 @@ describe('UX1A2 immutable LearningActivityVersion sample', () => {
             'title',version.title,
             'instructions',version.instructions,
             'goal',version.goal,
+            'blocks',version.blocks,
             'resultMode',version.result_mode,
             'maxPoints',version.max_points,
             'policies',version.policy_snapshot,

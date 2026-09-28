@@ -45,7 +45,10 @@ function solidPng(red: number, green: number, blue: number): Buffer {
   return PNG.sync.write(image);
 }
 
-async function createPublishedProjectActivity(title: string): Promise<void> {
+async function createPublishedProjectActivity(
+  title: string,
+  blocks?: ReadonlyArray<Record<string, unknown>>,
+): Promise<void> {
   const identity = await admin.query(
     `SELECT account_id,principal_id FROM legacy_user_account_links
       WHERE tenant_id=$1 AND user_id=$2`,
@@ -66,7 +69,7 @@ async function createPublishedProjectActivity(title: string): Promise<void> {
     const created = await client.query(
       `SELECT * FROM learning_activity_create(
         $1,$2,'school','private','project',$3,'ignored','completion',NULL,
-        $4::jsonb,'electronics',NULL,NULL,$5,$6)`,
+        $4::jsonb,'electronics',NULL,NULL,$5,$6,NULL::jsonb,$7::jsonb)`,
       [
         principalId,
         teacher.tenantId,
@@ -74,6 +77,7 @@ async function createPublishedProjectActivity(title: string): Promise<void> {
         JSON.stringify(policies),
         authored.rows[0].id,
         `vs:e2e:create:${++sequence}`,
+        blocks ? JSON.stringify(blocks) : null,
       ],
     );
     await client.query(`SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)`, [
@@ -210,6 +214,72 @@ test('teacher assigns a canonical activity to the whole class and a learner sees
 
   failures.assertEmpty();
   learnerFailures.assertEmpty();
+  await learner.context.close();
+});
+
+test('learner sees ordered safe task blocks in direct assignment and project shell', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const token = `a2c-${++sequence}`;
+  const title = `Safe task blocks ${token}`;
+  const heading = `Соберите цепь ${token}`;
+  const paragraph = 'Убедитесь, что <script>alert(1)</script> остаётся текстом.';
+  await createPublishedProjectActivity(title, [
+    { type: 'heading', text: heading },
+    { type: 'paragraph', text: paragraph },
+    { type: 'list', items: ['Подключите источник', 'Проверьте резистор'] },
+    { type: 'callout', text: 'Отключите питание перед изменением схемы.' },
+    { type: 'link', text: 'Справка', href: 'https://example.org/lesson' },
+  ]);
+  const joinCode = await createClassWithStudents(page, `A2c ${token}`, [
+    { label: 'Ученик', handle: token },
+  ]);
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2027-09-30' });
+
+  const learner = await learnerAssignments(browser, joinCode, token);
+  const failures = collectBrowserFailures(learner.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  const row = learner.page.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
+  await row.getByRole('button', { name: title, exact: true }).click();
+  const detail = row.getByTestId('task-blocks');
+  await expect(detail.getByRole('heading', { name: heading })).toBeVisible();
+  await expect(detail.getByText(paragraph, { exact: true })).toBeVisible();
+  await expect(detail.getByRole('link', { name: 'Справка' })).toHaveAttribute(
+    'href',
+    'https://example.org/lesson',
+  );
+  await expect(detail.locator('script')).toHaveCount(0);
+  const order = await detail.locator(':scope > *').allTextContents();
+  expect(order).toEqual([
+    'Соберите рабочую электрическую цепь.',
+    heading,
+    paragraph,
+    'Подключите источникПроверьте резистор',
+    'Отключите питание перед изменением схемы.',
+    'Справка',
+  ]);
+  for (const width of [1440, 1024, 390, 320]) {
+    await learner.page.setViewportSize({ width, height: 900 });
+    await expect(detail).toBeVisible();
+    await row.screenshot({ path: `${evidenceDir}/a2c-learner-${width}.png` });
+  }
+
+  await row.getByRole('button', { name: 'Открыть', exact: true }).click();
+  const anchor = learner.page.getByTestId('assignment-brief-anchor');
+  await expect(anchor).toBeVisible({ timeout: 60_000 });
+  await anchor.click();
+  const shell = learner.page.getByTestId('assignment-brief').getByTestId('task-blocks');
+  await expect(
+    shell.getByText('Соберите рабочую электрическую цепь.', { exact: true }),
+  ).toBeVisible();
+  await expect(shell.getByRole('heading', { name: heading })).toBeVisible();
+  await expect(shell.getByText(paragraph, { exact: true })).toBeVisible();
+  failures.assertEmpty();
   await learner.context.close();
 });
 

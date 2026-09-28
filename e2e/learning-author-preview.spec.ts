@@ -90,6 +90,74 @@ test('exact saved and published learner preview ignores late responses and creat
   await preview.screenshot({ path: 'e2e/artifacts/learning/author-preview/saved-draft-r2.png' });
 });
 
+test('ordered safe task blocks remain pinned in v1 preview at four widths after a future draft edit', async ({
+  page,
+}) => {
+  test.setTimeout(90000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(`${unique}@blocks.test`);
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('b' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор блоков');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Возможности', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  await page.goto('/#/challenges');
+  await page.getByLabel('Название материала', { exact: true }).fill('Task blocks v1');
+  await page
+    .getByLabel('Содержание', { exact: true })
+    .fill('Read the legacy task instructions first.');
+  await page.getByRole('button', { name: '+ Заголовок' }).click();
+  await page.getByLabel('Текст блока 1').fill('Read the circuit');
+  await page.getByRole('button', { name: '+ Абзац' }).click();
+  await page.getByLabel('Текст блока 2').fill('Connect the lamp first.');
+  await page.getByRole('button', { name: '+ Список' }).click();
+  await page.getByLabel('Пункты блока 3').fill('Connect the lamp\nCheck polarity');
+  await page.getByRole('button', { name: '+ Примечание' }).click();
+  await page.getByLabel('Текст блока 4').fill('Disconnect power before changing wires.');
+  await page.getByRole('button', { name: '+ Ссылка' }).click();
+  await page.getByLabel('Текст блока 5').fill('Read reference');
+  await page.getByLabel('Адрес блока 5').fill('https://example.org/reference');
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  const preview = page.getByTestId('learner-preview');
+  const blocks = preview.getByTestId('task-blocks');
+  await expect(blocks).toContainText('Read the legacy task instructions first.');
+  await expect(blocks).toContainText('Connect the lamp first.');
+  const visibleText = await blocks.innerText();
+  expect(visibleText.indexOf('Read the legacy task instructions first.')).toBeLessThan(
+    visibleText.indexOf('Read the circuit'),
+  );
+  await expect(blocks.getByRole('link', { name: 'Read reference' })).toHaveAttribute(
+    'rel',
+    'noopener noreferrer',
+  );
+  mkdirSync('e2e/artifacts/learning/task-blocks-a2c', { recursive: true });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(blocks).toBeVisible();
+    await preview.screenshot({
+      path: `e2e/artifacts/learning/task-blocks-a2c/author-preview-${width}.png`,
+    });
+  }
+  await page.getByLabel('Текст блока 2').fill('Future draft paragraph.');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  await expect(blocks).toContainText('Connect the lamp first.');
+  await expect(blocks).toContainText('Read the legacy task instructions first.');
+  await expect(blocks).not.toContainText('Future draft paragraph.');
+});
+
 test('draft from historical Course and Activity versions uses the author UI, protects an active draft and publishes root-next versions', async ({
   page,
 }) => {

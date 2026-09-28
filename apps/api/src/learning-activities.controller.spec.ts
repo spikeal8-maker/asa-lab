@@ -210,9 +210,9 @@ describe('canonical learning activity API', () => {
       sourceTeacherAssignmentId: ACTIVITY_ID,
     };
     await api.value.create(request(), base);
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBeNull();
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBeNull();
     await api.value.create(request(), { ...base, goal: null });
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBe('null');
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBe('null');
 
     const edit = {
       title: base.title,
@@ -223,9 +223,51 @@ describe('canonical learning activity API', () => {
     };
     await api.value.putDraft(request(), ACTIVITY_ID, edit);
     expect(api.query.mock.calls.at(-1)?.[0]).toContain('$13::jsonb');
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBeNull();
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBeNull();
     await api.value.putDraft(request(), ACTIVITY_ID, { ...edit, goal: null });
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBe('null');
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBe('null');
+  });
+
+  it('accepts ordered plain-text blocks and rejects unsafe shapes before any SQL', async () => {
+    const api = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+    });
+    const blocks = [
+      { type: 'heading', text: 'Build a circuit' },
+      { type: 'list', items: ['Connect LED', 'Check polarity'] },
+      { type: 'link', text: 'Reference', href: 'https://example.org/reference' },
+    ];
+    await api.value.create(request(), {
+      kind: 'project',
+      requestId: 'blocks:create:0001',
+      title: 'Circuit',
+      resultMode: 'completion',
+      policies,
+      moduleKey: 'electronics',
+      blocks,
+    });
+    expect(api.query.mock.calls.at(-1)?.[0]).toContain('$17::jsonb');
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBe(JSON.stringify(blocks));
+    const invalid = target();
+    for (const bad of [
+      [{ type: 'link', text: 'Script', href: 'javascript:alert(1)' }],
+      [{ type: 'paragraph', text: '<img src=x onerror=alert(1)>', html: true }],
+      [{ type: 'list', items: [] }],
+      [{ type: 'heading', text: '' }],
+    ]) {
+      await expect(
+        invalid.value.create(request(), {
+          kind: 'project',
+          requestId: 'blocks:create:bad',
+          title: 'Circuit',
+          resultMode: 'completion',
+          policies,
+          moduleKey: 'electronics',
+          blocks: bad,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(invalid.query).not.toHaveBeenCalled();
   });
 
   it('returns an exact published goal in read-only learner preview', async () => {
@@ -250,6 +292,9 @@ describe('canonical learning activity API', () => {
             goal: 'Understand the circuit',
           },
         ],
+      })
+      .mockResolvedValueOnce({
+        rows: [{ result_code: 'ok', blocks: [{ type: 'paragraph', text: 'Build it' }] }],
       })
       .mockResolvedValueOnce({ rows: [{ result_code: 'sample_not_found' }] });
     const result = await api.value.previewAsLearner(
