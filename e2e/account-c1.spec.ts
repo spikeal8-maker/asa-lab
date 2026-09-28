@@ -417,6 +417,7 @@ test('migrated teacher changes password through organization browser login', asy
 
   await openAccountMenu(page);
   await page.getByRole('button', { name: 'Выход' }).click();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
   const anonymousAfterOrganizationLogout = await context.request.get('/api/auth/me');
   expect(anonymousAfterOrganizationLogout.status()).toBe(200);
   expect(await anonymousAfterOrganizationLogout.json()).toEqual({ authenticated: false });
@@ -459,6 +460,7 @@ test('migrated teacher changes password through organization browser login', asy
 
   await openAccountMenu(page);
   await page.getByRole('button', { name: 'Выход' }).click();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
   const anonymousBeforeNormalLogin = await context.request.get('/api/auth/me');
   expect(anonymousBeforeNormalLogin.status()).toBe(200);
   expect(await anonymousBeforeNormalLogin.json()).toEqual({ authenticated: false });
