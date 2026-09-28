@@ -26,11 +26,18 @@ function request(): FastifyRequest {
 
 function target(options: { educator?: boolean; rows?: unknown[]; sourceRows?: unknown[] } = {}) {
   const query = vi.fn(async () => ({ rows: options.rows ?? [] }));
-  const sourceQuery = vi.fn(async (sql: string) =>
-    sql.includes('FROM teacher_assignments')
+  const sourceQuery = vi.fn(async (sql: string, params?: unknown[]) => {
+    if (sql.includes('set_config') && params?.[0] !== TENANT_ID) {
+      throw new Error('Unexpected tenant context');
+    }
+    return sql.includes('FROM teacher_assignments')
       ? { rows: options.sourceRows ?? [{ module_key: 'electronics' }], command: 'SELECT' }
-      : { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : sql },
-  );
+      : sql.includes('learning_activity_create')
+        ? { rows: options.rows ?? [], command: 'SELECT' }
+        : { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : sql };
+  });
+  const release = vi.fn();
+  const connect = vi.fn(async () => ({ query: sourceQuery, release }));
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: PRINCIPAL_ID,
@@ -52,12 +59,14 @@ function target(options: { educator?: boolean; rows?: unknown[]; sourceRows?: un
       accounts,
       {
         query,
-        connect: vi.fn(async () => ({ query: sourceQuery, release: vi.fn() })),
+        connect,
       } as unknown as pg.Pool,
       createApiModuleRegistry(),
     ),
     query,
     sourceQuery,
+    connect,
+    release,
   };
 }
 
@@ -184,7 +193,7 @@ describe('canonical learning activity API', () => {
     expect(api.query).not.toHaveBeenCalled();
   });
 
-  it('checks the owned source assignment module in the current tenant before canonical creation', async () => {
+  it('checks the owned source and creates against one repeatable-read tenant snapshot', async () => {
     const body = {
       kind: 'project',
       requestId: 'create:source:0001',
@@ -205,10 +214,21 @@ describe('canonical learning activity API', () => {
       expect.stringContaining('FROM teacher_assignments'),
       [ACTIVITY_ID, TENANT_ID, PRINCIPAL_ID],
     );
-    expect(accepted.query).toHaveBeenCalledWith(
+    expect(accepted.sourceQuery).toHaveBeenCalledWith(
       expect.stringContaining('learning_activity_create'),
       expect.arrayContaining([ACTIVITY_ID]),
     );
+    expect(accepted.sourceQuery.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN ISOLATION LEVEL REPEATABLE READ',
+      "SELECT set_config('app.tenant_id', $1, true)",
+      expect.stringContaining('FROM teacher_assignments'),
+      expect.stringContaining('learning_activity_create'),
+      'COMMIT',
+    ]);
+    expect(accepted.sourceQuery.mock.calls[1]?.[1]).toEqual([TENANT_ID]);
+    expect(accepted.connect).toHaveBeenCalledTimes(1);
+    expect(accepted.release).toHaveBeenCalledTimes(1);
+    expect(accepted.query).not.toHaveBeenCalled();
 
     for (const sourceRows of [[], [{ module_key: 'blocks' }], [{ module_key: 'three-d' }]]) {
       const rejected = target({ sourceRows });
@@ -216,7 +236,59 @@ describe('canonical learning activity API', () => {
         status: sourceRows.length === 0 ? 403 : 400,
       });
       expect(rejected.query).not.toHaveBeenCalled();
+      expect(
+        rejected.sourceQuery.mock.calls.some(([sql]) => sql.includes('learning_activity_create')),
+      ).toBe(false);
+      expect(rejected.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
     }
+  });
+
+  it.each([undefined, null])('derives an omitted or %s source module in SQL', async (moduleKey) => {
+    const accepted = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+    });
+    await expect(
+      accepted.value.create(request(), {
+        kind: 'project',
+        requestId: 'create:source:derive',
+        title: 'Imported task',
+        resultMode: 'completion',
+        policies,
+        ...(moduleKey === undefined ? {} : { moduleKey }),
+        sourceTeacherAssignmentId: ACTIVITY_ID,
+      }),
+    ).resolves.toEqual({ id: ACTIVITY_ID, draftRevision: 1 });
+    const create = accepted.sourceQuery.mock.calls.find(([sql]) =>
+      sql.includes('learning_activity_create'),
+    );
+    expect(create?.[1]?.[10]).toBeNull();
+    expect(accepted.query).not.toHaveBeenCalled();
+  });
+
+  it('rolls back an imported source on a serialization failure without retrying on the pool', async () => {
+    const api = target();
+    const failure = Object.assign(new Error('serialization failure'), { code: '40001' });
+    api.sourceQuery.mockImplementation(async (sql) => {
+      if (sql.includes('FROM teacher_assignments')) {
+        return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
+      }
+      if (sql.includes('learning_activity_create')) throw failure;
+      return { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : sql };
+    });
+    await expect(
+      api.value.create(request(), {
+        kind: 'project',
+        requestId: 'create:source:serialize',
+        title: 'Imported task',
+        resultMode: 'completion',
+        policies,
+        moduleKey: 'electronics',
+        sourceTeacherAssignmentId: ACTIVITY_ID,
+      }),
+    ).rejects.toBe(failure);
+    expect(api.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
+    expect(api.release).toHaveBeenCalledTimes(1);
+    expect(api.query).not.toHaveBeenCalled();
   });
 
   it.each(['ungraded', 'completion'])('does not fabricate maxPoints for %s', async (resultMode) => {
@@ -284,9 +356,9 @@ describe('canonical learning activity API', () => {
       sourceTeacherAssignmentId: ACTIVITY_ID,
     };
     await api.value.create(request(), base);
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBeNull();
+    expect(api.sourceQuery.mock.calls.at(-2)?.[1]?.at(-2)).toBeNull();
     await api.value.create(request(), { ...base, goal: null });
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBe('null');
+    expect(api.sourceQuery.mock.calls.at(-2)?.[1]?.at(-2)).toBe('null');
 
     const edit = {
       title: base.title,

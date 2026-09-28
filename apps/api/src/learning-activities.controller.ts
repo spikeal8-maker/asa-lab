@@ -374,56 +374,65 @@ export class LearningActivitiesController {
     ) {
       throw new HttpException(error('validation_error', 'Проверьте владельца активности.'), 400);
     }
-    if (typeof sourceTeacherAssignmentId === 'string') {
-      const source = await withTenantContext(this.requirePool(), context.tenantId, async (client) =>
-        client.query(
-          `SELECT module_key
-             FROM teacher_assignments
-            WHERE id = $1 AND tenant_id = $2 AND owner_principal_id = $3`,
-          [sourceTeacherAssignmentId, context.tenantId, context.principalId],
-        ),
-      );
-      const sourceModuleKey = source.rows[0]?.['module_key'];
-      if (typeof sourceModuleKey !== 'string') {
-        throw new HttpException(error('source_forbidden', 'Источник недоступен.'), 403);
-      }
-      if (
-        sourceModuleKey !== draft.moduleKey ||
-        !this.modules
-          .listLearningAssignable()
-          .some((module) => module.moduleKey === sourceModuleKey)
-      ) {
-        throw new HttpException(
-          error('validation_error', 'Среда исходного задания недоступна.'),
-          400,
-        );
-      }
-    }
-    const result = await this.requirePool().query(
-      `SELECT result_code, activity_id, draft_revision
+    const createSql = `SELECT result_code, activity_id, draft_revision
          FROM learning_activity_create(
            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb
-         )`,
-      [
-        context.principalId,
-        context.tenantId,
-        scope,
-        visibility,
-        draft.kind,
-        draft.title,
-        draft.instructions,
-        draft.resultMode,
-        draft.maxPoints,
-        JSON.stringify(draft.policies),
-        draft.moduleKey,
-        draft.quizVersionId,
-        draft.starterProjectVersionId,
-        sourceTeacherAssignmentId,
-        requestId,
-        draft.goal === undefined ? null : JSON.stringify(draft.goal),
-        draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
-      ],
-    );
+         )`;
+    const createParams = [
+      context.principalId,
+      context.tenantId,
+      scope,
+      visibility,
+      draft.kind,
+      draft.title,
+      draft.instructions,
+      draft.resultMode,
+      draft.maxPoints,
+      JSON.stringify(draft.policies),
+      draft.moduleKey,
+      draft.quizVersionId,
+      draft.starterProjectVersionId,
+      sourceTeacherAssignmentId,
+      requestId,
+      draft.goal === undefined ? null : JSON.stringify(draft.goal),
+      draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
+    ];
+    const pool = this.requirePool();
+    const result =
+      typeof sourceTeacherAssignmentId === 'string'
+        ? await withTenantContext(
+            pool,
+            context.tenantId,
+            async (client) => {
+              // The source check and SQL normalization must see the same source
+              // module. READ COMMITTED would allow a concurrent assignment edit
+              // to change it between these two queries.
+              const source = await client.query(
+                `SELECT module_key
+                   FROM teacher_assignments
+                  WHERE id = $1 AND tenant_id = $2 AND owner_principal_id = $3`,
+                [sourceTeacherAssignmentId, context.tenantId, context.principalId],
+              );
+              const sourceModuleKey = source.rows[0]?.['module_key'];
+              if (typeof sourceModuleKey !== 'string') {
+                throw new HttpException(error('source_forbidden', 'Источник недоступен.'), 403);
+              }
+              if (
+                (draft.moduleKey !== null && sourceModuleKey !== draft.moduleKey) ||
+                !this.modules
+                  .listLearningAssignable()
+                  .some((module) => module.moduleKey === sourceModuleKey)
+              ) {
+                throw new HttpException(
+                  error('validation_error', 'Среда исходного задания недоступна.'),
+                  400,
+                );
+              }
+              return client.query(createSql, createParams);
+            },
+            { isolationLevel: 'repeatable read' },
+          )
+        : await pool.query(createSql, createParams);
     const row = result.rows[0];
     if (!row || row['result_code'] !== 'ok' || !row['activity_id']) {
       throw this.resultError(row?.['result_code'] as string | undefined);
