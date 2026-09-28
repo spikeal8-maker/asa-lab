@@ -18,11 +18,17 @@ export interface PublicUser {
   email: string;
 }
 
+export type SafeTaskBlock =
+  | { type: 'heading' | 'paragraph' | 'callout'; text: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'link'; text: string; href: string };
+
 export interface AuthoredActivityDraft {
   quizVersionId?: string | null;
   starterProjectVersionId?: string | null;
   title: string;
   goal?: string | null;
+  blocks?: SafeTaskBlock[];
   instructions: string | null;
   moduleKey: string | null;
   resultMode: 'ungraded' | 'completion' | 'graded';
@@ -48,6 +54,7 @@ export interface AuthoredActivityLearnerPreview {
   assignment: {
     title: string;
     goal: string | null;
+    blocks: SafeTaskBlock[];
     brief: string | null;
     sampleImage: string | null;
   };
@@ -452,6 +459,7 @@ export interface CourseActivityOccurrence {
   learningActivityVersionId: string;
   title: string;
   goal: string | null;
+  blocks?: SafeTaskBlock[] | null | undefined;
   moduleKey: string;
   sampleImage: string | null;
   projectId: string | null;
@@ -850,6 +858,7 @@ export interface SeatAssignment {
   title: string;
   brief: string | null;
   goal: string | null;
+  blocks?: SafeTaskBlock[] | null | undefined;
   moduleKey: string;
   dueAt: string | null;
   status: 'open' | 'closed';
@@ -887,6 +896,7 @@ export type LearningWorkContext =
         title: string;
         brief: string | null;
         goal: string | null;
+        blocks?: SafeTaskBlock[] | null | undefined;
         sampleImage: string | null;
         dueAt: string | null;
         status: 'open' | 'closed';

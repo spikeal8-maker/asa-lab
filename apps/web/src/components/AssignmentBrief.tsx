@@ -94,6 +94,7 @@ function assignmentFromContext(
     title: context.task.title,
     brief: context.task.brief,
     goal: context.task.goal,
+    blocks: context.task.blocks,
     moduleKey: context.moduleKey,
     dueAt: context.task.dueAt,
     status: context.task.status,

@@ -777,6 +777,239 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     });
   });
 
+  it('pins ordered safe blocks across direct delivery, scheduled access, retries and later drafts', async () => {
+    const blocksV1 = [
+      { type: 'heading', text: 'Build the first circuit' },
+      { type: 'paragraph', text: '<script>is text, never HTML</script>' },
+      { type: 'list', items: ['Connect LED', 'Check polarity'] },
+      { type: 'callout', text: 'Check voltage before power.' },
+      { type: 'link', text: 'Reference', href: 'https://example.org/reference' },
+    ];
+    const blocksV2 = [{ type: 'paragraph', text: 'Future draft only' }];
+    const visibleBlocksV1 = [{ type: 'paragraph', text: 'Legacy instructions' }, ...blocksV1];
+    const visibleBlocksV2 = [{ type: 'paragraph', text: 'Legacy instructions' }, ...blocksV2];
+    const requestId = `blocks:create:${++createRequestSequence}`;
+    const createSql = `SELECT * FROM learning_activity_create(
+      $1,$2,'school','private','project','Blocks v1','Legacy instructions',
+      'completion',NULL,$3::jsonb,'electronics',NULL,NULL,NULL,$4,NULL::jsonb,$5::jsonb)`;
+    const createArgs = [
+      ownerPrincipalId,
+      owner.tenantId,
+      JSON.stringify(basePolicies),
+      requestId,
+      JSON.stringify(blocksV1),
+    ];
+    const created = (await admin.query(createSql, createArgs)).rows[0];
+    expect(created.result_code).toBe('ok');
+    const activityId = created.activity_id as string;
+    expect((await admin.query(createSql, createArgs)).rows[0]).toMatchObject({
+      result_code: 'ok',
+      activity_id: activityId,
+    });
+    expect(
+      (await admin.query(createSql, [...createArgs.slice(0, 4), JSON.stringify(blocksV2)])).rows[0]
+        .result_code,
+    ).toBe('idempotency_conflict');
+    const unsafe = (
+      await admin.query(createSql, [
+        ...createArgs.slice(0, 3),
+        `blocks:unsafe:${++createRequestSequence}`,
+        JSON.stringify([{ type: 'link', text: 'No', href: 'javascript:alert(1)' }]),
+      ])
+    ).rows[0];
+    expect(unsafe.result_code).toBe('invalid_draft');
+    expect(
+      (
+        await admin.query(createSql, [
+          ...createArgs.slice(0, 3),
+          `blocks:overflow:${++createRequestSequence}`,
+          JSON.stringify(
+            Array.from({ length: 32 }, (_, index) => ({
+              type: 'paragraph',
+              text: `Block ${index}`,
+            })),
+          ),
+        ])
+      ).rows[0].result_code,
+    ).toBe('invalid_draft');
+
+    const v1 = await publish(activityId, 1, `blocks:publish:${++createRequestSequence}`);
+    expect(v1.result_code).toBe('ok');
+    const original = (
+      await admin.query(
+        'SELECT blocks,blocks_snapshot_present,content_digest FROM learning_activity_versions WHERE id=$1',
+        [v1.activity_version_id],
+      )
+    ).rows[0];
+    expect(original).toMatchObject({ blocks: visibleBlocksV1, blocks_snapshot_present: true });
+
+    const accountId = (
+      await admin.query('SELECT account_id FROM principals WHERE id=$1', [peerPrincipalId])
+    ).rows[0].account_id as string;
+    const existingSeat = await admin.query(
+      'SELECT id,status FROM classroom_student_seats WHERE classroom_id=$1 AND account_id=$2',
+      [classroomId, accountId],
+    );
+    expect(existingSeat.rows.length).toBeLessThanOrEqual(1);
+    if (existingSeat.rows.length > 0) expect(existingSeat.rows[0].status).toBe('active');
+    let learnerSeatId = existingSeat.rows[0]?.id as string | undefined;
+    if (!learnerSeatId) {
+      learnerSeatId = (
+        await admin.query(
+          `INSERT INTO classroom_student_seats
+           (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+            safe_mode,status,created_by,account_id)
+         VALUES ($1,$2,'Blocks learner',$3,$3,true,'active',$4,$5) RETURNING id`,
+          [
+            owner.tenantId,
+            classroomId,
+            `blocks-learner-${++createRequestSequence}`,
+            owner.teacherId,
+            accountId,
+          ],
+        )
+      ).rows[0].id as string;
+    }
+    const assigned = (
+      await admin.query(
+        `SELECT * FROM learning_direct_assignment_create(
+          $1,$2,$3,$4,NULL,'whole_class','{}'::uuid[],$5)`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          classroomId,
+          v1.activity_version_id,
+          `blocks:direct:${++createRequestSequence}`,
+        ],
+      )
+    ).rows[0];
+    expect(assigned.result_code).toBe('ok');
+    const read = async () =>
+      (
+        await admin.query('SELECT learning_activity_blocks_for_seat($1,$2) AS value', [
+          learnerSeatId,
+          assigned.classroom_assignment_id,
+        ])
+      ).rows[0].value as { present: boolean; blocks: unknown[] | null };
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
+    const run = (
+      await admin.query(
+        "SELECT id FROM activity_runs WHERE source_classroom_assignment_id=$1 AND source_kind='direct'",
+        [assigned.classroom_assignment_id],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day')) WHERE id=$1`,
+      [run],
+    );
+    expect(await read()).toEqual({ present: true, blocks: null });
+    await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+      run,
+    ]);
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
+
+    const edited = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'Blocks v2','Legacy instructions',
+         'completion',NULL,$4::jsonb,'electronics',NULL,NULL,NULL::jsonb,$5::jsonb)`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          activityId,
+          JSON.stringify(basePolicies),
+          JSON.stringify(blocksV2),
+        ],
+      )
+    ).rows[0];
+    expect(edited).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    expect(
+      (
+        await admin.query(
+          `SELECT result_code,blocks FROM learning_activity_blocks_preview_as_author($1,$2,$3,'draft',NULL,2)`,
+          [ownerPrincipalId, owner.tenantId, activityId],
+        )
+      ).rows[0],
+    ).toMatchObject({ result_code: 'ok', blocks: visibleBlocksV2 });
+    expect(
+      (
+        await admin.query(
+          `SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'Stale','Legacy instructions',
+         'completion',NULL,$4::jsonb,'electronics',NULL,NULL,NULL::jsonb,$5::jsonb)`,
+          [
+            ownerPrincipalId,
+            owner.tenantId,
+            activityId,
+            JSON.stringify(basePolicies),
+            JSON.stringify(blocksV2),
+          ],
+        )
+      ).rows[0].result_code,
+    ).toBe('revision_conflict');
+    expect((await admin.query(createSql, createArgs)).rows[0].result_code).toBe('ok');
+    const v2 = await publish(activityId, 2, `blocks:publish:${++createRequestSequence}`);
+    expect(v2.result_code).toBe('ok');
+    expect(v2.content_digest).not.toBe(v1.content_digest);
+    expect(
+      (
+        await admin.query(
+          'SELECT blocks,content_digest FROM learning_activity_versions WHERE id=$1',
+          [v1.activity_version_id],
+        )
+      ).rows[0],
+    ).toEqual({ blocks: visibleBlocksV1, content_digest: original.content_digest });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
+    expect(
+      (
+        await admin.query(
+          `SELECT result_code,blocks FROM learning_activity_blocks_preview_as_author($1,$2,$3,'published',$4,NULL)`,
+          [ownerPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
+        )
+      ).rows[0],
+    ).toMatchObject({ result_code: 'ok', blocks: visibleBlocksV1 });
+    expect(
+      (
+        await admin.query(
+          `SELECT result_code FROM learning_activity_blocks_preview_as_author($1,$2,$3,'published',$4,NULL)`,
+          [outsiderPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
+        )
+      ).rows[0].result_code,
+    ).toBe('activity_not_found');
+    const restored = (
+      await admin.query('SELECT * FROM learning_activity_draft_from_version($1,$2,$3,$4,2)', [
+        ownerPrincipalId,
+        owner.tenantId,
+        activityId,
+        v1.activity_version_id,
+      ])
+    ).rows[0];
+    expect(restored.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query(
+          "SELECT draft_payload->'blocks' AS blocks FROM learning_activities WHERE id=$1",
+          [activityId],
+        )
+      ).rows[0].blocks,
+    ).toEqual(blocksV1);
+    expect(
+      (
+        await admin.query(
+          `SELECT result_code,blocks FROM learning_activity_blocks_preview_as_author($1,$2,$3,'draft',NULL,3)`,
+          [ownerPrincipalId, owner.tenantId, activityId],
+        )
+      ).rows[0],
+    ).toMatchObject({ result_code: 'ok', blocks: visibleBlocksV1 });
+    const v3 = await publish(activityId, 3, `blocks:publish:${++createRequestSequence}`);
+    expect(v3.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT blocks FROM learning_activity_versions WHERE id=$1', [
+          v3.activity_version_id,
+        ])
+      ).rows[0].blocks,
+    ).toEqual(visibleBlocksV1);
+  });
+
   it('pins exact QuizVersion content while LAV owns future policy defaults', async () => {
     const question = await admin.query(
       `SELECT * FROM question_version_create(

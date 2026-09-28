@@ -31,6 +31,55 @@ const POLICY_KEYS = [
   'feedbackReleasePolicy',
 ] as const;
 
+type SafeTaskBlock =
+  | { type: 'heading' | 'paragraph' | 'callout'; text: string }
+  | { type: 'list'; items: string[] }
+  | { type: 'link'; text: string; href: string };
+
+function safeTaskBlocks(value: unknown): value is SafeTaskBlock[] {
+  if (!Array.isArray(value) || value.length > 32) return false;
+  return value.every((item: unknown) => {
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+    const block = item as Record<string, unknown>;
+    const type = block['type'];
+    if (type === 'list') {
+      return (
+        Object.keys(block).every((key) => ['type', 'items'].includes(key)) &&
+        Array.isArray(block['items']) &&
+        block['items'].length >= 1 &&
+        block['items'].length <= 20 &&
+        block['items'].every(
+          (text: unknown) =>
+            typeof text === 'string' && text.trim().length >= 1 && text.trim().length <= 500,
+        )
+      );
+    }
+    if (!['heading', 'paragraph', 'callout', 'link'].includes(String(type))) return false;
+    if (
+      typeof block['text'] !== 'string' ||
+      !block['text'].trim() ||
+      block['text'].length > (type === 'heading' || type === 'link' ? 160 : 12000) ||
+      !Object.keys(block).every((key) =>
+        type === 'link' ? ['type', 'text', 'href'].includes(key) : ['type', 'text'].includes(key),
+      )
+    )
+      return false;
+    if (type !== 'link') return true;
+    if (
+      typeof block['href'] !== 'string' ||
+      block['href'].length > 2048 ||
+      /\s/.test(block['href'])
+    )
+      return false;
+    try {
+      const url = new URL(block['href']);
+      return (url.protocol === 'https:' || url.protocol === 'http:') && !!url.hostname;
+    } catch {
+      return false;
+    }
+  });
+}
+
 function error(code: string, message: string) {
   return { error: { code, message } };
 }
@@ -55,6 +104,7 @@ type DraftInput = {
   kind: string;
   title: string;
   goal: string | null | undefined;
+  blocks: SafeTaskBlock[] | undefined;
   instructions: string | null;
   resultMode: string;
   maxPoints: number | null;
@@ -108,6 +158,7 @@ export class LearningActivitiesController {
       ...(includeKind ? ['kind'] : []),
       'title',
       'goal',
+      'blocks',
       'instructions',
       'resultMode',
       'maxPoints',
@@ -124,6 +175,7 @@ export class LearningActivitiesController {
     const kind = includeKind ? shape.body['kind'] : (shape.body['kind'] ?? '');
     const title = shape.body['title'];
     const goal = shape.body['goal'];
+    const blocks = shape.body['blocks'];
     const instructions = shape.body['instructions'] ?? null;
     const resultMode = shape.body['resultMode'];
     const maxPoints = shape.body['maxPoints'] ?? null;
@@ -139,6 +191,11 @@ export class LearningActivitiesController {
       (goal !== undefined &&
         goal !== null &&
         (typeof goal !== 'string' || goal.trim().length > 160)) ||
+      (blocks !== undefined && !safeTaskBlocks(blocks)) ||
+      (Array.isArray(blocks) &&
+        typeof instructions === 'string' &&
+        instructions.trim().length > 0 &&
+        blocks.length > 31) ||
       (instructions !== null &&
         (typeof instructions !== 'string' || instructions.length > 12000)) ||
       typeof resultMode !== 'string' ||
@@ -172,6 +229,7 @@ export class LearningActivitiesController {
       kind: String(kind),
       title: title.trim(),
       goal: typeof goal === 'string' ? goal.trim() || null : goal,
+      blocks: blocks as SafeTaskBlock[] | undefined,
       instructions,
       resultMode,
       maxPoints,
@@ -283,7 +341,7 @@ export class LearningActivitiesController {
     const result = await this.requirePool().query(
       `SELECT result_code, activity_id, draft_revision
          FROM learning_activity_create(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb
          )`,
       [
         context.principalId,
@@ -302,6 +360,7 @@ export class LearningActivitiesController {
         sourceTeacherAssignmentId,
         requestId,
         draft.goal === undefined ? null : JSON.stringify(draft.goal),
+        draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
       ],
     );
     const row = result.rows[0];
@@ -548,6 +607,20 @@ export class LearningActivitiesController {
     if (!row || code !== 'ok') {
       throw new HttpException(error(code ?? 'preview_failed', 'preview source is invalid'), 400);
     }
+    const blockResult = await pool.query(
+      `SELECT result_code, blocks FROM learning_activity_blocks_preview_as_author($1,$2,$3,$4,$5,$6)`,
+      [context.principalId, context.tenantId, activityId, source, versionId, draftRevision],
+    );
+    const blockRow = blockResult.rows[0];
+    if (blockRow?.['result_code'] === 'revision_conflict') {
+      throw new HttpException(
+        error('preview_revision_conflict', 'saved draft revision changed'),
+        409,
+      );
+    }
+    if (blockRow?.['result_code'] !== 'ok' || !safeTaskBlocks(blockRow['blocks'])) {
+      throw new HttpException(error('preview_failed', 'task blocks are unavailable'), 409);
+    }
     let sampleImage: string | null = null;
     if (source === 'draft') {
       const sample = await pool.query(
@@ -605,6 +678,7 @@ export class LearningActivitiesController {
         title: String(row['title']),
         goal: row['goal'] == null ? null : String(row['goal']),
         brief: row['instructions'] === null ? null : String(row['instructions']),
+        blocks: blockRow['blocks'] as SafeTaskBlock[],
         sampleImage,
       },
       moduleKey: row['module_key'] === null ? null : String(row['module_key']),
@@ -635,7 +709,7 @@ export class LearningActivitiesController {
     const result = await this.requirePool().query(
       `SELECT result_code, draft_revision
          FROM learning_activity_draft_put(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb,$14::jsonb
          )`,
       [
         context.principalId,
@@ -651,6 +725,7 @@ export class LearningActivitiesController {
         draft.quizVersionId,
         draft.starterProjectVersionId,
         draft.goal === undefined ? null : JSON.stringify(draft.goal),
+        draft.blocks === undefined ? null : JSON.stringify(draft.blocks),
       ],
     );
     const row = result.rows[0];

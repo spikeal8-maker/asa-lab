@@ -10,6 +10,7 @@ import {
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { courseCompletion, lessonComplete, lessonExcused } from '../learning/course-completion';
 import { AssignmentView } from './AssignmentView';
+import { TaskBlocks } from './TaskBlocks';
 import { AssignmentGoal } from './BriefText';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
@@ -59,6 +60,7 @@ export function courseActivityAssignmentShape(
     title: occurrence.title,
     brief: null,
     goal: occurrence.goal,
+    blocks: occurrence.blocks,
     moduleKey: occurrence.moduleKey,
     dueAt:
       occurrence.canonicalState?.effectiveDueAt === undefined
@@ -327,6 +329,11 @@ export function SeatCourses({
                       </small>
                     </div>
                     <AssignmentGoal goal={activityAssignment.goal} />
+                    {activityAssignment.blocks === null ? (
+                      <p className="account-hint">Содержание откроется в назначенное время.</p>
+                    ) : activityAssignment.blocks ? (
+                      <TaskBlocks blocks={activityAssignment.blocks} />
+                    ) : null}
                     {activityAssignment.sampleImage ? (
                       <AssignmentView assignment={activityAssignment} compact sampleOnly />
                     ) : null}

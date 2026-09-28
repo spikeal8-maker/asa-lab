@@ -74,6 +74,7 @@ interface AssignmentForSeatRow {
   title: string;
   brief: string | null;
   goal: string | null;
+  task_blocks: { present: boolean; blocks: unknown[] | null } | null;
   module_key: string;
   due_at: Date | string | null;
   status: 'open' | 'closed';
@@ -146,6 +147,7 @@ interface CourseActivityOccurrenceRow {
   learning_activity_version_id: string;
   title: string;
   goal: string | null;
+  task_blocks: { present: boolean; blocks: unknown[] | null } | null;
   module_key: string;
   sample_image: string | null;
   project_id: string | null;
@@ -161,6 +163,7 @@ interface CourseActivityOccurrenceView {
   learningActivityVersionId: string;
   title: string;
   goal: string | null;
+  blocks?: unknown[] | null | undefined;
   moduleKey: string;
   sampleImage: string | null;
   projectId: string | null;
@@ -216,9 +219,11 @@ function courseActivityOccurrenceMap(
       classroomAssignmentId: row.classroom_assignment_id,
       learningActivityVersionId: row.learning_activity_version_id,
       title: row.title,
-      goal: row.goal ?? null,
+      goal: row.task_blocks?.present && row.task_blocks.blocks === null ? null : (row.goal ?? null),
+      blocks: row.task_blocks?.present ? row.task_blocks.blocks : undefined,
       moduleKey: row.module_key,
-      sampleImage: row.sample_image,
+      sampleImage:
+        row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
       projectId: row.project_id,
       submittedAt: row.submitted_at === null ? null : isoDate(row.submitted_at),
       snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
@@ -997,7 +1002,8 @@ export class ClassroomJoinController {
       this.requirePool().query(
         `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
-              snapshot_revision, updated_at
+              snapshot_revision, updated_at,
+              learning_activity_blocks_for_seat(seat_id,id) AS task_blocks
          FROM classroom_assignments_for_account($1)`,
         [context.accountId],
       ),
@@ -1025,8 +1031,9 @@ export class ClassroomJoinController {
         .map((row) => ({
           id: row.id,
           title: row.title,
-          brief: row.brief,
-          goal: row.goal,
+          brief: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.brief,
+          goal: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.goal,
+          blocks: row.task_blocks?.present ? row.task_blocks.blocks : undefined,
           moduleKey: row.module_key,
           dueAt:
             canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt === undefined
@@ -1035,7 +1042,8 @@ export class ClassroomJoinController {
                 : null
               : canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt,
           status: row.status,
-          sampleImage: row.sample_image,
+          sampleImage:
+            row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
           projectId: row.project_id,
           submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
           snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
@@ -1093,6 +1101,7 @@ export class ClassroomJoinController {
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
+                learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL
                 ) AS sample_image
@@ -1151,7 +1160,8 @@ export class ClassroomJoinController {
     const [result, projections, visibility] = await Promise.all([
       this.requirePool().query(
         `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
-              submitted_at, snapshot_revision, updated_at
+              submitted_at, snapshot_revision, updated_at,
+              learning_activity_blocks_for_seat($1,id) AS task_blocks
          FROM classroom_assignments_for_seat($1)`,
         [seat.seat_id],
       ),
@@ -1174,8 +1184,9 @@ export class ClassroomJoinController {
         .map((row) => ({
           id: row.id,
           title: row.title,
-          brief: row.brief,
-          goal: row.goal,
+          brief: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.brief,
+          goal: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.goal,
+          blocks: row.task_blocks?.present ? row.task_blocks.blocks : undefined,
           moduleKey: row.module_key,
           dueAt:
             canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt === undefined
@@ -1184,7 +1195,8 @@ export class ClassroomJoinController {
                 : null
               : canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt,
           status: row.status,
-          sampleImage: row.sample_image,
+          sampleImage:
+            row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
           projectId: row.project_id,
           submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
           snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
@@ -1234,6 +1246,7 @@ export class ClassroomJoinController {
       this.canonical().forSeat(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
+                learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
                 ) AS sample_image
