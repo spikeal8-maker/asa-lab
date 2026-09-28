@@ -49,6 +49,7 @@ test('owner completes Account C1 and existing project modules remain available',
   const username = `owner_${unique}`.slice(0, 36);
   const email = `${username}@account-e2e.test`;
   const password = `Safe-${unique}-Password`;
+  const newPassword = `Changed-${unique}-Password`;
 
   await page.setViewportSize({ width: 1366, height: 900 });
   await page.goto('/#/');
@@ -220,14 +221,76 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.goto('/#/projects');
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
   await expect(page.getByText('Account C1 3D')).toBeVisible();
+
+  await openAccountSettings(page);
+  await settingsPanel('Вход и безопасность').click();
+  const currentPasswordInput = settingsContent.getByLabel('Текущий пароль', { exact: true });
+  const newPasswordInput = settingsContent.getByLabel('Новый пароль', { exact: true });
+  const confirmPasswordInput = settingsContent.getByLabel('Повторите новый пароль', {
+    exact: true,
+  });
+  await currentPasswordInput.fill(password);
+  await newPasswordInput.fill(newPassword);
+  await confirmPasswordInput.fill(newPassword);
+  const passwordChangeResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/account/password';
+  });
+  await settingsContent.getByRole('button', { name: 'Сохранить пароль', exact: true }).click();
+  expect((await passwordChangeResponsePromise).status()).toBe(200);
+  await expect(
+    settingsContent.getByText('Пароль изменён. Остальные входы завершены.'),
+  ).toBeVisible();
+  await expect(currentPasswordInput).toHaveValue('');
+  await expect(newPasswordInput).toHaveValue('');
+  await expect(confirmPasswordInput).toHaveValue('');
+  const currentSessionAfterPasswordChange = await context.request.get('/api/auth/me');
+  expect(currentSessionAfterPasswordChange.status()).toBe(200);
+  await page.screenshot({
+    path: `${EVIDENCE_DIR}/07-password-changed-desktop.png`,
+    fullPage: true,
+  });
+
+  await page.goto('/#/projects');
+  await expect(page.getByText('Account C1 Electronics')).toBeVisible();
+  await expect(page.getByText('Account C1 3D')).toBeVisible();
   await openAccountMenu(page);
   await page.getByRole('button', { name: 'Выход' }).click();
   await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
+  const anonymousAfterLogout = await context.request.get('/api/auth/me');
+  expect(anonymousAfterLogout.status()).toBe(200);
+  expect(await anonymousAfterLogout.json()).toEqual({ authenticated: false });
+
+  // Keep the expected negative login response isolated from the main page's
+  // unexpected-browser-failure collector; no error allowlist is added.
+  const oldPasswordPage = await context.newPage();
+  await oldPasswordPage.goto('/#/sign-in');
+  await oldPasswordPage.getByLabel('Email или имя пользователя').fill(username);
+  await oldPasswordPage.getByLabel('Пароль').fill(password);
+  await oldPasswordPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const oldPasswordLoginResponsePromise = oldPasswordPage.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+  });
+  await oldPasswordPage.getByRole('button', { name: 'Войти', exact: true }).click();
+  expect((await oldPasswordLoginResponsePromise).status()).toBe(401);
+  await expect(oldPasswordPage).toHaveURL(/#\/sign-in$/);
+  await expect(oldPasswordPage.getByRole('heading', { name: 'Главная' })).not.toBeVisible();
+  await oldPasswordPage.close();
+
   await page.goto('/#/sign-in');
   await page.getByLabel('Email или имя пользователя').fill(username);
-  await page.getByLabel('Пароль').fill(password);
+  await page.getByLabel('Пароль').fill(newPassword);
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const newPasswordLoginResponsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+  });
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  expect((await newPasswordLoginResponsePromise).status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  const newPasswordSession = await context.request.get('/api/auth/me');
+  expect(newPasswordSession.status()).toBe(200);
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
   await expect(page.getByText('Account C1 3D')).toBeVisible();
   failures.assertEmpty();
