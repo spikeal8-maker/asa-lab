@@ -49,6 +49,11 @@ function setInput(input: HTMLInputElement, value: string): void {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 }
 
+function setSelect(select: HTMLSelectElement, value: string): void {
+  select.value = value;
+  select.dispatchEvent(new Event('change', { bubbles: true }));
+}
+
 function testLesson(title: string, position = 1): CourseLesson {
   return {
     id: 'lesson-1',
@@ -492,6 +497,147 @@ it('retains post-submit edits when the acknowledged PATCH moves an existing less
     expectedRevision: 3,
   });
   expect(savedLesson.title).toBe('Typed after submit');
+});
+
+it.each([
+  { field: 'summary', mode: 'new' },
+  { field: 'minutes', mode: 'new' },
+  { field: 'section', mode: 'edit' },
+  { field: 'kind', mode: 'edit' },
+  { field: 'assignment', mode: 'edit' },
+] as const)('keeps a $field edit made during a $mode lesson save', async ({ field, mode }) => {
+  const pendingSave = deferred<Awaited<ReturnType<typeof api.saveCourseLesson>>>();
+  let revision = 1;
+  let savedLesson: CourseLesson | null = mode === 'edit' ? testLesson('Original') : null;
+  if (savedLesson && (field === 'kind' || field === 'assignment')) {
+    savedLesson = {
+      ...savedLesson,
+      kind: 'assignment',
+      learningActivityVersionId: 'version-1',
+    };
+  }
+  const outline = () => ({
+    sections: [
+      testSection('section-1', savedLesson ? [savedLesson] : []),
+      testSection('section-2', []),
+    ],
+    draftRevision: revision,
+  });
+  vi.spyOn(api, 'listCourses').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: { items: [{ ...course, draftRevision: revision, lessonCount: savedLesson ? 1 : 0 }] },
+  }));
+  vi.spyOn(api, 'courseOutline').mockImplementation(async () => ({
+    ok: true,
+    status: 200,
+    data: outline(),
+  }));
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+  vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          id: 'activity-1',
+          title: 'Practice one',
+          kind: 'project',
+          draftRevision: 1,
+          currentPublishedVersionId: 'version-1',
+        },
+        {
+          id: 'activity-2',
+          title: 'Practice two',
+          kind: 'project',
+          draftRevision: 1,
+          currentPublishedVersionId: 'version-2',
+        },
+      ],
+    },
+  });
+  const save = vi
+    .spyOn(api, 'saveCourseLesson')
+    .mockReturnValueOnce(pendingSave.promise)
+    .mockImplementation(async (_courseId, lessonId, input) => {
+      expect(lessonId).toBe('lesson-1');
+      expect(input.expectedRevision).toBe(2);
+      revision = 3;
+      return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: revision } };
+    });
+
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(
+      createElement(CoursesPanel, { assignments: [], canTeach: true, onChanged: vi.fn() }),
+    );
+    await flush();
+  });
+  await act(async () =>
+    container
+      ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
+      ?.click(),
+  );
+  if (mode === 'new') {
+    await act(async () => button(container!, '+ Урок').click());
+    const title = container.querySelector<HTMLInputElement>(
+      '.course-lesson-editor input[maxlength="160"]',
+    );
+    await act(async () => setInput(title!, 'Original'));
+  }
+  const editor = container.querySelector<HTMLFormElement>('.course-lesson-editor');
+  expect(editor).not.toBeNull();
+  await act(async () => {
+    editor?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(1);
+  expect(save.mock.calls[0]?.[1]).toBe(mode === 'new' ? null : 'lesson-1');
+
+  await act(async () => {
+    if (field === 'summary') {
+      setInput(editor!.querySelector<HTMLInputElement>('input[maxlength="600"]')!, 'Late summary');
+    } else if (field === 'minutes') {
+      setInput(editor!.querySelector<HTMLInputElement>('input[type="number"]')!, '45');
+    } else if (field === 'section') {
+      setSelect(editor!.querySelectorAll<HTMLSelectElement>('select')[0]!, 'section-2');
+    } else if (field === 'kind') {
+      setSelect(editor!.querySelectorAll<HTMLSelectElement>('select')[1]!, 'material');
+    } else {
+      setSelect(
+        editor!.querySelector<HTMLSelectElement>('select[aria-label="Задание из банка"]')!,
+        'lav:version-2',
+      );
+    }
+  });
+  if (mode === 'new') {
+    savedLesson = testLesson('Original');
+  } else {
+    savedLesson = { ...savedLesson!, position: 2 };
+  }
+  revision = 2;
+  await act(async () => {
+    pendingSave.resolve({ ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 2 } });
+    await flush();
+  });
+  expect(container.querySelector('.course-lesson-editor')).toBe(editor);
+  if (mode === 'new') expect(container.textContent).toContain('Новый урок');
+  expect(container.textContent).toContain('Последние изменения ещё не сохранены');
+  await act(async () => {
+    editor?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+    await flush();
+  });
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[1]?.[1]).toBe('lesson-1');
+  const savedInput = save.mock.calls[1]?.[2];
+  expect(savedInput?.expectedRevision).toBe(2);
+  if (field === 'summary') expect(savedInput?.summary).toBe('Late summary');
+  if (field === 'minutes') expect(savedInput?.estimatedMinutes).toBe(45);
+  if (field === 'section') expect(savedInput?.sectionId).toBe('section-2');
+  if (field === 'kind') expect(savedInput?.kind).toBe('material');
+  if (field === 'assignment') expect(savedInput?.learningActivityVersionId).toBe('version-2');
 });
 
 it('does not adopt a concurrent revision while preserving edits made after save', async () => {

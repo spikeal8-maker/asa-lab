@@ -269,7 +269,13 @@ function LessonEditor({
       <div className="course-editor-grid">
         <label className="course-field">
           <span>Раздел</span>
-          <select value={targetSection} onChange={(event) => setTargetSection(event.target.value)}>
+          <select
+            value={targetSection}
+            onChange={(event) => {
+              setTargetSection(event.target.value);
+              onDirty();
+            }}
+          >
             {sections.map((entry) => (
               <option key={entry.id} value={entry.id}>
                 {entry.title}
@@ -281,7 +287,10 @@ function LessonEditor({
           <span>Тип урока</span>
           <select
             value={kind}
-            onChange={(event) => setKind(event.target.value as 'material' | 'assignment')}
+            onChange={(event) => {
+              setKind(event.target.value as 'material' | 'assignment');
+              onDirty();
+            }}
           >
             <option value="material">Материал</option>
             <option value="assignment">Практическое задание</option>
@@ -294,7 +303,10 @@ function LessonEditor({
         <input
           value={title}
           maxLength={160}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            setTitle(event.target.value);
+            onDirty();
+          }}
           placeholder="Короткое и понятное название"
         />
       </label>
@@ -304,7 +316,10 @@ function LessonEditor({
         <input
           value={summary}
           maxLength={600}
-          onChange={(event) => setSummary(event.target.value)}
+          onChange={(event) => {
+            setSummary(event.target.value);
+            onDirty();
+          }}
           placeholder="Одна строка для содержания курса"
         />
       </label>
@@ -326,6 +341,7 @@ function LessonEditor({
                     '',
                 );
               }
+              onDirty();
             }}
           >
             <option value="">Выберите задание…</option>
@@ -379,7 +395,10 @@ function LessonEditor({
           min={1}
           max={600}
           value={minutes}
-          onChange={(event) => setMinutes(event.target.value)}
+          onChange={(event) => {
+            setMinutes(event.target.value);
+            onDirty();
+          }}
           placeholder="15"
         />
       </label>
