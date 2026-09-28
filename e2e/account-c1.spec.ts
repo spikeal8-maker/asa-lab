@@ -9,7 +9,7 @@ import {
   portalSection,
   switchWorkspace,
 } from './portal-navigation';
-import { e2eAdminPool } from './seed';
+import { e2eAdminPool, seedTeacher } from './seed';
 
 const EVIDENCE_DIR = 'e2e/artifacts/owner-preview/account-c1';
 let admin: pg.Pool;
@@ -293,5 +293,195 @@ test('owner completes Account C1 and existing project modules remain available',
   expect(newPasswordSession.status()).toBe(200);
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
   await expect(page.getByText('Account C1 3D')).toBeVisible();
+  failures.assertEmpty();
+});
+
+test('migrated teacher changes password through organization browser login', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const teacher = await seedTeacher(admin, 'as-03b-password');
+  const passwordA = teacher.password;
+  const passwordB = `Changed-${Date.now()}-${Math.floor(Math.random() * 1e6)}-Password`;
+
+  const link = await admin.query(
+    `SELECT account_id
+       FROM legacy_user_account_links
+      WHERE tenant_id = $1 AND user_id = $2`,
+    [teacher.tenantId, teacher.teacherId],
+  );
+  const accountId = link.rows[0]?.account_id as string;
+  expect(accountId).toBeTruthy();
+
+  const personalSlug = `personal-${accountId.replaceAll('-', '').slice(0, 32)}`;
+  const personalTenant = await admin.query(
+    `INSERT INTO tenants (workspace_slug, title)
+     VALUES ($1, $2)
+     RETURNING id`,
+    [personalSlug, 'AS-03B Personal Workspace'],
+  );
+  const personalTenantId = personalTenant.rows[0].id as string;
+  await admin.query(
+    `INSERT INTO tenant_placements (tenant_id, mode)
+     VALUES ($1, 'SHARED_CLUSTER')`,
+    [personalTenantId],
+  );
+  const personalWorkspace = await admin.query(
+    `INSERT INTO workspaces (tenant_id, kind, title)
+     VALUES ($1, 'personal', $2)
+     RETURNING id`,
+    [personalTenantId, 'AS-03B Personal Workspace'],
+  );
+  await admin.query(
+    `INSERT INTO workspace_memberships (account_id, workspace_id, role)
+     VALUES ($1, $2, 'owner')`,
+    [accountId, personalWorkspace.rows[0].id],
+  );
+
+  const personalContext = await admin.query(`SELECT * FROM auth_personal_workspace($1)`, [
+    accountId,
+  ]);
+  expect(personalContext.rowCount).toBe(1);
+  const membershipCounts = await admin.query(
+    `SELECT
+       count(*) FILTER (WHERE w.kind = 'personal')::int AS personal_count,
+       count(*) FILTER (WHERE w.kind = 'organization')::int AS organization_count
+     FROM workspace_memberships m
+     JOIN workspaces w ON w.id = m.workspace_id
+     WHERE m.account_id = $1`,
+    [accountId],
+  );
+  expect(membershipCounts.rows[0]).toEqual({
+    personal_count: 1,
+    organization_count: 1,
+  });
+
+  await page.setViewportSize({ width: 1366, height: 900 });
+  await page.goto('/#/organization-sign-in');
+  await page.getByLabel('Код организации').fill(teacher.workspace);
+  await page.getByLabel('Email', { exact: true }).fill(teacher.email);
+  await page.getByLabel('Пароль', { exact: true }).fill(passwordA);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const initialOrganizationLogin = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+  });
+  await page.getByRole('button', { name: 'Войти через организацию', exact: true }).click();
+  expect((await initialOrganizationLogin).status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+
+  const context = page.context();
+  const organizationSessionBeforeChange = await context.request.get('/api/auth/me');
+  expect(organizationSessionBeforeChange.status()).toBe(200);
+  expect(await organizationSessionBeforeChange.json()).toMatchObject({
+    authenticated: true,
+    activeWorkspace: { kind: 'organization' },
+  });
+
+  await openAccountSettings(page);
+  const settingsPanel = (name: string) =>
+    page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
+  await settingsPanel('Вход и безопасность').click();
+  const settingsContent = page.locator('.account-settings-content');
+  const currentPasswordInput = settingsContent.getByLabel('Текущий пароль', { exact: true });
+  const newPasswordInput = settingsContent.getByLabel('Новый пароль', { exact: true });
+  const confirmPasswordInput = settingsContent.getByLabel('Повторите новый пароль', {
+    exact: true,
+  });
+  const savePasswordButton = settingsContent.getByRole('button', {
+    name: 'Сохранить пароль',
+    exact: true,
+  });
+  await expect(currentPasswordInput).toBeVisible();
+  await expect(newPasswordInput).toBeVisible();
+  await expect(confirmPasswordInput).toBeVisible();
+  await expect(savePasswordButton).toBeVisible();
+  await currentPasswordInput.fill(passwordA);
+  await newPasswordInput.fill(passwordB);
+  await confirmPasswordInput.fill(passwordB);
+  const passwordChangeResponse = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/account/password';
+  });
+  await savePasswordButton.click();
+  expect((await passwordChangeResponse).status()).toBe(200);
+  await expect(
+    settingsContent.getByText('Пароль изменён. Остальные входы завершены.'),
+  ).toBeVisible();
+
+  const organizationSessionAfterChange = await context.request.get('/api/auth/me');
+  expect(organizationSessionAfterChange.status()).toBe(200);
+  expect(await organizationSessionAfterChange.json()).toMatchObject({
+    authenticated: true,
+    activeWorkspace: { kind: 'organization' },
+  });
+
+  await openAccountMenu(page);
+  await page.getByRole('button', { name: 'Выход' }).click();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
+  const anonymousAfterOrganizationLogout = await context.request.get('/api/auth/me');
+  expect(anonymousAfterOrganizationLogout.status()).toBe(200);
+  expect(await anonymousAfterOrganizationLogout.json()).toEqual({ authenticated: false });
+
+  const oldPasswordPage = await context.newPage();
+  await oldPasswordPage.goto('/#/organization-sign-in');
+  await oldPasswordPage.getByLabel('Код организации').fill(teacher.workspace);
+  await oldPasswordPage.getByLabel('Email', { exact: true }).fill(teacher.email);
+  await oldPasswordPage.getByLabel('Пароль', { exact: true }).fill(passwordA);
+  await oldPasswordPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const oldOrganizationLogin = oldPasswordPage.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+  });
+  await oldPasswordPage
+    .getByRole('button', { name: 'Войти через организацию', exact: true })
+    .click();
+  expect((await oldOrganizationLogin).status()).toBe(401);
+  await expect(oldPasswordPage.getByRole('heading', { name: 'Главная' })).not.toBeVisible();
+  await oldPasswordPage.close();
+
+  await page.goto('/#/organization-sign-in');
+  await page.getByLabel('Код организации').fill(teacher.workspace);
+  await page.getByLabel('Email', { exact: true }).fill(teacher.email);
+  await page.getByLabel('Пароль', { exact: true }).fill(passwordB);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const newOrganizationLogin = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+  });
+  await page.getByRole('button', { name: 'Войти через организацию', exact: true }).click();
+  expect((await newOrganizationLogin).status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  const newOrganizationSession = await context.request.get('/api/auth/me');
+  expect(newOrganizationSession.status()).toBe(200);
+  expect(await newOrganizationSession.json()).toMatchObject({
+    authenticated: true,
+    activeWorkspace: { kind: 'organization' },
+  });
+
+  await openAccountMenu(page);
+  await page.getByRole('button', { name: 'Выход' }).click();
+  await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
+  const anonymousBeforeNormalLogin = await context.request.get('/api/auth/me');
+  expect(anonymousBeforeNormalLogin.status()).toBe(200);
+  expect(await anonymousBeforeNormalLogin.json()).toEqual({ authenticated: false });
+
+  await page.goto('/#/sign-in');
+  await page.getByLabel('Email или имя пользователя').fill(teacher.email);
+  await page.getByLabel('Пароль').fill(passwordB);
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  const normalLogin = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return response.request().method() === 'POST' && url.pathname === '/api/auth/login';
+  });
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  expect((await normalLogin).status()).toBe(200);
+  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  const normalSession = await context.request.get('/api/auth/me');
+  expect(normalSession.status()).toBe(200);
+  expect(await normalSession.json()).toMatchObject({
+    authenticated: true,
+    activeWorkspace: { kind: 'personal' },
+  });
+
   failures.assertEmpty();
 });
