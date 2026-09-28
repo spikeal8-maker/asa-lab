@@ -30,8 +30,13 @@ export function LearningNotificationPreferences({
     [busy, setBusy] = useState(false),
     [search, setSearch] = useState('');
   const request = useRef<{ payload: string; id: string } | null>(null);
+  const latestLoad = useRef(0),
+    editRevision = useRef(0);
   const load = useCallback(async () => {
+    const loadId = ++latestLoad.current;
+    const revisionAtStart = editRevision.current;
     const result = await api.learningNotificationPreferences();
+    if (loadId !== latestLoad.current || revisionAtStart !== editRevision.current) return;
     if (result.ok) {
       setSaved(result.data);
       setDraft(result.data);
@@ -44,8 +49,14 @@ export function LearningNotificationPreferences({
   const keys = (Object.keys(notificationCategories) as NotificationCategory[]).filter(
     (key) => !seat || (key !== 'NC02' && key !== 'NC08'),
   );
+  function editDraft(next: Preferences) {
+    editRevision.current += 1;
+    setDraft(next);
+    setNotice('');
+  }
   async function save() {
     if (!draft || busy) return;
+    latestLoad.current += 1;
     const input = {
       revision: draft.revision,
       masterEnabled: draft.masterEnabled,
@@ -74,8 +85,7 @@ export function LearningNotificationPreferences({
     const rules = { ...draft.classOverrides };
     if (mode === 'inherit') delete rules[id];
     else rules[id] = { ...rules[id], mode: mode as 'off' | 'custom' };
-    setDraft({ ...draft, classOverrides: rules });
-    setNotice('');
+    editDraft({ ...draft, classOverrides: rules });
   }
   return (
     <section
@@ -106,8 +116,7 @@ export function LearningNotificationPreferences({
               checked={draft.masterEnabled}
               disabled={busy}
               onChange={(e) => {
-                setDraft({ ...draft, masterEnabled: e.target.checked });
-                setNotice('');
+                editDraft({ ...draft, masterEnabled: e.target.checked });
               }}
             />
             Получать учебные оповещения
@@ -124,11 +133,10 @@ export function LearningNotificationPreferences({
                     disabled={busy}
                     checked={draft.categories[key]}
                     onChange={(e) => {
-                      setDraft({
+                      editDraft({
                         ...draft,
                         categories: { ...draft.categories, [key]: e.target.checked },
                       });
-                      setNotice('');
                     }}
                   />
                   {notificationCategories[key]}
@@ -174,7 +182,7 @@ export function LearningNotificationPreferences({
                             <select
                               value={rule.categories?.[key] ?? 'inherit'}
                               onChange={(e) =>
-                                setDraft({
+                                editDraft({
                                   ...draft,
                                   classOverrides: {
                                     ...draft.classOverrides,
@@ -220,6 +228,7 @@ export function LearningNotificationPreferences({
               className="btn-secondary"
               disabled={busy}
               onClick={() => {
+                editRevision.current += 1;
                 setDraft(saved);
                 setError(null);
                 setNotice('');
