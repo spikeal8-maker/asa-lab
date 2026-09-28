@@ -84,6 +84,70 @@ afterEach(async () => {
 });
 
 describe('authored material legacy goal', () => {
+  it('keeps the default module when catalogue loading overlaps author typing', async () => {
+    let resolveModules: (result: Awaited<ReturnType<typeof api.listModules>>) => void = () => {};
+    vi.spyOn(api, 'listModules').mockImplementation(
+      () =>
+        new Promise<Awaited<ReturnType<typeof api.listModules>>>((resolve) => {
+          resolveModules = resolve;
+        }),
+    );
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    const create = vi.spyOn(api, 'createActivityDraft').mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: { id: activityId, draftRevision: 1 },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage));
+      await flush();
+    });
+    const title = container.querySelector<HTMLInputElement>('input[maxlength="255"]');
+    const instructions = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Содержание"]',
+    );
+    expect(title).not.toBeNull();
+    expect(instructions).not.toBeNull();
+    await act(async () => setInput(title!, 'Circuit lesson'));
+    await act(async () => {
+      resolveModules({
+        ok: true,
+        status: 200,
+        data: { items: [module('three-d', true), module('electronics', true)] },
+      });
+      await Promise.resolve();
+      setInput(instructions!, 'Build and explain the circuit');
+      await flush();
+    });
+    const chooser = [...container.querySelectorAll('label')]
+      .find((label) => label.textContent?.includes('Среда проекта'))
+      ?.querySelector('select');
+    const createButton = [...container.querySelectorAll('button')].find(
+      (button) => button.textContent === 'Создать материал',
+    );
+    expect(chooser?.value).toBe('electronics');
+    expect(createButton?.disabled).toBe(false);
+    await act(async () => {
+      createButton?.click();
+      await flush();
+    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Circuit lesson',
+        instructions: 'Build and explain the circuit',
+        moduleKey: 'electronics',
+      }),
+      expect.any(String),
+    );
+  });
+
   it('reloads the module catalogue after a transient failure without a page reload', async () => {
     const listModules = vi.spyOn(api, 'listModules');
     listModules

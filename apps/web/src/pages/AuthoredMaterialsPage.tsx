@@ -482,7 +482,10 @@ export function AuthoredMaterialsPage({
   }
 
   function policy(key: keyof AuthoredActivityDraft['policies'], value: Record<string, unknown>) {
-    setDraft({ ...draft, policies: { ...draft.policies, [key]: value } });
+    setDraft((current) => ({
+      ...current,
+      policies: { ...current.policies, [key]: value },
+    }));
   }
   const draftDirty =
     (opened !== null && savedPayload.current !== JSON.stringify(draft)) ||
@@ -575,7 +578,10 @@ export function AuthoredMaterialsPage({
               maxLength={255}
               value={draft.title}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+              onChange={(event) => {
+                const title = event.target.value;
+                setDraft((current) => ({ ...current, title }));
+              }}
             />
           </label>
           <label>
@@ -585,7 +591,10 @@ export function AuthoredMaterialsPage({
               maxLength={160}
               value={draft.goal === undefined ? (inheritedGoal ?? '') : (draft.goal ?? '')}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, goal: event.target.value })}
+              onChange={(event) => {
+                const goal = event.target.value;
+                setDraft((current) => ({ ...current, goal }));
+              }}
             />
           </label>
           {(draft.goal === undefined ? inheritedGoal !== null : draft.goal !== null) && (
@@ -593,7 +602,7 @@ export function AuthoredMaterialsPage({
               type="button"
               className="account-inline-action"
               disabled={busy}
-              onClick={() => setDraft({ ...draft, goal: null })}
+              onClick={() => setDraft((current) => ({ ...current, goal: null }))}
             >
               Очистить цель задания
             </button>
@@ -606,14 +615,17 @@ export function AuthoredMaterialsPage({
               rows={5}
               value={draft.instructions ?? ''}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, instructions: event.target.value })}
+              onChange={(event) => {
+                const instructions = event.target.value;
+                setDraft((current) => ({ ...current, instructions }));
+              }}
             />
           </label>
           <AuthoredTaskBlocksEditor
             blocks={draft.blocks}
             instructions={draft.instructions}
             disabled={busy}
-            onChange={(blocks) => setDraft({ ...draft, blocks })}
+            onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
             onImageUpload={(file) => void uploadTaskImage(file)}
             imageUrl={(contentHash) =>
               opened
@@ -628,8 +640,16 @@ export function AuthoredMaterialsPage({
               disabled={
                 busy || draft.moduleKey === null || modulesLoading || assignableModules.length === 0
               }
-              onChange={(event) => setDraft({ ...draft, moduleKey: event.target.value })}
+              onChange={(event) => {
+                const moduleKey = event.target.value;
+                setDraft((current) => ({ ...current, moduleKey }));
+              }}
             >
+              {draft.moduleKey === '' ? (
+                <option value="" disabled>
+                  Выберите среду
+                </option>
+              ) : null}
               {draft.moduleKey === null ? <option value="">Материал без редактора</option> : null}
               {draft.moduleKey &&
               !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
@@ -649,13 +669,14 @@ export function AuthoredMaterialsPage({
             <select
               value={draft.resultMode}
               disabled={busy}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  resultMode: event.target.value as AuthoredActivityDraft['resultMode'],
+              onChange={(event) => {
+                const resultMode = event.target.value as AuthoredActivityDraft['resultMode'];
+                setDraft((current) => ({
+                  ...current,
+                  resultMode,
                   maxPoints: null,
-                })
-              }
+                }));
+              }}
             >
               <option value="ungraded">Без оценки</option>
               <option value="completion">Выполнение</option>
@@ -672,9 +693,13 @@ export function AuthoredMaterialsPage({
                   min={1}
                   max={100000}
                   value={draft.maxPoints ?? ''}
-                  onChange={(event) =>
-                    setDraft({ ...draft, maxPoints: Number(event.target.value) || null })
-                  }
+                  onChange={(event) => {
+                    const maxPoints = Number(event.target.value) || null;
+                    setDraft((current) => ({
+                      ...current,
+                      maxPoints,
+                    }));
+                  }}
                 />
               </label>
               <label>
