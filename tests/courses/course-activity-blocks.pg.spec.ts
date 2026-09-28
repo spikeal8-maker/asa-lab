@@ -1203,9 +1203,10 @@ describe('A2c exact Course Activity task blocks', () => {
     const read = async () =>
       (
         await inTenant(author, (client) =>
-          client.query('SELECT learning_activity_blocks_for_seat($1,$2) AS value', [
+          client.query('SELECT learning_activity_blocks_for_seat($1,$2,$3) AS value', [
             seat,
             occurrence.classroom_assignment_id,
+            occurrence.activity_run_id,
           ]),
         )
       ).rows[0].value as { present: boolean; blocks: unknown[] | null };
