@@ -258,7 +258,8 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByRole('button', { name: 'Выход' }).click();
   await expect(page.getByRole('button', { name: 'Войти', exact: true }).first()).toBeVisible();
   const anonymousAfterLogout = await context.request.get('/api/auth/me');
-  expect(anonymousAfterLogout.status()).toBe(401);
+  expect(anonymousAfterLogout.status()).toBe(200);
+  expect(await anonymousAfterLogout.json()).toEqual({ authenticated: false });
 
   // Keep the expected negative login response isolated from the main page's
   // unexpected-browser-failure collector; no error allowlist is added.
