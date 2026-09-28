@@ -614,7 +614,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       principalId,
       'electronics',
       undefined,
-      null,
+      'Only sibling A goal',
       aBlocks,
     );
     const bVersion = await publishActivity(
@@ -622,7 +622,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       principalId,
       'electronics',
       undefined,
-      null,
+      'Only sibling B goal',
       bBlocks,
     );
     const { courseId, sectionId } = await newCourse('A2c shared handout');
@@ -767,9 +767,26 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
           ),
         )
       ).rows;
+    const readGoals = async (asAccount: boolean) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            `SELECT block_id,goal FROM ${
+              asAccount
+                ? 'classroom_course_activity_occurrences_for_account($1)'
+                : 'classroom_course_activity_occurrences_for_seat($1)'
+            } WHERE seat_id=$2 AND classroom_assignment_id=$3 ORDER BY block_id`,
+            [asAccount ? accountId : seat, seat, occurrence.classroom_assignment_id],
+          ),
+        )
+      ).rows;
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: pinnedB });
     for (const asAccount of [false, true]) {
+      expect(await readGoals(asAccount)).toEqual([
+        { block_id: 'sibling-a', goal: 'Only sibling A goal' },
+        { block_id: 'sibling-b', goal: 'Only sibling B goal' },
+      ]);
       expect(await readOccurrences(asAccount)).toEqual([
         {
           block_id: 'sibling-a',
@@ -781,6 +798,42 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
           activity_run_id: sibling.activity_run_id,
           task_blocks: { present: true, blocks: pinnedB },
         },
+      ]);
+    }
+    const changedGoal = await inTenant(author, (client) =>
+      client.query(
+        "SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'Changed sibling goal','D2 activity','completion',NULL,$4::jsonb,'electronics',NULL,NULL,$5)",
+        [
+          principalId,
+          author.tenantId,
+          bVersion.activityId,
+          JSON.stringify(policies),
+          'Future revision must not replace pinned goal',
+        ],
+      ),
+    );
+    expect(changedGoal.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    const futureVersion = await inTenant(author, (client) =>
+      client.query('SELECT * FROM learning_activity_publish($1,$2,$3,2,$4)', [
+        principalId,
+        author.tenantId,
+        bVersion.activityId,
+        `goal:isolation:v2:${++sequence}`,
+      ]),
+    );
+    expect(futureVersion.rows[0].result_code).toBe('ok');
+    expect(futureVersion.rows[0].activity_version_id).not.toBe(bVersion.versionId);
+    expect(
+      (
+        await admin.query('SELECT goal FROM learning_activity_versions WHERE id=$1', [
+          futureVersion.rows[0].activity_version_id,
+        ])
+      ).rows[0].goal,
+    ).toBe('Future revision must not replace pinned goal');
+    for (const asAccount of [false, true]) {
+      expect(await readGoals(asAccount)).toEqual([
+        { block_id: 'sibling-a', goal: 'Only sibling A goal' },
+        { block_id: 'sibling-b', goal: 'Only sibling B goal' },
       ]);
     }
     expect(
@@ -800,6 +853,12 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       [sibling.activity_run_id],
     );
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: null });
+    for (const asAccount of [false, true]) {
+      expect(await readGoals(asAccount)).toEqual([
+        { block_id: 'sibling-a', goal: 'Only sibling A goal' },
+        { block_id: 'sibling-b', goal: null },
+      ]);
+    }
     const projectId = (
       await admin.query(
         `INSERT INTO projects(tenant_id,project_scope,module_key,title,owner_principal_id)
@@ -827,6 +886,11 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: null });
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
     for (const asAccount of [false, true]) {
+      // Shared assignment work has no ActivityRun key; it cannot open a future sibling.
+      expect(await readGoals(asAccount)).toEqual([
+        { block_id: 'sibling-a', goal: 'Only sibling A goal' },
+        { block_id: 'sibling-b', goal: null },
+      ]);
       expect((await readOccurrences(asAccount)).map((row) => row.task_blocks)).toEqual([
         { present: true, blocks: pinnedA },
         { present: true, blocks: null },
@@ -843,13 +907,45 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     expect(workContext).toHaveLength(2);
     expect(
       workContext.every(
-        (row) => row.context.blocks === null && row.context.blocksSnapshotPresent === false,
+        (row) =>
+          row.context.blocks === null &&
+          row.context.blocksSnapshotPresent === false &&
+          row.context.goal === null,
       ),
     ).toBe(true);
     await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
       sibling.activity_run_id,
     ]);
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: pinnedB });
+    for (const asAccount of [false, true]) {
+      expect(await readGoals(asAccount)).toEqual([
+        { block_id: 'sibling-a', goal: 'Only sibling A goal' },
+        { block_id: 'sibling-b', goal: 'Only sibling B goal' },
+      ]);
+    }
+    const siblingParticipationId = (
+      await admin.query(
+        `SELECT id FROM activity_participations
+          WHERE activity_run_id=$1 AND learner_identity_id=$2`,
+        [sibling.activity_run_id, source.learner_identity_id],
+      )
+    ).rows[0].id as string;
+    expect(
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
+            principalId,
+            siblingParticipationId,
+          ]),
+        )
+      ).rows[0].result_code,
+    ).toBe('ok');
+    for (const asAccount of [false, true]) {
+      expect(await readGoals(asAccount)).toEqual([
+        { block_id: 'sibling-a', goal: 'Only sibling A goal' },
+        { block_id: 'sibling-b', goal: null },
+      ]);
+    }
   });
 
   it('projects exact block occurrences for seat and account without changing legacy lesson runtime', async () => {
@@ -1056,6 +1152,20 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         module_key: 'three-d',
       });
     }
+    await admin.query(
+      `UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',
+         to_jsonb(now()+interval '1 day')) WHERE id=$1`,
+      [a.activity_run_id],
+    );
+    expect((await readSeat()).find((row) => row.block_id === 'activity-a')?.goal).toBe(
+      'Собрать цепь A',
+    );
+    expect((await readAccount()).find((row) => row.block_id === 'activity-a')?.goal).toBe(
+      'Собрать цепь A',
+    );
+    await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+      a.activity_run_id,
+    ]);
 
     const evidence = (
       await inTenant(author, (client) =>
