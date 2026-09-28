@@ -45,6 +45,19 @@ const initial: AuthoredActivityDraft = {
   },
 };
 
+const PREFERRED_AUTHOR_MODULE_KEY = 'electronics';
+
+function defaultAssignableModuleKey(modules: readonly ModuleSummary[]): string {
+  const assignable = modules.filter(
+    (module) => module.creatable && module.learningCapabilities.assignable,
+  );
+  return (
+    assignable.find((module) => module.moduleKey === PREFERRED_AUTHOR_MODULE_KEY)?.moduleKey ??
+    assignable[0]?.moduleKey ??
+    ''
+  );
+}
+
 function LearnerPreviewPanel({
   preview,
   modules,
@@ -173,13 +186,10 @@ export function AuthoredMaterialsPage({
     void api.listModules().then((result) => {
       if (cancelled) return;
       if (result.ok) {
-        const assignable = result.data.items.filter(
-          (module) => module.creatable && module.learningCapabilities.assignable,
-        );
         setModules(result.data.items);
         setDraft((current) =>
           current.moduleKey === ''
-            ? { ...current, moduleKey: assignable[0]?.moduleKey ?? '' }
+            ? { ...current, moduleKey: defaultAssignableModuleKey(result.data.items) }
             : current,
         );
       } else {
@@ -496,7 +506,7 @@ export function AuthoredMaterialsPage({
             savedPayload.current = null;
             setDraftSampleImage(null);
             setPendingDraftSample(null);
-            setDraft({ ...initial, moduleKey: assignableModules[0]?.moduleKey ?? '' });
+            setDraft({ ...initial, moduleKey: defaultAssignableModuleKey(modules) });
             setInheritedGoal(null);
             setNotice(null);
             setError(null);

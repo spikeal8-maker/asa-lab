@@ -24,6 +24,32 @@ const legacyDraft: AuthoredActivityDraft = {
   },
 };
 
+function module(moduleKey: string, assignable: boolean): ModuleSummary {
+  return {
+    moduleKey,
+    moduleVersion: '1.0.0',
+    displayName: moduleKey === 'new-lab' ? 'Новая лаборатория' : moduleKey,
+    shortDescription: 'Test laboratory',
+    defaultProjectTitlePrefix: 'Project',
+    projectType: 'test',
+    schemaVersion: 1,
+    editorRoute: '/projects/:projectId/test',
+    viewerRoute: '/view/projects/:versionId/test',
+    safeModeSupported: true,
+    availability: 'active',
+    previewKind: 'summary',
+    iconKey: 'test',
+    categories: ['test'],
+    creatable: true,
+    learningCapabilities: {
+      assignable,
+      editableEvidence: assignable,
+      submitProjectVersion: assignable,
+      preview: assignable ? 'summary' : 'none',
+    },
+  };
+}
+
 let root: Root | null = null;
 let container: HTMLDivElement | null = null;
 
@@ -58,6 +84,42 @@ afterEach(async () => {
 });
 
 describe('authored material legacy goal', () => {
+  it('starts new material in Electronics even when another assignable module comes first', async () => {
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [module('three-d', true), module('electronics', true)] },
+    });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage));
+      await flush();
+    });
+    const chooser = [...container.querySelectorAll('label')]
+      .find((label) => label.textContent?.includes('Среда проекта'))
+      ?.querySelector('select');
+    expect(chooser?.value).toBe('electronics');
+    expect([...chooser!.options].map((option) => option.value)).toEqual(['three-d', 'electronics']);
+    await act(async () => {
+      chooser!.value = 'three-d';
+      chooser!.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    expect(chooser?.value).toBe('three-d');
+    await act(async () => {
+      [...container!.querySelectorAll('button')]
+        .find((button) => button.textContent === 'Новый материал')
+        ?.click();
+    });
+    expect(chooser?.value).toBe('electronics');
+  });
+
   it('keeps an omitted teacher goal absent during unrelated edits and sends an explicit clear after goal editing', async () => {
     vi.spyOn(api, 'listModules').mockResolvedValue({
       ok: true,
@@ -152,34 +214,13 @@ describe('authored material legacy goal', () => {
     expect(save.mock.calls[1]?.[2]).toHaveProperty('goal', null);
   });
 
-  it('offers an assignable future laboratory from the registry while excluding active unassignable modules', async () => {
-    const module = (moduleKey: string, assignable: boolean): ModuleSummary => ({
-      moduleKey,
-      moduleVersion: '1.0.0',
-      displayName: moduleKey === 'new-lab' ? 'Новая лаборатория' : moduleKey,
-      shortDescription: 'Test laboratory',
-      defaultProjectTitlePrefix: 'Project',
-      projectType: 'test',
-      schemaVersion: 1,
-      editorRoute: '/projects/:projectId/test',
-      viewerRoute: '/view/projects/:versionId/test',
-      safeModeSupported: true,
-      availability: 'active',
-      previewKind: 'summary',
-      iconKey: 'test',
-      categories: ['test'],
-      creatable: true,
-      learningCapabilities: {
-        assignable,
-        editableEvidence: assignable,
-        submitProjectVersion: assignable,
-        preview: assignable ? 'summary' : 'none',
-      },
-    });
+  it('falls back to the first assignable future laboratory when Electronics is absent', async () => {
     vi.spyOn(api, 'listModules').mockResolvedValue({
       ok: true,
       status: 200,
-      data: { items: [module('new-lab', true), module('blocks', false)] },
+      data: {
+        items: [module('blocks', false), module('new-lab', true), module('other-lab', true)],
+      },
     });
     vi.spyOn(api, 'authoredActivities').mockResolvedValue({
       ok: true,
@@ -252,6 +293,7 @@ describe('authored material legacy goal', () => {
     expect(chooser?.value).toBe('new-lab');
     expect([...chooser!.options].map((option) => option.textContent)).toEqual([
       'Новая лаборатория',
+      'other-lab',
     ]);
     const item = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Новая работа',
