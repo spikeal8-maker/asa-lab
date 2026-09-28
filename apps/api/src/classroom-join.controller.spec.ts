@@ -119,6 +119,77 @@ describe('classroom course progress', () => {
   });
 });
 
+describe('exact Course Activity sample route', () => {
+  const activityRunId = '123e4567-e89b-42d3-a456-426614174012';
+
+  it('uses the signed-in seat and returns the authorized pinned bytes', async () => {
+    const image = Buffer.from('exact-sample');
+    const query = vi.fn(async (sql: string) =>
+      sql.includes('classroom_student_session_context')
+        ? { rows: [{ seat_id: 'seat-id' }] }
+        : {
+            rows: [
+              {
+                sample_bytes: image,
+                sample_content_type: 'image/png',
+                content_hash: 'a'.repeat(64),
+              },
+            ],
+          },
+    );
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    const send = vi.fn();
+    const response = { header: vi.fn().mockReturnThis(), type: vi.fn().mockReturnThis(), send };
+    await controller.courseActivitySample(
+      seatRequest(),
+      response as unknown as FastifyReply,
+      activityRunId,
+    );
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('learning_course_activity_sample_for_viewer'),
+      [activityRunId, null, 'seat-id'],
+    );
+    expect(response.header).toHaveBeenCalledWith('Cache-Control', 'private, no-store');
+    expect(response.type).toHaveBeenCalledWith('image/png');
+    expect(send).toHaveBeenCalledWith(image);
+  });
+
+  it('returns the same safe absence for unauthorized or unavailable media', async () => {
+    const query = vi.fn(async (sql: string) =>
+      sql.includes('classroom_student_session_context')
+        ? { rows: [{ seat_id: 'seat-id' }] }
+        : { rows: [] },
+    );
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.courseActivitySample(seatRequest(), reply(), activityRunId),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('uses the authenticated Account identity without accepting a claimed seat', async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.20');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    await expect(
+      controller.courseActivitySample(accountRequest, reply(), activityRunId),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_course_activity_sample_for_viewer'),
+      [activityRunId, 'account-id', null],
+    );
+  });
+});
+
 describe('immutable classroom submissions', () => {
   it('submits a quiz for the session seat and returns released correctness', async () => {
     const assignmentId = '123e4567-e89b-42d3-a456-426614174020';

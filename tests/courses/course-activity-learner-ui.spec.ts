@@ -26,6 +26,7 @@ function occurrence(
     learningActivityVersionId: `version-${blockId}`,
     title: `Activity ${blockId}`,
     moduleKey,
+    sampleImage: null,
     projectId,
     submittedAt: null,
     snapshotRevision: projectId ? 3 : null,
@@ -96,7 +97,10 @@ describe('E1-FIX-11D5 Course Activity learner UI', () => {
   });
 
   it('matches the exact runtime occurrence by blockId and uses its compatibility assignment', () => {
-    const target = occurrence('block-b', 'assignment-b', 'three-d', null);
+    const target = {
+      ...occurrence('block-b', 'assignment-b', 'three-d', null),
+      sampleImage: '/api/class-join/course-activities/run-block-b/sample',
+    };
     const lesson = {
       activityOccurrences: [
         occurrence('block-a', 'assignment-a', 'electronics', 'project-a'),
@@ -113,6 +117,7 @@ describe('E1-FIX-11D5 Course Activity learner UI', () => {
       id: 'assignment-b',
       title: 'Activity block-b',
       moduleKey: 'three-d',
+      sampleImage: target.sampleImage,
       projectId: null,
       dueAt: '2026-09-30T18:00:00.000Z',
       status: 'open',
