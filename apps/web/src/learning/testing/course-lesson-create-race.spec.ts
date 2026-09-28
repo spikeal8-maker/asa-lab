@@ -583,6 +583,126 @@ it('does not adopt a concurrent revision while preserving edits made after save'
   expect(container.textContent).toContain('Remote conflict');
 });
 
+it.each(['newer revision', 'failed request'] as const)(
+  'ignores a %s from an outline request started before a lesson edit',
+  async (staleResponse) => {
+    const oldOutline = deferred<Awaited<ReturnType<typeof api.courseOutline>>>();
+    let revision = 1;
+    let savedLesson = testLesson('Original');
+    const outline = () => ({
+      sections: [testSection('section-1', [savedLesson])],
+      draftRevision: revision,
+    });
+    vi.spyOn(api, 'listCourses').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [{ ...course, lessonCount: 1 }] },
+    });
+    const readOutline = vi
+      .spyOn(api, 'courseOutline')
+      .mockImplementationOnce(async () => ({ ok: true, status: 200, data: outline() }))
+      .mockReturnValueOnce(oldOutline.promise)
+      .mockImplementation(async () => ({ ok: true, status: 200, data: outline() }));
+    vi.spyOn(api, 'authorVersions').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'publishCourse').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        versionId: 'version-1',
+        versionNumber: 1,
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        reused: false,
+      },
+    });
+    const save = vi
+      .spyOn(api, 'saveCourseLesson')
+      .mockImplementation(async (_, lessonId, input) => {
+        expect(lessonId).toBe('lesson-1');
+        if (input.expectedRevision !== revision) {
+          return {
+            ok: false,
+            status: 409,
+            error: { code: 'draft_conflict', message: 'Remote conflict' },
+          };
+        }
+        savedLesson = { ...savedLesson, title: input.title };
+        revision = 2;
+        return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: 2 } };
+      });
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(CoursesPanel, { assignments: [], canTeach: true, onChanged: vi.fn() }),
+      );
+      await flush();
+    });
+    await act(async () =>
+      container
+        ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
+        ?.click(),
+    );
+    await act(async () => {
+      button(container!, 'Опубликовать').click();
+      await flush();
+    });
+    expect(readOutline).toHaveBeenCalledTimes(2);
+    const title = container.querySelector<HTMLInputElement>(
+      '.course-lesson-editor input[maxlength="160"]',
+    );
+    expect(title?.value).toBe('Original');
+    await act(async () => setInput(title!, 'Saved by me'));
+    await act(async () => {
+      container
+        ?.querySelector('.course-lesson-editor')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flush();
+    });
+    expect(save.mock.calls[0]?.[2].expectedRevision).toBe(1);
+    expect(readOutline).toHaveBeenCalledTimes(3);
+    revision = 3;
+    savedLesson = testLesson('Changed remotely');
+    await act(async () => {
+      oldOutline.resolve(
+        staleResponse === 'failed request'
+          ? {
+              ok: false,
+              status: 503,
+              error: { code: 'unavailable', message: 'Stale outline failure' },
+            }
+          : { ok: true, status: 200, data: outline() },
+      );
+      await flush();
+    });
+    expect(container.textContent).not.toContain('Stale outline failure');
+    expect(container.textContent).toContain('Урок сохранён.');
+    await act(async () => setInput(title!, 'My follow-up edit'));
+    await act(async () => {
+      container
+        ?.querySelector('.course-lesson-editor')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flush();
+    });
+    expect(save.mock.calls[1]?.[2]).toMatchObject({
+      title: 'My follow-up edit',
+      expectedRevision: 2,
+    });
+    expect(savedLesson.title).toBe('Changed remotely');
+    expect(container.textContent).toContain('Remote conflict');
+  },
+);
+
 it.each(['failed', 'stale'] as const)(
   'unblocks structure changes and publication after a %s saved lesson outline refresh',
   async (refreshResult) => {

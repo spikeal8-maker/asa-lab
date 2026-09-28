@@ -498,8 +498,21 @@ function CourseEditor({
       if (localDirtyRef.current && !force) return false;
       const generation = editGeneration.current;
       const result = await api.courseOutline(course.id);
+      // A request started before a local edit must not replace the save
+      // receipt's revision or report a stale fetch error. A newer remote
+      // revision is still worth reporting while that edit remains unsaved.
+      if (generation !== editGeneration.current) {
+        if (
+          result.ok &&
+          localDirtyRef.current &&
+          result.data.draftRevision > draftRevisionRef.current
+        ) {
+          setError('Курс изменён в другом окне. Локальные правки сохранены в форме.');
+        }
+        return false;
+      }
       if (!result.ok) {
-        if (!force && !localDirtyRef.current && generation === editGeneration.current) {
+        if (!force && !localDirtyRef.current) {
           setSections([]);
         }
         setError(result.error.message);
@@ -517,7 +530,6 @@ function CourseEditor({
       }
       draftRevisionRef.current = result.data.draftRevision;
       setDraftRevision(result.data.draftRevision);
-      if (generation !== editGeneration.current) return true;
       localDirtyRef.current = false;
       setLocalDirty(false);
       setSections(result.data.sections);
