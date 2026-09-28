@@ -53,11 +53,14 @@ async function publishActivity(
   moduleKey: string,
   sample?: Buffer,
   goal: string | null = null,
+  taskBlocks?: unknown[],
 ) {
   sequence += 1;
   const created = await inTenant(teacher, (client) =>
     client.query(
-      "SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'D2 activity','completion',NULL,$4::jsonb,$5,NULL,NULL,NULL,$6,$7)",
+      taskBlocks === undefined
+        ? "SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'D2 activity','completion',NULL,$4::jsonb,$5,NULL,NULL,NULL,$6,$7)"
+        : "SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'D2 activity','completion',NULL,$4::jsonb,$5,NULL,NULL,NULL,$6,$7::jsonb,$8::jsonb)",
       [
         ownerPrincipalId,
         teacher.tenantId,
@@ -65,7 +68,8 @@ async function publishActivity(
         JSON.stringify(policies),
         moduleKey,
         `d2:create:${sequence}`,
-        goal,
+        taskBlocks === undefined ? goal : goal === null ? null : JSON.stringify(goal),
+        ...(taskBlocks === undefined ? [] : [JSON.stringify(taskBlocks)]),
       ],
     ),
   );
@@ -895,6 +899,137 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         goal: null,
       });
     }
+  });
+});
+
+describe('A2c exact Course Activity task blocks', () => {
+  it('shows pinned ordered blocks for Seat and Account after opening and keeps v1 after a future draft', async () => {
+    const blocksV1 = [
+      { type: 'heading', text: 'Course activity v1' },
+      { type: 'list', items: ['Measure', 'Explain'] },
+      { type: 'link', text: 'Read more', href: 'https://example.org/course' },
+    ];
+    const activity = await publishActivity(
+      author,
+      principalId,
+      'electronics',
+      undefined,
+      null,
+      blocksV1,
+    );
+    const { courseId, sectionId } = await newCourse('A2c exact blocks');
+    await admin.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Block lesson',NULL,$4::jsonb,'material',NULL,15,NULL)",
+      [
+        principalId,
+        courseId,
+        sectionId,
+        JSON.stringify([
+          { id: 'a2c-activity', type: 'activity', learningActivityVersionId: activity.versionId },
+        ]),
+      ],
+    );
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    expect(
+      (
+        await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+          principalId,
+          courseId,
+          revision,
+          `a2c:course:publish:${++sequence}`,
+        ])
+      ).rows[0].result_code,
+    ).toBe('ok');
+    const { classroom, seat } = await classroomWithSeat(accountId);
+    expect(
+      (await assignCourseRun(courseId, classroom, seat, `a2c:assign:${++sequence}`)).result_code,
+    ).toBe('ok');
+    const occurrence = (
+      await inTenant(author, (client) =>
+        client.query('SELECT * FROM classroom_course_activity_occurrences_for_seat($1)', [seat]),
+      )
+    ).rows[0];
+    expect(occurrence.learning_activity_version_id).toBe(activity.versionId);
+    const read = async () =>
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT learning_activity_blocks_for_seat($1,$2) AS value', [
+            seat,
+            occurrence.classroom_assignment_id,
+          ]),
+        )
+      ).rows[0].value as { present: boolean; blocks: unknown[] | null };
+    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    const accountOccurrence = (
+      await inTenant(author, (client) =>
+        client.query('SELECT * FROM classroom_course_activity_occurrences_for_account($1)', [
+          accountId,
+        ]),
+      )
+    ).rows[0];
+    expect(accountOccurrence.seat_id).toBe(seat);
+    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    await admin.query(
+      `UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day')) WHERE id=$1`,
+      [occurrence.activity_run_id],
+    );
+    expect(await read()).toEqual({ present: true, blocks: null });
+    await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+      occurrence.activity_run_id,
+    ]);
+    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    const revised = (
+      await inTenant(author, (client) =>
+        client.query(
+          `SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'A2c future draft','Future instructions',
+         'completion',NULL,$4::jsonb,'electronics',NULL,NULL,NULL::jsonb,$5::jsonb)`,
+          [
+            principalId,
+            author.tenantId,
+            activity.activityId,
+            JSON.stringify(policies),
+            JSON.stringify([{ type: 'paragraph', text: 'Future blocks v2' }]),
+          ],
+        ),
+      )
+    ).rows[0];
+    expect(revised.result_code).toBe('ok');
+    expect(
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT * FROM learning_activity_publish($1,$2,$3,2,$4)', [
+            principalId,
+            author.tenantId,
+            activity.activityId,
+            `a2c:publish:v2:${++sequence}`,
+          ]),
+        )
+      ).rows[0].result_code,
+    ).toBe('ok');
+    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    const participation = (
+      await admin.query(
+        `SELECT participation.id FROM activity_participations participation
+           JOIN learner_identity_links link
+             ON link.learner_identity_id=participation.learner_identity_id
+          WHERE participation.activity_run_id=$1 AND link.seat_id=$2 AND link.status='active'`,
+        [occurrence.activity_run_id, seat],
+      )
+    ).rows[0].id as string;
+    expect(
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
+            principalId,
+            participation,
+          ]),
+        )
+      ).rows[0].result_code,
+    ).toBe('ok');
+    expect(await read()).toEqual({ present: true, blocks: null });
   });
 });
 

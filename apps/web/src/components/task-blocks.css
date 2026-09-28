@@ -1,0 +1,62 @@
+.task-blocks {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+.task-blocks > * {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.task-block-heading {
+  font-size: 1.05rem;
+  line-height: 1.4;
+}
+.task-block-paragraph,
+.task-block-callout {
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+.task-block-callout {
+  border-inline-start: 3px solid var(--accent, #5872d9);
+  padding: 0.65rem 0.85rem;
+  background: var(--surface-muted, #f3f5fa);
+  border-radius: 0.25rem;
+}
+.task-block-list {
+  padding-inline-start: 1.5rem;
+  display: grid;
+  gap: 0.25rem;
+}
+.task-block-link a {
+  overflow-wrap: anywhere;
+}
+
+.task-block-editor {
+  min-width: 0;
+  border: 1px solid var(--border-color, #d6dce8);
+  border-radius: 0.5rem;
+  padding: 0.85rem;
+}
+.task-block-editor-add,
+.task-block-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.task-block-editor-add button {
+  flex: 0 1 auto;
+}
+.task-block-editor-item {
+  display: grid;
+  gap: 0.5rem;
+  min-width: 0;
+  margin-block: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color, #d6dce8);
+  border-radius: 0.4rem;
+}
+.task-block-editor-item textarea,
+.task-block-editor-item input {
+  width: 100%;
+  min-width: 0;
+}

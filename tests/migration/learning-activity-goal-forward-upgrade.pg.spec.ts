@@ -154,6 +154,42 @@ describe('Learning Activity goal forward upgrade', () => {
         )
       ).rows[0];
       expect(preview).toMatchObject({ result_code: 'ok', goal: 'Inherited teacher goal' });
+      const blocksUpgrade = plan.filter((item) => item.version === '0169');
+      expect(blocksUpgrade).toHaveLength(1);
+      const blocksClient = await pool.connect();
+      try {
+        expect(await applyIsolatedTestPlan(blocksClient, blocksUpgrade)).toBe(1);
+        expect(await applyIsolatedTestPlan(blocksClient, blocksUpgrade)).toBe(0);
+      } finally {
+        blocksClient.release();
+      }
+      const historical = (
+        await pool.query(
+          `SELECT content_digest,blocks,blocks_snapshot_present FROM learning_activity_versions WHERE id=$1`,
+          [publishedBeforeUpgrade.activity_version_id],
+        )
+      ).rows[0];
+      expect(historical).toEqual({
+        content_digest: legacyContentDigest,
+        blocks: null,
+        blocks_snapshot_present: false,
+      });
+      const projected = (
+        await pool.query(
+          `SELECT result_code,blocks FROM learning_activity_blocks_preview_as_author(
+          $1,$2,$3,'published',$4,NULL)`,
+          [
+            principalId,
+            teacher.tenantId,
+            legacy.activity_id,
+            publishedBeforeUpgrade.activity_version_id,
+          ],
+        )
+      ).rows[0];
+      expect(projected).toEqual({
+        result_code: 'ok',
+        blocks: [{ type: 'paragraph', text: 'Build the circuit' }],
+      });
     } finally {
       await pool?.end();
       if (databaseCreated) await owner.query('DROP DATABASE "' + name + '"');

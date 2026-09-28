@@ -20,6 +20,8 @@ type WorkRow = {
   title: string | null;
   brief: string | null;
   goal: string | null;
+  blocks: unknown[] | null;
+  blocksSnapshotPresent: boolean;
   moduleKey: string | null;
   sampleImage: string | null;
   dueAt: string | null;
@@ -66,6 +68,7 @@ export type LearningWorkContext =
         title: string;
         brief: string | null;
         goal: string | null;
+        blocks?: unknown[] | null | undefined;
         sampleImage: string | null;
         dueAt: string | null;
         status: 'open' | 'closed';
@@ -216,6 +219,7 @@ export async function learningWorkContextForProject(
       title: row.title,
       brief: row.brief,
       goal: row.goal,
+      blocks: row.blocksSnapshotPresent ? row.blocks : undefined,
       sampleImage,
       dueAt:
         projection.surface.effectiveDueAt === undefined

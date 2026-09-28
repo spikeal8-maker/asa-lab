@@ -2,6 +2,7 @@ import { AuthorVersionHistory } from '../components/AuthorVersionHistory';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AuthoredActivityDraft, type AuthoredActivityLearnerPreview } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
+import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
 
 async function readDraftImage(file: File): Promise<string> {
   const reader = new FileReader();
@@ -174,6 +175,7 @@ export function AuthoredMaterialsPage({
         // absence until the author edits the goal, so another field's save
         // still inherits the teacher goal when the version is published.
         ...('goal' in value ? { goal: value.goal } : {}),
+        ...('blocks' in value ? { blocks: value.blocks } : {}),
         instructions: value.instructions,
         resultMode: value.resultMode,
         maxPoints: value.maxPoints,
@@ -494,6 +496,11 @@ export function AuthoredMaterialsPage({
               onChange={(event) => setDraft({ ...draft, instructions: event.target.value })}
             />
           </label>
+          <AuthoredTaskBlocksEditor
+            blocks={draft.blocks}
+            disabled={busy}
+            onChange={(blocks) => setDraft({ ...draft, blocks })}
+          />
           <label>
             Среда проекта
             <select

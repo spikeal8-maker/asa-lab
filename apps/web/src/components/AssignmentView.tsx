@@ -1,6 +1,8 @@
 import { useEffect, useState, type JSX, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AssignmentGoal, BriefText } from './BriefText';
+import { TaskBlocks } from './TaskBlocks';
+import type { SafeTaskBlock } from '../api';
 import './assignment-view.css';
 
 /**
@@ -21,6 +23,7 @@ export interface AssignmentViewData {
   readonly title: string;
   readonly goal: string | null;
   readonly brief: string | null;
+  readonly blocks?: SafeTaskBlock[] | null | undefined;
   readonly sampleImage: string | null;
 }
 
@@ -78,7 +81,11 @@ export function AssignmentView({
       {sampleOnly ? null : (
         <div className="assignment-view-main">
           <AssignmentGoal goal={assignment.goal} />
-          {assignment.brief ? (
+          {assignment.blocks === null ? (
+            <p className="account-hint">Содержание откроется в назначенное время.</p>
+          ) : assignment.blocks !== undefined ? (
+            <TaskBlocks blocks={assignment.blocks} />
+          ) : assignment.brief ? (
             <BriefText text={assignment.brief} />
           ) : (
             <p className="account-hint">Преподаватель объяснит задание на уроке.</p>
