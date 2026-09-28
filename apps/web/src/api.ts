@@ -467,6 +467,7 @@ export interface CourseActivityOccurrence {
   snapshotRevision: number | null;
   updatedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  workOriginAmbiguous: boolean;
 }
 
 export interface SeatCourseRunLesson extends Omit<
