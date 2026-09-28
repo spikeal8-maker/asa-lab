@@ -558,8 +558,7 @@ function CourseEditor({
     return true;
   }
 
-  async function saveLesson(input: CourseLessonInput): Promise<void> {
-    const lessonId = selected?.lesson.id ?? null;
+  async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
     const result = await api.saveCourseLesson(course.id, lessonId, {
       ...input,
       expectedRevision: draftRevision,
@@ -986,7 +985,7 @@ function CourseEditor({
                   sectionId={newLessonSectionId}
                   lesson={null}
                   assignments={assignments}
-                  onSave={saveLesson}
+                  onSave={(input) => saveLesson(null, input)}
                   onDirty={markDirty}
                   onDelete={null}
                 />
@@ -997,7 +996,7 @@ function CourseEditor({
                   sectionId={selected.section.id}
                   lesson={selected.lesson}
                   assignments={assignments}
-                  onSave={saveLesson}
+                  onSave={(input) => saveLesson(selected.lesson.id, input)}
                   onDirty={markDirty}
                   onDelete={deleteLesson}
                 />
