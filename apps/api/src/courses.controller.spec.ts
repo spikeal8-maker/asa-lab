@@ -25,9 +25,11 @@ function controller(rows: unknown[] = [], activityBlocksAuthorized = true) {
         ? [{ ok: activityBlocksAuthorized }]
         : sql.includes('course_draft_lock')
           ? [{ ok: true }]
-          : sql.includes('course_library_list_v3($1) WHERE id=$2')
-            ? [{ archived_at: null }]
-            : rows,
+          : sql.includes('course_draft_revision($1,$2)')
+            ? [{ draft_revision: '3' }]
+            : sql.includes('course_library_list_v3($1) WHERE id=$2')
+              ? [{ archived_at: null }]
+              : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({
@@ -436,7 +438,14 @@ describe('course outline API', () => {
         estimatedMinutes: 25,
         expectedRevision: 1,
       }),
-    ).resolves.toEqual({ id: LESSON_ID });
+    ).resolves.toEqual({ id: LESSON_ID, draftRevision: 3 });
+    expect(target.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      'SELECT course_draft_lock($1,$2,$3) AS ok',
+      expect.stringContaining('course_lesson_save_v3'),
+      'SELECT course_draft_revision($1,$2) AS draft_revision',
+      'COMMIT',
+    ]);
     expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save'), [
       'principal-id',
       COURSE_ID,
@@ -449,6 +458,36 @@ describe('course outline API', () => {
       ASSIGNMENT_ID,
       25,
       null,
+    ]);
+  });
+
+  it('rolls back a lesson save when its revision receipt is missing', async () => {
+    const target = controller();
+    target.query.mockImplementation(async (sql) => ({
+      rows: sql.includes('course_draft_lock')
+        ? [{ ok: true }]
+        : sql.includes('course_lesson_save_v3')
+          ? [{ id: LESSON_ID }]
+          : [],
+    }));
+    await expect(
+      target.value.createLesson(request(), COURSE_ID, {
+        sectionId: SECTION_ID,
+        title: 'Материал',
+        summary: null,
+        content: 'Текст',
+        kind: 'material',
+        assignmentId: null,
+        estimatedMinutes: null,
+        expectedRevision: 1,
+      }),
+    ).rejects.toMatchObject({ status: 503 });
+    expect(target.query.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN',
+      'SELECT course_draft_lock($1,$2,$3) AS ok',
+      expect.stringContaining('course_lesson_save_v3'),
+      'SELECT course_draft_revision($1,$2) AS draft_revision',
+      'ROLLBACK',
     ]);
   });
 
@@ -500,7 +539,7 @@ describe('course outline API', () => {
         estimatedMinutes: 12,
         expectedRevision: 1,
       }),
-    ).resolves.toEqual({ id: LESSON_ID });
+    ).resolves.toEqual({ id: LESSON_ID, draftRevision: 3 });
     expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_lesson_save_v3'), [
       'principal-id',
       COURSE_ID,
@@ -644,7 +683,7 @@ describe('course outline API', () => {
         estimatedMinutes: 15,
         expectedRevision: 1,
       }),
-    ).resolves.toEqual({ id: LESSON_ID });
+    ).resolves.toEqual({ id: LESSON_ID, draftRevision: 3 });
 
     expect(target.query).toHaveBeenCalledWith(
       'SELECT course_activity_blocks_authorized($1,$2,$3::jsonb) AS ok',
