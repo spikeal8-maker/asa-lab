@@ -25,6 +25,7 @@ function occurrence(
     classroomAssignmentId,
     learningActivityVersionId: `version-${blockId}`,
     title: `Activity ${blockId}`,
+    goal: null,
     moduleKey,
     sampleImage: null,
     projectId,
@@ -100,6 +101,7 @@ describe('E1-FIX-11D5 Course Activity learner UI', () => {
     const target = {
       ...occurrence('block-b', 'assignment-b', 'three-d', null),
       sampleImage: '/api/class-join/course-activities/run-block-b/sample',
+      goal: 'Собрать цепь A',
     };
     const lesson = {
       activityOccurrences: [
@@ -118,6 +120,7 @@ describe('E1-FIX-11D5 Course Activity learner UI', () => {
       title: 'Activity block-b',
       moduleKey: 'three-d',
       sampleImage: target.sampleImage,
+      goal: 'Собрать цепь A',
       projectId: null,
       dueAt: '2026-09-30T18:00:00.000Z',
       status: 'open',

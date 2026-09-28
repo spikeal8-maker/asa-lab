@@ -115,45 +115,52 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
     },
   });
   expect(assignment.statusCode, assignment.body).toBe(201);
-  const authored = await inject(app, {
-    method: 'POST',
-    url: '/api/learning/activities',
-    headers: { cookie },
-    payload: {
-      requestId: crypto.randomUUID(),
-      kind: 'project',
-      title: 'Старое задание',
-      instructions: 'Соберите схему',
-      scope: 'personal',
-      visibility: 'private',
-      sourceTeacherAssignmentId: assignment.json().id,
-      resultMode: 'completion',
-      maxPoints: null,
-      moduleKey: 'electronics',
-      policies: {
-        attemptPolicy: { maxAttempts: 1 },
-        resultSelectionPolicy: { mode: 'latest' },
-        completionPolicy: { mode: 'submission' },
-        latePolicy: { mode: 'allow_mark_late' },
-        assessmentPolicy: { mode: 'manual' },
-        feedbackReleasePolicy: { mode: 'after_review' },
-      },
-    },
-  });
-  expect(authored.statusCode, authored.body).toBe(201);
-  const version = await inject(app, {
-    method: 'POST',
-    url: `/api/learning/activities/${authored.json().id}/publish`,
-    headers: { cookie },
-    payload: { expectedRevision: 1, requestId: crypto.randomUUID() },
-  });
-  expect(version.statusCode, version.body).toBe(201);
+  // Today's HTTP create path passes the post-0168 goal argument. This fixture
+  // deliberately runs schema 0103, so seed through its 15-argument SQL contract.
+  const teacherSource = (
+    await admin.query('SELECT tenant_id,owner_principal_id FROM teacher_assignments WHERE id=$1', [
+      assignment.json().id,
+    ])
+  ).rows[0];
+  expect(teacherSource).toBeTruthy();
+  const authored = (
+    await admin.query(
+      `SELECT * FROM learning_activity_create(
+        $1,$2,'personal','private','project','Старое задание','Соберите схему',
+        'completion',NULL,$3::jsonb,'electronics',NULL,NULL,$4,$5
+      )`,
+      [
+        teacherSource.owner_principal_id,
+        teacherSource.tenant_id,
+        JSON.stringify({
+          attemptPolicy: { maxAttempts: 1 },
+          resultSelectionPolicy: { mode: 'latest' },
+          completionPolicy: { mode: 'submission' },
+          latePolicy: { mode: 'allow_mark_late' },
+          assessmentPolicy: { mode: 'manual' },
+          feedbackReleasePolicy: { mode: 'after_review' },
+        }),
+        assignment.json().id,
+        `access:upgrade:activity:${unique}`,
+      ],
+    )
+  ).rows[0];
+  expect(authored.result_code).toBe('ok');
+  const version = (
+    await admin.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
+      teacherSource.owner_principal_id,
+      teacherSource.tenant_id,
+      authored.activity_id,
+      `access:upgrade:publish:${unique}`,
+    ])
+  ).rows[0];
+  expect(version.result_code).toBe('ok');
   const assigned = await inject(app, {
     method: 'POST',
     url: `/api/classrooms/${classId}/learning/activity-runs`,
     headers: { cookie },
     payload: {
-      activityVersionId: version.json().id,
+      activityVersionId: version.activity_version_id,
       audienceType: 'whole_class',
       seatIds: [],
       dueAt: null,

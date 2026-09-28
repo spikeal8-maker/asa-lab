@@ -54,6 +54,7 @@ function decodeDraftImage(raw: string): { bytes: Buffer; contentType: string } {
 type DraftInput = {
   kind: string;
   title: string;
+  goal: string | null | undefined;
   instructions: string | null;
   resultMode: string;
   maxPoints: number | null;
@@ -106,6 +107,7 @@ export class LearningActivitiesController {
     const keys = [
       ...(includeKind ? ['kind'] : []),
       'title',
+      'goal',
       'instructions',
       'resultMode',
       'maxPoints',
@@ -121,6 +123,7 @@ export class LearningActivitiesController {
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
     const kind = includeKind ? shape.body['kind'] : (shape.body['kind'] ?? '');
     const title = shape.body['title'];
+    const goal = shape.body['goal'];
     const instructions = shape.body['instructions'] ?? null;
     const resultMode = shape.body['resultMode'];
     const maxPoints = shape.body['maxPoints'] ?? null;
@@ -133,6 +136,9 @@ export class LearningActivitiesController {
       typeof title !== 'string' ||
       !title.trim() ||
       title.length > 255 ||
+      (goal !== undefined &&
+        goal !== null &&
+        (typeof goal !== 'string' || goal.trim().length > 160)) ||
       (instructions !== null &&
         (typeof instructions !== 'string' || instructions.length > 12000)) ||
       typeof resultMode !== 'string' ||
@@ -165,6 +171,7 @@ export class LearningActivitiesController {
     return {
       kind: String(kind),
       title: title.trim(),
+      goal: typeof goal === 'string' ? goal.trim() || null : goal,
       instructions,
       resultMode,
       maxPoints,
@@ -276,7 +283,7 @@ export class LearningActivitiesController {
     const result = await this.requirePool().query(
       `SELECT result_code, activity_id, draft_revision
          FROM learning_activity_create(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb
          )`,
       [
         context.principalId,
@@ -294,6 +301,7 @@ export class LearningActivitiesController {
         draft.starterProjectVersionId,
         sourceTeacherAssignmentId,
         requestId,
+        draft.goal === undefined ? null : JSON.stringify(draft.goal),
       ],
     );
     const row = result.rows[0];
@@ -316,6 +324,20 @@ export class LearningActivitiesController {
     );
     const row = result.rows[0];
     if (!row) throw this.resultError('activity_not_found');
+    const draftPayload = row['draft_payload'] as Record<string, unknown>;
+    let inheritedGoal: string | null = null;
+    if (!Object.prototype.hasOwnProperty.call(draftPayload, 'goal')) {
+      // The author-only preview resolves a legacy teacher source without
+      // changing the stored draft's omitted-goal semantics.
+      const resolved = await pool.query(
+        `SELECT result_code, goal
+           FROM learning_activity_preview_with_goal_as_author($1,$2,$3,'draft',NULL,$4)`,
+        [context.principalId, context.tenantId, activityId, Number(row['draft_revision'])],
+      );
+      if (resolved.rows[0]?.['result_code'] === 'ok') {
+        inheritedGoal = (resolved.rows[0]['goal'] as string | null) ?? null;
+      }
+    }
     const sample = await pool.query(
       `SELECT result_code, content_hash
          FROM learning_activity_draft_sample_meta($1,$2,$3,NULL)`,
@@ -338,7 +360,8 @@ export class LearningActivitiesController {
       ownerScope: String(row['owner_scope']),
       visibility: String(row['visibility_policy']),
       draftRevision: Number(row['draft_revision']),
-      draft: row['draft_payload'],
+      draft: draftPayload,
+      inheritedGoal,
       draftSampleImage:
         sampleCode === 'ok' && sampleRow?.['content_hash']
           ? this.draftSampleUrl(activityId, String(sampleRow['content_hash']))
@@ -507,8 +530,8 @@ export class LearningActivitiesController {
     const pool = this.requirePool();
     const result = await pool.query(
       `SELECT result_code,activity_id,source_kind,source_id,draft_revision,version_number,
-              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest
-         FROM learning_activity_preview_as_author($1,$2,$3,$4,$5,$6)`,
+              title,instructions,module_key,result_mode,max_points,policy_snapshot,content_digest,goal
+         FROM learning_activity_preview_with_goal_as_author($1,$2,$3,$4,$5,$6)`,
       [context.principalId, context.tenantId, activityId, source, versionId, draftRevision],
     );
     const row = result.rows[0];
@@ -580,7 +603,7 @@ export class LearningActivitiesController {
       },
       assignment: {
         title: String(row['title']),
-        goal: null,
+        goal: row['goal'] == null ? null : String(row['goal']),
         brief: row['instructions'] === null ? null : String(row['instructions']),
         sampleImage,
       },
@@ -612,7 +635,7 @@ export class LearningActivitiesController {
     const result = await this.requirePool().query(
       `SELECT result_code, draft_revision
          FROM learning_activity_draft_put(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12
+           $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13::jsonb
          )`,
       [
         context.principalId,
@@ -627,6 +650,7 @@ export class LearningActivitiesController {
         draft.moduleKey,
         draft.quizVersionId,
         draft.starterProjectVersionId,
+        draft.goal === undefined ? null : JSON.stringify(draft.goal),
       ],
     );
     const row = result.rows[0];
@@ -726,9 +750,9 @@ export class LearningActivitiesController {
     const context = await this.requireEducator(request);
     this.requireUuid(activityId, 'activity');
     const result = await this.requirePool().query(
-      `SELECT versions.*, preview.title, preview.instructions, preview.module_key
+      `SELECT versions.*, preview.title, preview.instructions, preview.module_key, preview.goal
          FROM learning_activity_version_list($1,$2,$3) versions
-         CROSS JOIN LATERAL learning_activity_preview_as_author($1,$2,$3,'published',versions.activity_version_id,NULL) preview`,
+         CROSS JOIN LATERAL learning_activity_preview_with_goal_as_author($1,$2,$3,'published',versions.activity_version_id,NULL) preview`,
       [context.principalId, context.tenantId, activityId],
     );
     return {
@@ -737,6 +761,7 @@ export class LearningActivitiesController {
         versionNumber: Number(row['version_number']),
         title: row['title'],
         instructions: row['instructions'],
+        goal: row['goal'] == null ? null : String(row['goal']),
         moduleKey: row['module_key'],
         kind: String(row['kind']),
         resultMode: String(row['result_mode']),

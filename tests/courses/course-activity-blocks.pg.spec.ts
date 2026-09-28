@@ -52,11 +52,12 @@ async function publishActivity(
   ownerPrincipalId: string,
   moduleKey: string,
   sample?: Buffer,
+  goal: string | null = null,
 ) {
   sequence += 1;
   const created = await inTenant(teacher, (client) =>
     client.query(
-      "SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'D2 activity','completion',NULL,$4::jsonb,$5,NULL,NULL,NULL,$6)",
+      "SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'D2 activity','completion',NULL,$4::jsonb,$5,NULL,NULL,NULL,$6,$7)",
       [
         ownerPrincipalId,
         teacher.tenantId,
@@ -64,6 +65,7 @@ async function publishActivity(
         JSON.stringify(policies),
         moduleKey,
         `d2:create:${sequence}`,
+        goal,
       ],
     ),
   );
@@ -601,8 +603,20 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
 
 describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
   it('projects exact block occurrences for seat and account without changing legacy lesson runtime', async () => {
-    const blockA = await publishActivity(author, principalId, 'electronics');
-    const blockB = await publishActivity(author, principalId, 'three-d');
+    const blockA = await publishActivity(
+      author,
+      principalId,
+      'electronics',
+      undefined,
+      'Собрать цепь A',
+    );
+    const blockB = await publishActivity(
+      author,
+      principalId,
+      'three-d',
+      undefined,
+      'Собрать модель B',
+    );
     const { courseId, sectionId } = await newCourse('D4b learner projection');
     const blocks = [
       { id: 'activity-a', type: 'activity', learningActivityVersionId: blockA.versionId },
@@ -676,12 +690,54 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         blockA.versionId,
         blockB.versionId,
       ]);
+      expect(rows.map((row) => row.goal)).toEqual(['Собрать цепь A', 'Собрать модель B']);
       expect(rows.map((row) => row.module_key)).toEqual(['electronics', 'three-d']);
       expect(rows.every((row) => row.project_id === null)).toBe(true);
     }
 
     const a = initialSeat.find((row) => row.block_id === 'activity-a');
     if (!a) throw new Error('activity A occurrence missing');
+    await admin.query(
+      `UPDATE activity_runs
+          SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day'))
+        WHERE id=$1`,
+      [a.activity_run_id],
+    );
+    expect((await readSeat()).find((row) => row.block_id === 'activity-a')?.goal).toBeNull();
+    expect((await readAccount()).find((row) => row.block_id === 'activity-a')?.goal).toBeNull();
+    await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+      a.activity_run_id,
+    ]);
+
+    const revised = await inTenant(author, (client) =>
+      client.query(
+        "SELECT * FROM learning_activity_draft_put($1,$2,$3,1,'D4b revised','D2 activity','completion',NULL,$4::jsonb,'electronics',NULL,NULL,$5)",
+        [
+          principalId,
+          author.tenantId,
+          blockA.activityId,
+          JSON.stringify(policies),
+          'Цель версии B',
+        ],
+      ),
+    );
+    expect(revised.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    const v2 = await inTenant(author, (client) =>
+      client.query('SELECT * FROM learning_activity_publish($1,$2,$3,2,$4)', [
+        principalId,
+        author.tenantId,
+        blockA.activityId,
+        `d4b:goal:v2:${++sequence}`,
+      ]),
+    );
+    expect(v2.rows[0].result_code).toBe('ok');
+    expect(v2.rows[0].activity_version_id).not.toBe(blockA.versionId);
+    expect((await readSeat()).find((row) => row.block_id === 'activity-a')?.goal).toBe(
+      'Собрать цепь A',
+    );
+    expect((await readAccount()).find((row) => row.block_id === 'activity-a')?.goal).toBe(
+      'Собрать цепь A',
+    );
     const projectId = (
       await admin.query(
         `INSERT INTO projects
@@ -720,7 +776,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       sourceKind: 'course',
       courseBlockId: 'activity-a',
       courseLessonId: a.lesson_id,
-      goal: null,
+      goal: 'Собрать цепь A',
       sampleImage: null,
     });
     expect(exactContext.rows[0].context.activityRunId).toBe(a.activity_run_id);
@@ -825,6 +881,20 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       courseBlockId: null,
       courseLessonId: legacyRuntimeLesson!.lesson_id,
     });
+
+    await admin.query("UPDATE classrooms SET status='archived',archived_at=now() WHERE id=$1", [
+      classroom,
+    ]);
+    for (const rows of [await readSeat(), await readAccount()]) {
+      expect(rows.find((row) => row.block_id === 'activity-a')).toMatchObject({
+        project_id: projectId,
+        goal: 'Собрать цепь A',
+      });
+      expect(rows.find((row) => row.block_id === 'activity-b')).toMatchObject({
+        project_id: null,
+        goal: null,
+      });
+    }
   });
 });
 

@@ -218,44 +218,49 @@ describe('UX1A2 immutable LearningActivityVersion sample', () => {
     expect(Buffer.compare(exact.rows[1].bytes as Buffer, imageB)).toBe(0);
 
     const digestProof = await admin.query(
-      `SELECT
-         learning_activity_snapshot_digest(jsonb_build_object(
-           'activityId',version.activity_id,
-           'versionNumber',version.version_number,
-           'kind',version.canonical_kind,
-           'title',version.title,
-           'instructions',version.instructions,
-           'resultMode',version.result_mode,
-           'maxPoints',version.max_points,
-           'policies',version.policy_snapshot,
-           'moduleKey',version.module_key,
-           'quizVersionId',version.quiz_version_id,
-           'starterProjectVersionId',version.starter_project_version_id,
-           'sample',jsonb_build_object('contentType',$2::varchar,'contentHash',$3::varchar),
-           'provenance',version.provenance
-         )) AS expected_a,
-         learning_activity_snapshot_digest(jsonb_build_object(
-           'activityId',version.activity_id,
-           'versionNumber',version.version_number,
-           'kind',version.canonical_kind,
-           'title',version.title,
-           'instructions',version.instructions,
-           'resultMode',version.result_mode,
-           'maxPoints',version.max_points,
-           'policies',version.policy_snapshot,
-           'moduleKey',version.module_key,
-           'quizVersionId',version.quiz_version_id,
-           'starterProjectVersionId',version.starter_project_version_id,
-           'sample',jsonb_build_object('contentType','image/webp','contentHash',$4::varchar),
-           'provenance',version.provenance
-         )) AS alternate_b,
-         version.content_digest
-         FROM learning_activity_versions version
-        WHERE version.id=$1`,
-      [v1.activity_version_id, 'image/png', hashA, hashB],
+      `WITH pinned AS (
+         SELECT version.id, version.content_digest, version.goal_snapshot_present,
+          jsonb_build_object(
+            'activityId',version.activity_id,
+            'versionNumber',version.version_number,
+            'kind',version.canonical_kind,
+            'title',version.title,
+            'instructions',version.instructions,
+            'goal',version.goal,
+            'resultMode',version.result_mode,
+            'maxPoints',version.max_points,
+            'policies',version.policy_snapshot,
+            'moduleKey',version.module_key,
+            'quizVersionId',version.quiz_version_id,
+            'starterProjectVersionId',version.starter_project_version_id,
+            'sample',jsonb_build_object('contentType',media.content_type,
+                                        'contentHash',media.content_hash),
+            'provenance',version.provenance
+          ) AS snapshot
+          FROM learning_activity_versions version
+          JOIN learning_activity_version_media media
+            ON media.tenant_id=version.tenant_id
+           AND media.activity_version_id=version.id AND media.role='sample'
+         WHERE version.id=ANY($1::uuid[])
+       )
+       SELECT id, content_digest, goal_snapshot_present,
+              learning_activity_snapshot_digest(snapshot) AS expected,
+              learning_activity_snapshot_digest(snapshot || jsonb_build_object(
+                'sample',jsonb_build_object('contentType','image/webp','contentHash',$2::varchar)
+              )) AS alternate_sample,
+              learning_activity_snapshot_digest(snapshot || jsonb_build_object(
+                'goal','Changed goal'
+              )) AS alternate_goal
+         FROM pinned ORDER BY id`,
+      [[v1.activity_version_id, v2.activity_version_id], 'f'.repeat(64)],
     );
-    expect(digestProof.rows[0].content_digest).toBe(digestProof.rows[0].expected_a);
-    expect(digestProof.rows[0].content_digest).not.toBe(digestProof.rows[0].alternate_b);
+    expect(digestProof.rows).toHaveLength(2);
+    for (const proof of digestProof.rows) {
+      expect(proof.goal_snapshot_present).toBe(true);
+      expect(proof.content_digest).toBe(proof.expected);
+      expect(proof.content_digest).not.toBe(proof.alternate_sample);
+      expect(proof.content_digest).not.toBe(proof.alternate_goal);
+    }
 
     await expect(
       admin.query(

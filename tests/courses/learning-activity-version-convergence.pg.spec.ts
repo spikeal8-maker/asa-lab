@@ -143,11 +143,531 @@ afterAll(async () => {
 });
 
 describe('LRN-M1-001 canonical activity/version convergence', () => {
+  it('pins a normalized goal for direct Seat and Account readers, previews and later edits', async () => {
+    const created = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Goal v1','Build it',
+          'completion',NULL,$3::jsonb,'electronics',NULL,NULL,NULL,$4,$5
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          `goal:create:${++createRequestSequence}`,
+          '  Understand the circuit  ',
+        ],
+      )
+    ).rows[0];
+    expect(created).toMatchObject({ result_code: 'ok', draft_revision: 1 });
+    const activityId = created.activity_id as string;
+    const retry = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Goal v1','Build it',
+          'completion',NULL,$3::jsonb,'electronics',NULL,NULL,NULL,$4,$5
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          `goal:create:${createRequestSequence}`,
+          '  Understand the circuit  ',
+        ],
+      )
+    ).rows[0];
+    expect(retry).toMatchObject({ result_code: 'ok', activity_id: activityId });
+    const conflict = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Goal v1','Build it',
+          'completion',NULL,$3::jsonb,'electronics',NULL,NULL,NULL,$4,$5
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          `goal:create:${createRequestSequence}`,
+          'Different goal',
+        ],
+      )
+    ).rows[0];
+    expect(conflict.result_code).toBe('idempotency_conflict');
+    const v1 = await publish(activityId, 1, `goal:publish:${++createRequestSequence}`);
+    expect(v1.result_code).toBe('ok');
+    const v1Row = (
+      await admin.query(
+        'SELECT goal,goal_snapshot_present,content_digest FROM learning_activity_versions WHERE id=$1',
+        [v1.activity_version_id],
+      )
+    ).rows[0];
+    expect(v1Row).toMatchObject({ goal: 'Understand the circuit', goal_snapshot_present: true });
+
+    const accountId = (
+      await admin.query('SELECT account_id FROM principals WHERE id=$1', [peerPrincipalId])
+    ).rows[0].account_id as string;
+    const goalSeatId = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+          (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+           safe_mode,status,created_by,account_id)
+         VALUES ($1,$2,'Goal learner',$3,$3,true,'active',$4,$5) RETURNING id`,
+        [
+          owner.tenantId,
+          classroomId,
+          `goal-learner-${++createRequestSequence}`,
+          owner.teacherId,
+          accountId,
+        ],
+      )
+    ).rows[0].id as string;
+    const delivered = (
+      await admin.query(
+        `SELECT * FROM learning_direct_assignment_create(
+          $1,$2,$3,$4,NULL,'whole_class','{}'::uuid[],$5
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          classroomId,
+          v1.activity_version_id,
+          `goal:direct:${++createRequestSequence}`,
+        ],
+      )
+    ).rows[0];
+    expect(delivered.result_code).toBe('ok');
+    const seatRead = (
+      await admin.query('SELECT goal FROM classroom_assignments_for_seat($1) WHERE id=$2', [
+        goalSeatId,
+        delivered.classroom_assignment_id,
+      ])
+    ).rows[0];
+    const accountRead = (
+      await admin.query('SELECT goal FROM classroom_assignments_for_account($1) WHERE id=$2', [
+        accountId,
+        delivered.classroom_assignment_id,
+      ])
+    ).rows[0];
+    expect(seatRead.goal).toBe('Understand the circuit');
+    expect(accountRead.goal).toBe('Understand the circuit');
+
+    const directScope = (
+      await admin.query(
+        `SELECT runtime.id AS run_id, participation.id AS participation_id
+           FROM activity_runs runtime
+           JOIN learner_identity_links link
+             ON link.tenant_id=runtime.tenant_id
+            AND link.school_id=runtime.school_id
+            AND link.seat_id=$2 AND link.status='active'
+           JOIN activity_participations participation
+             ON participation.activity_run_id=runtime.id
+            AND participation.learner_identity_id=link.learner_identity_id
+          WHERE runtime.source_classroom_assignment_id=$1
+            AND runtime.source_kind='direct'`,
+        [delivered.classroom_assignment_id, goalSeatId],
+      )
+    ).rows[0];
+    expect(directScope).toMatchObject({
+      run_id: expect.any(String),
+      participation_id: expect.any(String),
+    });
+    const directGoals = async () => {
+      const [seatGoal, accountGoal] = await Promise.all([
+        admin.query('SELECT goal FROM classroom_assignments_for_seat($1) WHERE id=$2', [
+          goalSeatId,
+          delivered.classroom_assignment_id,
+        ]),
+        admin.query('SELECT goal FROM classroom_assignments_for_account($1) WHERE id=$2', [
+          accountId,
+          delivered.classroom_assignment_id,
+        ]),
+      ]);
+      return [seatGoal.rows[0]?.goal, accountGoal.rows[0]?.goal];
+    };
+    await admin.query(
+      `UPDATE activity_runs
+          SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day'))
+        WHERE id=$1`,
+      [directScope.run_id],
+    );
+    expect(await directGoals()).toEqual([null, null]);
+    await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+      directScope.run_id,
+    ]);
+    await admin.query(
+      `UPDATE activity_participations
+          SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day'))
+        WHERE id=$1`,
+      [directScope.participation_id],
+    );
+    expect(await directGoals()).toEqual([null, null]);
+    await admin.query(
+      "UPDATE activity_participations SET operational_overrides='{}'::jsonb WHERE id=$1",
+      [directScope.participation_id],
+    );
+    expect(await directGoals()).toEqual(['Understand the circuit', 'Understand the circuit']);
+
+    const beforePreview = (
+      await admin.query(
+        `SELECT
+          (SELECT count(*)::int FROM activity_runs WHERE source_classroom_assignment_id=$1) AS runs,
+          (SELECT count(*)::int FROM learning_attempts WHERE classroom_assignment_id=$1) AS attempts,
+          (SELECT count(*)::int FROM classroom_assignment_work WHERE assignment_id=$1) AS work`,
+        [delivered.classroom_assignment_id],
+      )
+    ).rows[0];
+    const previewBefore = (
+      await admin.query(
+        `SELECT * FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'published',$4,NULL)`,
+        [ownerPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
+      )
+    ).rows[0];
+    expect(previewBefore).toMatchObject({ result_code: 'ok', goal: 'Understand the circuit' });
+    const malformed = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put(
+          $1,$2,$3,1,'Goal v1','Build it','completion',NULL,
+          $4::jsonb,'electronics',NULL,NULL,$5
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          activityId,
+          JSON.stringify(basePolicies),
+          'X'.repeat(161),
+        ],
+      )
+    ).rows[0];
+    expect(malformed.result_code).toBe('invalid_draft');
+    const revised = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put(
+          $1,$2,$3,1,'Goal v1','Build it','completion',NULL,
+          $4::jsonb,'electronics',NULL,NULL,$5
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          activityId,
+          JSON.stringify(basePolicies),
+          'Different v2 goal',
+        ],
+      )
+    ).rows[0];
+    expect(revised).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    const stale = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put(
+          $1,$2,$3,1,'Stale','Build it','completion',NULL,
+          $4::jsonb,'electronics',NULL,NULL,$5
+        )`,
+        [ownerPrincipalId, owner.tenantId, activityId, JSON.stringify(basePolicies), 'Stale goal'],
+      )
+    ).rows[0];
+    expect(stale.result_code).toBe('revision_conflict');
+    const stalePreview = (
+      await admin.query(
+        `SELECT * FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'draft',NULL,1)`,
+        [ownerPrincipalId, owner.tenantId, activityId],
+      )
+    ).rows[0];
+    expect(stalePreview.result_code).toBe('revision_conflict');
+    const draftPreview = (
+      await admin.query(
+        `SELECT * FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'draft',NULL,2)`,
+        [ownerPrincipalId, owner.tenantId, activityId],
+      )
+    ).rows[0];
+    expect(draftPreview).toMatchObject({ result_code: 'ok', goal: 'Different v2 goal' });
+    const foreignPreview = (
+      await admin.query(
+        `SELECT * FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'published',$4,NULL)`,
+        [outsiderPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
+      )
+    ).rows[0];
+    expect(foreignPreview.result_code).toBe('activity_not_found');
+    const v2 = await publish(activityId, 2, `goal:publish:${++createRequestSequence}`);
+    expect(v2.result_code).toBe('ok');
+    expect(v2.content_digest).not.toBe(v1.content_digest);
+    const exact = (
+      await admin.query(
+        'SELECT id,goal FROM learning_activity_versions WHERE id=ANY($1::uuid[]) ORDER BY version_number',
+        [[v1.activity_version_id, v2.activity_version_id]],
+      )
+    ).rows;
+    expect(exact).toEqual([
+      { id: v1.activity_version_id, goal: 'Understand the circuit' },
+      { id: v2.activity_version_id, goal: 'Different v2 goal' },
+    ]);
+    expect(
+      (
+        await admin.query('SELECT goal FROM classroom_assignments_for_seat($1) WHERE id=$2', [
+          goalSeatId,
+          delivered.classroom_assignment_id,
+        ])
+      ).rows[0].goal,
+    ).toBe('Understand the circuit');
+    const previewAfter = (
+      await admin.query(
+        `SELECT * FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'published',$4,NULL)`,
+        [ownerPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
+      )
+    ).rows[0];
+    expect(previewAfter.goal).toBe('Understand the circuit');
+    const afterPreview = (
+      await admin.query(
+        `SELECT
+          (SELECT count(*)::int FROM activity_runs WHERE source_classroom_assignment_id=$1) AS runs,
+          (SELECT count(*)::int FROM learning_attempts WHERE classroom_assignment_id=$1) AS attempts,
+          (SELECT count(*)::int FROM classroom_assignment_work WHERE assignment_id=$1) AS work`,
+        [delivered.classroom_assignment_id],
+      )
+    ).rows[0];
+    expect(afterPreview).toEqual(beforePreview);
+    const restored = (
+      await admin.query('SELECT * FROM learning_activity_draft_from_version($1,$2,$3,$4,2)', [
+        ownerPrincipalId,
+        owner.tenantId,
+        activityId,
+        v1.activity_version_id,
+      ])
+    ).rows[0];
+    expect(restored).toMatchObject({ result_code: 'ok', draft_revision: 3 });
+    const restoredDraft = (
+      await admin.query('SELECT draft_payload FROM learning_activities WHERE id=$1', [activityId])
+    ).rows[0].draft_payload;
+    expect(restoredDraft.goal).toBe('Understand the circuit');
+    await admin.query(
+      `UPDATE activity_participations
+          SET status='withdrawn', withdrawn_at=now(),
+              withdrawn_by_principal_id=$2, withdrawal_source='teacher_command'
+        WHERE id=$1`,
+      [directScope.participation_id, ownerPrincipalId],
+    );
+    expect(await directGoals()).toEqual([null, null]);
+  });
+
+  it('preserves legacy create receipts and teacher goal inheritance when goal is omitted', async () => {
+    async function source(title: string, goal: string) {
+      const result = await admin.query(
+        `INSERT INTO teacher_assignments
+           (tenant_id,owner_principal_id,title,brief,goal,module_key,visibility)
+         VALUES ($1,$2,$3,'Build a circuit',$4,'electronics','private') RETURNING id`,
+        [owner.tenantId, ownerPrincipalId, title, goal],
+      );
+      return result.rows[0].id as string;
+    }
+
+    const oldSource = await source('Legacy source', 'Legacy inherited goal');
+    const requestId = `goal:legacy:${++createRequestSequence}`;
+    const legacy = await createActivity({
+      kind: 'project',
+      title: 'Legacy request',
+      resultMode: 'graded',
+      maxPoints: 20,
+      moduleKey: 'electronics',
+      sourceTeacherAssignmentId: oldSource,
+      requestId,
+    });
+    expect(legacy.result_code).toBe('ok');
+    const retry = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Legacy request','Legacy request instructions',
+          'graded',20,$3::jsonb,'electronics',NULL,NULL,$4,$5,$6::jsonb
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          oldSource,
+          requestId,
+          null,
+        ],
+      )
+    ).rows[0];
+    expect(retry).toMatchObject({ result_code: 'ok', activity_id: legacy.activity_id });
+    const sourceRetry = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Legacy request','Legacy request instructions',
+          'graded',20,$3::jsonb,'electronics',NULL,NULL,$4,$5,$6::jsonb
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          oldSource,
+          `goal:legacy:source:${++createRequestSequence}`,
+          null,
+        ],
+      )
+    ).rows[0];
+    expect(sourceRetry).toMatchObject({ result_code: 'ok', activity_id: legacy.activity_id });
+    const revised = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put(
+          $1,$2,$3,1,'Edited legacy','Edited instructions','graded',20,
+          $4::jsonb,'electronics',NULL,NULL,$5::jsonb
+        )`,
+        [ownerPrincipalId, owner.tenantId, legacy.activity_id, JSON.stringify(basePolicies), null],
+      )
+    ).rows[0];
+    expect(revised).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    const legacyDraft = (
+      await admin.query('SELECT draft_payload FROM learning_activities WHERE id=$1', [
+        legacy.activity_id,
+      ])
+    ).rows[0].draft_payload as Record<string, unknown>;
+    expect(legacyDraft).not.toHaveProperty('goal');
+    const inheritedPreview = (
+      await admin.query(
+        `SELECT result_code,goal FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'draft',NULL,2
+        )`,
+        [ownerPrincipalId, owner.tenantId, legacy.activity_id],
+      )
+    ).rows[0];
+    expect(inheritedPreview).toMatchObject({ result_code: 'ok', goal: 'Legacy inherited goal' });
+    const legacyVersion = await publish(
+      legacy.activity_id,
+      2,
+      `goal:legacy:publish:${++createRequestSequence}`,
+    );
+    expect(legacyVersion.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT goal FROM learning_activity_versions WHERE id=$1', [
+          legacyVersion.activity_version_id,
+        ])
+      ).rows[0].goal,
+    ).toBe('Legacy inherited goal');
+    const clearedLegacyEdit = (
+      await admin.query(
+        `SELECT * FROM learning_activity_draft_put(
+          $1,$2,$3,2,'Edited legacy','Edited instructions','graded',20,
+          $4::jsonb,'electronics',NULL,NULL,$5::jsonb
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          legacy.activity_id,
+          JSON.stringify(basePolicies),
+          'null',
+        ],
+      )
+    ).rows[0];
+    expect(clearedLegacyEdit).toMatchObject({ result_code: 'ok', draft_revision: 3 });
+    const clearedPreview = (
+      await admin.query(
+        `SELECT result_code,goal FROM learning_activity_preview_with_goal_as_author(
+          $1,$2,$3,'draft',NULL,3
+        )`,
+        [ownerPrincipalId, owner.tenantId, legacy.activity_id],
+      )
+    ).rows[0];
+    expect(clearedPreview).toMatchObject({ result_code: 'ok', goal: null });
+    const clearedLegacyVersion = await publish(
+      legacy.activity_id,
+      3,
+      `goal:legacy:cleared:${++createRequestSequence}`,
+    );
+    expect(clearedLegacyVersion.result_code).toBe('ok');
+    const legacyGoals = (
+      await admin.query(
+        'SELECT goal FROM learning_activity_versions WHERE activity_id=$1 ORDER BY version_number',
+        [legacy.activity_id],
+      )
+    ).rows.map((row) => row.goal);
+    expect(legacyGoals).toEqual(['Legacy inherited goal', null]);
+
+    const newSource = await source('New source', 'New inherited goal');
+    const newCreate = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','New request','New instructions',
+          'graded',20,$3::jsonb,'electronics',NULL,NULL,$4,$5,$6::jsonb
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          newSource,
+          `goal:new:${++createRequestSequence}`,
+          null,
+        ],
+      )
+    ).rows[0];
+    expect(newCreate.result_code).toBe('ok');
+    const newDraft = (
+      await admin.query('SELECT draft_payload FROM learning_activities WHERE id=$1', [
+        newCreate.activity_id,
+      ])
+    ).rows[0].draft_payload as Record<string, unknown>;
+    expect(newDraft).not.toHaveProperty('goal');
+    const newVersion = await publish(
+      newCreate.activity_id,
+      1,
+      `goal:new:publish:${++createRequestSequence}`,
+    );
+    expect(newVersion.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT goal FROM learning_activity_versions WHERE id=$1', [
+          newVersion.activity_version_id,
+        ])
+      ).rows[0].goal,
+    ).toBe('New inherited goal');
+
+    const clearSource = await source('Clear source', 'Should not inherit');
+    const cleared = (
+      await admin.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Clear request','Clear instructions',
+          'graded',20,$3::jsonb,'electronics',NULL,NULL,$4,$5,$6::jsonb
+        )`,
+        [
+          ownerPrincipalId,
+          owner.tenantId,
+          JSON.stringify(basePolicies),
+          clearSource,
+          `goal:clear:${++createRequestSequence}`,
+          'null',
+        ],
+      )
+    ).rows[0];
+    expect(cleared.result_code).toBe('ok');
+    const clearedDraft = (
+      await admin.query('SELECT draft_payload FROM learning_activities WHERE id=$1', [
+        cleared.activity_id,
+      ])
+    ).rows[0].draft_payload as Record<string, unknown>;
+    expect(clearedDraft).toHaveProperty('goal', null);
+    const clearedVersion = await publish(
+      cleared.activity_id,
+      1,
+      `goal:clear:publish:${++createRequestSequence}`,
+    );
+    expect(clearedVersion.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT goal FROM learning_activity_versions WHERE id=$1', [
+          clearedVersion.activity_version_id,
+        ])
+      ).rows[0].goal,
+    ).toBeNull();
+  });
+
   it('publishes project v1/v2 immutably while direct runtime references remain on v1', async () => {
     const task = await admin.query(
       `INSERT INTO teacher_assignments
-         (tenant_id,owner_principal_id,title,brief,module_key,visibility)
-       VALUES ($1,$2,'Project v1','Build the first circuit','electronics','private')
+         (tenant_id,owner_principal_id,title,brief,goal,module_key,visibility)
+       VALUES ($1,$2,'Project v1','Build the first circuit','Legacy teacher goal','electronics','private')
        RETURNING id`,
       [owner.tenantId, ownerPrincipalId],
     );
@@ -168,6 +688,14 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     expect(created).toMatchObject({ result_code: 'ok', draft_revision: 1 });
     const v1 = await publish(created.activity_id!, 1, 'project:publish:v1');
     expect(v1).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
+    expect(
+      (
+        await admin.query(
+          'SELECT goal,goal_snapshot_present FROM learning_activity_versions WHERE id=$1',
+          [v1.activity_version_id],
+        )
+      ).rows[0],
+    ).toMatchObject({ goal: 'Legacy teacher goal', goal_snapshot_present: true });
 
     await admin.query(
       `INSERT INTO classroom_activity_versions
@@ -191,7 +719,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     );
 
     await admin.query(
-      `UPDATE teacher_assignments SET title='Project v2',brief='Build and explain'
+      `UPDATE teacher_assignments SET title='Project v2',brief='Build and explain',goal='Changed teacher goal'
         WHERE id=$1`,
       [task.rows[0].id],
     );
@@ -226,6 +754,13 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       }),
     ]);
     expect(versions.rows[0].content_digest).not.toBe(versions.rows[1].content_digest);
+    expect(
+      (
+        await admin.query('SELECT goal FROM learning_activity_versions WHERE id=$1', [
+          v1.activity_version_id,
+        ])
+      ).rows[0].goal,
+    ).toBe('Legacy teacher goal');
     const oldRefs = await admin.query(
       `SELECT mapping.learning_activity_version_id,attempt.learning_activity_version_id,
               submission.id AS submission_id

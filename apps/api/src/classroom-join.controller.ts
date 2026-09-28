@@ -145,6 +145,7 @@ interface CourseActivityOccurrenceRow {
   classroom_assignment_id: string;
   learning_activity_version_id: string;
   title: string;
+  goal: string | null;
   module_key: string;
   sample_image: string | null;
   project_id: string | null;
@@ -159,6 +160,7 @@ interface CourseActivityOccurrenceView {
   classroomAssignmentId: string;
   learningActivityVersionId: string;
   title: string;
+  goal: string | null;
   moduleKey: string;
   sampleImage: string | null;
   projectId: string | null;
@@ -214,6 +216,7 @@ function courseActivityOccurrenceMap(
       classroomAssignmentId: row.classroom_assignment_id,
       learningActivityVersionId: row.learning_activity_version_id,
       title: row.title,
+      goal: row.goal ?? null,
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
       projectId: row.project_id,

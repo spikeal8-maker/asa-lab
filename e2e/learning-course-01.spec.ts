@@ -512,11 +512,13 @@ async function createPublishedProjectActivityAfterLogin(
   module = 'electronics',
   resultMode = 'completion',
   sampleImage?: Buffer,
+  goal?: string,
 ): Promise<void> {
   await page.goto('/#/challenges');
   const newMaterial = page.getByRole('button', { name: 'Новый материал', exact: true });
   if (await newMaterial.isVisible()) await newMaterial.click();
   await page.getByLabel('Название материала', { exact: true }).fill(title);
+  if (goal) await page.getByLabel('Цель задания', { exact: true }).fill(goal);
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
@@ -531,8 +533,16 @@ async function createPublishedProjectActivityAfterLogin(
   }
   await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  if (goal) {
+    await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
+    await expect(page.getByTestId('learner-preview')).toContainText(goal);
+  }
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
+  if (goal) {
+    await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+    await expect(page.getByTestId('learner-preview')).toContainText(goal);
+  }
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
 }
 
@@ -1663,6 +1673,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const courseTitle = `D5 Activity blocks ${suffix}`;
   const electronicsSample = readFileSync('apps/web/public/landing/electronics-simulation.png');
   const threeDSample = readFileSync('apps/web/public/landing/assignment-progress.png');
+  const electronicsGoal = 'Собрать и проверить цепь';
+  const threeDGoal = 'Построить объёмную модель';
 
   const d5Teacher = await seedTeacher(admin, 'learning-course01-d5');
   await loginWithOrganization(page, d5Teacher);
@@ -1672,6 +1684,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     'electronics',
     'completion',
     electronicsSample,
+    electronicsGoal,
   );
   await createPublishedProjectActivityAfterLogin(
     page,
@@ -1679,6 +1692,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     'three-d',
     'completion',
     threeDSample,
+    threeDGoal,
   );
 
   await page.getByRole('button', { name: 'Курсы', exact: true }).click();
@@ -1754,6 +1768,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
           classroomAssignmentId: string;
           learningActivityVersionId: string;
           title: string;
+          goal: string | null;
           sampleImage: string | null;
           projectId: string | null;
           canonicalState: { workflowState: string } | null;
@@ -1771,7 +1786,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   }
 
   let courseRunId: string | null = null;
-  async function openCourse(): Promise<D5CourseRunRead> {
+  async function openCourse(
+    options: { reloadAfterExternalChange?: boolean } = {},
+  ): Promise<D5CourseRunRead> {
     const response = await learner.page.request.get('/api/class-join/me/course-runs');
     expect(response.ok()).toBe(true);
     const payload = (await response.json()) as { items: D5CourseRunRead[] };
@@ -1780,7 +1797,20 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     const run = matchingRuns[0]!;
     if (courseRunId === null) courseRunId = run.id;
     expect(run.id).toBe(courseRunId);
-    await learner.page.goto('/#/learning?courseRun=' + encodeURIComponent(courseRunId));
+    if (options.reloadAfterExternalChange) {
+      // An admin SQL update does not notify the mounted player. Reload the
+      // document so SeatCourses fetches the current occurrence projection.
+      const refreshed = learner.page.waitForResponse(
+        (response) =>
+          response.url().includes('/api/class-join/me/course-runs') &&
+          response.request().method() === 'GET' &&
+          response.ok(),
+      );
+      await learner.page.reload();
+      await refreshed;
+    } else {
+      await learner.page.goto('/#/learning?courseRun=' + encodeURIComponent(courseRunId));
+    }
     await expect(learner.page.getByTestId('seat-course-player')).toBeVisible();
     return run;
   }
@@ -1800,11 +1830,15 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   let threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
   await expect(electronicsCard).toContainText('Electronics');
   await expect(electronicsCard).toContainText('Не начато');
+  await expect(electronicsCard).toContainText(electronicsGoal);
   await expect(threeDCard).toContainText('3D');
   await expect(threeDCard).toContainText('Не начато');
+  await expect(threeDCard).toContainText(threeDGoal);
   const beforeStart = await openCourse();
   const electronicsOccurrence = occurrenceFromCourseRun(beforeStart, electronicsTitle);
   const threeDOccurrence = occurrenceFromCourseRun(beforeStart, threeDTitle);
+  expect(electronicsOccurrence.goal).toBe(electronicsGoal);
+  expect(threeDOccurrence.goal).toBe(threeDGoal);
   expect(electronicsOccurrence.sampleImage).toBe(
     `/api/class-join/course-activities/${electronicsOccurrence.activityRunId}/sample`,
   );
@@ -1828,11 +1862,18 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   );
   const earlySample = await learner.page.request.get(electronicsOccurrence.sampleImage!);
   expect(earlySample.status()).toBe(404);
+  const earlyRun = await openCourse({ reloadAfterExternalChange: true });
+  expect(occurrenceFromCourseRun(earlyRun, electronicsTitle).goal).toBeNull();
+  await expect(
+    player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle }),
+  ).not.toContainText(electronicsGoal);
   await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
     electronicsOccurrence.activityRunId,
   ]);
+  await openCourse({ reloadAfterExternalChange: true });
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
   threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(electronicsCard).toContainText(electronicsGoal);
   await expect(
     electronicsCard.getByRole('img', { name: `Образец: ${electronicsTitle}` }),
   ).toBeVisible();
@@ -1850,6 +1891,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     const sample = electronicsCard.getByRole('img', { name: `Образец: ${electronicsTitle}` });
     const start = electronicsCard.getByRole('button', { name: 'Начать', exact: true });
     await expect(sample).toBeVisible();
+    await expect(electronicsCard).toContainText(electronicsGoal);
     await start.scrollIntoViewIfNeeded();
     await expect(start).toBeInViewport();
     await expect(start).toBeEnabled();
@@ -1894,7 +1936,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
       classroomAssignmentId: firstOccurrence.classroomAssignmentId,
       learningActivityVersionId: firstOccurrence.learningActivityVersionId,
     },
-    task: { title: electronicsTitle },
+    task: { title: electronicsTitle, goal: electronicsGoal },
   });
   expect(firstContext.task.sampleImage).toBe(electronicsOccurrence.sampleImage);
   const a1EvidenceDir = 'e2e/artifacts/learning/work-context-a1';

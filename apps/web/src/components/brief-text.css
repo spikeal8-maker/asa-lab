@@ -62,6 +62,11 @@
   font-weight: 800;
 }
 
+.assignment-goal > span:last-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 /* Картинка внутри задания. Шаг, который показывают, а не описывают. */
 .brief-figure {
   margin: 12px 0;

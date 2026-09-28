@@ -49,6 +49,41 @@ function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
 }
 
 describe('canonical learning activity API', () => {
+  it('returns an inherited legacy goal to the author without adding a draft goal key', async () => {
+    const api = target();
+    api.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            activity_id: ACTIVITY_ID,
+            tenant_id: TENANT_ID,
+            title: 'Legacy task',
+            kind: 'project',
+            owner_scope: 'personal',
+            visibility_policy: 'private',
+            draft_revision: 2,
+            draft_payload: { title: 'Legacy task' },
+            current_published_version_id: null,
+            archived_at: null,
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ result_code: 'ok', goal: 'Teacher goal' }] })
+      .mockResolvedValueOnce({ rows: [{ result_code: 'sample_not_found' }] });
+    await expect(api.value.get(request(), ACTIVITY_ID)).resolves.toMatchObject({
+      draft: { title: 'Legacy task' },
+      inheritedGoal: 'Teacher goal',
+    });
+    expect(api.query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('learning_activity_preview_with_goal_as_author'),
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 2],
+    );
+    const outsider = target({ educator: false });
+    await expect(outsider.value.get(request(), ACTIVITY_ID)).rejects.toMatchObject({ status: 403 });
+    expect(outsider.query).not.toHaveBeenCalled();
+  });
+
   it('draft-from-version uses authenticated scope and exact selected version, and reports existing drafts', async () => {
     const api = target({ rows: [{ result_code: 'draft_exists', draft_revision: 4 }] });
     await expect(
@@ -125,6 +160,113 @@ describe('canonical learning activity API', () => {
       expect.stringContaining('learning_activity_create'),
       expect.arrayContaining([resultMode, null]),
     );
+  });
+
+  it('normalizes and forwards the authored goal, rejects malformed text before SQL', async () => {
+    const api = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+    });
+    await api.value.create(request(), {
+      kind: 'project',
+      requestId: 'create:goal:0001',
+      title: 'Circuit',
+      goal: '  Understand the circuit  ',
+      resultMode: 'completion',
+      policies,
+      moduleKey: 'electronics',
+    });
+    expect(api.query).toHaveBeenCalledWith(
+      expect.stringContaining('$16::jsonb'),
+      expect.arrayContaining([JSON.stringify('Understand the circuit')]),
+    );
+    const invalid = target();
+    for (const goal of ['X'.repeat(161), 9, { text: 'injected' }]) {
+      await expect(
+        invalid.value.create(request(), {
+          kind: 'project',
+          requestId: 'create:goal:0002',
+          title: 'Circuit',
+          goal,
+          resultMode: 'completion',
+          policies,
+          moduleKey: 'electronics',
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(invalid.query).not.toHaveBeenCalled();
+  });
+
+  it('keeps omitted goal distinct from an explicit clear in create and edit', async () => {
+    const api = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 2 }],
+    });
+    const base = {
+      kind: 'project',
+      requestId: 'create:goal:0003',
+      title: 'Circuit',
+      resultMode: 'completion',
+      policies,
+      moduleKey: 'electronics',
+      sourceTeacherAssignmentId: ACTIVITY_ID,
+    };
+    await api.value.create(request(), base);
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBeNull();
+    await api.value.create(request(), { ...base, goal: null });
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBe('null');
+
+    const edit = {
+      title: base.title,
+      resultMode: base.resultMode,
+      policies: base.policies,
+      moduleKey: base.moduleKey,
+      expectedRevision: 1,
+    };
+    await api.value.putDraft(request(), ACTIVITY_ID, edit);
+    expect(api.query.mock.calls.at(-1)?.[0]).toContain('$13::jsonb');
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBeNull();
+    await api.value.putDraft(request(), ACTIVITY_ID, { ...edit, goal: null });
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBe('null');
+  });
+
+  it('returns an exact published goal in read-only learner preview', async () => {
+    const api = target();
+    api.query
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            result_code: 'ok',
+            activity_id: ACTIVITY_ID,
+            source_kind: 'published',
+            source_id: VERSION_ID,
+            draft_revision: 1,
+            version_number: 1,
+            title: 'Circuit',
+            instructions: 'Build it',
+            module_key: 'electronics',
+            result_mode: 'completion',
+            max_points: null,
+            policy_snapshot: policies,
+            content_digest: 'a'.repeat(64),
+            goal: 'Understand the circuit',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ result_code: 'sample_not_found' }] });
+    const result = await api.value.previewAsLearner(
+      request(),
+      ACTIVITY_ID,
+      'published',
+      undefined,
+      VERSION_ID,
+    );
+    expect(result.assignment).toMatchObject({
+      goal: 'Understand the circuit',
+      brief: 'Build it',
+    });
+    expect(result.learnerRuntime).toBe(false);
+    expect(
+      api.query.mock.calls.every(([sql]) => String(sql).trimStart().startsWith('SELECT')),
+    ).toBe(true);
   });
 
   it('rejects a learner/non-educator before authoring SQL', async () => {
