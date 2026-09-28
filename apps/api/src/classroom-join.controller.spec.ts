@@ -277,6 +277,9 @@ describe('immutable classroom submissions', () => {
       if (sql.includes('learning_direct_assignment_seat_visible')) {
         return { rows: [{ visible: true }] };
       }
+      if (sql.includes('learning_course_activity_assignment_is_shared')) {
+        return { rows: [{ shared: false }] };
+      }
       if (sql.includes('principal_for_seat')) {
         return { rows: [{ principal_id: 'learner-principal-id' }] };
       }
@@ -352,6 +355,9 @@ describe('immutable classroom submissions', () => {
       }
       if (sql.includes('learning_direct_assignment_seat_visible')) {
         return { rows: [{ visible: true }] };
+      }
+      if (sql.includes('learning_course_activity_assignment_is_shared')) {
+        return { rows: [{ shared: false }] };
       }
       return {
         rows: [
@@ -467,6 +473,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         submitted_at: null,
         snapshot_revision: 7,
         work_updated_at: '2026-09-20T22:00:00.000Z',
+        shared_assignment: false,
       },
       {
         seat_id: seatId,
@@ -482,6 +489,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         submitted_at: null,
         snapshot_revision: null,
         work_updated_at: null,
+        shared_assignment: false,
       },
     ];
     const evidenceBase = {
@@ -576,6 +584,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         moduleKey: 'electronics',
         projectId: projectA,
         snapshotRevision: 7,
+        workOriginAmbiguous: false,
         canonicalState: {
           activityRunId: activityRunA,
           workflowState: 'in_progress',
@@ -588,11 +597,92 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         learningActivityVersionId: versionB,
         moduleKey: 'three-d',
         projectId: null,
+        workOriginAmbiguous: false,
         canonicalState: {
           activityRunId: activityRunB,
           workflowState: 'not_started',
         },
       });
     }
+
+    // The same legacy handout can back two exact runs. It proves neither
+    // occurrence owns its assignment-level project or canonical work state.
+    occurrenceRows[1]!.classroom_assignment_id = assignmentA;
+    occurrenceRows[1]!.project_id = projectA;
+    occurrenceRows[1]!.snapshot_revision = 7;
+    Object.assign(occurrenceRows[0]!, { shared_assignment: true });
+    Object.assign(occurrenceRows[1]!, { shared_assignment: true });
+    evidenceRows[1]!.classroomAssignmentId = assignmentA;
+    const [sharedAccountRead, sharedSeatRead] = await Promise.all([
+      controller.accountCourseRuns(accountRequest),
+      controller.courseRuns(seatRequest()),
+    ]);
+    for (const payload of [sharedAccountRead, sharedSeatRead]) {
+      const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(occurrences).toHaveLength(2);
+      expect(occurrences?.map((item) => item.workOriginAmbiguous)).toEqual([true, true]);
+      expect(
+        occurrences?.every(
+          (item) =>
+            item.projectId === null &&
+            item.submittedAt === null &&
+            item.snapshotRevision === null &&
+            item.updatedAt === null &&
+            item.canonicalState === null,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it('rejects legacy shared Course Activity start and submit before either mutation', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000001';
+    const projectId = '57000000-0000-4000-8000-000000000001';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) {
+        return {
+          rows: [
+            {
+              seat_id: 'seat-id',
+              classroom_id: 'classroom-id',
+              classroom_title: '7А',
+              display_label: 'Learner',
+              teacher_display_name: 'Teacher',
+              safe_mode: true,
+              avatar_key: null,
+              expires_at: '2026-09-21T00:00:00.000Z',
+            },
+          ],
+        };
+      }
+      if (sql.includes('principal_for_seat')) {
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      }
+      if (sql.includes('learning_direct_assignment_seat_visible')) {
+        return { rows: [{ visible: true }] };
+      }
+      if (sql.includes('learning_course_activity_assignment_is_shared')) {
+        return { rows: [{ shared: true }] };
+      }
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId }),
+    ).rejects.toMatchObject({ status: 409 });
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        clientRequestId: 'shared:submit:001',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
+    ).toBe(false);
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_submission_create')),
+    ).toBe(false);
   });
 });
