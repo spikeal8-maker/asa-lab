@@ -256,6 +256,7 @@ test('learner sees ordered safe task blocks in direct assignment and project she
   await expect(detail.locator('script')).toHaveCount(0);
   const order = await detail.locator(':scope > *').allTextContents();
   expect(order).toEqual([
+    'Соберите рабочую электрическую цепь.',
     heading,
     paragraph,
     'Подключите источникПроверьте резистор',
@@ -273,6 +274,9 @@ test('learner sees ordered safe task blocks in direct assignment and project she
   await expect(anchor).toBeVisible({ timeout: 60_000 });
   await anchor.click();
   const shell = learner.page.getByTestId('assignment-brief').getByTestId('task-blocks');
+  await expect(
+    shell.getByText('Соберите рабочую электрическую цепь.', { exact: true }),
+  ).toBeVisible();
   await expect(shell.getByRole('heading', { name: heading })).toBeVisible();
   await expect(shell.getByText(paragraph, { exact: true })).toBeVisible();
   failures.assertEmpty();
