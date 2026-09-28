@@ -12,15 +12,24 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
     [busy, setBusy] = useState(false),
     [loaded, setLoaded] = useState(false);
   const request = useRef<{ payload: string; id: string } | null>(null);
+  const latestLoad = useRef(0),
+    editRevision = useRef(0);
   const load = useCallback(async () => {
+    const loadId = ++latestLoad.current;
+    const revisionAtStart = editRevision.current;
     const r = await api.classroomGradingScheme(classroomId);
+    if (loadId !== latestLoad.current || revisionAtStart !== editRevision.current) return;
     if (r.ok) {
       setTitle(r.data.title ?? '');
       setVersion(r.data.version);
-      if (r.data.bands.length)
-        setBands(
-          r.data.bands.map((b) => ({ min: String(b.minBasisPoints / 100), label: b.label })),
-        );
+      setBands(
+        r.data.bands.length
+          ? r.data.bands.map((b) => ({ min: String(b.minBasisPoints / 100), label: b.label }))
+          : [
+              { min: '0', label: '' },
+              { min: '', label: '' },
+            ],
+      );
       setLoaded(true);
       setError(null);
     } else setError(r.error.message);
@@ -28,6 +37,9 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
   useEffect(() => {
     void load();
   }, [load]);
+  function editDraft() {
+    editRevision.current += 1;
+  }
   const valid =
     title.trim() &&
     bands.every(
@@ -42,6 +54,7 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
     new Set(bands.map((b) => Number(b.min))).size === bands.length;
   async function publish() {
     if (!valid || busy) return;
+    latestLoad.current += 1;
     const values = bands.map((b) => ({
       minBasisPoints: Math.round(Number(b.min) * 100),
       label: b.label.trim(),
@@ -82,7 +95,10 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
               maxLength={120}
               value={title}
               disabled={busy}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                editDraft();
+                setTitle(e.target.value);
+              }}
             />
           </label>
           {bands.map((band, index) => (
@@ -97,9 +113,12 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
                   step="0.01"
                   value={band.min}
                   disabled={busy}
-                  onChange={(e) =>
-                    setBands(bands.map((b, i) => (i === index ? { ...b, min: e.target.value } : b)))
-                  }
+                  onChange={(e) => {
+                    editDraft();
+                    setBands(
+                      bands.map((b, i) => (i === index ? { ...b, min: e.target.value } : b)),
+                    );
+                  }}
                 />
               </label>
               <label>
@@ -109,17 +128,21 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
                   maxLength={24}
                   value={band.label}
                   disabled={busy}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    editDraft();
                     setBands(
                       bands.map((b, i) => (i === index ? { ...b, label: e.target.value } : b)),
-                    )
-                  }
+                    );
+                  }}
                 />
               </label>
               {bands.length > 2 ? (
                 <button
                   disabled={busy}
-                  onClick={() => setBands(bands.filter((_, i) => i !== index))}
+                  onClick={() => {
+                    editDraft();
+                    setBands(bands.filter((_, i) => i !== index));
+                  }}
                 >
                   Удалить диапазон {index + 1}
                 </button>
@@ -133,7 +156,10 @@ export function ClassroomGradingScheme({ classroomId }: { classroomId: string })
           <div className="learning-notification-actions">
             <button
               disabled={busy || bands.length >= 10}
-              onClick={() => setBands([...bands, { min: '', label: '' }])}
+              onClick={() => {
+                editDraft();
+                setBands([...bands, { min: '', label: '' }]);
+              }}
             >
               Добавить диапазон
             </button>
