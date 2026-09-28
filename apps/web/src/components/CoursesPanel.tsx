@@ -581,9 +581,13 @@ function CourseEditor({
 
   async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
     const savingGeneration = editGeneration.current;
-    if (revisionRefreshRef.current) {
-      await revisionRefreshRef.current;
-      revisionRefreshRef.current = null;
+    const pendingRefresh = revisionRefreshRef.current;
+    if (pendingRefresh) {
+      try {
+        await pendingRefresh;
+      } finally {
+        if (revisionRefreshRef.current === pendingRefresh) revisionRefreshRef.current = null;
+      }
     }
     const expectedRevision = draftRevisionRef.current;
     const result = await api.saveCourseLesson(course.id, lessonId, {
@@ -626,7 +630,11 @@ function CourseEditor({
     }
     const refresh = loadOutline(true);
     revisionRefreshRef.current = refresh;
-    if (await refresh) revisionRefreshRef.current = null;
+    try {
+      await refresh;
+    } finally {
+      if (revisionRefreshRef.current === refresh) revisionRefreshRef.current = null;
+    }
     onChanged();
   }
 

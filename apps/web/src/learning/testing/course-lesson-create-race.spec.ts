@@ -582,3 +582,118 @@ it('does not adopt a concurrent revision while preserving edits made after save'
   expect(savedLesson.title).toBe('Changed remotely');
   expect(container.textContent).toContain('Remote conflict');
 });
+
+it.each(['failed', 'stale'] as const)(
+  'unblocks structure changes and publication after a %s saved lesson outline refresh',
+  async (refreshResult) => {
+    let revision = 1;
+    let savedLesson = testLesson('Original');
+    const sections = [testSection('section-1', [savedLesson])];
+    const outline = () => ({ sections: [...sections], draftRevision: revision });
+    vi.spyOn(api, 'listCourses').mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      data: { items: [{ ...course, draftRevision: revision, lessonCount: 1 }] },
+    }));
+    vi.spyOn(api, 'courseOutline')
+      .mockImplementationOnce(async () => ({ ok: true, status: 200, data: outline() }))
+      .mockResolvedValueOnce(
+        refreshResult === 'failed'
+          ? {
+              ok: false,
+              status: 503,
+              error: { code: 'unavailable', message: 'Outline temporarily unavailable' },
+            }
+          : { ok: true, status: 200, data: { sections: [...sections], draftRevision: 1 } },
+      )
+      .mockImplementation(async () => ({ ok: true, status: 200, data: outline() }));
+    vi.spyOn(api, 'authorVersions').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'saveCourseLesson').mockImplementation(async (_courseId, lessonId, input) => {
+      expect(lessonId).toBe('lesson-1');
+      expect(input.expectedRevision).toBe(1);
+      savedLesson = { ...savedLesson, title: input.title };
+      sections[0] = testSection('section-1', [savedLesson]);
+      revision = 2;
+      return { ok: true, status: 200, data: { id: 'lesson-1', draftRevision: revision } };
+    });
+    const saveSection = vi
+      .spyOn(api, 'saveCourseSection')
+      .mockImplementation(async (_, id, input) => {
+        expect(id).toBeNull();
+        expect(input.expectedRevision).toBe(2);
+        sections.push(testSection('section-2', []));
+        revision = 3;
+        return { ok: true, status: 200, data: { id: 'section-2' } };
+      });
+    const publish = vi.spyOn(api, 'publishCourse').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        versionId: 'version-1',
+        versionNumber: 1,
+        publishedAt: '2026-01-01T00:00:00.000Z',
+        reused: false,
+      },
+    });
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(CoursesPanel, { assignments: [], canTeach: true, onChanged: vi.fn() }),
+      );
+      await flush();
+    });
+    await act(async () =>
+      container
+        ?.querySelector<HTMLButtonElement>('[data-testid="courses-list"] .course-row-main')
+        ?.click(),
+    );
+    const title = container.querySelector<HTMLInputElement>(
+      '.course-lesson-editor input[maxlength="160"]',
+    );
+    expect(title?.value).toBe('Original');
+    await act(async () => setInput(title!, 'Saved lesson'));
+    await act(async () => {
+      container
+        ?.querySelector('.course-lesson-editor')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flush();
+    });
+    if (refreshResult === 'failed') {
+      expect(container.textContent).toContain('Outline temporarily unavailable');
+    }
+    expect(title?.value).toBe('Saved lesson');
+
+    await act(async () =>
+      container?.querySelector<HTMLButtonElement>('button[aria-label="Добавить раздел"]')?.click(),
+    );
+    const sectionTitle = container.querySelector<HTMLInputElement>('.course-form-dialog input');
+    await act(async () => setInput(sectionTitle!, 'Second section'));
+    await act(async () => {
+      container
+        ?.querySelector('.course-form-dialog')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flush();
+    });
+    expect(saveSection).toHaveBeenCalledTimes(1);
+    expect(container.querySelectorAll('.course-outline-section')).toHaveLength(2);
+    expect(container.textContent).not.toContain('Дождитесь обновления содержания курса');
+
+    await act(async () => {
+      button(container!, 'Опубликовать').click();
+      await flush();
+    });
+    expect(publish).toHaveBeenCalledWith('course-1', 3, 'course-publish:course-1:3');
+  },
+);
