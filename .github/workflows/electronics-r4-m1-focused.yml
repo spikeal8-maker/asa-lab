@@ -3,6 +3,9 @@ name: Electronics R4-M1 Focused
 on:
   pull_request:
     paths:
+      - 'compose.test.yaml'
+      - 'apps/api/src/origin-policy.ts'
+      - 'apps/api/src/app.factory.ts'
       - 'AGENTS.md'
       - 'contexts/electronics/**'
       - 'apps/web/src/electronics/**'

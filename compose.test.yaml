@@ -19,8 +19,10 @@ services:
 
   api:
     environment:
+      NODE_ENV: test
       ASA_WEB_PORT: 4612
       APP_DATABASE_URL: postgres://asalab_app:asa-local-test-runtime-change-me@postgres:5432/asalab_test
+      ASA_ISOLATED_TEST_WEB_ORIGIN: http://web:8080
 
   web:
     ports: !override

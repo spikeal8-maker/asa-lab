@@ -101,11 +101,37 @@ export function resolveAdditionalWebOrigins(raw: string | undefined): readonly s
   return [...new Set(origins)];
 }
 
+/** The isolated Compose browser runner enters through Web's service name. */
+export function resolveIsolatedTestWebOrigin(
+  raw: string | undefined,
+  nodeEnv: string | undefined,
+  databaseUrl: string | undefined,
+): string | null {
+  if (raw === undefined) return null;
+  if (raw !== 'http://web:8080' || nodeEnv !== 'test') {
+    throw new Error('ASA_ISOLATED_TEST_WEB_ORIGIN is allowed only for the isolated test stack');
+  }
+  try {
+    const database = new URL(databaseUrl ?? '');
+    if (
+      !['postgres:', 'postgresql:'].includes(database.protocol) ||
+      database.hostname !== 'postgres' ||
+      database.pathname !== '/asalab_test'
+    ) {
+      throw new Error('not the isolated test database');
+    }
+  } catch {
+    throw new Error('ASA_ISOLATED_TEST_WEB_ORIGIN requires the isolated test database');
+  }
+  return raw;
+}
+
 /**
  * Browser mutation policy for the Teacher Portal.
  *
- * Browser requests carrying Origin are accepted only from the canonical Vite
- * origin or from the API's configured local built SPA endpoint. We deliberately do not
+ * Browser requests carrying Origin are accepted only from explicitly configured
+ * Web entries: the canonical local origin, local built SPA endpoint, public HTTPS
+ * origins, or the guarded isolated CI Web service origin. We deliberately do not
  * trust an arbitrary localhost/127.0.0.1 port: another local project (notably
  * the owner's service on 5173) must not become a trusted origin accidentally.
  *
