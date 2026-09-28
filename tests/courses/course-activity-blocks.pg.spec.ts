@@ -780,8 +780,47 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
           ),
         )
       ).rows;
+    const readSharedWork = async (asAccount: boolean) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            `SELECT block_id,project_id,submitted_at,snapshot_revision,work_updated_at,
+                    learning_course_activity_assignment_is_shared(classroom_assignment_id) AS shared_assignment
+               FROM ${
+                 asAccount
+                   ? 'classroom_course_activity_occurrences_for_account($1)'
+                   : 'classroom_course_activity_occurrences_for_seat($1)'
+               }
+              WHERE seat_id=$2 AND classroom_assignment_id=$3 ORDER BY block_id`,
+            [asAccount ? accountId : seat, seat, occurrence.classroom_assignment_id],
+          ),
+        )
+      ).rows;
+    const expectUnattributedWork = async () => {
+      for (const asAccount of [false, true]) {
+        expect(await readSharedWork(asAccount)).toEqual([
+          {
+            block_id: 'sibling-a',
+            project_id: null,
+            submitted_at: null,
+            snapshot_revision: null,
+            work_updated_at: null,
+            shared_assignment: true,
+          },
+          {
+            block_id: 'sibling-b',
+            project_id: null,
+            submitted_at: null,
+            snapshot_revision: null,
+            work_updated_at: null,
+            shared_assignment: true,
+          },
+        ]);
+      }
+    };
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: pinnedB });
+    await expectUnattributedWork();
     for (const asAccount of [false, true]) {
       expect(await readGoals(asAccount)).toEqual([
         { block_id: 'sibling-a', goal: 'Only sibling A goal' },
@@ -872,6 +911,12 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
        VALUES($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
       [author.tenantId, projectId, principalId],
     );
+    await admin.query(
+      `INSERT INTO project_snapshots
+         (tenant_id,project_id,image,content_type,width,height,source_revision,captured_by_principal_id)
+       VALUES($1,$2,$3,'image/png',16,16,1,$4)`,
+      [author.tenantId, projectId, Buffer.alloc(64), principalId],
+    );
     expect(
       (
         await inTenant(author, (client) =>
@@ -883,6 +928,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         )
       ).rows[0].project_id,
     ).toBe(projectId);
+    await expectUnattributedWork();
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: null });
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
     for (const asAccount of [false, true]) {
@@ -916,6 +962,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
       sibling.activity_run_id,
     ]);
+    await expectUnattributedWork();
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: pinnedB });
     for (const asAccount of [false, true]) {
       expect(await readGoals(asAccount)).toEqual([
@@ -946,6 +993,11 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         { block_id: 'sibling-b', goal: null },
       ]);
     }
+    await admin.query(
+      'UPDATE classroom_assignment_work SET submitted_at=now() WHERE assignment_id=$1 AND seat_id=$2',
+      [occurrence.classroom_assignment_id, seat],
+    );
+    await expectUnattributedWork();
   });
 
   it('projects exact block occurrences for seat and account without changing legacy lesson runtime', async () => {
@@ -1145,6 +1197,15 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         learning_activity_version_id: blockA.versionId,
         module_key: 'electronics',
       });
+      expect(
+        (
+          await inTenant(author, (client) =>
+            client.query('SELECT learning_course_activity_assignment_is_shared($1) AS shared', [
+              a.classroom_assignment_id,
+            ]),
+          )
+        ).rows[0].shared,
+      ).toBe(false);
       expect(projectedA?.work_updated_at).toBeTruthy();
       expect(projectedB).toMatchObject({
         project_id: null,

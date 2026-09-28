@@ -1,4 +1,4 @@
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
@@ -1908,6 +1908,67 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     });
   }
   await learner.page.setViewportSize({ width: 1440, height: 900 });
+
+  // Exercise the browser contract for a legacy handout shared by two exact
+  // ActivityRuns. The PG regression verifies the SQL projection; here the
+  // intercepted read checks the 320px learner surface and action boundary.
+  const sharedWorkHandler = async (route: Route) => {
+    const response = await route.fetch();
+    const payload = (await response.json()) as { items: D5CourseRunRead[] };
+    const run = payload.items.find((item) => item.id === courseRunId);
+    for (const occurrence of run?.sections
+      .flatMap((section) => section.lessons)
+      .flatMap((lesson) => lesson.activityOccurrences) ?? []) {
+      Object.assign(occurrence, {
+        classroomAssignmentId: electronicsOccurrence.classroomAssignmentId,
+        projectId: '57000000-0000-4000-8000-000000000001',
+        canonicalState: { workflowState: 'in_progress' },
+        workOriginAmbiguous: true,
+      });
+    }
+    await route.fulfill({ response, json: payload });
+  };
+  await learner.page.route('**/api/class-join/me/course-runs', sharedWorkHandler);
+  await learner.page.setViewportSize({ width: 320, height: 568 });
+  await openCourse({ reloadAfterExternalChange: true });
+  for (const title of [electronicsTitle, threeDTitle]) {
+    const activity = player.locator('.lesson-activity-block').filter({ hasText: title });
+    await expect(activity).toContainText('Работа пока недоступна');
+    await expect(activity.getByRole('status')).toContainText('после привязки работы');
+    await expect(activity.getByRole('button', { name: /Начать|Открыть работу|Сдать/ })).toHaveCount(
+      0,
+    );
+  }
+  const sharedLayout = await learner.page.evaluate(() => ({
+    viewport: window.innerWidth,
+    documentWidth: document.documentElement.scrollWidth,
+    bodyWidth: document.body.scrollWidth,
+  }));
+  expect(sharedLayout.documentWidth, JSON.stringify(sharedLayout)).toBeLessThanOrEqual(
+    sharedLayout.viewport + 1,
+  );
+  expect(sharedLayout.bodyWidth, JSON.stringify(sharedLayout)).toBeLessThanOrEqual(
+    sharedLayout.viewport + 1,
+  );
+  // Keep the narrow layout assertion at 320×568, then frame the whole
+  // unavailable activity in one 320px-wide evidence viewport.
+  await learner.page.setViewportSize({ width: 320, height: 844 });
+  const sharedActivity = player
+    .locator('.lesson-activity-block')
+    .filter({ hasText: electronicsTitle });
+  await sharedActivity.scrollIntoViewIfNeeded();
+  const sharedHeading = sharedActivity.locator('.seat-course-activity-main');
+  const sharedExplanation = sharedActivity.getByRole('status');
+  await expect(sharedHeading).toBeInViewport({ ratio: 1 });
+  await expect(sharedExplanation).toBeInViewport({ ratio: 1 });
+  expect((await sharedHeading.boundingBox())?.y).toBeGreaterThanOrEqual(56);
+  await learner.page.screenshot({
+    path: `${a2aEvidenceDir}/shared-work-unavailable-320.png`,
+    fullPage: false,
+  });
+  await learner.page.unroute('**/api/class-join/me/course-runs', sharedWorkHandler);
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
+  await openCourse({ reloadAfterExternalChange: true });
 
   await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
   const electronicsEvidence = await editCourseActivityProject(learner.page, 'electronics');

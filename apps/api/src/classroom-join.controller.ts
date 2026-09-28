@@ -154,6 +154,7 @@ interface CourseActivityOccurrenceRow {
   submitted_at: Date | string | null;
   snapshot_revision: number | string | null;
   work_updated_at: Date | string | null;
+  shared_assignment: boolean;
 }
 
 interface CourseActivityOccurrenceView {
@@ -171,6 +172,7 @@ interface CourseActivityOccurrenceView {
   snapshotRevision: number | null;
   updatedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  workOriginAmbiguous: boolean;
 }
 
 interface QuizForSeatRow {
@@ -213,6 +215,8 @@ function courseActivityOccurrenceMap(
   for (const row of rows) {
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
+    const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
+    const workOriginAmbiguous = row.shared_assignment === true;
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
@@ -224,11 +228,20 @@ function courseActivityOccurrenceMap(
       moduleKey: row.module_key,
       sampleImage:
         row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-      projectId: row.project_id,
-      submittedAt: row.submitted_at === null ? null : isoDate(row.submitted_at),
-      snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-      updatedAt: row.work_updated_at === null ? null : isoDate(row.work_updated_at),
-      canonicalState: canonicalFor(projections, row.classroom_assignment_id, row.seat_id),
+      projectId: workOriginAmbiguous ? null : row.project_id,
+      submittedAt:
+        workOriginAmbiguous || row.submitted_at === null ? null : isoDate(row.submitted_at),
+      snapshotRevision:
+        workOriginAmbiguous || row.snapshot_revision === null
+          ? null
+          : Number(row.snapshot_revision),
+      updatedAt:
+        workOriginAmbiguous || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      canonicalState:
+        !workOriginAmbiguous && canonicalState?.activityRunId === row.activity_run_id
+          ? canonicalState
+          : null,
+      workOriginAmbiguous,
     });
     result.set(key, values);
   }
@@ -1101,6 +1114,7 @@ export class ClassroomJoinController {
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
+                learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL
@@ -1246,6 +1260,7 @@ export class ClassroomJoinController {
       this.canonical().forSeat(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
+                learning_course_activity_assignment_is_shared(occurrence.classroom_assignment_id) AS shared_assignment,
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
@@ -1423,6 +1438,19 @@ export class ClassroomJoinController {
     }
   }
 
+  private async requireExactCourseWorkOrigin(assignmentId: string): Promise<void> {
+    const result = await this.requirePool().query(
+      `SELECT learning_course_activity_assignment_is_shared($1) AS shared`,
+      [assignmentId],
+    );
+    if ((result.rows[0] as { shared?: boolean } | undefined)?.shared !== false) {
+      throw new HttpException(
+        error('course_work_origin_ambiguous', 'Работа для этой практики пока недоступна.'),
+        409,
+      );
+    }
+  }
+
   /** Submit one immutable quiz attempt and return only the released feedback. */
   @Post('me/quizzes/:assignmentId/submit')
   @HttpCode(200)
@@ -1522,6 +1550,7 @@ export class ClassroomJoinController {
     const learner = await this.learnerForAssignment(request, assignmentId);
     const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
+    await this.requireExactCourseWorkOrigin(assignmentId);
     const canonical = await this.requirePool().query(
       `SELECT result_code, participation_id, attempt_id, attempt_number,
               attempt_state, project_id, reused
@@ -1650,6 +1679,7 @@ export class ClassroomJoinController {
     const learner = await this.learnerForAssignment(request, assignmentId);
     const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
+    await this.requireExactCourseWorkOrigin(assignmentId);
     const requestId = clientRequestId ?? randomUUID();
     const canonical = await this.requirePool().query(
       `SELECT result_code, participation_id, attempt_id, submission_id,

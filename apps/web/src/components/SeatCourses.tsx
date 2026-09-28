@@ -308,13 +308,14 @@ export function SeatCourses({
                 }
                 const activityAssignment = courseActivityAssignmentShape(openRun, occurrence);
                 const busyKey = `activity:${occurrence.classroomAssignmentId}`;
-                const activityStatus =
-                  canonicalLearningLabel(activityAssignment.canonicalState) ??
-                  (activityAssignment.submittedAt
-                    ? 'Сдано'
-                    : activityAssignment.projectId
-                      ? 'В работе'
-                      : 'Не начато');
+                const activityStatus = occurrence.workOriginAmbiguous
+                  ? 'Работа пока недоступна'
+                  : (canonicalLearningLabel(activityAssignment.canonicalState) ??
+                    (activityAssignment.submittedAt
+                      ? 'Сдано'
+                      : activityAssignment.projectId
+                        ? 'В работе'
+                        : 'Не начато'));
                 return (
                   <div
                     className="seat-course-activity"
@@ -338,7 +339,12 @@ export function SeatCourses({
                       <AssignmentView assignment={activityAssignment} compact sampleOnly />
                     ) : null}
                     <div className="seat-course-activity-actions">
-                      {activityAssignment.projectId ? (
+                      {occurrence.workOriginAmbiguous ? (
+                        <p className="account-hint" role="status">
+                          Эта практика использует общее задание с другой практикой. Открытие и сдача
+                          работы станут доступны после привязки работы к конкретной практике.
+                        </p>
+                      ) : activityAssignment.projectId ? (
                         <>
                           <button
                             type="button"
