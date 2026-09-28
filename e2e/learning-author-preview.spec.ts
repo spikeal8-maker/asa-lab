@@ -112,6 +112,9 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
   await page.getByLabel('Название материала', { exact: true }).fill('Task blocks v1');
+  await page
+    .getByLabel('Содержание', { exact: true })
+    .fill('Read the legacy task instructions first.');
   await page.getByRole('button', { name: '+ Заголовок' }).click();
   await page.getByLabel('Текст блока 1').fill('Read the circuit');
   await page.getByRole('button', { name: '+ Абзац' }).click();
@@ -128,7 +131,12 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
   const preview = page.getByTestId('learner-preview');
   const blocks = preview.getByTestId('task-blocks');
+  await expect(blocks).toContainText('Read the legacy task instructions first.');
   await expect(blocks).toContainText('Connect the lamp first.');
+  const visibleText = await blocks.innerText();
+  expect(visibleText.indexOf('Read the legacy task instructions first.')).toBeLessThan(
+    visibleText.indexOf('Read the circuit'),
+  );
   await expect(blocks.getByRole('link', { name: 'Read reference' })).toHaveAttribute(
     'rel',
     'noopener noreferrer',
@@ -145,6 +153,7 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
   await expect(blocks).toContainText('Connect the lamp first.');
+  await expect(blocks).toContainText('Read the legacy task instructions first.');
   await expect(blocks).not.toContainText('Future draft paragraph.');
 });
 

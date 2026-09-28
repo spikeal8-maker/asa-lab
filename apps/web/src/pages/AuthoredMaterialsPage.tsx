@@ -498,6 +498,7 @@ export function AuthoredMaterialsPage({
           </label>
           <AuthoredTaskBlocksEditor
             blocks={draft.blocks}
+            instructions={draft.instructions}
             disabled={busy}
             onChange={(blocks) => setDraft({ ...draft, blocks })}
           />

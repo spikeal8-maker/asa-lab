@@ -909,6 +909,7 @@ describe('A2c exact Course Activity task blocks', () => {
       { type: 'list', items: ['Measure', 'Explain'] },
       { type: 'link', text: 'Read more', href: 'https://example.org/course' },
     ];
+    const visibleBlocksV1 = [{ type: 'paragraph', text: 'D2 activity' }, ...blocksV1];
     const activity = await publishActivity(
       author,
       principalId,
@@ -962,7 +963,7 @@ describe('A2c exact Course Activity task blocks', () => {
           ]),
         )
       ).rows[0].value as { present: boolean; blocks: unknown[] | null };
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     const accountOccurrence = (
       await inTenant(author, (client) =>
         client.query('SELECT * FROM classroom_course_activity_occurrences_for_account($1)', [
@@ -971,7 +972,7 @@ describe('A2c exact Course Activity task blocks', () => {
       )
     ).rows[0];
     expect(accountOccurrence.seat_id).toBe(seat);
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     await admin.query(
       `UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day')) WHERE id=$1`,
       [occurrence.activity_run_id],
@@ -980,7 +981,7 @@ describe('A2c exact Course Activity task blocks', () => {
     await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
       occurrence.activity_run_id,
     ]);
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     const revised = (
       await inTenant(author, (client) =>
         client.query(
@@ -1009,7 +1010,7 @@ describe('A2c exact Course Activity task blocks', () => {
         )
       ).rows[0].result_code,
     ).toBe('ok');
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     const participation = (
       await admin.query(
         `SELECT participation.id FROM activity_participations participation

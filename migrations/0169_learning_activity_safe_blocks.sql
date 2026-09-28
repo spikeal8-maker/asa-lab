@@ -51,14 +51,15 @@ ALTER TABLE public.learning_activities
     ADD CONSTRAINT learning_activities_creation_blocks_check
     CHECK (creation_blocks_snapshot IS NULL OR public.learning_safe_task_blocks_valid(creation_blocks_snapshot));
 
--- Safe legacy projection exists only at read time. It never changes a
--- historical version or the historical content digest.
+-- Drafts keep the older Contents field separate from author blocks. At
+-- publication and draft preview it becomes the first visible paragraph.
+-- Historical versions still use this only as a read-time projection.
 CREATE FUNCTION public.learning_activity_task_blocks(p_blocks jsonb, p_instructions varchar)
 RETURNS jsonb LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
-    SELECT CASE WHEN p_blocks IS NOT NULL THEN p_blocks
-                WHEN NULLIF(p_instructions,'') IS NOT NULL
-                    THEN jsonb_build_array(jsonb_build_object('type','paragraph','text',p_instructions))
-                ELSE '[]'::jsonb END;
+    SELECT CASE WHEN length(trim(COALESCE(p_instructions,''))) > 0
+                THEN jsonb_build_array(jsonb_build_object('type','paragraph','text',p_instructions))
+                     || COALESCE(p_blocks,'[]'::jsonb)
+                ELSE COALESCE(p_blocks,'[]'::jsonb) END;
 $$;
 
 -- Legacy draft writes preserve authored blocks when other fields change.
@@ -122,6 +123,13 @@ BEGIN
     IF v_activity.draft_payload ? 'blocks' THEN
         v_normalized.draft_payload := v_normalized.draft_payload ||
             jsonb_build_object('blocks', v_activity.draft_payload -> 'blocks');
+    END IF;
+    IF NOT public.learning_safe_task_blocks_valid(public.learning_activity_task_blocks(
+        v_normalized.draft_payload -> 'blocks',
+        NULLIF(v_normalized.draft_payload ->> 'instructions','')::varchar
+    )) THEN
+        RETURN QUERY SELECT 'invalid_draft'::varchar, NULL::integer;
+        RETURN;
     END IF;
     UPDATE public.learning_activities activity
        SET title = v_normalized.draft_payload ->> 'title',
@@ -267,10 +275,9 @@ BEGIN
         )
     END;
 
-    v_blocks := CASE WHEN v_activity.draft_payload ? 'blocks'
-        THEN v_activity.draft_payload -> 'blocks'
-        ELSE public.learning_activity_task_blocks(NULL, NULLIF(v_activity.draft_payload ->> 'instructions','')::varchar)
-    END;
+    v_blocks := public.learning_activity_task_blocks(
+        v_activity.draft_payload -> 'blocks',
+        NULLIF(v_activity.draft_payload ->> 'instructions','')::varchar);
     IF NOT public.learning_safe_task_blocks_valid(v_blocks) THEN
         RETURN QUERY SELECT 'invalid_draft'::varchar, NULL::uuid, NULL::integer, NULL::varchar, false;
         RETURN;
@@ -375,7 +382,11 @@ BEGIN
      'goal',CASE WHEN v.goal_snapshot_present THEN v.goal ELSE NULL END,
      'resultMode',v.result_mode,'maxPoints',v.max_points,'policies',v.policy_snapshot,'moduleKey',v.module_key,
      'quizVersionId',v.quiz_version_id,'starterProjectVersionId',v.starter_project_version_id,
-     'blocks', public.learning_activity_task_blocks(v.blocks, v.instructions))
+     'blocks', CASE WHEN v.blocks_snapshot_present THEN
+         CASE WHEN v.instructions IS NOT NULL AND jsonb_array_length(v.blocks)>0
+                    AND v.blocks -> 0 = jsonb_build_object('type','paragraph','text',v.instructions)
+              THEN v.blocks - 0 ELSE v.blocks END
+         ELSE '[]'::jsonb END)
  WHERE id=a.id;
  RETURN QUERY SELECT 'ok'::varchar,a.draft_revision+1,v.version_number;
 END;
@@ -513,7 +524,11 @@ RETURNS TABLE (result_code varchar, draft_revision integer)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_result record;
 BEGIN
-    IF p_blocks IS NOT NULL AND NOT public.learning_safe_task_blocks_valid(p_blocks) THEN
+    IF p_blocks IS NOT NULL AND (
+        NOT public.learning_safe_task_blocks_valid(p_blocks) OR
+        NOT public.learning_safe_task_blocks_valid(
+            public.learning_activity_task_blocks(p_blocks,p_instructions))
+    ) THEN
         RETURN QUERY SELECT 'invalid_draft'::varchar, NULL::integer; RETURN;
     END IF;
     PERFORM pg_advisory_xact_lock(hashtextextended(p_activity_id::text, 9001));
@@ -546,7 +561,11 @@ RETURNS TABLE (result_code varchar,activity_id uuid,draft_revision integer)
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_existing uuid; v_result record; v_stored jsonb;
 BEGIN
-    IF p_blocks IS NOT NULL AND NOT public.learning_safe_task_blocks_valid(p_blocks) THEN
+    IF p_blocks IS NOT NULL AND (
+        NOT public.learning_safe_task_blocks_valid(p_blocks) OR
+        NOT public.learning_safe_task_blocks_valid(
+            public.learning_activity_task_blocks(p_blocks,p_instructions))
+    ) THEN
         RETURN QUERY SELECT 'invalid_draft'::varchar,NULL::uuid,NULL::integer; RETURN;
     END IF;
     IF p_request_id IS NULL OR p_request_id !~ '^[A-Za-z0-9._:-]{8,128}$' THEN
@@ -617,7 +636,8 @@ BEGIN
             NULLIF(v_payload ->> 'instructions','')::varchar); RETURN;
     END IF;
     RETURN QUERY SELECT 'ok'::varchar,
-      public.learning_activity_task_blocks(version.blocks,version.instructions)
+      CASE WHEN version.blocks_snapshot_present THEN version.blocks
+           ELSE public.learning_activity_task_blocks(NULL,version.instructions) END
       FROM public.learning_activity_versions version
       WHERE version.id=p_version AND version.activity_id=p_activity AND version.tenant_id=p_tenant;
 END;
@@ -654,7 +674,8 @@ RETURNS jsonb LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog,
              AND COALESCE((public.learning_effective_conditions_internal(
                  runtime.id,participation.id)#>>'{values,opensAt}')::timestamptz,
                  '-infinity'::timestamptz) <= now()
-        ) THEN public.learning_activity_task_blocks(version.blocks,version.instructions)
+        ) THEN CASE WHEN version.blocks_snapshot_present THEN version.blocks
+                    ELSE public.learning_activity_task_blocks(NULL,version.instructions) END
           ELSE NULL END)
       ELSE NULL END
     FROM public.classroom_student_seats seat

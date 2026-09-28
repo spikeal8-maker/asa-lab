@@ -786,6 +786,8 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       { type: 'link', text: 'Reference', href: 'https://example.org/reference' },
     ];
     const blocksV2 = [{ type: 'paragraph', text: 'Future draft only' }];
+    const visibleBlocksV1 = [{ type: 'paragraph', text: 'Legacy instructions' }, ...blocksV1];
+    const visibleBlocksV2 = [{ type: 'paragraph', text: 'Legacy instructions' }, ...blocksV2];
     const requestId = `blocks:create:${++createRequestSequence}`;
     const createSql = `SELECT * FROM learning_activity_create(
       $1,$2,'school','private','project','Blocks v1','Legacy instructions',
@@ -816,6 +818,20 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       ])
     ).rows[0];
     expect(unsafe.result_code).toBe('invalid_draft');
+    expect(
+      (
+        await admin.query(createSql, [
+          ...createArgs.slice(0, 3),
+          `blocks:overflow:${++createRequestSequence}`,
+          JSON.stringify(
+            Array.from({ length: 32 }, (_, index) => ({
+              type: 'paragraph',
+              text: `Block ${index}`,
+            })),
+          ),
+        ])
+      ).rows[0].result_code,
+    ).toBe('invalid_draft');
 
     const v1 = await publish(activityId, 1, `blocks:publish:${++createRequestSequence}`);
     expect(v1.result_code).toBe('ok');
@@ -825,7 +841,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
         [v1.activity_version_id],
       )
     ).rows[0];
-    expect(original).toMatchObject({ blocks: blocksV1, blocks_snapshot_present: true });
+    expect(original).toMatchObject({ blocks: visibleBlocksV1, blocks_snapshot_present: true });
 
     const accountId = (
       await admin.query('SELECT account_id FROM principals WHERE id=$1', [peerPrincipalId])
@@ -866,7 +882,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
           assigned.classroom_assignment_id,
         ])
       ).rows[0].value as { present: boolean; blocks: unknown[] | null };
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     const run = (
       await admin.query(
         "SELECT id FROM activity_runs WHERE source_classroom_assignment_id=$1 AND source_kind='direct'",
@@ -881,7 +897,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
       run,
     ]);
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
 
     const edited = (
       await admin.query(
@@ -897,6 +913,14 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
       )
     ).rows[0];
     expect(edited).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+    expect(
+      (
+        await admin.query(
+          `SELECT result_code,blocks FROM learning_activity_blocks_preview_as_author($1,$2,$3,'draft',NULL,2)`,
+          [ownerPrincipalId, owner.tenantId, activityId],
+        )
+      ).rows[0],
+    ).toMatchObject({ result_code: 'ok', blocks: visibleBlocksV2 });
     expect(
       (
         await admin.query(
@@ -923,8 +947,8 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
           [v1.activity_version_id],
         )
       ).rows[0],
-    ).toEqual({ blocks: blocksV1, content_digest: original.content_digest });
-    expect(await read()).toEqual({ present: true, blocks: blocksV1 });
+    ).toEqual({ blocks: visibleBlocksV1, content_digest: original.content_digest });
+    expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     expect(
       (
         await admin.query(
@@ -932,7 +956,7 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
           [ownerPrincipalId, owner.tenantId, activityId, v1.activity_version_id],
         )
       ).rows[0],
-    ).toMatchObject({ result_code: 'ok', blocks: blocksV1 });
+    ).toMatchObject({ result_code: 'ok', blocks: visibleBlocksV1 });
     expect(
       (
         await admin.query(
@@ -958,6 +982,23 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
         )
       ).rows[0].blocks,
     ).toEqual(blocksV1);
+    expect(
+      (
+        await admin.query(
+          `SELECT result_code,blocks FROM learning_activity_blocks_preview_as_author($1,$2,$3,'draft',NULL,3)`,
+          [ownerPrincipalId, owner.tenantId, activityId],
+        )
+      ).rows[0],
+    ).toMatchObject({ result_code: 'ok', blocks: visibleBlocksV1 });
+    const v3 = await publish(activityId, 3, `blocks:publish:${++createRequestSequence}`);
+    expect(v3.result_code).toBe('ok');
+    expect(
+      (
+        await admin.query('SELECT blocks FROM learning_activity_versions WHERE id=$1', [
+          v3.activity_version_id,
+        ])
+      ).rows[0].blocks,
+    ).toEqual(visibleBlocksV1);
   });
 
   it('pins exact QuizVersion content while LAV owns future policy defaults', async () => {

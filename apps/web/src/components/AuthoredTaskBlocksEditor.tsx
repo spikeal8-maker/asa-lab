@@ -18,14 +18,17 @@ function emptyBlock(type: SafeTaskBlock['type']): SafeTaskBlock {
 
 export function AuthoredTaskBlocksEditor({
   blocks,
+  instructions,
   disabled,
   onChange,
 }: {
   readonly blocks: SafeTaskBlock[] | undefined;
+  readonly instructions: string | null;
   readonly disabled: boolean;
   readonly onChange: (blocks: SafeTaskBlock[]) => void;
 }): JSX.Element {
   const items = blocks ?? [];
+  const blockLimit = instructions?.trim() ? 31 : 32;
   function replace(index: number, block: SafeTaskBlock) {
     onChange(items.map((current, position) => (position === index ? block : current)));
   }
@@ -39,7 +42,8 @@ export function AuthoredTaskBlocksEditor({
     <fieldset className="task-block-editor" aria-label="Блоки задания" disabled={disabled}>
       <legend>Блоки задания</legend>
       <p className="account-hint">
-        Блоки показываются ученику в этом порядке. Текст выводится как текст, без HTML.
+        Содержание показывается первым абзацем, затем эти блоки в указанном порядке. Текст выводится
+        как текст, без HTML.
       </p>
       <div className="task-block-editor-add">
         {choices.map(([type, label]) => (
@@ -47,7 +51,7 @@ export function AuthoredTaskBlocksEditor({
             type="button"
             className="btn-secondary"
             key={type}
-            disabled={items.length >= 32}
+            disabled={items.length >= blockLimit}
             onClick={() => onChange([...items, emptyBlock(type)])}
           >
             + {label}

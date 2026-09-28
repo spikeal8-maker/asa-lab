@@ -192,6 +192,10 @@ export class LearningActivitiesController {
         goal !== null &&
         (typeof goal !== 'string' || goal.trim().length > 160)) ||
       (blocks !== undefined && !safeTaskBlocks(blocks)) ||
+      (Array.isArray(blocks) &&
+        typeof instructions === 'string' &&
+        instructions.trim().length > 0 &&
+        blocks.length > 31) ||
       (instructions !== null &&
         (typeof instructions !== 'string' || instructions.length > 12000)) ||
       typeof resultMode !== 'string' ||
