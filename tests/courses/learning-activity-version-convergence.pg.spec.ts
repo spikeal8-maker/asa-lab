@@ -846,21 +846,30 @@ describe('LRN-M1-001 canonical activity/version convergence', () => {
     const accountId = (
       await admin.query('SELECT account_id FROM principals WHERE id=$1', [peerPrincipalId])
     ).rows[0].account_id as string;
-    const learnerSeatId = (
-      await admin.query(
-        `INSERT INTO classroom_student_seats
-         (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
-          safe_mode,status,created_by,account_id)
-       VALUES ($1,$2,'Blocks learner',$3,$3,true,'active',$4,$5) RETURNING id`,
-        [
-          owner.tenantId,
-          classroomId,
-          `blocks-learner-${++createRequestSequence}`,
-          owner.teacherId,
-          accountId,
-        ],
-      )
-    ).rows[0].id as string;
+    const existingSeat = await admin.query(
+      'SELECT id,status FROM classroom_student_seats WHERE classroom_id=$1 AND account_id=$2',
+      [classroomId, accountId],
+    );
+    expect(existingSeat.rows.length).toBeLessThanOrEqual(1);
+    if (existingSeat.rows.length > 0) expect(existingSeat.rows[0].status).toBe('active');
+    let learnerSeatId = existingSeat.rows[0]?.id as string | undefined;
+    if (!learnerSeatId) {
+      learnerSeatId = (
+        await admin.query(
+          `INSERT INTO classroom_student_seats
+           (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+            safe_mode,status,created_by,account_id)
+         VALUES ($1,$2,'Blocks learner',$3,$3,true,'active',$4,$5) RETURNING id`,
+          [
+            owner.tenantId,
+            classroomId,
+            `blocks-learner-${++createRequestSequence}`,
+            owner.teacherId,
+            accountId,
+          ],
+        )
+      ).rows[0].id as string;
+    }
     const assigned = (
       await admin.query(
         `SELECT * FROM learning_direct_assignment_create(

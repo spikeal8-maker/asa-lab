@@ -923,8 +923,8 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       (
         await inTenant(author, (client) =>
           client.query(
-            'SELECT * FROM classroom_course_activity_occurrences_for_account($1) ORDER BY block_id',
-            [accountId],
+            'SELECT * FROM classroom_course_activity_occurrences_for_account($1) WHERE seat_id=$2 ORDER BY block_id',
+            [accountId, seat],
           ),
         )
       ).rows;
@@ -1211,14 +1211,20 @@ describe('A2c exact Course Activity task blocks', () => {
         )
       ).rows[0].value as { present: boolean; blocks: unknown[] | null };
     expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
-    const accountOccurrence = (
+    const accountOccurrences = (
       await inTenant(author, (client) =>
-        client.query('SELECT * FROM classroom_course_activity_occurrences_for_account($1)', [
-          accountId,
-        ]),
+        client.query(
+          `SELECT * FROM classroom_course_activity_occurrences_for_account($1)
+            WHERE seat_id=$2 AND classroom_assignment_id=$3 AND activity_run_id=$4`,
+          [accountId, seat, occurrence.classroom_assignment_id, occurrence.activity_run_id],
+        ),
       )
-    ).rows[0];
-    expect(accountOccurrence.seat_id).toBe(seat);
+    ).rows;
+    expect(accountOccurrences).toHaveLength(1);
+    expect(accountOccurrences[0]).toMatchObject({
+      seat_id: seat,
+      learning_activity_version_id: activity.versionId,
+    });
     expect(await read()).toEqual({ present: true, blocks: visibleBlocksV1 });
     await admin.query(
       `UPDATE activity_runs SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day')) WHERE id=$1`,
