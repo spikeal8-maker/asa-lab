@@ -1950,6 +1950,18 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(sharedLayout.bodyWidth, JSON.stringify(sharedLayout)).toBeLessThanOrEqual(
     sharedLayout.viewport + 1,
   );
+  // Keep the narrow layout assertion at 320×568, then frame the whole
+  // unavailable activity in one 320px-wide evidence viewport.
+  await learner.page.setViewportSize({ width: 320, height: 844 });
+  const sharedActivity = player
+    .locator('.lesson-activity-block')
+    .filter({ hasText: electronicsTitle });
+  await sharedActivity.scrollIntoViewIfNeeded();
+  const sharedHeading = sharedActivity.locator('.seat-course-activity-main');
+  const sharedExplanation = sharedActivity.getByRole('status');
+  await expect(sharedHeading).toBeInViewport({ ratio: 1 });
+  await expect(sharedExplanation).toBeInViewport({ ratio: 1 });
+  expect((await sharedHeading.boundingBox())?.y).toBeGreaterThanOrEqual(56);
   await learner.page.screenshot({
     path: `${a2aEvidenceDir}/shared-work-unavailable-320.png`,
     fullPage: false,
