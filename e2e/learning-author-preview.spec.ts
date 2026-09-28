@@ -321,9 +321,9 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await editor.screenshot({ path: 'e2e/artifacts/learning/version-draft/published-v4.png' });
 });
 
-function solidPng(red: number, green: number, blue: number): Buffer {
-  const image = new PNG({ width: 3, height: 3 });
-  for (let pixel = 0; pixel < 9; pixel += 1) {
+function solidPng(red: number, green: number, blue: number, width = 3, height = 3): Buffer {
+  const image = new PNG({ width, height });
+  for (let pixel = 0; pixel < width * height; pixel += 1) {
     const offset = pixel * 4;
     image.data[offset] = red;
     image.data[offset + 1] = green;
@@ -339,8 +339,8 @@ test('first-class image block survives draft reload and pins exact published byt
   test.setTimeout(150000);
   const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
   const title = 'Image block ' + unique;
-  const imageA = solidPng(210, 40, 40);
-  const imageB = solidPng(40, 70, 210);
+  const imageA = solidPng(210, 40, 40, 240, 120);
+  const imageB = solidPng(40, 70, 210, 240, 120);
   await page.goto('/#/');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
   await page.getByLabel('Email', { exact: true }).fill(`${unique}@task-image.test`);
@@ -390,6 +390,15 @@ test('first-class image block survives draft reload and pins exact published byt
   const v1Source = await versionImage.getAttribute('src');
   expect(v1Source).toContain('/versions/');
   await page.setViewportSize({ width: 320, height: 844 });
+  await versionImage.scrollIntoViewIfNeeded();
+  await expect(versionImage).toHaveJSProperty('naturalWidth', 240);
+  await expect(versionImage).toHaveJSProperty('naturalHeight', 120);
+  const imageBounds = await versionImage.boundingBox();
+  expect(imageBounds).not.toBeNull();
+  expect(imageBounds!.width).toBeGreaterThanOrEqual(200);
+  expect(imageBounds!.height).toBeGreaterThanOrEqual(100);
+  expect(imageBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(imageBounds!.x + imageBounds!.width).toBeLessThanOrEqual(320);
   mkdirSync('e2e/artifacts/learning/task-image-a2d', { recursive: true });
   await preview.screenshot({ path: 'e2e/artifacts/learning/task-image-a2d/published-v1-320.png' });
 
