@@ -8,7 +8,7 @@ const choices = [
   ['link', 'Ссылка'],
 ] as const;
 
-function emptyBlock(type: SafeTaskBlock['type']): SafeTaskBlock {
+function emptyBlock(type: (typeof choices)[number][0]): SafeTaskBlock {
   return type === 'list'
     ? { type, items: [''] }
     : type === 'link'
@@ -21,11 +21,15 @@ export function AuthoredTaskBlocksEditor({
   instructions,
   disabled,
   onChange,
+  onImageUpload,
+  imageUrl,
 }: {
   readonly blocks: SafeTaskBlock[] | undefined;
   readonly instructions: string | null;
   readonly disabled: boolean;
   readonly onChange: (blocks: SafeTaskBlock[]) => void;
+  readonly onImageUpload: (file: File) => void;
+  readonly imageUrl: (contentHash: string) => string;
 }): JSX.Element {
   const items = blocks ?? [];
   const blockLimit = instructions?.trim() ? 31 : 32;
@@ -57,11 +61,30 @@ export function AuthoredTaskBlocksEditor({
             + {label}
           </button>
         ))}
+        {!items.some((block) => block.type === 'image') ? (
+          <label className="btn-secondary">
+            + Изображение
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              aria-label="Файл блока изображения"
+              disabled={disabled || items.length >= blockLimit}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) onImageUpload(file);
+              }}
+            />
+          </label>
+        ) : null}
       </div>
       {items.map((block, index) => (
         <div className="task-block-editor-item" key={index} data-testid="authored-task-block">
           <strong>
-            {index + 1}. {choices.find(([type]) => type === block.type)?.[1]}
+            {index + 1}.{' '}
+            {block.type === 'image'
+              ? 'Изображение'
+              : choices.find(([type]) => type === block.type)?.[1]}
           </strong>
           <div className="task-block-editor-actions">
             <button
@@ -88,7 +111,38 @@ export function AuthoredTaskBlocksEditor({
               Удалить
             </button>
           </div>
-          {block.type === 'list' ? (
+          {block.type === 'image' ? (
+            <>
+              <img
+                className="task-block-editor-image"
+                src={imageUrl(block.contentHash)}
+                alt={block.alt}
+              />
+              <label>
+                Описание изображения
+                <input
+                  aria-label={`Описание блока ${index + 1}`}
+                  maxLength={160}
+                  value={block.alt}
+                  onChange={(event) => replace(index, { ...block, alt: event.target.value })}
+                />
+              </label>
+              <label className="btn-secondary">
+                Заменить изображение
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  aria-label={`Заменить файл блока ${index + 1}`}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) onImageUpload(file);
+                  }}
+                />
+              </label>
+            </>
+          ) : block.type === 'list' ? (
             <label>
               Пункты, по одному на строку
               <textarea

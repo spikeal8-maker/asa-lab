@@ -126,6 +126,47 @@ describe('assignment media authorization', () => {
     );
   });
 
+  it('reads task image bytes through the signed-in exact learner and fails closed', async () => {
+    const hash = 'c'.repeat(64);
+    const target = controller({
+      account: null,
+      seat: {
+        principalId: 'principal-seat',
+        tenantId: 'tenant-id',
+        seatId: 'seat-id',
+      },
+      rows: [
+        {
+          image_bytes: Buffer.from('task-image'),
+          image_content_type: 'image/png',
+          content_hash: hash,
+        },
+      ],
+    });
+    await target.value.taskImage(
+      request({ asa_student_session: 'student-session' }),
+      hash,
+      reply(),
+    );
+    expect(target.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_task_image_for_viewer'),
+      [hash, 'tenant-id', null, 'seat-id'],
+    );
+    await expect(
+      target.value.taskImage(
+        request({ asa_student_session: 'student-session' }),
+        'unsafe',
+        reply(),
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    const missing = controller({
+      account: { principalId: 'p', accountId: 'a', tenantId: 'tenant-id' },
+    });
+    await expect(
+      missing.value.taskImage(request({ asa_session: 'session' }), hash, reply()),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
   it('passes the exact learner seat to the protected inline-image reader', async () => {
     const target = controller({
       account: null,

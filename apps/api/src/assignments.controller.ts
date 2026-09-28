@@ -366,6 +366,32 @@ export class AssignmentsController {
       .send(row.sample_bytes);
   }
 
+  /** First-class task image bytes, visible only through a pinned readable run. */
+  @Get('task-images/:contentHash')
+  async taskImage(
+    @Req() request: FastifyRequest,
+    @Param('contentHash') contentHash: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    if (!/^[0-9a-f]{64}$/.test(contentHash)) {
+      throw new HttpException(error('validation_error', 'image hash is invalid'), 400);
+    }
+    const viewer = await this.requireViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT image_bytes, image_content_type, content_hash
+         FROM learning_task_image_for_viewer($1,$2,$3,$4)`,
+      [contentHash, viewer.tenantId, viewer.accountId, viewer.seatId],
+    );
+    const row = result.rows[0] as
+      { image_bytes: Buffer; image_content_type: string; content_hash: string } | undefined;
+    if (!row) throw new HttpException(error('image_not_found', 'Изображение недоступно.'), 404);
+    return reply
+      .header('content-type', row.image_content_type)
+      .header('cache-control', 'private, no-store')
+      .header('etag', `"${row.content_hash}"`)
+      .send(row.image_bytes);
+  }
+
   /** The picture itself, only for a viewer who may see this assignment. */
   @Get(':assignmentId/sample')
   async sample(

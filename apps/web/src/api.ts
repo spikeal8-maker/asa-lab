@@ -21,7 +21,8 @@ export interface PublicUser {
 export type SafeTaskBlock =
   | { type: 'heading' | 'paragraph' | 'callout'; text: string }
   | { type: 'list'; items: string[] }
-  | { type: 'link'; text: string; href: string };
+  | { type: 'link'; text: string; href: string }
+  | { type: 'image'; alt: string; contentHash: string; src?: string };
 
 export interface AuthoredActivityDraft {
   quizVersionId?: string | null;
@@ -1830,6 +1831,14 @@ export const api = {
   saveAuthoredActivityDraftSample: (id: string, expectedRevision: number, imageDataUrl: string) =>
     call<{ draftRevision: number; contentHash: string; url: string }>(
       `/api/learning/activities/${encodeURIComponent(id)}/draft-sample`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ expectedRevision, imageDataUrl }),
+      },
+    ),
+  saveAuthoredActivityTaskImage: (id: string, expectedRevision: number, imageDataUrl: string) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-image`,
       {
         method: 'PUT',
         body: JSON.stringify({ expectedRevision, imageDataUrl }),

@@ -277,6 +277,62 @@ export function AuthoredMaterialsPage({
     }
   }
 
+  async function uploadTaskImage(file: File) {
+    const problem = checkDraftImage(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    const saved = await save();
+    if (!saved) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const imageDataUrl = await readDraftImage(file);
+      const result = await api.saveAuthoredActivityTaskImage(
+        saved.id,
+        saved.revision,
+        imageDataUrl,
+      );
+      if (!result.ok) {
+        setError(
+          result.error.code === 'revision_conflict'
+            ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
+            : result.error.message,
+        );
+        return;
+      }
+      const blocks = draft.blocks ?? [];
+      const nextBlocks = blocks.some((block) => block.type === 'image')
+        ? blocks.map((block) =>
+            block.type === 'image' ? { ...block, contentHash: result.data.contentHash } : block,
+          )
+        : [
+            ...blocks,
+            {
+              type: 'image' as const,
+              alt: 'Изображение задания',
+              contentHash: result.data.contentHash,
+            },
+          ];
+      const nextDraft = { ...draft, blocks: nextBlocks };
+      setDraft(nextDraft);
+      savedPayload.current = JSON.stringify(nextDraft);
+      setOpened({ id: saved.id, revision: result.data.draftRevision });
+      setPreview(null);
+      setNotice('Изображение добавлено в содержание задания.');
+      await refresh();
+      onChanged?.();
+    } catch (readError) {
+      setError(
+        readError instanceof Error ? readError.message : 'Не удалось прочитать изображение.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteDraftSample() {
     if (busy) return;
     if (!opened || draftSampleImage === null) {
@@ -501,6 +557,12 @@ export function AuthoredMaterialsPage({
             instructions={draft.instructions}
             disabled={busy}
             onChange={(blocks) => setDraft({ ...draft, blocks })}
+            onImageUpload={(file) => void uploadTaskImage(file)}
+            imageUrl={(contentHash) =>
+              opened
+                ? `/api/learning/activities/${encodeURIComponent(opened.id)}/draft-task-image?v=${encodeURIComponent(contentHash)}`
+                : ''
+            }
           />
           <label>
             Среда проекта

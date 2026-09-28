@@ -270,6 +270,56 @@ describe('canonical learning activity API', () => {
     expect(invalid.query).not.toHaveBeenCalled();
   });
 
+  it('accepts one hashed image block and rejects untrusted image fields', async () => {
+    const api = target({ rows: [{ result_code: 'ok', draft_revision: 2 }] });
+    const base = {
+      title: 'Circuit',
+      resultMode: 'completion',
+      policies,
+      moduleKey: 'electronics',
+      expectedRevision: 1,
+    };
+    const image = { type: 'image', alt: 'LED circuit', contentHash: 'a'.repeat(64) };
+    await api.value.putDraft(request(), ACTIVITY_ID, { ...base, blocks: [image] });
+    expect(api.query.mock.calls.at(-1)?.[1]?.at(-1)).toBe(JSON.stringify([image]));
+    for (const blocks of [
+      [{ ...image, src: 'https://evil.test/image' }],
+      [{ ...image, contentHash: 'bad' }],
+      [{ ...image, alt: '' }],
+      [image, image],
+    ]) {
+      await expect(
+        api.value.putDraft(request(), ACTIVITY_ID, { ...base, blocks }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(api.query).toHaveBeenCalledTimes(1);
+  });
+
+  it('uploads a task image only for an educator and maps exact preview URL', async () => {
+    const imageDataUrl = 'data:image/png;base64,' + Buffer.from('task-image').toString('base64');
+    const upload = target({
+      rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'a'.repeat(64) }],
+    });
+    await expect(
+      upload.value.putDraftTaskImage(request(), ACTIVITY_ID, { expectedRevision: 1, imageDataUrl }),
+    ).resolves.toMatchObject({
+      draftRevision: 2,
+      url: `/api/learning/activities/${ACTIVITY_ID}/draft-task-image?v=${'a'.repeat(64)}`,
+    });
+    expect(upload.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_draft_task_image_set'),
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, expect.any(Buffer), 'image/png'],
+    );
+    const outsider = target({ educator: false });
+    await expect(
+      outsider.value.putDraftTaskImage(request(), ACTIVITY_ID, {
+        expectedRevision: 1,
+        imageDataUrl,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(outsider.query).not.toHaveBeenCalled();
+  });
+
   it('returns an exact published goal in read-only learner preview', async () => {
     const api = target();
     api.query
@@ -294,7 +344,15 @@ describe('canonical learning activity API', () => {
         ],
       })
       .mockResolvedValueOnce({
-        rows: [{ result_code: 'ok', blocks: [{ type: 'paragraph', text: 'Build it' }] }],
+        rows: [
+          {
+            result_code: 'ok',
+            blocks: [
+              { type: 'paragraph', text: 'Build it' },
+              { type: 'image', alt: 'Circuit', contentHash: 'b'.repeat(64) },
+            ],
+          },
+        ],
       })
       .mockResolvedValueOnce({ rows: [{ result_code: 'sample_not_found' }] });
     const result = await api.value.previewAsLearner(
@@ -307,6 +365,10 @@ describe('canonical learning activity API', () => {
     expect(result.assignment).toMatchObject({
       goal: 'Understand the circuit',
       brief: 'Build it',
+    });
+    expect(result.assignment.blocks[1]).toMatchObject({
+      type: 'image',
+      src: `/api/learning/activities/${ACTIVITY_ID}/versions/${VERSION_ID}/task-image?v=${'b'.repeat(64)}`,
     });
     expect(result.learnerRuntime).toBe(false);
     expect(
