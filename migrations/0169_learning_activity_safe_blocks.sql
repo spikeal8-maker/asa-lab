@@ -547,10 +547,11 @@ BEGIN
         p_module_key,p_quiz_version_id,p_starter_project_version_id,p_goal
     );
     IF v_result.result_code = 'ok' AND p_blocks IS NOT NULL THEN
-        UPDATE public.learning_activities
-           SET draft_payload = draft_payload || jsonb_build_object('blocks',p_blocks)
-         WHERE id=p_activity_id AND tenant_id=p_tenant_id
-           AND owner_principal_id=p_principal_id AND draft_revision=v_result.draft_revision;
+        UPDATE public.learning_activities AS activity
+           SET draft_payload = activity.draft_payload || jsonb_build_object('blocks',p_blocks)
+         WHERE activity.id=p_activity_id AND activity.tenant_id=p_tenant_id
+           AND activity.owner_principal_id=p_principal_id
+           AND activity.draft_revision=v_result.draft_revision;
     END IF;
     RETURN QUERY SELECT v_result.result_code::varchar,v_result.draft_revision;
 END;
@@ -608,11 +609,11 @@ BEGIN
             RETURN;
         END IF;
     ELSIF p_blocks IS NOT NULL THEN
-        UPDATE public.learning_activities
-           SET draft_payload=draft_payload || jsonb_build_object('blocks',p_blocks),
-               creation_blocks_snapshot=p_blocks
-         WHERE id=v_result.activity_id AND tenant_id=p_tenant_id
-           AND owner_principal_id=p_principal_id AND draft_revision=1;
+        UPDATE public.learning_activities AS activity
+           SET draft_payload=activity.draft_payload || jsonb_build_object('blocks',p_blocks),
+                creation_blocks_snapshot=p_blocks
+          WHERE activity.id=v_result.activity_id AND activity.tenant_id=p_tenant_id
+            AND activity.owner_principal_id=p_principal_id AND activity.draft_revision=1;
     END IF;
     RETURN QUERY SELECT 'ok'::varchar,v_result.activity_id,v_result.draft_revision;
 END;

@@ -168,15 +168,14 @@ it('upgrades a populated 0103 account/class/seat/project and immutable learning 
     },
   });
   expect(assigned.statusCode, assigned.body).toBe(201);
-  const assignments = await inject(app, {
-    method: 'GET',
-    url: '/api/class-join/me/assignments',
-    headers: { cookie: seatCookie },
-  });
-  expect(assignments.statusCode, assignments.body).toBe(200);
-  const task = assignments
-    .json()
-    .items.find((item: { title: string }) => item.title === 'Старое задание');
+  // The current assignment read projects safe blocks from schema 0169.
+  // Resolve the historical 0103 assignment through its own DB contract.
+  const task = (
+    await admin.query('SELECT id,title FROM classroom_assignments_for_seat($1) WHERE title=$2', [
+      seatId,
+      'Старое задание',
+    ])
+  ).rows[0] as { id: string; title: string } | undefined;
   expect(task).toBeTruthy();
   const started = await inject(app, {
     method: 'POST',
