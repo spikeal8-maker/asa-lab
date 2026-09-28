@@ -235,6 +235,64 @@ describe('API application factory', () => {
     }
   });
 
+  it('trusts the isolated browser runner origin without trusting Host, missing Origin, or cross-site requests', async () => {
+    vi.stubEnv('NODE_ENV', 'test');
+    vi.stubEnv('APP_DATABASE_URL', 'postgres://asalab_app:synthetic@postgres:5432/asalab_test');
+    vi.stubEnv('ASA_ISOLATED_TEST_WEB_ORIGIN', 'http://web:8080');
+    try {
+      const app = await createApiApp({ pool: null, webDist: null });
+      apps.push(app);
+      const fastify = app.getHttpAdapter().getInstance();
+      const post = (headers: Record<string, string>) =>
+        fastify.inject({
+          method: 'POST',
+          url: '/api/auth/login',
+          headers: { 'content-type': 'application/json', ...headers },
+          payload: {},
+        });
+
+      expect((await post({ origin: 'http://web:8080' })).statusCode).toBe(400);
+      for (const headers of [
+        { host: 'web:8080', origin: 'http://evil.example' },
+        { host: 'web:8080' },
+        { origin: 'http://web:8080', 'sec-fetch-site': 'cross-site' },
+      ]) {
+        const rejected = await post(headers);
+        expect(rejected.statusCode).toBe(403);
+        expect(rejected.json().error.code).toBe('origin_forbidden');
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('refuses the isolated origin override outside the test stack even with injected public origins', async () => {
+    vi.stubEnv('ASA_ISOLATED_TEST_WEB_ORIGIN', 'http://web:8080');
+    try {
+      vi.stubEnv('NODE_ENV', 'production');
+      vi.stubEnv('APP_DATABASE_URL', 'postgres://asalab_app:synthetic@postgres:5432/asalab_test');
+      await expect(
+        createApiApp({
+          pool: null,
+          webDist: null,
+          additionalAllowedOrigins: ['https://asa-lab.ru'],
+        }),
+      ).rejects.toThrow(/isolated test stack/);
+
+      vi.stubEnv('NODE_ENV', 'test');
+      vi.stubEnv('APP_DATABASE_URL', 'postgres://asalab_app:synthetic@postgres:5432/asalab');
+      await expect(
+        createApiApp({
+          pool: null,
+          webDist: null,
+          additionalAllowedOrigins: ['https://asa-lab.ru'],
+        }),
+      ).rejects.toThrow(/isolated test database/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('accepts only the explicitly configured public production origin', async () => {
     const query = vi.fn(async () => ({ rows: [] }));
     const pool = {

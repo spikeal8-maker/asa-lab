@@ -415,6 +415,19 @@ for (const [profile, overlays] of Object.entries(OVERLAYS)) {
   if (config.services?.api?.environment?.ASA_EXPECTED_SCHEMA_VERSION !== '103') {
     errors.push(`${profile}/api: expected schema version was not preserved`);
   }
+  const isolatedTestOrigin = config.services?.api?.environment?.ASA_ISOLATED_TEST_WEB_ORIGIN;
+  if (profile === 'test') {
+    if (
+      config.services?.api?.environment?.NODE_ENV !== 'test' ||
+      isolatedTestOrigin !== 'http://web:8080' ||
+      config.services?.api?.environment?.APP_DATABASE_URL !==
+        'postgres://asalab_app:asa-local-test-runtime-change-me@postgres:5432/asalab_test'
+    ) {
+      errors.push('test/api: isolated browser origin requires test mode and the test database');
+    }
+  } else if (isolatedTestOrigin !== undefined) {
+    errors.push(`${profile}/api: isolated browser origin must not enter this profile`);
+  }
   if (profile === 'production') {
     if (config.services?.api?.environment?.NODE_ENV !== 'production') {
       errors.push('production/api: NODE_ENV must be production');
