@@ -1,5 +1,5 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
 import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -511,6 +511,7 @@ async function createPublishedProjectActivityAfterLogin(
   title: string,
   module = 'electronics',
   resultMode = 'completion',
+  sampleImage?: Buffer,
 ): Promise<void> {
   await page.goto('/#/challenges');
   const newMaterial = page.getByRole('button', { name: 'Новый материал', exact: true });
@@ -521,6 +522,13 @@ async function createPublishedProjectActivityAfterLogin(
     .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
   await page.getByLabel('Среда проекта').selectOption(module);
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption(resultMode);
+  if (sampleImage) {
+    await page.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles({
+      name: 'course-activity-sample.png',
+      mimeType: 'image/png',
+      buffer: sampleImage,
+    });
+  }
   await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -1653,11 +1661,25 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const electronicsTitle = `D5 Electronics Activity ${suffix}`;
   const threeDTitle = `D5 3D Activity ${suffix}`;
   const courseTitle = `D5 Activity blocks ${suffix}`;
+  const electronicsSample = readFileSync('apps/web/public/landing/electronics-simulation.png');
+  const threeDSample = readFileSync('apps/web/public/landing/assignment-progress.png');
 
   const d5Teacher = await seedTeacher(admin, 'learning-course01-d5');
   await loginWithOrganization(page, d5Teacher);
-  await createPublishedProjectActivityAfterLogin(page, electronicsTitle, 'electronics');
-  await createPublishedProjectActivityAfterLogin(page, threeDTitle, 'three-d');
+  await createPublishedProjectActivityAfterLogin(
+    page,
+    electronicsTitle,
+    'electronics',
+    'completion',
+    electronicsSample,
+  );
+  await createPublishedProjectActivityAfterLogin(
+    page,
+    threeDTitle,
+    'three-d',
+    'completion',
+    threeDSample,
+  );
 
   await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
@@ -1732,6 +1754,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
           classroomAssignmentId: string;
           learningActivityVersionId: string;
           title: string;
+          sampleImage: string | null;
           projectId: string | null;
           canonicalState: { workflowState: string } | null;
         }>;
@@ -1779,6 +1802,70 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(electronicsCard).toContainText('Не начато');
   await expect(threeDCard).toContainText('3D');
   await expect(threeDCard).toContainText('Не начато');
+  const beforeStart = await openCourse();
+  const electronicsOccurrence = occurrenceFromCourseRun(beforeStart, electronicsTitle);
+  const threeDOccurrence = occurrenceFromCourseRun(beforeStart, threeDTitle);
+  expect(electronicsOccurrence.sampleImage).toBe(
+    `/api/class-join/course-activities/${electronicsOccurrence.activityRunId}/sample`,
+  );
+  expect(threeDOccurrence.sampleImage).toBe(
+    `/api/class-join/course-activities/${threeDOccurrence.activityRunId}/sample`,
+  );
+  expect(electronicsOccurrence.sampleImage).not.toBe(threeDOccurrence.sampleImage);
+  for (const [occurrence, bytes] of [
+    [electronicsOccurrence, electronicsSample],
+    [threeDOccurrence, threeDSample],
+  ] as const) {
+    const response = await learner.page.request.get(occurrence.sampleImage!);
+    expect(response.ok()).toBe(true);
+    expect(Buffer.compare(await response.body(), bytes)).toBe(0);
+  }
+  await admin.query(
+    `UPDATE activity_runs
+        SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day'))
+      WHERE id=$1`,
+    [electronicsOccurrence.activityRunId],
+  );
+  const earlySample = await learner.page.request.get(electronicsOccurrence.sampleImage!);
+  expect(earlySample.status()).toBe(404);
+  await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+    electronicsOccurrence.activityRunId,
+  ]);
+  electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  threeDCard = player.locator('.lesson-activity-block').filter({ hasText: threeDTitle });
+  await expect(
+    electronicsCard.getByRole('img', { name: `Образец: ${electronicsTitle}` }),
+  ).toBeVisible();
+  await expect(threeDCard.getByRole('img', { name: `Образец: ${threeDTitle}` })).toBeVisible();
+
+  const a2aEvidenceDir = 'e2e/artifacts/learning/course-media-a2a';
+  mkdirSync(a2aEvidenceDir, { recursive: true });
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 768 },
+    { width: 390, height: 844 },
+    { width: 320, height: 568 },
+  ]) {
+    await learner.page.setViewportSize(viewport);
+    const sample = electronicsCard.getByRole('img', { name: `Образец: ${electronicsTitle}` });
+    const start = electronicsCard.getByRole('button', { name: 'Начать', exact: true });
+    await expect(sample).toBeVisible();
+    await start.scrollIntoViewIfNeeded();
+    await expect(start).toBeInViewport();
+    await expect(start).toBeEnabled();
+    const layout = await learner.page.evaluate(() => ({
+      viewport: window.innerWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+    }));
+    expect(layout.documentWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport + 1);
+    expect(layout.bodyWidth, JSON.stringify(layout)).toBeLessThanOrEqual(layout.viewport + 1);
+    await learner.page.screenshot({
+      path: `${a2aEvidenceDir}/before-start-${viewport.width}.png`,
+      fullPage: false,
+    });
+  }
+  await learner.page.setViewportSize({ width: 1440, height: 900 });
 
   await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
   const electronicsEvidence = await editCourseActivityProject(learner.page, 'electronics');
@@ -1809,6 +1896,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     },
     task: { title: electronicsTitle },
   });
+  expect(firstContext.task.sampleImage).toBe(electronicsOccurrence.sampleImage);
   const a1EvidenceDir = 'e2e/artifacts/learning/work-context-a1';
   mkdirSync(a1EvidenceDir, { recursive: true });
   for (const viewport of [
@@ -1822,8 +1910,21 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     await expect(anchor).toBeVisible();
     if ((await anchor.getAttribute('aria-expanded')) === 'false') await anchor.click();
     await expect(learner.page.getByTestId('assignment-brief')).toContainText(electronicsTitle);
+    await expect(
+      learner.page.getByTestId('assignment-brief').getByRole('img', {
+        name: `Образец: ${electronicsTitle}`,
+      }),
+    ).toBeVisible();
+    await learner.page
+      .getByTestId('assignment-brief')
+      .getByRole('img', { name: `Образец: ${electronicsTitle}` })
+      .scrollIntoViewIfNeeded();
     await learner.page.screenshot({
       path: `${a1EvidenceDir}/course-block-${viewport.width}.png`,
+      fullPage: false,
+    });
+    await learner.page.screenshot({
+      path: `${a2aEvidenceDir}/after-start-${viewport.width}.png`,
       fullPage: false,
     });
   }

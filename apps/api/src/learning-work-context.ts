@@ -184,6 +184,15 @@ export async function learningWorkContextForProject(
     return { state: 'denied', projectId };
   }
 
+  let sampleImage = row.sampleImage;
+  if (row.sourceKind === 'course' && row.courseBlockId && row.activityRunId) {
+    const sample = await pool.query<{ sample_image: string | null }>(
+      `SELECT learning_course_activity_sample_url_for_viewer($1, NULL, $2) AS sample_image`,
+      [row.activityRunId, row.seatId],
+    );
+    sampleImage = sample.rows[0]?.sample_image ?? null;
+  }
+
   const canAct = timeAllowsAction(row, asOf);
   const workflow = projection.surface.workflowState;
   return {
@@ -207,7 +216,7 @@ export async function learningWorkContextForProject(
       title: row.title,
       brief: row.brief,
       goal: row.goal,
-      sampleImage: row.sampleImage,
+      sampleImage,
       dueAt:
         projection.surface.effectiveDueAt === undefined
           ? row.dueAt

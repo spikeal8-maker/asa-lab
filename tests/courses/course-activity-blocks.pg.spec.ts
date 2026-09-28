@@ -51,6 +51,7 @@ async function publishActivity(
   teacher: SeededTeacher,
   ownerPrincipalId: string,
   moduleKey: string,
+  sample?: Buffer,
 ) {
   sequence += 1;
   const created = await inTenant(teacher, (client) =>
@@ -67,11 +68,23 @@ async function publishActivity(
     ),
   );
   expect(created.rows[0].result_code).toBe('ok');
+  if (sample) {
+    const uploaded = await inTenant(teacher, (client) =>
+      client.query(`SELECT * FROM learning_activity_draft_sample_set($1,$2,$3,1,$4,'image/png')`, [
+        ownerPrincipalId,
+        teacher.tenantId,
+        created.rows[0].activity_id,
+        sample,
+      ]),
+    );
+    expect(uploaded.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 2 });
+  }
   const published = await inTenant(teacher, (client) =>
-    client.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
+    client.query('SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)', [
       ownerPrincipalId,
       teacher.tenantId,
       created.rows[0].activity_id,
+      sample ? 2 : 1,
       `d2:publish:${sequence}`,
     ]),
   );
@@ -812,5 +825,274 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       courseBlockId: null,
       courseLessonId: legacyRuntimeLesson!.lesson_id,
     });
+  });
+});
+
+describe('A2a exact Course Activity sample delivery', () => {
+  it('keeps sibling samples and the pinned v1 bytes distinct, then revokes unstarted closed work', async () => {
+    const imageA = Buffer.from('a2a-pinned-v1-sample');
+    const imageB = Buffer.from('a2a-sibling-sample');
+    const imageV2 = Buffer.from('a2a-new-draft-v2-sample');
+    const activityA = await publishActivity(author, principalId, 'electronics', imageA);
+    const activityB = await publishActivity(author, principalId, 'three-d', imageB);
+    const activityWithoutSample = await publishActivity(author, principalId, 'electronics');
+    const { courseId, sectionId } = await newCourse('A2a exact media');
+    const blocks = [
+      { id: 'sample-a', type: 'activity', learningActivityVersionId: activityA.versionId },
+      { id: 'sample-b', type: 'activity', learningActivityVersionId: activityB.versionId },
+      {
+        id: 'sample-none',
+        type: 'activity',
+        learningActivityVersionId: activityWithoutSample.versionId,
+      },
+    ];
+    await admin.query(
+      "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Two samples',NULL,$4::jsonb,'material',NULL,15,NULL)",
+      [principalId, courseId, sectionId, JSON.stringify(blocks)],
+    );
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+    const published = await admin.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      `a2a:course:publish:${++sequence}`,
+    ]);
+    expect(published.rows[0].result_code).toBe('ok');
+    const { classroom, seat } = await classroomWithSeat(accountId);
+    const excluded = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+           (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+            safe_mode,status,created_by)
+         VALUES($1,$2,'Excluded A2a',$3,$3,true,'active',$4) RETURNING id`,
+        [author.tenantId, classroom, `a2a-excluded-${++sequence}`, author.teacherId],
+      )
+    ).rows[0].id as string;
+    const assigned = await assignCourseRun(courseId, classroom, seat, `a2a:assign:${++sequence}`);
+    expect(assigned.result_code).toBe('ok');
+    const occurrences = (
+      await inTenant(author, (client) =>
+        client.query(
+          'SELECT * FROM classroom_course_activity_occurrences_for_seat($1) ORDER BY block_id',
+          [seat],
+        ),
+      )
+    ).rows;
+    expect(occurrences.map((row) => row.block_id)).toEqual(['sample-a', 'sample-b', 'sample-none']);
+    const [a, b, withoutSample] = occurrences;
+    const url = async (runId: string, account: string | null, seatId: string | null) =>
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT learning_course_activity_sample_url_for_viewer($1,$2,$3) AS url', [
+            runId,
+            account,
+            seatId,
+          ]),
+        )
+      ).rows[0].url as string | null;
+    const bytes = async (runId: string, account: string | null, seatId: string | null) =>
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT * FROM learning_course_activity_sample_for_viewer($1,$2,$3)', [
+            runId,
+            account,
+            seatId,
+          ]),
+        )
+      ).rows;
+    expect(await url(a.activity_run_id, null, seat)).toBe(
+      `/api/class-join/course-activities/${a.activity_run_id}/sample`,
+    );
+    expect(await url(b.activity_run_id, accountId, null)).toBe(
+      `/api/class-join/course-activities/${b.activity_run_id}/sample`,
+    );
+    expect(
+      Buffer.compare((await bytes(a.activity_run_id, null, seat))[0].sample_bytes, imageA),
+    ).toBe(0);
+    expect(
+      Buffer.compare((await bytes(b.activity_run_id, accountId, null))[0].sample_bytes, imageB),
+    ).toBe(0);
+    expect(await url(a.activity_run_id, null, excluded)).toBeNull();
+    expect(await bytes(a.activity_run_id, null, excluded)).toEqual([]);
+    expect(await url(withoutSample.activity_run_id, null, seat)).toBeNull();
+    expect(await bytes(withoutSample.activity_run_id, null, seat)).toEqual([]);
+    expect(await url(a.activity_run_id, null, null)).toBeNull();
+    expect(await url(a.activity_run_id, accountId, seat)).toBeNull();
+
+    const viewers: Array<[string | null, string | null]> = [
+      [null, seat],
+      [accountId, null],
+    ];
+    const expectUnstartedDenied = async (runId: string) => {
+      for (const [account, seatId] of viewers) {
+        expect(await url(runId, account, seatId)).toBeNull();
+        // The direct GET calls this same byte function with the viewer actor.
+        expect(await bytes(runId, account, seatId)).toEqual([]);
+      }
+    };
+    const expectUnstartedAllowed = async (runId: string, image: Buffer) => {
+      for (const [account, seatId] of viewers) {
+        expect(await url(runId, account, seatId)).toBeTruthy();
+        expect(Buffer.compare((await bytes(runId, account, seatId))[0].sample_bytes, image)).toBe(
+          0,
+        );
+      }
+    };
+    const participationId = (
+      await admin.query(
+        `SELECT participation.id
+           FROM activity_participations participation
+           JOIN learner_identity_links link
+             ON link.learner_identity_id=participation.learner_identity_id
+            AND link.seat_id=$2 AND link.status='active'
+          WHERE participation.activity_run_id=$1`,
+        [a.activity_run_id, seat],
+      )
+    ).rows[0].id as string;
+
+    // Run pins are immutable; a future operational run opensAt gates bytes.
+    await admin.query(
+      `UPDATE activity_runs
+          SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day'))
+        WHERE id=$1`,
+      [a.activity_run_id],
+    );
+    await expectUnstartedDenied(a.activity_run_id);
+    await expectUnstartedAllowed(b.activity_run_id, imageB);
+    await admin.query("UPDATE activity_runs SET operational_overrides='{}'::jsonb WHERE id=$1", [
+      a.activity_run_id,
+    ]);
+
+    // Individual overrides belong to this exact ActivityParticipation; a
+    // withdrawn participation cannot inherit its active CourseEnrollment.
+    await admin.query(
+      "UPDATE activity_participations SET opens_at_override=now()+interval '1 day' WHERE id=$1",
+      [participationId],
+    );
+    await expectUnstartedDenied(a.activity_run_id);
+    await admin.query('UPDATE activity_participations SET opens_at_override=NULL WHERE id=$1', [
+      participationId,
+    ]);
+    await admin.query(
+      `UPDATE activity_participations
+          SET operational_overrides=jsonb_build_object('opensAt',to_jsonb(now()+interval '1 day'))
+        WHERE id=$1`,
+      [participationId],
+    );
+    await expectUnstartedDenied(a.activity_run_id);
+    await admin.query(
+      "UPDATE activity_participations SET operational_overrides='{}'::jsonb WHERE id=$1",
+      [participationId],
+    );
+    await expectUnstartedAllowed(a.activity_run_id, imageA);
+
+    const bParticipationId = (
+      await admin.query('SELECT id FROM activity_participations WHERE activity_run_id=$1', [
+        b.activity_run_id,
+      ])
+    ).rows[0].id as string;
+    const withdrawn = await inTenant(author, (client) =>
+      client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
+        principalId,
+        bParticipationId,
+      ]),
+    );
+    expect(withdrawn.rows[0].result_code).toBe('ok');
+    expect(
+      (
+        await admin.query(
+          'SELECT status FROM course_enrollments WHERE course_run_id=$1 AND learner_identity_id=(SELECT learner_identity_id FROM activity_participations WHERE id=$2)',
+          [assigned.run_id, bParticipationId],
+        )
+      ).rows[0].status,
+    ).toMatch(/^(assigned|active)$/);
+    await expectUnstartedDenied(b.activity_run_id);
+
+    const uploadedV2 = await inTenant(author, (client) =>
+      client.query(`SELECT * FROM learning_activity_draft_sample_set($1,$2,$3,2,$4,'image/png')`, [
+        principalId,
+        author.tenantId,
+        activityA.activityId,
+        imageV2,
+      ]),
+    );
+    expect(uploadedV2.rows[0].result_code).toBe('ok');
+    const v2 = await inTenant(author, (client) =>
+      client.query('SELECT * FROM learning_activity_publish($1,$2,$3,3,$4)', [
+        principalId,
+        author.tenantId,
+        activityA.activityId,
+        `a2a:activity:v2:${++sequence}`,
+      ]),
+    );
+    expect(v2.rows[0].result_code).toBe('ok');
+    expect(v2.rows[0].activity_version_id).not.toBe(activityA.versionId);
+    expect(
+      Buffer.compare((await bytes(a.activity_run_id, null, seat))[0].sample_bytes, imageA),
+    ).toBe(0);
+
+    const projectId = (
+      await admin.query(
+        `INSERT INTO projects(tenant_id,project_scope,module_key,title,owner_principal_id)
+         VALUES($1,'personal','electronics','A2a historical work',$2) RETURNING id`,
+        [author.tenantId, principalId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [author.tenantId, projectId, principalId],
+    );
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_assignment_work_start($1,$2,$3)', [
+        seat,
+        a.classroom_assignment_id,
+        projectId,
+      ]),
+    );
+    await admin.query("UPDATE classroom_course_runs SET status='closed' WHERE id=$1", [
+      assigned.run_id,
+    ]);
+    await admin.query("UPDATE classroom_assignments SET status='closed' WHERE id=$1", [
+      a.classroom_assignment_id,
+    ]);
+    expect(await url(a.activity_run_id, null, seat)).toBeTruthy();
+    expect(await url(b.activity_run_id, null, seat)).toBeNull();
+    await admin.query(
+      `UPDATE course_enrollments
+          SET status='withdrawn', withdrawn_at=now(),
+              withdrawn_by_principal_id=$2, withdrawal_source='teacher_command'
+        WHERE course_run_id=$1`,
+      [assigned.run_id, principalId],
+    );
+    expect(
+      (
+        await admin.query('SELECT status FROM activity_participations WHERE id=$1', [
+          participationId,
+        ])
+      ).rows[0].status,
+    ).toBe('withdrawn');
+    expect(await url(a.activity_run_id, null, seat)).toBeTruthy();
+    expect(await url(b.activity_run_id, null, seat)).toBeNull();
+    await admin.query("UPDATE classrooms SET status='archived',archived_at=now() WHERE id=$1", [
+      classroom,
+    ]);
+    expect(await url(a.activity_run_id, null, seat)).toBeTruthy();
+    expect(await url(b.activity_run_id, null, seat)).toBeNull();
+    await admin.query(
+      "UPDATE activity_runs SET lifecycle_status='closed',closed_at=now() WHERE id=$1",
+      [a.activity_run_id],
+    );
+    await admin.query(
+      "UPDATE activity_runs SET lifecycle_status='archived',archived_at=now() WHERE id=$1",
+      [a.activity_run_id],
+    );
+    expect(await url(a.activity_run_id, null, seat)).toBeTruthy();
+    await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [seat]);
+    expect(await bytes(a.activity_run_id, null, seat)).toEqual([]);
   });
 });

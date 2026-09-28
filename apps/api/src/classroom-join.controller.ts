@@ -146,6 +146,7 @@ interface CourseActivityOccurrenceRow {
   learning_activity_version_id: string;
   title: string;
   module_key: string;
+  sample_image: string | null;
   project_id: string | null;
   submitted_at: Date | string | null;
   snapshot_revision: number | string | null;
@@ -159,6 +160,7 @@ interface CourseActivityOccurrenceView {
   learningActivityVersionId: string;
   title: string;
   moduleKey: string;
+  sampleImage: string | null;
   projectId: string | null;
   submittedAt: string | null;
   snapshotRevision: number | null;
@@ -213,6 +215,7 @@ function courseActivityOccurrenceMap(
       learningActivityVersionId: row.learning_activity_version_id,
       title: row.title,
       moduleKey: row.module_key,
+      sampleImage: row.sample_image,
       projectId: row.project_id,
       submittedAt: row.submitted_at === null ? null : isoDate(row.submitted_at),
       snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
@@ -1086,10 +1089,11 @@ export class ClassroomJoinController {
       ),
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
-        `SELECT seat_id,run_id,lesson_id,block_id,activity_run_id,classroom_assignment_id,
-                learning_activity_version_id,title,module_key,project_id,submitted_at,
-                snapshot_revision,work_updated_at
-           FROM classroom_course_activity_occurrences_for_account($1)`,
+        `SELECT occurrence.*,
+                learning_course_activity_sample_url_for_viewer(
+                  occurrence.activity_run_id, $1, NULL
+                ) AS sample_image
+           FROM classroom_course_activity_occurrences_for_account($1) occurrence`,
         [context.accountId],
       ),
     ]);
@@ -1226,10 +1230,11 @@ export class ClassroomJoinController {
       ),
       this.canonical().forSeat(seat.seat_id),
       this.requirePool().query(
-        `SELECT seat_id,run_id,lesson_id,block_id,activity_run_id,classroom_assignment_id,
-                learning_activity_version_id,title,module_key,project_id,submitted_at,
-                snapshot_revision,work_updated_at
-           FROM classroom_course_activity_occurrences_for_seat($1)`,
+        `SELECT occurrence.*,
+                learning_course_activity_sample_url_for_viewer(
+                  occurrence.activity_run_id, NULL, $1
+                ) AS sample_image
+           FROM classroom_course_activity_occurrences_for_seat($1) occurrence`,
         [seat.seat_id],
       ),
     ]);
@@ -1307,6 +1312,40 @@ export class ClassroomJoinController {
     if (!row) throw new HttpException(error('media_not_found', 'Образец не найден.'), 404);
     reply.header('Cache-Control', 'private, max-age=3600, immutable');
     reply.type(row.content_type).send(row.sample_bytes);
+  }
+
+  /** Exact immutable sample of a visible Course Activity block occurrence. */
+  @Get('course-activities/:activityRunId/sample')
+  async courseActivitySample(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: false }) reply: FastifyReply,
+    @Param('activityRunId') activityRunId: string,
+  ): Promise<void> {
+    if (!UUID_PATTERN.test(activityRunId)) {
+      throw new HttpException(error('validation_error', 'course activity is invalid'), 400);
+    }
+    let seatId: string | null = null;
+    let accountId: string | null = null;
+    if (request.cookies[STUDENT_SESSION_COOKIE]) {
+      seatId = (await this.currentSeat(request)).seat_id;
+    } else {
+      const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+      if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+      accountId = context.accountId;
+    }
+    const result = await this.requirePool().query(
+      `SELECT sample_bytes, sample_content_type, content_hash
+         FROM learning_course_activity_sample_for_viewer($1, $2, $3)`,
+      [activityRunId, accountId, seatId],
+    );
+    const row = result.rows[0] as
+      { sample_bytes: Buffer; sample_content_type: string; content_hash: string } | undefined;
+    if (!row) throw new HttpException(error('sample_unavailable', 'Образец недоступен.'), 404);
+    reply
+      .header('Cache-Control', 'private, no-store')
+      .header('ETag', `"${row.content_hash}"`)
+      .type(row.sample_content_type)
+      .send(row.sample_bytes);
   }
 
   /**
