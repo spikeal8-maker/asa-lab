@@ -2461,7 +2461,7 @@ export const api = {
     lessonId: string | null,
     input: CourseLessonInput & { expectedRevision: number },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       lessonId
         ? `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`
         : `/api/courses/${encodeURIComponent(courseId)}/lessons`,

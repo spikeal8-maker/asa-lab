@@ -3,6 +3,7 @@ import {
   isAllowedMutationOrigin,
   resolveAdditionalWebOrigins,
   resolveCanonicalWebOrigin,
+  resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
 } from './origin-policy.js';
 
@@ -48,6 +49,31 @@ describe('canonical Web origin configuration', () => {
     expect(resolveLocalApiOrigin('4621')).toBe('http://127.0.0.1:4621');
     expect(() => resolveLocalApiOrigin('5173')).toThrow(/API_PORT is invalid or forbidden/);
     expect(() => resolveLocalApiOrigin('4611evil')).toThrow(/API_PORT is invalid or forbidden/);
+  });
+
+  it('permits the exact isolated Compose origin only with the isolated test database', () => {
+    const testDatabase = 'postgres://asalab_app:synthetic@postgres:5432/asalab_test';
+    expect(resolveIsolatedTestWebOrigin(undefined, 'test', testDatabase)).toBeNull();
+    expect(resolveIsolatedTestWebOrigin('http://web:8080', 'test', testDatabase)).toBe(
+      'http://web:8080',
+    );
+    for (const origin of ['http://web:8081', 'http://evil.example', 'http://web:8080/']) {
+      expect(() => resolveIsolatedTestWebOrigin(origin, 'test', testDatabase)).toThrow(
+        /isolated test stack/,
+      );
+    }
+    expect(() =>
+      resolveIsolatedTestWebOrigin('http://web:8080', 'production', testDatabase),
+    ).toThrow(/isolated test stack/);
+    for (const database of [
+      undefined,
+      'postgres://asalab_app:synthetic@postgres:5432/asalab',
+      'postgres://asalab_app:synthetic@other-host:5432/asalab_test',
+    ]) {
+      expect(() => resolveIsolatedTestWebOrigin('http://web:8080', 'test', database)).toThrow(
+        /isolated test database/,
+      );
+    }
   });
 });
 

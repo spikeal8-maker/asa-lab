@@ -269,7 +269,13 @@ function LessonEditor({
       <div className="course-editor-grid">
         <label className="course-field">
           <span>Раздел</span>
-          <select value={targetSection} onChange={(event) => setTargetSection(event.target.value)}>
+          <select
+            value={targetSection}
+            onChange={(event) => {
+              setTargetSection(event.target.value);
+              onDirty();
+            }}
+          >
             {sections.map((entry) => (
               <option key={entry.id} value={entry.id}>
                 {entry.title}
@@ -281,7 +287,10 @@ function LessonEditor({
           <span>Тип урока</span>
           <select
             value={kind}
-            onChange={(event) => setKind(event.target.value as 'material' | 'assignment')}
+            onChange={(event) => {
+              setKind(event.target.value as 'material' | 'assignment');
+              onDirty();
+            }}
           >
             <option value="material">Материал</option>
             <option value="assignment">Практическое задание</option>
@@ -294,7 +303,10 @@ function LessonEditor({
         <input
           value={title}
           maxLength={160}
-          onChange={(event) => setTitle(event.target.value)}
+          onChange={(event) => {
+            setTitle(event.target.value);
+            onDirty();
+          }}
           placeholder="Короткое и понятное название"
         />
       </label>
@@ -304,7 +316,10 @@ function LessonEditor({
         <input
           value={summary}
           maxLength={600}
-          onChange={(event) => setSummary(event.target.value)}
+          onChange={(event) => {
+            setSummary(event.target.value);
+            onDirty();
+          }}
           placeholder="Одна строка для содержания курса"
         />
       </label>
@@ -326,6 +341,7 @@ function LessonEditor({
                     '',
                 );
               }
+              onDirty();
             }}
           >
             <option value="">Выберите задание…</option>
@@ -379,7 +395,10 @@ function LessonEditor({
           min={1}
           max={600}
           value={minutes}
-          onChange={(event) => setMinutes(event.target.value)}
+          onChange={(event) => {
+            setMinutes(event.target.value);
+            onDirty();
+          }}
           placeholder="15"
         />
       </label>
@@ -482,8 +501,11 @@ function CourseEditor({
   };
   const [sections, setSections] = useState<CourseSection[] | null>(null);
   const [draftRevision, setDraftRevision] = useState(course.draftRevision);
+  const draftRevisionRef = useRef(course.draftRevision);
+  const revisionRefreshRef = useRef<Promise<boolean> | null>(null);
   const [selectedLessonId, setSelectedLessonId] = useState<string | null>(null);
   const [newLessonSectionId, setNewLessonSectionId] = useState<string | null>(null);
+  const createdLessonIdRef = useRef<string | null>(null);
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
   const [preview, setPreview] = useState(false);
   const [publishing, setPublishing] = useState(false);
@@ -492,19 +514,44 @@ function CourseEditor({
 
   const loadOutline = useCallback(
     async (force = false) => {
-      if (localDirtyRef.current && !force) return;
+      if (localDirtyRef.current && !force) return false;
       const generation = editGeneration.current;
       const result = await api.courseOutline(course.id);
-      if (generation !== editGeneration.current) return;
-      if (!result.ok) {
-        setSections([]);
-        setError(result.error.message);
-        return;
+      // A request started before a local edit must not replace the save
+      // receipt's revision or report a stale fetch error. A newer remote
+      // revision is still worth reporting while that edit remains unsaved.
+      if (generation !== editGeneration.current) {
+        if (
+          result.ok &&
+          localDirtyRef.current &&
+          result.data.draftRevision > draftRevisionRef.current
+        ) {
+          setError('Курс изменён в другом окне. Локальные правки сохранены в форме.');
+        }
+        return false;
       }
+      if (!result.ok) {
+        if (!force && !localDirtyRef.current) {
+          setSections([]);
+        }
+        setError(result.error.message);
+        return false;
+      }
+      if (result.data.draftRevision < draftRevisionRef.current) return false;
+      if (localDirtyRef.current) {
+        if (result.data.draftRevision > draftRevisionRef.current) {
+          setError('Курс изменён в другом окне. Локальные правки сохранены в форме.');
+          return false;
+        }
+        // A saved lesson may move to another section/position while the author
+        // types again. Applying that outline would remount and discard the form.
+        return true;
+      }
+      draftRevisionRef.current = result.data.draftRevision;
+      setDraftRevision(result.data.draftRevision);
       localDirtyRef.current = false;
       setLocalDirty(false);
       setSections(result.data.sections);
-      setDraftRevision(result.data.draftRevision);
       setSelectedLessonId((current) => {
         if (
           current &&
@@ -516,6 +563,7 @@ function CourseEditor({
         }
         return result.data.sections.flatMap((section) => section.lessons)[0]?.id ?? null;
       });
+      return true;
     },
     [course.id, course.draftRevision],
   );
@@ -546,6 +594,10 @@ function CourseEditor({
       setError('Сначала сохраните изменения урока. Структура курса не изменена.');
       return false;
     }
+    if (revisionRefreshRef.current) {
+      setError('Дождитесь обновления содержания курса и повторите действие.');
+      return false;
+    }
     const result = await run();
     if (!result.ok) {
       setError(result.error?.message ?? 'Не получилось.');
@@ -558,21 +610,62 @@ function CourseEditor({
     return true;
   }
 
-  async function saveLesson(input: CourseLessonInput): Promise<void> {
-    const lessonId = selected?.lesson.id ?? null;
+  async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
+    const savingGeneration = editGeneration.current;
+    const pendingRefresh = revisionRefreshRef.current;
+    if (pendingRefresh) {
+      try {
+        await pendingRefresh;
+      } finally {
+        if (revisionRefreshRef.current === pendingRefresh) revisionRefreshRef.current = null;
+      }
+    }
+    const expectedRevision = draftRevisionRef.current;
     const result = await api.saveCourseLesson(course.id, lessonId, {
       ...input,
-      expectedRevision: draftRevision,
+      expectedRevision,
     });
     if (!result.ok) {
       setError(result.error.message);
       return;
     }
+    if (
+      !Number.isSafeInteger(result.data.draftRevision) ||
+      result.data.draftRevision <= expectedRevision
+    ) {
+      if (!lessonId) createdLessonIdRef.current = result.data.id;
+      setError(
+        'Не удалось подтвердить версию курса. Обновите страницу перед повторным сохранением.',
+      );
+      return;
+    }
+    draftRevisionRef.current = result.data.draftRevision;
+    setDraftRevision(result.data.draftRevision);
+    const editedSinceSave = editGeneration.current !== savingGeneration;
     setError(null);
-    setNotice(lessonId ? 'Урок сохранён.' : 'Урок добавлен.');
-    setNewLessonSectionId(null);
-    setSelectedLessonId(result.data.id);
-    await loadOutline(true);
+    setNotice(
+      editedSinceSave
+        ? 'Урок сохранён. Последние изменения ещё не сохранены.'
+        : lessonId
+          ? 'Урок сохранён.'
+          : 'Урок добавлен.',
+    );
+    if (editedSinceSave) {
+      if (!lessonId) createdLessonIdRef.current = result.data.id;
+    } else {
+      localDirtyRef.current = false;
+      setLocalDirty(false);
+      createdLessonIdRef.current = null;
+      setNewLessonSectionId(null);
+      setSelectedLessonId(result.data.id);
+    }
+    const refresh = loadOutline(true);
+    revisionRefreshRef.current = refresh;
+    try {
+      await refresh;
+    } finally {
+      if (revisionRefreshRef.current === refresh) revisionRefreshRef.current = null;
+    }
     onChanged();
   }
 
@@ -590,6 +683,10 @@ function CourseEditor({
 
   async function publishCourse(): Promise<void> {
     if (publishing || localDirtyRef.current || lessonCount === 0) return;
+    if (revisionRefreshRef.current) {
+      setError('Дождитесь обновления содержания курса и повторите публикацию.');
+      return;
+    }
     setPublishing(true);
     const result = await api.publishCourse(
       course.id,
@@ -966,6 +1063,7 @@ function CourseEditor({
                       className="course-add-lesson"
                       onClick={() =>
                         withSavedDraft(() => {
+                          createdLessonIdRef.current = null;
                           setSelectedLessonId(null);
                           setNewLessonSectionId(section.id);
                         })
@@ -986,7 +1084,7 @@ function CourseEditor({
                   sectionId={newLessonSectionId}
                   lesson={null}
                   assignments={assignments}
-                  onSave={saveLesson}
+                  onSave={(input) => saveLesson(createdLessonIdRef.current, input)}
                   onDirty={markDirty}
                   onDelete={null}
                 />
@@ -997,7 +1095,7 @@ function CourseEditor({
                   sectionId={selected.section.id}
                   lesson={selected.lesson}
                   assignments={assignments}
-                  onSave={saveLesson}
+                  onSave={(input) => saveLesson(selected.lesson.id, input)}
                   onDirty={markDirty}
                   onDelete={deleteLesson}
                 />
@@ -1010,7 +1108,10 @@ function CourseEditor({
                     type="button"
                     className="btn-primary"
                     onClick={() =>
-                      withSavedDraft(() => setNewLessonSectionId(sections[0]?.id ?? null))
+                      withSavedDraft(() => {
+                        createdLessonIdRef.current = null;
+                        setNewLessonSectionId(sections[0]?.id ?? null);
+                      })
                     }
                   >
                     Добавить урок
