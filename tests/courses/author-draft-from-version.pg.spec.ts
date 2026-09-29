@@ -46,7 +46,7 @@ async function state(id: string) {
 async function publish(id: string) {
   const s = await state(id);
   const r = (
-    await app.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+    await app.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
       principal,
       id,
       s.draft_revision,
