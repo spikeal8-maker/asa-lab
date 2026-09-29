@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
+import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
+import { LearningActivitiesController } from '../../apps/api/src/learning-activities.controller.js';
+import { createApiModuleRegistry } from '../../apps/api/src/module-registry.js';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 let admin: pg.Pool;
@@ -143,6 +147,116 @@ afterAll(async () => {
 });
 
 describe('LRN-M1-001 canonical activity/version convergence', () => {
+  it('concurrent source imports retry from a fresh snapshot for idempotency and source conflict', async () => {
+    async function source(title: string) {
+      const result = await admin.query(
+        `INSERT INTO teacher_assignments
+           (tenant_id,owner_principal_id,title,brief,goal,module_key,visibility)
+         VALUES ($1,$2,$3,'Build a circuit','Build a circuit','electronics','private') RETURNING id`,
+        [owner.tenantId, ownerPrincipalId, title],
+      );
+      return result.rows[0].id as string;
+    }
+
+    function concurrentController() {
+      let sourceReads = 0;
+      let releasePair: () => void = () => undefined;
+      const pairReady = new Promise<void>((resolve) => {
+        releasePair = resolve;
+      });
+      const synchronizedPool = {
+        connect: async () => {
+          const client = await app.connect();
+          return {
+            query: async (sql: string, values?: unknown[]) => {
+              const result = await client.query(sql, values);
+              if (sql.includes('FROM teacher_assignments') && sourceReads++ < 2) {
+                if (sourceReads === 2) releasePair();
+                await pairReady;
+              }
+              return result;
+            },
+            release: (discard?: boolean) => client.release(discard),
+          } as unknown as pg.PoolClient;
+        },
+      } as unknown as pg.Pool;
+      const activeContext = {
+        resolve: async () => ({
+          principalId: ownerPrincipalId,
+          accountId: ownerAccountId,
+          tenantId: owner.tenantId,
+          workspaceId: owner.tenantId,
+          workspaceKind: 'personal',
+        }),
+      } as unknown as ActiveContextUseCase;
+      const accounts = {
+        capabilities: async () => [{ capability: 'educator', state: 'verified' }],
+        workspaces: async () => [{ workspaceId: owner.tenantId, kind: 'personal', role: 'owner' }],
+      } as unknown as AccountDirectoryPort;
+      return new LearningActivitiesController(
+        activeContext,
+        accounts,
+        synchronizedPool,
+        createApiModuleRegistry(),
+      );
+    }
+
+    const request = { cookies: { asa_session: 'isolated-test' } } as unknown as FastifyRequest;
+    function body(
+      sourceTeacherAssignmentId: string,
+      title: string,
+      requestId: string,
+      goal?: string,
+    ) {
+      return {
+        kind: 'project',
+        title,
+        requestId,
+        ...(goal === undefined ? {} : { goal }),
+        sourceTeacherAssignmentId,
+        moduleKey: 'electronics',
+        resultMode: 'completion',
+        policies: basePolicies,
+      };
+    }
+    const sameSource = await source('Concurrent idempotent import');
+    const idempotent = concurrentController();
+    const [first, second] = await Promise.all([
+      idempotent.create(request, body(sameSource, 'Same import', 'source:race:same:1')),
+      idempotent.create(request, body(sameSource, 'Same import', 'source:race:same:1')),
+    ]);
+    expect(first.id).toBe(second.id);
+    const sameRows = await admin.query(
+      'SELECT count(*)::integer AS count FROM learning_activities WHERE source_teacher_assignment_id=$1',
+      [sameSource],
+    );
+    expect(sameRows.rows[0].count).toBe(1);
+
+    const conflictingSource = await source('Concurrent conflicting import');
+    const conflicting = concurrentController();
+    const results = await Promise.allSettled([
+      conflicting.create(
+        request,
+        body(conflictingSource, 'Conflicting import', 'source:race:conflict:1', 'First goal'),
+      ),
+      conflicting.create(
+        request,
+        body(conflictingSource, 'Conflicting import', 'source:race:conflict:2', 'Second goal'),
+      ),
+    ]);
+    expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1);
+    const rejected = results.find((result) => result.status === 'rejected');
+    expect(rejected).toMatchObject({
+      reason: { status: 409, response: { error: { code: 'source_conflict' } } },
+    });
+    const conflictRows = await admin.query(
+      "SELECT draft_payload ->> 'goal' AS goal FROM learning_activities WHERE source_teacher_assignment_id=$1",
+      [conflictingSource],
+    );
+    expect(conflictRows.rows).toHaveLength(1);
+    expect(['First goal', 'Second goal']).toContain(conflictRows.rows[0].goal);
+  });
+
   it('pins a normalized goal for direct Seat and Account readers, previews and later edits', async () => {
     const created = (
       await admin.query(

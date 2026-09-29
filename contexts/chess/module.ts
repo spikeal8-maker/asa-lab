@@ -69,6 +69,12 @@ const CHESS_MANIFEST = {
   previewKind: 'board',
   iconKey: 'chess',
   categories: ['logic', 'games', 'training'],
+  learningCapabilities: {
+    assignable: false,
+    editableEvidence: false,
+    submitProjectVersion: false,
+    preview: 'none',
+  },
 } as const;
 
 function invalidDocument(message: string): readonly ModuleDiagnostic[] {

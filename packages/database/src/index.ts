@@ -7,16 +7,22 @@ export const PACKAGE_NAME = '@asa-lab/database';
  * Run `fn` inside a transaction with the verified tenant context applied via
  * `SET LOCAL app.tenant_id`. SET LOCAL is transaction-scoped, so the setting
  * clears automatically before the connection returns to the pool.
+ * Use repeatable read when multiple statements must observe one source snapshot.
  */
 export async function withTenantContext<T>(
   pool: pg.Pool,
   tenantId: string,
   fn: (client: pg.PoolClient) => Promise<T>,
+  options: { isolationLevel?: 'repeatable read' } = {},
 ): Promise<T> {
   const client = await pool.connect();
   let discard = false;
   try {
-    await client.query('BEGIN');
+    await client.query(
+      options.isolationLevel === 'repeatable read'
+        ? 'BEGIN ISOLATION LEVEL REPEATABLE READ'
+        : 'BEGIN',
+    );
     await client.query("SELECT set_config('app.tenant_id', $1, true)", [tenantId]);
     const result = await fn(client);
     const committed = await client.query('COMMIT');

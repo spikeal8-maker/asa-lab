@@ -41,6 +41,12 @@ export const BLOCKS_MODULE = defineModule<BlocksProjectDocumentV1>(
     previewKind: 'stage',
     iconKey: 'blocks',
     categories: ['coding', 'creative'],
+    learningCapabilities: {
+      assignable: false,
+      editableEvidence: false,
+      submitProjectVersion: false,
+      preview: 'none',
+    },
   },
   {
     createEmptyProject: () => ({
