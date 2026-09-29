@@ -89,6 +89,101 @@ describe('A3b module Learning capability SQL projection', () => {
     ).rejects.toThrow(/permission denied/i);
   });
 
+  it('restricts direct Course publication to the validated v3 entrypoint', async () => {
+    const privileges = await app.query(
+      `SELECT current_user AS runtime_role,
+         has_function_privilege('public.course_publish(uuid,uuid)'::regprocedure,'EXECUTE')
+           AS legacy,
+         has_function_privilege('public.course_publish_v2(uuid,uuid,integer,varchar)'::regprocedure,'EXECUTE')
+           AS version_two,
+         has_function_privilege('public.course_publish_v3(uuid,uuid,integer,varchar)'::regprocedure,'EXECUTE')
+           AS version_three`,
+    );
+    expect(privileges.rows[0]).toEqual({
+      runtime_role: 'asalab_app',
+      legacy: false,
+      version_two: false,
+      version_three: true,
+    });
+
+    await admin.query(
+      `INSERT INTO teacher_assignments
+         (tenant_id,owner_principal_id,title,brief,module_key,visibility)
+       VALUES ($1,$2,'A3b publish entrypoint anchor','Anchor','electronics','private')`,
+      [owner.tenantId, principalId],
+    );
+    const created = await admin.query(
+      "SELECT course_save($1,NULL,'A3b guarded publication',NULL,NULL,'private') AS id",
+      [principalId],
+    );
+    const courseId = created.rows[0].id as string;
+    const outline = await admin.query(
+      'SELECT section_id FROM course_outline_v3($1,$2,$3,$4) LIMIT 1',
+      [courseId, principalId, accountId, owner.tenantId],
+    );
+    const saved = await admin.query(
+      `SELECT course_lesson_save_v3($1,$2,$3,NULL,'Guarded material',NULL,
+         $4::jsonb,'material',NULL,20,NULL) AS id`,
+      [
+        principalId,
+        courseId,
+        outline.rows[0].section_id,
+        JSON.stringify([{ id: 'intro', type: 'paragraph', text: 'Valid material' }]),
+      ],
+    );
+    expect(saved.rows[0].id).toBeTruthy();
+    const revision = Number(
+      (await admin.query('SELECT draft_revision FROM courses WHERE id=$1', [courseId])).rows[0]
+        .draft_revision,
+    );
+
+    await expect(
+      app.query('SELECT * FROM course_publish($1,$2)', [principalId, courseId]),
+    ).rejects.toMatchObject({ code: '42501' });
+    await expect(
+      app.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+        principalId,
+        courseId,
+        revision,
+        'a3b:legacy:denied',
+      ]),
+    ).rejects.toMatchObject({ code: '42501' });
+    expect(
+      Number(
+        (await admin.query('SELECT count(*) FROM course_versions WHERE course_id=$1', [courseId]))
+          .rows[0].count,
+      ),
+    ).toBe(0);
+
+    const published = await app.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      'a3b:guarded:publish',
+    ]);
+    expect(published.rows[0]).toMatchObject({ result_code: 'ok', reused: false });
+    const replay = await app.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      principalId,
+      courseId,
+      revision,
+      'a3b:guarded:publish',
+    ]);
+    expect(replay.rows[0]).toMatchObject({
+      result_code: 'ok',
+      version_id: published.rows[0].version_id,
+      version_number: published.rows[0].version_number,
+      published_at: published.rows[0].published_at,
+      reused: true,
+    });
+    const outsider = await app.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+      outsiderPrincipalId,
+      courseId,
+      revision,
+      'a3b:guarded:publish',
+    ]);
+    expect(outsider.rows[0].result_code).toBe('course_not_found');
+  });
+
   it('onboards a future module without a Learning SQL branch and rejects stale new publication', async () => {
     const client = await admin.connect();
     try {
