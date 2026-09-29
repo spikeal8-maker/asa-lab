@@ -99,12 +99,13 @@ async function renderCourse(
   source: 'seat' | 'account',
   occurrence: CourseActivityOccurrence | CourseActivityOccurrence[],
   onOpenProject = vi.fn(),
+  runOverride?: SeatCourseRun,
 ) {
   const read = source === 'seat' ? 'seatCourseRuns' : 'accountCourseRuns';
   vi.spyOn(api, read).mockResolvedValue({
     ok: true,
     status: 200,
-    data: { items: [course(Array.isArray(occurrence) ? occurrence : [occurrence])] },
+    data: { items: [runOverride ?? course(Array.isArray(occurrence) ? occurrence : [occurrence])] },
   });
   container = document.createElement('div');
   document.body.append(container);
@@ -121,6 +122,48 @@ async function renderCourse(
 }
 
 describe('Course Activity work origin', () => {
+  it.each(['seat', 'account'] as const)(
+    '%s submits a proven historical Course lesson without a Learning Activity Version',
+    async (source) => {
+      const oldCourse = course([]);
+      Object.assign(oldCourse.sections[0]!.lessons[0]!, {
+        kind: 'assignment',
+        classroomAssignmentId: 'old-course-handout',
+        assignmentTitle: 'Old assignment',
+        assignmentBrief: 'Build it',
+        moduleKey: 'electronics',
+        projectId: 'old-course-project',
+        snapshotRevision: 3,
+        legacySubmitAllowed: true,
+      });
+      vi.spyOn(api, 'learningWorkContext').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { state: 'unavailable', projectId: 'old-course-project' },
+      });
+      vi.spyOn(api, 'openProject').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { draft: { revision: 3 } },
+      } as Awaited<ReturnType<typeof api.openProject>>);
+      vi.spyOn(window, 'confirm').mockReturnValue(true);
+      const submit = vi.spyOn(api, 'submitSeatAssignment').mockResolvedValue({
+        ok: false,
+        status: 503,
+        error: { code: 'lost_response', message: 'Retry' },
+      });
+      const exact = vi.spyOn(api, 'submitLearningProject');
+      const view = await renderCourse(source, [], vi.fn(), oldCourse);
+      const button = [...view.querySelectorAll('button')].find(
+        (item) => item.textContent === 'Сдать',
+      );
+      expect(button).toBeDefined();
+      await act(async () => button?.click());
+      expect(submit).toHaveBeenCalledWith('old-course-handout', true, 3, expect.any(String), true);
+      expect(exact).not.toHaveBeenCalled();
+    },
+  );
+
   it.each(['seat', 'account'] as const)(
     '%s starts a shared handout only through the exact Course occurrence Run',
     async (source) => {

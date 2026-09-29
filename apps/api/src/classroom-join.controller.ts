@@ -142,6 +142,11 @@ interface SeatCourseRunRow {
   snapshot_revision: number | string | null;
   work_updated_at: Date | string | null;
   completed_at: Date | string | null;
+  legacy_provenance?: {
+    legacyCourseLesson?: boolean;
+    legacyProjectReadable?: boolean;
+    submitAllowed?: boolean;
+  } | null;
 }
 
 interface CourseActivityOccurrenceRow {
@@ -329,6 +334,7 @@ function seatCourseRuns(
         updatedAt: string | null;
         completedAt: string | null;
         canonicalState: CanonicalLearningSurfaceState | null;
+        legacySubmitAllowed: boolean;
         activityOccurrences: CourseActivityOccurrenceView[];
       }>;
     }>;
@@ -337,6 +343,11 @@ function seatCourseRuns(
     const suppressLegacyWork =
       row.classroom_assignment_id !== null &&
       guardedLessonWork.has(`${row.run_id}:${row.lesson_id}:${row.classroom_assignment_id}`);
+    const lessonWorkReadable =
+      !suppressLegacyWork &&
+      (row.lesson_kind !== 'assignment' ||
+        (row.legacy_provenance?.legacyCourseLesson === true &&
+          row.legacy_provenance.legacyProjectReadable === true));
     let run = runs.find((entry) => entry.id === row.run_id);
     if (!run) {
       run = {
@@ -381,17 +392,20 @@ function seatCourseRuns(
       assignmentBrief: row.assignment_brief,
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
-      projectId: suppressLegacyWork ? null : row.project_id,
+      projectId: lessonWorkReadable ? row.project_id : null,
       submittedAt:
-        suppressLegacyWork || row.submitted_at === null ? null : isoDate(row.submitted_at),
+        !lessonWorkReadable || row.submitted_at === null ? null : isoDate(row.submitted_at),
       snapshotRevision:
-        suppressLegacyWork || row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+        !lessonWorkReadable || row.snapshot_revision === null
+          ? null
+          : Number(row.snapshot_revision),
       updatedAt:
-        suppressLegacyWork || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+        !lessonWorkReadable || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
-      canonicalState: suppressLegacyWork
+      canonicalState: !lessonWorkReadable
         ? null
         : canonicalFor(projections, row.classroom_assignment_id),
+      legacySubmitAllowed: lessonWorkReadable && row.legacy_provenance?.submitAllowed === true,
       activityOccurrences: activityOccurrences.get(`${row.run_id}:${row.lesson_id}`) ?? [],
     });
   }
@@ -1205,9 +1219,14 @@ export class ClassroomJoinController {
               lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
               classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
               module_key, sample_image, project_id, submitted_at, snapshot_revision,
-              work_updated_at, completed_at
+              work_updated_at, completed_at,
+              CASE WHEN lesson_kind = 'assignment' AND classroom_assignment_id IS NOT NULL
+                THEN learning_legacy_direct_provenance(
+                  $2, classroom_seat_for_account_assignment($1,classroom_assignment_id),
+                  classroom_assignment_id,project_id)
+                ELSE NULL END AS legacy_provenance
          FROM classroom_course_runs_for_account_v2($1)`,
-        [context.accountId],
+        [context.accountId, context.principalId],
       ),
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
@@ -1405,7 +1424,11 @@ export class ClassroomJoinController {
               lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
               classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
               module_key, sample_image, project_id, submitted_at, snapshot_revision,
-              work_updated_at, completed_at
+              work_updated_at, completed_at,
+              CASE WHEN lesson_kind = 'assignment' AND classroom_assignment_id IS NOT NULL
+                THEN learning_legacy_direct_provenance(
+                  principal_for_seat($1),$1,classroom_assignment_id,project_id)
+                ELSE NULL END AS legacy_provenance
          FROM classroom_course_runs_for_seat_v2($1)`,
         [seat.seat_id],
       ),
@@ -1944,7 +1967,10 @@ export class ClassroomJoinController {
       assignmentId,
       null,
     );
-    if (legacyOnly && (!provenance.legacyDirect || !provenance.submitAllowed))
+    if (
+      legacyOnly &&
+      (!(provenance.legacyDirect || provenance.legacyCourseLesson) || !provenance.submitAllowed)
+    )
       throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     const requestId = clientRequestId ?? randomUUID();
     const canonical = await this.requirePool().query(
@@ -1979,7 +2005,7 @@ export class ClassroomJoinController {
         assignmentId,
         null,
         'submit',
-        legacyOnly,
+        false,
         `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
                 project_id, project_version_id, submitted_at, late_state, reused
            FROM learning_project_submission_create($1, $2, $3)`,

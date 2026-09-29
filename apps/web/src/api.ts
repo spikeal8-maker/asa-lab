@@ -482,6 +482,7 @@ export interface SeatCourseRunLesson extends Omit<
   updatedAt: string | null;
   completedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  legacySubmitAllowed?: boolean;
 }
 
 export interface SeatCourseRun {

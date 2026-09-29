@@ -147,8 +147,8 @@ describe('LRN-VS-001 canonical direct assignment', () => {
     const versionId = await activity('Pinned version without Run');
     const assignment = await admin.query(
       `INSERT INTO classroom_assignments
-         (tenant_id,classroom_id,title,module_key,created_by,learning_activity_version_id)
-       VALUES ($1,$2,'Pinned no-run','electronics',$3,$4) RETURNING id`,
+         (tenant_id,classroom_id,module_key,created_by,learning_activity_version_id)
+       VALUES ($1,$2,'electronics',$3,$4) RETURNING id`,
       [owner.tenantId, classId, owner.teacherId, versionId],
     );
     const seatPrincipal = (
@@ -231,9 +231,9 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       startAllowed: false,
       submitAllowed: false,
     });
-    await inTenant((client) =>
-      client.query(`SELECT learning_audience_ensure_seat_identity($1)`, [learnerSeat]),
-    );
+    // Fixture setup uses the privileged test owner; asalab_app must not gain
+    // EXECUTE on the internal identity helper.
+    await admin.query(`SELECT learning_audience_ensure_seat_identity($1)`, [learnerSeat]);
     const identity = await admin.query(
       `SELECT learner_identity_id FROM learner_identity_links
         WHERE seat_id=$1 AND link_kind='student_seat'`,
@@ -324,6 +324,145 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       inTenant((client) => client.query(`SELECT * FROM activity_runs LIMIT 1`)),
     ).rejects.toThrow(/permission denied/);
   });
+
+  it('proves only a readable historical Course lesson Project and withdraws Submit with its Seat link', async () => {
+    const classId = await classroom();
+    const learnerSeat = await seat(classId, 'Course learner');
+    const wrongSeat = await seat(classId, 'Wrong learner');
+    await admin.query(
+      `UPDATE classroom_student_seats SET status='active' WHERE id=ANY($1::uuid[])`,
+      [[learnerSeat, wrongSeat]],
+    );
+    const course = await admin.query(
+      `INSERT INTO courses (tenant_id,owner_principal_id,title,visibility)
+       VALUES ($1,$2,'Old course','private') RETURNING id`,
+      [owner.tenantId, principal],
+    );
+    const version = await admin.query(
+      `INSERT INTO course_versions
+         (tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
+       VALUES ($1,$2,1,'Old course','{"sections":[]}'::jsonb,$3,$4) RETURNING id`,
+      [owner.tenantId, course.rows[0].id, `old-course-${++sequence}`, principal],
+    );
+    const run = await admin.query(
+      `INSERT INTO classroom_course_runs
+         (tenant_id,classroom_id,course_id,course_version_id,title,version_number,assigned_by_principal_id)
+       VALUES ($1,$2,$3,$4,'Old course',1,$5) RETURNING id`,
+      [owner.tenantId, classId, course.rows[0].id, version.rows[0].id, principal],
+    );
+    const handout = await admin.query(
+      `INSERT INTO classroom_assignments
+         (tenant_id,classroom_id,status,created_by,course_run_id)
+       VALUES ($1,$2,'open',$3,$4) RETURNING id`,
+      [owner.tenantId, classId, owner.teacherId, run.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO classroom_course_run_lessons
+         (tenant_id,run_id,source_section_id,source_lesson_id,section_title,section_position,
+          title,kind,lesson_position,classroom_assignment_id,assignment_title,assignment_brief,module_key)
+       VALUES ($1,$2,gen_random_uuid(),gen_random_uuid(),'Section',1,'Work','assignment',1,
+               $3,'Work','Build it','electronics')`,
+      [owner.tenantId, run.rows[0].id, handout.rows[0].id],
+    );
+    const learnerPrincipal = (
+      await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [learnerSeat])
+    ).rows[0].principal_id as string;
+    const wrongPrincipal = (
+      await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [wrongSeat])
+    ).rows[0].principal_id as string;
+    const projectId = (
+      await admin.query(
+        `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+         VALUES ($1,'personal','electronics','Old course work',$2) RETURNING id`,
+        [owner.tenantId, learnerPrincipal],
+      )
+    ).rows[0].id as string;
+    const proof = async (actor: string, seatId: string) =>
+      (
+        await inTenant((client) =>
+          client.query(`SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`, [
+            actor,
+            seatId,
+            handout.rows[0].id,
+            projectId,
+          ]),
+        )
+      ).rows[0].proof as Record<string, boolean>;
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyDirect: false,
+      legacyCourseLesson: true,
+      legacyProjectReadable: false,
+      startAllowed: true,
+      submitAllowed: false,
+    });
+    await inTenant((client) =>
+      client.query(`SELECT * FROM classroom_assignment_work_start($1,$2,$3)`, [
+        learnerSeat,
+        handout.rows[0].id,
+        projectId,
+      ]),
+    );
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyProjectReadable: true,
+      submitAllowed: false,
+    });
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES ($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [owner.tenantId, projectId, learnerPrincipal],
+    );
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyProjectReadable: true,
+      submitAllowed: true,
+    });
+    await admin.query(`UPDATE classroom_course_runs SET status='closed' WHERE id=$1`, [
+      run.rows[0].id,
+    ]);
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyCourseLesson: true,
+      legacyProjectReadable: true,
+      startAllowed: false,
+      submitAllowed: false,
+    });
+    await admin.query(`UPDATE classroom_course_runs SET status='open' WHERE id=$1`, [
+      run.rows[0].id,
+    ]);
+    expect(await proof(wrongPrincipal, wrongSeat)).toMatchObject({
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+    await admin.query(`SELECT learning_audience_ensure_seat_identity($1)`, [learnerSeat]);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+       WHERE seat_id=$1 AND link_kind='student_seat'`,
+      [learnerSeat],
+    );
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+       WHERE seat_id=$1 AND link_kind='student_seat'`,
+      [learnerSeat],
+    );
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyCourseLesson: true,
+      legacyProjectReadable: true,
+      submitAllowed: true,
+    });
+    const pinnedVersion = await activity('Course lesson pinned without Run');
+    await admin.query(
+      `UPDATE classroom_assignments SET learning_activity_version_id=$1 WHERE id=$2`,
+      [pinnedVersion, handout.rows[0].id],
+    );
+    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
+      legacyCourseLesson: false,
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+  }, 30_000);
 
   it('assigns one published activity to the whole class and exposes every eligible seat', async () => {
     const classId = await classroom();

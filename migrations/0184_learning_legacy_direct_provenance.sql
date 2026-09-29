@@ -20,6 +20,7 @@ DECLARE
     v_project_access boolean;
     v_legacy_direct boolean;
     v_legacy_course_lesson boolean;
+    v_course_open boolean;
     v_legacy_submit_supported boolean;
 BEGIN
     SELECT seat.id, seat.tenant_id, seat.classroom_id, seat.account_id,
@@ -36,6 +37,23 @@ BEGIN
       INTO v_assignment FROM public.classroom_assignments assignment
      WHERE assignment.id = p_assignment_id;
     SELECT EXISTS (
+        SELECT 1 FROM public.activity_runs run
+         WHERE run.tenant_id = v_seat.tenant_id
+           AND run.classroom_id = v_seat.classroom_id
+           AND run.source_classroom_assignment_id = p_assignment_id
+    ) INTO v_run_present;
+    SELECT v_assignment.learning_activity_version_id IS NULL
+      AND NOT v_run_present AND EXISTS (
+        SELECT 1 FROM public.classroom_course_run_lessons lesson
+        JOIN public.classroom_course_runs course
+          ON course.tenant_id = lesson.tenant_id AND course.id = lesson.run_id
+         WHERE lesson.classroom_assignment_id = p_assignment_id
+           AND lesson.kind = 'assignment'
+           AND lesson.run_id = v_assignment.course_run_id
+           AND course.tenant_id = v_seat.tenant_id
+           AND course.classroom_id = v_seat.classroom_id
+    ) INTO v_legacy_course_lesson;
+    SELECT v_legacy_course_lesson AND EXISTS (
         SELECT 1 FROM public.classroom_course_run_lessons lesson
         JOIN public.classroom_course_runs course
           ON course.tenant_id = lesson.tenant_id AND course.id = lesson.run_id
@@ -45,7 +63,7 @@ BEGIN
            AND course.tenant_id = v_seat.tenant_id
            AND course.classroom_id = v_seat.classroom_id
            AND course.status = 'open'
-    ) INTO v_legacy_course_lesson;
+    ) INTO v_course_open;
     v_legacy_direct := COALESCE(
         v_assignment.assignment_id IS NOT NULL
         AND v_assignment.course_run_id IS NULL
@@ -106,12 +124,6 @@ BEGIN
     END IF;
 
     SELECT EXISTS (
-        SELECT 1 FROM public.activity_runs run
-         WHERE run.tenant_id = v_seat.tenant_id
-           AND run.classroom_id = v_seat.classroom_id
-           AND run.source_classroom_assignment_id = p_assignment_id
-    ) INTO v_run_present;
-    SELECT EXISTS (
         SELECT 1 FROM public.learner_identity_links seat_link
         JOIN public.learning_project_origins origin
           ON origin.school_tenant_id = seat_link.tenant_id
@@ -155,6 +167,7 @@ BEGIN
             AND NOT v_origin_present,
         'startAllowed',v_assignment.status = 'open'
             AND v_actor.kind = 'student_seat'
+            AND (NOT v_legacy_course_lesson OR v_course_open)
             AND (v_legacy_course_lesson OR NOT v_run_present)
             AND NOT v_origin_present
             AND NOT EXISTS (
@@ -171,6 +184,7 @@ BEGIN
                  WHERE project.id = p_project_id
                    AND project.tenant_id = v_seat.tenant_id))),
         'submitAllowed',v_assignment.status = 'open'
+            AND (NOT v_legacy_course_lesson OR v_course_open)
             AND v_work_present AND v_project_access
             AND v_legacy_submit_supported
             AND NOT v_origin_present

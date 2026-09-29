@@ -96,7 +96,7 @@ describe('classroom course progress', () => {
         : [],
     }));
     const activeContext = {
-      resolve: vi.fn(async () => ({ accountId: 'account-id' })),
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
     } as unknown as ActiveContextUseCase;
     const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
     const accountRequest = request('203.0.113.20');
@@ -105,7 +105,7 @@ describe('classroom course progress', () => {
     await expect(controller.accountCourseRuns(accountRequest)).resolves.toEqual({ items: [] });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('classroom_course_runs_for_account_v2'),
-      ['account-id'],
+      ['account-id', 'account-principal'],
     );
     await expect(
       controller.setAccountCourseLessonProgress(accountRequest, runId, lessonId, {
@@ -1075,6 +1075,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     await expect(
       controller.submitAssignment(seatRequest(), assignmentId, {
         submitted: true,
+        legacyOnly: true,
         clientRequestId: 'course:legacy:submit:001',
         expectedRevision: 1,
       }),
@@ -1091,6 +1092,100 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     expect(
       statements.findIndex((sql) => sql.includes('learning_legacy_assignment_write_provenance')),
     ).toBeLessThan(statements.findIndex((sql) => sql.includes('classroom_assignment_work_start')));
+  });
+
+  it('shows historical Course lesson work and submit proof only to its authorized Seat or Account', async () => {
+    const seatId = '53000000-0000-4000-8000-000000000021';
+    const assignmentId = '54000000-0000-4000-8000-000000000021';
+    const projectId = '57000000-0000-4000-8000-000000000021';
+    const courseRow = {
+      run_id: '58000000-0000-4000-8000-000000000021',
+      course_id: '59000000-0000-4000-8000-000000000021',
+      course_version_id: '5a000000-0000-4000-8000-000000000021',
+      version_number: 1,
+      classroom_title: '7А',
+      run_title: 'Old course',
+      run_summary: null,
+      due_at: null,
+      run_status: 'open',
+      lesson_id: '5b000000-0000-4000-8000-000000000021',
+      source_lesson_id: '5c000000-0000-4000-8000-000000000021',
+      section_title: 'Section',
+      section_summary: null,
+      section_position: 1,
+      lesson_title: 'Old lesson',
+      lesson_summary: null,
+      lesson_content: null,
+      lesson_blocks: [],
+      lesson_kind: 'assignment',
+      estimated_minutes: null,
+      lesson_position: 1,
+      classroom_assignment_id: assignmentId,
+      assignment_title: 'Old assignment',
+      assignment_goal: null,
+      assignment_brief: 'Build it',
+      module_key: 'electronics',
+      sample_image: null,
+      project_id: projectId,
+      submitted_at: null,
+      snapshot_revision: 2,
+      work_updated_at: '2026-09-20T22:00:00Z',
+      completed_at: null,
+      legacy_provenance: {
+        legacyCourseLesson: true,
+        legacyProjectReadable: true,
+        submitAllowed: true,
+      },
+    };
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) return { rows: [{ seat_id: seatId }] };
+      if (sql.includes('classroom_course_runs_for_')) return { rows: [courseRow] };
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.40');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    for (const read of [
+      () => controller.courseRuns(seatRequest()),
+      () => controller.accountCourseRuns(accountRequest),
+    ]) {
+      const lesson = (await read()).items[0]?.sections[0]?.lessons[0];
+      expect(lesson).toMatchObject({
+        projectId,
+        snapshotRevision: 2,
+        legacySubmitAllowed: true,
+      });
+    }
+    expect(
+      query.mock.calls.some(
+        ([sql, parameters]) =>
+          sql.includes('classroom_course_runs_for_account_v2') &&
+          sql.includes('learning_legacy_direct_provenance') &&
+          parameters?.[1] === 'account-principal',
+      ),
+    ).toBe(true);
+    courseRow.legacy_provenance = {
+      legacyCourseLesson: true,
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    };
+    for (const read of [
+      () => controller.courseRuns(seatRequest()),
+      () => controller.accountCourseRuns(accountRequest),
+    ]) {
+      const lesson = (await read()).items[0]?.sections[0]?.lessons[0];
+      expect(lesson).toMatchObject({
+        projectId: null,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+        legacySubmitAllowed: false,
+      });
+    }
   });
 
   it('rejects stale historical Direct proof before attaching or submitting work', async () => {

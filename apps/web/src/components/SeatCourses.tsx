@@ -42,6 +42,7 @@ export function courseAssignmentShape(
     snapshotRevision: lesson.snapshotRevision,
     updatedAt: lesson.updatedAt,
     canonicalState: lesson.canonicalState,
+    legacySubmitAllowed: lesson.legacySubmitAllowed === true,
   };
 }
 
