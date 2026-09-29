@@ -48,6 +48,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0173',
         '0174',
         '0175',
+        '0176',
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -216,6 +217,10 @@ describe('Course Builder structure forward upgrade', () => {
       } finally {
         upgrade.release();
       }
+      expect(
+        (await pool.query('SELECT count(*)::int AS count FROM learning_project_origins')).rows[0]
+          .count,
+      ).toBe(0);
 
       const draftAfter = (
         await pool.query(

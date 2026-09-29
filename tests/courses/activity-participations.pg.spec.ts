@@ -789,3 +789,549 @@ describe('LRN-M1-004 ActivityParticipation', () => {
     ]);
   });
 });
+
+describe('A4-1 immutable learning project origin', () => {
+  async function project(principalId: string, tenantId = owner.tenantId) {
+    const created = await admin.query(
+      `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+       VALUES ($1,'personal','electronics',$2,$3) RETURNING id`,
+      [tenantId, `Origin project ${++sequence}`, principalId],
+    );
+    return created.rows[0].id as string;
+  }
+
+  async function originValues(
+    participationId: string,
+    projectId: string,
+    projectTenantId = owner.tenantId,
+    principalId = learnerPrincipal,
+  ) {
+    const source = await admin.query(
+      `SELECT participation.id AS participation_id,participation.tenant_id AS school_tenant_id,
+              participation.school_id,participation.learner_identity_id,
+              run.id AS activity_run_id,run.learning_activity_version_id,run.source_kind,
+              run.source_course_run_id,run.source_course_lesson_id,run.source_course_block_id
+         FROM activity_participations participation
+         JOIN activity_runs run ON run.id=participation.activity_run_id
+        WHERE participation.id=$1`,
+      [participationId],
+    );
+    return [projectId, projectTenantId, ...Object.values(source.rows[0]), principalId];
+  }
+
+  const insertSql = `INSERT INTO learning_project_origins
+    (project_id,project_tenant_id,participation_id,school_tenant_id,school_id,
+     learner_identity_id,activity_run_id,learning_activity_version_id,source_kind,
+     source_course_run_id,source_course_lesson_id,source_course_block_id,owner_principal_id)
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`;
+
+  it('pins direct and block-aware course provenance and rejects identity substitution', async () => {
+    const directRun = await createRun({ handout: await directHandout() });
+    const directPart = await assign(directRun);
+    expect(directPart.result_code).toBe('ok');
+    const directProject = await project(learnerPrincipal);
+    const directValues = await originValues(directPart.participation_id as string, directProject);
+    await admin.query(insertSql, directValues);
+
+    const course = await courseHandout();
+    const legacyLessonRun = await createRun({
+      handout: course.handout,
+      kind: 'course',
+      courseRun: course.courseRun,
+      lesson: course.lesson,
+    });
+    const legacyLessonPart = await assign(legacyLessonRun);
+    expect(legacyLessonPart.result_code).toBe('ok');
+    const legacyLessonProject = await project(learnerPrincipal);
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(legacyLessonPart.participation_id as string, legacyLessonProject),
+      ),
+    ).rejects.toThrow(/learning_project_origins_source_shape_check/);
+
+    const activityLesson = await admin.query(
+      `INSERT INTO classroom_course_run_lessons
+         (tenant_id,run_id,source_section_id,source_lesson_id,section_title,
+          section_position,title,kind,lesson_position)
+       VALUES ($1,$2,gen_random_uuid(),gen_random_uuid(),'Section',1,
+               'Activity occurrence','material',2) RETURNING id`,
+      [owner.tenantId, course.courseRun],
+    );
+    const activityLessonId = activityLesson.rows[0].id as string;
+    const blockRun = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,
+         NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,$7)`,
+        [
+          ownerPrincipal,
+          course.handout,
+          lav,
+          course.courseRun,
+          activityLessonId,
+          `a4:origin:block:${++sequence}`,
+          'course-block-a',
+        ],
+      ),
+    );
+    expect(blockRun.rows[0].result_code).toBe('ok');
+    const coursePart = await assign(blockRun.rows[0].activity_run_id as string);
+    expect(coursePart.result_code).toBe('ok');
+    const courseProject = await project(learnerPrincipal);
+    const courseValues = await originValues(coursePart.participation_id as string, courseProject);
+    await admin.query(insertSql, courseValues);
+    expect(
+      (
+        await admin.query(
+          `SELECT source_kind,learning_activity_version_id,source_course_run_id,
+                source_course_lesson_id,source_course_block_id
+           FROM learning_project_origins WHERE project_id=$1`,
+          [courseProject],
+        )
+      ).rows[0],
+    ).toEqual({
+      source_kind: 'course',
+      learning_activity_version_id: lav,
+      source_course_run_id: course.courseRun,
+      source_course_lesson_id: activityLessonId,
+      source_course_block_id: 'course-block-a',
+    });
+    expect(
+      (
+        await admin.query(
+          `SELECT source_kind,source_course_block_id FROM learning_project_origins
+        WHERE project_id=$1`,
+          [directProject],
+        )
+      ).rows[0],
+    ).toEqual({ source_kind: 'direct', source_course_block_id: null });
+
+    await expect(admin.query(insertSql, [directProject, ...courseValues.slice(1)])).rejects.toThrow(
+      /duplicate key/,
+    );
+    await expect(
+      admin.query(insertSql, [
+        await project(learnerPrincipal),
+        directValues[1],
+        ...directValues.slice(2),
+      ]),
+    ).rejects.toThrow(/duplicate key/);
+    await expect(
+      admin.query(insertSql, [
+        await project(learnerPrincipal),
+        ...courseValues.slice(1, 5),
+        secondLearner,
+        ...courseValues.slice(6),
+      ]),
+    ).rejects.toThrow(/lineage is incoherent/);
+    await expect(
+      admin.query(insertSql, [
+        await project(learnerPrincipal),
+        ...courseValues.slice(1, 8),
+        'direct',
+        ...courseValues.slice(9),
+      ]),
+    ).rejects.toThrow(/source_shape|lineage is incoherent/);
+    await expect(
+      admin.query(insertSql, [
+        await project(learnerPrincipal),
+        ...courseValues.slice(1, 11),
+        'other-block',
+        courseValues[12],
+      ]),
+    ).rejects.toThrow(/lineage is incoherent/);
+    await expect(
+      admin.query(insertSql, [
+        await project(ownerPrincipal),
+        ...courseValues.slice(1, 12),
+        ownerPrincipal,
+      ]),
+    ).rejects.toThrow(/owner\/learner lineage is incoherent/);
+    await expect(
+      admin.query(insertSql, [
+        await project(learnerPrincipal),
+        ...courseValues.slice(1, 3),
+        outsider.tenantId,
+        ...courseValues.slice(4),
+      ]),
+    ).rejects.toThrow(/foreign key|lineage is incoherent/);
+    const otherSchool = await admin.query(
+      `INSERT INTO schools (tenant_id,title) VALUES ($1,'Other origin school') RETURNING id`,
+      [owner.tenantId],
+    );
+    await expect(
+      admin.query(insertSql, [
+        await project(learnerPrincipal),
+        ...courseValues.slice(1, 4),
+        otherSchool.rows[0].id,
+        ...courseValues.slice(5),
+      ]),
+    ).rejects.toThrow(/foreign key|lineage is incoherent/);
+
+    const copied = await admin.query(
+      `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id,
+        copied_from_project_id,copied_from_author,copied_from_title,copied_at)
+       VALUES ($1,'personal','electronics','Personal copy',$2,$3,'Learner','Original',now())
+       RETURNING id`,
+      [owner.tenantId, learnerPrincipal, directProject],
+    );
+    await expect(
+      admin.query(insertSql, [copied.rows[0].id, ...courseValues.slice(1)]),
+    ).rejects.toThrow(/project lineage is incoherent/);
+
+    const wrongModule = await admin.query(
+      `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+       VALUES ($1,'personal','three-d','Wrong module',$2) RETURNING id`,
+      [owner.tenantId, learnerPrincipal],
+    );
+    await expect(
+      admin.query(insertSql, [wrongModule.rows[0].id, ...courseValues.slice(1)]),
+    ).rejects.toThrow(/participation\/run\/version lineage is incoherent/);
+
+    await expect(
+      admin.query(
+        `UPDATE learning_project_origins SET source_kind='course'
+      WHERE project_id=$1`,
+        [directProject],
+      ),
+    ).rejects.toThrow(/immutable/);
+    await expect(
+      admin.query(`DELETE FROM learning_project_origins WHERE project_id=$1`, [directProject]),
+    ).rejects.toThrow(/immutable/);
+    await expect(
+      admin.query(`UPDATE projects SET owner_principal_id=$1 WHERE id=$2`, [
+        ownerPrincipal,
+        directProject,
+      ]),
+    ).rejects.toThrow(/immutable/);
+    await expect(
+      admin.query(`UPDATE projects SET module_key='three-d' WHERE id=$1`, [directProject]),
+    ).rejects.toThrow(/immutable/);
+    await expect(admin.query(`DELETE FROM projects WHERE id=$1`, [directProject])).rejects.toThrow(
+      /foreign key/,
+    );
+  });
+
+  it('allows Account project tenant to differ while Seat→Account linking leaves origin unchanged', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    expect(participation.result_code).toBe('ok');
+    const seat = (
+      await admin.query(
+        `SELECT seat_id FROM learner_identity_links WHERE learner_identity_id=$1
+       AND link_kind='student_seat'`,
+        [learner],
+      )
+    ).rows[0].seat_id as string;
+    const account = (
+      await admin.query(
+        `SELECT account_id,principal_id FROM legacy_user_account_links
+       WHERE tenant_id=$1 AND user_id=$2`,
+        [outsider.tenantId, outsider.teacherId],
+      )
+    ).rows[0];
+    const seatProject = await project(learnerPrincipal);
+    await admin.query(
+      insertSql,
+      await originValues(participation.participation_id as string, seatProject),
+    );
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      account.account_id,
+      seat,
+    ]);
+    const unchanged = await admin.query(
+      `SELECT owner_principal_id,participation_id FROM learning_project_origins WHERE project_id=$1`,
+      [seatProject],
+    );
+    expect(unchanged.rows[0]).toEqual({
+      owner_principal_id: learnerPrincipal,
+      participation_id: participation.participation_id,
+    });
+
+    const otherRun = await createRun({ handout: await directHandout() });
+    const otherPart = await assign(otherRun);
+    expect(otherPart.result_code).toBe('ok');
+    const accountProject = await project(account.principal_id as string, outsider.tenantId);
+    const accountValues = await originValues(
+      otherPart.participation_id as string,
+      accountProject,
+      outsider.tenantId,
+      account.principal_id as string,
+    );
+    await expect(admin.query(insertSql, accountValues)).rejects.toThrow(
+      /owner\/learner lineage is incoherent/,
+    );
+
+    const wrongOwner = await seedTeacher(admin, 'a4-origin-wrong-account');
+    const wrongAccount = (
+      await admin.query(
+        `SELECT account_id,principal_id FROM legacy_user_account_links
+       WHERE tenant_id=$1 AND user_id=$2`,
+        [wrongOwner.tenantId, wrongOwner.teacherId],
+      )
+    ).rows[0];
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      wrongAccount.account_id,
+      seat,
+    ]);
+    const wrongLink = (
+      await admin.query(
+        `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4) RETURNING id`,
+        [owner.tenantId, owner.schoolId, secondLearner, wrongAccount.account_id],
+      )
+    ).rows[0].id as string;
+    const wrongRun = await createRun({ handout: await directHandout() });
+    const wrongPart = await assign(wrongRun);
+    const wrongProject = await project(wrongAccount.principal_id as string, wrongOwner.tenantId);
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(
+          wrongPart.participation_id as string,
+          wrongProject,
+          wrongOwner.tenantId,
+          wrongAccount.principal_id as string,
+        ),
+      ),
+    ).rejects.toThrow(/owner\/learner lineage is incoherent/);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+      WHERE id=$1`,
+      [wrongLink],
+    );
+
+    const revokedOwner = await seedTeacher(admin, 'a4-origin-revoked-account');
+    const revokedAccount = (
+      await admin.query(
+        `SELECT account_id,principal_id FROM legacy_user_account_links
+       WHERE tenant_id=$1 AND user_id=$2`,
+        [revokedOwner.tenantId, revokedOwner.teacherId],
+      )
+    ).rows[0];
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      revokedAccount.account_id,
+      seat,
+    ]);
+    const revokedLink = (
+      await admin.query(
+        `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4) RETURNING id`,
+        [owner.tenantId, owner.schoolId, learner, revokedAccount.account_id],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+      WHERE id=$1`,
+      [revokedLink],
+    );
+    const revokedRun = await createRun({ handout: await directHandout() });
+    const revokedPart = await assign(revokedRun);
+    const revokedProject = await project(
+      revokedAccount.principal_id as string,
+      revokedOwner.tenantId,
+    );
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(
+          revokedPart.participation_id as string,
+          revokedProject,
+          revokedOwner.tenantId,
+          revokedAccount.principal_id as string,
+        ),
+      ),
+    ).rejects.toThrow(/owner\/learner lineage is incoherent/);
+
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      account.account_id,
+      seat,
+    ]);
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+      [owner.tenantId, owner.schoolId, learner, account.account_id],
+    );
+    await admin.query(insertSql, accountValues);
+    const stored = (
+      await admin.query(
+        `SELECT project_tenant_id,school_tenant_id,
+      owner_principal_id FROM learning_project_origins WHERE project_id=$1`,
+        [accountProject],
+      )
+    ).rows[0];
+    expect(stored).toEqual({
+      project_tenant_id: outsider.tenantId,
+      school_tenant_id: owner.tenantId,
+      owner_principal_id: account.principal_id,
+    });
+
+    const revocationRun = await createRun({ handout: await directHandout() });
+    const revocationPart = await assign(revocationRun);
+    const revocationProject = await project(account.principal_id as string, outsider.tenantId);
+    const revocationValues = await originValues(
+      revocationPart.participation_id as string,
+      revocationProject,
+      outsider.tenantId,
+      account.principal_id as string,
+    );
+    const activeLinkId = (
+      await admin.query(
+        `SELECT id FROM learner_identity_links WHERE tenant_id=$1 AND school_id=$2
+       AND learner_identity_id=$3 AND link_kind='account' AND account_id=$4
+       AND status='active'`,
+        [owner.tenantId, owner.schoolId, learner, account.account_id],
+      )
+    ).rows[0].id as string;
+    const linkWriter = await admin.connect();
+    const originWriter = await admin.connect();
+    let linkTransactionOpen = false;
+    let originInsertion: Promise<{ error: Error | null }> | undefined;
+    try {
+      await linkWriter.query('BEGIN');
+      linkTransactionOpen = true;
+      await linkWriter.query(
+        `UPDATE learner_identity_links
+        SET status='inactive',disabled_at=now() WHERE id=$1`,
+        [activeLinkId],
+      );
+      const originPid = (await originWriter.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      let insertionSettled = false;
+      originInsertion = originWriter
+        .query(insertSql, revocationValues)
+        .then(
+          () => ({ error: null }),
+          (error: Error) => ({ error }),
+        )
+        .finally(() => {
+          insertionSettled = true;
+        });
+      let blockedOnLink = false;
+      for (let i = 0; i < 200 && !insertionSettled; i += 1) {
+        const state = await admin.query(
+          `SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1`,
+          [originPid],
+        );
+        if (state.rows[0]?.wait_event_type === 'Lock') {
+          blockedOnLink = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(blockedOnLink).toBe(true);
+      await linkWriter.query('COMMIT');
+      linkTransactionOpen = false;
+      const outcome = await originInsertion;
+      expect(outcome.error?.message).toMatch(/owner\/learner lineage is incoherent/);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::int AS count FROM learning_project_origins
+        WHERE project_id=$1`,
+            [revocationProject],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    } finally {
+      if (linkTransactionOpen) await linkWriter.query('ROLLBACK');
+      if (originInsertion) await originInsertion;
+      linkWriter.release();
+      originWriter.release();
+    }
+  }, 30_000);
+
+  it('serializes origin insertion with a concurrent project-owner change', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    expect(participation.result_code).toBe('ok');
+    const projectId = await project(learnerPrincipal);
+    const values = await originValues(participation.participation_id as string, projectId);
+    const projectWriter = await admin.connect();
+    const originWriter = await admin.connect();
+    let projectTransactionOpen = false;
+    let originInsertion: Promise<{ error: Error | null }> | undefined;
+    try {
+      await projectWriter.query('BEGIN');
+      projectTransactionOpen = true;
+      await projectWriter.query(`UPDATE projects SET owner_principal_id=$1 WHERE id=$2`, [
+        ownerPrincipal,
+        projectId,
+      ]);
+      const originPid = (await originWriter.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      let insertionSettled = false;
+      originInsertion = originWriter
+        .query(insertSql, values)
+        .then(
+          () => ({ error: null }),
+          (error: Error) => ({ error }),
+        )
+        .finally(() => {
+          insertionSettled = true;
+        });
+      let blockedOnProject = false;
+      for (let i = 0; i < 200 && !insertionSettled; i += 1) {
+        const state = await admin.query(
+          `SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1`,
+          [originPid],
+        );
+        if (state.rows[0]?.wait_event_type === 'Lock') {
+          blockedOnProject = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(blockedOnProject).toBe(true);
+      await projectWriter.query('COMMIT');
+      projectTransactionOpen = false;
+      const outcome = await originInsertion;
+      expect(outcome.error?.message).toMatch(/project lineage is incoherent/);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::int AS count FROM learning_project_origins
+        WHERE project_id=$1`,
+            [projectId],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    } finally {
+      if (projectTransactionOpen) await projectWriter.query('ROLLBACK');
+      if (originInsertion) await originInsertion;
+      projectWriter.release();
+      originWriter.release();
+    }
+  }, 20_000);
+
+  it('does not infer legacy origin and gives the runtime role no table privileges', async () => {
+    const legacyProject = await project(learnerPrincipal);
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_project_origins
+      WHERE project_id=$1`,
+          [legacyProject],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+    const privileges = await admin.query(
+      `SELECT has_table_privilege('asalab_app','learning_project_origins','SELECT') AS select,
+              has_table_privilege('asalab_app','learning_project_origins','INSERT') AS insert,
+              has_table_privilege('asalab_app','learning_project_origins','UPDATE') AS update,
+              has_table_privilege('asalab_app','learning_project_origins','DELETE') AS delete`,
+    );
+    expect(privileges.rows[0]).toEqual({
+      select: false,
+      insert: false,
+      update: false,
+      delete: false,
+    });
+    await expect(
+      inTenant(owner.tenantId, (client) => client.query(`SELECT * FROM learning_project_origins`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+});
