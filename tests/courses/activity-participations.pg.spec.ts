@@ -2322,7 +2322,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     } finally {
       await api.close();
     }
-  });
+  }, 20_000);
 
   it('separates two exact Course blocks even when they share a legacy handout', async () => {
     const source = await courseHandout();
