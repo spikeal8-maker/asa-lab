@@ -1821,7 +1821,7 @@ describe('A4-2b atomic StartLearningWork', () => {
        VALUES ($1,$2,now()+interval '1 hour',1)`,
       [seatId, tokenHash],
     );
-    const api = await buildTestApp(app);
+    const api = await buildTestApp(testAppPool());
     try {
       const login = await inject(api, {
         method: 'POST',
@@ -1905,7 +1905,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     await expect(
       seatController.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
     ).rejects.toMatchObject({ status: 409 });
-    const revokedApi = await buildTestApp(app);
+    const revokedApi = await buildTestApp(testAppPool());
     try {
       const replayAfterRevoke = await inject(revokedApi, {
         method: 'POST',
@@ -1974,7 +1974,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     );
     const run = await createRun({ handout: await directHandout() });
     const participation = await assign(run);
-    const api = await buildTestApp(app);
+    const api = await buildTestApp(testAppPool());
     try {
       const login = await inject(api, {
         method: 'POST',
