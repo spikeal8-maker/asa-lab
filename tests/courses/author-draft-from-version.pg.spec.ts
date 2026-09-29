@@ -56,6 +56,21 @@ async function publish(id: string) {
   expect(r.result_code).toBe('ok');
   return r;
 }
+// Recreate a publication made before v3 rejected legacy assignment lessons.
+// Only the isolated test database admin can call this revoked legacy entrypoint.
+async function publishHistoricalLegacyAssignment(id: string) {
+  const s = await state(id);
+  const r = (
+    await admin.query('SELECT * FROM course_publish_v2($1,$2,$3,$4)', [
+      principal,
+      id,
+      s.draft_revision,
+      'draft:legacy-publish:' + ++sequence,
+    ])
+  ).rows[0];
+  expect(r.result_code).toBe('ok');
+  return r;
+}
 async function restore(id: string, version: string, actor = principal) {
   return (
     await app.query('SELECT * FROM course_draft_from_version($1,$2,$3,$4)', [
@@ -244,7 +259,18 @@ describe('explicit author draft from one immutable publication', () => {
       "SELECT course_lesson_save_v3($1,$2,$3,NULL,'Legacy lesson',NULL,'[]'::jsonb,'assignment',$4,12,NULL)",
       [principal, id, section, assignment],
     );
-    const v2 = await publish(id);
+    const beforeRejectedPublish = await authoringReceipt(id);
+    const rejected = (
+      await app.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        principal,
+        id,
+        (await state(id)).draft_revision,
+        'draft:legacy-rejected:' + ++sequence,
+      ])
+    ).rows[0];
+    expect(rejected).toMatchObject({ result_code: 'prepublish_invalid', problem_kind: 'lesson' });
+    expect(await authoringReceipt(id)).toEqual(beforeRejectedPublish);
+    const v2 = await publishHistoricalLegacyAssignment(id);
     const index = (
       await admin.query(
         'SELECT assignment_id,position FROM course_items WHERE course_id=$1 ORDER BY position',
@@ -252,7 +278,7 @@ describe('explicit author draft from one immutable publication', () => {
       )
     ).rows;
     await title(id, 'Third');
-    await publish(id);
+    await publishHistoricalLegacyAssignment(id);
     expect((await restore(id, v2.version_id)).result_code).toBe('ok');
     expect(
       (
@@ -296,7 +322,7 @@ describe('explicit author draft from one immutable publication', () => {
     ]);
     expect(await history(id)).toEqual(oldHistory);
     expect(await runtime()).toEqual(records);
-    const latest = await publish(id);
+    const latest = await publishHistoricalLegacyAssignment(id);
     const closed = await state(id);
     await admin.query("UPDATE teacher_assignments SET visibility='public' WHERE id=$1", [
       assignment,
@@ -327,7 +353,7 @@ describe('explicit author draft from one immutable publication', () => {
     const activeDraft = await authoringReceipt(id);
     expect((await restore(id, v2.version_id)).result_code).toBe('draft_exists');
     expect(await authoringReceipt(id)).toEqual(activeDraft);
-    await publish(id);
+    await publishHistoricalLegacyAssignment(id);
     const before = await authoringReceipt(id);
     const content = (await admin.query('SELECT course_snapshot_build($1) AS snapshot', [id]))
       .rows[0].snapshot;
