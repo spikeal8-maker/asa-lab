@@ -2040,6 +2040,37 @@ describe('A4-2b atomic StartLearningWork', () => {
       projectId: seatOwned.projectId,
       attemptId: seatOwned.attemptId,
     });
+    const linkedAccountOwnedRead = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)', [
+        learnerPrincipal,
+        started.projectId,
+      ]),
+    );
+    expect(linkedAccountOwnedRead.rows).toHaveLength(1);
+    expect(linkedAccountOwnedRead.rows[0].context).toMatchObject({
+      projectId: started.projectId,
+      participationId: started.participationId,
+      activityRunId: run,
+      attemptId: started.attemptId,
+    });
+    expect(linkedAccountOwnedRead.rows[0].evidence).toMatchObject({
+      projectId: started.projectId,
+      activityRunId: run,
+      attempt: { id: started.attemptId },
+    });
+    const linkedSeatOwnedRead = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)', [
+        accountPrincipal,
+        seatOwned.projectId,
+      ]),
+    );
+    expect(linkedSeatOwnedRead.rows).toHaveLength(1);
+    expect(linkedSeatOwnedRead.rows[0].context).toMatchObject({
+      projectId: seatOwned.projectId,
+      participationId: seatOwned.participationId,
+      activityRunId: seatOwnedRun,
+      attemptId: seatOwned.attemptId,
+    });
     const unchanged = await admin.query(
       `SELECT (SELECT count(*)::int FROM learning_attempts
                 WHERE activity_participation_id=$1) AS attempts,
@@ -2093,6 +2124,18 @@ describe('A4-2b atomic StartLearningWork', () => {
       });
       expect(seatOpen.statusCode).toBe(200);
       expect(seatOpen.json().project.id).toBe(started.projectId);
+      const seatWork = await inject(api, {
+        method: 'GET',
+        url: `/api/learning/projects/${started.projectId}/context`,
+        cookies: { asa_student_session: seatToken },
+      });
+      expect(seatWork.statusCode).toBe(200);
+      expect(seatWork.json()).toMatchObject({
+        state: 'ready',
+        projectId: started.projectId,
+        origin: { participationId: started.participationId, activityRunId: run },
+        workflow: { attemptId: started.attemptId },
+      });
       const accountOpen = await inject(api, {
         method: 'GET',
         url: `/api/projects/${seatOwned.projectId}`,
@@ -2100,6 +2143,18 @@ describe('A4-2b atomic StartLearningWork', () => {
       });
       expect(accountOpen.statusCode).toBe(200);
       expect(accountOpen.json().project.id).toBe(seatOwned.projectId);
+      const accountWork = await inject(api, {
+        method: 'GET',
+        url: `/api/learning/projects/${seatOwned.projectId}/context`,
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountWork.statusCode).toBe(200);
+      expect(accountWork.json()).toMatchObject({
+        state: 'ready',
+        projectId: seatOwned.projectId,
+        origin: { participationId: seatOwned.participationId, activityRunId: seatOwnedRun },
+        workflow: { attemptId: seatOwned.attemptId },
+      });
     } finally {
       await api.close();
     }
@@ -2138,6 +2193,13 @@ describe('A4-2b atomic StartLearningWork', () => {
         userId: null,
       }),
     ).toBeNull();
+    const wrongClassRead = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+        wrongClassPrincipal,
+        started.projectId,
+      ]),
+    );
+    expect(wrongClassRead.rows).toEqual([]);
 
     await admin.query(
       `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
@@ -2147,6 +2209,18 @@ describe('A4-2b atomic StartLearningWork', () => {
     );
     expect(await projects.load(owner.tenantId, seatOwned.projectId, accountActor)).toBeNull();
     expect(await projects.load(owner.tenantId, started.projectId, seatActor)).toBeNull();
+    const revokedRead = await inTenant(owner.tenantId, async (client) => ({
+      seat: await client.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+        learnerPrincipal,
+        started.projectId,
+      ]),
+      account: await client.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+        accountPrincipal,
+        seatOwned.projectId,
+      ]),
+    }));
+    expect(revokedRead.seat.rows).toEqual([]);
+    expect(revokedRead.account.rows).toEqual([]);
     expect(
       await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
     ).toBeNull();
@@ -2174,6 +2248,14 @@ describe('A4-2b atomic StartLearningWork', () => {
       expect(replayAfterRevoke.statusCode).toBe(409);
       expect(replayAfterRevoke.body).not.toContain(started.projectId);
       expect(replayAfterRevoke.body).not.toContain(started.attemptId);
+      const revokedContext = await inject(revokedApi, {
+        method: 'GET',
+        url: `/api/learning/projects/${started.projectId}/context`,
+        cookies: { asa_student_session: seatToken },
+      });
+      expect(revokedContext.statusCode).toBe(200);
+      expect(revokedContext.json()).toEqual({ state: 'denied', projectId: started.projectId });
+      expect(revokedContext.body).not.toContain(started.attemptId);
     } finally {
       await revokedApi.close();
     }
@@ -2382,6 +2464,66 @@ describe('A4-2b atomic StartLearningWork', () => {
       [[first.projectId, second.projectId]],
     );
     expect(origins.rows.map((row) => row.source_course_block_id)).toEqual(['a', 'b']);
+    const submittedVersion = await admin.query(
+      `INSERT INTO project_versions
+         (tenant_id,project_id,version_no,document_json,created_by)
+       SELECT project.tenant_id,project.id,1,draft.document_json,$2
+         FROM projects project JOIN project_drafts draft ON draft.project_id=project.id
+        WHERE project.id=$1 RETURNING id`,
+      [first.projectId, owner.teacherId],
+    );
+    expect(submittedVersion.rows).toHaveLength(1);
+    await admin.query(
+      `UPDATE learning_attempts SET state='submitted',submitted_at=now()
+        WHERE id=$1`,
+      [first.attemptId],
+    );
+    const exactSubmission = await admin.query(
+      `INSERT INTO learning_submissions
+         (tenant_id,attempt_id,project_tenant_id,project_id,project_version_id,
+          payload_manifest,payload_digest,client_request_id)
+       VALUES ($1,$2,$1,$3,$4,'{}'::jsonb,$5,$6) RETURNING id`,
+      [
+        owner.tenantId,
+        first.attemptId,
+        first.projectId,
+        submittedVersion.rows[0].id,
+        '0'.repeat(64),
+        `exact:${randomUUID()}`,
+      ],
+    );
+    const exactReads = await inTenant(owner.tenantId, async (client) =>
+      Promise.all(
+        [first.projectId, second.projectId].map((projectId) =>
+          client.query(
+            'SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)',
+            [learnerPrincipal, projectId],
+          ),
+        ),
+      ),
+    );
+    for (const [index, read] of exactReads.entries()) {
+      expect(read.rows).toHaveLength(1);
+      expect(read.rows[0].context).toMatchObject({
+        projectId: [first.projectId, second.projectId][index],
+        activityRunId: runs[index],
+        courseBlockId: blocks[index]?.id,
+        attemptId: [first.attemptId, second.attemptId][index],
+        submissionId: index === 0 ? exactSubmission.rows[0].id : null,
+      });
+      expect(read.rows[0].evidence).toMatchObject({
+        projectId: [first.projectId, second.projectId][index],
+        activityRunId: runs[index],
+        attempt: { id: [first.attemptId, second.attemptId][index] },
+      });
+    }
+    const unrelatedRead = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+        outsiderPrincipal,
+        first.projectId,
+      ]),
+    );
+    expect(unrelatedRead.rows).toEqual([]);
     await expect(
       controller.start(startRequest, runs[2]!, {
         requestId: `start:${randomUUID()}`,
