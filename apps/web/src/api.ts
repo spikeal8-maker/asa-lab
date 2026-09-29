@@ -482,6 +482,7 @@ export interface SeatCourseRunLesson extends Omit<
   updatedAt: string | null;
   completedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  courseStartAllowed?: boolean;
   legacySubmitAllowed?: boolean;
 }
 
@@ -872,6 +873,8 @@ export interface SeatAssignment {
   activityRunId?: string | null;
   /** Server-proven old Direct handout with no canonical run or existing work. */
   legacyStartAllowed?: boolean;
+  /** Server-proven Course lesson Start, including a modern exact Run. */
+  courseStartAllowed?: boolean;
   /** Server-proven existing old Direct work with no immutable origin. */
   legacySubmitAllowed?: boolean;
   title: string;

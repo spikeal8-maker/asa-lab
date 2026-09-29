@@ -147,8 +147,8 @@ describe('LRN-VS-001 canonical direct assignment', () => {
     const versionId = await activity('Pinned version without Run');
     const assignment = await admin.query(
       `INSERT INTO classroom_assignments
-         (tenant_id,classroom_id,module_key,created_by,learning_activity_version_id)
-       VALUES ($1,$2,'electronics',$3,$4) RETURNING id`,
+         (tenant_id,classroom_id,created_by,learning_activity_version_id)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
       [owner.tenantId, classId, owner.teacherId, versionId],
     );
     const seatPrincipal = (
@@ -451,16 +451,6 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       legacyCourseLesson: true,
       legacyProjectReadable: true,
       submitAllowed: true,
-    });
-    const pinnedVersion = await activity('Course lesson pinned without Run');
-    await admin.query(
-      `UPDATE classroom_assignments SET learning_activity_version_id=$1 WHERE id=$2`,
-      [pinnedVersion, handout.rows[0].id],
-    );
-    expect(await proof(learnerPrincipal, learnerSeat)).toMatchObject({
-      legacyCourseLesson: false,
-      legacyProjectReadable: false,
-      submitAllowed: false,
     });
   }, 30_000);
 

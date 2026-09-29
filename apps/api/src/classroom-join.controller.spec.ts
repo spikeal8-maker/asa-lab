@@ -672,6 +672,11 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         snapshot_revision: 7,
         work_updated_at: '2026-09-20T22:00:00.000Z',
         shared_assignment: false,
+        modern_provenance: {
+          modernCourseRun: true,
+          activityRunId: activityRunA,
+          projectReadable: true,
+        },
       },
       {
         seat_id: seatId,
@@ -688,6 +693,11 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         snapshot_revision: null,
         work_updated_at: null,
         shared_assignment: false,
+        modern_provenance: {
+          modernCourseRun: true,
+          activityRunId: activityRunB,
+          projectReadable: false,
+        },
       },
     ];
     const evidenceBase = {
@@ -736,6 +746,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     let originRows: Array<{ context: Record<string, unknown>; evidence: Record<string, unknown> }> =
       [];
     let presenceRows: Array<Record<string, unknown>> = [];
+    let accountLinkRevoked = false;
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('classroom_student_session_context')) {
         return {
@@ -759,13 +770,31 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       if (sql.includes('learning_origin_learner_list')) return { rows: originRows };
       if (sql.includes('learning_origin_learner_presence')) return { rows: presenceRows };
       if (sql.includes('classroom_course_activity_occurrences_for_')) {
+        if (sql.includes('_for_account') && accountLinkRevoked)
+          return {
+            rows: occurrenceRows.map((row) => ({
+              ...row,
+              modern_provenance: { modernCourseRun: false, projectReadable: false },
+            })),
+          };
         return { rows: occurrenceRows };
       }
-      if (sql.includes('classroom_course_runs_for_')) return { rows: [courseRow] };
+      if (sql.includes('classroom_course_runs_for_')) {
+        if (sql.includes('_for_account') && accountLinkRevoked)
+          return {
+            rows: [
+              {
+                ...courseRow,
+                modern_provenance: { modernCourseRun: false, projectReadable: false },
+              },
+            ],
+          };
+        return { rows: [courseRow] };
+      }
       return { rows: [] };
     });
     const activeContext = {
-      resolve: vi.fn(async () => ({ accountId })),
+      resolve: vi.fn(async () => ({ accountId, principalId: evidenceBase.principalId })),
     } as unknown as ActiveContextUseCase;
     const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
     const accountRequest = request('203.0.113.40');
@@ -783,7 +812,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ]);
 
     for (const payload of [accountRead, seatRead]) {
-      expect(payload.items[0]?.sections[0]?.lessons[0]?.projectId).toBe(projectA);
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.projectId).toBeNull();
       const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
       expect(occurrences).toHaveLength(2);
       expect(occurrences?.[0]).toMatchObject({
@@ -814,6 +843,81 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    accountLinkRevoked = true;
+    const revokedAccount = await controller.accountCourseRuns(accountRequest);
+    expect(
+      revokedAccount.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0],
+    ).toMatchObject({
+      projectId: null,
+      submittedAt: null,
+      snapshotRevision: null,
+      updatedAt: null,
+      canonicalState: null,
+      workOriginAmbiguous: true,
+    });
+    expect(
+      (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0]
+        ?.activityOccurrences?.[0]?.projectId,
+    ).toBe(projectA);
+    accountLinkRevoked = false;
+
+    // A modern null-block Course lesson keeps its exact work on revisit.
+    // An Activity block on the same handout must not lend it a Project.
+    const savedOccurrences = occurrenceRows.splice(0);
+    Object.assign(courseRow, {
+      lesson_kind: 'assignment',
+      modern_activity_run_id: activityRunA,
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunA,
+        projectReadable: true,
+        startAllowed: false,
+      },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        projectId: projectA,
+        snapshotRevision: 7,
+        canonicalState: { activityRunId: activityRunA, workflowState: 'in_progress' },
+        courseStartAllowed: false,
+        legacySubmitAllowed: false,
+      });
+    }
+    Object.assign(courseRow, { run_status: 'closed' });
+    expect(
+      (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0],
+    ).toMatchObject({ projectId: projectA, courseStartAllowed: false });
+    accountLinkRevoked = true;
+    expect(
+      (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0],
+    ).toMatchObject({
+      projectId: null,
+      submittedAt: null,
+      snapshotRevision: null,
+      updatedAt: null,
+      canonicalState: null,
+      courseStartAllowed: false,
+    });
+    expect(
+      (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0]?.projectId,
+    ).toBe(projectA);
+    accountLinkRevoked = false;
+    Object.assign(courseRow, {
+      run_status: 'open',
+      modern_activity_run_id: activityRunB,
+    });
+    expect(
+      (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0],
+    ).toMatchObject({ projectId: null, canonicalState: null, courseStartAllowed: false });
+    Object.assign(courseRow, {
+      lesson_kind: 'material',
+      modern_activity_run_id: null,
+      modern_provenance: null,
+    });
+    occurrenceRows.push(...savedOccurrences);
 
     // The same legacy handout can back two exact runs. It proves neither
     // occurrence owns its assignment-level project or canonical work state.
@@ -822,6 +926,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     occurrenceRows[1]!.snapshot_revision = 7;
     Object.assign(occurrenceRows[0]!, { shared_assignment: true });
     Object.assign(occurrenceRows[1]!, { shared_assignment: true });
+    occurrenceRows[0]!.modern_provenance.projectReadable = false;
+    occurrenceRows[1]!.modern_provenance.modernCourseRun = false;
     evidenceRows[1]!.classroomAssignmentId = assignmentA;
     const [sharedAccountRead, sharedSeatRead] = await Promise.all([
       controller.accountCourseRuns(accountRequest),

@@ -122,6 +122,50 @@ async function renderCourse(
 }
 
 describe('Course Activity work origin', () => {
+  it('denies a no-Run Account Course Start before creating a generic Project', async () => {
+    const historical = course([]);
+    Object.assign(historical.sections[0]!.lessons[0]!, {
+      kind: 'assignment',
+      classroomAssignmentId: 'old-course-handout',
+      assignmentTitle: 'Historical lesson',
+      moduleKey: 'electronics',
+      courseStartAllowed: false,
+    });
+    const create = vi.spyOn(api, 'createProject');
+    const start = vi.spyOn(api, 'startSeatAssignment');
+    const view = await renderCourse('account', [], vi.fn(), historical);
+    const button = [...view.querySelectorAll('button')].find(
+      (item) => item.textContent === 'Начать задание',
+    );
+    expect(button?.disabled).toBe(true);
+    await act(async () => button?.click());
+    expect(create).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it('keeps a server-eligible modern Account Course lesson Start', async () => {
+    const modern = course([]);
+    Object.assign(modern.sections[0]!.lessons[0]!, {
+      kind: 'assignment',
+      classroomAssignmentId: 'modern-course-handout',
+      assignmentTitle: 'Modern lesson',
+      moduleKey: 'electronics',
+      courseStartAllowed: true,
+    });
+    const create = vi.spyOn(api, 'createProject').mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'unavailable', message: 'Retry' },
+    });
+    const view = await renderCourse('account', [], vi.fn(), modern);
+    const button = [...view.querySelectorAll('button')].find(
+      (item) => item.textContent === 'Начать задание',
+    );
+    expect(button?.disabled).toBe(false);
+    await act(async () => button?.click());
+    expect(create).toHaveBeenCalledOnce();
+  });
+
   it.each(['seat', 'account'] as const)(
     '%s submits a proven historical Course lesson without a Learning Activity Version',
     async (source) => {

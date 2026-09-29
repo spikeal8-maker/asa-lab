@@ -42,6 +42,7 @@ export function courseAssignmentShape(
     snapshotRevision: lesson.snapshotRevision,
     updatedAt: lesson.updatedAt,
     canonicalState: lesson.canonicalState,
+    courseStartAllowed: lesson.courseStartAllowed === true,
     legacySubmitAllowed: lesson.legacySubmitAllowed === true,
   };
 }
@@ -162,8 +163,9 @@ export function SeatCourses({
   const completedLessonCount = completion.completed;
 
   async function startAssignment(assignment: SeatAssignment, busyKey: string): Promise<void> {
-    // Compatibility path for historical lesson-level assignments without a block Run.
-    if (assignment.moduleKey === 'unknown') return;
+    // Lesson-level adapter: modern Course Runs use the canonical attempt command;
+    // proven historical Seat work retains the old compatibility command.
+    if (assignment.moduleKey === 'unknown' || assignment.courseStartAllowed !== true) return;
     setBusy(busyKey);
     setError(null);
     const created = await api.createProject({
@@ -522,7 +524,11 @@ export function SeatCourses({
                     <button
                       type="button"
                       className="portal-create-button"
-                      disabled={busy === openLesson.id || openRun.status === 'closed'}
+                      disabled={
+                        busy === openLesson.id ||
+                        openRun.status === 'closed' ||
+                        assignment.courseStartAllowed !== true
+                      }
                       onClick={() => void startAssignment(assignment, openLesson.id)}
                     >
                       {busy === openLesson.id ? 'Готовим…' : 'Начать задание'}

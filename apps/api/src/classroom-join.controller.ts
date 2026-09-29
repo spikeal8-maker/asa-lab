@@ -110,6 +110,14 @@ function canonicalFor(
 }
 
 interface SeatCourseRunRow {
+  viewer_seat_id?: string | null;
+  modern_activity_run_id?: string | null;
+  modern_provenance?: {
+    modernCourseRun?: boolean;
+    activityRunId?: string | null;
+    startAllowed?: boolean;
+    projectReadable?: boolean;
+  } | null;
   run_id: string;
   course_id: string;
   course_version_id: string;
@@ -145,6 +153,7 @@ interface SeatCourseRunRow {
   legacy_provenance?: {
     legacyCourseLesson?: boolean;
     legacyProjectReadable?: boolean;
+    startAllowed?: boolean;
     submitAllowed?: boolean;
   } | null;
 }
@@ -167,6 +176,11 @@ interface CourseActivityOccurrenceRow {
   snapshot_revision: number | string | null;
   work_updated_at: Date | string | null;
   shared_assignment: boolean;
+  modern_provenance?: {
+    modernCourseRun?: boolean;
+    activityRunId?: string | null;
+    projectReadable?: boolean;
+  } | null;
 }
 
 interface CourseActivityOccurrenceView {
@@ -232,8 +246,16 @@ function courseActivityOccurrenceMap(
     const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
     const originPresent =
       origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id) ?? false;
-    const workOriginAmbiguous = (row.shared_assignment === true || originPresent) && exact === null;
-    const legacyAllowed = !originPresent && !workOriginAmbiguous;
+    const modernScope =
+      row.modern_provenance?.modernCourseRun === true &&
+      row.modern_provenance.activityRunId === row.activity_run_id;
+    const modernReadable = modernScope && row.modern_provenance?.projectReadable === true;
+    const workOriginAmbiguous =
+      (row.shared_assignment === true ||
+        originPresent ||
+        (row.project_id !== null && !modernReadable)) &&
+      exact === null;
+    const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
@@ -242,9 +264,11 @@ function courseActivityOccurrenceMap(
       title: row.title,
       goal: exact
         ? exact.goal
-        : row.task_blocks?.present && row.task_blocks.blocks === null
+        : !modernScope || (row.project_id !== null && !legacyAllowed)
           ? null
-          : (row.goal ?? null),
+          : row.task_blocks?.present && row.task_blocks.blocks === null
+            ? null
+            : (row.goal ?? null),
       blocks: exact?.blocksSnapshotPresent
         ? exact.blocks
         : row.task_blocks?.present
@@ -271,7 +295,11 @@ function courseActivityOccurrenceMap(
           : isoDate(row.work_updated_at),
       canonicalState:
         exact?.canonicalState ??
-        (legacyAllowed && canonicalState?.activityRunId === row.activity_run_id
+        (modernScope &&
+        ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
+          legacyAllowed) &&
+        !originPresent &&
+        canonicalState?.activityRunId === row.activity_run_id
           ? canonicalState
           : null),
       workOriginAmbiguous,
@@ -334,6 +362,7 @@ function seatCourseRuns(
         updatedAt: string | null;
         completedAt: string | null;
         canonicalState: CanonicalLearningSurfaceState | null;
+        courseStartAllowed: boolean;
         legacySubmitAllowed: boolean;
         activityOccurrences: CourseActivityOccurrenceView[];
       }>;
@@ -343,11 +372,22 @@ function seatCourseRuns(
     const suppressLegacyWork =
       row.classroom_assignment_id !== null &&
       guardedLessonWork.has(`${row.run_id}:${row.lesson_id}:${row.classroom_assignment_id}`);
+    const modernScope =
+      row.modern_provenance?.modernCourseRun === true &&
+      row.modern_provenance.activityRunId === row.modern_activity_run_id;
+    const modernWorkReadable = modernScope && row.modern_provenance?.projectReadable === true;
+    const historicalWorkReadable =
+      row.legacy_provenance?.legacyCourseLesson === true &&
+      row.legacy_provenance.legacyProjectReadable === true;
     const lessonWorkReadable =
       !suppressLegacyWork &&
-      (row.lesson_kind !== 'assignment' ||
-        (row.legacy_provenance?.legacyCourseLesson === true &&
-          row.legacy_provenance.legacyProjectReadable === true));
+      row.lesson_kind === 'assignment' &&
+      (modernWorkReadable || historicalWorkReadable);
+    const projected = canonicalFor(
+      projections,
+      row.classroom_assignment_id,
+      row.viewer_seat_id ?? undefined,
+    );
     let run = runs.find((entry) => entry.id === row.run_id);
     if (!run) {
       run = {
@@ -402,10 +442,24 @@ function seatCourseRuns(
       updatedAt:
         !lessonWorkReadable || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
-      canonicalState: !lessonWorkReadable
-        ? null
-        : canonicalFor(projections, row.classroom_assignment_id),
-      legacySubmitAllowed: lessonWorkReadable && row.legacy_provenance?.submitAllowed === true,
+      canonicalState:
+        !suppressLegacyWork &&
+        (historicalWorkReadable ||
+          (modernScope &&
+            ((row.project_id === null && projected?.workflowState === 'not_started') ||
+              modernWorkReadable) &&
+            projected?.activityRunId === row.modern_activity_run_id))
+          ? projected
+          : null,
+      courseStartAllowed:
+        !suppressLegacyWork &&
+        ((modernScope && row.modern_provenance?.startAllowed === true) ||
+          (row.legacy_provenance?.legacyCourseLesson === true &&
+            row.legacy_provenance.startAllowed === true)),
+      legacySubmitAllowed:
+        historicalWorkReadable &&
+        !suppressLegacyWork &&
+        row.legacy_provenance?.submitAllowed === true,
       activityOccurrences: activityOccurrences.get(`${row.run_id}:${row.lesson_id}`) ?? [],
     });
   }
@@ -1224,8 +1278,26 @@ export class ClassroomJoinController {
                 THEN learning_legacy_direct_provenance(
                   $2, classroom_seat_for_account_assignment($1,classroom_assignment_id),
                   classroom_assignment_id,project_id)
-                ELSE NULL END AS legacy_provenance
-         FROM classroom_course_runs_for_account_v2($1)`,
+                ELSE NULL END AS legacy_provenance,
+              classroom_seat_for_account_assignment($1,classroom_assignment_id) AS viewer_seat_id,
+              modern_run.activity_run_id AS modern_activity_run_id,
+              CASE WHEN lesson_kind = 'assignment' AND classroom_assignment_id IS NOT NULL
+                THEN learning_course_modern_provenance(
+                  $2, classroom_seat_for_account_assignment($1,classroom_assignment_id),
+                  modern_run.activity_run_id,project_id)
+                ELSE NULL END AS modern_provenance
+         FROM classroom_course_runs_for_account_v2($1) lesson
+         LEFT JOIN LATERAL (
+           SELECT runtime.id AS activity_run_id FROM activity_runs runtime
+            WHERE runtime.source_kind='course'
+              AND runtime.source_course_run_id=lesson.run_id
+              AND runtime.source_course_lesson_id=lesson.lesson_id
+              AND runtime.source_course_block_id IS NULL
+              AND runtime.source_classroom_assignment_id=lesson.classroom_assignment_id
+              AND (SELECT count(*) FROM activity_runs sibling
+                    WHERE sibling.tenant_id=runtime.tenant_id
+                      AND sibling.source_classroom_assignment_id=lesson.classroom_assignment_id)=1
+         ) modern_run ON true`,
         [context.accountId, context.principalId],
       ),
       this.canonical().forAccount(context.accountId),
@@ -1235,9 +1307,12 @@ export class ClassroomJoinController {
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL
-                ) AS sample_image
+                ) AS sample_image,
+                learning_course_modern_provenance(
+                  $2,occurrence.seat_id,occurrence.activity_run_id,occurrence.project_id
+                ) AS modern_provenance
            FROM classroom_course_activity_occurrences_for_account($1) occurrence`,
-        [context.accountId],
+        [context.accountId, context.principalId],
       ),
       readOriginLearnerList(this.requirePool(), null, context.accountId),
     ]);
@@ -1428,8 +1503,25 @@ export class ClassroomJoinController {
               CASE WHEN lesson_kind = 'assignment' AND classroom_assignment_id IS NOT NULL
                 THEN learning_legacy_direct_provenance(
                   principal_for_seat($1),$1,classroom_assignment_id,project_id)
-                ELSE NULL END AS legacy_provenance
-         FROM classroom_course_runs_for_seat_v2($1)`,
+                ELSE NULL END AS legacy_provenance,
+              $1::uuid AS viewer_seat_id,
+              modern_run.activity_run_id AS modern_activity_run_id,
+              CASE WHEN lesson_kind = 'assignment' AND classroom_assignment_id IS NOT NULL
+                THEN learning_course_modern_provenance(
+                  principal_for_seat($1),$1,modern_run.activity_run_id,project_id)
+                ELSE NULL END AS modern_provenance
+         FROM classroom_course_runs_for_seat_v2($1) lesson
+         LEFT JOIN LATERAL (
+           SELECT runtime.id AS activity_run_id FROM activity_runs runtime
+            WHERE runtime.source_kind='course'
+              AND runtime.source_course_run_id=lesson.run_id
+              AND runtime.source_course_lesson_id=lesson.lesson_id
+              AND runtime.source_course_block_id IS NULL
+              AND runtime.source_classroom_assignment_id=lesson.classroom_assignment_id
+              AND (SELECT count(*) FROM activity_runs sibling
+                    WHERE sibling.tenant_id=runtime.tenant_id
+                      AND sibling.source_classroom_assignment_id=lesson.classroom_assignment_id)=1
+         ) modern_run ON true`,
         [seat.seat_id],
       ),
       this.canonical().forSeat(seat.seat_id),
@@ -1439,7 +1531,11 @@ export class ClassroomJoinController {
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
-                ) AS sample_image
+                ) AS sample_image,
+                learning_course_modern_provenance(
+                  principal_for_seat($1),occurrence.seat_id,
+                  occurrence.activity_run_id,occurrence.project_id
+                ) AS modern_provenance
            FROM classroom_course_activity_occurrences_for_seat($1) occurrence`,
         [seat.seat_id],
       ),
