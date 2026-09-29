@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
@@ -6,6 +6,7 @@ import { CreateProjectUseCase } from '../../contexts/projects/application/projec
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
+import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -1648,7 +1649,8 @@ describe('A4-2b atomic StartLearningWork', () => {
     expect(counts.rows[0]).toMatchObject({ attempts: 1, requests: 1 });
   });
 
-  it('keeps Account projects in the personal workspace tenant and denies an unlinked actor', async () => {
+  // This case opens two Projects over HTTP and checks linked edits, Start, and revocation in PostgreSQL.
+  it('shares one exact Project and Attempt across linked Account and Seat in both directions', async () => {
     const personalOwner = await seedTeacher(admin, 'a4-start-account-owner');
     const accountIdentity = await admin.query(
       `SELECT principal_id,account_id FROM legacy_user_account_links
@@ -1718,18 +1720,326 @@ describe('A4-2b atomic StartLearningWork', () => {
       school_tenant_id: owner.tenantId,
       owner_principal_id: accountPrincipal,
     });
+    const projects = new PgProjectRepository(app);
+    const seatActor = { principalId: learnerPrincipal, userId: null };
+    const accountActor = { principalId: accountPrincipal, userId: null };
+    const ordinary = await startUseCase().execute({
+      tenantId: owner.tenantId,
+      scope: 'personal',
+      classroomId: null,
+      actor: seatActor,
+      moduleKey: 'electronics',
+      title: 'Seat private',
+      idempotencyKey: `private:${randomUUID()}`,
+    });
+    expect(ordinary.ok).toBe(true);
+    if (!ordinary.ok) throw new Error('ordinary project creation failed');
+    expect(await projects.load(owner.tenantId, ordinary.value.project.id, accountActor)).toBeNull();
+    expect(
+      (await projects.authorize(owner.tenantId, started.projectId, learnerPrincipal, 'edit'))
+        ?.tenantId,
+    ).toBe(personalTenant);
+    expect((await projects.load(owner.tenantId, started.projectId, seatActor))?.project.id).toBe(
+      started.projectId,
+    );
+    expect(
+      await projects.rename(owner.tenantId, started.projectId, seatActor, 'Seat edit'),
+    ).toMatchObject({
+      id: started.projectId,
+      title: 'Seat edit',
+    });
+    const classActivity = await admin.query(
+      `SELECT id,tenant_id,classroom_id,seat_id,actor_principal_id,project_title,
+              occurrence_count
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND action='project.renamed'`,
+      [started.projectId],
+    );
+    expect(classActivity.rows).toHaveLength(1);
+    expect(classActivity.rows[0]).toMatchObject({
+      tenant_id: owner.tenantId,
+      classroom_id: classroom,
+      seat_id: seatId,
+      actor_principal_id: learnerPrincipal,
+      project_title: 'Seat edit',
+      occurrence_count: 1,
+    });
+    const activityFeed = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT project_id,seat_id,action FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND action='project.renamed'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(activityFeed.rows).toEqual([
+      { project_id: started.projectId, seat_id: seatId, action: 'project.renamed' },
+    ]);
+    await inTenant(personalTenant, async (client) => {
+      const recorded = await client.query(
+        `SELECT classroom_activity_record_project($1,$2,'project.renamed') AS id`,
+        [learnerPrincipal, started.projectId],
+      );
+      expect(recorded.rows[0].id).toBe(classActivity.rows[0].id);
+      expect(
+        (await client.query(`SELECT current_setting('app.tenant_id') AS tenant_id`)).rows[0],
+      ).toEqual({ tenant_id: personalTenant });
+    });
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account learner edit',
+      ),
+    ).toMatchObject({ id: started.projectId, title: 'Account learner edit' });
+    const learnerAccountActivity = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT seat_id,actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Account learner edit'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(learnerAccountActivity.rows).toEqual([{ seat_id: seatId, actor_is_teacher: false }]);
+    const historical = await admin.query(
+      `INSERT INTO classroom_activity_events
+         (tenant_id,classroom_id,seat_id,actor_principal_id,action,project_id,project_title)
+       VALUES ($1,$2,$3,$4,'legacy.project',$5,'Historical Account event')
+       RETURNING id,actor_is_teacher_at_event`,
+      [owner.tenantId, classroom, seatId, accountPrincipal, started.projectId],
+    );
+    expect(historical.rows[0].actor_is_teacher_at_event).toBeNull();
+    const historicalFeed = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE id=$4`,
+        [ownerPrincipal, classroom, seatId, historical.rows[0].id],
+      ),
+    );
+    expect(historicalFeed.rows).toEqual([{ actor_is_teacher: true }]);
+    const freshAfterLegacy = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT classroom_activity_record($1,$2,$3,$4,'legacy.project',$5,$6) AS id`, [
+        owner.tenantId,
+        classroom,
+        seatId,
+        accountPrincipal,
+        started.projectId,
+        'Fresh event',
+      ]),
+    );
+    expect(freshAfterLegacy.rows[0].id).not.toBe(historical.rows[0].id);
+    const legacySegments = await admin.query(
+      `SELECT id,actor_is_teacher_at_event,occurrence_count
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND actor_principal_id=$2 AND action='legacy.project'`,
+      [started.projectId, accountPrincipal],
+    );
+    expect(legacySegments.rows).toHaveLength(2);
+    expect(legacySegments.rows).toContainEqual({
+      id: historical.rows[0].id,
+      actor_is_teacher_at_event: null,
+      occurrence_count: 1,
+    });
+    expect(legacySegments.rows).toContainEqual({
+      id: freshAfterLegacy.rows[0].id,
+      actor_is_teacher_at_event: false,
+      occurrence_count: 1,
+    });
+    const linkedTeacherUser = (
+      await admin.query(
+        `INSERT INTO users
+           (tenant_id,school_id,role,email,display_name,password_hash)
+         SELECT $1,$2,'teacher',$3,'Linked educator',source.password_hash
+           FROM users source WHERE source.id=$4 RETURNING id`,
+        [
+          owner.tenantId,
+          owner.schoolId,
+          `linked-${randomUUID()}@test.local`,
+          personalOwner.teacherId,
+        ],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO classroom_memberships
+         (tenant_id,classroom_id,user_id,account_id,member_role)
+       VALUES ($1,$2,$3,$4,'co_teacher')`,
+      [owner.tenantId, classroom, linkedTeacherUser, accountId],
+    );
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account teacher edit',
+      ),
+    ).toMatchObject({ id: started.projectId });
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account teacher edit again',
+      ),
+    ).toMatchObject({ id: started.projectId });
+    const roleSegments = await admin.query(
+      `SELECT actor_is_teacher_at_event,occurrence_count,project_title
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND actor_principal_id=$2 AND action='project.renamed'`,
+      [started.projectId, accountPrincipal],
+    );
+    expect(roleSegments.rows).toHaveLength(2);
+    expect(roleSegments.rows).toEqual(
+      expect.arrayContaining([
+        {
+          actor_is_teacher_at_event: false,
+          occurrence_count: 1,
+          project_title: 'Account learner edit',
+        },
+        {
+          actor_is_teacher_at_event: true,
+          occurrence_count: 2,
+          project_title: 'Account teacher edit again',
+        },
+      ]),
+    );
+    const learnerEventAfterPromotion = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Account learner edit'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(learnerEventAfterPromotion.rows).toEqual([{ actor_is_teacher: false }]);
+    const ordinaryAccount = await startUseCase().execute({
+      tenantId: personalTenant,
+      scope: 'personal',
+      classroomId: null,
+      actor: accountActor,
+      moduleKey: 'electronics',
+      title: 'Account private',
+      idempotencyKey: `private:${randomUUID()}`,
+    });
+    expect(ordinaryAccount.ok).toBe(true);
+    if (!ordinaryAccount.ok) throw new Error('ordinary Account project creation failed');
+    expect(
+      await projects.rename(
+        personalTenant,
+        ordinaryAccount.value.project.id,
+        accountActor,
+        'Account private edit',
+      ),
+    ).toMatchObject({ id: ordinaryAccount.value.project.id });
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_activity_events WHERE project_id=$1',
+          [ordinaryAccount.value.project.id],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+    const seatController = await startController('seat');
+    const seatResumeRequestId = `start:${randomUUID()}`;
+    const seatResume = await seatController.start(startRequest, run, {
+      requestId: seatResumeRequestId,
+    });
+    expect(seatResume).toMatchObject({
+      projectId: started.projectId,
+      attemptId: started.attemptId,
+    });
+    const accountOwnedCounts = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [started.participationId],
+    );
+    expect(accountOwnedCounts.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
 
     const seatOwnedRun = await createRun({ handout: await directHandout() });
     const seatOwnedParticipation = await assign(seatOwnedRun);
-    const seatController = await startController('seat');
     const seatOwned = await seatController.start(startRequest, seatOwnedRun, {
       requestId: `start:${randomUUID()}`,
     });
-    await expect(
-      denied.start(accountStartRequest, seatOwnedRun, {
-        requestId: `start:${randomUUID()}`,
-      }),
-    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      (await projects.authorize(owner.tenantId, seatOwned.projectId, accountPrincipal, 'edit'))
+        ?.tenantId,
+    ).toBe(owner.tenantId);
+    expect(
+      (await projects.load(owner.tenantId, seatOwned.projectId, accountActor))?.project.id,
+    ).toBe(seatOwned.projectId);
+    expect(
+      await projects.rename(owner.tenantId, seatOwned.projectId, accountActor, 'Account edit'),
+    ).toMatchObject({ id: seatOwned.projectId, title: 'Account edit' });
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        seatOwned.projectId,
+        { principalId: ownerPrincipal, userId: owner.teacherId },
+        'Teacher edit',
+      ),
+    ).toMatchObject({ id: seatOwned.projectId, title: 'Teacher edit' });
+    const teacherActivity = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT seat_id,actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Teacher edit'`,
+        [ownerPrincipal, classroom, seatId, seatOwned.projectId],
+      ),
+    );
+    expect(teacherActivity.rows).toEqual([{ seat_id: seatId, actor_is_teacher: true }]);
+    expect(
+      await projects.rename(owner.tenantId, seatOwned.projectId, accountActor, 'Co-teacher edit'),
+    ).toMatchObject({ id: seatOwned.projectId, title: 'Co-teacher edit' });
+    await admin.query(
+      `DELETE FROM classroom_memberships
+        WHERE tenant_id=$1 AND classroom_id=$2 AND account_id=$3
+          AND member_role='co_teacher'`,
+      [owner.tenantId, classroom, accountId],
+    );
+    const formerTeacherEvent = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher,occurrence_count
+           FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Co-teacher edit'`,
+        [ownerPrincipal, classroom, seatId, seatOwned.projectId],
+      ),
+    );
+    expect(formerTeacherEvent.rows).toEqual([{ actor_is_teacher: true, occurrence_count: 2 }]);
+    const earlierLearnerEvent = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Account learner edit'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(earlierLearnerEvent.rows).toEqual([{ actor_is_teacher: false }]);
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account learner again',
+      ),
+    ).toMatchObject({ id: started.projectId });
+    const afterRoleFlip = await admin.query(
+      `SELECT actor_is_teacher_at_event,occurrence_count,project_title
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND actor_principal_id=$2 AND action='project.renamed'`,
+      [started.projectId, accountPrincipal],
+    );
+    expect(afterRoleFlip.rows).toHaveLength(3);
+    expect(afterRoleFlip.rows).toContainEqual({
+      actor_is_teacher_at_event: false,
+      occurrence_count: 1,
+      project_title: 'Account learner again',
+    });
+    const accountResume = await denied.start(accountStartRequest, seatOwnedRun, {
+      requestId: `start:${randomUUID()}`,
+    });
+    expect(accountResume).toMatchObject({
+      projectId: seatOwned.projectId,
+      attemptId: seatOwned.attemptId,
+    });
     const unchanged = await admin.query(
       `SELECT (SELECT count(*)::int FROM learning_attempts
                 WHERE activity_participation_id=$1) AS attempts,
@@ -1739,9 +2049,280 @@ describe('A4-2b atomic StartLearningWork', () => {
                 WHERE participation_id=$1) AS origins`,
       [seatOwnedParticipation.participation_id],
     );
-    expect(unchanged.rows[0]).toEqual({ attempts: 1, requests: 1, origins: 1 });
-    expect(seatOwned.projectId).toBeTruthy();
-  });
+    expect(unchanged.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
+    const ledger = await admin.query(
+      `SELECT actor_principal_id FROM learning_work_start_requests
+        WHERE participation_id=$1`,
+      [seatOwnedParticipation.participation_id],
+    );
+    expect(new Set(ledger.rows.map((row) => row.actor_principal_id))).toEqual(
+      new Set([learnerPrincipal, accountPrincipal]),
+    );
+    const seatToken = `a4-linked-${randomUUID()}`;
+    const tokenHash = createHash('sha256').update(seatToken).digest('hex');
+    await admin.query(
+      `INSERT INTO classroom_seat_credentials
+         (seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+       VALUES ($1,$2,1,$3,$4)`,
+      [seatId, createHash('sha256').update(randomUUID()).digest('hex'), randomUUID(), ownerAccount],
+    );
+    await admin.query(
+      `INSERT INTO classroom_student_sessions
+         (seat_id,token_hash,expires_at,credential_version)
+       VALUES ($1,$2,now()+interval '1 hour',1)`,
+      [seatId, tokenHash],
+    );
+    const api = await buildTestApp(testAppPool());
+    try {
+      const login = await inject(api, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          workspace: personalOwner.workspace,
+          email: personalOwner.email,
+          password: personalOwner.password,
+        },
+      });
+      expect(login.statusCode).toBe(200);
+      const accountToken = login.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
+      expect(accountToken).toBeTruthy();
+      const seatOpen = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${started.projectId}`,
+        cookies: { asa_student_session: seatToken },
+      });
+      expect(seatOpen.statusCode).toBe(200);
+      expect(seatOpen.json().project.id).toBe(started.projectId);
+      const accountOpen = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${seatOwned.projectId}`,
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountOpen.statusCode).toBe(200);
+      expect(accountOpen.json().project.id).toBe(seatOwned.projectId);
+    } finally {
+      await api.close();
+    }
+    expect(
+      await projects.load(owner.tenantId, seatOwned.projectId, {
+        principalId: outsiderPrincipal,
+        userId: null,
+      }),
+    ).toBeNull();
+    const wrongHandle = `a4-wrong-class-${randomUUID().slice(0, 8)}`;
+    const wrongClassSeat = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+           (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+            safe_mode,status,created_by,account_id)
+         VALUES ($1,$2,'Wrong classroom',$3,$3,true,'active',$4,$5) RETURNING id`,
+        [owner.tenantId, otherClassroom, wrongHandle, owner.teacherId, accountId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [owner.tenantId, owner.schoolId, learner, wrongClassSeat],
+    );
+    const wrongClassPrincipal = (
+      await admin.query(
+        `INSERT INTO principals (kind,seat_id)
+         VALUES ('student_seat',$1) RETURNING id`,
+        [wrongClassSeat],
+      )
+    ).rows[0].id as string;
+    expect(
+      await projects.load(owner.tenantId, started.projectId, {
+        principalId: wrongClassPrincipal,
+        userId: null,
+      }),
+    ).toBeNull();
+
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+       WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+         AND link_kind='account' AND account_id=$4`,
+      [owner.tenantId, owner.schoolId, learner, accountId],
+    );
+    expect(await projects.load(owner.tenantId, seatOwned.projectId, accountActor)).toBeNull();
+    expect(await projects.load(owner.tenantId, started.projectId, seatActor)).toBeNull();
+    expect(
+      await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
+    ).toBeNull();
+    expect(
+      (
+        await admin.query(`SELECT occurrence_count FROM classroom_activity_events WHERE id=$1`, [
+          classActivity.rows[0].id,
+        ])
+      ).rows[0].occurrence_count,
+    ).toBe(2);
+    await expect(
+      denied.start(accountStartRequest, seatOwnedRun, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      seatController.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 409 });
+    const revokedApi = await buildTestApp(testAppPool());
+    try {
+      const replayAfterRevoke = await inject(revokedApi, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies: { asa_student_session: seatToken },
+        payload: { requestId: seatResumeRequestId },
+      });
+      expect(replayAfterRevoke.statusCode).toBe(409);
+      expect(replayAfterRevoke.body).not.toContain(started.projectId);
+      expect(replayAfterRevoke.body).not.toContain(started.attemptId);
+    } finally {
+      await revokedApi.close();
+    }
+    const afterRevocation = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [seatOwnedParticipation.participation_id],
+    );
+    expect(afterRevocation.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
+    const accountOwnedAfterRevocation = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [started.participationId],
+    );
+    expect(accountOwnedAfterRevocation.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
+    expect((await projects.load(owner.tenantId, seatOwned.projectId, seatActor))?.project.id).toBe(
+      seatOwned.projectId,
+    );
+    expect((await projects.load(owner.tenantId, started.projectId, accountActor))?.project.id).toBe(
+      started.projectId,
+    );
+    expect(seatOwnedParticipation.participation_id).not.toBe(started.participationId);
+  }, 20_000);
+
+  it('reopens a Seat-owned Project for a linked legacy Account without a personal workspace', async () => {
+    const legacyOwner = await seedTeacher(admin, 'a4-linked-no-personal-workspace');
+    const identity = await admin.query(
+      `SELECT account_id,principal_id FROM legacy_user_account_links
+        WHERE tenant_id=$1 AND user_id=$2`,
+      [legacyOwner.tenantId, legacyOwner.teacherId],
+    );
+    const accountId = identity.rows[0].account_id as string;
+    expect(
+      (await admin.query('SELECT * FROM auth_personal_workspace($1)', [accountId])).rowCount,
+    ).toBe(0);
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+      accountId,
+      seatId,
+    ]);
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+      [owner.tenantId, owner.schoolId, learner, accountId],
+    );
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const api = await buildTestApp(testAppPool());
+    try {
+      const login = await inject(api, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          workspace: legacyOwner.workspace,
+          email: legacyOwner.email,
+          password: legacyOwner.password,
+        },
+      });
+      expect(login.statusCode).toBe(200);
+      const accountToken = login.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
+      expect(accountToken).toBeTruthy();
+      const cookies = { asa_session: accountToken ?? '' };
+      const beforeOrigin = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId: `start:${randomUUID()}` },
+      });
+      expect(beforeOrigin.statusCode).toBe(404);
+      const seatStarted = await (
+        await startController('seat')
+      ).start(startRequest, run, {
+        requestId: `start:${randomUUID()}`,
+      });
+      const opened = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${seatStarted.projectId}`,
+        cookies,
+      });
+      expect(opened.statusCode).toBe(200);
+      expect(opened.json().project.id).toBe(seatStarted.projectId);
+      const requestId = `start:${randomUUID()}`;
+      const start = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId },
+      });
+      expect(start.statusCode).toBe(200);
+      expect(start.json()).toMatchObject({
+        projectId: seatStarted.projectId,
+        attemptId: seatStarted.attemptId,
+      });
+      const replay = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId },
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json()).toMatchObject({
+        projectId: seatStarted.projectId,
+        attemptId: seatStarted.attemptId,
+      });
+      await admin.query(
+        `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+         WHERE school_id=$1 AND account_id=$2 AND learner_identity_id=$3`,
+        [owner.schoolId, accountId, learner],
+      );
+      const deniedOpen = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${seatStarted.projectId}`,
+        cookies,
+      });
+      expect(deniedOpen.statusCode).toBe(404);
+      const deniedReplay = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId },
+      });
+      expect(deniedReplay.statusCode).toBe(404);
+      expect(deniedReplay.body).not.toContain(seatStarted.projectId);
+      expect(deniedReplay.body).not.toContain(seatStarted.attemptId);
+      const counts = await admin.query(
+        `SELECT (SELECT count(*)::int FROM learning_project_origins
+                  WHERE participation_id=$1) AS origins,
+                (SELECT count(*)::int FROM learning_attempts
+                  WHERE activity_participation_id=$1) AS attempts,
+                (SELECT count(*)::int FROM learning_work_start_requests
+                  WHERE participation_id=$1) AS requests`,
+        [participation.participation_id],
+      );
+      expect(counts.rows[0]).toEqual({ origins: 1, attempts: 1, requests: 2 });
+    } finally {
+      await api.close();
+    }
+  }, 20_000);
 
   it('separates two exact Course blocks even when they share a legacy handout', async () => {
     const source = await courseHandout();
