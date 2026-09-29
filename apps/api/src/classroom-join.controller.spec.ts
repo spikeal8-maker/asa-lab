@@ -882,20 +882,38 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       },
     ];
     occurrenceRows[0].shared_assignment = false;
-    const denied = await controller.courseRuns(seatRequest());
-    expect(denied.items[0]?.sections[0]?.lessons[0]?.projectId).toBeNull();
-    expect(denied.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0]).toMatchObject({
-      projectId: null,
-      snapshotRevision: null,
-      canonicalState: null,
-      workOriginAmbiguous: true,
-    });
+    Object.assign(courseRow, { submitted_at: '2026-09-20T22:30:00.000Z' });
+    Object.assign(occurrenceRows[0], { submitted_at: '2026-09-20T22:30:00.000Z' });
+    const [deniedSeat, deniedAccount] = await Promise.all([
+      controller.courseRuns(seatRequest()),
+      controller.accountCourseRuns(accountRequest),
+    ]);
+    for (const payload of [deniedSeat, deniedAccount]) {
+      const lesson = payload.items[0]?.sections[0]?.lessons[0];
+      expect(lesson).toMatchObject({
+        projectId: null,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+      });
+      expect(lesson?.activityOccurrences?.[0]).toMatchObject({
+        projectId: null,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+        workOriginAmbiguous: true,
+      });
+    }
     presenceRows = [];
     originRows = [exactOriginRows[0], exactOriginRows[0], exactOriginRows[1]];
     const duplicate = await controller.courseRuns(seatRequest());
     expect(duplicate.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0]).toMatchObject({
       projectId: null,
+      submittedAt: null,
       snapshotRevision: null,
+      updatedAt: null,
       canonicalState: null,
       workOriginAmbiguous: true,
     });
