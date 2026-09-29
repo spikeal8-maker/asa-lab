@@ -80,6 +80,20 @@ function poolWith(...contexts: unknown[]): pg.Pool {
         return { rows: [{ linked: false }] };
       if (sql.includes('learning_work_context_for_project'))
         return { rows: contexts.map((context) => ({ context })) };
+      if (sql.includes('learning_course_modern_provenance'))
+        return {
+          rows: [{ proof: { modernCourseRun: true, activityRunId: runId, projectReadable: true } }],
+        };
+      if (sql.includes('learning_direct_modern_project_readable'))
+        return { rows: [{ readable: true }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return {
+          rows: [
+            {
+              proof: { legacyDirect: true, legacyCourseLesson: true, legacyProjectReadable: true },
+            },
+          ],
+        };
       return { rows: [{ linked: false }] };
     }),
   } as unknown as pg.Pool;
@@ -205,6 +219,48 @@ describe('A1 project-scoped Learning Work Context', () => {
       },
     });
   });
+
+  it.each([
+    ['course', row, 'learning_course_modern_provenance'],
+    [
+      'direct',
+      {
+        ...row,
+        sourceKind: 'direct',
+        courseRunId: null,
+        courseLessonId: null,
+        courseBlockId: null,
+      },
+      'learning_direct_modern_project_readable',
+    ],
+    [
+      'historical course',
+      { ...row, activityRunId: null, sourceKind: 'course', courseBlockId: null },
+      'learning_legacy_direct_provenance',
+    ],
+  ] as const)(
+    'denies remembered %s Project ID when its viewer-scoped no-origin proof is withdrawn',
+    async (_name, candidate, proofFunction) => {
+      const query = vi.fn(async (sql: string) => {
+        if (sql.includes('learning_origin_work_context_for_project')) return { rows: [] };
+        if (sql.includes('learning_immutable_project_origin_exists'))
+          return { rows: [{ linked: false }] };
+        if (sql.includes('learning_work_context_for_project'))
+          return { rows: [{ context: candidate }] };
+        if (sql.includes(proofFunction)) return { rows: [{ proof: {}, readable: false }] };
+        throw new Error('unexpected context query after revoked proof');
+      });
+      const context = await learningWorkContextForProject(
+        { query } as unknown as pg.Pool,
+        'viewer',
+        projectId,
+        'electronics',
+        projections,
+      );
+      expect(context).toEqual({ state: 'denied', projectId });
+      expect(query.mock.calls.some(([sql]) => sql.includes(proofFunction))).toBe(true);
+    },
+  );
 
   it('only calls a provably personal project not_learning', async () => {
     await expect(
@@ -372,8 +428,9 @@ describe('A1 project-scoped Learning Work Context', () => {
       },
     } as CanonicalLearningProjection;
     const returned = new Map([[canonicalProjectionKey(seatId, assignmentId), returnedProjection]]);
+    const returnedPool = poolWith(returnedRow);
     const context = await learningWorkContextForProject(
-      poolWith(returnedRow),
+      returnedPool,
       'viewer',
       projectId,
       'electronics',
@@ -385,6 +442,11 @@ describe('A1 project-scoped Learning Work Context', () => {
       workflow: { attemptId, submissionId, canonicalState: { workflowState: 'changes_requested' } },
       allowedActions: { edit: false, submit: false, resumeAfterChangesRequested: true },
     });
+    expect(
+      (returnedPool.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) =>
+        sql.includes('learning_direct_modern_project_readable'),
+      ),
+    ).toBe(true);
 
     for (const [candidateRow, candidateProjection] of [
       [{ ...returnedRow, submittedAt: '2026-09-26T00:00:00.000Z' }, returnedProjection],

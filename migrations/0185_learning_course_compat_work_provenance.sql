@@ -117,3 +117,82 @@ REVOKE ALL ON FUNCTION public.learning_course_modern_provenance(uuid,uuid,uuid,u
     FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.learning_course_modern_provenance(uuid,uuid,uuid,uuid)
     TO asalab_app;
+
+-- Pinned Direct work predates immutable Project origins. A remembered Project
+-- URL still needs its exact Seat, Participation, bilateral Account link, and
+-- Project read permission; a handout projection alone is not authorization.
+CREATE FUNCTION public.learning_direct_modern_project_readable(
+    p_viewer_principal_id uuid, p_seat_id uuid, p_assignment_id uuid,
+    p_activity_run_id uuid, p_project_id uuid
+)
+RETURNS boolean
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT EXISTS (
+        SELECT 1
+          FROM public.classroom_assignment_work work
+          JOIN public.classroom_assignments assignment
+            ON assignment.tenant_id=work.tenant_id
+           AND assignment.id=work.assignment_id
+           AND assignment.id=p_assignment_id
+           AND assignment.course_run_id IS NULL
+          JOIN public.classroom_student_seats seat
+            ON seat.tenant_id=work.tenant_id AND seat.id=work.seat_id
+           AND seat.id=p_seat_id AND seat.status='active'
+           AND seat.classroom_id=assignment.classroom_id
+          JOIN public.classrooms classroom
+            ON classroom.tenant_id=seat.tenant_id
+           AND classroom.id=seat.classroom_id
+          JOIN public.activity_runs run
+            ON run.tenant_id=assignment.tenant_id
+           AND run.school_id=classroom.school_id
+           AND run.classroom_id=assignment.classroom_id
+           AND run.source_classroom_assignment_id=assignment.id
+           AND run.id=p_activity_run_id AND run.source_kind='direct'
+           AND (assignment.learning_activity_version_id IS NULL
+                OR assignment.learning_activity_version_id=run.learning_activity_version_id)
+          JOIN public.learner_identity_links seat_link
+            ON seat_link.tenant_id=seat.tenant_id
+           AND seat_link.school_id=classroom.school_id
+           AND seat_link.seat_id=seat.id
+           AND seat_link.link_kind='student_seat'
+           AND seat_link.status='active'
+          JOIN public.activity_participations participation
+            ON participation.tenant_id=run.tenant_id
+           AND participation.school_id=run.school_id
+           AND participation.activity_run_id=run.id
+           AND participation.learner_identity_id=seat_link.learner_identity_id
+           AND participation.status IN ('assigned','active')
+          JOIN public.principals actor ON actor.id=p_viewer_principal_id
+         WHERE work.project_id=p_project_id
+           AND public.learning_direct_assignment_seat_visible(p_seat_id,p_assignment_id)
+           AND ((actor.kind='student_seat' AND actor.seat_id=seat.id)
+                OR (actor.kind='account' AND actor.account_id=seat.account_id
+                    AND EXISTS (
+                        SELECT 1 FROM public.accounts account
+                        JOIN public.learner_identity_links account_link
+                          ON account_link.account_id=account.id
+                         AND account_link.tenant_id=seat_link.tenant_id
+                         AND account_link.school_id=seat_link.school_id
+                         AND account_link.learner_identity_id=seat_link.learner_identity_id
+                         AND account_link.link_kind='account'
+                         AND account_link.status='active'
+                       WHERE account.id=seat.account_id AND account.status='active')))
+           AND (SELECT count(*) FROM public.activity_runs sibling
+                 WHERE sibling.tenant_id=run.tenant_id
+                   AND sibling.source_classroom_assignment_id=assignment.id)=1
+           AND NOT EXISTS (
+               SELECT 1 FROM public.learning_project_origins origin
+                WHERE origin.project_id=p_project_id
+                   OR (origin.school_tenant_id=run.tenant_id
+                       AND origin.school_id=run.school_id
+                       AND origin.learner_identity_id=seat_link.learner_identity_id
+                       AND origin.activity_run_id=run.id))
+           AND EXISTS (SELECT 1 FROM public.project_context_for_principal(
+               p_viewer_principal_id,p_project_id))
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.learning_direct_modern_project_readable(uuid,uuid,uuid,uuid,uuid)
+    FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_direct_modern_project_readable(uuid,uuid,uuid,uuid,uuid)
+    TO asalab_app;

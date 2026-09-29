@@ -898,6 +898,21 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       )
     ).rows[0];
     expect(started.result_code).toBe('ok');
+    const exactRunId = (
+      await admin.query('SELECT id FROM activity_runs WHERE source_classroom_assignment_id=$1', [
+        assignment,
+      ])
+    ).rows[0].id as string;
+    const contextReadable = async () =>
+      (
+        await inTenant((client) =>
+          client.query(
+            'SELECT learning_direct_modern_project_readable($1,$2,$3,$4,$5) AS readable',
+            [learner, seat, assignment, exactRunId, project],
+          ),
+        )
+      ).rows[0].readable as boolean;
+    expect(await contextReadable()).toBe(true);
     await expect(
       inTenant((client) =>
         client.query('SELECT learning_gradebook_projection_sync_internal($1,$2,NULL,$3)', [
@@ -955,6 +970,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE seat_id=$1",
       [seat],
     );
+    expect(await contextReadable()).toBe(false);
 
     const incomplete = (
       await inTenant((client) =>
@@ -1423,6 +1439,19 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       participationId: first.participation_id,
       attemptId: first.attempt_id,
     });
+    const directRunId = workContext.rows[0].context.activityRunId as string;
+    const directProof = async (actor: string, candidateRun = directRunId) =>
+      (
+        await inTenant((client) =>
+          client.query(
+            'SELECT learning_direct_modern_project_readable($1,$2,$3,$4,$5) AS readable',
+            [actor, seatId, assignmentId, candidateRun, projectId],
+          ),
+        )
+      ).rows[0].readable as boolean;
+    expect(await directProof(learnerPrincipal)).toBe(true);
+    expect(await directProof(teacherPrincipal)).toBe(false);
+    expect(await directProof(learnerPrincipal, '00000000-0000-4000-8000-000000000001')).toBe(false);
     expect(
       (
         await inTenant((client) =>

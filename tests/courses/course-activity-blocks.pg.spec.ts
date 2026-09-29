@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 let admin: pg.Pool;
@@ -760,8 +761,26 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       projectReadable: false,
       startAllowed: false,
     });
+    const rememberedContext = await inTenant(author, (client) =>
+      client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+        learnerPrincipal,
+        projectId,
+      ]),
+    );
+    expect(rememberedContext.rows).toHaveLength(1);
+    expect(rememberedContext.rows[0].context).toMatchObject({ projectId, seatId: seat });
+    const guardedContext = await inTenant(author, (client) =>
+      learningWorkContextForProject(
+        client as unknown as pg.Pool,
+        learnerPrincipal,
+        projectId,
+        'electronics',
+        new Map(),
+      ),
+    );
+    expect(guardedContext).toEqual({ state: 'denied', projectId });
     expect(await proof(seatPrincipal, seat, projectId)).toMatchObject({
-      projectReadable: true,
+      projectReadable: false,
       startAllowed: false,
     });
   }, 30_000);
