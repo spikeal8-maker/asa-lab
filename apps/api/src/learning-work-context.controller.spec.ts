@@ -15,7 +15,7 @@ const actor = {
 };
 const request = { cookies: { asa_session: 'account-token' } } as unknown as FastifyRequest;
 
-function controller(input: { projectAllowed: boolean; account?: boolean }) {
+function controller(input: { projectAllowed: boolean; account?: boolean; both?: boolean }) {
   const activeContext = {
     resolve: vi
       .fn()
@@ -24,11 +24,17 @@ function controller(input: { projectAllowed: boolean; account?: boolean }) {
       ),
   };
   const seatContext = {
-    resolve: vi
-      .fn()
-      .mockImplementation(async (token: string | undefined) =>
-        token && input.account === false ? { ...actor, userId: null, seatId: 'seat' } : null,
-      ),
+    resolve: vi.fn().mockImplementation(async (token: string | undefined) =>
+      token && (input.account === false || input.both)
+        ? {
+            ...actor,
+            tenantId: input.both ? 'seat-tenant' : actor.tenantId,
+            principalId: input.both ? 'seat-principal' : actor.principalId,
+            userId: null,
+            seatId: 'seat',
+          }
+        : null,
+    ),
   };
   const openProject = {
     execute: vi
@@ -49,6 +55,8 @@ function controller(input: { projectAllowed: boolean; account?: boolean }) {
     ),
     openProject,
     pool,
+    activeContext,
+    seatContext,
   };
 }
 
@@ -116,6 +124,35 @@ describe('A4-3b exact-origin submission HTTP boundary', () => {
     late_state: 'on_time',
     reused: false,
   };
+
+  it('uses the same Seat principal for context and submit when both cookies are valid', async () => {
+    const { instance, pool, openProject, activeContext, seatContext } = controller({
+      projectAllowed: true,
+      both: true,
+    });
+    const bothCookies = {
+      cookies: { asa_session: 'account-token', asa_student_session: 'seat-token' },
+    } as unknown as FastifyRequest;
+    await expect(instance.context(bothCookies, projectId)).resolves.toEqual({
+      state: 'not_learning',
+      projectId,
+    });
+    expect(openProject.execute).toHaveBeenCalledWith('seat-tenant', projectId, {
+      principalId: 'seat-principal',
+      userId: null,
+    });
+    pool.query.mockResolvedValueOnce({ rows: [receipt] });
+    await expect(instance.submit(bothCookies, projectId, submitBody)).resolves.toMatchObject({
+      projectId,
+      submissionId: 'submission',
+    });
+    expect(pool.query).toHaveBeenLastCalledWith(
+      'SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)',
+      ['seat-principal', projectId, submitBody.clientRequestId, submitBody.expectedRevision],
+    );
+    expect(seatContext.resolve).toHaveBeenCalledTimes(2);
+    expect(activeContext.resolve).not.toHaveBeenCalled();
+  });
 
   it('submits through the exact Project command and returns its receipt', async () => {
     const { instance, pool, openProject } = controller({ projectAllowed: true });

@@ -2854,7 +2854,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
                     withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
               WHERE id=$1`,
         args: [started.participationId, ownerPrincipal],
-        expected: 'not_available',
+        expected: 'forbidden',
       },
     ];
     for (const gate of cases) {
@@ -2873,6 +2873,15 @@ describe('A4-3b immutable-origin Project Submission', () => {
           expect(result.rows[0].late_state).toBe('late');
         } else {
           expect(result.rows[0].submission_id).toBeNull();
+          if (gate.expected === 'forbidden') {
+            expect(result.rows[0]).toMatchObject({
+              participation_id: null,
+              activity_run_id: null,
+              attempt_id: null,
+              project_id: null,
+              project_version_id: null,
+            });
+          }
         }
       } finally {
         await client.query('ROLLBACK');

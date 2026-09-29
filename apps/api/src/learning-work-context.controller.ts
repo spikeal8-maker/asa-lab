@@ -60,10 +60,8 @@ export class LearningWorkContextController {
         400,
       );
     }
-    const account = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
-    const seat = account
-      ? null
-      : await this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]);
+    const seat = await this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]);
+    const account = seat ? null : await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!account && !seat) {
       throw new HttpException(
         { error: { code: 'unauthorized', message: 'no active session' } },
