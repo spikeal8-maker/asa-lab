@@ -2849,8 +2849,11 @@ describe('A4-3b immutable-origin Project Submission', () => {
       },
       {
         name: 'inactive Participation',
-        sql: `UPDATE activity_participations SET status='withdrawn' WHERE id=$1`,
-        args: [started.participationId],
+        sql: `UPDATE activity_participations
+                SET status='withdrawn',withdrawn_at=now(),
+                    withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
+              WHERE id=$1`,
+        args: [started.participationId, ownerPrincipal],
         expected: 'not_available',
       },
     ];
