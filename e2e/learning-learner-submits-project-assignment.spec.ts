@@ -85,6 +85,7 @@ async function createPublishedProjectActivity(
         canonicalRoot ? brief : 'ignored',
       ],
     );
+    expect(created.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 1 });
     let revision = 1;
     if (sample) {
       const media = await client.query(
@@ -101,19 +102,54 @@ async function createPublishedProjectActivity(
       expect(media.rows[0]).toMatchObject({ result_code: 'ok', draft_revision: 2 });
       revision = Number(media.rows[0].draft_revision);
     }
-    await client.query(`SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)`, [
-      principalId,
-      teacher.tenantId,
-      created.rows[0].activity_id,
-      revision,
-      `vs002:e2e:publish:${++sequence}`,
-    ]);
+    const published = await client.query(
+      `SELECT * FROM learning_activity_publish($1,$2,$3,$4,$5)`,
+      [
+        principalId,
+        teacher.tenantId,
+        created.rows[0].activity_id,
+        revision,
+        `vs002:e2e:publish:${++sequence}`,
+      ],
+    );
+    expect(published.rows[0]).toMatchObject({ result_code: 'ok', reused: false });
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
+  }
+}
+
+async function withSyntheticBlocksAssignable<T>(run: () => Promise<T>): Promise<T> {
+  // A0 verifies the existing Blocks work shell. Enable this legacy module only
+  // in the isolated browser test database while creating its synthetic run.
+  const baseline = await admin.query(
+    `SELECT module_key,creatable,assignable FROM module_learning_capabilities
+       WHERE module_key='blocks'`,
+  );
+  expect(baseline.rows).toHaveLength(1);
+  expect(baseline.rows[0]).toMatchObject({ module_key: 'blocks', creatable: true });
+  if (baseline.rows[0].assignable === true) return await run();
+
+  const enabled = await admin.query(
+    `UPDATE module_learning_capabilities SET assignable=true
+       WHERE module_key='blocks' AND creatable AND NOT assignable
+       RETURNING module_key,assignable`,
+  );
+  try {
+    expect(enabled.rows).toEqual([{ module_key: 'blocks', assignable: true }]);
+    return await run();
+  } finally {
+    if (enabled.rowCount === 1) {
+      const restored = await admin.query(
+        `UPDATE module_learning_capabilities SET assignable=false
+           WHERE module_key='blocks' AND assignable
+           RETURNING module_key,assignable`,
+      );
+      expect(restored.rows).toEqual([{ module_key: 'blocks', assignable: false }]);
+    }
   }
 }
 
@@ -845,9 +881,11 @@ test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async (
 }) => {
   test.setTimeout(300_000);
   await page.setViewportSize(desktopV1Viewport);
-  const learner = await openAssignedProject(browser, page, 'blocks', {
-    viewport: desktopV1Viewport,
-  });
+  const learner = await withSyntheticBlocksAssignable(() =>
+    openAssignedProject(browser, page, 'blocks', {
+      viewport: desktopV1Viewport,
+    }),
+  );
   const anchor = learner.page.getByTestId('assignment-brief-anchor');
   const brief = learner.page.getByTestId('assignment-brief');
   const fullscreen = learner.page.locator('[data-asa-blocks-fullscreen]');

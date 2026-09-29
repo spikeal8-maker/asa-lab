@@ -101,6 +101,26 @@ async function publishActivity(
   };
 }
 
+async function historicalUnsupportedVersion(moduleKey: string) {
+  const source = await publishActivity(author, principalId, 'electronics');
+  // Emulate a pre-capability published version without updating immutable rows.
+  const inserted = await admin.query(
+    `INSERT INTO learning_activity_versions
+     SELECT (jsonb_populate_record(NULL::learning_activity_versions,
+       to_jsonb(version) || jsonb_build_object(
+         'id',gen_random_uuid(),
+         'version_number',version.version_number+1,
+         'source_draft_revision',version.source_draft_revision+1,
+         'publication_request_id',$2::text,
+         'module_key',$3::text
+       ))).*
+       FROM learning_activity_versions version WHERE version.id=$1
+     RETURNING id`,
+    [source.versionId, `historical:unsupported:${randomUUID()}`, moduleKey],
+  );
+  return { activityId: source.activityId, versionId: inserted.rows[0].id as string };
+}
+
 async function newCourse(title: string) {
   sequence += 1;
   await admin.query(
@@ -229,7 +249,7 @@ describe('E1-FIX-11D2 canonical Activity blocks', () => {
   it('accepts exact Electronics and 3D versions and rejects nonexistent, unsupported and foreign versions', async () => {
     const electronics = await publishActivity(author, principalId, 'electronics');
     const threeD = await publishActivity(author, principalId, 'three-d');
-    const unsupported = await publishActivity(author, principalId, 'chess');
+    const unsupported = await historicalUnsupportedVersion('chess');
     const foreign = await publishActivity(outsider, outsiderPrincipalId, 'electronics');
     const missingVersionId = randomUUID();
 
@@ -269,7 +289,7 @@ describe('E1-FIX-11D2 canonical Activity blocks', () => {
   it('validates hidden Activity blocks, stores the draft and freezes only the visible exact pin', async () => {
     const electronics = await publishActivity(author, principalId, 'electronics');
     const threeD = await publishActivity(author, principalId, 'three-d');
-    const unsupported = await publishActivity(author, principalId, 'manual-lab');
+    const unsupported = await historicalUnsupportedVersion('manual-lab');
     const { courseId, sectionId } = await newCourse('D2 activity blocks');
     const hiddenUnsupported = [
       {
