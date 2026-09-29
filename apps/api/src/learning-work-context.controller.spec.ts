@@ -99,3 +99,74 @@ describe('A1 context access boundary', () => {
     expect(openProject.execute).not.toHaveBeenCalled();
   });
 });
+
+describe('A4-3b exact-origin submission HTTP boundary', () => {
+  const submitBody = { clientRequestId: 'submit:request-1', expectedRevision: 1 };
+  const receipt = {
+    result_code: 'ok',
+    participation_id: 'participation',
+    activity_run_id: 'run',
+    attempt_id: 'attempt',
+    submission_id: 'submission',
+    attempt_number: 1,
+    attempt_state: 'submitted',
+    project_id: projectId,
+    project_version_id: 'version',
+    submitted_at: '2026-09-29T00:00:00.000Z',
+    late_state: 'on_time',
+    reused: false,
+  };
+
+  it('submits through the exact Project command and returns its receipt', async () => {
+    const { instance, pool, openProject } = controller({ projectAllowed: true });
+    pool.query.mockResolvedValueOnce({ rows: [receipt] });
+    await expect(instance.submit(request, projectId, submitBody)).resolves.toMatchObject({
+      projectId,
+      participationId: 'participation',
+      attemptId: 'attempt',
+      submissionId: 'submission',
+      projectVersionId: 'version',
+      reused: false,
+    });
+    expect(pool.query).toHaveBeenCalledWith(
+      'SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)',
+      [actor.principalId, projectId, submitBody.clientRequestId, submitBody.expectedRevision],
+    );
+    expect(openProject.execute).not.toHaveBeenCalled();
+  });
+
+  it('rejects malformed body and unauthenticated access before the command', async () => {
+    const { instance, pool } = controller({ projectAllowed: true });
+    await expect(
+      instance.submit(request, projectId, { ...submitBody, projectId }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      instance.submit({ cookies: {} } as FastifyRequest, projectId, submitBody),
+    ).rejects.toMatchObject({ status: 401 });
+    expect(pool.query).not.toHaveBeenCalled();
+  });
+
+  it('does not expose work identifiers for a denied origin or revoked link', async () => {
+    const { instance, pool } = controller({ projectAllowed: true });
+    pool.query.mockResolvedValueOnce({ rows: [{ result_code: 'forbidden' }] });
+    await expect(instance.submit(request, projectId, submitBody)).rejects.toMatchObject({
+      status: 404,
+      response: { error: { code: 'learning_work_unavailable' } },
+    });
+  });
+
+  it('maps revision and idempotency conflicts without invoking legacy handout writes', async () => {
+    const { instance, pool } = controller({ projectAllowed: true });
+    pool.query.mockResolvedValueOnce({ rows: [{ result_code: 'project_revision_conflict' }] });
+    await expect(instance.submit(request, projectId, submitBody)).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: 'project_revision_conflict' } },
+    });
+    pool.query.mockResolvedValueOnce({ rows: [{ result_code: 'request_conflict' }] });
+    await expect(instance.submit(request, projectId, submitBody)).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: 'idempotency_conflict' } },
+    });
+    expect(pool.query).toHaveBeenCalledTimes(2);
+  });
+});

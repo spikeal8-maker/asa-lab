@@ -2755,6 +2755,35 @@ paths:
         '400': { description: Invalid project ID }
         '401': { description: No active Account or StudentSeat session }
         '503': { description: Learning read dependency unavailable }
+  /api/learning/projects/{projectId}/submit:
+    parameters:
+      - name: projectId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      operationId: submitLearningOriginProject
+      summary: Submit the current Attempt of one immutable-origin Learning Project
+      description: >-
+        Uses the exact Project origin and saved draft revision. Retries with the
+        same request ID return the same immutable Submission receipt. Legacy
+        handout submission remains a separate compatibility endpoint.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LearningOriginSubmissionRequest' }
+      responses:
+        '200':
+          description: Exact submitted ProjectVersion and Attempt receipt
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LearningOriginSubmissionReceipt' }
+        '400': { description: Invalid Project ID, request ID or expected revision }
+        '401': { description: No active Account or StudentSeat session }
+        '404': { description: Project origin is absent or inaccessible }
+        '409': { description: Stale revision, duplicate request conflict or unavailable Attempt }
+        '503': { description: Learning write dependency unavailable }
   /api/learning/activities:
     get:
       operationId: listLearningActivities
@@ -3808,6 +3837,43 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    LearningOriginSubmissionRequest:
+      type: object
+      additionalProperties: false
+      required: [clientRequestId, expectedRevision]
+      properties:
+        clientRequestId:
+          { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
+        expectedRevision: { type: integer, minimum: 0 }
+    LearningOriginSubmissionReceipt:
+      type: object
+      additionalProperties: false
+      required:
+        [
+          projectId,
+          participationId,
+          activityRunId,
+          attemptId,
+          submissionId,
+          attemptNumber,
+          state,
+          projectVersionId,
+          submittedAt,
+          lateState,
+          reused,
+        ]
+      properties:
+        projectId: { type: string, format: uuid }
+        participationId: { type: string, format: uuid }
+        activityRunId: { type: string, format: uuid }
+        attemptId: { type: string, format: uuid }
+        submissionId: { type: string, format: uuid }
+        attemptNumber: { type: integer, minimum: 1 }
+        state: { type: string, const: submitted }
+        projectVersionId: { type: string, format: uuid }
+        submittedAt: { type: string, format: date-time }
+        lateState: { type: string, enum: [on_time, late, excused] }
+        reused: { type: boolean }
     LearningWorkContext:
       oneOf:
         - type: object
