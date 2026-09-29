@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
-import type { CanonicalLearningProjection } from './learning-canonical-projection.service.js';
+import type {
+  CanonicalLearningProjection,
+  EvidenceRow,
+} from './learning-canonical-projection.service.js';
 import { canonicalProjectionKey } from './learning-canonical-projection.service.js';
 import { learningWorkContextForProject } from './learning-work-context.js';
 
@@ -71,13 +74,107 @@ const projection = {
 
 function poolWith(...contexts: unknown[]): pg.Pool {
   return {
-    query: vi.fn().mockResolvedValue({ rows: contexts.map((context) => ({ context })) }),
+    query: vi.fn().mockImplementation(async (sql: string) => {
+      if (sql.includes('learning_origin_work_context_for_project')) return { rows: [] };
+      if (sql.includes('learning_immutable_project_origin_exists'))
+        return { rows: [{ linked: false }] };
+      if (sql.includes('learning_work_context_for_project'))
+        return { rows: contexts.map((context) => ({ context })) };
+      return { rows: [{ linked: false }] };
+    }),
   } as unknown as pg.Pool;
 }
 
 const projections = new Map([[canonicalProjectionKey(seatId, assignmentId), projection]]);
 
+const originEvidence: EvidenceRow = {
+  tenantId: 'school-tenant',
+  schoolId: 'school',
+  classroomId: 'classroom',
+  classroomAssignmentId: assignmentId,
+  kind: 'course_project',
+  dueAt: null,
+  assignmentStatus: 'open',
+  seatId,
+  accountId: null,
+  principalId: 'seat-principal',
+  learnerId: 'learner',
+  identityResolution: 'learner_identity',
+  seatStatus: 'active',
+  classroomAccess: 'active',
+  legacyWork: null,
+  courseProgressPresent: true,
+  attempt: {
+    id: 'a0000000-0000-4000-8000-000000000001',
+    attemptNumber: 1,
+    state: 'in_progress',
+    startedAt: '2026-09-26T00:00:00Z',
+    submittedAt: null,
+    lateState: null,
+  },
+  selectedAttemptExists: false,
+  activityRunId: runId,
+  participation: { applicable: true, status: 'active', excused: false },
+  selectedRevision: null,
+  resultSelectionSource: 'canonical',
+  selectedAttemptId: null,
+  selectedResult: null,
+  selectionConflict: null,
+  validUnselectedResultCount: 0,
+  compatibilityGradingUnknown: false,
+  reusableAuthoredContent: true,
+  projectId,
+};
+
 describe('A1 project-scoped Learning Work Context', () => {
+  it('uses exact immutable origin evidence even when handout projection points to a sibling', async () => {
+    const exactAttempt = originEvidence.attempt!.id;
+    const originRow = { ...row, attemptId: exactAttempt, attemptNumber: 1 };
+    const pool = {
+      query: vi.fn().mockImplementation(async (sql: string) => {
+        if (sql.includes('learning_origin_work_context_for_project'))
+          return { rows: [{ context: originRow, evidence: originEvidence }] };
+        if (sql.includes('learning_course_activity_sample_url_for_viewer'))
+          return { rows: [{ sample_image: null }] };
+        throw new Error('handout fallback was attempted');
+      }),
+    } as unknown as pg.Pool;
+    const sibling = new Map([
+      [
+        canonicalProjectionKey(seatId, assignmentId),
+        { ...projection, projectId: 'sibling', state: { ...projection.state } },
+      ],
+    ]) as Map<string, CanonicalLearningProjection>;
+    const context = await learningWorkContextForProject(
+      pool,
+      'viewer',
+      projectId,
+      'electronics',
+      sibling,
+      '2026-09-27T00:00:00.000Z',
+    );
+    expect(context).toMatchObject({
+      state: 'ready',
+      origin: { activityRunId: runId, courseBlockId: 'activity-a' },
+      workflow: { attemptId: exactAttempt, canonicalState: { workflowState: 'in_progress' } },
+    });
+  });
+
+  it('never falls back to shared handout work when immutable origin is unreadable', async () => {
+    const pool = {
+      query: vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({
+          rows: [{ linked: true }],
+        }),
+    } as unknown as pg.Pool;
+    await expect(
+      learningWorkContextForProject(pool, 'viewer', projectId, 'electronics', projections),
+    ).resolves.toEqual({ state: 'denied', projectId });
+    expect((pool.query as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(2);
+  });
+
   it('returns exact Course Activity block and canonical server actions', async () => {
     const result = await learningWorkContextForProject(
       poolWith(row),
@@ -118,6 +215,8 @@ describe('A1 project-scoped Learning Work Context', () => {
     const pool = {
       query: vi
         .fn()
+        .mockResolvedValueOnce({ rows: [] })
+        .mockResolvedValueOnce({ rows: [{ linked: false }] })
         .mockResolvedValueOnce({ rows: [] })
         .mockResolvedValueOnce({
           rows: [{ linked: true }],
