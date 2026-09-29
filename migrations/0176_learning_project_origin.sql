@@ -32,7 +32,8 @@ CREATE TABLE learning_project_origins (
         (source_kind = 'direct' AND source_course_run_id IS NULL
          AND source_course_lesson_id IS NULL AND source_course_block_id IS NULL)
         OR (source_kind = 'course' AND source_course_run_id IS NOT NULL
-            AND source_course_lesson_id IS NOT NULL)
+            AND source_course_lesson_id IS NOT NULL
+            AND source_course_block_id IS NOT NULL)
     )
 );
 
@@ -53,7 +54,8 @@ BEGIN
     SELECT project.tenant_id, project.owner_principal_id, project.module_key,
            project.project_scope, project.copied_from_project_id
       INTO v_project
-      FROM public.projects project WHERE project.id = NEW.project_id;
+      FROM public.projects project WHERE project.id = NEW.project_id
+      FOR UPDATE OF project;
     IF v_project.tenant_id IS NULL OR v_project.tenant_id <> NEW.project_tenant_id
        OR v_project.owner_principal_id IS DISTINCT FROM NEW.owner_principal_id
        OR v_project.project_scope <> 'personal'

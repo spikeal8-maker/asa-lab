@@ -834,6 +834,22 @@ describe('A4-1 immutable learning project origin', () => {
     await admin.query(insertSql, directValues);
 
     const course = await courseHandout();
+    const legacyLessonRun = await createRun({
+      handout: course.handout,
+      kind: 'course',
+      courseRun: course.courseRun,
+      lesson: course.lesson,
+    });
+    const legacyLessonPart = await assign(legacyLessonRun);
+    expect(legacyLessonPart.result_code).toBe('ok');
+    const legacyLessonProject = await project(learnerPrincipal);
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(legacyLessonPart.participation_id as string, legacyLessonProject),
+      ),
+    ).rejects.toThrow(/learning_project_origins_source_shape_check/);
+
     const activityLesson = await admin.query(
       `INSERT INTO classroom_course_run_lessons
          (tenant_id,run_id,source_section_id,source_lesson_id,section_title,
@@ -1058,6 +1074,69 @@ describe('A4-1 immutable learning project origin', () => {
       owner_principal_id: account.principal_id,
     });
   });
+
+  it('serializes origin insertion with a concurrent project-owner change', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    expect(participation.result_code).toBe('ok');
+    const projectId = await project(learnerPrincipal);
+    const values = await originValues(participation.participation_id as string, projectId);
+    const projectWriter = await admin.connect();
+    const originWriter = await admin.connect();
+    let projectTransactionOpen = false;
+    let originInsertion: Promise<{ error: Error | null }> | undefined;
+    try {
+      await projectWriter.query('BEGIN');
+      projectTransactionOpen = true;
+      await projectWriter.query(`UPDATE projects SET owner_principal_id=$1 WHERE id=$2`, [
+        ownerPrincipal,
+        projectId,
+      ]);
+      const originPid = (await originWriter.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      let insertionSettled = false;
+      originInsertion = originWriter
+        .query(insertSql, values)
+        .then(
+          () => ({ error: null }),
+          (error: Error) => ({ error }),
+        )
+        .finally(() => {
+          insertionSettled = true;
+        });
+      let blockedOnProject = false;
+      for (let i = 0; i < 200 && !insertionSettled; i += 1) {
+        const state = await admin.query(
+          `SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1`,
+          [originPid],
+        );
+        if (state.rows[0]?.wait_event_type === 'Lock') {
+          blockedOnProject = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(blockedOnProject).toBe(true);
+      await projectWriter.query('COMMIT');
+      projectTransactionOpen = false;
+      const outcome = await originInsertion;
+      expect(outcome.error?.message).toMatch(/project lineage is incoherent/);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::int AS count FROM learning_project_origins
+        WHERE project_id=$1`,
+            [projectId],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    } finally {
+      if (projectTransactionOpen) await projectWriter.query('ROLLBACK');
+      if (originInsertion) await originInsertion;
+      projectWriter.release();
+      originWriter.release();
+    }
+  }, 20_000);
 
   it('does not infer legacy origin and gives the runtime role no table privileges', async () => {
     const legacyProject = await project(learnerPrincipal);
