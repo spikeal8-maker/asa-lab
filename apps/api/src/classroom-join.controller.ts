@@ -85,7 +85,12 @@ interface AssignmentForSeatRow {
   /** Снимок работы: по нему ученик вспоминает, на чём остановился. */
   snapshot_revision: number | string | null;
   updated_at: Date | string | null;
-  legacy_provenance?: { startAllowed?: boolean; submitAllowed?: boolean } | null;
+  legacy_provenance?: {
+    legacyDirect?: boolean;
+    legacyProjectReadable?: boolean;
+    startAllowed?: boolean;
+    submitAllowed?: boolean;
+  } | null;
 }
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
@@ -1089,9 +1094,11 @@ export class ClassroomJoinController {
           const ambiguous = origins.directAmbiguous(row.seat_id, row.id);
           const exact = ambiguous ? null : origins.directWork(row.seat_id, row.id);
           const legacyAllowed = !ambiguous && !origins.directHasOrigin(row.seat_id, row.id);
+          const legacyProjectReadable =
+            legacyAllowed && row.legacy_provenance?.legacyProjectReadable === true;
           const projected =
             exact?.canonicalState ??
-            (legacyAllowed ? canonicalFor(projections, row.id, row.seat_id) : null);
+            (legacyProjectReadable ? canonicalFor(projections, row.id, row.seat_id) : null);
           return {
             id: row.id,
             title: row.title,
@@ -1121,26 +1128,32 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(row.seat_id, row.id),
-            legacyStartAllowed: legacyAllowed && row.legacy_provenance?.startAllowed === true,
-            legacySubmitAllowed: legacyAllowed && row.legacy_provenance?.submitAllowed === true,
-            projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
+            legacyStartAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.startAllowed === true,
+            legacySubmitAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.submitAllowed === true,
+            projectId: exact?.projectId ?? (legacyProjectReadable ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.submitted_at
                   ? isoDate(row.submitted_at)
                   : null,
             snapshotRevision: exact
               ? exact.snapshotRevision
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.snapshot_revision === null
                   ? null
                   : Number(row.snapshot_revision),
             updatedAt: exact
               ? exact.updatedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.updated_at
                   ? isoDate(row.updated_at)
@@ -1289,9 +1302,11 @@ export class ClassroomJoinController {
           const ambiguous = origins.directAmbiguous(seat.seat_id, row.id);
           const exact = ambiguous ? null : origins.directWork(seat.seat_id, row.id);
           const legacyAllowed = !ambiguous && !origins.directHasOrigin(seat.seat_id, row.id);
+          const legacyProjectReadable =
+            legacyAllowed && row.legacy_provenance?.legacyProjectReadable === true;
           const projected =
             exact?.canonicalState ??
-            (legacyAllowed ? canonicalFor(projections, row.id, seat.seat_id) : null);
+            (legacyProjectReadable ? canonicalFor(projections, row.id, seat.seat_id) : null);
           return {
             id: row.id,
             title: row.title,
@@ -1321,26 +1336,32 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(seat.seat_id, row.id),
-            legacyStartAllowed: legacyAllowed && row.legacy_provenance?.startAllowed === true,
-            legacySubmitAllowed: legacyAllowed && row.legacy_provenance?.submitAllowed === true,
-            projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
+            legacyStartAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.startAllowed === true,
+            legacySubmitAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.submitAllowed === true,
+            projectId: exact?.projectId ?? (legacyProjectReadable ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.submitted_at
                   ? isoDate(row.submitted_at)
                   : null,
             snapshotRevision: exact
               ? exact.snapshotRevision
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.snapshot_revision === null
                   ? null
                   : Number(row.snapshot_revision),
             updatedAt: exact
               ? exact.updatedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.updated_at
                   ? isoDate(row.updated_at)
@@ -1590,23 +1611,71 @@ export class ClassroomJoinController {
     seatId: string,
     assignmentId: string,
     projectId: string | null,
-  ): Promise<{ legacyDirect: boolean; startAllowed: boolean; submitAllowed: boolean }> {
-    const result = await this.requirePool().query(
-      `SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`,
+    client?: pg.PoolClient,
+  ): Promise<{
+    legacyDirect: boolean;
+    legacyCourseLesson: boolean;
+    startAllowed: boolean;
+    submitAllowed: boolean;
+  }> {
+    const result = await (client ?? this.requirePool()).query(
+      `SELECT ${client ? 'learning_legacy_assignment_write_provenance' : 'learning_legacy_direct_provenance'}($1,$2,$3,$4) AS proof`,
       [principalId, seatId, assignmentId, projectId],
     );
     const proof = (
       result.rows[0] as
         | {
-            proof?: { legacyDirect?: boolean; startAllowed?: boolean; submitAllowed?: boolean };
+            proof?: {
+              legacyDirect?: boolean;
+              legacyCourseLesson?: boolean;
+              startAllowed?: boolean;
+              submitAllowed?: boolean;
+            };
           }
         | undefined
     )?.proof;
     return {
       legacyDirect: proof?.legacyDirect === true,
+      legacyCourseLesson: proof?.legacyCourseLesson === true,
       startAllowed: proof?.startAllowed === true,
       submitAllowed: proof?.submitAllowed === true,
     };
+  }
+
+  /** Reprove under exact FK-parent row locks, then write through the same transaction. */
+  private async historicalAssignmentWrite(
+    learner: { seatId: string; principalId: string },
+    assignmentId: string,
+    projectId: string | null,
+    action: 'start' | 'submit',
+    directOnly: boolean,
+    sql: string,
+    parameters: unknown[],
+  ): Promise<pg.QueryResult> {
+    const client = await this.requirePool().connect();
+    try {
+      await client.query('BEGIN');
+      const proof = await this.legacyDirectProvenance(
+        learner.principalId,
+        learner.seatId,
+        assignmentId,
+        projectId,
+        client,
+      );
+      if (
+        !(proof.legacyDirect || (!directOnly && proof.legacyCourseLesson)) ||
+        (action === 'start' ? !proof.startAllowed : !proof.submitAllowed)
+      )
+        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+      const result = await client.query(sql, parameters);
+      await client.query('COMMIT');
+      return result;
+    } catch (reason) {
+      await client.query('ROLLBACK');
+      throw reason;
+    } finally {
+      client.release();
+    }
   }
 
   /** Submit one immutable quiz attempt and return only the released feedback. */
@@ -1718,10 +1787,7 @@ export class ClassroomJoinController {
       assignmentId,
       projectId,
     );
-    if (
-      (legacyOnly && (!provenance.legacyDirect || !provenance.startAllowed)) ||
-      (provenance.legacyDirect && !provenance.startAllowed && !provenance.submitAllowed)
-    )
+    if (legacyOnly && (!provenance.legacyDirect || !provenance.startAllowed))
       throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     // A new historical handout has no canonical run. An already linked old
     // Project may still resume through the old adapter even if a run was later
@@ -1762,7 +1828,14 @@ export class ClassroomJoinController {
     }
 
     // Explicit compatibility adapter for handouts without a canonical direct run.
-    const legacy = await this.requirePool().query(
+    if (!provenance.startAllowed || !(provenance.legacyDirect || provenance.legacyCourseLesson))
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    const legacy = await this.historicalAssignmentWrite(
+      learner,
+      assignmentId,
+      projectId,
+      'start',
+      legacyOnly,
       `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
       [seatId, assignmentId, projectId],
     );
@@ -1871,10 +1944,7 @@ export class ClassroomJoinController {
       assignmentId,
       null,
     );
-    if (
-      (legacyOnly && (!provenance.legacyDirect || !provenance.submitAllowed)) ||
-      (provenance.legacyDirect && !provenance.submitAllowed)
-    )
+    if (legacyOnly && (!provenance.legacyDirect || !provenance.submitAllowed))
       throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     const requestId = clientRequestId ?? randomUUID();
     const canonical = await this.requirePool().query(
@@ -1902,7 +1972,14 @@ export class ClassroomJoinController {
     let row = canonical.rows[0] as SubmissionRow;
     if (!row || row.result_code === 'not_canonical') {
       // Explicit compatibility adapter for historical/course assignments.
-      const legacy = await this.requirePool().query(
+      if (!provenance.submitAllowed || !(provenance.legacyDirect || provenance.legacyCourseLesson))
+        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+      const legacy = await this.historicalAssignmentWrite(
+        learner,
+        assignmentId,
+        null,
+        'submit',
+        legacyOnly,
         `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
                 project_id, project_version_id, submitted_at, late_state, reused
            FROM learning_project_submission_create($1, $2, $3)`,

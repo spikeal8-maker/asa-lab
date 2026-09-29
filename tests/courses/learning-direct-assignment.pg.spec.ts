@@ -138,6 +138,38 @@ afterAll(async () => {
 });
 
 describe('LRN-VS-001 canonical direct assignment', () => {
+  it('does not certify an LAV-backed Direct assignment with no Run as historical work', async () => {
+    const classId = await classroom();
+    const learnerSeat = await seat(classId, 'No-run learner');
+    await admin.query(`UPDATE classroom_student_seats SET status='active' WHERE id=$1`, [
+      learnerSeat,
+    ]);
+    const versionId = await activity('Pinned version without Run');
+    const assignment = await admin.query(
+      `INSERT INTO classroom_assignments
+         (tenant_id,classroom_id,title,module_key,created_by,learning_activity_version_id)
+       VALUES ($1,$2,'Pinned no-run','electronics',$3,$4) RETURNING id`,
+      [owner.tenantId, classId, owner.teacherId, versionId],
+    );
+    const seatPrincipal = (
+      await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [learnerSeat])
+    ).rows[0].principal_id;
+    const proof = await inTenant((client) =>
+      client.query(`SELECT learning_legacy_direct_provenance($1,$2,$3,NULL) AS proof`, [
+        seatPrincipal,
+        learnerSeat,
+        assignment.rows[0].id,
+      ]),
+    );
+    expect(proof.rows[0].proof).toMatchObject({
+      legacyDirect: false,
+      legacyCourseLesson: false,
+      legacyProjectReadable: false,
+      startAllowed: false,
+      submitAllowed: false,
+    });
+  });
+
   it('proves an old Direct handout without a run, then only its linked historical Project', async () => {
     const classId = await classroom();
     const learnerSeat = await seat(classId, 'Исторический ученик');
@@ -181,13 +213,49 @@ describe('LRN-VS-001 canonical direct assignment', () => {
             projectId,
           ]),
         )
-      ).rows[0].proof as { legacyDirect: boolean; startAllowed: boolean; submitAllowed: boolean };
-    expect(await proof(learnerPrincipal, learnerSeat, null)).toEqual({
+      ).rows[0].proof as {
+        legacyDirect: boolean;
+        legacyCourseLesson: boolean;
+        legacyProjectReadable: boolean;
+        startAllowed: boolean;
+        submitAllowed: boolean;
+      };
+    expect(await proof(learnerPrincipal, learnerSeat, null)).toMatchObject({
       legacyDirect: true,
+      legacyCourseLesson: false,
+      legacyProjectReadable: false,
       startAllowed: true,
       submitAllowed: false,
     });
     expect(await proof(otherPrincipal, learnerSeat, null)).toMatchObject({
+      startAllowed: false,
+      submitAllowed: false,
+    });
+    await inTenant((client) =>
+      client.query(`SELECT learning_audience_ensure_seat_identity($1)`, [learnerSeat]),
+    );
+    const identity = await admin.query(
+      `SELECT learner_identity_id FROM learner_identity_links
+        WHERE seat_id=$1 AND link_kind='student_seat'`,
+      [learnerSeat],
+    );
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      account,
+      learnerSeat,
+    ]);
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+      [owner.tenantId, owner.schoolId, identity.rows[0].learner_identity_id, account],
+    );
+    const accountProject = await admin.query(
+      `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+       VALUES ($1,'personal','electronics','Account generic work',$2) RETURNING id`,
+      [owner.tenantId, principal],
+    );
+    expect(await proof(principal, learnerSeat, accountProject.rows[0].id)).toMatchObject({
+      legacyDirect: true,
       startAllowed: false,
       submitAllowed: false,
     });
@@ -204,21 +272,52 @@ describe('LRN-VS-001 canonical direct assignment', () => {
        VALUES ($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
       [owner.tenantId, projectId, learnerPrincipal],
     );
-    const linked = await inTenant((client) =>
-      client.query(`SELECT * FROM classroom_assignment_work_start($1,$2,$3)`, [
+    const linked = await inTenant(async (client) => {
+      const locked = await client.query(
+        `SELECT learning_legacy_assignment_write_provenance($1,$2,$3,$4) AS proof`,
+        [learnerPrincipal, learnerSeat, assignmentId, projectId],
+      );
+      expect(locked.rows[0].proof).toMatchObject({
+        legacyDirect: true,
+        startAllowed: true,
+      });
+      return client.query(`SELECT * FROM classroom_assignment_work_start($1,$2,$3)`, [
         learnerSeat,
         assignmentId,
         projectId,
-      ]),
-    );
+      ]);
+    });
     expect(linked.rows[0].project_id).toBe(projectId);
-    expect(await proof(learnerPrincipal, learnerSeat, projectId)).toEqual({
+    expect(await proof(learnerPrincipal, learnerSeat, projectId)).toMatchObject({
       legacyDirect: true,
+      legacyProjectReadable: true,
       startAllowed: false,
       submitAllowed: true,
     });
     expect(await proof(otherPrincipal, learnerSeat, projectId)).toMatchObject({
       startAllowed: false,
+      submitAllowed: false,
+    });
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE seat_id=$1 AND link_kind='student_seat'`,
+      [learnerSeat],
+    );
+    expect(await proof(learnerPrincipal, learnerSeat, projectId)).toMatchObject({
+      legacyProjectReadable: false,
+      startAllowed: false,
+      submitAllowed: false,
+    });
+    const lockedAfterRevocation = await inTenant((client) =>
+      client.query(`SELECT learning_legacy_assignment_write_provenance($1,$2,$3,$4) AS proof`, [
+        learnerPrincipal,
+        learnerSeat,
+        assignmentId,
+        projectId,
+      ]),
+    );
+    expect(lockedAfterRevocation.rows[0].proof).toMatchObject({
+      legacyProjectReadable: false,
       submitAllowed: false,
     });
     await expect(
