@@ -497,10 +497,7 @@ export function AuthoredMaterialsPage({
     !modulesLoading &&
     draft.moduleKey !== null &&
     assignableModules.some((module) => module.moduleKey === draft.moduleKey);
-  const canPublish =
-    !modulesLoading &&
-    assignableModules.length > 0 &&
-    (draft.moduleKey === null || canAssignDraftModule);
+  const canPublish = draft.moduleKey === null ? opened !== null : canAssignDraftModule;
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const Root = embedded ? 'section' : 'main';
   return (

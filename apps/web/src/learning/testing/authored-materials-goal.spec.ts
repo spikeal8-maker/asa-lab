@@ -180,6 +180,78 @@ describe('authored material legacy goal', () => {
     expect(publish).not.toHaveBeenCalled();
   });
 
+  it('publishes an existing manual material without an editor when the catalogue lacks capabilities', async () => {
+    const legacyModule = module('electronics', true);
+    delete legacyModule.learningCapabilities;
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [legacyModule] },
+    });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            id: activityId,
+            title: 'Manual handout',
+            kind: 'manual',
+            draftRevision: 1,
+            currentPublishedVersionId: null,
+          },
+        ],
+      },
+    });
+    vi.spyOn(api, 'authoredActivity').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        id: activityId,
+        title: 'Manual handout',
+        draftRevision: 1,
+        draftSampleImage: null,
+        currentPublishedVersionId: null,
+        draft: { ...legacyDraft, title: 'Manual handout', moduleKey: null },
+        inheritedGoal: null,
+      },
+    });
+    vi.spyOn(api, 'authorVersions').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    const save = vi.spyOn(api, 'saveAuthoredActivity');
+    const create = vi.spyOn(api, 'createActivityDraft');
+    const publish = vi.spyOn(api, 'publishAuthoredActivity').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: activityId, versionNumber: 1, contentDigest: 'test', reused: false },
+    });
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage));
+      await flush();
+    });
+    const findButton = (label: string) =>
+      [...container!.querySelectorAll('button')].find((button) => button.textContent === label);
+    expect(findButton('Опубликовать')?.disabled).toBe(true);
+    await act(async () => {
+      findButton('Manual handout')?.click();
+      await flush();
+    });
+    expect(findButton('Опубликовать')?.disabled).toBe(false);
+    await act(async () => {
+      findButton('Опубликовать')?.click();
+      await flush();
+    });
+    expect(publish).toHaveBeenCalledWith(activityId, 1, `publish:${activityId}:1`);
+    expect(save).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('keeps the default module when catalogue loading overlaps author typing', async () => {
     let resolveModules: (result: Awaited<ReturnType<typeof api.listModules>>) => void = () => {};
     vi.spyOn(api, 'listModules').mockImplementation(
