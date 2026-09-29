@@ -163,6 +163,20 @@ describe('course outline API', () => {
     ]);
   });
 
+  it('reports disabled Three-D demo creation without a generic server error', async () => {
+    const target = controller();
+    target.query.mockRejectedValueOnce({ code: 'PZ001' });
+    await expect(target.value.ensureDemo(request())).rejects.toMatchObject({
+      status: 409,
+      response: {
+        error: {
+          code: 'module_unavailable',
+          message: 'Демо-курс пока недоступен: задания 3D отключены.',
+        },
+      },
+    });
+  });
+
   it('does not publish a course without lessons', async () => {
     const target = controller([
       {
