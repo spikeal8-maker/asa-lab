@@ -40,6 +40,42 @@ $$;
 REVOKE ALL ON FUNCTION public.learning_origin_learner_list(uuid,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.learning_origin_learner_list(uuid,uuid) TO asalab_app;
 
+-- Authorization to read a Project may be revoked while a compatibility work
+-- row still points at it. Preserve the historical Seat->identity link for
+-- suppression even when that link is inactive. Return only its source key;
+-- never return the denied Project ID or evidence.
+CREATE FUNCTION public.learning_origin_learner_presence(
+    p_seat_id uuid, p_account_id uuid
+)
+RETURNS TABLE (
+    seat_id uuid, source_kind varchar, classroom_assignment_id uuid,
+    activity_run_id uuid, course_block_id varchar
+)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT seat.id, origin.source_kind, run.source_classroom_assignment_id,
+           origin.activity_run_id, origin.source_course_block_id
+      FROM public.classroom_student_seats seat
+      JOIN public.learner_identity_links seat_link
+        ON seat_link.tenant_id = seat.tenant_id
+       AND seat_link.seat_id = seat.id
+       AND seat_link.link_kind = 'student_seat'
+      JOIN public.learning_project_origins origin
+        ON origin.school_tenant_id = seat.tenant_id
+       AND origin.school_id = seat_link.school_id
+       AND origin.learner_identity_id = seat_link.learner_identity_id
+      JOIN public.activity_runs run
+        ON run.id = origin.activity_run_id
+       AND run.tenant_id = origin.school_tenant_id
+       AND run.classroom_id = seat.classroom_id
+     WHERE num_nonnulls(p_seat_id, p_account_id) = 1
+       AND seat.status = 'active'
+       AND ((p_seat_id IS NOT NULL AND seat.id = p_seat_id)
+            OR (p_account_id IS NOT NULL AND seat.account_id = p_account_id));
+$$;
+
+REVOKE ALL ON FUNCTION public.learning_origin_learner_presence(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_origin_learner_presence(uuid,uuid) TO asalab_app;
+
 -- A direct assignment needs its exact run ID before the first Start. Course
 -- activity blocks already expose their exact ActivityRun in the occurrence API.
 CREATE FUNCTION public.learning_direct_learner_runs(

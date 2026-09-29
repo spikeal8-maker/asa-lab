@@ -33,6 +33,14 @@ interface DirectRunRow {
   activity_run_id: string;
 }
 
+interface OriginPresenceRow {
+  seat_id: string;
+  source_kind: 'direct' | 'course';
+  classroom_assignment_id: string;
+  activity_run_id: string;
+  course_block_id: string | null;
+}
+
 export interface OriginListWork extends OriginContext {
   canonicalState: CanonicalLearningSurfaceState;
 }
@@ -54,8 +62,21 @@ export class OriginLearnerList {
   private readonly direct = new Map<string, OriginListWork | null>();
   private readonly course = new Map<string, OriginListWork | null>();
   private readonly directRuns = new Map<string, string | null>();
+  private readonly directPresence = new Set<string>();
+  private readonly coursePresence = new Set<string>();
 
-  constructor(origins: OriginRow[], directRuns: DirectRunRow[], asOf: string) {
+  constructor(
+    origins: OriginRow[],
+    directRuns: DirectRunRow[],
+    asOf: string,
+    presence: OriginPresenceRow[] = [],
+  ) {
+    for (const row of presence) {
+      if (row.source_kind === 'direct' && row.course_block_id === null)
+        this.directPresence.add(directKey(row.seat_id, row.classroom_assignment_id));
+      else if (row.source_kind === 'course' && row.course_block_id)
+        this.coursePresence.add(courseKey(row.seat_id, row.activity_run_id, row.course_block_id));
+    }
     for (const row of origins) {
       const context = row.context;
       if (
@@ -76,13 +97,13 @@ export class OriginLearnerList {
       );
       const work = { ...context, canonicalState: projection.surface };
       if (context.sourceKind === 'direct' && context.courseBlockId === null) {
-        insertUnique(this.direct, directKey(context.seatId, context.classroomAssignmentId), work);
+        const key = directKey(context.seatId, context.classroomAssignmentId);
+        this.directPresence.add(key);
+        insertUnique(this.direct, key, work);
       } else if (context.sourceKind === 'course' && context.courseBlockId) {
-        insertUnique(
-          this.course,
-          courseKey(context.seatId, context.activityRunId, context.courseBlockId),
-          work,
-        );
+        const key = courseKey(context.seatId, context.activityRunId, context.courseBlockId);
+        this.coursePresence.add(key);
+        insertUnique(this.course, key, work);
       }
     }
     for (const row of directRuns) {
@@ -99,6 +120,10 @@ export class OriginLearnerList {
     return this.direct.get(directKey(seatId, assignmentId)) ?? null;
   }
 
+  directHasOrigin(seatId: string, assignmentId: string): boolean {
+    return this.directPresence.has(directKey(seatId, assignmentId));
+  }
+
   directAmbiguous(seatId: string, assignmentId: string): boolean {
     const key = directKey(seatId, assignmentId);
     return (
@@ -109,6 +134,8 @@ export class OriginLearnerList {
 
   directRunId(seatId: string, assignmentId: string): string | null {
     if (this.directAmbiguous(seatId, assignmentId)) return null;
+    if (this.directHasOrigin(seatId, assignmentId) && !this.directWork(seatId, assignmentId))
+      return null;
     return (
       this.directWork(seatId, assignmentId)?.activityRunId ??
       this.directRuns.get(directKey(seatId, assignmentId)) ??
@@ -119,6 +146,10 @@ export class OriginLearnerList {
   courseWork(seatId: string, runId: string, blockId: string): OriginListWork | null {
     return this.course.get(courseKey(seatId, runId, blockId)) ?? null;
   }
+
+  courseHasOrigin(seatId: string, runId: string, blockId: string): boolean {
+    return this.coursePresence.has(courseKey(seatId, runId, blockId));
+  }
 }
 
 /** The two inputs come only from a validated Seat or Account session. */
@@ -127,7 +158,7 @@ export async function readOriginLearnerList(
   seatId: string | null,
   accountId: string | null,
 ): Promise<OriginLearnerList> {
-  const [origins, directRuns] = await Promise.all([
+  const [origins, directRuns, presence] = await Promise.all([
     pool.query<OriginRow>('SELECT context,evidence FROM learning_origin_learner_list($1,$2)', [
       seatId,
       accountId,
@@ -136,6 +167,15 @@ export async function readOriginLearnerList(
       'SELECT seat_id,classroom_assignment_id,activity_run_id FROM learning_direct_learner_runs($1,$2)',
       [seatId, accountId],
     ),
+    pool.query<OriginPresenceRow>(
+      'SELECT seat_id,source_kind,classroom_assignment_id,activity_run_id,course_block_id FROM learning_origin_learner_presence($1,$2)',
+      [seatId, accountId],
+    ),
   ]);
-  return new OriginLearnerList(origins.rows, directRuns.rows, new Date().toISOString());
+  return new OriginLearnerList(
+    origins.rows,
+    directRuns.rows,
+    new Date().toISOString(),
+    presence.rows,
+  );
 }

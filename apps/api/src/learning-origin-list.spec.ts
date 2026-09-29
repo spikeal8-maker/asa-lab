@@ -99,6 +99,23 @@ describe('origin learner list adapter', () => {
     );
     expect(ambiguous.directAmbiguous(seatId, assignmentId)).toBe(true);
     expect(ambiguous.directRunId(seatId, assignmentId)).toBeNull();
+    const denied = new OriginLearnerList(
+      [],
+      [{ seat_id: seatId, classroom_assignment_id: assignmentId, activity_run_id: runId }],
+      asOf,
+      [
+        {
+          seat_id: seatId,
+          source_kind: 'direct',
+          classroom_assignment_id: assignmentId,
+          activity_run_id: runId,
+          course_block_id: null,
+        },
+      ],
+    );
+    expect(denied.directHasOrigin(seatId, assignmentId)).toBe(true);
+    expect(denied.directWork(seatId, assignmentId)).toBeNull();
+    expect(denied.directRunId(seatId, assignmentId)).toBeNull();
     expect(query).toHaveBeenCalledWith(expect.stringContaining('learning_origin_learner_list'), [
       seatId,
       null,
@@ -118,5 +135,8 @@ describe('origin learner list adapter', () => {
     expect(
       new OriginLearnerList([first, first], [], asOf).courseWork(seatId, runId, 'first'),
     ).toBeNull();
+    expect(
+      new OriginLearnerList([first, first], [], asOf).courseHasOrigin(seatId, runId, 'first'),
+    ).toBe(true);
   });
 });

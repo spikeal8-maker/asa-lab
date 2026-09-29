@@ -491,6 +491,7 @@ describe('origin Direct learner list', () => {
         },
       },
     ];
+    let presenceRows: Array<Record<string, unknown>> = [];
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('classroom_student_session_context')) return { rows: [{ seat_id: seatId }] };
       if (sql.includes('classroom_assignments_for_')) return { rows: [row] };
@@ -499,6 +500,7 @@ describe('origin Direct learner list', () => {
           rows: [{ seat_id: seatId, classroom_assignment_id: assignmentId, visible: true }],
         };
       if (sql.includes('learning_origin_learner_list')) return { rows: origins };
+      if (sql.includes('learning_origin_learner_presence')) return { rows: presenceRows };
       if (sql.includes('learning_direct_learner_runs'))
         return {
           rows: [
@@ -533,6 +535,28 @@ describe('origin Direct learner list', () => {
       projectId: row.project_id,
       canonicalState: null,
     });
+    presenceRows = [
+      {
+        seat_id: seatId,
+        source_kind: 'direct',
+        classroom_assignment_id: assignmentId,
+        activity_run_id: runId,
+        course_block_id: null,
+      },
+    ];
+    for (const payload of [
+      await controller.assignments(seatRequest()),
+      await controller.accountAssignments(accountRequest),
+    ]) {
+      expect(payload.items[0]).toMatchObject({
+        activityRunId: null,
+        projectId: null,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+      });
+    }
     origins = [exactOrigin, exactOrigin];
     expect((await controller.assignments(seatRequest())).items[0]).toMatchObject({
       activityRunId: null,
@@ -671,6 +695,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ];
     let originRows: Array<{ context: Record<string, unknown>; evidence: Record<string, unknown> }> =
       [];
+    let presenceRows: Array<Record<string, unknown>> = [];
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('classroom_student_session_context')) {
         return {
@@ -692,6 +717,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         return { rows: evidenceRows.map((evidence) => ({ evidence })) };
       }
       if (sql.includes('learning_origin_learner_list')) return { rows: originRows };
+      if (sql.includes('learning_origin_learner_presence')) return { rows: presenceRows };
       if (sql.includes('classroom_course_activity_occurrences_for_')) {
         return { rows: occurrenceRows };
       }
@@ -705,12 +731,19 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     const accountRequest = request('203.0.113.40');
     accountRequest.cookies['asa_session'] = 'account-session';
 
+    Object.assign(courseRow, {
+      classroom_assignment_id: assignmentA,
+      project_id: projectA,
+      snapshot_revision: 7,
+      work_updated_at: '2026-09-20T22:00:00.000Z',
+    });
     const [accountRead, seatRead] = await Promise.all([
       controller.accountCourseRuns(accountRequest),
       controller.courseRuns(seatRequest()),
     ]);
 
     for (const payload of [accountRead, seatRead]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.projectId).toBe(projectA);
       const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
       expect(occurrences).toHaveLength(2);
       expect(occurrences?.[0]).toMatchObject({
@@ -755,6 +788,12 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       controller.courseRuns(seatRequest()),
     ]);
     for (const payload of [sharedAccountRead, sharedSeatRead]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        projectId: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+      });
       const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
       expect(occurrences).toHaveLength(2);
       expect(occurrences?.map((item) => item.workOriginAmbiguous)).toEqual([true, true]);
@@ -831,6 +870,35 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         'in_progress',
       ]);
     }
+    const exactOriginRows = [...originRows];
+    originRows = [];
+    presenceRows = [
+      {
+        seat_id: seatId,
+        source_kind: 'course',
+        classroom_assignment_id: assignmentA,
+        activity_run_id: activityRunA,
+        course_block_id: 'activity-a',
+      },
+    ];
+    occurrenceRows[0].shared_assignment = false;
+    const denied = await controller.courseRuns(seatRequest());
+    expect(denied.items[0]?.sections[0]?.lessons[0]?.projectId).toBeNull();
+    expect(denied.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0]).toMatchObject({
+      projectId: null,
+      snapshotRevision: null,
+      canonicalState: null,
+      workOriginAmbiguous: true,
+    });
+    presenceRows = [];
+    originRows = [exactOriginRows[0], exactOriginRows[0], exactOriginRows[1]];
+    const duplicate = await controller.courseRuns(seatRequest());
+    expect(duplicate.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0]).toMatchObject({
+      projectId: null,
+      snapshotRevision: null,
+      canonicalState: null,
+      workOriginAmbiguous: true,
+    });
   });
 
   it('rejects legacy shared Course Activity start and submit before either mutation', async () => {

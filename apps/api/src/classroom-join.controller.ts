@@ -219,7 +219,10 @@ function courseActivityOccurrenceMap(
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
     const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
-    const workOriginAmbiguous = row.shared_assignment === true && exact === null;
+    const originPresent =
+      origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id) ?? false;
+    const workOriginAmbiguous = (row.shared_assignment === true || originPresent) && exact === null;
+    const legacyAllowed = !originPresent && !workOriginAmbiguous;
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
@@ -239,25 +242,25 @@ function courseActivityOccurrenceMap(
       moduleKey: row.module_key,
       sampleImage:
         row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-      projectId: exact?.projectId ?? (workOriginAmbiguous ? null : row.project_id),
+      projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
       submittedAt: exact
         ? exact.submittedAt
-        : workOriginAmbiguous || row.submitted_at === null
+        : !legacyAllowed || row.submitted_at === null
           ? null
           : isoDate(row.submitted_at),
       snapshotRevision: exact
         ? exact.snapshotRevision
-        : workOriginAmbiguous || row.snapshot_revision === null
+        : !legacyAllowed || row.snapshot_revision === null
           ? null
           : Number(row.snapshot_revision),
       updatedAt: exact
         ? exact.updatedAt
-        : workOriginAmbiguous || row.work_updated_at === null
+        : !legacyAllowed || row.work_updated_at === null
           ? null
           : isoDate(row.work_updated_at),
       canonicalState:
         exact?.canonicalState ??
-        (!workOriginAmbiguous && canonicalState?.activityRunId === row.activity_run_id
+        (legacyAllowed && canonicalState?.activityRunId === row.activity_run_id
           ? canonicalState
           : null),
       workOriginAmbiguous,
@@ -274,6 +277,15 @@ function seatCourseRuns(
   origins?: OriginLearnerList,
 ) {
   const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections, origins);
+  const guardedLessonWork = new Set(
+    occurrenceRows
+      .filter(
+        (row) =>
+          row.shared_assignment === true ||
+          origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id),
+      )
+      .map((row) => `${row.run_id}:${row.lesson_id}:${row.classroom_assignment_id}`),
+  );
   const runs: Array<{
     id: string;
     courseId: string;
@@ -316,6 +328,9 @@ function seatCourseRuns(
     }>;
   }> = [];
   for (const row of rows) {
+    const suppressLegacyWork =
+      row.classroom_assignment_id !== null &&
+      guardedLessonWork.has(`${row.run_id}:${row.lesson_id}:${row.classroom_assignment_id}`);
     let run = runs.find((entry) => entry.id === row.run_id);
     if (!run) {
       run = {
@@ -360,12 +375,17 @@ function seatCourseRuns(
       assignmentBrief: row.assignment_brief,
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
-      projectId: row.project_id,
-      submittedAt: row.submitted_at === null ? null : isoDate(row.submitted_at),
-      snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-      updatedAt: row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      projectId: suppressLegacyWork ? null : row.project_id,
+      submittedAt:
+        suppressLegacyWork || row.submitted_at === null ? null : isoDate(row.submitted_at),
+      snapshotRevision:
+        suppressLegacyWork || row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+      updatedAt:
+        suppressLegacyWork || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
-      canonicalState: canonicalFor(projections, row.classroom_assignment_id),
+      canonicalState: suppressLegacyWork
+        ? null
+        : canonicalFor(projections, row.classroom_assignment_id),
       activityOccurrences: activityOccurrences.get(`${row.run_id}:${row.lesson_id}`) ?? [],
     });
   }
@@ -1065,6 +1085,10 @@ export class ClassroomJoinController {
         .map((row) => {
           const ambiguous = origins.directAmbiguous(row.seat_id, row.id);
           const exact = ambiguous ? null : origins.directWork(row.seat_id, row.id);
+          const legacyAllowed = !ambiguous && !origins.directHasOrigin(row.seat_id, row.id);
+          const projected =
+            exact?.canonicalState ??
+            (legacyAllowed ? canonicalFor(projections, row.id, row.seat_id) : null);
           return {
             id: row.id,
             title: row.title,
@@ -1085,41 +1109,39 @@ export class ClassroomJoinController {
                 : undefined,
             moduleKey: row.module_key,
             dueAt:
-              canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt === undefined
+              projected?.effectiveDueAt === undefined
                 ? row.due_at
                   ? isoDate(row.due_at)
                   : null
-                : canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt,
+                : projected.effectiveDueAt,
             status: row.status,
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(row.seat_id, row.id),
-            projectId: ambiguous ? null : (exact?.projectId ?? row.project_id),
+            projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
-              : ambiguous
+              : !legacyAllowed
                 ? null
                 : row.submitted_at
                   ? isoDate(row.submitted_at)
                   : null,
             snapshotRevision: exact
               ? exact.snapshotRevision
-              : ambiguous
+              : !legacyAllowed
                 ? null
                 : row.snapshot_revision === null
                   ? null
                   : Number(row.snapshot_revision),
             updatedAt: exact
               ? exact.updatedAt
-              : ambiguous
+              : !legacyAllowed
                 ? null
                 : row.updated_at
                   ? isoDate(row.updated_at)
                   : null,
             classroomTitle: row.classroom_title,
-            canonicalState: ambiguous
-              ? null
-              : (exact?.canonicalState ?? canonicalFor(projections, row.id, row.seat_id)),
+            canonicalState: projected,
           };
         }),
     };
@@ -1259,6 +1281,10 @@ export class ClassroomJoinController {
         .map((row) => {
           const ambiguous = origins.directAmbiguous(seat.seat_id, row.id);
           const exact = ambiguous ? null : origins.directWork(seat.seat_id, row.id);
+          const legacyAllowed = !ambiguous && !origins.directHasOrigin(seat.seat_id, row.id);
+          const projected =
+            exact?.canonicalState ??
+            (legacyAllowed ? canonicalFor(projections, row.id, seat.seat_id) : null);
           return {
             id: row.id,
             title: row.title,
@@ -1279,40 +1305,38 @@ export class ClassroomJoinController {
                 : undefined,
             moduleKey: row.module_key,
             dueAt:
-              canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt === undefined
+              projected?.effectiveDueAt === undefined
                 ? row.due_at
                   ? isoDate(row.due_at)
                   : null
-                : canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt,
+                : projected.effectiveDueAt,
             status: row.status,
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(seat.seat_id, row.id),
-            projectId: ambiguous ? null : (exact?.projectId ?? row.project_id),
+            projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
-              : ambiguous
+              : !legacyAllowed
                 ? null
                 : row.submitted_at
                   ? isoDate(row.submitted_at)
                   : null,
             snapshotRevision: exact
               ? exact.snapshotRevision
-              : ambiguous
+              : !legacyAllowed
                 ? null
                 : row.snapshot_revision === null
                   ? null
                   : Number(row.snapshot_revision),
             updatedAt: exact
               ? exact.updatedAt
-              : ambiguous
+              : !legacyAllowed
                 ? null
                 : row.updated_at
                   ? isoDate(row.updated_at)
                   : null,
-            canonicalState: ambiguous
-              ? null
-              : (exact?.canonicalState ?? canonicalFor(projections, row.id, seat.seat_id)),
+            canonicalState: projected,
           };
         }),
     };
