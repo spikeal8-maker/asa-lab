@@ -632,11 +632,22 @@ export class CoursesController {
   @Post('courses/demo')
   async ensureDemo(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
-    const result = await this.requirePool().query(
-      `SELECT course_id, created, published_version
-         FROM course_demo_ensure($1)`,
-      [context.principalId],
-    );
+    let result: pg.QueryResult;
+    try {
+      result = await this.requirePool().query(
+        `SELECT course_id, created, published_version
+           FROM course_demo_ensure($1)`,
+        [context.principalId],
+      );
+    } catch (cause) {
+      if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'PZ001') {
+        throw new HttpException(
+          error('module_unavailable', 'Демо-курс пока недоступен: задания 3D отключены.'),
+          409,
+        );
+      }
+      throw cause;
+    }
     const row = result.rows[0] as
       { course_id: string; created: boolean; published_version: number | string } | undefined;
     if (!row?.course_id || Number(row.published_version) < 1) {
