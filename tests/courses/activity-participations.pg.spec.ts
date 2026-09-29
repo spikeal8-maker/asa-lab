@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
@@ -6,6 +6,7 @@ import { CreateProjectUseCase } from '../../contexts/projects/application/projec
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
+import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -1648,7 +1649,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     expect(counts.rows[0]).toMatchObject({ attempts: 1, requests: 1 });
   });
 
-  it('keeps Account projects in the personal workspace tenant and denies an unlinked actor', async () => {
+  it('shares one exact Project and Attempt across linked Account and Seat in both directions', async () => {
     const personalOwner = await seedTeacher(admin, 'a4-start-account-owner');
     const accountIdentity = await admin.query(
       `SELECT principal_id,account_id FROM legacy_user_account_links
@@ -1718,18 +1719,76 @@ describe('A4-2b atomic StartLearningWork', () => {
       school_tenant_id: owner.tenantId,
       owner_principal_id: accountPrincipal,
     });
+    const projects = new PgProjectRepository(app);
+    const seatActor = { principalId: learnerPrincipal, userId: null };
+    const accountActor = { principalId: accountPrincipal, userId: null };
+    const ordinary = await startUseCase().execute({
+      tenantId: owner.tenantId,
+      scope: 'personal',
+      classroomId: null,
+      actor: seatActor,
+      moduleKey: 'electronics',
+      title: 'Seat private',
+      idempotencyKey: `private:${randomUUID()}`,
+    });
+    expect(ordinary.ok).toBe(true);
+    if (!ordinary.ok) throw new Error('ordinary project creation failed');
+    expect(await projects.load(owner.tenantId, ordinary.value.project.id, accountActor)).toBeNull();
+    expect(
+      (await projects.authorize(owner.tenantId, started.projectId, learnerPrincipal, 'edit'))
+        ?.tenantId,
+    ).toBe(personalTenant);
+    expect((await projects.load(owner.tenantId, started.projectId, seatActor))?.project.id).toBe(
+      started.projectId,
+    );
+    expect(
+      await projects.rename(owner.tenantId, started.projectId, seatActor, 'Seat edit'),
+    ).toMatchObject({
+      id: started.projectId,
+      title: 'Seat edit',
+    });
+    const seatController = await startController('seat');
+    const seatResumeRequestId = `start:${randomUUID()}`;
+    const seatResume = await seatController.start(startRequest, run, {
+      requestId: seatResumeRequestId,
+    });
+    expect(seatResume).toMatchObject({
+      projectId: started.projectId,
+      attemptId: started.attemptId,
+    });
+    const accountOwnedCounts = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [started.participationId],
+    );
+    expect(accountOwnedCounts.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
 
     const seatOwnedRun = await createRun({ handout: await directHandout() });
     const seatOwnedParticipation = await assign(seatOwnedRun);
-    const seatController = await startController('seat');
     const seatOwned = await seatController.start(startRequest, seatOwnedRun, {
       requestId: `start:${randomUUID()}`,
     });
-    await expect(
-      denied.start(accountStartRequest, seatOwnedRun, {
-        requestId: `start:${randomUUID()}`,
-      }),
-    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      (await projects.authorize(owner.tenantId, seatOwned.projectId, accountPrincipal, 'edit'))
+        ?.tenantId,
+    ).toBe(owner.tenantId);
+    expect(
+      (await projects.load(owner.tenantId, seatOwned.projectId, accountActor))?.project.id,
+    ).toBe(seatOwned.projectId);
+    expect(
+      await projects.rename(owner.tenantId, seatOwned.projectId, accountActor, 'Account edit'),
+    ).toMatchObject({ id: seatOwned.projectId, title: 'Account edit' });
+    const accountResume = await denied.start(accountStartRequest, seatOwnedRun, {
+      requestId: `start:${randomUUID()}`,
+    });
+    expect(accountResume).toMatchObject({
+      projectId: seatOwned.projectId,
+      attemptId: seatOwned.attemptId,
+    });
     const unchanged = await admin.query(
       `SELECT (SELECT count(*)::int FROM learning_attempts
                 WHERE activity_participation_id=$1) AS attempts,
@@ -1739,8 +1798,272 @@ describe('A4-2b atomic StartLearningWork', () => {
                 WHERE participation_id=$1) AS origins`,
       [seatOwnedParticipation.participation_id],
     );
-    expect(unchanged.rows[0]).toEqual({ attempts: 1, requests: 1, origins: 1 });
-    expect(seatOwned.projectId).toBeTruthy();
+    expect(unchanged.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
+    const ledger = await admin.query(
+      `SELECT actor_principal_id FROM learning_work_start_requests
+        WHERE participation_id=$1`,
+      [seatOwnedParticipation.participation_id],
+    );
+    expect(new Set(ledger.rows.map((row) => row.actor_principal_id))).toEqual(
+      new Set([learnerPrincipal, accountPrincipal]),
+    );
+    const seatToken = `a4-linked-${randomUUID()}`;
+    const tokenHash = createHash('sha256').update(seatToken).digest('hex');
+    await admin.query(
+      `INSERT INTO classroom_seat_credentials
+         (seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+       VALUES ($1,$2,1,$3,$4)`,
+      [seatId, createHash('sha256').update(randomUUID()).digest('hex'), randomUUID(), ownerAccount],
+    );
+    await admin.query(
+      `INSERT INTO classroom_student_sessions
+         (seat_id,token_hash,expires_at,credential_version)
+       VALUES ($1,$2,now()+interval '1 hour',1)`,
+      [seatId, tokenHash],
+    );
+    const api = await buildTestApp(app);
+    try {
+      const login = await inject(api, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          workspace: personalOwner.workspace,
+          email: personalOwner.email,
+          password: personalOwner.password,
+        },
+      });
+      expect(login.statusCode).toBe(200);
+      const accountToken = login.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
+      expect(accountToken).toBeTruthy();
+      const seatOpen = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${started.projectId}`,
+        cookies: { asa_student_session: seatToken },
+      });
+      expect(seatOpen.statusCode).toBe(200);
+      expect(seatOpen.json().project.id).toBe(started.projectId);
+      const accountOpen = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${seatOwned.projectId}`,
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountOpen.statusCode).toBe(200);
+      expect(accountOpen.json().project.id).toBe(seatOwned.projectId);
+    } finally {
+      await api.close();
+    }
+    expect(
+      await projects.load(owner.tenantId, seatOwned.projectId, {
+        principalId: outsiderPrincipal,
+        userId: null,
+      }),
+    ).toBeNull();
+    const wrongHandle = `a4-wrong-class-${randomUUID().slice(0, 8)}`;
+    const wrongClassSeat = (
+      await admin.query(
+        `INSERT INTO classroom_student_seats
+           (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+            safe_mode,status,created_by,account_id)
+         VALUES ($1,$2,'Wrong classroom',$3,$3,true,'active',$4,$5) RETURNING id`,
+        [owner.tenantId, otherClassroom, wrongHandle, owner.teacherId, accountId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [owner.tenantId, owner.schoolId, learner, wrongClassSeat],
+    );
+    const wrongClassPrincipal = (
+      await admin.query(
+        `INSERT INTO principals (kind,seat_id)
+         VALUES ('student_seat',$1) RETURNING id`,
+        [wrongClassSeat],
+      )
+    ).rows[0].id as string;
+    expect(
+      await projects.load(owner.tenantId, started.projectId, {
+        principalId: wrongClassPrincipal,
+        userId: null,
+      }),
+    ).toBeNull();
+
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+       WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+         AND link_kind='account' AND account_id=$4`,
+      [owner.tenantId, owner.schoolId, learner, accountId],
+    );
+    expect(await projects.load(owner.tenantId, seatOwned.projectId, accountActor)).toBeNull();
+    expect(await projects.load(owner.tenantId, started.projectId, seatActor)).toBeNull();
+    expect(
+      await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
+    ).toBeNull();
+    await expect(
+      denied.start(accountStartRequest, seatOwnedRun, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      seatController.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 409 });
+    const revokedApi = await buildTestApp(app);
+    try {
+      const replayAfterRevoke = await inject(revokedApi, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies: { asa_student_session: seatToken },
+        payload: { requestId: seatResumeRequestId },
+      });
+      expect(replayAfterRevoke.statusCode).toBe(409);
+      expect(replayAfterRevoke.body).not.toContain(started.projectId);
+      expect(replayAfterRevoke.body).not.toContain(started.attemptId);
+    } finally {
+      await revokedApi.close();
+    }
+    const afterRevocation = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [seatOwnedParticipation.participation_id],
+    );
+    expect(afterRevocation.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
+    const accountOwnedAfterRevocation = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [started.participationId],
+    );
+    expect(accountOwnedAfterRevocation.rows[0]).toEqual({ attempts: 1, requests: 2, origins: 1 });
+    expect((await projects.load(owner.tenantId, seatOwned.projectId, seatActor))?.project.id).toBe(
+      seatOwned.projectId,
+    );
+    expect((await projects.load(owner.tenantId, started.projectId, accountActor))?.project.id).toBe(
+      started.projectId,
+    );
+    expect(seatOwnedParticipation.participation_id).not.toBe(started.participationId);
+  });
+
+  it('reopens a Seat-owned Project for a linked legacy Account without a personal workspace', async () => {
+    const legacyOwner = await seedTeacher(admin, 'a4-linked-no-personal-workspace');
+    const identity = await admin.query(
+      `SELECT account_id,principal_id FROM legacy_user_account_links
+        WHERE tenant_id=$1 AND user_id=$2`,
+      [legacyOwner.tenantId, legacyOwner.teacherId],
+    );
+    const accountId = identity.rows[0].account_id as string;
+    expect(
+      (await admin.query('SELECT * FROM auth_personal_workspace($1)', [accountId])).rowCount,
+    ).toBe(0);
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+      accountId,
+      seatId,
+    ]);
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+      [owner.tenantId, owner.schoolId, learner, accountId],
+    );
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const api = await buildTestApp(app);
+    try {
+      const login = await inject(api, {
+        method: 'POST',
+        url: '/api/auth/login',
+        payload: {
+          workspace: legacyOwner.workspace,
+          email: legacyOwner.email,
+          password: legacyOwner.password,
+        },
+      });
+      expect(login.statusCode).toBe(200);
+      const accountToken = login.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
+      expect(accountToken).toBeTruthy();
+      const cookies = { asa_session: accountToken ?? '' };
+      const beforeOrigin = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId: `start:${randomUUID()}` },
+      });
+      expect(beforeOrigin.statusCode).toBe(404);
+      const seatStarted = await (
+        await startController('seat')
+      ).start(startRequest, run, {
+        requestId: `start:${randomUUID()}`,
+      });
+      const opened = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${seatStarted.projectId}`,
+        cookies,
+      });
+      expect(opened.statusCode).toBe(200);
+      expect(opened.json().project.id).toBe(seatStarted.projectId);
+      const requestId = `start:${randomUUID()}`;
+      const start = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId },
+      });
+      expect(start.statusCode).toBe(200);
+      expect(start.json()).toMatchObject({
+        projectId: seatStarted.projectId,
+        attemptId: seatStarted.attemptId,
+      });
+      const replay = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId },
+      });
+      expect(replay.statusCode).toBe(200);
+      expect(replay.json()).toMatchObject({
+        projectId: seatStarted.projectId,
+        attemptId: seatStarted.attemptId,
+      });
+      await admin.query(
+        `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+         WHERE school_id=$1 AND account_id=$2 AND learner_identity_id=$3`,
+        [owner.schoolId, accountId, learner],
+      );
+      const deniedOpen = await inject(api, {
+        method: 'GET',
+        url: `/api/projects/${seatStarted.projectId}`,
+        cookies,
+      });
+      expect(deniedOpen.statusCode).toBe(404);
+      const deniedReplay = await inject(api, {
+        method: 'POST',
+        url: `/api/learning/work/runs/${run}/start`,
+        cookies,
+        payload: { requestId },
+      });
+      expect(deniedReplay.statusCode).toBe(404);
+      expect(deniedReplay.body).not.toContain(seatStarted.projectId);
+      expect(deniedReplay.body).not.toContain(seatStarted.attemptId);
+      const counts = await admin.query(
+        `SELECT (SELECT count(*)::int FROM learning_project_origins
+                  WHERE participation_id=$1) AS origins,
+                (SELECT count(*)::int FROM learning_attempts
+                  WHERE activity_participation_id=$1) AS attempts,
+                (SELECT count(*)::int FROM learning_work_start_requests
+                  WHERE participation_id=$1) AS requests`,
+        [participation.participation_id],
+      );
+      expect(counts.rows[0]).toEqual({ origins: 1, attempts: 1, requests: 2 });
+    } finally {
+      await api.close();
+    }
   });
 
   it('separates two exact Course blocks even when they share a legacy handout', async () => {
