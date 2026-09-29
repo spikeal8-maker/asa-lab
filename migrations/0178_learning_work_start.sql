@@ -398,6 +398,12 @@ BEGIN
              AND project.status = 'active'
              AND project.module_key = v_admit.module_key
              AND project.idempotency_key = 'learning:' || v_participation.id::text
+             -- The no-origin path may only attach rows inserted by this Start
+             -- transaction. A prior generic Project can share the key and
+             -- fingerprint, and an UPDATE can change xmin but not created_at.
+             AND project.xmin = pg_current_xact_id()::xid
+             AND draft.xmin = pg_current_xact_id()::xid
+             AND project.created_at = transaction_timestamp()
         ) THEN
             RAISE EXCEPTION 'learning start project was not created by Project Core'
                 USING ERRCODE = 'PZ001';

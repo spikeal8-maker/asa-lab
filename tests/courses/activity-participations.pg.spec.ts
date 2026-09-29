@@ -1462,6 +1462,25 @@ describe('A4-2b atomic StartLearningWork', () => {
        WHERE project_id=$1`,
       [prepared.value.project.id],
     );
+    await expect(
+      inTenant(owner.tenantId, async (client) => {
+        // Updating both old row versions in this transaction must not make
+        // their xmin appear sufficient proof of a fresh Project.
+        await client.query('UPDATE projects SET title=title WHERE id=$1', [
+          prepared.value.project.id,
+        ]);
+        await client.query(
+          'UPDATE project_drafts SET document_json=document_json WHERE project_id=$1',
+          [prepared.value.project.id],
+        );
+        return client.query('SELECT * FROM learning_work_start_complete($1,$2,$3,$4)', [
+          learnerPrincipal,
+          run,
+          `start:${randomUUID()}`,
+          prepared.value.project.id,
+        ]);
+      }),
+    ).rejects.toMatchObject({ code: 'PZ001' });
     const controller = await startController('seat');
     await expect(
       controller.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
