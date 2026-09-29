@@ -1584,13 +1584,14 @@ describe('A4-2b atomic StartLearningWork', () => {
   });
 
   it('keeps Account projects in the personal workspace tenant and denies an unlinked actor', async () => {
-    const outsiderIdentity = await admin.query(
+    const personalOwner = await seedTeacher(admin, 'a4-start-account-owner');
+    const accountIdentity = await admin.query(
       `SELECT principal_id,account_id FROM legacy_user_account_links
         WHERE tenant_id=$1 AND user_id=$2`,
-      [outsider.tenantId, outsider.teacherId],
+      [personalOwner.tenantId, personalOwner.teacherId],
     );
-    const accountPrincipal = outsiderIdentity.rows[0].principal_id as string;
-    const accountId = outsiderIdentity.rows[0].account_id as string;
+    const accountPrincipal = accountIdentity.rows[0].principal_id as string;
+    const accountId = accountIdentity.rows[0].account_id as string;
     const personalTenant = (
       await admin.query(
         `INSERT INTO tenants (workspace_slug,title)
