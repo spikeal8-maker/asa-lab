@@ -5205,6 +5205,12 @@ components:
       type: object
       additionalProperties: true
       properties:
+        activityRunId:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+          description: Exact Direct ActivityRun on learner assignment lists; null for legacy or Course handouts.
         canonicalState:
           oneOf:
             - $ref: '#/components/schemas/CanonicalLearningSurfaceState'

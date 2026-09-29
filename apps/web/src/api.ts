@@ -857,6 +857,8 @@ export interface LearnerResult {
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
   id: string;
+  /** Exact Direct ActivityRun for a later atomic Start; null for legacy/course handouts. */
+  activityRunId?: string | null;
   title: string;
   brief: string | null;
   goal: string | null;

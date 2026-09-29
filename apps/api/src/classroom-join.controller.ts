@@ -42,6 +42,7 @@ import {
   type CanonicalLearningProjection,
   type CanonicalLearningSurfaceState,
 } from './learning-canonical-projection.service.js';
+import { readOriginLearnerList, type OriginLearnerList } from './learning-origin-list.js';
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
 const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
@@ -210,37 +211,55 @@ function error(code: string, message: string): { error: { code: string; message:
 function courseActivityOccurrenceMap(
   rows: CourseActivityOccurrenceRow[],
   projections: CanonicalProjectionMap,
+  origins?: OriginLearnerList,
 ) {
   const result = new Map<string, CourseActivityOccurrenceView[]>();
   for (const row of rows) {
     const key = `${row.run_id}:${row.lesson_id}`;
     const values = result.get(key) ?? [];
     const canonicalState = canonicalFor(projections, row.classroom_assignment_id, row.seat_id);
-    const workOriginAmbiguous = row.shared_assignment === true;
+    const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
+    const workOriginAmbiguous = row.shared_assignment === true && exact === null;
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
       classroomAssignmentId: row.classroom_assignment_id,
       learningActivityVersionId: row.learning_activity_version_id,
       title: row.title,
-      goal: row.task_blocks?.present && row.task_blocks.blocks === null ? null : (row.goal ?? null),
-      blocks: row.task_blocks?.present ? row.task_blocks.blocks : undefined,
+      goal: exact
+        ? exact.goal
+        : row.task_blocks?.present && row.task_blocks.blocks === null
+          ? null
+          : (row.goal ?? null),
+      blocks: exact?.blocksSnapshotPresent
+        ? exact.blocks
+        : row.task_blocks?.present
+          ? row.task_blocks.blocks
+          : undefined,
       moduleKey: row.module_key,
       sampleImage:
         row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-      projectId: workOriginAmbiguous ? null : row.project_id,
-      submittedAt:
-        workOriginAmbiguous || row.submitted_at === null ? null : isoDate(row.submitted_at),
-      snapshotRevision:
-        workOriginAmbiguous || row.snapshot_revision === null
+      projectId: exact?.projectId ?? (workOriginAmbiguous ? null : row.project_id),
+      submittedAt: exact
+        ? exact.submittedAt
+        : workOriginAmbiguous || row.submitted_at === null
+          ? null
+          : isoDate(row.submitted_at),
+      snapshotRevision: exact
+        ? exact.snapshotRevision
+        : workOriginAmbiguous || row.snapshot_revision === null
           ? null
           : Number(row.snapshot_revision),
-      updatedAt:
-        workOriginAmbiguous || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      updatedAt: exact
+        ? exact.updatedAt
+        : workOriginAmbiguous || row.work_updated_at === null
+          ? null
+          : isoDate(row.work_updated_at),
       canonicalState:
-        !workOriginAmbiguous && canonicalState?.activityRunId === row.activity_run_id
+        exact?.canonicalState ??
+        (!workOriginAmbiguous && canonicalState?.activityRunId === row.activity_run_id
           ? canonicalState
-          : null,
+          : null),
       workOriginAmbiguous,
     });
     result.set(key, values);
@@ -252,8 +271,9 @@ function seatCourseRuns(
   rows: SeatCourseRunRow[],
   projections: CanonicalProjectionMap = new Map(),
   occurrenceRows: CourseActivityOccurrenceRow[] = [],
+  origins?: OriginLearnerList,
 ) {
-  const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections);
+  const activityOccurrences = courseActivityOccurrenceMap(occurrenceRows, projections, origins);
   const runs: Array<{
     id: string;
     courseId: string;
@@ -1011,7 +1031,7 @@ export class ClassroomJoinController {
   async accountAssignments(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections, visibility] = await Promise.all([
+    const [result, projections, visibility, origins] = await Promise.all([
       this.requirePool().query(
         `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
@@ -1026,6 +1046,7 @@ export class ClassroomJoinController {
            FROM learning_direct_assignment_visibility_for_account($1)`,
         [context.accountId],
       ),
+      readOriginLearnerList(this.requirePool(), null, context.accountId),
     ]);
     const canonicalVisibility = new Map(
       visibility.rows.map((row) => [
@@ -1041,29 +1062,66 @@ export class ClassroomJoinController {
           const value = canonicalVisibility.get(`${row.seat_id}:${row.id}`);
           return value === undefined || value;
         })
-        .map((row) => ({
-          id: row.id,
-          title: row.title,
-          brief: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.brief,
-          goal: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.goal,
-          blocks: row.task_blocks?.present ? row.task_blocks.blocks : undefined,
-          moduleKey: row.module_key,
-          dueAt:
-            canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt === undefined
-              ? row.due_at
-                ? isoDate(row.due_at)
-                : null
-              : canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt,
-          status: row.status,
-          sampleImage:
-            row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-          projectId: row.project_id,
-          submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
-          snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-          updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
-          classroomTitle: row.classroom_title,
-          canonicalState: canonicalFor(projections, row.id, row.seat_id),
-        })),
+        .map((row) => {
+          const ambiguous = origins.directAmbiguous(row.seat_id, row.id);
+          const exact = ambiguous ? null : origins.directWork(row.seat_id, row.id);
+          return {
+            id: row.id,
+            title: row.title,
+            brief: exact
+              ? exact.brief
+              : row.task_blocks?.present && row.task_blocks.blocks === null
+                ? null
+                : row.brief,
+            goal: exact
+              ? exact.goal
+              : row.task_blocks?.present && row.task_blocks.blocks === null
+                ? null
+                : row.goal,
+            blocks: exact?.blocksSnapshotPresent
+              ? exact.blocks
+              : row.task_blocks?.present
+                ? row.task_blocks.blocks
+                : undefined,
+            moduleKey: row.module_key,
+            dueAt:
+              canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt === undefined
+                ? row.due_at
+                  ? isoDate(row.due_at)
+                  : null
+                : canonicalFor(projections, row.id, row.seat_id)?.effectiveDueAt,
+            status: row.status,
+            sampleImage:
+              row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
+            activityRunId: origins.directRunId(row.seat_id, row.id),
+            projectId: ambiguous ? null : (exact?.projectId ?? row.project_id),
+            submittedAt: exact
+              ? exact.submittedAt
+              : ambiguous
+                ? null
+                : row.submitted_at
+                  ? isoDate(row.submitted_at)
+                  : null,
+            snapshotRevision: exact
+              ? exact.snapshotRevision
+              : ambiguous
+                ? null
+                : row.snapshot_revision === null
+                  ? null
+                  : Number(row.snapshot_revision),
+            updatedAt: exact
+              ? exact.updatedAt
+              : ambiguous
+                ? null
+                : row.updated_at
+                  ? isoDate(row.updated_at)
+                  : null,
+            classroomTitle: row.classroom_title,
+            canonicalState: ambiguous
+              ? null
+              : (exact?.canonicalState ?? canonicalFor(projections, row.id, row.seat_id)),
+          };
+        }),
     };
   }
 
@@ -1099,7 +1157,7 @@ export class ClassroomJoinController {
   async accountCourseRuns(@Req() request: FastifyRequest) {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
-    const [result, projections, occurrences] = await Promise.all([
+    const [result, projections, occurrences, origins] = await Promise.all([
       this.requirePool().query(
         `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
@@ -1122,12 +1180,14 @@ export class ClassroomJoinController {
            FROM classroom_course_activity_occurrences_for_account($1) occurrence`,
         [context.accountId],
       ),
+      readOriginLearnerList(this.requirePool(), null, context.accountId),
     ]);
     return {
       items: seatCourseRuns(
         result.rows as SeatCourseRunRow[],
         projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
+        origins,
       ),
     };
   }
@@ -1171,7 +1231,7 @@ export class ClassroomJoinController {
   @Get('me/assignments')
   async assignments(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections, visibility] = await Promise.all([
+    const [result, projections, visibility, origins] = await Promise.all([
       this.requirePool().query(
         `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
               submitted_at, snapshot_revision, updated_at,
@@ -1185,6 +1245,7 @@ export class ClassroomJoinController {
            FROM learning_direct_assignment_visibility_for_seat($1)`,
         [seat.seat_id],
       ),
+      readOriginLearnerList(this.requirePool(), seat.seat_id, null),
     ]);
     const canonicalVisibility = new Map(
       visibility.rows.map((row) => [
@@ -1195,28 +1256,65 @@ export class ClassroomJoinController {
     return {
       items: (result.rows as AssignmentForSeatRow[])
         .filter((row) => canonicalVisibility.get(row.id) !== false)
-        .map((row) => ({
-          id: row.id,
-          title: row.title,
-          brief: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.brief,
-          goal: row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.goal,
-          blocks: row.task_blocks?.present ? row.task_blocks.blocks : undefined,
-          moduleKey: row.module_key,
-          dueAt:
-            canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt === undefined
-              ? row.due_at
-                ? isoDate(row.due_at)
-                : null
-              : canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt,
-          status: row.status,
-          sampleImage:
-            row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
-          projectId: row.project_id,
-          submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
-          snapshotRevision: row.snapshot_revision === null ? null : Number(row.snapshot_revision),
-          updatedAt: row.updated_at ? isoDate(row.updated_at) : null,
-          canonicalState: canonicalFor(projections, row.id, seat.seat_id),
-        })),
+        .map((row) => {
+          const ambiguous = origins.directAmbiguous(seat.seat_id, row.id);
+          const exact = ambiguous ? null : origins.directWork(seat.seat_id, row.id);
+          return {
+            id: row.id,
+            title: row.title,
+            brief: exact
+              ? exact.brief
+              : row.task_blocks?.present && row.task_blocks.blocks === null
+                ? null
+                : row.brief,
+            goal: exact
+              ? exact.goal
+              : row.task_blocks?.present && row.task_blocks.blocks === null
+                ? null
+                : row.goal,
+            blocks: exact?.blocksSnapshotPresent
+              ? exact.blocks
+              : row.task_blocks?.present
+                ? row.task_blocks.blocks
+                : undefined,
+            moduleKey: row.module_key,
+            dueAt:
+              canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt === undefined
+                ? row.due_at
+                  ? isoDate(row.due_at)
+                  : null
+                : canonicalFor(projections, row.id, seat.seat_id)?.effectiveDueAt,
+            status: row.status,
+            sampleImage:
+              row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
+            activityRunId: origins.directRunId(seat.seat_id, row.id),
+            projectId: ambiguous ? null : (exact?.projectId ?? row.project_id),
+            submittedAt: exact
+              ? exact.submittedAt
+              : ambiguous
+                ? null
+                : row.submitted_at
+                  ? isoDate(row.submitted_at)
+                  : null,
+            snapshotRevision: exact
+              ? exact.snapshotRevision
+              : ambiguous
+                ? null
+                : row.snapshot_revision === null
+                  ? null
+                  : Number(row.snapshot_revision),
+            updatedAt: exact
+              ? exact.updatedAt
+              : ambiguous
+                ? null
+                : row.updated_at
+                  ? isoDate(row.updated_at)
+                  : null,
+            canonicalState: ambiguous
+              ? null
+              : (exact?.canonicalState ?? canonicalFor(projections, row.id, seat.seat_id)),
+          };
+        }),
     };
   }
 
@@ -1245,7 +1343,7 @@ export class ClassroomJoinController {
   @Get('me/course-runs')
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
-    const [result, projections, occurrences] = await Promise.all([
+    const [result, projections, occurrences, origins] = await Promise.all([
       this.requirePool().query(
         `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
               run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
@@ -1268,12 +1366,14 @@ export class ClassroomJoinController {
            FROM classroom_course_activity_occurrences_for_seat($1) occurrence`,
         [seat.seat_id],
       ),
+      readOriginLearnerList(this.requirePool(), seat.seat_id, null),
     ]);
     return {
       items: seatCourseRuns(
         result.rows as SeatCourseRunRow[],
         projections,
         occurrences.rows as CourseActivityOccurrenceRow[],
+        origins,
       ),
     };
   }

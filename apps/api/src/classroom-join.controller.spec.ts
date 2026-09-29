@@ -408,6 +408,140 @@ describe('immutable classroom submissions', () => {
   });
 });
 
+describe('origin Direct learner list', () => {
+  it('projects one exact started Project for Seat and Account while retaining legacy fallback', async () => {
+    const seatId = '50000000-0000-4000-8000-000000000001';
+    const accountId = '51000000-0000-4000-8000-000000000001';
+    const assignmentId = '54000000-0000-4000-8000-000000000001';
+    const runId = '55000000-0000-4000-8000-000000000001';
+    const projectId = '57000000-0000-4000-8000-000000000001';
+    const row = {
+      id: assignmentId,
+      seat_id: seatId,
+      classroom_title: '7А',
+      title: 'Exact Direct',
+      brief: 'Build',
+      goal: null,
+      module_key: 'electronics',
+      due_at: null,
+      status: 'open',
+      sample_image: null,
+      project_id: null,
+      submitted_at: null,
+      snapshot_revision: null,
+      updated_at: null,
+      task_blocks: null,
+    };
+    let origins = [
+      {
+        context: {
+          projectId,
+          seatId,
+          classroomAssignmentId: assignmentId,
+          activityRunId: runId,
+          participationId: '58000000-0000-4000-8000-000000000001',
+          sourceKind: 'direct',
+          courseBlockId: null,
+          brief: 'Exact brief',
+          goal: 'Exact goal',
+          blocks: [{ id: 'exact-block' }],
+          blocksSnapshotPresent: true,
+          submittedAt: null,
+          snapshotRevision: null,
+          updatedAt: '2026-09-29T11:00:00.000Z',
+        },
+        evidence: {
+          tenantId: '60000000-0000-4000-8000-000000000001',
+          schoolId: '61000000-0000-4000-8000-000000000001',
+          classroomId: '62000000-0000-4000-8000-000000000001',
+          classroomAssignmentId: assignmentId,
+          kind: 'direct_project',
+          dueAt: null,
+          assignmentStatus: 'open',
+          seatId,
+          accountId,
+          principalId: '63000000-0000-4000-8000-000000000001',
+          learnerId: '64000000-0000-4000-8000-000000000001',
+          identityResolution: 'learner_identity',
+          seatStatus: 'active',
+          classroomAccess: 'active',
+          legacyWork: null,
+          courseProgressPresent: false,
+          activityRunId: runId,
+          participation: { applicable: true, status: 'active', excused: false },
+          attempt: {
+            id: '65000000-0000-4000-8000-000000000001',
+            attemptNumber: 1,
+            revisionOfAttemptId: null,
+            state: 'in_progress',
+            reviewDecision: null,
+            startedAt: '2026-09-29T10:00:00.000Z',
+            submittedAt: null,
+            lateState: null,
+          },
+          selectedAttemptExists: false,
+          resultSelectionSource: 'canonical',
+          selectedAttemptId: null,
+          selectedResult: null,
+          selectionConflict: null,
+          validUnselectedResultCount: 0,
+          compatibilityGradingUnknown: false,
+          reusableAuthoredContent: true,
+          projectId,
+        },
+      },
+    ];
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) return { rows: [{ seat_id: seatId }] };
+      if (sql.includes('classroom_assignments_for_')) return { rows: [row] };
+      if (sql.includes('learning_direct_assignment_visibility_for_'))
+        return {
+          rows: [{ seat_id: seatId, classroom_assignment_id: assignmentId, visible: true }],
+        };
+      if (sql.includes('learning_origin_learner_list')) return { rows: origins };
+      if (sql.includes('learning_direct_learner_runs'))
+        return {
+          rows: [
+            { seat_id: seatId, classroom_assignment_id: assignmentId, activity_run_id: runId },
+          ],
+        };
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.40');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    for (const payload of [
+      await controller.assignments(seatRequest()),
+      await controller.accountAssignments(accountRequest),
+    ]) {
+      expect(payload.items[0]).toMatchObject({
+        activityRunId: runId,
+        projectId,
+        brief: 'Exact brief',
+        goal: 'Exact goal',
+        blocks: [{ id: 'exact-block' }],
+        canonicalState: { workflowState: 'in_progress', activityRunId: runId },
+      });
+    }
+    const exactOrigin = origins[0];
+    origins = [];
+    row.project_id = '57000000-0000-4000-8000-000000000002';
+    expect((await controller.assignments(seatRequest())).items[0]).toMatchObject({
+      projectId: row.project_id,
+      canonicalState: null,
+    });
+    origins = [exactOrigin, exactOrigin];
+    expect((await controller.assignments(seatRequest())).items[0]).toMatchObject({
+      activityRunId: null,
+      projectId: null,
+      canonicalState: null,
+    });
+  });
+});
+
 describe('E1-FIX-11D4b learner course Activity occurrences', () => {
   it('projects per-block runtime and canonical state for both Account and StudentSeat reads', async () => {
     const seatId = '50000000-0000-4000-8000-000000000001';
@@ -535,6 +669,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         legacyWork: null,
       },
     ];
+    let originRows: Array<{ context: Record<string, unknown>; evidence: Record<string, unknown> }> =
+      [];
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('classroom_student_session_context')) {
         return {
@@ -555,6 +691,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       if (sql.includes('learning_canonical_evidence_for_')) {
         return { rows: evidenceRows.map((evidence) => ({ evidence })) };
       }
+      if (sql.includes('learning_origin_learner_list')) return { rows: originRows };
       if (sql.includes('classroom_course_activity_occurrences_for_')) {
         return { rows: occurrenceRows };
       }
@@ -631,6 +768,68 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
             item.canonicalState === null,
         ),
       ).toBe(true);
+    }
+
+    const exactProjects = [
+      '57000000-0000-4000-8000-000000000011',
+      '57000000-0000-4000-8000-000000000012',
+    ];
+    originRows = [activityRunA, activityRunB].map((activityRunId, index) => ({
+      context: {
+        projectId: exactProjects[index],
+        seatId,
+        classroomAssignmentId: assignmentA,
+        activityRunId,
+        participationId: `64000000-0000-4000-8000-00000000000${index + 1}`,
+        sourceKind: 'course',
+        courseBlockId: index === 0 ? 'activity-a' : 'activity-b',
+        brief: `Exact brief ${index}`,
+        goal: `Exact goal ${index}`,
+        blocks: [{ id: `exact-block-${index}` }],
+        blocksSnapshotPresent: true,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: '2026-09-20T23:00:00.000Z',
+      },
+      evidence: {
+        ...evidenceBase,
+        classroomAssignmentId: assignmentA,
+        activityRunId,
+        learnerId: '65000000-0000-4000-8000-000000000001',
+        identityResolution: 'learner_identity',
+        legacyWork: null,
+        courseProgressPresent: true,
+        participation: { applicable: true, status: 'active', excused: false },
+        attempt: {
+          id: `66000000-0000-4000-8000-00000000000${index + 1}`,
+          attemptNumber: 1,
+          revisionOfAttemptId: null,
+          state: 'in_progress',
+          reviewDecision: null,
+          startedAt: '2026-09-20T21:00:00.000Z',
+          submittedAt: null,
+          lateState: null,
+        },
+        projectId: exactProjects[index],
+      },
+    }));
+    const [exactAccountRead, exactSeatRead] = await Promise.all([
+      controller.accountCourseRuns(accountRequest),
+      controller.courseRuns(seatRequest()),
+    ]);
+    for (const payload of [exactAccountRead, exactSeatRead]) {
+      const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(occurrences?.map((item) => item.projectId)).toEqual(exactProjects);
+      expect(occurrences?.map((item) => item.goal)).toEqual(['Exact goal 0', 'Exact goal 1']);
+      expect(occurrences?.map((item) => item.blocks)).toEqual([
+        [{ id: 'exact-block-0' }],
+        [{ id: 'exact-block-1' }],
+      ]);
+      expect(occurrences?.map((item) => item.workOriginAmbiguous)).toEqual([false, false]);
+      expect(occurrences?.map((item) => item.canonicalState?.workflowState)).toEqual([
+        'in_progress',
+        'in_progress',
+      ]);
     }
   });
 
