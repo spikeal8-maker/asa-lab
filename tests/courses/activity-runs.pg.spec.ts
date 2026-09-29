@@ -511,6 +511,87 @@ describe('LRN-M1-003 persistent ActivityRun', () => {
     ).rejects.toThrow(/immutable/);
   });
 
+  it('numbers canonical Attempts per Course Activity participation while preserving legacy handout numbering', async () => {
+    const source = await createCourseHandout();
+    const lessonId = await createCourseMaterialLesson(source.courseRunId);
+    const handoutId = await createCourseCompatibilityHandout(source.courseRunId);
+    const first = await createRun({
+      handoutId,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId,
+      blockId: 'attempt-block-a',
+    });
+    const second = await createRun({
+      handoutId,
+      sourceKind: 'course',
+      courseRunId: source.courseRunId,
+      lessonId,
+      blockId: 'attempt-block-b',
+    });
+    expect(first.result_code).toBe('ok');
+    expect(second.result_code).toBe('ok');
+    expect(second.activity_run_id).not.toBe(first.activity_run_id);
+
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipalId])
+    ).rows[0].seat_id as string;
+    const learnerId = (
+      await admin.query(
+        'INSERT INTO learner_identities (id,tenant_id,school_id) VALUES (gen_random_uuid(),$1,$2) RETURNING id',
+        [owner.tenantId, owner.schoolId],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,seat_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'student_seat',$4)`,
+      [owner.tenantId, owner.schoolId, learnerId, seatId],
+    );
+    const participationIds: string[] = [];
+    for (const runId of [first.activity_run_id, second.activity_run_id]) {
+      const assigned = await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT * FROM activity_participation_assign($1,$2,$3)', [
+          ownerPrincipalId,
+          runId,
+          learnerId,
+        ]),
+      );
+      expect(assigned.rows[0].result_code).toBe('ok');
+      participationIds.push(assigned.rows[0].participation_id as string);
+    }
+    expect(new Set(participationIds).size).toBe(2);
+
+    const insert = (participationId: string | null, attemptNumber = 1) =>
+      admin.query(
+        `INSERT INTO learning_attempts
+           (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+            seat_id,learner_identity_id,activity_participation_id,attempt_number,state)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'closed') RETURNING id`,
+        [
+          owner.tenantId,
+          classroomId,
+          handoutId,
+          lavV1,
+          seatId,
+          participationId === null ? null : learnerId,
+          participationId,
+          attemptNumber,
+        ],
+      );
+    const legacy = await insert(null);
+    const canonicalA = await insert(participationIds[0]);
+    const canonicalB = await insert(participationIds[1]);
+    expect(new Set([legacy, canonicalA, canonicalB].map((result) => result.rows[0].id)).size).toBe(
+      3,
+    );
+    await expect(insert(null)).rejects.toThrow(/learning_attempts_legacy_handout_seat_number_idx/);
+    await expect(insert(participationIds[0])).rejects.toThrow(
+      /learning_attempts_participation_number_idx/,
+    );
+    expect((await insert(participationIds[0], 2)).rows[0].id).toBeTruthy();
+  });
+
   it('E1-FIX-11D3a creates block-aware course runs without collapsing lesson occurrences', async () => {
     const source = await createCourseHandout();
     const legacy = await createRun({
