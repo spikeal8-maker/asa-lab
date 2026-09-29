@@ -125,6 +125,14 @@ async function createPublishedProjectActivity(
 async function withSyntheticBlocksAssignable<T>(run: () => Promise<T>): Promise<T> {
   // A0 verifies the existing Blocks work shell. Enable this legacy module only
   // in the isolated browser test database while creating its synthetic run.
+  const baseline = await admin.query(
+    `SELECT module_key,creatable,assignable FROM module_learning_capabilities
+       WHERE module_key='blocks'`,
+  );
+  expect(baseline.rows).toHaveLength(1);
+  expect(baseline.rows[0]).toMatchObject({ module_key: 'blocks', creatable: true });
+  if (baseline.rows[0].assignable === true) return await run();
+
   const enabled = await admin.query(
     `UPDATE module_learning_capabilities SET assignable=true
        WHERE module_key='blocks' AND creatable AND NOT assignable
@@ -134,12 +142,14 @@ async function withSyntheticBlocksAssignable<T>(run: () => Promise<T>): Promise<
     expect(enabled.rows).toEqual([{ module_key: 'blocks', assignable: true }]);
     return await run();
   } finally {
-    const restored = await admin.query(
-      `UPDATE module_learning_capabilities SET assignable=false
-         WHERE module_key='blocks' AND assignable
-         RETURNING module_key,assignable`,
-    );
-    expect(restored.rows).toEqual([{ module_key: 'blocks', assignable: false }]);
+    if (enabled.rowCount === 1) {
+      const restored = await admin.query(
+        `UPDATE module_learning_capabilities SET assignable=false
+           WHERE module_key='blocks' AND assignable
+           RETURNING module_key,assignable`,
+      );
+      expect(restored.rows).toEqual([{ module_key: 'blocks', assignable: false }]);
+    }
   }
 }
 
