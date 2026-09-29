@@ -111,8 +111,8 @@ async function historicalUnsupportedVersion(moduleKey: string) {
          'id',gen_random_uuid(),
          'version_number',version.version_number+1,
          'source_draft_revision',version.source_draft_revision+1,
-         'publication_request_id',$2,
-         'module_key',$3
+         'publication_request_id',$2::text,
+         'module_key',$3::text
        ))).*
        FROM learning_activity_versions version WHERE version.id=$1
      RETURNING id`,

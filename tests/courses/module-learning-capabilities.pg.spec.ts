@@ -235,11 +235,21 @@ describe('A3b module Learning capability SQL projection', () => {
         'a3b:future:course:1',
       ]);
       expect(outsiderReplay.rows[0].result_code).toBe('course_not_found');
+      const staleCourseRequest = await client.query(
+        'SELECT * FROM course_publish_v3($1,$2,$3,$4)',
+        [principalId, blocked.courseId, revision, 'a3b:future:course:2'],
+      );
+      expect(staleCourseRequest.rows[0].result_code).toBe('draft_conflict');
+      const currentRevision = Number(
+        (await client.query('SELECT draft_revision FROM courses WHERE id=$1', [blocked.courseId]))
+          .rows[0].draft_revision,
+      );
+      expect(currentRevision).toBeGreaterThan(revision);
       const newCourseRequest = await client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
         principalId,
         blocked.courseId,
-        revision,
-        'a3b:future:course:2',
+        currentRevision,
+        'a3b:future:course:3',
       ]);
       expect(newCourseRequest.rows[0].result_code).toBe('prepublish_invalid');
       const replay = await client.query(
