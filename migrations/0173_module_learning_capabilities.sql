@@ -579,6 +579,56 @@ BEGIN
 END;
 $$;
 
+-- Preserve the v2 successful-request receipt before checking the current
+-- draft or module capability. A new request still passes prepublication
+-- validation before it can reach the legacy publisher.
+CREATE OR REPLACE FUNCTION public.course_publish_v3(
+  p_principal uuid,p_course uuid,p_expected integer,p_request varchar
+)
+RETURNS TABLE(
+  result_code varchar,version_id uuid,version_number integer,published_at timestamptz,reused boolean,
+  problem_kind varchar,problem_id uuid,problem_path varchar,problem_message varchar
+)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_course public.courses%ROWTYPE; v_check record; v_result record;
+BEGIN
+  SELECT * INTO v_course FROM public.courses
+   WHERE id=p_course AND owner_principal_id=p_principal FOR UPDATE;
+  IF v_course.id IS NULL THEN
+    RETURN QUERY SELECT 'course_not_found'::varchar,NULL::uuid,NULL::integer,NULL::timestamptz,false,
+      NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar; RETURN;
+  END IF;
+  IF p_request IS NULL OR p_request !~ '^[A-Za-z0-9._:-]{8,128}$' THEN
+    RETURN QUERY SELECT 'invalid_request'::varchar,NULL::uuid,NULL::integer,NULL::timestamptz,false,
+      NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar; RETURN;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM public.audit_events event
+     WHERE event.entity_id=p_course AND event.action='course.publication.confirmed'
+       AND event.payload_json->>'actorPrincipalId'=p_principal::text
+       AND event.payload_json->>'requestId'=p_request
+  ) THEN
+    SELECT * INTO v_result FROM public.course_publish_v2(p_principal,p_course,p_expected,p_request);
+    RETURN QUERY SELECT v_result.result_code,v_result.version_id,v_result.version_number,
+      v_result.published_at,v_result.reused,NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar;
+    RETURN;
+  END IF;
+  IF v_course.draft_revision IS DISTINCT FROM p_expected THEN
+    RETURN QUERY SELECT 'draft_conflict'::varchar,NULL::uuid,NULL::integer,NULL::timestamptz,false,
+      NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar; RETURN;
+  END IF;
+  SELECT * INTO v_check FROM public.course_prepublication_validation(p_principal,p_course);
+  IF v_check.result_code IS DISTINCT FROM 'ok' THEN
+    RETURN QUERY SELECT v_check.result_code,NULL::uuid,NULL::integer,NULL::timestamptz,false,
+      v_check.problem_kind,v_check.problem_id,v_check.problem_path,v_check.problem_message;
+    RETURN;
+  END IF;
+  SELECT * INTO v_result FROM public.course_publish_v2(p_principal,p_course,p_expected,p_request);
+  RETURN QUERY SELECT v_result.result_code,v_result.version_id,v_result.version_number,
+    v_result.published_at,v_result.reused,NULL::varchar,NULL::uuid,NULL::varchar,NULL::varchar;
+END;
+$$;
+
 REVOKE ALL ON FUNCTION public.course_lesson_save_v3(uuid,uuid,uuid,uuid,varchar,varchar,jsonb,varchar,uuid,integer,uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.course_lesson_save_v3(uuid,uuid,uuid,uuid,varchar,varchar,jsonb,varchar,uuid,integer,uuid) TO asalab_app;
 REVOKE ALL ON FUNCTION public.course_activity_blocks_authorized(uuid,uuid,jsonb) FROM PUBLIC;
@@ -587,3 +637,5 @@ REVOKE ALL ON FUNCTION public.course_prepublication_validation(uuid,uuid) FROM P
 GRANT EXECUTE ON FUNCTION public.course_prepublication_validation(uuid,uuid) TO asalab_app;
 REVOKE ALL ON FUNCTION public.learning_activity_publish(uuid,uuid,uuid,integer,varchar) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.learning_activity_publish(uuid,uuid,uuid,integer,varchar) TO asalab_app;
+REVOKE ALL ON FUNCTION public.course_publish_v3(uuid,uuid,integer,varchar) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.course_publish_v3(uuid,uuid,integer,varchar) TO asalab_app;

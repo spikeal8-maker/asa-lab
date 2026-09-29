@@ -208,6 +208,40 @@ describe('A3b module Learning capability SQL projection', () => {
       expect(oldSnapshot.rows[0].outline.sections[0].lessons[0].blocks[0]).toMatchObject({
         learningActivityVersionId: versionId,
       });
+      const courseReplay = await client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        principalId,
+        blocked.courseId,
+        revision,
+        'a3b:future:course:1',
+      ]);
+      expect(courseReplay.rows[0]).toMatchObject({
+        result_code: 'ok',
+        version_id: frozenId,
+        version_number: coursePublished.rows[0].version_number,
+        published_at: coursePublished.rows[0].published_at,
+        reused: true,
+      });
+      const mismatchedReplay = await client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        principalId,
+        blocked.courseId,
+        revision + 1,
+        'a3b:future:course:1',
+      ]);
+      expect(mismatchedReplay.rows[0].result_code).toBe('idempotency_conflict');
+      const outsiderReplay = await client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        outsiderPrincipalId,
+        blocked.courseId,
+        revision,
+        'a3b:future:course:1',
+      ]);
+      expect(outsiderReplay.rows[0].result_code).toBe('course_not_found');
+      const newCourseRequest = await client.query('SELECT * FROM course_publish_v3($1,$2,$3,$4)', [
+        principalId,
+        blocked.courseId,
+        revision,
+        'a3b:future:course:2',
+      ]);
+      expect(newCourseRequest.rows[0].result_code).toBe('prepublish_invalid');
       const replay = await client.query(
         "SELECT * FROM learning_activity_publish($1,$2,$3,1,'a3b:future:publish:1')",
         [principalId, owner.tenantId, activityId],
