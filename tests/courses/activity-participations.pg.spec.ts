@@ -1748,6 +1748,194 @@ describe('A4-2b atomic StartLearningWork', () => {
       id: started.projectId,
       title: 'Seat edit',
     });
+    const classActivity = await admin.query(
+      `SELECT id,tenant_id,classroom_id,seat_id,actor_principal_id,project_title,
+              occurrence_count
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND action='project.renamed'`,
+      [started.projectId],
+    );
+    expect(classActivity.rows).toHaveLength(1);
+    expect(classActivity.rows[0]).toMatchObject({
+      tenant_id: owner.tenantId,
+      classroom_id: classroom,
+      seat_id: seatId,
+      actor_principal_id: learnerPrincipal,
+      project_title: 'Seat edit',
+      occurrence_count: 1,
+    });
+    const activityFeed = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT project_id,seat_id,action FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND action='project.renamed'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(activityFeed.rows).toEqual([
+      { project_id: started.projectId, seat_id: seatId, action: 'project.renamed' },
+    ]);
+    await inTenant(personalTenant, async (client) => {
+      const recorded = await client.query(
+        `SELECT classroom_activity_record_project($1,$2,'project.renamed') AS id`,
+        [learnerPrincipal, started.projectId],
+      );
+      expect(recorded.rows[0].id).toBe(classActivity.rows[0].id);
+      expect(
+        (await client.query(`SELECT current_setting('app.tenant_id') AS tenant_id`)).rows[0],
+      ).toEqual({ tenant_id: personalTenant });
+    });
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account learner edit',
+      ),
+    ).toMatchObject({ id: started.projectId, title: 'Account learner edit' });
+    const learnerAccountActivity = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT seat_id,actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Account learner edit'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(learnerAccountActivity.rows).toEqual([{ seat_id: seatId, actor_is_teacher: false }]);
+    const historical = await admin.query(
+      `INSERT INTO classroom_activity_events
+         (tenant_id,classroom_id,seat_id,actor_principal_id,action,project_id,project_title)
+       VALUES ($1,$2,$3,$4,'legacy.project',$5,'Historical Account event')
+       RETURNING id,actor_is_teacher_at_event`,
+      [owner.tenantId, classroom, seatId, accountPrincipal, started.projectId],
+    );
+    expect(historical.rows[0].actor_is_teacher_at_event).toBeNull();
+    const historicalFeed = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE id=$4`,
+        [ownerPrincipal, classroom, seatId, historical.rows[0].id],
+      ),
+    );
+    expect(historicalFeed.rows).toEqual([{ actor_is_teacher: true }]);
+    const freshAfterLegacy = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT classroom_activity_record($1,$2,$3,$4,'legacy.project',$5,$6) AS id`, [
+        owner.tenantId,
+        classroom,
+        seatId,
+        accountPrincipal,
+        started.projectId,
+        'Fresh event',
+      ]),
+    );
+    expect(freshAfterLegacy.rows[0].id).not.toBe(historical.rows[0].id);
+    const legacySegments = await admin.query(
+      `SELECT id,actor_is_teacher_at_event,occurrence_count
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND actor_principal_id=$2 AND action='legacy.project'`,
+      [started.projectId, accountPrincipal],
+    );
+    expect(legacySegments.rows).toHaveLength(2);
+    expect(legacySegments.rows).toContainEqual({
+      id: historical.rows[0].id,
+      actor_is_teacher_at_event: null,
+      occurrence_count: 1,
+    });
+    expect(legacySegments.rows).toContainEqual({
+      id: freshAfterLegacy.rows[0].id,
+      actor_is_teacher_at_event: false,
+      occurrence_count: 1,
+    });
+    const linkedTeacherUser = (
+      await admin.query(
+        `INSERT INTO users
+           (tenant_id,school_id,role,email,display_name,password_hash)
+         SELECT $1,$2,'teacher',$3,'Linked educator',source.password_hash
+           FROM users source WHERE source.id=$4 RETURNING id`,
+        [
+          owner.tenantId,
+          owner.schoolId,
+          `linked-${randomUUID()}@test.local`,
+          personalOwner.teacherId,
+        ],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO classroom_memberships
+         (tenant_id,classroom_id,user_id,account_id,member_role)
+       VALUES ($1,$2,$3,$4,'co_teacher')`,
+      [owner.tenantId, classroom, linkedTeacherUser, accountId],
+    );
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account teacher edit',
+      ),
+    ).toMatchObject({ id: started.projectId });
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account teacher edit again',
+      ),
+    ).toMatchObject({ id: started.projectId });
+    const roleSegments = await admin.query(
+      `SELECT actor_is_teacher_at_event,occurrence_count,project_title
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND actor_principal_id=$2 AND action='project.renamed'`,
+      [started.projectId, accountPrincipal],
+    );
+    expect(roleSegments.rows).toHaveLength(2);
+    expect(roleSegments.rows).toEqual(
+      expect.arrayContaining([
+        {
+          actor_is_teacher_at_event: false,
+          occurrence_count: 1,
+          project_title: 'Account learner edit',
+        },
+        {
+          actor_is_teacher_at_event: true,
+          occurrence_count: 2,
+          project_title: 'Account teacher edit again',
+        },
+      ]),
+    );
+    const learnerEventAfterPromotion = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Account learner edit'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(learnerEventAfterPromotion.rows).toEqual([{ actor_is_teacher: false }]);
+    const ordinaryAccount = await startUseCase().execute({
+      tenantId: personalTenant,
+      scope: 'personal',
+      classroomId: null,
+      actor: accountActor,
+      moduleKey: 'electronics',
+      title: 'Account private',
+      idempotencyKey: `private:${randomUUID()}`,
+    });
+    expect(ordinaryAccount.ok).toBe(true);
+    if (!ordinaryAccount.ok) throw new Error('ordinary Account project creation failed');
+    expect(
+      await projects.rename(
+        personalTenant,
+        ordinaryAccount.value.project.id,
+        accountActor,
+        'Account private edit',
+      ),
+    ).toMatchObject({ id: ordinaryAccount.value.project.id });
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_activity_events WHERE project_id=$1',
+          [ordinaryAccount.value.project.id],
+        )
+      ).rows[0].count,
+    ).toBe(0);
     const seatController = await startController('seat');
     const seatResumeRequestId = `start:${randomUUID()}`;
     const seatResume = await seatController.start(startRequest, run, {
@@ -1783,6 +1971,68 @@ describe('A4-2b atomic StartLearningWork', () => {
     expect(
       await projects.rename(owner.tenantId, seatOwned.projectId, accountActor, 'Account edit'),
     ).toMatchObject({ id: seatOwned.projectId, title: 'Account edit' });
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        seatOwned.projectId,
+        { principalId: ownerPrincipal, userId: owner.teacherId },
+        'Teacher edit',
+      ),
+    ).toMatchObject({ id: seatOwned.projectId, title: 'Teacher edit' });
+    const teacherActivity = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT seat_id,actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Teacher edit'`,
+        [ownerPrincipal, classroom, seatId, seatOwned.projectId],
+      ),
+    );
+    expect(teacherActivity.rows).toEqual([{ seat_id: seatId, actor_is_teacher: true }]);
+    expect(
+      await projects.rename(owner.tenantId, seatOwned.projectId, accountActor, 'Co-teacher edit'),
+    ).toMatchObject({ id: seatOwned.projectId, title: 'Co-teacher edit' });
+    await admin.query(
+      `DELETE FROM classroom_memberships
+        WHERE tenant_id=$1 AND classroom_id=$2 AND account_id=$3
+          AND member_role='co_teacher'`,
+      [owner.tenantId, classroom, accountId],
+    );
+    const formerTeacherEvent = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher,occurrence_count
+           FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Co-teacher edit'`,
+        [ownerPrincipal, classroom, seatId, seatOwned.projectId],
+      ),
+    );
+    expect(formerTeacherEvent.rows).toEqual([{ actor_is_teacher: true, occurrence_count: 2 }]);
+    const earlierLearnerEvent = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT actor_is_teacher FROM classroom_activity_feed($1,$2,$3)
+          WHERE project_id=$4 AND project_title='Account learner edit'`,
+        [ownerPrincipal, classroom, seatId, started.projectId],
+      ),
+    );
+    expect(earlierLearnerEvent.rows).toEqual([{ actor_is_teacher: false }]);
+    expect(
+      await projects.rename(
+        owner.tenantId,
+        started.projectId,
+        accountActor,
+        'Account learner again',
+      ),
+    ).toMatchObject({ id: started.projectId });
+    const afterRoleFlip = await admin.query(
+      `SELECT actor_is_teacher_at_event,occurrence_count,project_title
+         FROM classroom_activity_events
+        WHERE project_id=$1 AND actor_principal_id=$2 AND action='project.renamed'`,
+      [started.projectId, accountPrincipal],
+    );
+    expect(afterRoleFlip.rows).toHaveLength(3);
+    expect(afterRoleFlip.rows).toContainEqual({
+      actor_is_teacher_at_event: false,
+      occurrence_count: 1,
+      project_title: 'Account learner again',
+    });
     const accountResume = await denied.start(accountStartRequest, seatOwnedRun, {
       requestId: `start:${randomUUID()}`,
     });
@@ -1900,6 +2150,13 @@ describe('A4-2b atomic StartLearningWork', () => {
     expect(
       await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
     ).toBeNull();
+    expect(
+      (
+        await admin.query(`SELECT occurrence_count FROM classroom_activity_events WHERE id=$1`, [
+          classActivity.rows[0].id,
+        ])
+      ).rows[0].occurrence_count,
+    ).toBe(2);
     await expect(
       denied.start(accountStartRequest, seatOwnedRun, { requestId: `start:${randomUUID()}` }),
     ).rejects.toMatchObject({ status: 404 });
