@@ -2,11 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import type { FastifyRequest } from 'fastify';
-import {
-  CreateProjectUseCase,
-  PgProjectRepository,
-  type ModuleCatalogPort,
-} from '@asa-lab/projects';
+import { CreateProjectUseCase } from '../../contexts/projects/application/project.usecases';
+import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
