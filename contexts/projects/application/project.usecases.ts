@@ -87,6 +87,11 @@ export class CreateProjectUseCase {
     private readonly modules: ModuleCatalogPort,
   ) {}
 
+  /** Preserve module-derived document and preview creation inside an outer transaction. */
+  withRepository(repository: ProjectRepositoryPort): CreateProjectUseCase {
+    return new CreateProjectUseCase(repository, this.modules);
+  }
+
   async execute(input: {
     tenantId: string;
     scope: unknown;

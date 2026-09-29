@@ -50,6 +50,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0175',
         '0176',
         '0177',
+        '0178',
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);

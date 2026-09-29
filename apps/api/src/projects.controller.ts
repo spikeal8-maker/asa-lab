@@ -48,6 +48,21 @@ function error(code: string, message: string): { error: { code: string; message:
   return { error: { code, message } };
 }
 
+function genericProjectIdempotencyKey(value: string | undefined): string {
+  const checked = checkIdempotencyKey(value);
+  if (!checked.ok) {
+    throw new HttpException(error('invalid_idempotency_key', checked.message), 400);
+  }
+  // Learning Start alone may allocate the deterministic Project for a Participation.
+  if (checked.key.startsWith('learning:')) {
+    throw new HttpException(
+      error('invalid_idempotency_key', 'this Idempotency-Key prefix is reserved'),
+      400,
+    );
+  }
+  return checked.key;
+}
+
 const STATUS_BY_CODE: Record<ProjectErrorCode, number> = {
   validation_error: 400,
   dependency_unavailable: 503,
@@ -209,10 +224,7 @@ export class ProjectsController {
       'automaticTitle',
     ]);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
-    const keyCheck = checkIdempotencyKey(idempotencyHeader);
-    if (!keyCheck.ok) {
-      throw new HttpException(error('invalid_idempotency_key', keyCheck.message), 400);
-    }
+    const idempotencyKey = genericProjectIdempotencyKey(idempotencyHeader);
     const result = await this.createUseCase.execute({
       tenantId: context.tenantId,
       scope: shape.body['scope'],
@@ -221,7 +233,7 @@ export class ProjectsController {
       moduleKey: shape.body['module'],
       title: shape.body['title'],
       automaticTitle: shape.body['automaticTitle'],
-      idempotencyKey: keyCheck.key,
+      idempotencyKey,
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     reply.code(result.value.created ? 201 : 200);
@@ -292,16 +304,13 @@ export class ProjectsController {
     const context = await this.requireContext(request);
     const shape = checkBodyShape(rawBody, ['title']);
     if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
-    const keyCheck = checkIdempotencyKey(idempotencyHeader);
-    if (!keyCheck.ok) {
-      throw new HttpException(error('invalid_idempotency_key', keyCheck.message), 400);
-    }
+    const idempotencyKey = genericProjectIdempotencyKey(idempotencyHeader);
     const result = await this.duplicateUseCase.execute({
       tenantId: context.tenantId,
       projectId,
       actor: ProjectsController.actorOf(context),
       title: shape.body['title'],
-      idempotencyKey: keyCheck.key,
+      idempotencyKey,
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     reply.code(result.value.created ? 201 : 200);
