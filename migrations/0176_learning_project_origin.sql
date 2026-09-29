@@ -109,6 +109,17 @@ BEGIN
            AND link.tenant_id = NEW.school_tenant_id
            AND link.school_id = NEW.school_id
            AND link.learner_identity_id = NEW.learner_identity_id
+           AND (principal.kind = 'student_seat' OR EXISTS (
+               SELECT 1 FROM public.learner_identity_links account_link
+                WHERE account_link.tenant_id = NEW.school_tenant_id
+                  AND account_link.school_id = NEW.school_id
+                  AND account_link.learner_identity_id = NEW.learner_identity_id
+                  AND account_link.link_kind = 'account'
+                  AND account_link.account_id = principal.account_id
+                  AND account_link.status = 'active'
+                FOR SHARE OF account_link
+           ))
+         FOR SHARE OF seat, link
     ) THEN
         RAISE EXCEPTION 'learning project origin owner/learner lineage is incoherent';
     END IF;

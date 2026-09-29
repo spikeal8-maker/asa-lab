@@ -1052,15 +1052,110 @@ describe('A4-1 immutable learning project origin', () => {
     const otherPart = await assign(otherRun);
     expect(otherPart.result_code).toBe('ok');
     const accountProject = await project(account.principal_id as string, outsider.tenantId);
-    await admin.query(
-      insertSql,
-      await originValues(
-        otherPart.participation_id as string,
-        accountProject,
-        outsider.tenantId,
-        account.principal_id as string,
-      ),
+    const accountValues = await originValues(
+      otherPart.participation_id as string,
+      accountProject,
+      outsider.tenantId,
+      account.principal_id as string,
     );
+    await expect(admin.query(insertSql, accountValues)).rejects.toThrow(
+      /owner\/learner lineage is incoherent/,
+    );
+
+    const wrongOwner = await seedTeacher(admin, 'a4-origin-wrong-account');
+    const wrongAccount = (
+      await admin.query(
+        `SELECT account_id,principal_id FROM legacy_user_account_links
+       WHERE tenant_id=$1 AND user_id=$2`,
+        [wrongOwner.tenantId, wrongOwner.teacherId],
+      )
+    ).rows[0];
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      wrongAccount.account_id,
+      seat,
+    ]);
+    const wrongLink = (
+      await admin.query(
+        `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4) RETURNING id`,
+        [owner.tenantId, owner.schoolId, secondLearner, wrongAccount.account_id],
+      )
+    ).rows[0].id as string;
+    const wrongRun = await createRun({ handout: await directHandout() });
+    const wrongPart = await assign(wrongRun);
+    const wrongProject = await project(wrongAccount.principal_id as string, wrongOwner.tenantId);
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(
+          wrongPart.participation_id as string,
+          wrongProject,
+          wrongOwner.tenantId,
+          wrongAccount.principal_id as string,
+        ),
+      ),
+    ).rejects.toThrow(/owner\/learner lineage is incoherent/);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+      WHERE id=$1`,
+      [wrongLink],
+    );
+
+    const revokedOwner = await seedTeacher(admin, 'a4-origin-revoked-account');
+    const revokedAccount = (
+      await admin.query(
+        `SELECT account_id,principal_id FROM legacy_user_account_links
+       WHERE tenant_id=$1 AND user_id=$2`,
+        [revokedOwner.tenantId, revokedOwner.teacherId],
+      )
+    ).rows[0];
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      revokedAccount.account_id,
+      seat,
+    ]);
+    const revokedLink = (
+      await admin.query(
+        `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4) RETURNING id`,
+        [owner.tenantId, owner.schoolId, learner, revokedAccount.account_id],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+      WHERE id=$1`,
+      [revokedLink],
+    );
+    const revokedRun = await createRun({ handout: await directHandout() });
+    const revokedPart = await assign(revokedRun);
+    const revokedProject = await project(
+      revokedAccount.principal_id as string,
+      revokedOwner.tenantId,
+    );
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(
+          revokedPart.participation_id as string,
+          revokedProject,
+          revokedOwner.tenantId,
+          revokedAccount.principal_id as string,
+        ),
+      ),
+    ).rejects.toThrow(/owner\/learner lineage is incoherent/);
+
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      account.account_id,
+      seat,
+    ]);
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+      [owner.tenantId, owner.schoolId, learner, account.account_id],
+    );
+    await admin.query(insertSql, accountValues);
     const stored = (
       await admin.query(
         `SELECT project_tenant_id,school_tenant_id,
@@ -1073,7 +1168,81 @@ describe('A4-1 immutable learning project origin', () => {
       school_tenant_id: owner.tenantId,
       owner_principal_id: account.principal_id,
     });
-  });
+
+    const revocationRun = await createRun({ handout: await directHandout() });
+    const revocationPart = await assign(revocationRun);
+    const revocationProject = await project(account.principal_id as string, outsider.tenantId);
+    const revocationValues = await originValues(
+      revocationPart.participation_id as string,
+      revocationProject,
+      outsider.tenantId,
+      account.principal_id as string,
+    );
+    const activeLinkId = (
+      await admin.query(
+        `SELECT id FROM learner_identity_links WHERE tenant_id=$1 AND school_id=$2
+       AND learner_identity_id=$3 AND link_kind='account' AND account_id=$4
+       AND status='active'`,
+        [owner.tenantId, owner.schoolId, learner, account.account_id],
+      )
+    ).rows[0].id as string;
+    const linkWriter = await admin.connect();
+    const originWriter = await admin.connect();
+    let linkTransactionOpen = false;
+    let originInsertion: Promise<{ error: Error | null }> | undefined;
+    try {
+      await linkWriter.query('BEGIN');
+      linkTransactionOpen = true;
+      await linkWriter.query(
+        `UPDATE learner_identity_links
+        SET status='inactive',disabled_at=now() WHERE id=$1`,
+        [activeLinkId],
+      );
+      const originPid = (await originWriter.query('SELECT pg_backend_pid() AS pid')).rows[0]
+        .pid as number;
+      let insertionSettled = false;
+      originInsertion = originWriter
+        .query(insertSql, revocationValues)
+        .then(
+          () => ({ error: null }),
+          (error: Error) => ({ error }),
+        )
+        .finally(() => {
+          insertionSettled = true;
+        });
+      let blockedOnLink = false;
+      for (let i = 0; i < 200 && !insertionSettled; i += 1) {
+        const state = await admin.query(
+          `SELECT wait_event_type FROM pg_stat_activity WHERE pid=$1`,
+          [originPid],
+        );
+        if (state.rows[0]?.wait_event_type === 'Lock') {
+          blockedOnLink = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 25));
+      }
+      expect(blockedOnLink).toBe(true);
+      await linkWriter.query('COMMIT');
+      linkTransactionOpen = false;
+      const outcome = await originInsertion;
+      expect(outcome.error?.message).toMatch(/owner\/learner lineage is incoherent/);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::int AS count FROM learning_project_origins
+        WHERE project_id=$1`,
+            [revocationProject],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    } finally {
+      if (linkTransactionOpen) await linkWriter.query('ROLLBACK');
+      if (originInsertion) await originInsertion;
+      linkWriter.release();
+      originWriter.release();
+    }
+  }, 30_000);
 
   it('serializes origin insertion with a concurrent project-owner change', async () => {
     const run = await createRun({ handout: await directHandout() });
