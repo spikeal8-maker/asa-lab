@@ -5105,6 +5105,7 @@ components:
       required: [projectId]
       properties:
         projectId: { type: string, format: uuid }
+        legacyOnly: { type: boolean, description: Require fresh historical Direct proof. }
     LearningProjectAttemptStartReceipt:
       type: object
       additionalProperties: false
@@ -5144,6 +5145,7 @@ components:
           minLength: 8
           maxLength: 128
           pattern: '^[A-Za-z0-9._:-]+$'
+        legacyOnly: { type: boolean, description: Require fresh historical Direct proof. }
     LearningProjectSubmissionReceipt:
       type: object
       additionalProperties: false
@@ -5257,6 +5259,12 @@ components:
       type: object
       additionalProperties: true
       properties:
+        legacyStartAllowed:
+          type: boolean
+          description: Viewer-scoped proof for a historical Direct handout with no canonical run.
+        legacySubmitAllowed:
+          type: boolean
+          description: Viewer-scoped proof for already linked historical Direct work without immutable origin.
         activityRunId:
           oneOf:
             - type: string

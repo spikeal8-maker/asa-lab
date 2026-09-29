@@ -193,7 +193,7 @@ async function openAssignments(page: Page): Promise<void> {
     .getByRole('button', { name: 'Обучение', exact: true })
     .click();
   await page
-    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('navigation', { name: 'Материалы класса' })
     .getByRole('button', { name: 'Отдельные задания', exact: true })
     .click();
   await expect(page.getByRole('heading', { name: 'Задания класса' })).toBeVisible();

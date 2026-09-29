@@ -138,6 +138,94 @@ afterAll(async () => {
 });
 
 describe('LRN-VS-001 canonical direct assignment', () => {
+  it('proves an old Direct handout without a run, then only its linked historical Project', async () => {
+    const classId = await classroom();
+    const learnerSeat = await seat(classId, 'Исторический ученик');
+    const otherSeat = await seat(classId, 'Другой ученик');
+    await admin.query(
+      `UPDATE classroom_student_seats SET status='active' WHERE id=ANY($1::uuid[])`,
+      [[learnerSeat, otherSeat]],
+    );
+    const task = await admin.query(
+      `INSERT INTO teacher_assignments
+         (tenant_id,owner_principal_id,title,brief,module_key,visibility)
+       VALUES ($1,$2,'Старое задание','Соберите цепь.','electronics','private') RETURNING id`,
+      [owner.tenantId, principal],
+    );
+    await inTenant((client) =>
+      client.query(`SELECT teacher_assignment_hand_out($1,$2,$3,true,NULL)`, [
+        principal,
+        task.rows[0].id,
+        classId,
+      ]),
+    );
+    const assignmentId = (
+      await admin.query(
+        `SELECT id FROM classroom_assignments WHERE classroom_id=$1 AND assignment_id=$2`,
+        [classId, task.rows[0].id],
+      )
+    ).rows[0].id as string;
+    const learnerPrincipal = (
+      await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [learnerSeat])
+    ).rows[0].principal_id as string;
+    const otherPrincipal = (
+      await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [otherSeat])
+    ).rows[0].principal_id as string;
+    const proof = async (actor: string, seatId: string, projectId: string | null) =>
+      (
+        await inTenant((client) =>
+          client.query(`SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`, [
+            actor,
+            seatId,
+            assignmentId,
+            projectId,
+          ]),
+        )
+      ).rows[0].proof as { legacyDirect: boolean; startAllowed: boolean; submitAllowed: boolean };
+    expect(await proof(learnerPrincipal, learnerSeat, null)).toEqual({
+      legacyDirect: true,
+      startAllowed: true,
+      submitAllowed: false,
+    });
+    expect(await proof(otherPrincipal, learnerSeat, null)).toMatchObject({
+      startAllowed: false,
+      submitAllowed: false,
+    });
+    const projectId = (
+      await admin.query(
+        `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+       VALUES ($1,'personal','electronics','Историческая работа',$2) RETURNING id`,
+        [owner.tenantId, learnerPrincipal],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES ($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [owner.tenantId, projectId, learnerPrincipal],
+    );
+    const linked = await inTenant((client) =>
+      client.query(`SELECT * FROM classroom_assignment_work_start($1,$2,$3)`, [
+        learnerSeat,
+        assignmentId,
+        projectId,
+      ]),
+    );
+    expect(linked.rows[0].project_id).toBe(projectId);
+    expect(await proof(learnerPrincipal, learnerSeat, projectId)).toEqual({
+      legacyDirect: true,
+      startAllowed: false,
+      submitAllowed: true,
+    });
+    expect(await proof(otherPrincipal, learnerSeat, projectId)).toMatchObject({
+      startAllowed: false,
+      submitAllowed: false,
+    });
+    await expect(
+      inTenant((client) => client.query(`SELECT * FROM activity_runs LIMIT 1`)),
+    ).rejects.toThrow(/permission denied/);
+  });
+
   it('assigns one published activity to the whole class and exposes every eligible seat', async () => {
     const classId = await classroom();
     const seats = await Promise.all([

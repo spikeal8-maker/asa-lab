@@ -145,4 +145,57 @@ describe('Direct learner Start cutover', () => {
       expect(start).not.toHaveBeenCalled();
     },
   );
+
+  it.each(['seat', 'account'] as const)(
+    '%s starts a proven old handout through its existing Project adapter',
+    async (source) => {
+      const atomic = vi.spyOn(api, 'startLearningWork');
+      const create = vi.spyOn(api, 'createProject').mockResolvedValue({
+        ok: true,
+        status: 201,
+        data: { project: { id: 'historical-project' }, created: true },
+      } as Awaited<ReturnType<typeof api.createProject>>);
+      const legacy = vi.spyOn(api, 'startSeatAssignment').mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { projectId: 'historical-project' },
+      } as Awaited<ReturnType<typeof api.startSeatAssignment>>);
+      const { view, onOpenProject } = await renderSurface(source, {
+        ...assignment,
+        activityRunId: null,
+        legacyStartAllowed: true,
+      });
+      const button = view.querySelector<HTMLButtonElement>(
+        '.seat-assignment-actions .portal-create-button',
+      );
+      expect(button?.disabled).toBe(false);
+      await act(async () => button?.click());
+      expect(create).toHaveBeenCalledWith({
+        scope: 'personal',
+        module: 'electronics',
+        title: 'Circuit work',
+        idempotencyKey: 'handout-one',
+      });
+      expect(legacy).toHaveBeenCalledWith('handout-one', 'historical-project', true);
+      expect(atomic).not.toHaveBeenCalled();
+      expect(onOpenProject).toHaveBeenCalledWith('historical-project', 'electronics');
+    },
+  );
+
+  it.each(['seat', 'account'] as const)(
+    '%s never treats a run-bearing or unproven handout as legacy Start',
+    async (source) => {
+      const create = vi.spyOn(api, 'createProject');
+      const { view } = await renderSurface(source, {
+        ...assignment,
+        activityRunId: null,
+        legacyStartAllowed: false,
+      });
+      const button = view.querySelector<HTMLButtonElement>(
+        '.seat-assignment-actions .portal-create-button',
+      );
+      expect(button?.disabled).toBe(true);
+      expect(create).not.toHaveBeenCalled();
+    },
+  );
 });

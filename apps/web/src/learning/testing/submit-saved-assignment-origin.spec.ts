@@ -144,9 +144,13 @@ describe('submit saved Learning work', () => {
       status: 503,
       error: { code: 'lost_response', message: 'Retry' },
     });
-    await submitSavedAssignment(assignment('legacy-project'));
+    await submitSavedAssignment({
+      ...assignment('legacy-project'),
+      activityRunId: 'old-run',
+      legacySubmitAllowed: true,
+    });
     expect(exact).not.toHaveBeenCalled();
-    expect(legacy).toHaveBeenCalledWith('shared-handout', true, 3, expect.any(String));
+    expect(legacy).toHaveBeenCalledWith('shared-handout', true, 3, expect.any(String), false);
   });
 
   it('fails closed on denied origin and missing canonical participation', async () => {
@@ -158,7 +162,12 @@ describe('submit saved Learning work', () => {
     const open = vi.spyOn(api, 'openProject');
     const exact = vi.spyOn(api, 'submitLearningProject');
     const legacy = vi.spyOn(api, 'submitSeatAssignment');
-    expect(await submitSavedAssignment(assignment('denied-project'))).toMatchObject({ ok: false });
+    expect(
+      await submitSavedAssignment({
+        ...assignment('denied-project'),
+        legacySubmitAllowed: true,
+      }),
+    ).toMatchObject({ ok: false });
     read.mockResolvedValue({
       ok: true,
       status: 200,
@@ -181,5 +190,29 @@ describe('submit saved Learning work', () => {
     expect(open).not.toHaveBeenCalled();
     expect(exact).not.toHaveBeenCalled();
     expect(legacy).not.toHaveBeenCalled();
+  });
+
+  it('submits only server-proven historical work when no Learning Activity Version exists', async () => {
+    vi.spyOn(api, 'learningWorkContext').mockImplementation(async (projectId) => ({
+      ok: true,
+      status: 200,
+      data: { state: 'unavailable', projectId },
+    }));
+    mockSavedProject();
+    const legacy = vi.spyOn(api, 'submitSeatAssignment').mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'lost_response', message: 'Retry' },
+    });
+    const exact = vi.spyOn(api, 'submitLearningProject');
+    expect(await submitSavedAssignment(assignment('unproven-old'))).toMatchObject({ ok: false });
+    expect(legacy).not.toHaveBeenCalled();
+    await submitSavedAssignment({
+      ...assignment('proven-old'),
+      activityRunId: 'old-run',
+      legacySubmitAllowed: true,
+    });
+    expect(legacy).toHaveBeenCalledWith('shared-handout', true, 3, expect.any(String), true);
+    expect(exact).not.toHaveBeenCalled();
   });
 });

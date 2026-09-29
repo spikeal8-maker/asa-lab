@@ -280,6 +280,11 @@ describe('immutable classroom submissions', () => {
       if (sql.includes('learning_course_activity_assignment_is_shared')) {
         return { rows: [{ shared: false }] };
       }
+      if (sql.includes('learning_legacy_direct_provenance')) {
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: true } }],
+        };
+      }
       if (sql.includes('principal_for_seat')) {
         return { rows: [{ principal_id: 'learner-principal-id' }] };
       }
@@ -359,6 +364,11 @@ describe('immutable classroom submissions', () => {
       if (sql.includes('learning_course_activity_assignment_is_shared')) {
         return { rows: [{ shared: false }] };
       }
+      if (sql.includes('learning_legacy_direct_provenance')) {
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: true } }],
+        };
+      }
       return {
         rows: [
           {
@@ -431,6 +441,7 @@ describe('origin Direct learner list', () => {
       snapshot_revision: null,
       updated_at: null,
       task_blocks: null,
+      legacy_provenance: { startAllowed: false, submitAllowed: true },
     };
     let origins = [
       {
@@ -534,6 +545,8 @@ describe('origin Direct learner list', () => {
     expect((await controller.assignments(seatRequest())).items[0]).toMatchObject({
       projectId: row.project_id,
       canonicalState: null,
+      legacyStartAllowed: false,
+      legacySubmitAllowed: true,
     });
     presenceRows = [
       {
@@ -555,6 +568,8 @@ describe('origin Direct learner list', () => {
         snapshotRevision: null,
         updatedAt: null,
         canonicalState: null,
+        legacyStartAllowed: false,
+        legacySubmitAllowed: false,
       });
     }
     origins = [exactOrigin, exactOrigin];
@@ -968,6 +983,148 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ).toBe(false);
     expect(
       query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_submission_create')),
+    ).toBe(false);
+  });
+
+  it('keeps a single historical Course lesson on its existing Start and Submit adapter', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000010';
+    const projectId = '57000000-0000-4000-8000-000000000010';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat'))
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return {
+          rows: [{ proof: { legacyDirect: false, startAllowed: false, submitAllowed: false } }],
+        };
+      if (
+        sql.includes('learning_direct_project_attempt_start') ||
+        sql.includes('learning_direct_project_submission_create')
+      )
+        return { rows: [{ result_code: 'not_canonical' }] };
+      if (sql.includes('classroom_assignment_work_start'))
+        return { rows: [{ project_id: projectId, submitted_at: null }] };
+      if (sql.includes('learning_project_submission_create'))
+        return {
+          rows: [
+            {
+              result_code: 'ok',
+              project_id: projectId,
+              project_version_id: 'version-id',
+              attempt_id: 'attempt-id',
+              submission_id: 'submission-id',
+              attempt_number: 1,
+              attempt_state: 'submitted',
+              submitted_at: '2026-09-30T10:00:00Z',
+              late_state: 'on_time',
+              reused: false,
+            },
+          ],
+        };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId }),
+    ).resolves.toMatchObject({ projectId });
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        clientRequestId: 'course:legacy:submit:001',
+        expectedRevision: 1,
+      }),
+    ).resolves.toMatchObject({ projectId, submissionId: 'submission-id' });
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      true,
+    );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_project_submission_create')),
+    ).toBe(true);
+  });
+
+  it('rejects stale historical Direct proof before attaching or submitting work', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000011';
+    const projectId = '57000000-0000-4000-8000-000000000011';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat'))
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: false } }],
+        };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, {
+        projectId,
+        legacyOnly: true,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        legacyOnly: true,
+        clientRequestId: 'legacy:denied:001',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
+    );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_project_submission_create')),
+    ).toBe(false);
+  });
+
+  it('accepts only the freshly proven no-run Direct compatibility Start', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000012';
+    const projectId = '57000000-0000-4000-8000-000000000012';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat'))
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: true, submitAllowed: false } }],
+        };
+      if (sql.includes('classroom_assignment_work_start'))
+        return { rows: [{ project_id: projectId, submitted_at: null }] };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, {
+        projectId,
+        legacyOnly: true,
+      }),
+    ).resolves.toMatchObject({ projectId, participationId: null });
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
     ).toBe(false);
   });
 });

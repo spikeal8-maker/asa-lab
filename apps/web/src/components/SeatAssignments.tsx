@@ -5,6 +5,7 @@ import { AssignmentView } from './AssignmentView';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from './school-time';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
+import { startLegacyDirectAssignment } from '../learning/start-legacy-direct-assignment';
 import './classroom-assignments.css';
 import {
   canonicalLearningClass,
@@ -52,7 +53,9 @@ export function SeatAssignments({
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(assignment.id);
     setError(null);
-    const started = await starter.current.start(assignment.activityRunId);
+    const started = assignment.activityRunId
+      ? await starter.current.start(assignment.activityRunId)
+      : await startLegacyDirectAssignment(assignment);
     if (started === null) return;
     setBusy(null);
     if (!started.ok) {
@@ -215,13 +218,13 @@ export function SeatAssignments({
                   disabled={
                     busy === assignment.id ||
                     assignment.status === 'closed' ||
-                    !assignment.activityRunId
+                    (!assignment.activityRunId && assignment.legacyStartAllowed !== true)
                   }
                   onClick={() => void start(assignment)}
                 >
                   {busy === assignment.id
                     ? 'Открываем…'
-                    : assignment.activityRunId
+                    : assignment.activityRunId || assignment.legacyStartAllowed
                       ? 'Открыть'
                       : 'Пока недоступно'}
                 </button>

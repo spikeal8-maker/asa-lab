@@ -27,16 +27,26 @@ export async function submitSavedAssignment(
       error: { code: 'not_started', message: 'Сначала откройте задание.' },
     };
   const contextResult = await api.learningWorkContext(assignment.projectId);
-  if (
-    !contextResult.ok ||
-    contextResult.data.state !== 'ready' ||
-    contextResult.data.projectId !== assignment.projectId ||
-    contextResult.data.origin.classroomAssignmentId !== assignment.id ||
-    typeof contextResult.data.origin.immutable !== 'boolean' ||
-    !contextResult.data.allowedActions.submit ||
-    (contextResult.data.origin.immutable &&
-      (!contextResult.data.origin.participationId || !contextResult.data.origin.activityRunId))
-  )
+  const ready =
+    contextResult.ok && contextResult.data.state === 'ready' ? contextResult.data : null;
+  const oldWithoutVersion =
+    contextResult.ok &&
+    (contextResult.data.state === 'unavailable' || contextResult.data.state === 'not_learning') &&
+    contextResult.data.projectId === assignment.projectId;
+  const exactAllowed =
+    ready?.projectId === assignment.projectId &&
+    ready.origin.classroomAssignmentId === assignment.id &&
+    ready.origin.immutable === true &&
+    ready.allowedActions.submit &&
+    !!ready.origin.participationId &&
+    !!ready.origin.activityRunId;
+  const legacyAllowed =
+    (assignment.legacySubmitAllowed === true && oldWithoutVersion) ||
+    (ready?.projectId === assignment.projectId &&
+      ready.origin.classroomAssignmentId === assignment.id &&
+      ready.origin.immutable === false &&
+      ready.allowedActions.submit);
+  if (!exactAllowed && !legacyAllowed)
     return {
       ok: false,
       status: 409,
@@ -65,12 +75,12 @@ export async function submitSavedAssignment(
     request = { revision, id: crypto.randomUUID() };
     requests.set(assignment.projectId, request);
   }
-  const result = contextResult.data.origin.immutable
+  const result = exactAllowed
     ? await api.submitLearningProject(assignment.projectId, {
         clientRequestId: request.id,
         expectedRevision: revision,
       })
-    : await api.submitSeatAssignment(assignment.id, true, revision, request.id);
+    : await api.submitSeatAssignment(assignment.id, true, revision, request.id, oldWithoutVersion);
   if (result.ok) requests.delete(assignment.projectId);
   return result;
 }

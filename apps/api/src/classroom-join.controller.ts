@@ -85,6 +85,7 @@ interface AssignmentForSeatRow {
   /** Снимок работы: по нему ученик вспоминает, на чём остановился. */
   snapshot_revision: number | string | null;
   updated_at: Date | string | null;
+  legacy_provenance?: { startAllowed?: boolean; submitAllowed?: boolean } | null;
 }
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
@@ -1056,9 +1057,11 @@ export class ClassroomJoinController {
         `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
               snapshot_revision, updated_at,
+              learning_legacy_direct_provenance($2,seat_id,id,project_id)
+                AS legacy_provenance,
               learning_activity_blocks_for_seat(seat_id,id) AS task_blocks
          FROM classroom_assignments_for_account($1)`,
-        [context.accountId],
+        [context.accountId, context.principalId],
       ),
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
@@ -1118,6 +1121,8 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(row.seat_id, row.id),
+            legacyStartAllowed: legacyAllowed && row.legacy_provenance?.startAllowed === true,
+            legacySubmitAllowed: legacyAllowed && row.legacy_provenance?.submitAllowed === true,
             projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
@@ -1257,6 +1262,8 @@ export class ClassroomJoinController {
       this.requirePool().query(
         `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
               submitted_at, snapshot_revision, updated_at,
+              learning_legacy_direct_provenance(principal_for_seat($1),$1,id,project_id)
+                AS legacy_provenance,
               learning_activity_blocks_for_seat($1,id) AS task_blocks
          FROM classroom_assignments_for_seat($1)`,
         [seat.seat_id],
@@ -1314,6 +1321,8 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(seat.seat_id, row.id),
+            legacyStartAllowed: legacyAllowed && row.legacy_provenance?.startAllowed === true,
+            legacySubmitAllowed: legacyAllowed && row.legacy_provenance?.submitAllowed === true,
             projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
@@ -1575,6 +1584,31 @@ export class ClassroomJoinController {
     }
   }
 
+  /** Recheck a list's historical Direct proof at the write boundary. */
+  private async legacyDirectProvenance(
+    principalId: string,
+    seatId: string,
+    assignmentId: string,
+    projectId: string | null,
+  ): Promise<{ legacyDirect: boolean; startAllowed: boolean; submitAllowed: boolean }> {
+    const result = await this.requirePool().query(
+      `SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`,
+      [principalId, seatId, assignmentId, projectId],
+    );
+    const proof = (
+      result.rows[0] as
+        | {
+            proof?: { legacyDirect?: boolean; startAllowed?: boolean; submitAllowed?: boolean };
+          }
+        | undefined
+    )?.proof;
+    return {
+      legacyDirect: proof?.legacyDirect === true,
+      startAllowed: proof?.startAllowed === true,
+      submitAllowed: proof?.submitAllowed === true,
+    };
+  }
+
   /** Submit one immutable quiz attempt and return only the released feedback. */
   @Post('me/quizzes/:assignmentId/submit')
   @HttpCode(200)
@@ -1663,24 +1697,43 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const shape = checkBodyShape(rawBody, ['projectId']);
+    const shape = checkBodyShape(rawBody, ['projectId', 'legacyOnly']);
     const projectId = shape.ok ? shape.body['projectId'] : null;
+    const legacyOnly = shape.ok ? (shape.body['legacyOnly'] ?? false) : false;
     if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) {
       throw new HttpException(error('validation_error', 'project is invalid'), 400);
     }
     if (!UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'assignment is invalid'), 400);
     }
+    if (typeof legacyOnly !== 'boolean')
+      throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     const learner = await this.learnerForAssignment(request, assignmentId);
     const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
     await this.requireExactCourseWorkOrigin(assignmentId);
-    const canonical = await this.requirePool().query(
-      `SELECT result_code, participation_id, attempt_id, attempt_number,
+    const provenance = await this.legacyDirectProvenance(
+      learner.principalId,
+      seatId,
+      assignmentId,
+      projectId,
+    );
+    if (
+      (legacyOnly && (!provenance.legacyDirect || !provenance.startAllowed)) ||
+      (provenance.legacyDirect && !provenance.startAllowed && !provenance.submitAllowed)
+    )
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    // A new historical handout has no canonical run. An already linked old
+    // Project may still resume through the old adapter even if a run was later
+    // attached; no new Project may enter that route.
+    const canonical = legacyOnly
+      ? { rows: [] }
+      : await this.requirePool().query(
+          `SELECT result_code, participation_id, attempt_id, attempt_number,
               attempt_state, project_id, reused
          FROM learning_direct_project_attempt_start($1,$2,$3,$4)`,
-      [learner.principalId, seatId, assignmentId, projectId],
-    );
+          [learner.principalId, seatId, assignmentId, projectId],
+        );
     const canonicalRow = canonical.rows[0] as
       | {
           result_code: string;
@@ -1770,10 +1823,18 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const shape = checkBodyShape(rawBody, ['submitted', 'clientRequestId', 'expectedRevision']);
+    const shape = checkBodyShape(rawBody, [
+      'submitted',
+      'clientRequestId',
+      'expectedRevision',
+      'legacyOnly',
+    ]);
     const submitted = shape.ok ? shape.body['submitted'] : null;
     const clientRequestId = shape.ok ? shape.body['clientRequestId'] : null;
     const expectedRevision = shape.ok ? (shape.body['expectedRevision'] ?? null) : null;
+    const legacyOnly = shape.ok ? (shape.body['legacyOnly'] ?? false) : false;
+    if (typeof legacyOnly !== 'boolean')
+      throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     if (
       expectedRevision !== null &&
       (typeof expectedRevision !== 'number' ||
@@ -1804,6 +1865,17 @@ export class ClassroomJoinController {
     const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
     await this.requireExactCourseWorkOrigin(assignmentId);
+    const provenance = await this.legacyDirectProvenance(
+      learner.principalId,
+      seatId,
+      assignmentId,
+      null,
+    );
+    if (
+      (legacyOnly && (!provenance.legacyDirect || !provenance.submitAllowed)) ||
+      (provenance.legacyDirect && !provenance.submitAllowed)
+    )
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     const requestId = clientRequestId ?? randomUUID();
     const canonical = await this.requirePool().query(
       `SELECT result_code, participation_id, attempt_id, submission_id,

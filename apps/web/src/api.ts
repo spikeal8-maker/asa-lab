@@ -869,6 +869,10 @@ export interface SeatAssignment {
   id: string;
   /** Exact Direct ActivityRun for a later atomic Start; null for legacy/course handouts. */
   activityRunId?: string | null;
+  /** Server-proven old Direct handout with no canonical run or existing work. */
+  legacyStartAllowed?: boolean;
+  /** Server-proven existing old Direct work with no immutable origin. */
+  legacySubmitAllowed?: boolean;
   title: string;
   brief: string | null;
   goal: string | null;
@@ -2728,7 +2732,7 @@ export const api = {
   mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
   seatAssignmentCounts: () =>
     call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
-  startSeatAssignment: (assignmentId: string, projectId: string) =>
+  startSeatAssignment: (assignmentId: string, projectId: string, legacyOnly = false) =>
     call<{
       projectId: string;
       submittedAt: string | null;
@@ -2739,7 +2743,7 @@ export const api = {
       reused: boolean;
     }>(`/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`, {
       method: 'POST',
-      body: JSON.stringify({ projectId }),
+      body: JSON.stringify({ projectId, ...(legacyOnly ? { legacyOnly: true } : {}) }),
     }),
   startLearningWork: (activityRunId: string, requestId: string) =>
     call<LearningStartReceipt>(
@@ -2771,6 +2775,7 @@ export const api = {
     submitted: boolean,
     expectedRevision?: number,
     clientRequestId = `submit:${crypto.randomUUID()}`,
+    legacyOnly = false,
   ) =>
     call<{
       projectId: string;
@@ -2789,6 +2794,7 @@ export const api = {
         submitted,
         clientRequestId,
         expectedRevision,
+        ...(legacyOnly ? { legacyOnly: true } : {}),
       }),
     }),
   updateClassroom: (

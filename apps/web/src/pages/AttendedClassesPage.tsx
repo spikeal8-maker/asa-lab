@@ -8,6 +8,7 @@ import { LearningNotificationPreferences } from '../components/LearningNotificat
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from '../components/school-time';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
+import { startLegacyDirectAssignment } from '../learning/start-legacy-direct-assignment';
 import '../components/classroom-assignments.css';
 import './attended-classes.css';
 import {
@@ -86,7 +87,9 @@ export function AttendedClassesPage({
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(true);
     setError(null);
-    const started = await starter.current.start(assignment.activityRunId);
+    const started = assignment.activityRunId
+      ? await starter.current.start(assignment.activityRunId)
+      : await startLegacyDirectAssignment(assignment);
     if (started === null) return;
     setBusy(false);
     if (!started.ok) {
@@ -336,13 +339,15 @@ export function AttendedClassesPage({
                         type="button"
                         className="portal-create-button"
                         disabled={
-                          busy || assignment.status === 'closed' || !assignment.activityRunId
+                          busy ||
+                          assignment.status === 'closed' ||
+                          (!assignment.activityRunId && assignment.legacyStartAllowed !== true)
                         }
                         onClick={() => void start(assignment)}
                       >
                         {busy
                           ? 'Открываем…'
-                          : assignment.activityRunId
+                          : assignment.activityRunId || assignment.legacyStartAllowed
                             ? 'Открыть'
                             : 'Пока недоступно'}
                       </button>
