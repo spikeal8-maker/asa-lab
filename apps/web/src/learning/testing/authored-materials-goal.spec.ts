@@ -84,6 +84,102 @@ afterEach(async () => {
 });
 
 describe('authored material legacy goal', () => {
+  it('keeps an existing draft usable but blocks creation and publication with a legacy module catalogue', async () => {
+    const legacyModule = module('electronics', true);
+    delete legacyModule.learningCapabilities;
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [legacyModule] },
+    });
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        items: [
+          {
+            id: activityId,
+            title: legacyDraft.title,
+            kind: 'project',
+            draftRevision: 1,
+            currentPublishedVersionId: null,
+          },
+        ],
+      },
+    });
+    vi.spyOn(api, 'authoredActivity').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        id: activityId,
+        title: legacyDraft.title,
+        draftRevision: 1,
+        draftSampleImage: null,
+        currentPublishedVersionId: null,
+        draft: legacyDraft,
+        inheritedGoal: null,
+      },
+    });
+    vi.spyOn(api, 'authorVersions').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    const save = vi.spyOn(api, 'saveAuthoredActivity').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: activityId, draftRevision: 2 },
+    });
+    const create = vi.spyOn(api, 'createActivityDraft');
+    const publish = vi.spyOn(api, 'publishAuthoredActivity');
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage));
+      await flush();
+    });
+    const findButton = (label: string) =>
+      [...container!.querySelectorAll('button')].find((button) => button.textContent === label);
+    const title = container.querySelector<HTMLInputElement>('input[maxlength="255"]');
+    await act(async () => setInput(title!, 'New material'));
+    expect(findButton('Создать материал')?.disabled).toBe(true);
+    expect(findButton('Опубликовать')?.disabled).toBe(true);
+    await act(async () => {
+      container
+        ?.querySelector('form')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flush();
+    });
+    expect(create).not.toHaveBeenCalled();
+
+    await act(async () => {
+      findButton(legacyDraft.title)?.click();
+      await flush();
+    });
+    expect(container.querySelector<HTMLInputElement>('input[maxlength="255"]')?.value).toBe(
+      legacyDraft.title,
+    );
+    expect(findButton('Опубликовать')?.disabled).toBe(true);
+    const instructions = container.querySelector<HTMLTextAreaElement>(
+      'textarea[aria-label="Содержание"]',
+    );
+    await act(async () => setInput(instructions!, 'Updated circuit instructions'));
+    expect(findButton('Сохранить')?.disabled).toBe(false);
+    await act(async () => {
+      container
+        ?.querySelector('form')
+        ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await flush();
+    });
+    expect(save).toHaveBeenCalledWith(
+      activityId,
+      1,
+      expect.objectContaining({ instructions: 'Updated circuit instructions' }),
+    );
+    expect(publish).not.toHaveBeenCalled();
+  });
+
   it('keeps the default module when catalogue loading overlaps author typing', async () => {
     let resolveModules: (result: Awaited<ReturnType<typeof api.listModules>>) => void = () => {};
     vi.spyOn(api, 'listModules').mockImplementation(

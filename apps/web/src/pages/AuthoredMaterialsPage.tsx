@@ -47,10 +47,12 @@ const initial: AuthoredActivityDraft = {
 
 const PREFERRED_AUTHOR_MODULE_KEY = 'electronics';
 
+function isAssignableModule(module: ModuleSummary): boolean {
+  return module.creatable && module.learningCapabilities?.assignable === true;
+}
+
 function defaultAssignableModuleKey(modules: readonly ModuleSummary[]): string {
-  const assignable = modules.filter(
-    (module) => module.creatable && module.learningCapabilities.assignable,
-  );
+  const assignable = modules.filter(isAssignableModule);
   return (
     assignable.find((module) => module.moduleKey === PREFERRED_AUTHOR_MODULE_KEY)?.moduleKey ??
     assignable[0]?.moduleKey ??
@@ -145,9 +147,7 @@ export function AuthoredMaterialsPage({
   const [loading, setLoading] = useState(true);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
   const [modulesLoading, setModulesLoading] = useState(true);
-  const assignableModules = modules.filter(
-    (module) => module.creatable && module.learningCapabilities.assignable,
-  );
+  const assignableModules = modules.filter(isAssignableModule);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -195,6 +195,7 @@ export function AuthoredMaterialsPage({
             : current,
         );
       } else {
+        setModules([]);
         setError(result.error.message || 'Список учебных сред недоступен.');
       }
       setModulesLoading(false);
@@ -243,7 +244,8 @@ export function AuthoredMaterialsPage({
   }
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || !draft.title.trim() || draft.moduleKey === '') return null;
+    if (busy || !draft.title.trim() || draft.moduleKey === '' || (!opened && !canAssignDraftModule))
+      return null;
     const payload = JSON.stringify(draft);
     const textDirty = !opened || savedPayload.current !== payload;
     if (!textDirty && pendingDraftSample === null) return opened;
@@ -417,6 +419,7 @@ export function AuthoredMaterialsPage({
     setBusy(false);
   }
   async function publish() {
+    if (!canPublish) return;
     const saved = await save();
     if (!saved) return;
     setBusy(true);
@@ -490,6 +493,14 @@ export function AuthoredMaterialsPage({
   const draftDirty =
     (opened !== null && savedPayload.current !== JSON.stringify(draft)) ||
     pendingDraftSample !== null;
+  const canAssignDraftModule =
+    !modulesLoading &&
+    draft.moduleKey !== null &&
+    assignableModules.some((module) => module.moduleKey === draft.moduleKey);
+  const canPublish =
+    !modulesLoading &&
+    assignableModules.length > 0 &&
+    (draft.moduleKey === null || canAssignDraftModule);
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const Root = embedded ? 'section' : 'main';
   return (
@@ -789,6 +800,7 @@ export function AuthoredMaterialsPage({
                 busy ||
                 !draft.title.trim() ||
                 draft.moduleKey === '' ||
+                (!opened && !canAssignDraftModule) ||
                 (draft.resultMode === 'graded' && !draft.maxPoints)
               }
             >
@@ -801,6 +813,7 @@ export function AuthoredMaterialsPage({
                 busy ||
                 !draft.title.trim() ||
                 draft.moduleKey === '' ||
+                !canPublish ||
                 (draft.resultMode === 'graded' && !draft.maxPoints)
               }
               onClick={() => void publish()}

@@ -1196,7 +1196,7 @@ export interface ModuleSummary {
   iconKey: string;
   categories: string[];
   creatable: boolean;
-  learningCapabilities: {
+  learningCapabilities?: {
     assignable: boolean;
     editableEvidence: boolean;
     submitProjectVersion: boolean;
