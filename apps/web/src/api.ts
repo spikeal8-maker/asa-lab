@@ -742,6 +742,16 @@ export interface CanonicalLearningCounts {
 export type LearningAttemptState =
   'not_started' | 'in_progress' | 'submitted' | 'evaluating' | 'closed' | 'invalidated' | 'expired';
 
+export interface LearningStartReceipt {
+  projectId: string;
+  participationId: string;
+  activityRunId: string;
+  attemptId: string;
+  attemptNumber: number;
+  state: LearningAttemptState;
+  reused: boolean;
+}
+
 /** One canonical row from immutable attempt through the published result. */
 export interface GradebookEntry {
   courseRunId?: string | null;
@@ -884,6 +894,7 @@ export type LearningWorkContext =
       projectId: string;
       moduleKey: string;
       origin: {
+        immutable: boolean;
         participationId: string | null;
         activityRunId: string | null;
         learningActivityVersionId: string;
@@ -2729,6 +2740,31 @@ export const api = {
     }>(`/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`, {
       method: 'POST',
       body: JSON.stringify({ projectId }),
+    }),
+  startLearningWork: (activityRunId: string, requestId: string) =>
+    call<LearningStartReceipt>(
+      `/api/learning/work/runs/${encodeURIComponent(activityRunId)}/start`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  submitLearningProject: (
+    projectId: string,
+    input: { clientRequestId: string; expectedRevision: number },
+  ) =>
+    call<{
+      projectId: string;
+      participationId: string;
+      activityRunId: string;
+      attemptId: string;
+      submissionId: string;
+      attemptNumber: number;
+      state: 'submitted';
+      projectVersionId: string;
+      submittedAt: string;
+      lateState: 'on_time' | 'late' | 'excused';
+      reused: boolean;
+    }>(`/api/learning/projects/${encodeURIComponent(projectId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
     }),
   submitSeatAssignment: (
     assignmentId: string,

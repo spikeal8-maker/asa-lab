@@ -3022,6 +3022,56 @@ paths:
         '401': { description: No active learner session }
         '404': { description: Assignment excluded, cross-class or unavailable }
         '409': { description: Participation lifecycle or effective availability blocks start }
+  /api/learning/work/runs/{activityRunId}/start:
+    post:
+      operationId: startExactLearningWork
+      summary: Atomically start or resume personal Project work for one exact ActivityRun
+      parameters:
+        - in: path
+          name: activityRunId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [requestId]
+              properties:
+                requestId: { type: string, pattern: '^[A-Za-z0-9._:-]{8,128}$' }
+      responses:
+        '200':
+          description: Exact Participation, Attempt and personal Project created or reused as one transaction
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  [
+                    projectId,
+                    participationId,
+                    activityRunId,
+                    attemptId,
+                    attemptNumber,
+                    state,
+                    reused,
+                  ]
+                properties:
+                  projectId: { type: string, format: uuid }
+                  participationId: { type: string, format: uuid }
+                  activityRunId: { type: string, format: uuid }
+                  attemptId: { type: string, format: uuid }
+                  attemptNumber: { type: integer, minimum: 1 }
+                  state: { type: string, enum: [in_progress] }
+                  reused: { type: boolean }
+        '400': { description: Invalid ActivityRun or requestId }
+        '401': { description: No active learner session }
+        '404': { description: ActivityRun unavailable to this learner }
+        '409': { description: Lifecycle, policy, idempotency or concurrent Start conflict }
+        '503': { description: Database unavailable }
   /api/class-join/me/assignments/{assignmentId}/submit:
     post:
       operationId: submitLearnerProjectAssignment
@@ -3894,6 +3944,7 @@ components:
               type: object
               required:
                 [
+                  immutable,
                   participationId,
                   activityRunId,
                   learningActivityVersionId,
@@ -3904,6 +3955,7 @@ components:
                   courseBlockId,
                 ]
               properties:
+                immutable: { type: boolean }
                 participationId: { type: [string, 'null'], format: uuid }
                 activityRunId: { type: [string, 'null'], format: uuid }
                 learningActivityVersionId: { type: string, format: uuid }

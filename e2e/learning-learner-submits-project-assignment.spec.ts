@@ -193,7 +193,7 @@ async function openAssignments(page: Page): Promise<void> {
     .getByRole('button', { name: 'Обучение', exact: true })
     .click();
   await page
-    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Отдельные задания', exact: true })
     .click();
   await expect(page.getByRole('heading', { name: 'Задания класса' })).toBeVisible();
@@ -351,7 +351,39 @@ test('learner starts the real project editor and submits one immutable attempt',
   await expect(row).toContainText('Не начато');
   await row.screenshot({ path: `${evidenceDir}/learner-not-started.png` });
 
+  const listed = await learner.page.request.get('/api/class-join/me/assignments');
+  expect(listed.ok()).toBe(true);
+  const exactRun = (
+    (await listed.json()) as {
+      items: Array<{ title: string; activityRunId?: string | null }>;
+    }
+  ).items.find((item) => item.title === title)?.activityRunId;
+  expect(exactRun).toMatch(/^[0-9a-f-]{36}$/i);
+  const startPosts: Array<{ path: string; requestId: string }> = [];
+  const legacyPosts: string[] = [];
+  learner.page.on('request', (request) => {
+    if (request.method() !== 'POST') return;
+    const path = new URL(request.url()).pathname;
+    if (/^\/api\/learning\/work\/runs\/[^/]+\/start$/.test(path)) {
+      startPosts.push({
+        path,
+        requestId: (request.postDataJSON() as { requestId: string }).requestId,
+      });
+    }
+    if (
+      path === '/api/projects' ||
+      /\/api\/class-join\/me\/assignments\/[^/]+\/(?:work|submit)$/.test(path)
+    )
+      legacyPosts.push(path);
+  });
   await row.getByRole('button', { name: 'Открыть', exact: true }).click();
+  expect(startPosts).toEqual([
+    {
+      path: `/api/learning/work/runs/${exactRun}/start`,
+      requestId: expect.stringMatching(/^[0-9a-f-]{36}$/i),
+    },
+  ]);
+  expect(legacyPosts).toEqual([]);
   const assignmentAnchor = learner.page.getByTestId('assignment-brief-anchor');
   const assignmentPanel = learner.page.getByTestId('assignment-brief');
   await expect(assignmentAnchor).toBeVisible();
@@ -380,6 +412,27 @@ test('learner starts the real project editor and submits one immutable attempt',
 
   row = assignmentRow(learner.page, title);
   await expect(row).toContainText('В работе');
+  const startedAssignments = await learner.page.request.get('/api/class-join/me/assignments');
+  expect(startedAssignments.ok()).toBe(true);
+  const startedProjectId = (
+    (await startedAssignments.json()) as {
+      items: Array<{ title: string; projectId: string | null }>;
+    }
+  ).items.find((item) => item.title === title)?.projectId;
+  expect(startedProjectId).toMatch(/^[0-9a-f-]{36}$/i);
+  const workContext = await learner.page.request.get(
+    `/api/learning/projects/${startedProjectId}/context`,
+  );
+  expect(workContext.ok()).toBe(true);
+  expect(await workContext.json()).toMatchObject({
+    state: 'ready',
+    origin: { immutable: true, activityRunId: exactRun },
+  });
+  const legacyWork = await admin.query(
+    'SELECT COUNT(*)::int AS count FROM classroom_assignment_work WHERE tenant_id=$1 AND project_id=$2',
+    [teacher.tenantId, startedProjectId],
+  );
+  expect(legacyWork.rows[0]?.count).toBe(0);
   await expect(row.getByRole('button', { name: 'Открыть работу' })).toBeVisible();
   await expect(row.getByRole('button', { name: 'Сдать', exact: true })).toBeVisible();
   await row.screenshot({ path: `${evidenceDir}/learner-in-progress.png` });
@@ -388,7 +441,25 @@ test('learner starts the real project editor and submits one immutable attempt',
     expect(dialog.message()).toContain('Сдать сохранённую редакцию №');
     await dialog.accept();
   });
+  const exactSubmit = learner.page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === `/api/learning/projects/${startedProjectId}/submit`,
+  );
   await row.getByRole('button', { name: 'Сдать', exact: true }).click();
+  expect((await exactSubmit).postDataJSON()).toMatchObject({
+    clientRequestId: expect.any(String),
+    expectedRevision: expect.any(Number),
+  });
+  expect(legacyPosts).toEqual([]);
+  expect(
+    (
+      await admin.query(
+        'SELECT COUNT(*)::int AS count FROM classroom_assignment_work WHERE tenant_id=$1 AND project_id=$2',
+        [teacher.tenantId, startedProjectId],
+      )
+    ).rows[0]?.count,
+  ).toBe(0);
   await expect(row).toContainText('Сдано');
   await expect(row.getByRole('button', { name: 'Работа сдана' })).toBeDisabled();
   await row.screenshot({ path: `${evidenceDir}/learner-submitted.png` });
@@ -412,6 +483,70 @@ test('learner starts the real project editor and submits one immutable attempt',
   teacherFailures.assertEmpty();
   learnerFailures.assertEmpty();
   await learner.context.close();
+});
+
+test('approved Account starts a Direct assignment by its exact Run without legacy work', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const title = `Account Direct Start ${++sequence}`;
+  await createPublishedProjectActivity(title);
+  const joinCode = await createClassWithStudents(page, `Account Direct ${sequence}`, []);
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2027-05-30' });
+  const account = await seedTeacher(admin, 'learning-account-direct-start');
+  const learnerContext = await browser.newContext();
+  const learner = await learnerContext.newPage();
+  await loginWithOrganization(learner, account);
+  await learner.goto('/#/attending');
+  await learner.getByLabel('Код класса', { exact: true }).fill(joinCode);
+  await learner.getByRole('button', { name: 'Войти в класс', exact: true }).click();
+  await expect(learner.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Материалы класса' })
+    .getByRole('button', { name: 'Учащиеся', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
+  await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+  await expect(page.locator('.learning-join-requests')).toContainText('Принята');
+
+  await learner.reload();
+  const listed = await learner.request.get('/api/class-join/account/assignments');
+  expect(listed.ok()).toBe(true);
+  const exactRun = (
+    (await listed.json()) as { items: Array<{ title: string; activityRunId: string | null }> }
+  ).items.find((item) => item.title === title)?.activityRunId;
+  expect(exactRun).toMatch(/^[0-9a-f-]{36}$/i);
+  const row = learner.getByTestId('attended-assignments').locator('li').filter({ hasText: title });
+  await expect(row.getByRole('button', { name: 'Открыть', exact: true })).toBeVisible();
+  const legacyPosts: string[] = [];
+  learner.on('request', (request) => {
+    if (request.method() !== 'POST') return;
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/projects' || /\/api\/class-join\/me\/assignments\/[^/]+\/work$/.test(path))
+      legacyPosts.push(path);
+  });
+  const started = learner.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === `/api/learning/work/runs/${exactRun}/start`,
+  );
+  await row.getByRole('button', { name: 'Открыть', exact: true }).click();
+  const receipt = await started;
+  expect(receipt.ok()).toBe(true);
+  const { projectId } = (await receipt.json()) as { projectId: string };
+  await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible({ timeout: 60_000 });
+  expect(legacyPosts).toEqual([]);
+  expect(
+    (
+      await admin.query(
+        'SELECT COUNT(*)::int AS count FROM classroom_assignment_work WHERE tenant_id=$1 AND project_id=$2',
+        [teacher.tenantId, projectId],
+      )
+    ).rows[0]?.count,
+  ).toBe(0);
+  await learnerContext.close();
 });
 
 test('named audience excludes the third learner from read, start and submit', async ({

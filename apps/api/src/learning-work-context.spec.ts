@@ -155,7 +155,7 @@ describe('A1 project-scoped Learning Work Context', () => {
     );
     expect(context).toMatchObject({
       state: 'ready',
-      origin: { activityRunId: runId, courseBlockId: 'activity-a' },
+      origin: { immutable: true, activityRunId: runId, courseBlockId: 'activity-a' },
       workflow: { attemptId: exactAttempt, canonicalState: { workflowState: 'in_progress' } },
     });
   });
@@ -187,6 +187,7 @@ describe('A1 project-scoped Learning Work Context', () => {
     expect(result).toMatchObject({
       state: 'ready',
       origin: {
+        immutable: false,
         courseBlockId: 'activity-a',
         learningActivityVersionId: versionId,
         sourceKind: 'course',
@@ -380,7 +381,7 @@ describe('A1 project-scoped Learning Work Context', () => {
     );
     expect(context).toMatchObject({
       state: 'ready',
-      origin: { sourceKind: 'direct', learningActivityVersionId: versionId },
+      origin: { immutable: false, sourceKind: 'direct', learningActivityVersionId: versionId },
       workflow: { attemptId, submissionId, canonicalState: { workflowState: 'changes_requested' } },
       allowedActions: { edit: false, submit: false, resumeAfterChangesRequested: true },
     });

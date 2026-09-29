@@ -1934,7 +1934,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   for (const title of [electronicsTitle, threeDTitle]) {
     const activity = player.locator('.lesson-activity-block').filter({ hasText: title });
     await expect(activity).toContainText('Работа пока недоступна');
-    await expect(activity.getByRole('status')).toContainText('после привязки работы');
+    await expect(activity.getByRole('status')).toContainText('не привязана к этой практике');
     await expect(activity.getByRole('button', { name: /Начать|Открыть работу|Сдать/ })).toHaveCount(
       0,
     );
@@ -1970,6 +1970,20 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await learner.page.setViewportSize({ width: 1440, height: 900 });
   await openCourse({ reloadAfterExternalChange: true });
 
+  const atomicStarts: string[] = [];
+  const legacyStarts: string[] = [];
+  const observeStart = (request: import('@playwright/test').Request) => {
+    if (request.method() !== 'POST') return;
+    const path = new URL(request.url()).pathname;
+    const match = /^\/api\/learning\/work\/runs\/([^/]+)\/start$/.exec(path);
+    if (match) atomicStarts.push(match[1]!);
+    if (
+      path === '/api/projects' ||
+      /\/api\/class-join\/me\/assignments\/[^/]+\/(?:work|submit)$/.test(path)
+    )
+      legacyStarts.push(path);
+  };
+  learner.page.on('request', observeStart);
   await electronicsCard.getByRole('button', { name: 'Начать', exact: true }).click();
   const electronicsEvidence = await editCourseActivityProject(learner.page, 'electronics');
   expect(electronicsEvidence.projectId).not.toBe('');
@@ -1992,6 +2006,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(firstContext).toMatchObject({
     state: 'ready',
     origin: {
+      immutable: true,
       courseBlockId: firstOccurrence.blockId,
       activityRunId: firstOccurrence.activityRunId,
       classroomAssignmentId: firstOccurrence.classroomAssignmentId,
@@ -2055,8 +2070,26 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   await openCourse();
   electronicsCard = player.locator('.lesson-activity-block').filter({ hasText: electronicsTitle });
+  const exactCourseSubmit = learner.page.waitForRequest(
+    (request) =>
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname ===
+        `/api/learning/projects/${electronicsEvidence.projectId}/submit`,
+  );
   learner.page.once('dialog', (dialog) => void dialog.accept());
   await electronicsCard.getByRole('button', { name: 'Сдать', exact: true }).click();
+  expect((await exactCourseSubmit).postDataJSON()).toMatchObject({
+    clientRequestId: expect.any(String),
+    expectedRevision: expect.any(Number),
+  });
+  expect(
+    (
+      await admin.query(
+        'SELECT COUNT(*)::int AS count FROM classroom_assignment_work WHERE project_id=$1',
+        [electronicsEvidence.projectId],
+      )
+    ).rows[0]?.count,
+  ).toBe(0);
   await expect(
     electronicsCard.getByRole('button', { name: 'Работа сдана', exact: true }),
   ).toBeDisabled();
@@ -2074,6 +2107,12 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(threeDCard).toContainText('Не начато');
   await expect(threeDCard.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
   await threeDCard.getByRole('button', { name: 'Начать', exact: true }).click();
+  learner.page.off('request', observeStart);
+  expect(atomicStarts).toEqual([
+    electronicsOccurrence.activityRunId,
+    threeDOccurrence.activityRunId,
+  ]);
+  expect(legacyStarts).toEqual([]);
   const threeDEvidence = await editCourseActivityProject(learner.page, 'three-d');
   expect(threeDEvidence.projectId).not.toBe('');
   expect(threeDEvidence.projectId).not.toBe(electronicsEvidence.projectId);
@@ -2086,8 +2125,16 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(secondContext).toMatchObject({
     state: 'ready',
     task: { title: threeDTitle },
-    origin: { sourceKind: 'course' },
+    origin: { immutable: true, sourceKind: 'course' },
   });
+  expect(
+    (
+      await admin.query(
+        'SELECT COUNT(*)::int AS count FROM classroom_assignment_work WHERE project_id = ANY($1::uuid[])',
+        [[electronicsEvidence.projectId, threeDEvidence.projectId]],
+      )
+    ).rows[0]?.count,
+  ).toBe(0);
   expect(secondContext.origin.courseBlockId).not.toBe(firstContext.origin.courseBlockId);
   expect(secondContext.origin.learningActivityVersionId).not.toBe(
     firstContext.origin.learningActivityVersionId,

@@ -1,5 +1,5 @@
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   type CourseActivityOccurrence,
@@ -14,6 +14,7 @@ import { TaskBlocks } from './TaskBlocks';
 import { AssignmentGoal } from './BriefText';
 import { LessonBlocks } from './LessonBlocks';
 import { useSchoolTime } from './school-time';
+import { AtomicLearningStarter } from '../learning/atomic-learning-start';
 import './seat-courses.css';
 import {
   canonicalLearningLabel,
@@ -126,6 +127,7 @@ export function SeatCourses({
     }
   }, [runs, destination.courseRun, destination.assignment]);
   const [busy, setBusy] = useState<string | null>(null);
+  const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
 
@@ -159,6 +161,7 @@ export function SeatCourses({
   const completedLessonCount = completion.completed;
 
   async function startAssignment(assignment: SeatAssignment, busyKey: string): Promise<void> {
+    // Compatibility path for historical lesson-level assignments without a block Run.
     if (assignment.moduleKey === 'unknown') return;
     setBusy(busyKey);
     setError(null);
@@ -181,6 +184,23 @@ export function SeatCourses({
     }
     await reload();
     onOpenProject(linked.data.projectId, assignment.moduleKey);
+  }
+
+  async function startActivity(
+    occurrence: CourseActivityOccurrence,
+    busyKey: string,
+  ): Promise<void> {
+    setBusy(busyKey);
+    setError(null);
+    const started = await starter.current.start(occurrence.activityRunId);
+    if (started === null) return;
+    setBusy(null);
+    if (!started.ok) {
+      setError(started.error.message || 'Не удалось начать практику.');
+      return;
+    }
+    await reload();
+    onOpenProject(started.data.projectId, occurrence.moduleKey);
   }
 
   async function markMaterial(lesson: SeatCourseRunLesson, completed: boolean): Promise<boolean> {
@@ -307,15 +327,16 @@ export function SeatCourses({
                   );
                 }
                 const activityAssignment = courseActivityAssignmentShape(openRun, occurrence);
-                const busyKey = `activity:${occurrence.classroomAssignmentId}`;
-                const activityStatus = occurrence.workOriginAmbiguous
-                  ? 'Работа пока недоступна'
-                  : (canonicalLearningLabel(activityAssignment.canonicalState) ??
-                    (activityAssignment.submittedAt
-                      ? 'Сдано'
-                      : activityAssignment.projectId
-                        ? 'В работе'
-                        : 'Не начато'));
+                const busyKey = `activity:${occurrence.activityRunId}`;
+                const activityStatus =
+                  occurrence.workOriginAmbiguous && activityAssignment.projectId
+                    ? 'Работа пока недоступна'
+                    : (canonicalLearningLabel(activityAssignment.canonicalState) ??
+                      (activityAssignment.submittedAt
+                        ? 'Сдано'
+                        : activityAssignment.projectId
+                          ? 'В работе'
+                          : 'Не начато'));
                 return (
                   <div
                     className="seat-course-activity"
@@ -339,10 +360,9 @@ export function SeatCourses({
                       <AssignmentView assignment={activityAssignment} compact sampleOnly />
                     ) : null}
                     <div className="seat-course-activity-actions">
-                      {occurrence.workOriginAmbiguous ? (
+                      {occurrence.workOriginAmbiguous && activityAssignment.projectId ? (
                         <p className="account-hint" role="status">
-                          Эта практика использует общее задание с другой практикой. Открытие и сдача
-                          работы станут доступны после привязки работы к конкретной практике.
+                          Старая работа по общему заданию не привязана к этой практике.
                         </p>
                       ) : activityAssignment.projectId ? (
                         <>
@@ -394,14 +414,30 @@ export function SeatCourses({
                           </button>
                         </>
                       ) : (
-                        <button
-                          type="button"
-                          className="portal-create-button"
-                          disabled={busy === busyKey || openRun.status === 'closed'}
-                          onClick={() => void startAssignment(activityAssignment, busyKey)}
-                        >
-                          {busy === busyKey ? 'Готовим…' : 'Начать'}
-                        </button>
+                        <>
+                          {occurrence.workOriginAmbiguous ? (
+                            <p className="account-hint" role="status">
+                              Старая работа по общему заданию недоступна; новую практику можно
+                              начать по её точному запуску.
+                            </p>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="portal-create-button"
+                            disabled={
+                              busy === busyKey ||
+                              openRun.status === 'closed' ||
+                              !occurrence.activityRunId
+                            }
+                            onClick={() => void startActivity(occurrence, busyKey)}
+                          >
+                            {busy === busyKey
+                              ? 'Готовим…'
+                              : occurrence.activityRunId
+                                ? 'Начать'
+                                : 'Пока недоступно'}
+                          </button>
+                        </>
                       )}
                     </div>
                   </div>

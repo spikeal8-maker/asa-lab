@@ -58,6 +58,7 @@ export type LearningWorkContext =
       projectId: string;
       moduleKey: string;
       origin: {
+        immutable: boolean;
         participationId: string | null;
         activityRunId: string | null;
         learningActivityVersionId: string;
@@ -235,6 +236,7 @@ export async function learningWorkContextForProject(
     projectId,
     moduleKey: row.moduleKey,
     origin: {
+      immutable: immutableOrigin,
       participationId: row.participationId,
       activityRunId: row.activityRunId,
       learningActivityVersionId: row.learningActivityVersionId,

@@ -16,12 +16,31 @@ export async function openAssignmentWork(
  * locally confirmed revision instead, and cannot silently submit another tab. */
 export async function submitSavedAssignment(
   assignment: SeatAssignment,
-): ReturnType<typeof api.submitSeatAssignment> {
+): Promise<
+  | Awaited<ReturnType<typeof api.submitSeatAssignment>>
+  | Awaited<ReturnType<typeof api.submitLearningProject>>
+> {
   if (!assignment.projectId)
     return {
       ok: false,
       status: 409,
       error: { code: 'not_started', message: 'Сначала откройте задание.' },
+    };
+  const contextResult = await api.learningWorkContext(assignment.projectId);
+  if (
+    !contextResult.ok ||
+    contextResult.data.state !== 'ready' ||
+    contextResult.data.projectId !== assignment.projectId ||
+    contextResult.data.origin.classroomAssignmentId !== assignment.id ||
+    typeof contextResult.data.origin.immutable !== 'boolean' ||
+    !contextResult.data.allowedActions.submit ||
+    (contextResult.data.origin.immutable &&
+      (!contextResult.data.origin.participationId || !contextResult.data.origin.activityRunId))
+  )
+    return {
+      ok: false,
+      status: 409,
+      error: { code: 'learning_work_unavailable', message: 'Нельзя подтвердить учебную работу.' },
     };
   const saved = await api.openProject(assignment.projectId);
   if (!saved.ok) return saved;
@@ -41,12 +60,17 @@ export async function submitSavedAssignment(
       error: { code: 'submission_cancelled', message: 'Сдача отменена.' },
     };
   }
-  let request = requests.get(assignment.id);
+  let request = requests.get(assignment.projectId);
   if (request?.revision !== revision) {
     request = { revision, id: crypto.randomUUID() };
-    requests.set(assignment.id, request);
+    requests.set(assignment.projectId, request);
   }
-  const result = await api.submitSeatAssignment(assignment.id, true, revision, request.id);
-  if (result.ok) requests.delete(assignment.id);
+  const result = contextResult.data.origin.immutable
+    ? await api.submitLearningProject(assignment.projectId, {
+        clientRequestId: request.id,
+        expectedRevision: revision,
+      })
+    : await api.submitSeatAssignment(assignment.id, true, revision, request.id);
+  if (result.ok) requests.delete(assignment.projectId);
   return result;
 }

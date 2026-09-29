@@ -1,9 +1,10 @@
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from './school-time';
+import { AtomicLearningStarter } from '../learning/atomic-learning-start';
 import './classroom-assignments.css';
 import {
   canonicalLearningClass,
@@ -29,6 +30,7 @@ export function SeatAssignments({
 }): JSX.Element | null {
   const [items, setItems] = useState<SeatAssignment[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const starter = useRef(new AtomicLearningStarter());
   // Which task is being read. One at a time: a learner is doing one thing.
   const [openId, setOpenId] = useState<string | null>(null);
   const destination = useLearningDestination();
@@ -50,25 +52,15 @@ export function SeatAssignments({
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(assignment.id);
     setError(null);
-    const created = await api.createProject({
-      scope: 'personal',
-      module: assignment.moduleKey,
-      title: assignment.title,
-      idempotencyKey: assignment.id,
-    });
-    if (!created.ok) {
-      setBusy(null);
-      setError(created.error.message || 'Не удалось начать задание.');
-      return;
-    }
-    const linked = await api.startSeatAssignment(assignment.id, created.data.project.id);
+    const started = await starter.current.start(assignment.activityRunId);
+    if (started === null) return;
     setBusy(null);
-    if (!linked.ok) {
-      setError(linked.error.message || 'Не удалось начать задание.');
+    if (!started.ok) {
+      setError(started.error.message || 'Не удалось начать задание.');
       return;
     }
     await reload();
-    onOpenProject(linked.data.projectId, assignment.moduleKey);
+    onOpenProject(started.data.projectId, assignment.moduleKey);
   }
 
   if (items === null || items.length === 0) return null;
@@ -220,10 +212,18 @@ export function SeatAssignments({
                 <button
                   type="button"
                   className="portal-create-button"
-                  disabled={busy === assignment.id || assignment.status === 'closed'}
+                  disabled={
+                    busy === assignment.id ||
+                    assignment.status === 'closed' ||
+                    !assignment.activityRunId
+                  }
                   onClick={() => void start(assignment)}
                 >
-                  {busy === assignment.id ? 'Открываем…' : 'Открыть'}
+                  {busy === assignment.id
+                    ? 'Открываем…'
+                    : assignment.activityRunId
+                      ? 'Открыть'
+                      : 'Пока недоступно'}
                 </button>
               )}
             </div>
