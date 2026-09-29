@@ -1,5 +1,13 @@
+import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import type { FastifyRequest } from 'fastify';
+import {
+  CreateProjectUseCase,
+  PgProjectRepository,
+  type ModuleCatalogPort,
+} from '@asa-lab/projects';
+import { LearningStartController } from '../../apps/api/src/learning-start.controller';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -1333,5 +1341,469 @@ describe('A4-1 immutable learning project origin', () => {
     await expect(
       inTenant(owner.tenantId, (client) => client.query(`SELECT * FROM learning_project_origins`)),
     ).rejects.toThrow(/permission denied/);
+  });
+});
+
+const startRequest = {
+  cookies: { asa_student_session: 'test-session' },
+} as unknown as FastifyRequest;
+const accountStartRequest = {
+  cookies: { asa_session: 'test-session' },
+} as unknown as FastifyRequest;
+
+function startUseCase(): CreateProjectUseCase {
+  const electronics = {
+    moduleKey: 'electronics',
+    defaultProjectTitlePrefix: 'Learning test',
+    createEmptyProject: () => ({ source: 'module-empty-project' }),
+    validateDocument: (document: unknown) => ({ ok: true as const, document }),
+    describePreview: () => null,
+  };
+  const catalog: ModuleCatalogPort = {
+    get: (key) => (key === 'electronics' ? electronics : null),
+    getCreatable: (key) => (key === 'electronics' ? electronics : null),
+  };
+  return new CreateProjectUseCase(new PgProjectRepository(app), catalog);
+}
+
+async function startController(
+  kind: 'seat' | 'account',
+  accountPrincipal?: string,
+  useCase = startUseCase(),
+) {
+  const seatId = (
+    await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+  ).rows[0].seat_id as string;
+  const principalId = kind === 'seat' ? learnerPrincipal : accountPrincipal!;
+  const accountId =
+    kind === 'account'
+      ? ((await admin.query('SELECT account_id FROM principals WHERE id=$1', [principalId])).rows[0]
+          .account_id as string)
+      : null;
+  const actor = {
+    tenantId: owner.tenantId,
+    principalId,
+    userId: null,
+    seatId,
+    classroomId: classroom,
+    accountId,
+  };
+  return new LearningStartController(
+    app,
+    { resolve: async () => (kind === 'account' ? actor : null) } as never,
+    { resolve: async () => (kind === 'seat' ? actor : null) } as never,
+    useCase,
+  );
+}
+
+describe('A4-2b atomic StartLearningWork', () => {
+  it('creates a module draft, origin and Attempt together; concurrent tabs and retries reuse them', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const controller = await startController('seat');
+    const requestId = `start:${randomUUID()}`;
+    const [first, retry] = await Promise.all([
+      controller.start(startRequest, run, { requestId }),
+      controller.start(startRequest, run, { requestId }),
+    ]);
+    expect(retry).toMatchObject({ projectId: first.projectId, attemptId: first.attemptId });
+    expect(first.participationId).toBe(participation.participation_id);
+    expect(first.attemptNumber).toBe(1);
+    const secondTab = await controller.start(startRequest, run, {
+      requestId: `start:${randomUUID()}`,
+    });
+    expect(secondTab).toMatchObject({ projectId: first.projectId, attemptId: first.attemptId });
+    const stored = await admin.query(
+      `SELECT project.project_scope, project.owner_principal_id, draft.document_json,
+              origin.participation_id, attempt.attempt_number,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$2) AS origin_count
+         FROM projects project
+         JOIN project_drafts draft ON draft.project_id=project.id
+         JOIN learning_project_origins origin ON origin.project_id=project.id
+         JOIN learning_attempts attempt ON attempt.id=$3
+        WHERE project.id=$1`,
+      [first.projectId, participation.participation_id, first.attemptId],
+    );
+    expect(stored.rows[0]).toMatchObject({
+      project_scope: 'personal',
+      owner_principal_id: learnerPrincipal,
+      document_json: { source: 'module-empty-project' },
+      participation_id: participation.participation_id,
+      attempt_number: 1,
+      origin_count: 1,
+    });
+    const changedRun = await createRun({ handout: await directHandout() });
+    await assign(changedRun);
+    await expect(controller.start(startRequest, changedRun, { requestId })).rejects.toMatchObject({
+      status: 409,
+    });
+  });
+
+  it('rolls back a created project and participation activation when completion is denied', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const original = startUseCase();
+    const sabotaged = {
+      withRepository(repository: PgProjectRepository) {
+        const bound = original.withRepository(repository);
+        return {
+          execute: async (input: Parameters<CreateProjectUseCase['execute']>[0]) => {
+            const result = await bound.execute(input);
+            return result.ok
+              ? {
+                  ...result,
+                  value: {
+                    ...result.value,
+                    project: { ...result.value.project, id: randomUUID() },
+                  },
+                }
+              : result;
+          },
+        };
+      },
+    } as unknown as CreateProjectUseCase;
+    const broken = await startController('seat', undefined, sabotaged);
+    await expect(
+      broken.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toThrow();
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM projects
+        WHERE idempotency_key=$1`,
+          [`learning:${participation.participation_id}`],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+    expect(
+      (
+        await admin.query(`SELECT status FROM activity_participations WHERE id=$1`, [
+          participation.participation_id,
+        ])
+      ).rows[0].status,
+    ).toBe('assigned');
+  });
+
+  it('numbers a changes-requested revision per participation and enforces its attempt budget', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    await assign(run);
+    const controller = await startController('seat');
+    const first = await controller.start(startRequest, run, {
+      requestId: `start:${randomUUID()}`,
+    });
+    await admin.query(
+      `UPDATE learning_attempts SET state='closed',evaluated_at=now()
+        WHERE id=$1`,
+      [first.attemptId],
+    );
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,
+          completion_value,correction_reason)
+       VALUES ($1,$2,20,'incomplete','changes_requested',false,'Revise work')`,
+      [owner.tenantId, first.attemptId],
+    );
+    const second = await controller.start(startRequest, run, {
+      requestId: `start:${randomUUID()}`,
+    });
+    expect(second.projectId).toBe(first.projectId);
+    expect(second.attemptNumber).toBe(2);
+    expect(second.attemptId).not.toBe(first.attemptId);
+    expect(
+      (
+        await admin.query('SELECT revision_of_attempt_id FROM learning_attempts WHERE id=$1', [
+          second.attemptId,
+        ])
+      ).rows[0].revision_of_attempt_id,
+    ).toBe(first.attemptId);
+    await admin.query(
+      `UPDATE learning_attempts SET state='closed',evaluated_at=now()
+        WHERE id=$1`,
+      [second.attemptId],
+    );
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,
+          completion_value,correction_reason)
+       VALUES ($1,$2,20,'incomplete','changes_requested',false,'Revise again')`,
+      [owner.tenantId, second.attemptId],
+    );
+    await expect(
+      controller.start(startRequest, run, {
+        requestId: `start:${randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_attempts
+        WHERE activity_participation_id=$1`,
+          [first.participationId],
+        )
+      ).rows[0].count,
+    ).toBe(2);
+  });
+
+  it('denies a new Start for closed work without a learner revision action', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    await assign(run);
+    const controller = await startController('seat');
+    const firstRequestId = `start:${randomUUID()}`;
+    const first = await controller.start(startRequest, run, {
+      requestId: firstRequestId,
+    });
+    await admin.query(
+      `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+      [first.attemptId],
+    );
+    await expect(
+      controller.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 409 });
+    const replay = await controller.start(startRequest, run, {
+      requestId: firstRequestId,
+    });
+    expect(replay.attemptId).toBe(first.attemptId);
+    expect(replay.projectId).toBe(first.projectId);
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+       VALUES ($1,$2,20,'passed','accepted',true)`,
+      [owner.tenantId, first.attemptId],
+    );
+    await expect(
+      controller.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 409 });
+    const counts = await admin.query(
+      `SELECT
+         (SELECT count(*)::int FROM learning_attempts
+           WHERE activity_participation_id=$1) AS attempts,
+         (SELECT count(*)::int FROM learning_work_start_requests
+           WHERE participation_id=$1) AS requests`,
+      [first.participationId],
+    );
+    expect(counts.rows[0]).toMatchObject({ attempts: 1, requests: 1 });
+  });
+
+  it('keeps Account projects in the personal workspace tenant and denies an unlinked actor', async () => {
+    const outsiderIdentity = await admin.query(
+      `SELECT principal_id,account_id FROM legacy_user_account_links
+        WHERE tenant_id=$1 AND user_id=$2`,
+      [outsider.tenantId, outsider.teacherId],
+    );
+    const accountPrincipal = outsiderIdentity.rows[0].principal_id as string;
+    const accountId = outsiderIdentity.rows[0].account_id as string;
+    const personalTenant = (
+      await admin.query(
+        `INSERT INTO tenants (workspace_slug,title)
+         VALUES ($1,'Learning personal') RETURNING id`,
+        [`personal-${accountId.replaceAll('-', '')}`],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO tenant_placements (tenant_id,mode) VALUES ($1,'SHARED_CLUSTER')`,
+      [personalTenant],
+    );
+    const workspaceId = (
+      await admin.query(
+        `INSERT INTO workspaces (tenant_id,kind,title)
+         VALUES ($1,'personal','Learning personal') RETURNING id`,
+        [personalTenant],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id,workspace_id,role)
+       VALUES ($1,$2,'owner')`,
+      [accountId, workspaceId],
+    );
+    const personal = await admin.query('SELECT tenant_id FROM auth_personal_workspace($1)', [
+      accountId,
+    ]);
+    expect(personal.rows[0].tenant_id).not.toBe(owner.tenantId);
+    const run = await createRun({ handout: await directHandout() });
+    await assign(run);
+    const denied = await startController('account', accountPrincipal);
+    await expect(
+      denied.start(accountStartRequest, run, {
+        requestId: `start:${randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+      accountId,
+      seatId,
+    ]);
+    await admin.query(
+      `INSERT INTO learner_identity_links
+         (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
+       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+      [owner.tenantId, owner.schoolId, learner, accountId],
+    );
+    const started = await denied.start(accountStartRequest, run, {
+      requestId: `start:${randomUUID()}`,
+    });
+    const origin = await admin.query(
+      `SELECT project_tenant_id,school_tenant_id,owner_principal_id
+         FROM learning_project_origins WHERE project_id=$1`,
+      [started.projectId],
+    );
+    expect(origin.rows[0]).toEqual({
+      project_tenant_id: personal.rows[0].tenant_id,
+      school_tenant_id: owner.tenantId,
+      owner_principal_id: accountPrincipal,
+    });
+
+    const seatOwnedRun = await createRun({ handout: await directHandout() });
+    const seatOwnedParticipation = await assign(seatOwnedRun);
+    const seatController = await startController('seat');
+    const seatOwned = await seatController.start(startRequest, seatOwnedRun, {
+      requestId: `start:${randomUUID()}`,
+    });
+    await expect(
+      denied.start(accountStartRequest, seatOwnedRun, {
+        requestId: `start:${randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ status: 409 });
+    const unchanged = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_attempts
+                WHERE activity_participation_id=$1) AS attempts,
+              (SELECT count(*)::int FROM learning_work_start_requests
+                WHERE participation_id=$1) AS requests,
+              (SELECT count(*)::int FROM learning_project_origins
+                WHERE participation_id=$1) AS origins`,
+      [seatOwnedParticipation.participation_id],
+    );
+    expect(unchanged.rows[0]).toEqual({ attempts: 1, requests: 1, origins: 1 });
+    expect(seatOwned.projectId).toBeTruthy();
+  });
+
+  it('separates two exact Course blocks even when they share a legacy handout', async () => {
+    const source = await courseHandout();
+    const blocks = [
+      { id: 'a', type: 'activity', learningActivityVersionId: lav },
+      { id: 'b', type: 'activity', learningActivityVersionId: lav },
+      { id: 'hidden', type: 'activity', learningActivityVersionId: lav, hidden: true },
+    ];
+    await admin.query('UPDATE classroom_course_run_lessons SET blocks=$1::jsonb WHERE id=$2', [
+      JSON.stringify(blocks),
+      source.lesson,
+    ]);
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+        ownerPrincipal,
+        source.courseRun,
+        learner,
+      ]),
+    );
+    expect(enrollment.rows[0].result_code).toBe('ok');
+    const runs: string[] = [];
+    for (const block of blocks) {
+      const created = await inTenant(owner.tenantId, (client) =>
+        client.query(
+          `SELECT * FROM activity_run_create($1,$2,$3,'course',$4,$5,
+           NULL,NULL,NULL,NULL,NULL,'{}'::jsonb,$6,$7)`,
+          [
+            ownerPrincipal,
+            source.handout,
+            lav,
+            source.courseRun,
+            source.lesson,
+            `start:${randomUUID()}`,
+            block.id,
+          ],
+        ),
+      );
+      expect(created.rows[0].result_code).toBe('ok');
+      const run = created.rows[0].activity_run_id as string;
+      runs.push(run);
+      expect((await assign(run, learner, enrollment.rows[0].enrollment_id)).result_code).toBe('ok');
+    }
+    const controller = await startController('seat');
+    const first = await controller.start(startRequest, runs[0]!, {
+      requestId: `start:${randomUUID()}`,
+    });
+    const second = await controller.start(startRequest, runs[1]!, {
+      requestId: `start:${randomUUID()}`,
+    });
+    expect(first.projectId).not.toBe(second.projectId);
+    expect(first.attemptId).not.toBe(second.attemptId);
+    expect(first.attemptNumber).toBe(1);
+    expect(second.attemptNumber).toBe(1);
+    const origins = await admin.query(
+      `SELECT source_course_block_id FROM learning_project_origins
+        WHERE project_id=ANY($1::uuid[]) ORDER BY source_course_block_id`,
+      [[first.projectId, second.projectId]],
+    );
+    expect(origins.rows.map((row) => row.source_course_block_id)).toEqual(['a', 'b']);
+    await expect(
+      controller.start(startRequest, runs[2]!, {
+        requestId: `start:${randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+
+  it('rejects closed work, withdrawal and direct table writes by the runtime role', async () => {
+    const past = new Date(Date.now() - 3600_000).toISOString();
+    const run = await createRun({ handout: await directHandout(), closes: past });
+    await assign(run);
+    const controller = await startController('seat');
+    await expect(
+      controller.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 409 });
+    const another = await createRun({ handout: await directHandout() });
+    const participation = await assign(another);
+    const withdrawn = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
+        ownerPrincipal,
+        participation.participation_id,
+      ]),
+    );
+    expect(withdrawn.rows[0].result_code).toBe('ok');
+    await expect(
+      controller.start(startRequest, another, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 404 });
+    const privilege = await admin.query(
+      `SELECT has_table_privilege('asalab_app','learning_work_start_requests','INSERT') AS request_insert,
+              has_table_privilege('asalab_app','learning_project_origins','INSERT') AS origin_insert,
+              has_table_privilege('asalab_app','learning_attempts','INSERT') AS attempt_insert`,
+    );
+    expect(privilege.rows[0]).toEqual({
+      request_insert: false,
+      origin_insert: false,
+      attempt_insert: false,
+    });
+  });
+
+  it('denies a disabled module capability without activating the participation', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE module_learning_capabilities
+            SET assignable=false,editable_evidence=false,
+                submit_project_version=false,preview='none'
+          WHERE module_key='electronics'`,
+      );
+      const denied = await client.query('SELECT * FROM learning_work_start_admit($1,$2,$3)', [
+        learnerPrincipal,
+        run,
+        `start:${randomUUID()}`,
+      ]);
+      expect(denied.rows[0].result_code).toBe('not_available');
+      expect(
+        (
+          await client.query('SELECT status FROM activity_participations WHERE id=$1', [
+            participation.participation_id,
+          ])
+        ).rows[0].status,
+      ).toBe('assigned');
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
   });
 });
