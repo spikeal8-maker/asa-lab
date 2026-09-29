@@ -1412,7 +1412,8 @@ describe('A4-2b atomic StartLearningWork', () => {
     });
     expect(secondTab).toMatchObject({ projectId: first.projectId, attemptId: first.attemptId });
     const stored = await admin.query(
-      `SELECT project.project_scope, project.owner_principal_id, draft.document_json,
+      `SELECT project.project_scope, project.owner_principal_id,
+              project.idempotency_key, draft.document_json,
               origin.participation_id, attempt.attempt_number,
               (SELECT count(*)::int FROM learning_project_origins
                 WHERE participation_id=$2) AS origin_count
@@ -1426,6 +1427,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     expect(stored.rows[0]).toMatchObject({
       project_scope: 'personal',
       owner_principal_id: learnerPrincipal,
+      idempotency_key: `learning:${participation.participation_id}`,
       document_json: { source: 'module-empty-project' },
       participation_id: participation.participation_id,
       attempt_number: 1,
@@ -1435,6 +1437,50 @@ describe('A4-2b atomic StartLearningWork', () => {
     await assign(changedRun);
     await expect(controller.start(startRequest, changedRun, { requestId })).rejects.toMatchObject({
       status: 409,
+    });
+  });
+
+  it('does not attach a previously prepared Project with the reserved Start key', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const idempotencyKey = `learning:${participation.participation_id}`;
+    // Simulate a generic Project created before the API reserved this namespace.
+    const prepared = await startUseCase().execute({
+      tenantId: owner.tenantId,
+      scope: 'personal',
+      classroomId: null,
+      actor: { principalId: learnerPrincipal, userId: null },
+      moduleKey: 'electronics',
+      title: undefined,
+      automaticTitle: true,
+      idempotencyKey,
+    });
+    expect(prepared.ok).toBe(true);
+    if (!prepared.ok) throw new Error('prepared project creation failed');
+    await admin.query(
+      `UPDATE project_drafts SET document_json='{"source":"prepared"}'::jsonb
+       WHERE project_id=$1`,
+      [prepared.value.project.id],
+    );
+    const controller = await startController('seat');
+    await expect(
+      controller.start(startRequest, run, { requestId: `start:${randomUUID()}` }),
+    ).rejects.toMatchObject({ status: 409 });
+    const unchanged = await admin.query(
+      `SELECT
+         (SELECT document_json FROM project_drafts WHERE project_id=$1) AS document,
+         (SELECT count(*)::int FROM learning_project_origins WHERE participation_id=$2) AS origins,
+         (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$2) AS attempts,
+         (SELECT count(*)::int FROM learning_work_start_requests WHERE participation_id=$2) AS requests,
+         (SELECT status FROM activity_participations WHERE id=$2) AS participation_status`,
+      [prepared.value.project.id, participation.participation_id],
+    );
+    expect(unchanged.rows[0]).toMatchObject({
+      document: { source: 'prepared' },
+      origins: 0,
+      attempts: 0,
+      requests: 0,
+      participation_status: 'assigned',
     });
   });
 

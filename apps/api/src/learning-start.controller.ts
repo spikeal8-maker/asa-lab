@@ -108,6 +108,9 @@ export class LearningStartController {
         if (!created.ok) {
           reject(created.code, created.code === 'validation_error' ? 400 : 409);
         }
+        // Admission found no origin, so this transaction must create the Project.
+        // An older generic Project with the deterministic key is not Learning work.
+        if (!created.value.created) reject('project_idempotency_conflict', 409);
         projectId = created.value.project.id;
       }
       const completed = await client.query(
