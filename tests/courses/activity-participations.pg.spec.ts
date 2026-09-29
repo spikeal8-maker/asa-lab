@@ -1434,11 +1434,93 @@ describe('A4-2b atomic StartLearningWork', () => {
       attempt_number: 1,
       origin_count: 1,
     });
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const listed = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context,evidence FROM learning_origin_learner_list($1,NULL)', [seatId]),
+    );
+    expect(listed.rows.find((row) => row.context.projectId === first.projectId)).toMatchObject({
+      context: {
+        projectId: first.projectId,
+        participationId: participation.participation_id,
+        activityRunId: run,
+        sourceKind: 'direct',
+        attemptId: first.attemptId,
+      },
+      evidence: { projectId: first.projectId, activityRunId: run },
+    });
+    const target = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_direct_learner_runs($1,NULL) WHERE activity_run_id=$2', [
+        seatId,
+        run,
+      ]),
+    );
+    expect(target.rows).toHaveLength(1);
+    const legacy = await admin.query(
+      'SELECT count(*)::int AS count FROM classroom_assignment_work WHERE project_id=$1',
+      [first.projectId],
+    );
+    expect(legacy.rows[0].count).toBe(0);
+    await admin.query('UPDATE classroom_assignments SET status=$1 WHERE id=$2', [
+      'closed',
+      target.rows[0].classroom_assignment_id,
+    ]);
+    const stillListed = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT id FROM classroom_assignments_for_seat($1) WHERE id=$2', [
+        seatId,
+        target.rows[0].classroom_assignment_id,
+      ]),
+    );
+    expect(stillListed.rows).toHaveLength(1);
+    const scheduled = await createRun({
+      handout: await directHandout(),
+      opens: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    await assign(scheduled);
+    const scheduledTarget = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        'SELECT activity_run_id FROM learning_direct_learner_runs($1,NULL) WHERE activity_run_id=$2',
+        [seatId, scheduled],
+      ),
+    );
+    expect(scheduledTarget.rows).toEqual([{ activity_run_id: scheduled }]);
     const changedRun = await createRun({ handout: await directHandout() });
     await assign(changedRun);
     await expect(controller.start(startRequest, changedRun, { requestId })).rejects.toMatchObject({
       status: 409,
     });
+    await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id)
+       VALUES ($1,$2,$3,$4)`,
+      [owner.tenantId, target.rows[0].classroom_assignment_id, seatId, first.projectId],
+    );
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+       WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+         AND link_kind='student_seat' AND seat_id=$4`,
+      [owner.tenantId, owner.schoolId, learner, seatId],
+    );
+    const deniedAfterSeatUnlink = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
+    );
+    expect(
+      deniedAfterSeatUnlink.rows.some((row) => row.context.projectId === first.projectId),
+    ).toBe(false);
+    const historicalPresence = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        'SELECT activity_run_id FROM learning_origin_learner_presence($1,NULL) WHERE classroom_assignment_id=$2',
+        [seatId, target.rows[0].classroom_assignment_id],
+      ),
+    );
+    expect(historicalPresence.rows).toEqual([{ activity_run_id: run }]);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+       WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+         AND link_kind='student_seat' AND seat_id=$4`,
+      [owner.tenantId, owner.schoolId, learner, seatId],
+    );
   });
 
   it('does not attach a previously prepared Project with the reserved Start key', async () => {
@@ -2973,6 +3055,56 @@ describe('A4-3b immutable-origin Project Submission', () => {
     });
     expect(secondSubmit.submission_id).not.toBe(firstSubmit.submission_id);
     expect(secondSubmit.project_version_id).not.toBe(firstSubmit.project_version_id);
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const listed = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context,evidence FROM learning_origin_learner_list($1,NULL)', [seatId]),
+    );
+    const exactRows = listed.rows.filter((row) => row.context.courseRunId === source.courseRun);
+    expect(
+      exactRows.map((row) => [
+        row.context.courseBlockId,
+        row.context.projectId,
+        row.context.submissionId,
+      ]),
+    ).toEqual([
+      ['first', first.projectId, firstSubmit.submission_id],
+      ['second', second.projectId, secondSubmit.submission_id],
+    ]);
+    expect(exactRows.every((row) => row.evidence.attempt.state === 'submitted')).toBe(true);
+    const siblingPresence = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT activity_run_id,course_block_id
+           FROM learning_origin_learner_presence($1,NULL)
+          WHERE activity_run_id=ANY($2::uuid[])
+          ORDER BY course_block_id`,
+        [seatId, runs],
+      ),
+    );
+    expect(siblingPresence.rows).toEqual([
+      { activity_run_id: runs[0], course_block_id: 'first' },
+      { activity_run_id: runs[1], course_block_id: 'second' },
+    ]);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_assignment_work WHERE assignment_id=$1',
+          [source.handout],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+    await admin.query('UPDATE classroom_course_runs SET status=$1 WHERE id=$2', [
+      'closed',
+      source.courseRun,
+    ]);
+    const closedRun = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        'SELECT DISTINCT run_id FROM classroom_course_runs_for_seat_v2($1) WHERE run_id=$2',
+        [seatId, source.courseRun],
+      ),
+    );
+    expect(closedRun.rows).toHaveLength(1);
     const exact = await admin.query(
       `SELECT submission.attempt_id,submission.project_id,version.project_id AS version_project_id
          FROM learning_submissions submission
@@ -2992,6 +3124,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
     );
   }, 20_000);
 
+  // Linked ownership, coexistence and revocation require additional exact-list SQL reads.
   it('permits reciprocal linked Seat and Account submissions and denies revoked replay', async () => {
     const accountOwner = await seedTeacher(admin, 'a4-submit-linked-account');
     const identity = await admin.query(
@@ -3071,6 +3204,32 @@ describe('A4-3b immutable-origin Project Submission', () => {
       project_id: seatOwned.projectId,
       attempt_id: seatOwned.attemptId,
     });
+    const bySeatList = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
+    );
+    const byAccountList = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list(NULL,$1)', [accountId]),
+    );
+    for (const list of [bySeatList, byAccountList]) {
+      expect(list.rows.map((row) => row.context.projectId)).toEqual(
+        expect.arrayContaining([accountOwned.projectId, seatOwned.projectId]),
+      );
+    }
+    const outsiderAccount = (
+      await admin.query(
+        `SELECT account_id FROM legacy_user_account_links
+          WHERE tenant_id=$1 AND user_id=$2`,
+        [outsider.tenantId, outsider.teacherId],
+      )
+    ).rows[0].account_id as string;
+    const crossTenantList = await inTenant(outsider.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list(NULL,$1)', [outsiderAccount]),
+    );
+    expect(crossTenantList.rows).toEqual([]);
+    const crossTenantPresence = await inTenant(outsider.tenantId, (client) =>
+      client.query('SELECT * FROM learning_origin_learner_presence(NULL,$1)', [outsiderAccount]),
+    );
+    expect(crossTenantPresence.rows).toEqual([]);
     const wrongClassSeat = (
       await admin.query(
         `INSERT INTO classroom_student_seats
@@ -3098,6 +3257,16 @@ describe('A4-3b immutable-origin Project Submission', () => {
         [wrongClassSeat],
       )
     ).rows[0].id as string;
+    const wrongList = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [wrongClassSeat]),
+    );
+    expect(wrongList.rows.some((row) => row.context.projectId === accountOwned.projectId)).toBe(
+      false,
+    );
+    const wrongPresence = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_origin_learner_presence($1,NULL)', [wrongClassSeat]),
+    );
+    expect(wrongPresence.rows).toEqual([]);
     expect(
       await submitOrigin(wrongPrincipal, accountOwned.projectId, seatRequest, 1),
     ).toMatchObject({
@@ -3114,12 +3283,49 @@ describe('A4-3b immutable-origin Project Submission', () => {
       attempt_id: null,
       submission_id: null,
     });
+    const seatHandout = (
+      await admin.query('SELECT source_classroom_assignment_id FROM activity_runs WHERE id=$1', [
+        seatRun,
+      ])
+    ).rows[0].source_classroom_assignment_id as string;
+    await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id)
+       VALUES ($1,$2,$3,$4)`,
+      [owner.tenantId, seatHandout, seatId, seatOwned.projectId],
+    );
     await admin.query(
       `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
        WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
          AND link_kind='account' AND account_id=$4`,
       [owner.tenantId, owner.schoolId, learner, accountId],
     );
+    const revokedSeat = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
+    );
+    const revokedAccount = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT context FROM learning_origin_learner_list(NULL,$1)', [accountId]),
+    );
+    expect(revokedSeat.rows.some((row) => row.context.projectId === accountOwned.projectId)).toBe(
+      false,
+    );
+    expect(revokedAccount.rows.some((row) => row.context.projectId === seatOwned.projectId)).toBe(
+      false,
+    );
+    const revokedLegacy = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT project_id FROM classroom_assignments_for_account($1) WHERE id=$2', [
+        accountId,
+        seatHandout,
+      ]),
+    );
+    expect(revokedLegacy.rows).toEqual([{ project_id: seatOwned.projectId }]);
+    const revokedPresence = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        'SELECT activity_run_id FROM learning_origin_learner_presence(NULL,$1) WHERE classroom_assignment_id=$2',
+        [accountId, seatHandout],
+      ),
+    );
+    expect(revokedPresence.rows).toEqual([{ activity_run_id: seatRun }]);
     expect(
       await submitOrigin(learnerPrincipal, accountOwned.projectId, seatRequest, 1),
     ).toMatchObject({
@@ -3150,5 +3356,5 @@ describe('A4-3b immutable-origin Project Submission', () => {
       ],
     );
     expect(counts.rows[0]).toEqual({ origins: 2, attempts: 2, submissions: 2 });
-  }, 20_000);
+  }, 60_000);
 });
