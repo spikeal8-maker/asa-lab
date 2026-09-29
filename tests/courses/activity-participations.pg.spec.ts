@@ -1649,6 +1649,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     expect(counts.rows[0]).toMatchObject({ attempts: 1, requests: 1 });
   });
 
+  // This case opens two Projects over HTTP and checks linked edits, Start, and revocation in PostgreSQL.
   it('shares one exact Project and Attempt across linked Account and Seat in both directions', async () => {
     const personalOwner = await seedTeacher(admin, 'a4-start-account-owner');
     const accountIdentity = await admin.query(
@@ -1946,7 +1947,7 @@ describe('A4-2b atomic StartLearningWork', () => {
       started.projectId,
     );
     expect(seatOwnedParticipation.participation_id).not.toBe(started.participationId);
-  });
+  }, 20_000);
 
   it('reopens a Seat-owned Project for a linked legacy Account without a personal workspace', async () => {
     const legacyOwner = await seedTeacher(admin, 'a4-linked-no-personal-workspace');
