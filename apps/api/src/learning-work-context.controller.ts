@@ -109,7 +109,8 @@ export class LearningWorkContextController {
       !REQUEST_PATTERN.test(requestId) ||
       typeof expectedRevision !== 'number' ||
       !Number.isSafeInteger(expectedRevision) ||
-      expectedRevision < 0
+      expectedRevision < 0 ||
+      expectedRevision > 2_147_483_647
     ) {
       throw new HttpException(
         { error: { code: 'validation_error', message: 'invalid submission request' } },

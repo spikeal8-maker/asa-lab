@@ -141,6 +141,9 @@ describe('A4-3b exact-origin submission HTTP boundary', () => {
       instance.submit(request, projectId, { ...submitBody, projectId }),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
+      instance.submit(request, projectId, { ...submitBody, expectedRevision: 2_147_483_648 }),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
       instance.submit({ cookies: {} } as FastifyRequest, projectId, submitBody),
     ).rejects.toMatchObject({ status: 401 });
     expect(pool.query).not.toHaveBeenCalled();

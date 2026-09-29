@@ -2683,7 +2683,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
     expect(final.rows[0]).toEqual({ submissions: 1, versions: 1, pinned_document: savedDocument });
   }, 20_000);
 
-  it('rolls back Version, Submission and Attempt together and safely retries', async () => {
+  it('rolls back after Version insert when Submission insert fails, then safely retries', async () => {
     const run = await createRun({ handout: await directHandout() });
     await assign(run);
     const started = await (
@@ -2692,17 +2692,55 @@ describe('A4-3b immutable-origin Project Submission', () => {
       requestId: `start:${randomUUID()}`,
     });
     const requestId = `submit:${randomUUID()}`;
-    const client = await app.connect();
+    const client = await admin.connect();
     let transactionOpen = false;
     try {
       await client.query('BEGIN');
       transactionOpen = true;
+      const suffix = randomUUID().replaceAll('-', '');
+      const triggerFunction = `learning_submit_fail_${suffix}`;
+      const trigger = `learning_submit_inject_${suffix}`;
+      // Both objects exist only in this transaction. The trigger fires after
+      // the command inserts ProjectVersion and before Submission is persisted.
+      await client.query(`
+        CREATE FUNCTION public.${triggerFunction}() RETURNS trigger
+        LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+        BEGIN
+          IF NEW.client_request_id = '${requestId}' THEN
+            IF NOT EXISTS (SELECT 1 FROM public.project_versions
+                            WHERE id=NEW.project_version_id) THEN
+              RAISE EXCEPTION 'Version was not inserted first' USING ERRCODE='PZ183';
+            END IF;
+            RAISE EXCEPTION 'injected Submission failure' USING ERRCODE='PZ182';
+          END IF;
+          RETURN NEW;
+        END; $$`);
+      await client.query(`
+        CREATE TRIGGER ${trigger} BEFORE INSERT ON public.learning_submissions
+        FOR EACH ROW EXECUTE FUNCTION public.${triggerFunction}()`);
+      await client.query('SAVEPOINT before_submit');
       await client.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
-      const pending = await client.query(
-        'SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)',
-        [learnerPrincipal, started.projectId, requestId, 1],
+      await client.query('SET LOCAL ROLE asalab_app');
+      await expect(
+        client.query('SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)', [
+          learnerPrincipal,
+          started.projectId,
+          requestId,
+          1,
+        ]),
+      ).rejects.toMatchObject({ code: 'PZ182' });
+      await client.query('ROLLBACK TO SAVEPOINT before_submit');
+      const rolledBack = await client.query(
+        `SELECT (SELECT count(*)::int FROM project_versions WHERE project_id=$1) AS versions,
+                (SELECT count(*)::int FROM learning_submissions WHERE attempt_id=$2) AS submissions,
+                (SELECT state FROM learning_attempts WHERE id=$2) AS state`,
+        [started.projectId, started.attemptId],
       );
-      expect(pending.rows[0].result_code).toBe('ok');
+      expect(rolledBack.rows[0]).toEqual({
+        versions: 0,
+        submissions: 0,
+        state: 'in_progress',
+      });
       await client.query('ROLLBACK');
       transactionOpen = false;
     } finally {
@@ -2722,6 +2760,129 @@ describe('A4-3b immutable-origin Project Submission', () => {
       reused: false,
       attempt_id: started.attemptId,
     });
+  }, 20_000);
+
+  it('serializes different-tab request IDs to one receipt and replays a lost response', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    await assign(run);
+    const started = await (
+      await startController('seat')
+    ).start(startRequest, run, {
+      requestId: `start:${randomUUID()}`,
+    });
+    const requests = [`submit:${randomUUID()}`, `submit:${randomUUID()}`];
+    const results = await Promise.all(
+      requests.map((requestId) => submitOrigin(learnerPrincipal, started.projectId, requestId, 1)),
+    );
+    expect(results.map((result) => result.result_code).sort()).toEqual([
+      'attempt_already_submitted',
+      'ok',
+    ]);
+    const winner = results.findIndex((result) => result.result_code === 'ok');
+    const receipt = results[winner]!;
+    expect(results[1 - winner]).toMatchObject({
+      result_code: 'attempt_already_submitted',
+      submission_id: null,
+      project_version_id: null,
+    });
+    const replay = await submitOrigin(learnerPrincipal, started.projectId, requests[winner]!, 1);
+    expect(replay).toEqual({ ...receipt, reused: true });
+    const counts = await admin.query(
+      `SELECT (SELECT count(*)::int FROM project_versions WHERE project_id=$1) AS versions,
+              (SELECT count(*)::int FROM learning_submissions WHERE attempt_id=$2) AS submissions,
+              (SELECT state FROM learning_attempts WHERE id=$2) AS state`,
+      [started.projectId, started.attemptId],
+    );
+    expect(counts.rows[0]).toEqual({ versions: 1, submissions: 1, state: 'submitted' });
+  }, 20_000);
+
+  it('enforces submit-time windows, due policy, capability and Participation status', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    await assign(run);
+    const started = await (
+      await startController('seat')
+    ).start(startRequest, run, {
+      requestId: `start:${randomUUID()}`,
+    });
+    const cases = [
+      {
+        name: 'not open',
+        sql: `UPDATE activity_participations
+                SET operational_overrides=jsonb_build_object('opensAt',now()+interval '1 day')
+              WHERE id=$1`,
+        args: [started.participationId],
+        expected: 'not_available',
+      },
+      {
+        name: 'closed',
+        sql: `UPDATE activity_participations
+                SET operational_overrides=jsonb_build_object('closesAt',now()-interval '1 day')
+              WHERE id=$1`,
+        args: [started.participationId],
+        expected: 'not_available',
+      },
+      {
+        name: 'due blocked',
+        sql: `UPDATE activity_participations
+                SET operational_overrides=jsonb_build_object(
+                  'dueAt',now()-interval '1 day','latePolicy','block_at_due')
+              WHERE id=$1`,
+        args: [started.participationId],
+        expected: 'not_available',
+      },
+      {
+        name: 'teacher unlocked',
+        sql: `UPDATE activity_participations
+                SET teacher_unlocked=true,
+                    operational_overrides=jsonb_build_object(
+                      'dueAt',now()-interval '1 day','latePolicy','block_at_due')
+              WHERE id=$1`,
+        args: [started.participationId],
+        expected: 'ok',
+      },
+      {
+        name: 'submit capability disabled',
+        sql: `UPDATE module_learning_capabilities
+                SET submit_project_version=false WHERE module_key='electronics'`,
+        args: [],
+        expected: 'not_available',
+      },
+      {
+        name: 'inactive Participation',
+        sql: `UPDATE activity_participations SET status='withdrawn' WHERE id=$1`,
+        args: [started.participationId],
+        expected: 'not_available',
+      },
+    ];
+    for (const gate of cases) {
+      const client = await admin.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(gate.sql, gate.args);
+        await client.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
+        await client.query('SET LOCAL ROLE asalab_app');
+        const result = await client.query(
+          'SELECT * FROM learning_origin_project_submission_create($1,$2,$3,$4)',
+          [learnerPrincipal, started.projectId, `submit:${randomUUID()}`, 1],
+        );
+        expect(result.rows[0].result_code, gate.name).toBe(gate.expected);
+        if (gate.expected === 'ok') {
+          expect(result.rows[0].late_state).toBe('late');
+        } else {
+          expect(result.rows[0].submission_id).toBeNull();
+        }
+      } finally {
+        await client.query('ROLLBACK');
+        client.release();
+      }
+    }
+    const unchanged = await admin.query(
+      `SELECT (SELECT count(*)::int FROM project_versions WHERE project_id=$1) AS versions,
+              (SELECT count(*)::int FROM learning_submissions WHERE attempt_id=$2) AS submissions,
+              (SELECT state FROM learning_attempts WHERE id=$2) AS state`,
+      [started.projectId, started.attemptId],
+    );
+    expect(unchanged.rows[0]).toEqual({ versions: 0, submissions: 0, state: 'in_progress' });
   }, 20_000);
 
   it('submits two Course blocks sharing one handout to separate exact Attempts and Projects', async () => {

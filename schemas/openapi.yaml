@@ -3844,7 +3844,7 @@ components:
       properties:
         clientRequestId:
           { type: string, minLength: 8, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
-        expectedRevision: { type: integer, minimum: 0 }
+        expectedRevision: { type: integer, minimum: 0, maximum: 2147483647 }
     LearningOriginSubmissionReceipt:
       type: object
       additionalProperties: false
