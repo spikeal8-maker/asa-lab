@@ -49,6 +49,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0174',
         '0175',
         '0176',
+        '0177',
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -197,6 +198,42 @@ describe('Course Builder structure forward upgrade', () => {
         )
       ).rows;
 
+      const seatId = (
+        await pool.query(
+          `INSERT INTO classroom_student_seats
+             (tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,
+              safe_mode,status,created_by)
+           VALUES ($1,$2,'Forward legacy learner','course-forward-legacy',
+                   'course-forward-legacy',true,'active',$3) RETURNING id`,
+          [teacher.tenantId, classroom, teacher.teacherId],
+        )
+      ).rows[0].id as string;
+      const sourceRun = (
+        await pool.query(
+          `SELECT classroom_id,source_classroom_assignment_id,learning_activity_version_id
+             FROM activity_runs WHERE source_course_run_id=$1 ORDER BY id LIMIT 1`,
+          [runId],
+        )
+      ).rows[0];
+      const legacyAttemptId = (
+        await pool.query(
+          `INSERT INTO learning_attempts
+             (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+              seat_id,attempt_number,state)
+           VALUES ($1,$2,$3,$4,$5,1,'closed') RETURNING id`,
+          [
+            teacher.tenantId,
+            sourceRun.classroom_id,
+            sourceRun.source_classroom_assignment_id,
+            sourceRun.learning_activity_version_id,
+            seatId,
+          ],
+        )
+      ).rows[0].id as string;
+      const legacyAttemptBefore = (
+        await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId])
+      ).rows[0];
+
       const courseItemsBefore = (
         await pool.query(
           'SELECT course_id,assignment_id,position,created_at FROM course_items WHERE course_id=$1 ORDER BY assignment_id',
@@ -221,6 +258,10 @@ describe('Course Builder structure forward upgrade', () => {
         (await pool.query('SELECT count(*)::int AS count FROM learning_project_origins')).rows[0]
           .count,
       ).toBe(0);
+      expect(
+        (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
+          .rows[0],
+      ).toEqual(legacyAttemptBefore);
 
       const draftAfter = (
         await pool.query(
