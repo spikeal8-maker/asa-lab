@@ -3002,7 +3002,7 @@ paths:
     post:
       operationId: startLearnerProjectAssignment
       deprecated: true
-      summary: Retired project linking route; use exact ActivityRun atomic Start instead
+      summary: Read-only Continue of an already linked historical Project; new Start uses exact ActivityRun
       parameters:
         - in: path
           name: assignmentId
@@ -3014,12 +3014,18 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/LearningProjectAttemptStartRequest' }
       responses:
+        '200':
+          {
+            description: Existing linked Project returned after locked legacy provenance proof; no Project,
+            work link or Attempt is created,
+          }
         '400': { description: Invalid assignment or project identifier }
         '401': { description: No active learner session }
         '404': { description: Assignment excluded, cross-class or unavailable }
         '409':
           {
-            description: Non-atomic project linking is unavailable; no Project or Attempt is created,
+            description: No exact supported historical link or proof changed; no Project,
+            work link or Attempt is created,
           }
   /api/learning/work/runs/{activityRunId}/start:
     post:

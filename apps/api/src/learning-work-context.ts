@@ -150,6 +150,7 @@ export async function learningWorkContextForProject(
   if (origin.rows.length > 1) return { state: 'unavailable', projectId };
   let row: WorkRow;
   let projection: CanonicalLearningProjection | undefined;
+  let legacyReworkSupported = false;
   const immutableOrigin = origin.rows.length === 1;
   if (immutableOrigin) {
     row = origin.rows[0]!.context;
@@ -199,6 +200,7 @@ export async function learningWorkContextForProject(
             legacyDirect?: boolean;
             legacyCourseLesson?: boolean;
             legacyProjectReadable?: boolean;
+            submitAllowed?: boolean;
           };
         }>(`SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`, [
           viewerPrincipalId,
@@ -211,6 +213,7 @@ export async function learningWorkContextForProject(
           (row.sourceKind === 'direct'
             ? proof.rows[0].proof.legacyDirect === true
             : row.sourceKind === 'course' && proof.rows[0].proof.legacyCourseLesson === true);
+        legacyReworkSupported = readable && proof.rows[0]?.proof?.submitAllowed === true;
       }
       if (!readable) return { state: 'denied', projectId };
       projection = projections.get(canonicalProjectionKey(row.seatId, row.classroomAssignmentId));
@@ -271,6 +274,9 @@ export async function learningWorkContextForProject(
 
   const canAct = timeAllowsAction(row, asOf);
   const workflow = projection.surface.workflowState;
+  // A proven, already linked pre-origin Project needs no new Start. Its
+  // compatibility Submit creates the next Attempt after changes_requested.
+  const legacyRework = canAct && workflow === 'changes_requested' && legacyReworkSupported;
   return {
     state: 'ready',
     projectId,
@@ -312,9 +318,10 @@ export async function learningWorkContextForProject(
       updatedAt: row.updatedAt,
     },
     allowedActions: {
-      edit: canAct && workflow === 'in_progress',
-      submit: canAct && workflow === 'in_progress',
-      resumeAfterChangesRequested: canAct && workflow === 'changes_requested',
+      edit: (canAct && workflow === 'in_progress') || legacyRework,
+      submit: (canAct && workflow === 'in_progress') || legacyRework,
+      resumeAfterChangesRequested:
+        canAct && workflow === 'changes_requested' && (immutableOrigin || legacyReworkSupported),
       moveToLearningArchive: false,
       restoreFromLearningArchive: false,
       createPersonalCopy: false,

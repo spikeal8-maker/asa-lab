@@ -1711,12 +1711,12 @@ export class ClassroomJoinController {
     };
   }
 
-  /** Reprove under exact FK-parent row locks, then write through the same transaction. */
+  /** Reprove under exact FK-parent row locks before a historical action. */
   private async historicalAssignmentWrite(
     learner: { seatId: string; principalId: string },
     assignmentId: string,
     projectId: string | null,
-    action: 'start' | 'submit',
+    action: 'resume' | 'submit',
     directOnly: boolean,
     sql: string,
     parameters: unknown[],
@@ -1733,9 +1733,12 @@ export class ClassroomJoinController {
       );
       if (
         !(proof.legacyDirect || (!directOnly && proof.legacyCourseLesson)) ||
-        (action === 'start' ? !proof.startAllowed : !proof.submitAllowed)
+        !proof.submitAllowed
       )
-        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+        throw new HttpException(
+          error('assignment_unavailable', 'Задание недоступно.'),
+          action === 'resume' ? 409 : 404,
+        );
       const result = await client.query(sql, parameters);
       await client.query('COMMIT');
       return result;
@@ -1821,7 +1824,7 @@ export class ClassroomJoinController {
     };
   }
 
-  /** Retired two-request Start route: an unbound Project cannot gain learning provenance here. */
+  /** Compatibility Continue only: never attach a newly created Project. */
   @Post('me/assignments/:assignmentId/work')
   @HttpCode(200)
   async startAssignment(
@@ -1842,10 +1845,41 @@ export class ClassroomJoinController {
       throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     const learner = await this.learnerForAssignment(request, assignmentId);
     await this.requireAssignmentAudience(learner.seatId, assignmentId);
-    throw new HttpException(
-      error('non_atomic_start_unavailable', 'Начать новую работу можно только из точного задания.'),
-      409,
+    await this.requireExactCourseWorkOrigin(assignmentId);
+    const preliminary = await this.legacyDirectProvenance(
+      learner.principalId,
+      learner.seatId,
+      assignmentId,
+      projectId,
     );
+    if (
+      !(preliminary.legacyDirect || (!legacyOnly && preliminary.legacyCourseLesson)) ||
+      !preliminary.submitAllowed
+    )
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 409);
+    const linked = await this.historicalAssignmentWrite(
+      learner,
+      assignmentId,
+      projectId,
+      'resume',
+      legacyOnly,
+      `SELECT project_id, submitted_at
+         FROM classroom_assignments_for_seat($1)
+        WHERE id=$2 AND project_id=$3`,
+      [learner.seatId, assignmentId, projectId],
+    );
+    const row = linked.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
+    if (!row || row.project_id !== projectId)
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 409);
+    return {
+      projectId: row.project_id,
+      submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
+      participationId: null,
+      attemptId: null,
+      attemptNumber: null,
+      state: null,
+      reused: true,
+    };
   }
 
   /**

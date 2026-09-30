@@ -123,6 +123,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [legacyResumed, setLegacyResumed] = useState(false);
   const revision = useConfirmedProjectRevision();
   const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
   const starter = useRef(new AtomicLearningStarter());
@@ -146,6 +147,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   useEffect(() => {
     setOpen(readOpen(projectId));
     setReferenceOwner(null);
+    setLegacyResumed(false);
     submissionRequest.current = null;
     const next = readRect();
     compactRectRef.current = next;
@@ -363,7 +365,10 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
       setError('Нельзя подтвердить учебную работу.');
       return;
     }
-    if (context.workflow.canonicalState.workflowState === 'changes_requested') {
+    if (
+      context.workflow.canonicalState.workflowState === 'changes_requested' &&
+      (context.origin.immutable || !legacyResumed)
+    ) {
       if (!context.allowedActions.resumeAfterChangesRequested) {
         setBusy(false);
         return;
@@ -377,11 +382,13 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
       }
       setBusy(false);
       if (started.ok) {
-        if (context.origin.immutable && started.data.projectId !== projectId) {
+        if (started.data.projectId !== projectId) {
           setError('Нельзя подтвердить учебную работу.');
           return;
         }
-        setContext(await load());
+        const refreshed = await load();
+        setContext(refreshed);
+        if (!context.origin.immutable && refreshed.state === 'ready') setLegacyResumed(true);
       } else setError(started.error.message);
       return;
     }
@@ -408,6 +415,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
     setBusy(false);
     if (result.ok) {
       setContext(await load());
+      setLegacyResumed(false);
       submissionRequest.current = null;
     } else setError(result.error.message);
   }
@@ -531,11 +539,21 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
                   type="button"
                   className="assignment-brief-submit"
                   disabled={
-                    busy || revision === null || !context.allowedActions.resumeAfterChangesRequested
+                    busy ||
+                    revision === null ||
+                    !(legacyResumed && !context.origin.immutable
+                      ? context.allowedActions.submit
+                      : context.allowedActions.resumeAfterChangesRequested)
                   }
                   onClick={() => void submit()}
                 >
-                  {busy ? 'Открываем…' : 'Продолжить'}
+                  {busy
+                    ? legacyResumed && !context.origin.immutable
+                      ? 'Отправляем…'
+                      : 'Открываем…'
+                    : legacyResumed && !context.origin.immutable
+                      ? 'Сдать доработку'
+                      : 'Продолжить'}
                 </button>
               </>
             ) : (

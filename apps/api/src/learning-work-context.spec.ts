@@ -394,7 +394,7 @@ describe('A1 project-scoped Learning Work Context', () => {
     );
     expect(resumed.state).toBe('ready');
     if (resumed.state === 'ready') {
-      expect(resumed.allowedActions.resumeAfterChangesRequested).toBe(true);
+      expect(resumed.allowedActions.resumeAfterChangesRequested).toBe(false);
       expect(resumed.allowedActions.submit).toBe(false);
     }
   });
@@ -440,7 +440,7 @@ describe('A1 project-scoped Learning Work Context', () => {
       state: 'ready',
       origin: { immutable: false, sourceKind: 'direct', learningActivityVersionId: versionId },
       workflow: { attemptId, submissionId, canonicalState: { workflowState: 'changes_requested' } },
-      allowedActions: { edit: false, submit: false, resumeAfterChangesRequested: true },
+      allowedActions: { edit: false, submit: false, resumeAfterChangesRequested: false },
     });
     expect(
       (returnedPool.query as ReturnType<typeof vi.fn>).mock.calls.some(([sql]) =>
@@ -474,6 +474,74 @@ describe('A1 project-scoped Learning Work Context', () => {
           new Map([[canonicalProjectionKey(seatId, assignmentId), candidateProjection]]),
         ),
       ).resolves.toEqual({ state: 'unavailable', projectId });
+    }
+  });
+
+  it('offers rework only for an exact old linked Project with supported Submit proof', async () => {
+    const oldRow = {
+      ...row,
+      activityRunId: null,
+      participationId: null,
+      runVersionId: null,
+      sourceKind: 'direct' as const,
+      courseRunId: null,
+      courseLessonId: null,
+      courseBlockId: null,
+      attemptId: '90000000-0000-4000-8000-000000000010',
+      submissionId: 'a0000000-0000-4000-8000-000000000010',
+      submittedAt: null,
+    };
+    const returnedProjection = {
+      ...projection,
+      surface: { ...projection.surface, activityRunId: null, workflowState: 'changes_requested' },
+      state: {
+        ...projection.state,
+        provenance: {
+          ...projection.state.provenance,
+          activityRunId: null,
+          workflowAttemptId: oldRow.attemptId,
+          workflowAuthority: 'latest_attempt',
+          conflicts: ['attempt_legacy_submission_mismatch'],
+        },
+      },
+    } as CanonicalLearningProjection;
+    const returned = new Map([[canonicalProjectionKey(seatId, assignmentId), returnedProjection]]);
+    for (const submitAllowed of [true, false]) {
+      const query = vi.fn(async (sql: string) => {
+        if (sql.includes('learning_origin_work_context_for_project')) return { rows: [] };
+        if (sql.includes('learning_immutable_project_origin_exists'))
+          return { rows: [{ linked: false }] };
+        if (sql.includes('learning_work_context_for_project'))
+          return { rows: [{ context: oldRow }] };
+        if (sql.includes('learning_legacy_direct_provenance'))
+          return {
+            rows: [
+              {
+                proof: {
+                  legacyDirect: true,
+                  legacyProjectReadable: true,
+                  submitAllowed,
+                },
+              },
+            ],
+          };
+        return { rows: [] };
+      });
+      const result = await learningWorkContextForProject(
+        { query } as unknown as pg.Pool,
+        'viewer',
+        projectId,
+        'electronics',
+        returned,
+      );
+      expect(result).toMatchObject({
+        state: 'ready',
+        allowedActions: {
+          edit: submitAllowed,
+          submit: submitAllowed,
+          resumeAfterChangesRequested: submitAllowed,
+        },
+      });
     }
   });
 });
