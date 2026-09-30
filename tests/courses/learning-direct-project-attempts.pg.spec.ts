@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import type pg from 'pg';
 import { PgClassroomRepository } from '../../contexts/classroom/index';
 import { teacherHomeAttention } from '../../apps/api/src/teacher-home-attention';
@@ -25,6 +25,54 @@ let teacherPrincipal: string;
 let teacherAccount: string;
 let sequence = 0;
 let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
+
+function traceGradedCase(policy: string): (stage: string) => void {
+  const started = performance.now();
+  let stage = 'setup';
+  let stageStarted = started;
+  const mark = (next: string) => {
+    const now = performance.now();
+    console.info(
+      `[VS002 timing] ${policy} ${stage}: ${Math.round(now - stageStarted)}ms; total ${Math.round(now - started)}ms`,
+    );
+    stage = next;
+    stageStarted = now;
+  };
+  const probe = setTimeout(() => {
+    console.info(
+      `[VS002 timing] ${policy} slow at ${stage}; total ${Math.round(performance.now() - started)}ms`,
+    );
+    // A separate admin-pool connection observes waits without touching the transaction under test.
+    void admin
+      .query(
+        `SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blocking_pids,
+                floor(extract(epoch FROM clock_timestamp() - query_start) * 1000)::int AS query_ms,
+                CASE
+                  WHEN query LIKE '%learning_direct_project_attempt_start%' THEN 'start'
+                  WHEN query LIKE '%learning_direct_project_submission_create%' THEN 'submission'
+                  WHEN query LIKE '%learning_attempt_review_v2%' THEN 'review'
+                  WHEN query LIKE '%learning_canonical_evidence_for_seat%' THEN 'evidence'
+                  ELSE 'other'
+                END AS operation
+           FROM pg_stat_activity
+          WHERE datname = current_database() AND pid <> pg_backend_pid()
+            AND (state = 'active' OR wait_event_type = 'Lock')
+          ORDER BY query_ms DESC
+          LIMIT 12`,
+      )
+      .then((result) => console.info(`[VS002 pg waits] ${policy} ${JSON.stringify(result.rows)}`))
+      .catch((error: unknown) =>
+        console.info(
+          `[VS002 pg waits] ${policy} probe failed: ${error instanceof Error ? error.name : 'unknown'}`,
+        ),
+      );
+  }, 3_500);
+  onTestFinished(() => {
+    clearTimeout(probe);
+    mark('finished');
+  });
+  return mark;
+}
 
 async function attention() {
   return teacherHomeAttention(
@@ -713,15 +761,23 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
   });
   for (const policy of ['first', 'latest', 'best', 'latest_accepted', 'teacher_selected'])
     it('selects exact graded revisions: ' + policy, async () => {
+      const mark = traceGradedCase(policy);
       const cls = await createClass();
+      mark('setup: seat');
       const seat = await createSeat(cls, 'Политика ' + policy);
+      mark('setup: activity');
       const version = await createActivity('Результаты ' + policy, policy, true, 4);
+      mark('setup: assignment');
       const assignment = await assign(cls, version, 'whole_class');
+      mark('setup: learner');
       const learner = await activateSeat(seat);
+      mark('setup: project');
       const project = await createProject(learner, 'Проверка выбора');
+      mark('attempts');
       const attempts: Array<{ id: string; result: string }> = [];
       let part = '';
       for (const points of [6, 8, 8]) {
+        mark(`attempt ${attempts.length + 1}: start`);
         const start = (
           await inTenant((c) =>
             c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
@@ -734,6 +790,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         ).rows[0];
         expect(start.result_code).toBe('ok');
         part = start.participation_id;
+        mark(`attempt ${attempts.length + 1}: submission`);
         const submission = (
           await inTenant((c) =>
             c.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
@@ -745,6 +802,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
           )
         ).rows[0];
         expect(submission.result_code).toBe('ok');
+        mark(`attempt ${attempts.length + 1}: review`);
         const review = (
           await inTenant((c) =>
             c.query(
@@ -763,6 +821,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         expect(review.result_code).toBe('ok');
         attempts.push({ id: start.attempt_id, result: review.assessment_result_id });
       }
+      mark('selection and evidence');
       if (policy === 'teacher_selected') {
         expect(
           (
@@ -815,6 +874,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         selectedAttemptId: expected.id,
         selectedRevision: { id: expected.result },
       });
+      mark('corrected review');
       // A later published correction may change best, never the close-time ordering.
       const corrected = (
         await inTenant((c) =>
@@ -832,12 +892,14 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         )
       ).rows[0];
       expect(corrected.result_code).toBe('ok');
+      mark('corrected evidence');
       expect((await evidence()).selectedAttemptId).toBe(
         policy === 'best' ? attempts[0]!.id : expected.id,
       );
       if (policy === 'first' || policy === 'best')
         expect((await evidence()).selectedRevision.id).toBe(corrected.assessment_result_id);
       // Starting the fourth attempt does not erase the selected terminal result.
+      mark('fourth start and evidence');
       await inTenant((c) =>
         c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
           learner,
@@ -852,6 +914,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       // A revoked explicit key cannot silently pick a different historical result.
       // Fixture-only invalidation exercises existing historical read shapes; no product invalidation command is introduced here.
       const selectedId = (await evidence()).selectedAttemptId;
+      mark('invalidation and evidence');
       await admin.query(
         "UPDATE learning_attempts SET state='invalidated',invalidated_at=now() WHERE id=$1",
         [selectedId],
@@ -864,6 +927,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       }
       // first/latest must retain a terminal record with no final grade instead of substituting an older score.
       if (policy === 'first' || policy === 'latest') {
+        mark('incomplete review and evidence');
         const incompleteId = afterInvalidation.selectedAttemptId;
         const incomplete = (
           await inTenant((c) =>
