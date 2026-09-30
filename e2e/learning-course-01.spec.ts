@@ -1627,7 +1627,42 @@ for (const module of ['electronics', 'three-d'])
       learner.getByRole('button', { name: 'Отметить непройденным', exact: true }),
     ).toBeVisible();
     await learner.getByRole('button', { name: 'Далее →', exact: true }).click();
-    await learner.getByRole('button', { name: 'Начать задание', exact: true }).click();
+    const startLesson = learner.getByRole('button', { name: 'Начать задание', exact: true });
+    await expect(learner.getByTestId('seat-course-player')).toContainText(courseTitle);
+    await expect(startLesson).toBeEnabled();
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await learner.screenshot({
+      path: `${evidenceDir}/account-course-${module}-start-desktop.png`,
+      fullPage: true,
+    });
+    await learner.setViewportSize({ width: 390, height: 844 });
+    await expect(startLesson).toBeVisible();
+    await learner.screenshot({
+      path: `${evidenceDir}/account-course-${module}-start-mobile.png`,
+      fullPage: true,
+    });
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await startLesson.click();
+    const startedProjectId = courseActivityProjectId(learner, module);
+    const assignmentAnchor = learner.getByTestId('assignment-brief-anchor');
+    await expect(assignmentAnchor).toBeVisible({ timeout: 60_000 });
+    if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
+      await assignmentAnchor.click();
+    }
+    await expect(learner.getByTestId('assignment-brief')).toContainText(material);
+    if (module === 'three-d') {
+      await expect(learner.getByTestId('asa3d-viewport')).toHaveAttribute(
+        'data-runtime-ready',
+        'true',
+      );
+    } else {
+      await expect(learner.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible();
+    }
+    expect(startedProjectId).not.toBe('');
+    await learner.screenshot({
+      path: `${evidenceDir}/account-course-${module}-started-project.png`,
+      fullPage: true,
+    });
     await editRealProject(learner, module);
     const brief = learner.getByTestId('assignment-brief');
     await expect(
