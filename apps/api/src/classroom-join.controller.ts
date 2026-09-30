@@ -1896,9 +1896,14 @@ export class ClassroomJoinController {
       projectId,
       'resume',
       legacyOnly,
-      `SELECT project_id, submitted_at
-         FROM classroom_assignments_for_seat($1)
-        WHERE id=$2 AND project_id=$3`,
+      preliminary.legacyDirect
+        ? `SELECT project_id, submitted_at
+             FROM classroom_assignments_for_seat($1)
+            WHERE id=$2 AND project_id=$3`
+        : `SELECT project_id, submitted_at
+             FROM classroom_course_runs_for_seat_v2($1)
+            WHERE classroom_assignment_id=$2 AND project_id=$3
+              AND lesson_kind='assignment'`,
       [learner.seatId, assignmentId, projectId],
     );
     const row = linked.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;

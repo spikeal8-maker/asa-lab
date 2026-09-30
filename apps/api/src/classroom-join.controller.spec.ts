@@ -1291,7 +1291,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         return { rows: [{ result_code: 'not_canonical' }] };
       if (sql.includes('classroom_assignment_work_start'))
         return { rows: [{ project_id: projectId, submitted_at: null }] };
-      if (sql.includes('classroom_assignments_for_seat'))
+      if (sql.includes('classroom_course_runs_for_seat_v2'))
         return { rows: [{ project_id: projectId, submitted_at: null }] };
       if (sql.includes('learning_project_submission_create'))
         return {
@@ -1338,6 +1338,9 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
       false,
     );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('classroom_course_runs_for_seat_v2')),
+    ).toBe(true);
     expect(
       query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
     ).toBe(false);
