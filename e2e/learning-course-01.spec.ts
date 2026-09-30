@@ -1584,6 +1584,46 @@ for (const module of ['electronics', 'three-d'])
     await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
     await expect(page.getByTestId('classroom-course-run')).toContainText(courseTitle);
     const learnerIdentity = await seedTeacher(admin, 'course01-account-browser');
+    // Account-owned Learning Projects live in a personal workspace. The
+    // organization-only seed has none; the Direct E1 journey tests that Start
+    // is forbidden until this separate Account workspace exists.
+    const learnerAccount = await admin.query(
+      `SELECT account_id,principal_id FROM legacy_user_account_links
+        WHERE tenant_id=$1 AND user_id=$2`,
+      [learnerIdentity.tenantId, learnerIdentity.teacherId],
+    );
+    const learnerAccountId = learnerAccount.rows[0].account_id as string;
+    const learnerPrincipalId = learnerAccount.rows[0].principal_id as string;
+    const personalTenant = await admin.query(
+      `INSERT INTO tenants (workspace_slug,title)
+       VALUES ($1,'Course learner personal') RETURNING id`,
+      [`course-personal-${learnerAccountId.replaceAll('-', '')}`],
+    );
+    const personalTenantId = personalTenant.rows[0].id as string;
+    await admin.query(
+      `INSERT INTO tenant_placements (tenant_id,mode)
+      VALUES ($1,'SHARED_CLUSTER')`,
+      [personalTenantId],
+    );
+    const personalWorkspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id,kind,title)
+       VALUES ($1,'personal','Course learner personal') RETURNING id`,
+      [personalTenantId],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id,workspace_id,role)
+       VALUES ($1,$2,'owner')`,
+      [learnerAccountId, personalWorkspace.rows[0].id],
+    );
+    expect(
+      (await admin.query('SELECT * FROM auth_personal_workspace($1)', [learnerAccountId])).rows,
+    ).toEqual([
+      {
+        workspace_id: personalWorkspace.rows[0].id,
+        tenant_id: personalTenantId,
+        principal_id: learnerPrincipalId,
+      },
+    ]);
     const context = await browser.newContext(),
       learner = await context.newPage();
     await loginWithOrganization(learner, learnerIdentity);
