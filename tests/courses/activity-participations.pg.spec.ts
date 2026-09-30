@@ -620,12 +620,21 @@ describe('LRN-M1-004 ActivityParticipation', () => {
   });
 
   it('keeps excused orthogonal, audited, idempotent, and result/grade neutral', async () => {
-    const participation = await assign(await createRun({ handout: await directHandout() }));
-    const resultsBefore = (
-      await admin.query(`SELECT count(*)::int AS count FROM assessment_results`)
-    ).rows[0].count;
-    const gradesBefore = (await admin.query(`SELECT count(*)::int AS count FROM gradebook_entries`))
-      .rows[0].count;
+    const handout = await directHandout();
+    const participation = await assign(await createRun({ handout }));
+    const resultAndGradeCounts = async () =>
+      (
+        await admin.query(
+          `SELECT (SELECT count(*)::int FROM assessment_results result
+                     JOIN learning_attempts attempt ON attempt.id=result.attempt_id
+                    WHERE attempt.classroom_assignment_id=$1) AS results,
+                  (SELECT count(*)::int FROM gradebook_entries
+                    WHERE classroom_assignment_id=$1) AS grades`,
+          [handout],
+        )
+      ).rows[0];
+    const countsBefore = await resultAndGradeCounts();
+    expect(countsBefore).toEqual({ results: 0, grades: 0 });
     expect(
       await command('activity_participation_excuse', [
         ownerPrincipal,
@@ -649,12 +658,7 @@ describe('LRN-M1-004 ActivityParticipation', () => {
       excused: true,
       excused_reason: 'Approved absence',
     });
-    expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM assessment_results`)).rows[0].count,
-    ).toBe(resultsBefore);
-    expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM gradebook_entries`)).rows[0].count,
-    ).toBe(gradesBefore);
+    expect(await resultAndGradeCounts()).toEqual(countsBefore);
   });
 
   it('returns not_available completion and stores no mutable completion/legacy handout identity', async () => {
