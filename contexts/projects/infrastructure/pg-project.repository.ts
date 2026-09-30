@@ -120,6 +120,7 @@ const ACCESS_SQL = `(
   OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
         SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
   OR (p.project_scope = 'personal' AND learning_linked_project_access($3, p.id))
+  OR (p.project_scope = 'classroom' AND learning_legacy_classroom_work_access($3, p.id))
 )`;
 
 const EDIT_ACCESS_SQL = `(
@@ -134,6 +135,7 @@ const EDIT_ACCESS_SQL = `(
   OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
         SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
   OR (p.project_scope = 'personal' AND learning_linked_project_access($3, p.id))
+  OR (p.project_scope = 'classroom' AND learning_legacy_classroom_work_access($3, p.id))
 )`;
 
 interface ResolvedProjectContext {

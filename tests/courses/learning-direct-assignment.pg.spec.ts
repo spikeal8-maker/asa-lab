@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -239,33 +240,60 @@ describe('LRN-VS-001 canonical direct assignment', () => {
         WHERE seat_id=$1 AND link_kind='student_seat'`,
       [learnerSeat],
     );
+    const learnerAccount = (
+      await admin.query(
+        `INSERT INTO accounts (email,password_hash,birth_date,country)
+         VALUES ('legacy-classroom-' || gen_random_uuid()::text || '@test.local',
+                 'isolated-test-only',DATE '2000-01-01','RU') RETURNING id`,
+      )
+    ).rows[0].id as string;
+    const accountPrincipal = (
+      await admin.query(
+        `INSERT INTO principals (kind,account_id) VALUES ('account',$1) RETURNING id`,
+        [learnerAccount],
+      )
+    ).rows[0].id as string;
     await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
-      account,
+      learnerAccount,
       learnerSeat,
     ]);
     await admin.query(
       `INSERT INTO learner_identity_links
          (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
        VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
-      [owner.tenantId, owner.schoolId, identity.rows[0].learner_identity_id, account],
+      [owner.tenantId, owner.schoolId, identity.rows[0].learner_identity_id, learnerAccount],
     );
     const accountProject = await admin.query(
       `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
        VALUES ($1,'personal','electronics','Account generic work',$2) RETURNING id`,
       [owner.tenantId, principal],
     );
-    expect(await proof(principal, learnerSeat, accountProject.rows[0].id)).toMatchObject({
+    expect(await proof(accountPrincipal, learnerSeat, accountProject.rows[0].id)).toMatchObject({
       legacyDirect: true,
       startAllowed: false,
       submitAllowed: false,
     });
     const projectId = (
       await admin.query(
-        `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
-       VALUES ($1,'personal','electronics','Историческая работа',$2) RETURNING id`,
-        [owner.tenantId, learnerPrincipal],
+        `INSERT INTO projects
+           (tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id)
+         VALUES ($1,'classroom',$2,'electronics','Историческая работа',$3) RETURNING id`,
+        [owner.tenantId, classId, learnerPrincipal],
       )
     ).rows[0].id as string;
+    const projectContext = async (actor: string, target: string) =>
+      inTenant((client) =>
+        client.query(`SELECT * FROM project_context_for_principal($1,$2)`, [actor, target]),
+      );
+    expect((await projectContext(learnerPrincipal, projectId)).rows).toHaveLength(0);
+    expect(
+      await new PgProjectRepository(app).authorize(
+        owner.tenantId,
+        projectId,
+        learnerPrincipal,
+        'read',
+      ),
+    ).toBeNull();
     await admin.query(
       `INSERT INTO project_drafts
          (tenant_id,project_id,document_json,revision,updated_by_principal_id)
@@ -294,10 +322,116 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       startAllowed: false,
       submitAllowed: true,
     });
+    expect((await projectContext(learnerPrincipal, projectId)).rows).toHaveLength(1);
+    expect(
+      await new PgProjectRepository(app).authorize(
+        owner.tenantId,
+        projectId,
+        learnerPrincipal,
+        'read',
+      ),
+    ).toMatchObject({ projectId });
+    expect(
+      await new PgProjectRepository(app).authorize(
+        owner.tenantId,
+        projectId,
+        learnerPrincipal,
+        'edit',
+      ),
+    ).toMatchObject({ projectId });
+    expect(await proof(accountPrincipal, learnerSeat, projectId)).toMatchObject({
+      legacyProjectReadable: true,
+      submitAllowed: true,
+    });
+    expect((await projectContext(accountPrincipal, projectId)).rows).toHaveLength(1);
+    expect(
+      await new PgProjectRepository(app).authorize(
+        owner.tenantId,
+        projectId,
+        accountPrincipal,
+        'edit',
+      ),
+    ).toMatchObject({ projectId });
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE account_id=$1 AND link_kind='account'`,
+      [learnerAccount],
+    );
+    expect(await proof(accountPrincipal, learnerSeat, projectId)).toMatchObject({
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+    expect((await projectContext(accountPrincipal, projectId)).rows).toHaveLength(0);
+    expect(await proof(learnerPrincipal, learnerSeat, projectId)).toMatchObject({
+      legacyProjectReadable: true,
+      submitAllowed: true,
+    });
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE account_id=$1 AND link_kind='account'`,
+      [learnerAccount],
+    );
     expect(await proof(otherPrincipal, learnerSeat, projectId)).toMatchObject({
       startAllowed: false,
       submitAllowed: false,
     });
+    expect((await projectContext(otherPrincipal, projectId)).rows).toHaveLength(0);
+    const unlinkedProject = (
+      await admin.query(
+        `INSERT INTO projects
+           (tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id)
+         VALUES ($1,'classroom',$2,'electronics','Unlinked classroom work',$3) RETURNING id`,
+        [owner.tenantId, classId, learnerPrincipal],
+      )
+    ).rows[0].id as string;
+    expect((await projectContext(learnerPrincipal, unlinkedProject)).rows).toHaveLength(0);
+    const otherClassId = await classroom();
+    const wrongClassProject = (
+      await admin.query(
+        `INSERT INTO projects
+           (tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id)
+         VALUES ($1,'classroom',$2,'electronics','Wrong classroom work',$3) RETURNING id`,
+        [owner.tenantId, otherClassId, learnerPrincipal],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `UPDATE classroom_assignment_work SET project_id=$1
+      WHERE assignment_id=$2 AND seat_id=$3`,
+      [wrongClassProject, assignmentId, learnerSeat],
+    );
+    expect((await projectContext(learnerPrincipal, wrongClassProject)).rows).toHaveLength(0);
+    expect(await proof(learnerPrincipal, learnerSeat, wrongClassProject)).toMatchObject({
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+    await admin.query(
+      `UPDATE classroom_assignment_work SET project_id=$1
+      WHERE assignment_id=$2 AND seat_id=$3`,
+      [projectId, assignmentId, learnerSeat],
+    );
+    const foreignOwnedProject = (
+      await admin.query(
+        `INSERT INTO projects
+           (tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id)
+         VALUES ($1,'classroom',$2,'electronics','Other learner work',$3) RETURNING id`,
+        [owner.tenantId, classId, otherPrincipal],
+      )
+    ).rows[0].id as string;
+    await admin.query(
+      `UPDATE classroom_assignment_work SET project_id=$1
+      WHERE assignment_id=$2 AND seat_id=$3`,
+      [foreignOwnedProject, assignmentId, learnerSeat],
+    );
+    expect((await projectContext(learnerPrincipal, foreignOwnedProject)).rows).toHaveLength(0);
+    expect(await proof(accountPrincipal, learnerSeat, foreignOwnedProject)).toMatchObject({
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+    await admin.query(
+      `UPDATE classroom_assignment_work SET project_id=$1
+      WHERE assignment_id=$2 AND seat_id=$3`,
+      [projectId, assignmentId, learnerSeat],
+    );
     await admin.query(
       `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
         WHERE seat_id=$1 AND link_kind='student_seat'`,
@@ -308,6 +442,12 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       startAllowed: false,
       submitAllowed: false,
     });
+    expect(await proof(accountPrincipal, learnerSeat, projectId)).toMatchObject({
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    });
+    expect((await projectContext(learnerPrincipal, projectId)).rows).toHaveLength(0);
+    expect((await projectContext(accountPrincipal, projectId)).rows).toHaveLength(0);
     const lockedAfterRevocation = await inTenant((client) =>
       client.query(`SELECT learning_legacy_assignment_write_provenance($1,$2,$3,$4) AS proof`, [
         learnerPrincipal,
