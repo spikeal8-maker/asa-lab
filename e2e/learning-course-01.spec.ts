@@ -1684,7 +1684,9 @@ for (const module of ['electronics', 'three-d'])
     await learner.setViewportSize({ width: 1440, height: 900 });
     await startLesson.click();
     await expect(learner).toHaveURL(
-      module === 'three-d' ? /#\/3d\/[^?]+/ : /\/projects\/[^/]+\/electronics\/edit\/?$/,
+      module === 'three-d'
+        ? /#\/3d\/[^?]+/
+        : /\/projects\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\/electronics\/edit\/?(?:\?returnTo=%23%2Flearning)?$/i,
       { timeout: 60_000 },
     );
     const startedProjectId = courseActivityProjectId(learner, module);
