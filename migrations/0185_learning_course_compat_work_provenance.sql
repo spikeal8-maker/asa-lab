@@ -118,6 +118,55 @@ REVOKE ALL ON FUNCTION public.learning_course_modern_provenance(uuid,uuid,uuid,u
 GRANT EXECUTE ON FUNCTION public.learning_course_modern_provenance(uuid,uuid,uuid,uuid)
     TO asalab_app;
 
+-- Resolve the lesson Run inside the same permission boundary as the proof.
+-- The API role cannot SELECT activity_runs; a handout with sibling Runs must
+-- never be resolved by choosing one arbitrary row.
+CREATE FUNCTION public.learning_course_lesson_unique_run(
+    p_viewer_principal_id uuid, p_seat_id uuid,
+    p_course_run_id uuid, p_lesson_id uuid, p_assignment_id uuid
+)
+RETURNS uuid
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE
+    v_run_id uuid;
+    v_run_ids uuid[];
+    v_lesson_run_count integer;
+    v_assignment_run_count integer;
+    v_proof jsonb;
+BEGIN
+    IF p_viewer_principal_id IS NULL OR p_seat_id IS NULL
+       OR p_course_run_id IS NULL OR p_lesson_id IS NULL OR p_assignment_id IS NULL THEN
+        RETURN NULL;
+    END IF;
+    SELECT array_agg(run.id), count(*)::integer
+      INTO v_run_ids, v_lesson_run_count
+      FROM public.activity_runs run
+     WHERE run.source_kind='course'
+       AND run.source_course_run_id=p_course_run_id
+       AND run.source_course_lesson_id=p_lesson_id
+       AND run.source_course_block_id IS NULL
+       AND run.source_classroom_assignment_id=p_assignment_id;
+    IF v_lesson_run_count <> 1 THEN RETURN NULL; END IF;
+    v_run_id := v_run_ids[1];
+    SELECT count(*)::integer INTO v_assignment_run_count
+      FROM public.activity_runs run
+     WHERE run.source_classroom_assignment_id=p_assignment_id;
+    IF v_assignment_run_count <> 1 THEN RETURN NULL; END IF;
+    v_proof := public.learning_course_modern_provenance(
+        p_viewer_principal_id,p_seat_id,v_run_id,NULL);
+    IF v_proof->>'modernCourseRun' IS DISTINCT FROM 'true'
+       OR v_proof->>'activityRunId' IS DISTINCT FROM v_run_id::text THEN
+        RETURN NULL;
+    END IF;
+    RETURN v_run_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.learning_course_lesson_unique_run(uuid,uuid,uuid,uuid,uuid)
+    FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_course_lesson_unique_run(uuid,uuid,uuid,uuid,uuid)
+    TO asalab_app;
+
 -- Pinned Direct work predates immutable Project origins. A remembered Project
 -- URL still needs its exact Seat, Participation, bilateral Account link, and
 -- Project read permission; a handout projection alone is not authorization.

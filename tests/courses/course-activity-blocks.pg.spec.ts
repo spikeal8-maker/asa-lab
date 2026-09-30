@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import {
+  ACCOUNT_COURSE_LESSON_LIST_SQL,
+  SEAT_COURSE_LESSON_LIST_SQL,
+} from '../../apps/api/src/course-lesson-list-queries';
 import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
@@ -679,6 +683,36 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       modernCourseRun: true,
       startAllowed: true,
     });
+    const seatList = () =>
+      inTenant(author, (client) => client.query(SEAT_COURSE_LESSON_LIST_SQL, [seat]));
+    const accountList = () =>
+      inTenant(author, (client) =>
+        client.query(ACCOUNT_COURSE_LESSON_LIST_SQL, [learnerAccount, learnerPrincipal]),
+      );
+    for (const listed of [await seatList(), await accountList()]) {
+      expect(listed.rows[0]).toMatchObject({
+        modern_activity_run_id: activityRunId,
+        modern_provenance: { modernCourseRun: true, startAllowed: true },
+      });
+    }
+    for (const [actor, lessonId] of [
+      [outsiderPrincipalId, runs[0].source_course_lesson_id],
+      [learnerPrincipal, randomUUID()],
+    ]) {
+      const denied = await inTenant(author, (client) =>
+        client.query(`SELECT learning_course_lesson_unique_run($1,$2,$3,$4,$5) AS run_id`, [
+          actor,
+          seat,
+          assigned.run_id,
+          lessonId,
+          assignmentId,
+        ]),
+      );
+      expect(denied.rows[0].run_id).toBeNull();
+    }
+    await expect(
+      inTenant(author, (client) => client.query('SELECT id FROM activity_runs LIMIT 1')),
+    ).rejects.toThrow(/permission denied/);
     const projectId = (
       await admin.query(
         `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
@@ -736,6 +770,16 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       proof: { modernCourseRun: true, projectReadable: true },
     });
     expect(revisited.rows[0].submitted_at).toBeTruthy();
+    expect((await accountList()).rows[0]).toMatchObject({
+      project_id: projectId,
+      modern_activity_run_id: activityRunId,
+      modern_provenance: { modernCourseRun: true, projectReadable: true },
+    });
+    expect((await seatList()).rows[0]).toMatchObject({
+      project_id: projectId,
+      modern_activity_run_id: activityRunId,
+      modern_provenance: { modernCourseRun: true, projectReadable: false },
+    });
     expect(await proof(outsiderPrincipalId, seat, projectId)).toMatchObject({
       projectReadable: false,
       startAllowed: false,
@@ -761,6 +805,10 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       projectReadable: false,
       startAllowed: false,
     });
+    expect((await accountList()).rows[0]).toMatchObject({
+      modern_activity_run_id: null,
+      modern_provenance: { modernCourseRun: false, projectReadable: false },
+    });
     const rememberedContext = await inTenant(author, (client) =>
       client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
         learnerPrincipal,
@@ -782,6 +830,10 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     expect(await proof(seatPrincipal, seat, projectId)).toMatchObject({
       projectReadable: false,
       startAllowed: false,
+    });
+    expect((await seatList()).rows[0]).toMatchObject({
+      modern_activity_run_id: activityRunId,
+      modern_provenance: { modernCourseRun: true, projectReadable: false },
     });
   }, 30_000);
 });
@@ -897,6 +949,29 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
       startAllowed: false,
       projectReadable: false,
     });
+    const ambiguousResolver = await inTenant(author, (client) =>
+      client.query(
+        `SELECT learning_course_lesson_unique_run(
+           principal_for_seat($1),$1,$2,$3,$4) AS run_id`,
+        [
+          seat,
+          source.source_course_run_id,
+          source.source_course_lesson_id,
+          occurrence.classroom_assignment_id,
+        ],
+      ),
+    );
+    expect(ambiguousResolver.rows[0].run_id).toBeNull();
+    for (const listed of [
+      await inTenant(author, (client) => client.query(SEAT_COURSE_LESSON_LIST_SQL, [seat])),
+      await inTenant(author, (client) =>
+        client.query(ACCOUNT_COURSE_LESSON_LIST_SQL, [accountId, principalId]),
+      ),
+    ]) {
+      const lessonRows = listed.rows.filter((row) => row.run_id === source.source_course_run_id);
+      expect(lessonRows.length).toBeGreaterThan(0);
+      expect(lessonRows.every((row) => row.modern_activity_run_id === null)).toBe(true);
+    }
     expect(
       (
         await inTenant(author, (client) =>
