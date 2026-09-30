@@ -12,6 +12,167 @@ ALTER TABLE public.learning_project_origins
             AND source_course_lesson_id IS NOT NULL)
     );
 
+-- The immutable CourseVersion snapshot is the authority for an authored
+-- assignment lesson's activity version. Materialized lesson/handout rows alone
+-- can be paired with a different same-module version by activity_run_create.
+CREATE FUNCTION public.learning_course_assignment_lesson_pinned(p_activity_run_id uuid)
+RETURNS boolean
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT EXISTS (
+        SELECT 1
+          FROM public.activity_runs run
+          JOIN public.learning_activity_versions version
+            ON version.tenant_id=run.tenant_id
+           AND version.id=run.learning_activity_version_id
+          JOIN public.classroom_course_runs course
+            ON course.tenant_id=run.tenant_id
+           AND course.id=run.source_course_run_id
+           AND course.classroom_id=run.classroom_id
+          JOIN public.course_versions pinned_course
+            ON pinned_course.tenant_id=course.tenant_id
+           AND pinned_course.course_id=course.course_id
+           AND pinned_course.id=course.course_version_id
+          JOIN public.classroom_course_run_lessons lesson
+            ON lesson.tenant_id=run.tenant_id
+           AND lesson.run_id=course.id
+           AND lesson.id=run.source_course_lesson_id
+          JOIN public.classroom_assignments assignment
+            ON assignment.tenant_id=run.tenant_id
+           AND assignment.id=run.source_classroom_assignment_id
+           AND assignment.course_run_id=course.id
+           AND assignment.classroom_id=run.classroom_id
+         WHERE run.id=p_activity_run_id
+           AND run.source_kind='course'
+           AND run.source_course_block_id IS NULL
+           AND lesson.kind='assignment'
+           AND lesson.classroom_assignment_id=assignment.id
+           AND lesson.module_key=version.module_key
+           AND (SELECT count(*)
+                  FROM jsonb_array_elements(pinned_course.outline->'sections') section
+                  CROSS JOIN LATERAL jsonb_array_elements(section->'lessons') pinned_lesson
+                 WHERE section->>'sourceSectionId'=lesson.source_section_id::text
+                   AND pinned_lesson->>'sourceLessonId'=lesson.source_lesson_id::text
+                   AND pinned_lesson->>'kind'='assignment'
+                   AND pinned_lesson->>'learningActivityVersionId'=version.id::text)=1
+    );
+$$;
+REVOKE ALL ON FUNCTION public.learning_course_assignment_lesson_pinned(uuid) FROM PUBLIC;
+
+-- List and work-context proof must agree with atomic admission for lesson Runs.
+CREATE OR REPLACE FUNCTION public.learning_course_modern_provenance(
+    p_viewer_principal_id uuid, p_seat_id uuid,
+    p_activity_run_id uuid, p_project_id uuid DEFAULT NULL
+)
+RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE
+    v_scope record;
+    v_start_allowed boolean := false;
+    v_project_readable boolean := false;
+BEGIN
+    SELECT run.id, run.tenant_id, run.source_classroom_assignment_id AS assignment_id,
+           run.lifecycle_status, course.status AS course_status,
+           assignment.status AS assignment_status, classroom.status AS classroom_status,
+           seat.id AS seat_id, seat_link.learner_identity_id,
+           participation.id AS participation_id, participation.excused,
+           actor.kind
+      INTO v_scope
+      FROM public.classroom_student_seats seat
+      JOIN public.classrooms classroom
+        ON classroom.tenant_id=seat.tenant_id AND classroom.id=seat.classroom_id
+      JOIN public.principals actor ON actor.id=p_viewer_principal_id
+      JOIN public.learner_identity_links seat_link
+        ON seat_link.tenant_id=seat.tenant_id
+       AND seat_link.school_id=classroom.school_id
+       AND seat_link.seat_id=seat.id
+       AND seat_link.link_kind='student_seat' AND seat_link.status='active'
+      JOIN public.activity_runs run
+        ON run.id=p_activity_run_id AND run.tenant_id=seat.tenant_id
+       AND run.school_id=classroom.school_id AND run.classroom_id=seat.classroom_id
+       AND run.source_kind='course'
+      JOIN public.classroom_course_runs course
+        ON course.tenant_id=run.tenant_id AND course.id=run.source_course_run_id
+       AND course.classroom_id=seat.classroom_id
+      JOIN public.classroom_course_run_lessons lesson
+        ON lesson.tenant_id=run.tenant_id AND lesson.run_id=course.id
+       AND lesson.id=run.source_course_lesson_id
+       AND lesson.classroom_assignment_id=run.source_classroom_assignment_id
+      JOIN public.classroom_assignments assignment
+        ON assignment.tenant_id=run.tenant_id
+       AND assignment.id=run.source_classroom_assignment_id
+       AND assignment.classroom_id=seat.classroom_id
+       AND assignment.course_run_id=course.id
+      JOIN public.activity_participations participation
+        ON participation.tenant_id=run.tenant_id
+       AND participation.school_id=run.school_id
+       AND participation.activity_run_id=run.id
+       AND participation.learner_identity_id=seat_link.learner_identity_id
+       AND participation.status IN ('assigned','active')
+      LEFT JOIN public.course_enrollments enrollment
+        ON enrollment.tenant_id=participation.tenant_id
+       AND enrollment.school_id=participation.school_id
+       AND enrollment.id=participation.source_course_enrollment_id
+     WHERE seat.id=p_seat_id AND seat.status='active'
+       AND (run.source_course_block_id IS NOT NULL
+            OR public.learning_course_assignment_lesson_pinned(run.id))
+       AND (participation.source_course_enrollment_id IS NULL
+            OR enrollment.status IN ('assigned','active'))
+       AND ((actor.kind='student_seat' AND actor.seat_id=seat.id)
+            OR (actor.kind='account' AND actor.account_id=seat.account_id
+                AND EXISTS (
+                    SELECT 1 FROM public.accounts account
+                    JOIN public.learner_identity_links account_link
+                      ON account_link.account_id=account.id
+                     AND account_link.tenant_id=seat_link.tenant_id
+                     AND account_link.school_id=seat_link.school_id
+                     AND account_link.learner_identity_id=seat_link.learner_identity_id
+                     AND account_link.link_kind='account'
+                     AND account_link.status='active'
+                   WHERE account.id=seat.account_id AND account.status='active')))
+       AND (SELECT count(*) FROM public.activity_runs sibling
+             WHERE sibling.tenant_id=run.tenant_id
+               AND sibling.source_classroom_assignment_id=assignment.id)=1;
+    IF v_scope.id IS NULL THEN
+        RETURN jsonb_build_object('modernCourseRun',false,'activityRunId',NULL,
+            'startAllowed',false,'projectReadable',false);
+    END IF;
+
+    v_start_allowed := v_scope.lifecycle_status='active'
+        AND v_scope.course_status='open' AND v_scope.assignment_status='open'
+        AND v_scope.classroom_status='active' AND NOT v_scope.excused
+        AND public.learning_course_seat_visible(p_seat_id,
+            (SELECT source_course_run_id FROM public.activity_runs WHERE id=v_scope.id))
+        AND NOT EXISTS (
+            SELECT 1 FROM public.classroom_assignment_work work
+             WHERE work.tenant_id=v_scope.tenant_id
+               AND work.assignment_id=v_scope.assignment_id
+               AND work.seat_id=p_seat_id)
+        AND NOT EXISTS (
+            SELECT 1 FROM public.learning_project_origins origin
+             WHERE origin.school_tenant_id=v_scope.tenant_id
+               AND origin.learner_identity_id=v_scope.learner_identity_id
+               AND origin.activity_run_id=v_scope.id);
+    IF p_project_id IS NOT NULL THEN
+        SELECT EXISTS (
+            SELECT 1 FROM public.classroom_assignment_work work
+             WHERE work.tenant_id=v_scope.tenant_id
+               AND work.assignment_id=v_scope.assignment_id
+               AND work.seat_id=p_seat_id AND work.project_id=p_project_id
+               AND EXISTS (SELECT 1 FROM public.project_context_for_principal(
+                   p_viewer_principal_id,p_project_id))
+               AND NOT EXISTS (
+                   SELECT 1 FROM public.learning_project_origins origin
+                    WHERE origin.project_id=p_project_id
+                       OR (origin.school_tenant_id=v_scope.tenant_id
+                           AND origin.learner_identity_id=v_scope.learner_identity_id
+                           AND origin.activity_run_id=v_scope.id))
+        ) INTO v_project_readable;
+    END IF;
+    RETURN jsonb_build_object('modernCourseRun',true,'activityRunId',v_scope.id,
+        'startAllowed',v_start_allowed,'projectReadable',v_project_readable);
+END;
+$$;
+
 CREATE OR REPLACE FUNCTION public.learning_work_start_admit(
     p_actor_principal_id uuid, p_activity_run_id uuid, p_request_id varchar
 )
@@ -62,8 +223,7 @@ BEGIN
            classroom.status AS classroom_status,
            assignment.status AS handout_status,
            assignment.course_run_id AS handout_course_run_id,
-           course.status AS course_status,
-           pinned_course.outline AS course_outline
+           course.status AS course_status
       INTO v_run
       FROM public.activity_runs run
       JOIN public.learning_activity_versions version
@@ -78,10 +238,6 @@ BEGIN
       LEFT JOIN public.classroom_course_runs course
         ON course.tenant_id = run.tenant_id
        AND course.id = run.source_course_run_id
-      LEFT JOIN public.course_versions pinned_course
-        ON pinned_course.tenant_id = course.tenant_id
-       AND pinned_course.course_id = course.course_id
-       AND pinned_course.id = course.course_version_id
      WHERE run.id = p_activity_run_id
      FOR SHARE OF run;
     IF v_run.tenant_id IS NULL THEN
@@ -157,14 +313,7 @@ BEGIN
                         AND lesson.kind = 'assignment'
                         AND lesson.classroom_assignment_id = v_run.source_classroom_assignment_id
                         AND lesson.module_key = v_run.module_key
-                        AND (SELECT count(*)
-                               FROM jsonb_array_elements(v_run.course_outline->'sections') section
-                               CROSS JOIN LATERAL jsonb_array_elements(section->'lessons') pinned_lesson
-                              WHERE section->>'sourceSectionId' = lesson.source_section_id::text
-                                AND pinned_lesson->>'sourceLessonId' = lesson.source_lesson_id::text
-                                AND pinned_lesson->>'kind' = 'assignment'
-                                AND pinned_lesson->>'learningActivityVersionId' =
-                                    v_run.learning_activity_version_id::text) = 1
+                        AND public.learning_course_assignment_lesson_pinned(p_activity_run_id)
                         AND NOT EXISTS (
                             SELECT 1 FROM public.classroom_assignment_work work
                              WHERE work.tenant_id = v_run.tenant_id
@@ -430,10 +579,6 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
           ON course.id = run.source_course_run_id
          AND course.tenant_id = origin.school_tenant_id
          AND course.classroom_id = run.classroom_id
-        LEFT JOIN public.course_versions pinned_course
-          ON pinned_course.id = course.course_version_id
-         AND pinned_course.tenant_id = origin.school_tenant_id
-         AND pinned_course.course_id = course.course_id
         LEFT JOIN public.classroom_course_run_lessons lesson
           ON lesson.id = run.source_course_lesson_id
          AND lesson.tenant_id = origin.school_tenant_id
@@ -480,13 +625,7 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
                         AND lesson.kind = 'assignment'
                         AND lesson.classroom_assignment_id = run.source_classroom_assignment_id
                         AND lesson.module_key = version.module_key
-                        AND (SELECT count(*)
-                               FROM jsonb_array_elements(pinned_course.outline->'sections') section
-                               CROSS JOIN LATERAL jsonb_array_elements(section->'lessons') pinned_lesson
-                              WHERE section->>'sourceSectionId' = lesson.source_section_id::text
-                                AND pinned_lesson->>'sourceLessonId' = lesson.source_lesson_id::text
-                                AND pinned_lesson->>'kind' = 'assignment'
-                                AND pinned_lesson->>'learningActivityVersionId' = version.id::text) = 1)
+                        AND public.learning_course_assignment_lesson_pinned(run.id))
                     OR (run.source_course_block_id IS NOT NULL AND EXISTS (
                         SELECT 1 FROM jsonb_array_elements(lesson.blocks) block
                          WHERE block->>'id' = run.source_course_block_id

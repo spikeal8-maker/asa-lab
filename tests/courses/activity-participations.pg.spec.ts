@@ -6,6 +6,7 @@ import { CreateProjectUseCase } from '../../contexts/projects/application/projec
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
+import { SEAT_COURSE_LESSON_LIST_SQL } from '../../apps/api/src/course-lesson-list-queries';
 import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 import { acquireLearningSubmissionSuiteLock } from './learning-submission-suite-lock';
@@ -2808,6 +2809,27 @@ describe('A4-2b atomic StartLearningWork', () => {
     });
     const participation = await assign(run, learner, enrollment.rows[0].enrollment_id);
     expect(participation.result_code).toBe('ok');
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const listProof = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT learning_course_lesson_unique_run($1,$2,$3,$4,$5) AS listed_run,
+                learning_course_modern_provenance($1,$2,$6,NULL) AS proof`,
+        [learnerPrincipal, seatId, source.courseRun, source.lesson, source.handout, run],
+      ),
+    );
+    expect(listProof.rows[0]).toMatchObject({
+      listed_run: null,
+      proof: { modernCourseRun: false, startAllowed: false, projectReadable: false },
+    });
+    const listed = await inTenant(owner.tenantId, (client) =>
+      client.query(SEAT_COURSE_LESSON_LIST_SQL, [seatId]),
+    );
+    expect(listed.rows.find((row) => row.lesson_id === source.lesson)).toMatchObject({
+      modern_activity_run_id: null,
+      modern_provenance: { modernCourseRun: false, startAllowed: false },
+    });
     await expect(
       (await startController('seat')).start(startRequest, run, {
         requestId: `start:${randomUUID()}`,
