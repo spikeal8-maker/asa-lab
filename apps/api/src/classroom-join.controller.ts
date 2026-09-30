@@ -180,6 +180,7 @@ interface CourseActivityOccurrenceRow {
   snapshot_revision: number | string | null;
   work_updated_at: Date | string | null;
   shared_assignment: boolean;
+  not_started_visible: boolean;
   modern_provenance?: {
     modernCourseRun?: boolean;
     activityRunId?: string | null;
@@ -260,6 +261,8 @@ function courseActivityOccurrenceMap(
         (row.project_id !== null && !modernReadable)) &&
       exact === null;
     const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
+    const exactNotStarted =
+      row.project_id === null && !originPresent && row.not_started_visible === true;
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
@@ -297,13 +300,21 @@ function courseActivityOccurrenceMap(
           : isoDate(row.work_updated_at),
       canonicalState:
         exact?.canonicalState ??
-        (modernScope &&
-        ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
-          legacyAllowed) &&
-        !originPresent &&
-        canonicalState?.activityRunId === row.activity_run_id
-          ? canonicalState
-          : null),
+        (exactNotStarted
+          ? {
+              activityRunId: row.activity_run_id,
+              workflowState: 'not_started',
+              selectedResult: null,
+              flags: [],
+              learnerMessageCode: null,
+            }
+          : modernScope &&
+              ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
+                legacyAllowed) &&
+              !originPresent &&
+              canonicalState?.activityRunId === row.activity_run_id
+            ? canonicalState
+            : null),
       workOriginAmbiguous,
     });
     result.set(key, values);
@@ -1282,7 +1293,10 @@ export class ClassroomJoinController {
                 ) AS sample_image,
                 learning_course_modern_provenance(
                   $2,occurrence.seat_id,occurrence.activity_run_id,occurrence.project_id
-                ) AS modern_provenance
+                ) AS modern_provenance,
+                learning_course_occurrence_not_started_visible(
+                  $2,occurrence.seat_id,occurrence.activity_run_id
+                ) AS not_started_visible
            FROM classroom_course_activity_occurrences_for_account($1) occurrence`,
         [context.accountId, context.principalId],
       ),
@@ -1476,7 +1490,10 @@ export class ClassroomJoinController {
                 learning_course_modern_provenance(
                   principal_for_seat($1),occurrence.seat_id,
                   occurrence.activity_run_id,occurrence.project_id
-                ) AS modern_provenance
+                ) AS modern_provenance,
+                learning_course_occurrence_not_started_visible(
+                  principal_for_seat($1),occurrence.seat_id,occurrence.activity_run_id
+                ) AS not_started_visible
            FROM classroom_course_activity_occurrences_for_seat($1) occurrence`,
         [seat.seat_id],
       ),

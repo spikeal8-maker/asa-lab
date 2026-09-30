@@ -646,6 +646,20 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     const seatPrincipal = (
       await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])
     ).rows[0].principal_id as string;
+    const notStartedVisible = async (actor: string, viewerSeat: string, runId: string) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT learning_course_occurrence_not_started_visible($1,$2,$3) AS visible',
+            [actor, viewerSeat, runId],
+          ),
+        )
+      ).rows[0].visible as boolean;
+    // A historical lesson-level Run has no exact Activity block identity.
+    expect(await notStartedVisible(seatPrincipal, seat, activityRunId)).toBe(false);
+    expect(await notStartedVisible(learnerPrincipal, seat, activityRunId)).toBe(false);
+    expect(await notStartedVisible(outsiderPrincipalId, seat, activityRunId)).toBe(false);
+    expect(await notStartedVisible(learnerPrincipal, seat, randomUUID())).toBe(false);
     const identity = (
       await admin.query(
         `SELECT learner_identity_id FROM learner_identity_links
@@ -727,6 +741,7 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
         projectId,
       ]),
     );
+    expect(await notStartedVisible(learnerPrincipal, seat, activityRunId)).toBe(false);
     expect(await proof(learnerPrincipal, seat, projectId)).toMatchObject({
       modernCourseRun: true,
       startAllowed: false,
@@ -805,6 +820,7 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       projectReadable: false,
       startAllowed: false,
     });
+    expect(await notStartedVisible(learnerPrincipal, seat, activityRunId)).toBe(false);
     expect((await accountList()).rows[0]).toMatchObject({
       modern_activity_run_id: null,
       modern_provenance: { modernCourseRun: false, projectReadable: false },
@@ -1088,6 +1104,62 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     };
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: pinnedB });
+    const seatPrincipal = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])
+    ).rows[0].principal_id as string;
+    const notStartedVisible = async (actor: string, runId: string) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT learning_course_occurrence_not_started_visible($1,$2,$3) AS visible',
+            [actor, seat, runId],
+          ),
+        )
+      ).rows[0].visible as boolean;
+    for (const actor of [seatPrincipal, principalId]) {
+      expect(await notStartedVisible(actor, occurrence.activity_run_id)).toBe(true);
+      expect(await notStartedVisible(actor, sibling.activity_run_id)).toBe(true);
+    }
+    expect(await notStartedVisible(outsiderPrincipalId, sibling.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(seatPrincipal, randomUUID())).toBe(false);
+    await admin.query(
+      `UPDATE classroom_course_run_lessons
+          SET blocks=jsonb_set(blocks,'{1,learningActivityVersionId}',to_jsonb($2::text))
+        WHERE id=$1`,
+      [source.source_course_lesson_id, randomUUID()],
+    );
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
+    await admin.query(
+      `UPDATE classroom_course_run_lessons
+          SET blocks=jsonb_set(blocks,'{1,learningActivityVersionId}',to_jsonb($2::text))
+        WHERE id=$1`,
+      [source.source_course_lesson_id, bVersion.versionId],
+    );
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(true);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, source.learner_identity_id],
+    );
+    expect(await notStartedVisible(principalId, sibling.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(true);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, source.learner_identity_id],
+    );
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE seat_id=$1 AND learner_identity_id=$2 AND link_kind='student_seat'`,
+      [seat, source.learner_identity_id],
+    );
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(principalId, sibling.activity_run_id)).toBe(false);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE seat_id=$1 AND learner_identity_id=$2 AND link_kind='student_seat'`,
+      [seat, source.learner_identity_id],
+    );
     await expectUnattributedWork();
     for (const asAccount of [false, true]) {
       expect(await readGoals(asAccount)).toEqual([
@@ -1196,6 +1268,8 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         )
       ).rows[0].project_id,
     ).toBe(projectId);
+    expect(await notStartedVisible(seatPrincipal, occurrence.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
     await expectUnattributedWork();
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: null });
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
@@ -1255,6 +1329,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         )
       ).rows[0].result_code,
     ).toBe('ok');
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
     for (const asAccount of [false, true]) {
       expect(await readGoals(asAccount)).toEqual([
         { block_id: 'sibling-a', goal: 'Only sibling A goal' },

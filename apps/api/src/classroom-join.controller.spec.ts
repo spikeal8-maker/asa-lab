@@ -779,6 +779,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
             rows: occurrenceRows.map((row) => ({
               ...row,
               modern_provenance: { modernCourseRun: false, projectReadable: false },
+              not_started_visible: false,
             })),
           };
         return { rows: occurrenceRows };
@@ -1044,6 +1045,31 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       ]);
     }
     const exactOriginRows = [...originRows];
+    // One sibling has exact work, while the untouched sibling shares its old
+    // handout. The handout-keyed canonical state belongs to the started Run.
+    originRows = [exactOriginRows[0]];
+    evidenceRows.splice(1, 1);
+    Object.assign(occurrenceRows[0], { project_id: null });
+    Object.assign(occurrenceRows[1], { project_id: null, not_started_visible: true });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(occurrences?.map((item) => item.projectId)).toEqual([exactProjects[0], null]);
+      expect(occurrences?.map((item) => item.canonicalState?.workflowState)).toEqual([
+        'in_progress',
+        'not_started',
+      ]);
+      expect(occurrences?.[1]?.canonicalState?.activityRunId).toBe(activityRunB);
+    }
+    originRows = [];
+    accountLinkRevoked = true;
+    expect(
+      (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0]
+        ?.activityOccurrences?.[1]?.canonicalState,
+    ).toBeNull();
+    accountLinkRevoked = false;
     originRows = [];
     presenceRows = [
       {
