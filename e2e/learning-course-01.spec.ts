@@ -1643,6 +1643,10 @@ for (const module of ['electronics', 'three-d'])
     });
     await learner.setViewportSize({ width: 1440, height: 900 });
     await startLesson.click();
+    await expect(learner).toHaveURL(
+      module === 'three-d' ? /#\/3d\/[^?]+/ : /\/projects\/[^/]+\/electronics\/edit\/?$/,
+      { timeout: 60_000 },
+    );
     const startedProjectId = courseActivityProjectId(learner, module);
     const assignmentAnchor = learner.getByTestId('assignment-brief-anchor');
     await expect(assignmentAnchor).toBeVisible({ timeout: 60_000 });
