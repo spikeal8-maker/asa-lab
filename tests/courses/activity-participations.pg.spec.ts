@@ -8,6 +8,7 @@ import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-p
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
 import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+import { acquireLearningSubmissionSuiteLock } from './learning-submission-suite-lock';
 
 const policies = {
   attemptPolicy: { maxAttempts: 2 },
@@ -33,6 +34,7 @@ let learnerPrincipal: string;
 let foreignLearner: string;
 let lav: string;
 let sequence = 0;
+let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
 
 async function inTenant<T>(tenant: string, callback: (client: pg.PoolClient) => Promise<T>) {
   const client = await app.connect();
@@ -207,6 +209,7 @@ async function command(name: string, parameters: unknown[]) {
 }
 
 beforeAll(async () => {
+  releaseSubmissionSuiteLock = await acquireLearningSubmissionSuiteLock();
   admin = testAdminPool();
   app = testAppPool();
   owner = await seedTeacher(admin, 'learning-m1-004-owner');
@@ -321,10 +324,14 @@ beforeAll(async () => {
     ]),
   );
   lav = published.rows[0].activity_version_id as string;
-});
+}, 90_000);
 
 afterAll(async () => {
-  await Promise.all([admin.end(), app.end()]);
+  try {
+    await Promise.all([admin?.end(), app?.end()]);
+  } finally {
+    await releaseSubmissionSuiteLock?.();
+  }
 });
 
 describe('LRN-M1-004 ActivityParticipation', () => {
