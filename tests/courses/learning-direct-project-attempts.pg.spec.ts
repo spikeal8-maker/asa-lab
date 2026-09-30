@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import type pg from 'pg';
 import { PgClassroomRepository } from '../../contexts/classroom/index';
 import { teacherHomeAttention } from '../../apps/api/src/teacher-home-attention';
@@ -7,6 +7,7 @@ import {
   canonicalProjectionKey,
 } from '../../apps/api/src/learning-canonical-projection.service';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+import { acquireLearningSubmissionSuiteLock } from './learning-submission-suite-lock';
 
 const policies = {
   attemptPolicy: { maxAttempts: 1 },
@@ -23,6 +24,49 @@ let owner: SeededTeacher;
 let teacherPrincipal: string;
 let teacherAccount: string;
 let sequence = 0;
+let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
+
+function traceGradedCase(policy: string): (stage: string) => void {
+  const started = performance.now();
+  let stage = 'setup';
+  const mark = (next: string) => {
+    stage = next;
+  };
+  const probe = setTimeout(() => {
+    // Healthy cases are quiet; report the stalled stage and DB waits only under CI contention.
+    console.info(
+      `[VS002 timing] ${policy} slow at ${stage}; total ${Math.round(performance.now() - started)}ms`,
+    );
+    // A separate admin-pool connection observes waits without touching the transaction under test.
+    void admin
+      .query(
+        `SELECT pid, state, wait_event_type, wait_event, pg_blocking_pids(pid) AS blocking_pids,
+                floor(extract(epoch FROM clock_timestamp() - query_start) * 1000)::int AS query_ms,
+                CASE
+                  WHEN query LIKE '%learning_direct_project_attempt_start%' THEN 'start'
+                  WHEN query LIKE '%learning_direct_project_submission_create%' THEN 'submission'
+                  WHEN query LIKE '%learning_attempt_review_v2%' THEN 'review'
+                  WHEN query LIKE '%learning_canonical_evidence_for_seat%' THEN 'evidence'
+                  ELSE 'other'
+                END AS operation
+           FROM pg_stat_activity
+          WHERE datname = current_database() AND pid <> pg_backend_pid()
+            AND (state = 'active' OR wait_event_type = 'Lock')
+          ORDER BY query_ms DESC
+          LIMIT 12`,
+      )
+      .then((result) => console.info(`[VS002 pg waits] ${policy} ${JSON.stringify(result.rows)}`))
+      .catch((error: unknown) =>
+        console.info(
+          `[VS002 pg waits] ${policy} probe failed: ${error instanceof Error ? error.name : 'unknown'}`,
+        ),
+      );
+  }, 3_500);
+  onTestFinished(() => {
+    clearTimeout(probe);
+  });
+  return mark;
+}
 
 async function attention() {
   return teacherHomeAttention(
@@ -173,6 +217,7 @@ async function createProject(principalId: string, title: string): Promise<string
 }
 
 beforeAll(async () => {
+  releaseSubmissionSuiteLock = await acquireLearningSubmissionSuiteLock();
   admin = testAdminPool();
   app = testAppPool();
   owner = await seedTeacher(admin, 'learning-vs-002');
@@ -183,10 +228,14 @@ beforeAll(async () => {
   );
   teacherAccount = identity.rows[0].account_id as string;
   teacherPrincipal = identity.rows[0].principal_id as string;
-});
+}, 90_000);
 
 afterAll(async () => {
-  await Promise.all([admin.end(), app.end()]);
+  try {
+    await Promise.all([admin?.end(), app?.end()]);
+  } finally {
+    await releaseSubmissionSuiteLock?.();
+  }
 });
 
 describe('LRN-VS-002 canonical direct project attempt', () => {
@@ -796,182 +845,203 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ).rows[0].result_code,
     ).toBe('forbidden');
   });
+  // Each case performs several real submissions and reviews; the shared CI database can pause them.
   for (const policy of ['first', 'latest', 'best', 'latest_accepted', 'teacher_selected'])
-    it('selects exact graded revisions: ' + policy, async () => {
-      const cls = await createClass();
-      const seat = await createSeat(cls, 'Политика ' + policy);
-      const version = await createActivity('Результаты ' + policy, policy, true, 4);
-      const assignment = await assign(cls, version, 'whole_class');
-      const learner = await activateSeat(seat);
-      const project = await createProject(learner, 'Проверка выбора');
-      const attempts: Array<{ id: string; result: string }> = [];
-      let part = '';
-      for (const points of [6, 8, 8]) {
-        const start = (
-          await inTenant((c) =>
-            c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
-              learner,
-              seat,
-              assignment,
-              project,
-            ]),
-          )
-        ).rows[0];
-        expect(start.result_code).toBe('ok');
-        part = start.participation_id;
-        const submission = (
-          await inTenant((c) =>
-            c.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
-              learner,
-              seat,
-              assignment,
-              'selection:submit:' + ++sequence,
-            ]),
-          )
-        ).rows[0];
-        expect(submission.result_code).toBe('ok');
-        const review = (
-          await inTenant((c) =>
-            c.query(
-              "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',$5,NULL,NULL,NULL,$6)",
-              [
-                teacherAccount,
-                teacherPrincipal,
-                cls,
-                start.attempt_id,
-                points,
-                'selection:review:' + ++sequence,
-              ],
-            ),
-          )
-        ).rows[0];
-        expect(review.result_code).toBe('ok');
-        attempts.push({ id: start.attempt_id, result: review.assessment_result_id });
-      }
-      if (policy === 'teacher_selected') {
-        expect(
-          (
+    it(
+      'selects exact graded revisions: ' + policy,
+      async () => {
+        const mark = traceGradedCase(policy);
+        const cls = await createClass();
+        mark('setup: seat');
+        const seat = await createSeat(cls, 'Политика ' + policy);
+        mark('setup: activity');
+        const version = await createActivity('Результаты ' + policy, policy, true, 4);
+        mark('setup: assignment');
+        const assignment = await assign(cls, version, 'whole_class');
+        mark('setup: learner');
+        const learner = await activateSeat(seat);
+        mark('setup: project');
+        const project = await createProject(learner, 'Проверка выбора');
+        mark('attempts');
+        const attempts: Array<{ id: string; result: string }> = [];
+        let part = '';
+        for (const points of [6, 8, 8]) {
+          mark(`attempt ${attempts.length + 1}: start`);
+          const start = (
             await inTenant((c) =>
-              c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
+              c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+                learner,
+                seat,
+                assignment,
+                project,
+              ]),
             )
-          ).rows[0].evidence.selectedRevision,
-        ).toBeNull();
-        expect(
-          (
+          ).rows[0];
+          expect(start.result_code).toBe('ok');
+          part = start.participation_id;
+          mark(`attempt ${attempts.length + 1}: submission`);
+          const submission = (
+            await inTenant((c) =>
+              c.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+                learner,
+                seat,
+                assignment,
+                'selection:submit:' + ++sequence,
+              ]),
+            )
+          ).rows[0];
+          expect(submission.result_code).toBe('ok');
+          mark(`attempt ${attempts.length + 1}: review`);
+          const review = (
             await inTenant((c) =>
               c.query(
-                "SELECT learning_teacher_select_attempt($1,$2,$3,$4,$5,NULL,'Выбор преподавателя',$6) AS code",
+                "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',$5,NULL,NULL,NULL,$6)",
                 [
                   teacherAccount,
                   teacherPrincipal,
                   cls,
-                  part,
-                  attempts[1]!.id,
-                  'selection:explicit:' + ++sequence,
+                  start.attempt_id,
+                  points,
+                  'selection:review:' + ++sequence,
                 ],
               ),
             )
-          ).rows[0].code,
-        ).toBe('ok');
-        const explicitGrade = (
-          await admin.query(
-            'SELECT accepted_attempt_id,assessment_result_id FROM gradebook_entries WHERE classroom_assignment_id=$1 AND seat_id=$2',
-            [assignment, seat],
-          )
-        ).rows[0];
-        expect(explicitGrade).toEqual({
-          accepted_attempt_id: attempts[1]!.id,
-          assessment_result_id: attempts[1]!.result,
+          ).rows[0];
+          expect(review.result_code).toBe('ok');
+          attempts.push({ id: start.attempt_id, result: review.assessment_result_id });
+        }
+        mark('selection and evidence');
+        if (policy === 'teacher_selected') {
+          expect(
+            (
+              await inTenant((c) =>
+                c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
+              )
+            ).rows[0].evidence.selectedRevision,
+          ).toBeNull();
+          expect(
+            (
+              await inTenant((c) =>
+                c.query(
+                  "SELECT learning_teacher_select_attempt($1,$2,$3,$4,$5,NULL,'Выбор преподавателя',$6) AS code",
+                  [
+                    teacherAccount,
+                    teacherPrincipal,
+                    cls,
+                    part,
+                    attempts[1]!.id,
+                    'selection:explicit:' + ++sequence,
+                  ],
+                ),
+              )
+            ).rows[0].code,
+          ).toBe('ok');
+          const explicitGrade = (
+            await admin.query(
+              'SELECT accepted_attempt_id,assessment_result_id FROM gradebook_entries WHERE classroom_assignment_id=$1 AND seat_id=$2',
+              [assignment, seat],
+            )
+          ).rows[0];
+          expect(explicitGrade).toEqual({
+            accepted_attempt_id: attempts[1]!.id,
+            assessment_result_id: attempts[1]!.result,
+          });
+        }
+        const evidence = async () =>
+          (
+            await inTenant((c) =>
+              c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
+            )
+          ).rows[0].evidence;
+        const expected =
+          policy === 'first'
+            ? attempts[0]!
+            : policy === 'teacher_selected'
+              ? attempts[1]!
+              : attempts[2]!;
+        expect(await evidence()).toMatchObject({
+          selectedAttemptId: expected.id,
+          selectedRevision: { id: expected.result },
         });
-      }
-      const evidence = async () =>
-        (
-          await inTenant((c) =>
-            c.query('SELECT * FROM learning_canonical_evidence_for_seat($1)', [seat]),
-          )
-        ).rows[0].evidence;
-      const expected =
-        policy === 'first'
-          ? attempts[0]!
-          : policy === 'teacher_selected'
-            ? attempts[1]!
-            : attempts[2]!;
-      expect(await evidence()).toMatchObject({
-        selectedAttemptId: expected.id,
-        selectedRevision: { id: expected.result },
-      });
-      // A later published correction may change best, never the close-time ordering.
-      const corrected = (
-        await inTenant((c) =>
-          c.query(
-            "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',9,'Точное исправление','Проверка исправлена',$5,$6)",
-            [
-              teacherAccount,
-              teacherPrincipal,
-              cls,
-              attempts[0]!.id,
-              attempts[0]!.result,
-              'selection:corrected:' + ++sequence,
-            ],
-          ),
-        )
-      ).rows[0];
-      expect(corrected.result_code).toBe('ok');
-      expect((await evidence()).selectedAttemptId).toBe(
-        policy === 'best' ? attempts[0]!.id : expected.id,
-      );
-      if (policy === 'first' || policy === 'best')
-        expect((await evidence()).selectedRevision.id).toBe(corrected.assessment_result_id);
-      // Starting the fourth attempt does not erase the selected terminal result.
-      await inTenant((c) =>
-        c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
-          learner,
-          seat,
-          assignment,
-          project,
-        ]),
-      );
-      expect((await evidence()).selectedAttemptId).toBe(
-        policy === 'best' ? attempts[0]!.id : expected.id,
-      );
-      // A revoked explicit key cannot silently pick a different historical result.
-      // Fixture-only invalidation exercises existing historical read shapes; no product invalidation command is introduced here.
-      const selectedId = (await evidence()).selectedAttemptId;
-      await admin.query(
-        "UPDATE learning_attempts SET state='invalidated',invalidated_at=now() WHERE id=$1",
-        [selectedId],
-      );
-      const afterInvalidation = await evidence();
-      if (policy === 'teacher_selected') {
-        expect(afterInvalidation.selectedRevision).toBeNull();
-      } else {
-        expect(afterInvalidation.selectedAttemptId).not.toBe(selectedId);
-      }
-      // first/latest must retain a terminal record with no final grade instead of substituting an older score.
-      if (policy === 'first' || policy === 'latest') {
-        const incompleteId = afterInvalidation.selectedAttemptId;
-        const incomplete = (
+        mark('corrected review');
+        // A later published correction may change best, never the close-time ordering.
+        const corrected = (
           await inTenant((c) =>
             c.query(
-              "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'incomplete',NULL,'Нет итогового балла','Уточнение решения',$5,$6)",
+              "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',9,'Точное исправление','Проверка исправлена',$5,$6)",
               [
                 teacherAccount,
                 teacherPrincipal,
                 cls,
-                incompleteId,
-                afterInvalidation.selectedRevision.id,
-                'selection:incomplete:' + ++sequence,
+                attempts[0]!.id,
+                attempts[0]!.result,
+                'selection:corrected:' + ++sequence,
               ],
             ),
           )
         ).rows[0];
-        expect(incomplete.result_code).toBe('ok');
-        expect(await evidence()).toMatchObject({
-          selectedAttemptId: incompleteId,
-          selectedRevision: { rawPoints: null, percentageBasisPoints: null },
-        });
-      }
-    });
+        expect(corrected.result_code).toBe('ok');
+        mark('corrected evidence');
+        expect((await evidence()).selectedAttemptId).toBe(
+          policy === 'best' ? attempts[0]!.id : expected.id,
+        );
+        if (policy === 'first' || policy === 'best')
+          expect((await evidence()).selectedRevision.id).toBe(corrected.assessment_result_id);
+        // Starting the fourth attempt does not erase the selected terminal result.
+        mark('fourth start and evidence');
+        await inTenant((c) =>
+          c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+            learner,
+            seat,
+            assignment,
+            project,
+          ]),
+        );
+        expect((await evidence()).selectedAttemptId).toBe(
+          policy === 'best' ? attempts[0]!.id : expected.id,
+        );
+        // A revoked explicit key cannot silently pick a different historical result.
+        // Fixture-only invalidation exercises existing historical read shapes; no product invalidation command is introduced here.
+        const selectedId = (await evidence()).selectedAttemptId;
+        mark('invalidation and evidence');
+        await admin.query(
+          "UPDATE learning_attempts SET state='invalidated',invalidated_at=now() WHERE id=$1",
+          [selectedId],
+        );
+        const afterInvalidation = await evidence();
+        if (policy === 'teacher_selected') {
+          expect(afterInvalidation.selectedRevision).toBeNull();
+        } else {
+          expect(afterInvalidation.selectedAttemptId).not.toBe(selectedId);
+        }
+        // first/latest must retain a terminal record with no final grade instead of substituting an older score.
+        if (policy === 'first' || policy === 'latest') {
+          mark('incomplete review and evidence');
+          const incompleteId = afterInvalidation.selectedAttemptId;
+          const incomplete = (
+            await inTenant((c) =>
+              c.query(
+                "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'incomplete',NULL,'Нет итогового балла','Уточнение решения',$5,$6)",
+                [
+                  teacherAccount,
+                  teacherPrincipal,
+                  cls,
+                  incompleteId,
+                  afterInvalidation.selectedRevision.id,
+                  'selection:incomplete:' + ++sequence,
+                ],
+              ),
+            )
+          ).rows[0];
+          expect(incomplete.result_code).toBe('ok');
+          expect(await evidence()).toMatchObject({
+            selectedAttemptId: incompleteId,
+            selectedRevision: { rawPoints: null, percentageBasisPoints: null },
+          });
+        }
+      },
+      30_000,
+    );
   it('keeps compatibility gradebook pointers synchronized with the canonical selected result', async () => {
     const cls = await createClass();
     const seat = await createSeat(cls, '????????????? ???????');
@@ -1168,6 +1238,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
     ).toBe(3);
   });
 
+  // The full lifecycle repeatedly queries Teacher Home and can be delayed by shared CI database load.
   it('Teacher Home follows exact review and resubmission independently of notification read/OFF, preserving correction history', async () => {
     const cls = await createClass();
     const seat = await createSeat(cls, 'Доработка');
@@ -1405,7 +1476,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         completionValue: true,
       },
     });
-  }, 30_000);
+  }, 60_000);
   it('keeps the pre-E1 four-argument submit contract safe during DB-first rollout', async () => {
     const classroomId = await createClass();
     const seatId = await createSeat(classroomId, 'Rollout learner');

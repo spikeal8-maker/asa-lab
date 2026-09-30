@@ -8,6 +8,7 @@ import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-p
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
 import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+import { acquireLearningSubmissionSuiteLock } from './learning-submission-suite-lock';
 
 const policies = {
   attemptPolicy: { maxAttempts: 2 },
@@ -33,6 +34,7 @@ let learnerPrincipal: string;
 let foreignLearner: string;
 let lav: string;
 let sequence = 0;
+let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
 
 async function inTenant<T>(tenant: string, callback: (client: pg.PoolClient) => Promise<T>) {
   const client = await app.connect();
@@ -207,6 +209,7 @@ async function command(name: string, parameters: unknown[]) {
 }
 
 beforeAll(async () => {
+  releaseSubmissionSuiteLock = await acquireLearningSubmissionSuiteLock();
   admin = testAdminPool();
   app = testAppPool();
   owner = await seedTeacher(admin, 'learning-m1-004-owner');
@@ -321,10 +324,14 @@ beforeAll(async () => {
     ]),
   );
   lav = published.rows[0].activity_version_id as string;
-});
+}, 90_000);
 
 afterAll(async () => {
-  await Promise.all([admin.end(), app.end()]);
+  try {
+    await Promise.all([admin?.end(), app?.end()]);
+  } finally {
+    await releaseSubmissionSuiteLock?.();
+  }
 });
 
 describe('LRN-M1-004 ActivityParticipation', () => {
@@ -630,12 +637,21 @@ describe('LRN-M1-004 ActivityParticipation', () => {
   });
 
   it('keeps excused orthogonal, audited, idempotent, and result/grade neutral', async () => {
-    const participation = await assign(await createRun({ handout: await directHandout() }));
-    const resultsBefore = (
-      await admin.query(`SELECT count(*)::int AS count FROM assessment_results`)
-    ).rows[0].count;
-    const gradesBefore = (await admin.query(`SELECT count(*)::int AS count FROM gradebook_entries`))
-      .rows[0].count;
+    const handout = await directHandout();
+    const participation = await assign(await createRun({ handout }));
+    const resultAndGradeCounts = async () =>
+      (
+        await admin.query(
+          `SELECT (SELECT count(*)::int FROM assessment_results result
+                     JOIN learning_attempts attempt ON attempt.id=result.attempt_id
+                    WHERE attempt.classroom_assignment_id=$1) AS results,
+                  (SELECT count(*)::int FROM gradebook_entries
+                    WHERE classroom_assignment_id=$1) AS grades`,
+          [handout],
+        )
+      ).rows[0];
+    const countsBefore = await resultAndGradeCounts();
+    expect(countsBefore).toEqual({ results: 0, grades: 0 });
     expect(
       await command('activity_participation_excuse', [
         ownerPrincipal,
@@ -659,12 +675,7 @@ describe('LRN-M1-004 ActivityParticipation', () => {
       excused: true,
       excused_reason: 'Approved absence',
     });
-    expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM assessment_results`)).rows[0].count,
-    ).toBe(resultsBefore);
-    expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM gradebook_entries`)).rows[0].count,
-    ).toBe(gradesBefore);
+    expect(await resultAndGradeCounts()).toEqual(countsBefore);
   });
 
   it('returns not_available completion and stores no mutable completion/legacy handout identity', async () => {
