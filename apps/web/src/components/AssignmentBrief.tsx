@@ -11,6 +11,7 @@ import { AssignmentView } from './AssignmentView';
 import { TaskImageReferenceWindow } from './TaskImageReferenceWindow';
 import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
+import { AtomicLearningStarter } from '../learning/atomic-learning-start';
 import {
   assignmentBriefResultText,
   assignmentBriefSubmitLabel,
@@ -124,6 +125,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   const [error, setError] = useState<string | null>(null);
   const revision = useConfirmedProjectRevision();
   const submissionRequest = useRef<{ revision: number; id: string } | null>(null);
+  const starter = useRef(new AtomicLearningStarter());
   const operation = useRef<PointerOperation | null>(null);
   const rectRef = useRef(rect);
   const compactRectRef = useRef(rect);
@@ -144,6 +146,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   useEffect(() => {
     setOpen(readOpen(projectId));
     setReferenceOwner(null);
+    submissionRequest.current = null;
     const next = readRect();
     compactRectRef.current = next;
     rectRef.current = next;
@@ -355,15 +358,31 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
     if (!assignment || context.state !== 'ready' || revision === null) return;
     setBusy(true);
     setError(null);
-    if (assignment.canonicalState?.workflowState === 'changes_requested') {
+    if (typeof context.origin.immutable !== 'boolean') {
+      setBusy(false);
+      setError('Нельзя подтвердить учебную работу.');
+      return;
+    }
+    if (context.workflow.canonicalState.workflowState === 'changes_requested') {
       if (!context.allowedActions.resumeAfterChangesRequested) {
         setBusy(false);
         return;
       }
-      const started = await api.startSeatAssignment(assignment.id, projectId);
+      const started = context.origin.immutable
+        ? await starter.current.start(context.origin.activityRunId)
+        : await api.startSeatAssignment(assignment.id, projectId);
+      if (started === null) {
+        setBusy(false);
+        return;
+      }
       setBusy(false);
-      if (started.ok) setContext(await load());
-      else setError(started.error.message);
+      if (started.ok) {
+        if (context.origin.immutable && started.data.projectId !== projectId) {
+          setError('Нельзя подтвердить учебную работу.');
+          return;
+        }
+        setContext(await load());
+      } else setError(started.error.message);
       return;
     }
     if (!context.allowedActions.submit) {
@@ -372,12 +391,20 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
     }
     if (submissionRequest.current?.revision !== revision)
       submissionRequest.current = { revision, id: crypto.randomUUID() };
-    const result = await api.submitSeatAssignment(
-      assignment.id,
-      true,
-      revision,
-      submissionRequest.current.id,
-    );
+    if (
+      context.origin.immutable &&
+      (!context.origin.participationId || !context.origin.activityRunId)
+    ) {
+      setBusy(false);
+      setError('Нельзя подтвердить учебную работу.');
+      return;
+    }
+    const result = context.origin.immutable
+      ? await api.submitLearningProject(projectId, {
+          clientRequestId: submissionRequest.current.id,
+          expectedRevision: revision,
+        })
+      : await api.submitSeatAssignment(assignment.id, true, revision, submissionRequest.current.id);
     setBusy(false);
     if (result.ok) {
       setContext(await load());

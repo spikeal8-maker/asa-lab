@@ -83,6 +83,39 @@ describe('A1 context access boundary', () => {
     expect(pool.query).toHaveBeenCalled();
   });
 
+  it('denies a remembered no-origin Course Project after the Account learner link is revoked', async () => {
+    const { instance, pool } = controller({ projectAllowed: true });
+    pool.query.mockImplementation(async (sql: string) => {
+      if (sql.includes('learning_origin_work_context_for_project')) return { rows: [] };
+      if (sql.includes('learning_immutable_project_origin_exists'))
+        return { rows: [{ linked: false }] };
+      if (sql.includes('learning_work_context_for_project'))
+        return {
+          rows: [
+            {
+              context: {
+                projectId,
+                seatId: 'seat',
+                classroomAssignmentId: 'assignment',
+                sourceKind: 'course',
+                activityRunId: 'run',
+              },
+            },
+          ],
+        };
+      if (sql.includes('learning_course_modern_provenance'))
+        return { rows: [{ proof: { modernCourseRun: false, projectReadable: false } }] };
+      return { rows: [] };
+    });
+    await expect(instance.context(request, projectId)).resolves.toEqual({
+      state: 'denied',
+      projectId,
+    });
+    expect(
+      pool.query.mock.calls.some(([sql]) => sql.includes('learning_course_modern_provenance')),
+    ).toBe(true);
+  });
+
   it('uses the same project gate for a StudentSeat session', async () => {
     const { instance, openProject } = controller({ projectAllowed: true, account: false });
     await expect(

@@ -239,6 +239,98 @@ afterAll(async () => {
 });
 
 describe('LRN-VS-002 canonical direct project attempt', () => {
+  it('counts only current named Direct Seats and their exact origin attempts', async () => {
+    const classroomId = await createClass();
+    const namedSeat = await createSeat(classroomId, 'Named learner');
+    const outsideSeat = await createSeat(classroomId, 'Outside learner');
+    const versionId = await createActivity('Named teacher counters');
+    const assignmentId = await assign(classroomId, versionId, 'named_learners', [namedSeat]);
+    const namedPrincipal = await activateSeat(namedSeat);
+    await activateSeat(outsideSeat);
+
+    const counts = async () =>
+      (
+        await inTenant((client) =>
+          client.query(
+            `SELECT * FROM learning_direct_assignment_teacher_counts($1,$2,$3)
+              WHERE classroom_assignment_id=$4`,
+            [teacherPrincipal, owner.tenantId, classroomId, assignmentId],
+          ),
+        )
+      ).rows[0] as {
+        assigned_count: number;
+        started_count: number;
+        submitted_count: number;
+      };
+    await expect(counts()).resolves.toMatchObject({
+      assigned_count: 1,
+      started_count: 0,
+      submitted_count: 0,
+    });
+
+    const projectId = await createProject(namedPrincipal, 'Named project');
+    const started = (
+      await inTenant((client) =>
+        client.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+          namedPrincipal,
+          namedSeat,
+          assignmentId,
+          projectId,
+        ]),
+      )
+    ).rows[0];
+    expect(started.result_code).toBe('ok');
+    await expect(counts()).resolves.toMatchObject({
+      assigned_count: 1,
+      started_count: 1,
+      submitted_count: 0,
+    });
+
+    const submitted = (
+      await inTenant((client) =>
+        client.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+          namedPrincipal,
+          namedSeat,
+          assignmentId,
+          `named:submit:${++sequence}`,
+        ]),
+      )
+    ).rows[0];
+    expect(submitted.result_code).toBe('ok');
+    await expect(counts()).resolves.toMatchObject({
+      assigned_count: 1,
+      started_count: 1,
+      submitted_count: 1,
+    });
+
+    const audience = (
+      await admin.query(
+        `SELECT audience.id, claim.learner_identity_id
+           FROM learning_audience_definitions audience
+           JOIN learning_audience_membership_claims claim ON claim.audience_id=audience.id
+          WHERE audience.target_activity_run_id=(
+            SELECT id FROM activity_runs WHERE source_classroom_assignment_id=$1)`,
+        [assignmentId],
+      )
+    ).rows[0];
+    const removed = (
+      await inTenant((client) =>
+        client.query('SELECT * FROM learning_audience_named_remove($1,$2,$3,$4)', [
+          teacherPrincipal,
+          audience.id,
+          audience.learner_identity_id,
+          `named:remove:${++sequence}`,
+        ]),
+      )
+    ).rows[0];
+    expect(removed.result_code).toBe('ok');
+    await expect(counts()).resolves.toMatchObject({
+      assigned_count: 0,
+      started_count: 0,
+      submitted_count: 0,
+    });
+  }, 30_000);
+
   it('Account admission stays pending until exact-class staff approve; late whole-class enrollment is unique', async () => {
     const cls = await createClass(),
       foreign = await seedTeacher(admin, 'course01-account-join');
@@ -968,6 +1060,21 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       )
     ).rows[0];
     expect(started.result_code).toBe('ok');
+    const exactRunId = (
+      await admin.query('SELECT id FROM activity_runs WHERE source_classroom_assignment_id=$1', [
+        assignment,
+      ])
+    ).rows[0].id as string;
+    const contextReadable = async () =>
+      (
+        await inTenant((client) =>
+          client.query(
+            'SELECT learning_direct_modern_project_readable($1,$2,$3,$4,$5) AS readable',
+            [learner, seat, assignment, exactRunId, project],
+          ),
+        )
+      ).rows[0].readable as boolean;
+    expect(await contextReadable()).toBe(true);
     await expect(
       inTenant((client) =>
         client.query('SELECT learning_gradebook_projection_sync_internal($1,$2,NULL,$3)', [
@@ -1025,6 +1132,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       "UPDATE learner_identity_links SET status='inactive',disabled_at=now() WHERE seat_id=$1",
       [seat],
     );
+    expect(await contextReadable()).toBe(false);
 
     const incomplete = (
       await inTenant((client) =>
@@ -1494,6 +1602,19 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       participationId: first.participation_id,
       attemptId: first.attempt_id,
     });
+    const directRunId = workContext.rows[0].context.activityRunId as string;
+    const directProof = async (actor: string, candidateRun = directRunId) =>
+      (
+        await inTenant((client) =>
+          client.query(
+            'SELECT learning_direct_modern_project_readable($1,$2,$3,$4,$5) AS readable',
+            [actor, seatId, assignmentId, candidateRun, projectId],
+          ),
+        )
+      ).rows[0].readable as boolean;
+    expect(await directProof(learnerPrincipal)).toBe(true);
+    expect(await directProof(teacherPrincipal)).toBe(false);
+    expect(await directProof(learnerPrincipal, '00000000-0000-4000-8000-000000000001')).toBe(false);
     expect(
       (
         await inTenant((client) =>

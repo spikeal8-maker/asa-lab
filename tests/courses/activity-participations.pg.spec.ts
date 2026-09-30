@@ -579,7 +579,11 @@ describe('LRN-M1-004 ActivityParticipation', () => {
   it('stores learner-specific overrides, accepts due-only, rejects contradictions, and creates no Attempt', async () => {
     const participation = await assign(await createRun({ handout: await directHandout() }));
     const attemptsBefore = (
-      await admin.query(`SELECT count(*)::int AS count FROM learning_attempts`)
+      await admin.query(
+        `SELECT count(*)::int AS count FROM learning_attempts
+          WHERE activity_participation_id=$1`,
+        [participation.participation_id],
+      )
     ).rows[0].count;
     expect(
       await command('activity_participation_set_overrides', [
@@ -622,7 +626,13 @@ describe('LRN-M1-004 ActivityParticipation', () => {
       ]),
     ).toMatchObject({ result_code: 'invalid_overrides' });
     expect(
-      (await admin.query(`SELECT count(*)::int AS count FROM learning_attempts`)).rows[0].count,
+      (
+        await admin.query(
+          `SELECT count(*)::int AS count FROM learning_attempts
+            WHERE activity_participation_id=$1`,
+          [participation.participation_id],
+        )
+      ).rows[0].count,
     ).toBe(attemptsBefore);
   });
 

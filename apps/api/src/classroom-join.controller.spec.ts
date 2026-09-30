@@ -96,7 +96,7 @@ describe('classroom course progress', () => {
         : [],
     }));
     const activeContext = {
-      resolve: vi.fn(async () => ({ accountId: 'account-id' })),
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
     } as unknown as ActiveContextUseCase;
     const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
     const accountRequest = request('203.0.113.20');
@@ -105,7 +105,7 @@ describe('classroom course progress', () => {
     await expect(controller.accountCourseRuns(accountRequest)).resolves.toEqual({ items: [] });
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining('classroom_course_runs_for_account_v2'),
-      ['account-id'],
+      ['account-id', 'account-principal'],
     );
     await expect(
       controller.setAccountCourseLessonProgress(accountRequest, runId, lessonId, {
@@ -280,6 +280,11 @@ describe('immutable classroom submissions', () => {
       if (sql.includes('learning_course_activity_assignment_is_shared')) {
         return { rows: [{ shared: false }] };
       }
+      if (sql.includes('learning_legacy_direct_provenance')) {
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: true } }],
+        };
+      }
       if (sql.includes('principal_for_seat')) {
         return { rows: [{ principal_id: 'learner-principal-id' }] };
       }
@@ -359,6 +364,11 @@ describe('immutable classroom submissions', () => {
       if (sql.includes('learning_course_activity_assignment_is_shared')) {
         return { rows: [{ shared: false }] };
       }
+      if (sql.includes('learning_legacy_direct_provenance')) {
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: true } }],
+        };
+      }
       return {
         rows: [
           {
@@ -431,6 +441,12 @@ describe('origin Direct learner list', () => {
       snapshot_revision: null,
       updated_at: null,
       task_blocks: null,
+      legacy_provenance: {
+        legacyDirect: true,
+        legacyProjectReadable: true,
+        startAllowed: false,
+        submitAllowed: true,
+      },
     };
     let origins = [
       {
@@ -534,7 +550,29 @@ describe('origin Direct learner list', () => {
     expect((await controller.assignments(seatRequest())).items[0]).toMatchObject({
       projectId: row.project_id,
       canonicalState: null,
+      legacyStartAllowed: false,
+      legacySubmitAllowed: true,
     });
+    row.legacy_provenance = {
+      legacyDirect: true,
+      legacyProjectReadable: false,
+      startAllowed: false,
+      submitAllowed: false,
+    };
+    for (const payload of [
+      await controller.assignments(seatRequest()),
+      await controller.accountAssignments(accountRequest),
+    ]) {
+      expect(payload.items[0]).toMatchObject({
+        projectId: null,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+        legacyStartAllowed: false,
+        legacySubmitAllowed: false,
+      });
+    }
     presenceRows = [
       {
         seat_id: seatId,
@@ -555,6 +593,8 @@ describe('origin Direct learner list', () => {
         snapshotRevision: null,
         updatedAt: null,
         canonicalState: null,
+        legacyStartAllowed: false,
+        legacySubmitAllowed: false,
       });
     }
     origins = [exactOrigin, exactOrigin];
@@ -626,12 +666,19 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroom_assignment_id: assignmentA,
         learning_activity_version_id: versionA,
         title: 'Electronics',
+        goal: 'Build the authored circuit',
+        task_blocks: { present: true, blocks: [{ id: 'authored-a', type: 'paragraph' }] },
         module_key: 'electronics',
         project_id: projectA,
         submitted_at: null,
         snapshot_revision: 7,
         work_updated_at: '2026-09-20T22:00:00.000Z',
         shared_assignment: false,
+        modern_provenance: {
+          modernCourseRun: true,
+          activityRunId: activityRunA,
+          projectReadable: true,
+        },
       },
       {
         seat_id: seatId,
@@ -642,12 +689,19 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroom_assignment_id: assignmentB,
         learning_activity_version_id: versionB,
         title: '3D',
+        goal: 'Build the authored model',
+        task_blocks: { present: true, blocks: [{ id: 'authored-b', type: 'paragraph' }] },
         module_key: 'three-d',
         project_id: null,
         submitted_at: null,
         snapshot_revision: null,
         work_updated_at: null,
         shared_assignment: false,
+        modern_provenance: {
+          modernCourseRun: true,
+          activityRunId: activityRunB,
+          projectReadable: false,
+        },
       },
     ];
     const evidenceBase = {
@@ -696,6 +750,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     let originRows: Array<{ context: Record<string, unknown>; evidence: Record<string, unknown> }> =
       [];
     let presenceRows: Array<Record<string, unknown>> = [];
+    let accountLinkRevoked = false;
     const query = vi.fn(async (sql: string) => {
       if (sql.includes('classroom_student_session_context')) {
         return {
@@ -719,13 +774,32 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       if (sql.includes('learning_origin_learner_list')) return { rows: originRows };
       if (sql.includes('learning_origin_learner_presence')) return { rows: presenceRows };
       if (sql.includes('classroom_course_activity_occurrences_for_')) {
+        if (sql.includes('_for_account') && accountLinkRevoked)
+          return {
+            rows: occurrenceRows.map((row) => ({
+              ...row,
+              modern_provenance: { modernCourseRun: false, projectReadable: false },
+              not_started_visible: false,
+            })),
+          };
         return { rows: occurrenceRows };
       }
-      if (sql.includes('classroom_course_runs_for_')) return { rows: [courseRow] };
+      if (sql.includes('classroom_course_runs_for_')) {
+        if (sql.includes('_for_account') && accountLinkRevoked)
+          return {
+            rows: [
+              {
+                ...courseRow,
+                modern_provenance: { modernCourseRun: false, projectReadable: false },
+              },
+            ],
+          };
+        return { rows: [courseRow] };
+      }
       return { rows: [] };
     });
     const activeContext = {
-      resolve: vi.fn(async () => ({ accountId })),
+      resolve: vi.fn(async () => ({ accountId, principalId: evidenceBase.principalId })),
     } as unknown as ActiveContextUseCase;
     const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
     const accountRequest = request('203.0.113.40');
@@ -743,7 +817,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ]);
 
     for (const payload of [accountRead, seatRead]) {
-      expect(payload.items[0]?.sections[0]?.lessons[0]?.projectId).toBe(projectA);
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.projectId).toBeNull();
       const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
       expect(occurrences).toHaveLength(2);
       expect(occurrences?.[0]).toMatchObject({
@@ -774,6 +848,104 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    Object.assign(occurrenceRows[1], { task_blocks: { present: true, blocks: null } });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        goal: null,
+        blocks: null,
+      });
+    }
+    Object.assign(occurrenceRows[1], {
+      task_blocks: { present: true, blocks: [{ id: 'authored-b', type: 'paragraph' }] },
+    });
+    accountLinkRevoked = true;
+    const revokedAccount = await controller.accountCourseRuns(accountRequest);
+    expect(
+      revokedAccount.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0],
+    ).toMatchObject({
+      goal: 'Build the authored circuit',
+      blocks: [{ id: 'authored-a', type: 'paragraph' }],
+      projectId: null,
+      submittedAt: null,
+      snapshotRevision: null,
+      updatedAt: null,
+      canonicalState: null,
+      workOriginAmbiguous: true,
+    });
+    expect(
+      revokedAccount.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1],
+    ).toMatchObject({
+      goal: 'Build the authored model',
+      blocks: [{ id: 'authored-b', type: 'paragraph' }],
+      projectId: null,
+      canonicalState: null,
+    });
+    expect(
+      (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0]
+        ?.activityOccurrences?.[0]?.projectId,
+    ).toBe(projectA);
+    accountLinkRevoked = false;
+
+    // A modern null-block Course lesson keeps its exact work on revisit.
+    // An Activity block on the same handout must not lend it a Project.
+    const savedOccurrences = occurrenceRows.splice(0);
+    Object.assign(courseRow, {
+      lesson_kind: 'assignment',
+      modern_activity_run_id: activityRunA,
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunA,
+        projectReadable: true,
+        startAllowed: false,
+      },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        projectId: projectA,
+        snapshotRevision: 7,
+        canonicalState: { activityRunId: activityRunA, workflowState: 'in_progress' },
+        courseStartAllowed: false,
+        legacySubmitAllowed: false,
+      });
+    }
+    Object.assign(courseRow, { run_status: 'closed' });
+    expect(
+      (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0],
+    ).toMatchObject({ projectId: projectA, courseStartAllowed: false });
+    accountLinkRevoked = true;
+    expect(
+      (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0],
+    ).toMatchObject({
+      projectId: null,
+      submittedAt: null,
+      snapshotRevision: null,
+      updatedAt: null,
+      canonicalState: null,
+      courseStartAllowed: false,
+    });
+    expect(
+      (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0]?.projectId,
+    ).toBe(projectA);
+    accountLinkRevoked = false;
+    Object.assign(courseRow, {
+      run_status: 'open',
+      modern_activity_run_id: activityRunB,
+    });
+    expect(
+      (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0],
+    ).toMatchObject({ projectId: null, canonicalState: null, courseStartAllowed: false });
+    Object.assign(courseRow, {
+      lesson_kind: 'material',
+      modern_activity_run_id: null,
+      modern_provenance: null,
+    });
+    occurrenceRows.push(...savedOccurrences);
 
     // The same legacy handout can back two exact runs. It proves neither
     // occurrence owns its assignment-level project or canonical work state.
@@ -782,6 +954,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     occurrenceRows[1]!.snapshot_revision = 7;
     Object.assign(occurrenceRows[0]!, { shared_assignment: true });
     Object.assign(occurrenceRows[1]!, { shared_assignment: true });
+    occurrenceRows[0]!.modern_provenance.projectReadable = false;
+    occurrenceRows[1]!.modern_provenance.modernCourseRun = false;
     evidenceRows[1]!.classroomAssignmentId = assignmentA;
     const [sharedAccountRead, sharedSeatRead] = await Promise.all([
       controller.accountCourseRuns(accountRequest),
@@ -871,6 +1045,31 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       ]);
     }
     const exactOriginRows = [...originRows];
+    // One sibling has exact work, while the untouched sibling shares its old
+    // handout. The handout-keyed canonical state belongs to the started Run.
+    originRows = [exactOriginRows[0]];
+    evidenceRows.splice(1, 1);
+    Object.assign(occurrenceRows[0], { project_id: null });
+    Object.assign(occurrenceRows[1], { project_id: null, not_started_visible: true });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      const occurrences = payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences;
+      expect(occurrences?.map((item) => item.projectId)).toEqual([exactProjects[0], null]);
+      expect(occurrences?.map((item) => item.canonicalState?.workflowState)).toEqual([
+        'in_progress',
+        'not_started',
+      ]);
+      expect(occurrences?.[1]?.canonicalState?.activityRunId).toBe(activityRunB);
+    }
+    originRows = [];
+    accountLinkRevoked = true;
+    expect(
+      (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0]
+        ?.activityOccurrences?.[1]?.canonicalState,
+    ).toBeNull();
+    accountLinkRevoked = false;
     originRows = [];
     presenceRows = [
       {
@@ -898,6 +1097,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         canonicalState: null,
       });
       expect(lesson?.activityOccurrences?.[0]).toMatchObject({
+        goal: 'Build the authored circuit',
+        blocks: [{ id: 'authored-a', type: 'paragraph' }],
         projectId: null,
         submittedAt: null,
         snapshotRevision: null,
@@ -905,11 +1106,16 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         canonicalState: null,
         workOriginAmbiguous: true,
       });
+      expect(lesson?.activityOccurrences?.[1]).toMatchObject({
+        goal: 'Build the authored model',
+        blocks: [{ id: 'authored-b', type: 'paragraph' }],
+      });
     }
     presenceRows = [];
     originRows = [exactOriginRows[0], exactOriginRows[0], exactOriginRows[1]];
     const duplicate = await controller.courseRuns(seatRequest());
     expect(duplicate.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0]).toMatchObject({
+      goal: 'Build the authored circuit',
       projectId: null,
       submittedAt: null,
       snapshotRevision: null,
@@ -969,5 +1175,370 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     expect(
       query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_submission_create')),
     ).toBe(false);
+  });
+
+  it('keeps a single historical Course lesson on its existing Start and Submit adapter', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000010';
+    const projectId = '57000000-0000-4000-8000-000000000010';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat'))
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (
+        sql.includes('learning_legacy_direct_provenance') ||
+        sql.includes('learning_legacy_assignment_write_provenance')
+      )
+        return {
+          rows: [
+            {
+              proof: {
+                legacyDirect: false,
+                legacyCourseLesson: true,
+                startAllowed: true,
+                submitAllowed: true,
+              },
+            },
+          ],
+        };
+      if (
+        sql.includes('learning_direct_project_attempt_start') ||
+        sql.includes('learning_direct_project_submission_create')
+      )
+        return { rows: [{ result_code: 'not_canonical' }] };
+      if (sql.includes('classroom_assignment_work_start'))
+        return { rows: [{ project_id: projectId, submitted_at: null }] };
+      if (sql.includes('learning_project_submission_create'))
+        return {
+          rows: [
+            {
+              result_code: 'ok',
+              project_id: projectId,
+              project_version_id: 'version-id',
+              attempt_id: 'attempt-id',
+              submission_id: 'submission-id',
+              attempt_number: 1,
+              attempt_state: 'submitted',
+              submitted_at: '2026-09-30T10:00:00Z',
+              late_state: 'on_time',
+              reused: false,
+            },
+          ],
+        };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query, connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId }),
+    ).resolves.toMatchObject({ projectId });
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        legacyOnly: true,
+        clientRequestId: 'course:legacy:submit:001',
+        expectedRevision: 1,
+      }),
+    ).resolves.toMatchObject({ projectId, submissionId: 'submission-id' });
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      true,
+    );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_project_submission_create')),
+    ).toBe(true);
+    const statements = query.mock.calls.map(([sql]) => sql);
+    expect(statements).toContain('BEGIN');
+    expect(statements).toContain('COMMIT');
+    expect(
+      statements.findIndex((sql) => sql.includes('learning_legacy_assignment_write_provenance')),
+    ).toBeLessThan(statements.findIndex((sql) => sql.includes('classroom_assignment_work_start')));
+  });
+
+  it('shows historical Course lesson work and submit proof only to its authorized Seat or Account', async () => {
+    const seatId = '53000000-0000-4000-8000-000000000021';
+    const assignmentId = '54000000-0000-4000-8000-000000000021';
+    const projectId = '57000000-0000-4000-8000-000000000021';
+    const courseRow = {
+      run_id: '58000000-0000-4000-8000-000000000021',
+      course_id: '59000000-0000-4000-8000-000000000021',
+      course_version_id: '5a000000-0000-4000-8000-000000000021',
+      version_number: 1,
+      classroom_title: '7А',
+      run_title: 'Old course',
+      run_summary: null,
+      due_at: null,
+      run_status: 'open',
+      lesson_id: '5b000000-0000-4000-8000-000000000021',
+      source_lesson_id: '5c000000-0000-4000-8000-000000000021',
+      section_title: 'Section',
+      section_summary: null,
+      section_position: 1,
+      lesson_title: 'Old lesson',
+      lesson_summary: null,
+      lesson_content: null,
+      lesson_blocks: [],
+      lesson_kind: 'assignment',
+      estimated_minutes: null,
+      lesson_position: 1,
+      classroom_assignment_id: assignmentId,
+      assignment_title: 'Old assignment',
+      assignment_goal: null,
+      assignment_brief: 'Build it',
+      module_key: 'electronics',
+      sample_image: null,
+      project_id: projectId,
+      submitted_at: null,
+      snapshot_revision: 2,
+      work_updated_at: '2026-09-20T22:00:00Z',
+      completed_at: null,
+      legacy_provenance: {
+        legacyCourseLesson: true,
+        legacyProjectReadable: true,
+        submitAllowed: true,
+      },
+    };
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context')) return { rows: [{ seat_id: seatId }] };
+      if (sql.includes('classroom_course_runs_for_')) return { rows: [courseRow] };
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.40');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    for (const read of [
+      () => controller.courseRuns(seatRequest()),
+      () => controller.accountCourseRuns(accountRequest),
+    ]) {
+      const lesson = (await read()).items[0]?.sections[0]?.lessons[0];
+      expect(lesson).toMatchObject({
+        projectId,
+        snapshotRevision: 2,
+        legacySubmitAllowed: true,
+      });
+    }
+    expect(
+      query.mock.calls.some(
+        ([sql, parameters]) =>
+          sql.includes('classroom_course_runs_for_account_v2') &&
+          sql.includes('learning_legacy_direct_provenance') &&
+          parameters?.[1] === 'account-principal',
+      ),
+    ).toBe(true);
+    courseRow.legacy_provenance = {
+      legacyCourseLesson: true,
+      legacyProjectReadable: false,
+      submitAllowed: false,
+    };
+    for (const read of [
+      () => controller.courseRuns(seatRequest()),
+      () => controller.accountCourseRuns(accountRequest),
+    ]) {
+      const lesson = (await read()).items[0]?.sections[0]?.lessons[0];
+      expect(lesson).toMatchObject({
+        projectId: null,
+        submittedAt: null,
+        snapshotRevision: null,
+        updatedAt: null,
+        canonicalState: null,
+        legacySubmitAllowed: false,
+      });
+    }
+  });
+
+  it('rejects stale historical Direct proof before attaching or submitting work', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000011';
+    const projectId = '57000000-0000-4000-8000-000000000011';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat'))
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (
+        sql.includes('learning_legacy_direct_provenance') ||
+        sql.includes('learning_legacy_assignment_write_provenance')
+      )
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: false } }],
+        };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query, connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, {
+        projectId,
+        legacyOnly: true,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        legacyOnly: true,
+        clientRequestId: 'legacy:denied:001',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
+    );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_project_submission_create')),
+    ).toBe(false);
+  });
+
+  it('accepts only the freshly proven no-run Direct compatibility Start', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000012';
+    const projectId = '57000000-0000-4000-8000-000000000012';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat'))
+        return { rows: [{ principal_id: 'learner-principal-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (
+        sql.includes('learning_legacy_direct_provenance') ||
+        sql.includes('learning_legacy_assignment_write_provenance')
+      )
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: true, submitAllowed: false } }],
+        };
+      if (sql.includes('classroom_assignment_work_start'))
+        return { rows: [{ project_id: projectId, submitted_at: null }] };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query, connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, {
+        projectId,
+        legacyOnly: true,
+      }),
+    ).resolves.toMatchObject({ projectId, participationId: null });
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
+    ).toBe(false);
+  });
+
+  it('denies an unflagged LAV-backed Direct fallback with no Run before old adapters', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000013';
+    const projectId = '57000000-0000-4000-8000-000000000013';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat')) return { rows: [{ principal_id: 'seat-principal' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return { rows: [{ proof: { legacyDirect: false, legacyCourseLesson: false } }] };
+      if (
+        sql.includes('learning_direct_project_attempt_start') ||
+        sql.includes('learning_direct_project_submission_create')
+      )
+        return { rows: [{ result_code: 'not_canonical' }] };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId }),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      controller.submitAssignment(seatRequest(), assignmentId, {
+        submitted: true,
+        clientRequestId: 'missing:run:submit:001',
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
+    );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_project_submission_create')),
+    ).toBe(false);
+  });
+
+  it('rolls back when historical proof is revoked between preliminary read and locked write', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000015';
+    const projectId = '57000000-0000-4000-8000-000000000015';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat')) return { rows: [{ principal_id: 'seat-principal' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return { rows: [{ proof: { legacyDirect: true, startAllowed: true } }] };
+      if (sql.includes('learning_legacy_assignment_write_provenance'))
+        return { rows: [{ proof: { legacyDirect: true, startAllowed: false } }] };
+      if (sql.includes('learning_direct_project_attempt_start'))
+        return { rows: [{ result_code: 'not_canonical' }] };
+      return { rows: [] };
+    });
+    const pool = {
+      query,
+      connect: vi.fn(async () => ({ query, release: vi.fn() })),
+    } as unknown as pg.Pool;
+    const controller = new ClassroomJoinController(pool, {} as ActiveContextUseCase);
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(query.mock.calls.map(([sql]) => sql)).toContain('ROLLBACK');
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
+    );
+  });
+
+  it('denies historical Direct Account Start before an old adapter can link its generic Project', async () => {
+    const assignmentId = '54000000-0000-4000-8000-000000000014';
+    const projectId = '57000000-0000-4000-8000-000000000014';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_seat_for_account_assignment'))
+        return { rows: [{ id: 'seat-id' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (sql.includes('learning_legacy_direct_provenance'))
+        return { rows: [{ proof: { legacyDirect: true, startAllowed: false } }] };
+      if (sql.includes('learning_direct_project_attempt_start'))
+        return { rows: [{ result_code: 'not_canonical' }] };
+      return { rows: [] };
+    });
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id', principalId: 'account-principal' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.41');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    await expect(
+      controller.startAssignment(accountRequest, assignmentId, { projectId }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
+    );
   });
 });

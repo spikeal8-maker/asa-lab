@@ -1,6 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
+import {
+  ACCOUNT_COURSE_LESSON_LIST_SQL,
+  SEAT_COURSE_LESSON_LIST_SQL,
+} from '../../apps/api/src/course-lesson-list-queries';
+import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 let admin: pg.Pool;
@@ -599,7 +604,20 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       revision,
       `d3b:legacy:publish:${++sequence}`,
     ]);
-    const { classroom, seat } = await classroomWithSeat();
+    const learnerAccount = (
+      await admin.query(
+        `INSERT INTO accounts (email,password_hash,birth_date,country)
+         VALUES ('course-modern-' || gen_random_uuid()::text || '@test.local',
+                 'isolated-test-only',DATE '2000-01-01','RU') RETURNING id`,
+      )
+    ).rows[0].id as string;
+    const learnerPrincipal = (
+      await admin.query(
+        `INSERT INTO principals (kind,account_id) VALUES ('account',$1) RETURNING id`,
+        [learnerAccount],
+      )
+    ).rows[0].id as string;
+    const { classroom, seat } = await classroomWithSeat(learnerAccount);
     const assigned = await assignCourseRun(
       courseId,
       classroom,
@@ -608,7 +626,8 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
     );
     const runs = (
       await admin.query(
-        `SELECT run.source_course_block_id,run.learning_activity_version_id,
+        `SELECT run.id,run.source_course_lesson_id,run.source_course_block_id,
+                run.learning_activity_version_id,
                 run.source_classroom_assignment_id,lesson.classroom_assignment_id
            FROM activity_runs run
            JOIN classroom_course_run_lessons lesson ON lesson.id=run.source_course_lesson_id
@@ -622,7 +641,217 @@ describe('E1-FIX-11D3b Course Activity block materialization', () => {
       learning_activity_version_id: legacy.versionId,
     });
     expect(runs[0].source_classroom_assignment_id).toBe(runs[0].classroom_assignment_id);
-  });
+    const activityRunId = runs[0].id as string;
+    const assignmentId = runs[0].classroom_assignment_id as string;
+    const seatPrincipal = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])
+    ).rows[0].principal_id as string;
+    const notStartedVisible = async (actor: string, viewerSeat: string, runId: string) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT learning_course_occurrence_not_started_visible($1,$2,$3) AS visible',
+            [actor, viewerSeat, runId],
+          ),
+        )
+      ).rows[0].visible as boolean;
+    // A historical lesson-level Run has no exact Activity block identity.
+    expect(await notStartedVisible(seatPrincipal, seat, activityRunId)).toBe(false);
+    expect(await notStartedVisible(learnerPrincipal, seat, activityRunId)).toBe(false);
+    expect(await notStartedVisible(outsiderPrincipalId, seat, activityRunId)).toBe(false);
+    expect(await notStartedVisible(learnerPrincipal, seat, randomUUID())).toBe(false);
+    const identity = (
+      await admin.query(
+        `SELECT learner_identity_id FROM learner_identity_links
+          WHERE seat_id=$1 AND link_kind='student_seat'`,
+        [seat],
+      )
+    ).rows[0].learner_identity_id as string;
+    expect(
+      (
+        await admin.query(
+          `SELECT learner_identity_id FROM learner_identity_links
+            WHERE account_id=$1 AND link_kind='account' AND school_id=$2 AND status='active'`,
+          [learnerAccount, author.schoolId],
+        )
+      ).rows[0].learner_identity_id,
+    ).toBe(identity);
+    const proof = async (actor: string, viewerSeat: string, projectId: string | null) =>
+      (
+        await inTenant(author, (client) =>
+          client.query('SELECT learning_course_modern_provenance($1,$2,$3,$4) AS proof', [
+            actor,
+            viewerSeat,
+            activityRunId,
+            projectId,
+          ]),
+        )
+      ).rows[0].proof as Record<string, unknown>;
+    expect(await proof(seatPrincipal, seat, null)).toMatchObject({
+      modernCourseRun: true,
+      activityRunId,
+      startAllowed: true,
+      projectReadable: false,
+    });
+    expect(await proof(learnerPrincipal, seat, null)).toMatchObject({
+      modernCourseRun: true,
+      startAllowed: true,
+    });
+    const seatList = () =>
+      inTenant(author, (client) => client.query(SEAT_COURSE_LESSON_LIST_SQL, [seat]));
+    const accountList = () =>
+      inTenant(author, (client) =>
+        client.query(ACCOUNT_COURSE_LESSON_LIST_SQL, [learnerAccount, learnerPrincipal]),
+      );
+    for (const listed of [await seatList(), await accountList()]) {
+      expect(listed.rows[0]).toMatchObject({
+        modern_activity_run_id: activityRunId,
+        modern_provenance: { modernCourseRun: true, startAllowed: true },
+      });
+    }
+    for (const [actor, lessonId] of [
+      [outsiderPrincipalId, runs[0].source_course_lesson_id],
+      [learnerPrincipal, randomUUID()],
+    ]) {
+      const denied = await inTenant(author, (client) =>
+        client.query(`SELECT learning_course_lesson_unique_run($1,$2,$3,$4,$5) AS run_id`, [
+          actor,
+          seat,
+          assigned.run_id,
+          lessonId,
+          assignmentId,
+        ]),
+      );
+      expect(denied.rows[0].run_id).toBeNull();
+    }
+    await expect(
+      inTenant(author, (client) => client.query('SELECT id FROM activity_runs LIMIT 1')),
+    ).rejects.toThrow(/permission denied/);
+    const projectId = (
+      await admin.query(
+        `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+         VALUES ($1,'personal','electronics','Modern Course work',$2) RETURNING id`,
+        [author.tenantId, learnerPrincipal],
+      )
+    ).rows[0].id as string;
+    await inTenant(author, (client) =>
+      client.query('SELECT * FROM classroom_assignment_work_start($1,$2,$3)', [
+        seat,
+        assignmentId,
+        projectId,
+      ]),
+    );
+    expect(await notStartedVisible(learnerPrincipal, seat, activityRunId)).toBe(false);
+    expect(await proof(learnerPrincipal, seat, projectId)).toMatchObject({
+      modernCourseRun: true,
+      startAllowed: false,
+      projectReadable: true,
+    });
+    const started = await inTenant(author, (client) =>
+      client.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+        learnerPrincipal,
+        seat,
+        assignmentId,
+        projectId,
+      ]),
+    );
+    expect(started.rows[0]).toMatchObject({ result_code: 'ok', project_id: projectId });
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES ($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [author.tenantId, projectId, learnerPrincipal],
+    );
+    const submitted = await inTenant(author, (client) =>
+      client.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+        learnerPrincipal,
+        seat,
+        assignmentId,
+        `modern-course:submit:${++sequence}`,
+      ]),
+    );
+    expect(submitted.rows[0]).toMatchObject({ result_code: 'ok', project_id: projectId });
+    const revisited = await inTenant(author, (client) =>
+      client.query(
+        `SELECT lesson.project_id,lesson.submitted_at,
+                learning_course_modern_provenance($2,$3,$4,lesson.project_id) AS proof
+           FROM classroom_course_runs_for_account_v2($1) lesson
+          WHERE lesson.lesson_id=$5`,
+        [learnerAccount, learnerPrincipal, seat, activityRunId, runs[0].source_course_lesson_id],
+      ),
+    );
+    expect(revisited.rows[0]).toMatchObject({
+      project_id: projectId,
+      proof: { modernCourseRun: true, projectReadable: true },
+    });
+    expect(revisited.rows[0].submitted_at).toBeTruthy();
+    expect((await accountList()).rows[0]).toMatchObject({
+      project_id: projectId,
+      modern_activity_run_id: activityRunId,
+      modern_provenance: { modernCourseRun: true, projectReadable: true },
+    });
+    expect((await seatList()).rows[0]).toMatchObject({
+      project_id: projectId,
+      modern_activity_run_id: activityRunId,
+      modern_provenance: { modernCourseRun: true, projectReadable: false },
+    });
+    expect(await proof(outsiderPrincipalId, seat, projectId)).toMatchObject({
+      projectReadable: false,
+      startAllowed: false,
+    });
+    const wrong = await classroomWithSeat();
+    expect(await proof(seatPrincipal, wrong.seat, projectId)).toMatchObject({
+      projectReadable: false,
+      startAllowed: false,
+    });
+    await admin.query("UPDATE classroom_course_runs SET status='closed' WHERE id=$1", [
+      assigned.run_id,
+    ]);
+    expect(await proof(learnerPrincipal, seat, projectId)).toMatchObject({
+      projectReadable: true,
+      startAllowed: false,
+    });
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE account_id=$1 AND link_kind='account' AND school_id=$2`,
+      [learnerAccount, author.schoolId],
+    );
+    expect(await proof(learnerPrincipal, seat, projectId)).toMatchObject({
+      projectReadable: false,
+      startAllowed: false,
+    });
+    expect(await notStartedVisible(learnerPrincipal, seat, activityRunId)).toBe(false);
+    expect((await accountList()).rows[0]).toMatchObject({
+      modern_activity_run_id: null,
+      modern_provenance: { modernCourseRun: false, projectReadable: false },
+    });
+    const rememberedContext = await inTenant(author, (client) =>
+      client.query('SELECT context FROM learning_work_context_for_project($1,$2)', [
+        learnerPrincipal,
+        projectId,
+      ]),
+    );
+    expect(rememberedContext.rows).toHaveLength(1);
+    expect(rememberedContext.rows[0].context).toMatchObject({ projectId, seatId: seat });
+    const guardedContext = await inTenant(author, (client) =>
+      learningWorkContextForProject(
+        client as unknown as pg.Pool,
+        learnerPrincipal,
+        projectId,
+        'electronics',
+        new Map(),
+      ),
+    );
+    expect(guardedContext).toEqual({ state: 'denied', projectId });
+    expect(await proof(seatPrincipal, seat, projectId)).toMatchObject({
+      projectReadable: false,
+      startAllowed: false,
+    });
+    expect((await seatList()).rows[0]).toMatchObject({
+      modern_activity_run_id: activityRunId,
+      modern_provenance: { modernCourseRun: true, projectReadable: false },
+    });
+  }, 30_000);
 });
 
 describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
@@ -704,6 +933,16 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         [occurrence.activity_run_id],
       )
     ).rows[0];
+    // A material lesson owns no lesson-level handout. Each exact Activity
+    // block Run owns its separate handout through source_classroom_assignment_id.
+    expect(
+      (
+        await admin.query(
+          'SELECT classroom_assignment_id FROM classroom_course_run_lessons WHERE id=$1',
+          [source.source_course_lesson_id],
+        )
+      ).rows[0].classroom_assignment_id,
+    ).toBeNull();
     // The public creation contract allows another block run on this handout.
     // Its identity is distinct even though assignment_work cannot name it.
     const sibling = (
@@ -724,6 +963,41 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     ).rows[0];
     expect(sibling.result_code).toBe('ok');
     expect(sibling.activity_run_id).not.toBe(occurrence.activity_run_id);
+    const ambiguous = await inTenant(author, (client) =>
+      client.query(
+        `SELECT learning_course_modern_provenance(
+           principal_for_seat($1),$1,$2,NULL) AS proof`,
+        [seat, occurrence.activity_run_id],
+      ),
+    );
+    expect(ambiguous.rows[0].proof).toMatchObject({
+      modernCourseRun: false,
+      startAllowed: false,
+      projectReadable: false,
+    });
+    const ambiguousResolver = await inTenant(author, (client) =>
+      client.query(
+        `SELECT learning_course_lesson_unique_run(
+           principal_for_seat($1),$1,$2,$3,$4) AS run_id`,
+        [
+          seat,
+          source.source_course_run_id,
+          source.source_course_lesson_id,
+          occurrence.classroom_assignment_id,
+        ],
+      ),
+    );
+    expect(ambiguousResolver.rows[0].run_id).toBeNull();
+    for (const listed of [
+      await inTenant(author, (client) => client.query(SEAT_COURSE_LESSON_LIST_SQL, [seat])),
+      await inTenant(author, (client) =>
+        client.query(ACCOUNT_COURSE_LESSON_LIST_SQL, [accountId, principalId]),
+      ),
+    ]) {
+      const lessonRows = listed.rows.filter((row) => row.run_id === source.source_course_run_id);
+      expect(lessonRows.length).toBeGreaterThan(0);
+      expect(lessonRows.every((row) => row.modern_activity_run_id === null)).toBe(true);
+    }
     expect(
       (
         await inTenant(author, (client) =>
@@ -840,6 +1114,62 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
     };
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: pinnedB });
+    const seatPrincipal = (
+      await admin.query('SELECT principal_id FROM student_seat_principal($1)', [seat])
+    ).rows[0].principal_id as string;
+    const notStartedVisible = async (actor: string, runId: string) =>
+      (
+        await inTenant(author, (client) =>
+          client.query(
+            'SELECT learning_course_occurrence_not_started_visible($1,$2,$3) AS visible',
+            [actor, seat, runId],
+          ),
+        )
+      ).rows[0].visible as boolean;
+    for (const actor of [seatPrincipal, principalId]) {
+      expect(await notStartedVisible(actor, occurrence.activity_run_id)).toBe(true);
+      expect(await notStartedVisible(actor, sibling.activity_run_id)).toBe(true);
+    }
+    expect(await notStartedVisible(outsiderPrincipalId, sibling.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(seatPrincipal, randomUUID())).toBe(false);
+    await admin.query(
+      `UPDATE classroom_course_run_lessons
+          SET blocks=jsonb_set(blocks,'{1,learningActivityVersionId}',to_jsonb($2::text))
+        WHERE id=$1`,
+      [source.source_course_lesson_id, randomUUID()],
+    );
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
+    await admin.query(
+      `UPDATE classroom_course_run_lessons
+          SET blocks=jsonb_set(blocks,'{1,learningActivityVersionId}',to_jsonb($2::text))
+        WHERE id=$1`,
+      [source.source_course_lesson_id, bVersion.versionId],
+    );
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(true);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, source.learner_identity_id],
+    );
+    expect(await notStartedVisible(principalId, sibling.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(true);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE account_id=$1 AND learner_identity_id=$2 AND link_kind='account'`,
+      [accountId, source.learner_identity_id],
+    );
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+        WHERE seat_id=$1 AND learner_identity_id=$2 AND link_kind='student_seat'`,
+      [seat, source.learner_identity_id],
+    );
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(principalId, sibling.activity_run_id)).toBe(false);
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+        WHERE seat_id=$1 AND learner_identity_id=$2 AND link_kind='student_seat'`,
+      [seat, source.learner_identity_id],
+    );
     await expectUnattributedWork();
     for (const asAccount of [false, true]) {
       expect(await readGoals(asAccount)).toEqual([
@@ -948,6 +1278,8 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         )
       ).rows[0].project_id,
     ).toBe(projectId);
+    expect(await notStartedVisible(seatPrincipal, occurrence.activity_run_id)).toBe(false);
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
     await expectUnattributedWork();
     expect(await read(sibling.activity_run_id)).toEqual({ present: true, blocks: null });
     expect(await read(occurrence.activity_run_id)).toEqual({ present: true, blocks: pinnedA });
@@ -1007,6 +1339,7 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         )
       ).rows[0].result_code,
     ).toBe('ok');
+    expect(await notStartedVisible(seatPrincipal, sibling.activity_run_id)).toBe(false);
     for (const asAccount of [false, true]) {
       expect(await readGoals(asAccount)).toEqual([
         { block_id: 'sibling-a', goal: 'Only sibling A goal' },

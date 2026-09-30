@@ -482,6 +482,8 @@ export interface SeatCourseRunLesson extends Omit<
   updatedAt: string | null;
   completedAt: string | null;
   canonicalState: CanonicalLearningSurfaceState | null;
+  courseStartAllowed?: boolean;
+  legacySubmitAllowed?: boolean;
 }
 
 export interface SeatCourseRun {
@@ -742,6 +744,16 @@ export interface CanonicalLearningCounts {
 export type LearningAttemptState =
   'not_started' | 'in_progress' | 'submitted' | 'evaluating' | 'closed' | 'invalidated' | 'expired';
 
+export interface LearningStartReceipt {
+  projectId: string;
+  participationId: string;
+  activityRunId: string;
+  attemptId: string;
+  attemptNumber: number;
+  state: LearningAttemptState;
+  reused: boolean;
+}
+
 /** One canonical row from immutable attempt through the published result. */
 export interface GradebookEntry {
   courseRunId?: string | null;
@@ -859,6 +871,12 @@ export interface SeatAssignment {
   id: string;
   /** Exact Direct ActivityRun for a later atomic Start; null for legacy/course handouts. */
   activityRunId?: string | null;
+  /** Server-proven old Direct handout with no canonical run or existing work. */
+  legacyStartAllowed?: boolean;
+  /** Server-proven Course lesson Start, including a modern exact Run. */
+  courseStartAllowed?: boolean;
+  /** Server-proven existing old Direct work with no immutable origin. */
+  legacySubmitAllowed?: boolean;
   title: string;
   brief: string | null;
   goal: string | null;
@@ -884,6 +902,7 @@ export type LearningWorkContext =
       projectId: string;
       moduleKey: string;
       origin: {
+        immutable: boolean;
         participationId: string | null;
         activityRunId: string | null;
         learningActivityVersionId: string;
@@ -2717,7 +2736,7 @@ export const api = {
   mySeatAwards: () => call<{ items: SeatAward[] }>('/api/class-join/me/awards'),
   seatAssignmentCounts: () =>
     call<{ open: number; unfinished: number }>('/api/class-join/me/assignment-counts'),
-  startSeatAssignment: (assignmentId: string, projectId: string) =>
+  startSeatAssignment: (assignmentId: string, projectId: string, legacyOnly = false) =>
     call<{
       projectId: string;
       submittedAt: string | null;
@@ -2728,13 +2747,39 @@ export const api = {
       reused: boolean;
     }>(`/api/class-join/me/assignments/${encodeURIComponent(assignmentId)}/work`, {
       method: 'POST',
-      body: JSON.stringify({ projectId }),
+      body: JSON.stringify({ projectId, ...(legacyOnly ? { legacyOnly: true } : {}) }),
+    }),
+  startLearningWork: (activityRunId: string, requestId: string) =>
+    call<LearningStartReceipt>(
+      `/api/learning/work/runs/${encodeURIComponent(activityRunId)}/start`,
+      { method: 'POST', body: JSON.stringify({ requestId }) },
+    ),
+  submitLearningProject: (
+    projectId: string,
+    input: { clientRequestId: string; expectedRevision: number },
+  ) =>
+    call<{
+      projectId: string;
+      participationId: string;
+      activityRunId: string;
+      attemptId: string;
+      submissionId: string;
+      attemptNumber: number;
+      state: 'submitted';
+      projectVersionId: string;
+      submittedAt: string;
+      lateState: 'on_time' | 'late' | 'excused';
+      reused: boolean;
+    }>(`/api/learning/projects/${encodeURIComponent(projectId)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify(input),
     }),
   submitSeatAssignment: (
     assignmentId: string,
     submitted: boolean,
     expectedRevision?: number,
     clientRequestId = `submit:${crypto.randomUUID()}`,
+    legacyOnly = false,
   ) =>
     call<{
       projectId: string;
@@ -2753,6 +2798,7 @@ export const api = {
         submitted,
         clientRequestId,
         expectedRevision,
+        ...(legacyOnly ? { legacyOnly: true } : {}),
       }),
     }),
   updateClassroom: (

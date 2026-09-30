@@ -1725,8 +1725,9 @@ export class ClassroomsController {
         [context.accountId, classroomId],
       ),
       this.requirePool().query(
-        `SELECT classroom_assignment_id,audience_type,assigned_count
-           FROM learning_direct_assignment_summary($1,$2,$3)`,
+        `SELECT classroom_assignment_id,audience_type,assigned_count,
+                started_count,submitted_count
+           FROM learning_direct_assignment_teacher_counts($1,$2,$3)`,
         [context.principalId, context.tenantId, classroomId],
       ),
     ]);
@@ -1740,6 +1741,8 @@ export class ClassroomsController {
           summary
             ? {
                 ...row,
+                started_count: summary['started_count'] as number | string,
+                submitted_count: summary['submitted_count'] as number | string,
                 audience_type:
                   summary['audience_type'] === 'whole_class' ||
                   summary['audience_type'] === 'named_learners'

@@ -43,6 +43,10 @@ import {
   type CanonicalLearningSurfaceState,
 } from './learning-canonical-projection.service.js';
 import { readOriginLearnerList, type OriginLearnerList } from './learning-origin-list.js';
+import {
+  ACCOUNT_COURSE_LESSON_LIST_SQL,
+  SEAT_COURSE_LESSON_LIST_SQL,
+} from './course-lesson-list-queries.js';
 
 const STUDENT_SESSION_COOKIE = 'asa_student_session';
 const STUDENT_CODE_PATTERN = /^[A-Za-z0-9]{4,10}$/;
@@ -85,6 +89,12 @@ interface AssignmentForSeatRow {
   /** Снимок работы: по нему ученик вспоминает, на чём остановился. */
   snapshot_revision: number | string | null;
   updated_at: Date | string | null;
+  legacy_provenance?: {
+    legacyDirect?: boolean;
+    legacyProjectReadable?: boolean;
+    startAllowed?: boolean;
+    submitAllowed?: boolean;
+  } | null;
 }
 
 type CanonicalProjectionMap = Map<string, CanonicalLearningProjection>;
@@ -104,6 +114,14 @@ function canonicalFor(
 }
 
 interface SeatCourseRunRow {
+  viewer_seat_id?: string | null;
+  modern_activity_run_id?: string | null;
+  modern_provenance?: {
+    modernCourseRun?: boolean;
+    activityRunId?: string | null;
+    startAllowed?: boolean;
+    projectReadable?: boolean;
+  } | null;
   run_id: string;
   course_id: string;
   course_version_id: string;
@@ -136,6 +154,12 @@ interface SeatCourseRunRow {
   snapshot_revision: number | string | null;
   work_updated_at: Date | string | null;
   completed_at: Date | string | null;
+  legacy_provenance?: {
+    legacyCourseLesson?: boolean;
+    legacyProjectReadable?: boolean;
+    startAllowed?: boolean;
+    submitAllowed?: boolean;
+  } | null;
 }
 
 interface CourseActivityOccurrenceRow {
@@ -156,6 +180,12 @@ interface CourseActivityOccurrenceRow {
   snapshot_revision: number | string | null;
   work_updated_at: Date | string | null;
   shared_assignment: boolean;
+  not_started_visible: boolean;
+  modern_provenance?: {
+    modernCourseRun?: boolean;
+    activityRunId?: string | null;
+    projectReadable?: boolean;
+  } | null;
 }
 
 interface CourseActivityOccurrenceView {
@@ -221,8 +251,18 @@ function courseActivityOccurrenceMap(
     const exact = origins?.courseWork(row.seat_id, row.activity_run_id, row.block_id) ?? null;
     const originPresent =
       origins?.courseHasOrigin(row.seat_id, row.activity_run_id, row.block_id) ?? false;
-    const workOriginAmbiguous = (row.shared_assignment === true || originPresent) && exact === null;
-    const legacyAllowed = !originPresent && !workOriginAmbiguous;
+    const modernScope =
+      row.modern_provenance?.modernCourseRun === true &&
+      row.modern_provenance.activityRunId === row.activity_run_id;
+    const modernReadable = modernScope && row.modern_provenance?.projectReadable === true;
+    const workOriginAmbiguous =
+      (row.shared_assignment === true ||
+        originPresent ||
+        (row.project_id !== null && !modernReadable)) &&
+      exact === null;
+    const legacyAllowed = modernReadable && !originPresent && !workOriginAmbiguous;
+    const exactNotStarted =
+      row.project_id === null && !originPresent && row.not_started_visible === true;
     values.push({
       blockId: row.block_id,
       activityRunId: row.activity_run_id,
@@ -260,9 +300,21 @@ function courseActivityOccurrenceMap(
           : isoDate(row.work_updated_at),
       canonicalState:
         exact?.canonicalState ??
-        (legacyAllowed && canonicalState?.activityRunId === row.activity_run_id
-          ? canonicalState
-          : null),
+        (exactNotStarted
+          ? {
+              activityRunId: row.activity_run_id,
+              workflowState: 'not_started',
+              selectedResult: null,
+              flags: [],
+              learnerMessageCode: null,
+            }
+          : modernScope &&
+              ((row.project_id === null && canonicalState?.workflowState === 'not_started') ||
+                legacyAllowed) &&
+              !originPresent &&
+              canonicalState?.activityRunId === row.activity_run_id
+            ? canonicalState
+            : null),
       workOriginAmbiguous,
     });
     result.set(key, values);
@@ -323,6 +375,8 @@ function seatCourseRuns(
         updatedAt: string | null;
         completedAt: string | null;
         canonicalState: CanonicalLearningSurfaceState | null;
+        courseStartAllowed: boolean;
+        legacySubmitAllowed: boolean;
         activityOccurrences: CourseActivityOccurrenceView[];
       }>;
     }>;
@@ -331,6 +385,22 @@ function seatCourseRuns(
     const suppressLegacyWork =
       row.classroom_assignment_id !== null &&
       guardedLessonWork.has(`${row.run_id}:${row.lesson_id}:${row.classroom_assignment_id}`);
+    const modernScope =
+      row.modern_provenance?.modernCourseRun === true &&
+      row.modern_provenance.activityRunId === row.modern_activity_run_id;
+    const modernWorkReadable = modernScope && row.modern_provenance?.projectReadable === true;
+    const historicalWorkReadable =
+      row.legacy_provenance?.legacyCourseLesson === true &&
+      row.legacy_provenance.legacyProjectReadable === true;
+    const lessonWorkReadable =
+      !suppressLegacyWork &&
+      row.lesson_kind === 'assignment' &&
+      (modernWorkReadable || historicalWorkReadable);
+    const projected = canonicalFor(
+      projections,
+      row.classroom_assignment_id,
+      row.viewer_seat_id ?? undefined,
+    );
     let run = runs.find((entry) => entry.id === row.run_id);
     if (!run) {
       run = {
@@ -375,17 +445,34 @@ function seatCourseRuns(
       assignmentBrief: row.assignment_brief,
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
-      projectId: suppressLegacyWork ? null : row.project_id,
+      projectId: lessonWorkReadable ? row.project_id : null,
       submittedAt:
-        suppressLegacyWork || row.submitted_at === null ? null : isoDate(row.submitted_at),
+        !lessonWorkReadable || row.submitted_at === null ? null : isoDate(row.submitted_at),
       snapshotRevision:
-        suppressLegacyWork || row.snapshot_revision === null ? null : Number(row.snapshot_revision),
+        !lessonWorkReadable || row.snapshot_revision === null
+          ? null
+          : Number(row.snapshot_revision),
       updatedAt:
-        suppressLegacyWork || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+        !lessonWorkReadable || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
-      canonicalState: suppressLegacyWork
-        ? null
-        : canonicalFor(projections, row.classroom_assignment_id),
+      canonicalState:
+        !suppressLegacyWork &&
+        (historicalWorkReadable ||
+          (modernScope &&
+            ((row.project_id === null && projected?.workflowState === 'not_started') ||
+              modernWorkReadable) &&
+            projected?.activityRunId === row.modern_activity_run_id))
+          ? projected
+          : null,
+      courseStartAllowed:
+        !suppressLegacyWork &&
+        ((modernScope && row.modern_provenance?.startAllowed === true) ||
+          (row.legacy_provenance?.legacyCourseLesson === true &&
+            row.legacy_provenance.startAllowed === true)),
+      legacySubmitAllowed:
+        historicalWorkReadable &&
+        !suppressLegacyWork &&
+        row.legacy_provenance?.submitAllowed === true,
       activityOccurrences: activityOccurrences.get(`${row.run_id}:${row.lesson_id}`) ?? [],
     });
   }
@@ -1056,9 +1143,11 @@ export class ClassroomJoinController {
         `SELECT id, seat_id, classroom_title, title, brief, goal, module_key,
               due_at, status, sample_image, project_id, submitted_at,
               snapshot_revision, updated_at,
+              learning_legacy_direct_provenance($2,seat_id,id,project_id)
+                AS legacy_provenance,
               learning_activity_blocks_for_seat(seat_id,id) AS task_blocks
          FROM classroom_assignments_for_account($1)`,
-        [context.accountId],
+        [context.accountId, context.principalId],
       ),
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
@@ -1086,9 +1175,11 @@ export class ClassroomJoinController {
           const ambiguous = origins.directAmbiguous(row.seat_id, row.id);
           const exact = ambiguous ? null : origins.directWork(row.seat_id, row.id);
           const legacyAllowed = !ambiguous && !origins.directHasOrigin(row.seat_id, row.id);
+          const legacyProjectReadable =
+            legacyAllowed && row.legacy_provenance?.legacyProjectReadable === true;
           const projected =
             exact?.canonicalState ??
-            (legacyAllowed ? canonicalFor(projections, row.id, row.seat_id) : null);
+            (legacyProjectReadable ? canonicalFor(projections, row.id, row.seat_id) : null);
           return {
             id: row.id,
             title: row.title,
@@ -1118,24 +1209,32 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(row.seat_id, row.id),
-            projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
+            legacyStartAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.startAllowed === true,
+            legacySubmitAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.submitAllowed === true,
+            projectId: exact?.projectId ?? (legacyProjectReadable ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.submitted_at
                   ? isoDate(row.submitted_at)
                   : null,
             snapshotRevision: exact
               ? exact.snapshotRevision
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.snapshot_revision === null
                   ? null
                   : Number(row.snapshot_revision),
             updatedAt: exact
               ? exact.updatedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.updated_at
                   ? isoDate(row.updated_at)
@@ -1180,17 +1279,10 @@ export class ClassroomJoinController {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
     const [result, projections, occurrences, origins] = await Promise.all([
-      this.requirePool().query(
-        `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
-              run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
-              section_title, section_summary, section_position, lesson_title, lesson_summary,
-              lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
-              classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
-              module_key, sample_image, project_id, submitted_at, snapshot_revision,
-              work_updated_at, completed_at
-         FROM classroom_course_runs_for_account_v2($1)`,
-        [context.accountId],
-      ),
+      this.requirePool().query(ACCOUNT_COURSE_LESSON_LIST_SQL, [
+        context.accountId,
+        context.principalId,
+      ]),
       this.canonical().forAccount(context.accountId),
       this.requirePool().query(
         `SELECT occurrence.*,
@@ -1198,9 +1290,15 @@ export class ClassroomJoinController {
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, $1, NULL
-                ) AS sample_image
+                ) AS sample_image,
+                learning_course_modern_provenance(
+                  $2,occurrence.seat_id,occurrence.activity_run_id,occurrence.project_id
+                ) AS modern_provenance,
+                learning_course_occurrence_not_started_visible(
+                  $2,occurrence.seat_id,occurrence.activity_run_id
+                ) AS not_started_visible
            FROM classroom_course_activity_occurrences_for_account($1) occurrence`,
-        [context.accountId],
+        [context.accountId, context.principalId],
       ),
       readOriginLearnerList(this.requirePool(), null, context.accountId),
     ]);
@@ -1257,6 +1355,8 @@ export class ClassroomJoinController {
       this.requirePool().query(
         `SELECT id, title, brief, goal, module_key, due_at, status, sample_image, project_id,
               submitted_at, snapshot_revision, updated_at,
+              learning_legacy_direct_provenance(principal_for_seat($1),$1,id,project_id)
+                AS legacy_provenance,
               learning_activity_blocks_for_seat($1,id) AS task_blocks
          FROM classroom_assignments_for_seat($1)`,
         [seat.seat_id],
@@ -1282,9 +1382,11 @@ export class ClassroomJoinController {
           const ambiguous = origins.directAmbiguous(seat.seat_id, row.id);
           const exact = ambiguous ? null : origins.directWork(seat.seat_id, row.id);
           const legacyAllowed = !ambiguous && !origins.directHasOrigin(seat.seat_id, row.id);
+          const legacyProjectReadable =
+            legacyAllowed && row.legacy_provenance?.legacyProjectReadable === true;
           const projected =
             exact?.canonicalState ??
-            (legacyAllowed ? canonicalFor(projections, row.id, seat.seat_id) : null);
+            (legacyProjectReadable ? canonicalFor(projections, row.id, seat.seat_id) : null);
           return {
             id: row.id,
             title: row.title,
@@ -1314,24 +1416,32 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(seat.seat_id, row.id),
-            projectId: exact?.projectId ?? (legacyAllowed ? row.project_id : null),
+            legacyStartAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.startAllowed === true,
+            legacySubmitAllowed:
+              legacyAllowed &&
+              row.legacy_provenance?.legacyDirect === true &&
+              row.legacy_provenance.submitAllowed === true,
+            projectId: exact?.projectId ?? (legacyProjectReadable ? row.project_id : null),
             submittedAt: exact
               ? exact.submittedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.submitted_at
                   ? isoDate(row.submitted_at)
                   : null,
             snapshotRevision: exact
               ? exact.snapshotRevision
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.snapshot_revision === null
                   ? null
                   : Number(row.snapshot_revision),
             updatedAt: exact
               ? exact.updatedAt
-              : !legacyAllowed
+              : !legacyProjectReadable
                 ? null
                 : row.updated_at
                   ? isoDate(row.updated_at)
@@ -1368,17 +1478,7 @@ export class ClassroomJoinController {
   async courseRuns(@Req() request: FastifyRequest) {
     const seat = await this.currentSeat(request);
     const [result, projections, occurrences, origins] = await Promise.all([
-      this.requirePool().query(
-        `SELECT run_id, course_id, course_version_id, version_number, classroom_title,
-              run_title, run_summary, due_at, run_status, lesson_id, source_lesson_id,
-              section_title, section_summary, section_position, lesson_title, lesson_summary,
-              lesson_content, lesson_blocks, lesson_kind, estimated_minutes, lesson_position,
-              classroom_assignment_id, assignment_title, assignment_goal, assignment_brief,
-              module_key, sample_image, project_id, submitted_at, snapshot_revision,
-              work_updated_at, completed_at
-         FROM classroom_course_runs_for_seat_v2($1)`,
-        [seat.seat_id],
-      ),
+      this.requirePool().query(SEAT_COURSE_LESSON_LIST_SQL, [seat.seat_id]),
       this.canonical().forSeat(seat.seat_id),
       this.requirePool().query(
         `SELECT occurrence.*,
@@ -1386,7 +1486,14 @@ export class ClassroomJoinController {
                 learning_activity_blocks_for_seat(occurrence.seat_id,occurrence.classroom_assignment_id,occurrence.activity_run_id) AS task_blocks,
                 learning_course_activity_sample_url_for_viewer(
                   occurrence.activity_run_id, NULL, $1
-                ) AS sample_image
+                ) AS sample_image,
+                learning_course_modern_provenance(
+                  principal_for_seat($1),occurrence.seat_id,
+                  occurrence.activity_run_id,occurrence.project_id
+                ) AS modern_provenance,
+                learning_course_occurrence_not_started_visible(
+                  principal_for_seat($1),occurrence.seat_id,occurrence.activity_run_id
+                ) AS not_started_visible
            FROM classroom_course_activity_occurrences_for_seat($1) occurrence`,
         [seat.seat_id],
       ),
@@ -1575,6 +1682,79 @@ export class ClassroomJoinController {
     }
   }
 
+  /** Recheck a list's historical Direct proof at the write boundary. */
+  private async legacyDirectProvenance(
+    principalId: string,
+    seatId: string,
+    assignmentId: string,
+    projectId: string | null,
+    client?: pg.PoolClient,
+  ): Promise<{
+    legacyDirect: boolean;
+    legacyCourseLesson: boolean;
+    startAllowed: boolean;
+    submitAllowed: boolean;
+  }> {
+    const result = await (client ?? this.requirePool()).query(
+      `SELECT ${client ? 'learning_legacy_assignment_write_provenance' : 'learning_legacy_direct_provenance'}($1,$2,$3,$4) AS proof`,
+      [principalId, seatId, assignmentId, projectId],
+    );
+    const proof = (
+      result.rows[0] as
+        | {
+            proof?: {
+              legacyDirect?: boolean;
+              legacyCourseLesson?: boolean;
+              startAllowed?: boolean;
+              submitAllowed?: boolean;
+            };
+          }
+        | undefined
+    )?.proof;
+    return {
+      legacyDirect: proof?.legacyDirect === true,
+      legacyCourseLesson: proof?.legacyCourseLesson === true,
+      startAllowed: proof?.startAllowed === true,
+      submitAllowed: proof?.submitAllowed === true,
+    };
+  }
+
+  /** Reprove under exact FK-parent row locks, then write through the same transaction. */
+  private async historicalAssignmentWrite(
+    learner: { seatId: string; principalId: string },
+    assignmentId: string,
+    projectId: string | null,
+    action: 'start' | 'submit',
+    directOnly: boolean,
+    sql: string,
+    parameters: unknown[],
+  ): Promise<pg.QueryResult> {
+    const client = await this.requirePool().connect();
+    try {
+      await client.query('BEGIN');
+      const proof = await this.legacyDirectProvenance(
+        learner.principalId,
+        learner.seatId,
+        assignmentId,
+        projectId,
+        client,
+      );
+      if (
+        !(proof.legacyDirect || (!directOnly && proof.legacyCourseLesson)) ||
+        (action === 'start' ? !proof.startAllowed : !proof.submitAllowed)
+      )
+        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+      const result = await client.query(sql, parameters);
+      await client.query('COMMIT');
+      return result;
+    } catch (reason) {
+      await client.query('ROLLBACK');
+      throw reason;
+    } finally {
+      client.release();
+    }
+  }
+
   /** Submit one immutable quiz attempt and return only the released feedback. */
   @Post('me/quizzes/:assignmentId/submit')
   @HttpCode(200)
@@ -1663,24 +1843,40 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const shape = checkBodyShape(rawBody, ['projectId']);
+    const shape = checkBodyShape(rawBody, ['projectId', 'legacyOnly']);
     const projectId = shape.ok ? shape.body['projectId'] : null;
+    const legacyOnly = shape.ok ? (shape.body['legacyOnly'] ?? false) : false;
     if (typeof projectId !== 'string' || !UUID_PATTERN.test(projectId)) {
       throw new HttpException(error('validation_error', 'project is invalid'), 400);
     }
     if (!UUID_PATTERN.test(assignmentId)) {
       throw new HttpException(error('validation_error', 'assignment is invalid'), 400);
     }
+    if (typeof legacyOnly !== 'boolean')
+      throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     const learner = await this.learnerForAssignment(request, assignmentId);
     const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
     await this.requireExactCourseWorkOrigin(assignmentId);
-    const canonical = await this.requirePool().query(
-      `SELECT result_code, participation_id, attempt_id, attempt_number,
+    const provenance = await this.legacyDirectProvenance(
+      learner.principalId,
+      seatId,
+      assignmentId,
+      projectId,
+    );
+    if (legacyOnly && (!provenance.legacyDirect || !provenance.startAllowed))
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    // A new historical handout has no canonical run. An already linked old
+    // Project may still resume through the old adapter even if a run was later
+    // attached; no new Project may enter that route.
+    const canonical = legacyOnly
+      ? { rows: [] }
+      : await this.requirePool().query(
+          `SELECT result_code, participation_id, attempt_id, attempt_number,
               attempt_state, project_id, reused
          FROM learning_direct_project_attempt_start($1,$2,$3,$4)`,
-      [learner.principalId, seatId, assignmentId, projectId],
-    );
+          [learner.principalId, seatId, assignmentId, projectId],
+        );
     const canonicalRow = canonical.rows[0] as
       | {
           result_code: string;
@@ -1709,7 +1905,14 @@ export class ClassroomJoinController {
     }
 
     // Explicit compatibility adapter for handouts without a canonical direct run.
-    const legacy = await this.requirePool().query(
+    if (!provenance.startAllowed || !(provenance.legacyDirect || provenance.legacyCourseLesson))
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    const legacy = await this.historicalAssignmentWrite(
+      learner,
+      assignmentId,
+      projectId,
+      'start',
+      legacyOnly,
       `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
       [seatId, assignmentId, projectId],
     );
@@ -1770,10 +1973,18 @@ export class ClassroomJoinController {
     @Param('assignmentId') assignmentId: string,
     @Body() rawBody: unknown,
   ) {
-    const shape = checkBodyShape(rawBody, ['submitted', 'clientRequestId', 'expectedRevision']);
+    const shape = checkBodyShape(rawBody, [
+      'submitted',
+      'clientRequestId',
+      'expectedRevision',
+      'legacyOnly',
+    ]);
     const submitted = shape.ok ? shape.body['submitted'] : null;
     const clientRequestId = shape.ok ? shape.body['clientRequestId'] : null;
     const expectedRevision = shape.ok ? (shape.body['expectedRevision'] ?? null) : null;
+    const legacyOnly = shape.ok ? (shape.body['legacyOnly'] ?? false) : false;
+    if (typeof legacyOnly !== 'boolean')
+      throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     if (
       expectedRevision !== null &&
       (typeof expectedRevision !== 'number' ||
@@ -1804,6 +2015,17 @@ export class ClassroomJoinController {
     const seatId = learner.seatId;
     await this.requireAssignmentAudience(seatId, assignmentId);
     await this.requireExactCourseWorkOrigin(assignmentId);
+    const provenance = await this.legacyDirectProvenance(
+      learner.principalId,
+      seatId,
+      assignmentId,
+      null,
+    );
+    if (
+      legacyOnly &&
+      (!(provenance.legacyDirect || provenance.legacyCourseLesson) || !provenance.submitAllowed)
+    )
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
     const requestId = clientRequestId ?? randomUUID();
     const canonical = await this.requirePool().query(
       `SELECT result_code, participation_id, attempt_id, submission_id,
@@ -1830,7 +2052,14 @@ export class ClassroomJoinController {
     let row = canonical.rows[0] as SubmissionRow;
     if (!row || row.result_code === 'not_canonical') {
       // Explicit compatibility adapter for historical/course assignments.
-      const legacy = await this.requirePool().query(
+      if (!provenance.submitAllowed || !(provenance.legacyDirect || provenance.legacyCourseLesson))
+        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+      const legacy = await this.historicalAssignmentWrite(
+        learner,
+        assignmentId,
+        null,
+        'submit',
+        false,
         `SELECT result_code, attempt_id, submission_id, attempt_number, attempt_state,
                 project_id, project_version_id, submitted_at, late_state, reused
            FROM learning_project_submission_create($1, $2, $3)`,

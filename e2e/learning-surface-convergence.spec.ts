@@ -126,7 +126,6 @@ test('legacy, revision and selected-result semantics stay equal across learner a
      VALUES ($1,$2,$3,$4)`,
     [row.classroom_tenant_id, row.assignment_id, row.seat_id, project.rows[0].id],
   );
-
   const studentContext = await browser.newContext();
   const student = await studentContext.newPage();
   const studentFailures = collectBrowserFailures(student, {
@@ -139,11 +138,29 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await student.getByLabel('Код ученика', { exact: true }).fill(studentCode);
   await student.getByRole('button', { name: 'Войти', exact: true }).click();
   await openLearnerLearning(student);
+  const historicalProof = await admin.query(
+    `SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`,
+    [learnerPrincipal.rows[0].principal_id, row.seat_id, row.assignment_id, project.rows[0].id],
+  );
+  expect(historicalProof.rows[0]?.proof).toMatchObject({
+    legacyDirect: true,
+    legacyCourseLesson: false,
+    legacyProjectReadable: true,
+  });
   const assignment = student
     .getByTestId('seat-assignments')
     .locator('li')
     .filter({ hasText: 'Canonical project' });
   await expect(assignment).toContainText('В работе');
+  await expect(assignment.getByRole('button', { name: 'Открыть работу' })).toBeVisible();
+  await expect(assignment.getByRole('button', { name: 'Сдать', exact: true })).toBeEnabled();
+  const historicalProject = await student.request.get(`/api/projects/${project.rows[0].id}`);
+  expect(historicalProject.ok()).toBeTruthy();
+  expect((await historicalProject.json()).project).toMatchObject({
+    id: project.rows[0].id,
+    scope: 'classroom',
+    classroomId: row.classroom_id,
+  });
 
   // Regression A: historical timestamp only. It is submitted, never a normal review queue item.
   await admin.query(
@@ -171,15 +188,31 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await gradeRow.screenshot({ path: `${evidenceDir}/regression-a-teacher-gradebook.png` });
 
   // Regression B: immutable Attempt wins after legacy submitted_at is cleared.
-  const submitted = await admin.query(
-    `SELECT * FROM learning_project_submission_create($1,$2,$3)`,
-    [row.seat_id, row.assignment_id, `m007-browser-${Date.now()}`],
+  await admin.query(
+    `UPDATE classroom_assignment_work SET submitted_at=NULL
+      WHERE assignment_id=$1 AND seat_id=$2`,
+    [row.assignment_id, row.seat_id],
   );
+  await student.reload();
+  await openLearnerLearning(student);
+  await expect(assignment.getByRole('button', { name: 'Сдать', exact: true })).toBeEnabled();
+  student.once('dialog', (dialog) => dialog.accept());
+  const [submittedResponse] = await Promise.all([
+    student.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/api/class-join/me/assignments/${row.assignment_id}/submit`) &&
+        response.request().method() === 'POST',
+    ),
+    assignment.getByRole('button', { name: 'Сдать', exact: true }).click(),
+  ]);
+  expect(submittedResponse.ok()).toBeTruthy();
+  const submitted = (await submittedResponse.json()) as { attemptId: string; projectId: string };
+  expect(submitted.projectId).toBe(project.rows[0].id);
   await admin.query(`SELECT * FROM learning_attempt_review($1,$2,$3,$4,$5,$6,$7,$8)`, [
     row.account_id,
     row.principal_id,
     row.classroom_id,
-    submitted.rows[0].attempt_id,
+    submitted.attemptId,
     'changes_requested',
     null,
     'Нужно поправить соединение.',
@@ -216,7 +249,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   expect(
     (
       await admin.query('SELECT state FROM learning_attempts WHERE id=ANY($1::uuid[])', [
-        [submitted.rows[0].attempt_id, acceptedAttempt],
+        [submitted.attemptId, acceptedAttempt],
       ])
     ).rows,
   ).toEqual([{ state: 'closed' }, { state: 'closed' }]);

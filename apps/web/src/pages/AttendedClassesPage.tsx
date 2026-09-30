@@ -1,5 +1,5 @@
 import { openAssignmentWork, submitSavedAssignment } from '../learning/submit-saved-assignment';
-import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { api, type AttendedClass, type SeatAssignment } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { SeatCourses } from '../components/SeatCourses';
@@ -7,6 +7,8 @@ import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from '../components/school-time';
+import { AtomicLearningStarter } from '../learning/atomic-learning-start';
+import { startLegacyDirectAssignment } from '../learning/start-legacy-direct-assignment';
 import '../components/classroom-assignments.css';
 import './attended-classes.css';
 import {
@@ -38,6 +40,7 @@ export function AttendedClassesPage({
   >([]);
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState(false);
+  const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -84,25 +87,17 @@ export function AttendedClassesPage({
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(true);
     setError(null);
-    const created = await api.createProject({
-      scope: 'personal',
-      module: assignment.moduleKey,
-      title: assignment.title,
-      idempotencyKey: assignment.id,
-    });
-    if (!created.ok) {
-      setBusy(false);
-      setError(created.error.message || 'Не удалось начать задание.');
-      return;
-    }
-    const linked = await api.startSeatAssignment(assignment.id, created.data.project.id);
+    const started = assignment.activityRunId
+      ? await starter.current.start(assignment.activityRunId)
+      : await startLegacyDirectAssignment(assignment);
+    if (started === null) return;
     setBusy(false);
-    if (!linked.ok) {
-      setError(linked.error.message || 'Не удалось начать задание.');
+    if (!started.ok) {
+      setError(started.error.message || 'Не удалось начать задание.');
       return;
     }
     await load();
-    onOpenProject(linked.data.projectId, assignment.moduleKey);
+    onOpenProject(started.data.projectId, assignment.moduleKey);
   }
 
   return (
@@ -343,10 +338,18 @@ export function AttendedClassesPage({
                       <button
                         type="button"
                         className="portal-create-button"
-                        disabled={busy || assignment.status === 'closed'}
+                        disabled={
+                          busy ||
+                          assignment.status === 'closed' ||
+                          (!assignment.activityRunId && assignment.legacyStartAllowed !== true)
+                        }
                         onClick={() => void start(assignment)}
                       >
-                        {busy ? 'Открываем…' : 'Открыть'}
+                        {busy
+                          ? 'Открываем…'
+                          : assignment.activityRunId || assignment.legacyStartAllowed
+                            ? 'Открыть'
+                            : 'Пока недоступно'}
                       </button>
                     )}
                   </div>

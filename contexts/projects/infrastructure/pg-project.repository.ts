@@ -116,10 +116,13 @@ const ACCESS_SQL = `(
   OR (p.project_scope = 'classroom' AND EXISTS (
         SELECT 1 FROM classroom_memberships m
          WHERE m.tenant_id = p.tenant_id AND m.classroom_id = p.classroom_id
-           AND $4::uuid IS NOT NULL AND m.user_id = $4))
+           AND $4::uuid IS NOT NULL AND m.user_id = $4
+           AND (m.member_role IN ('owner', 'co_teacher')
+                OR NOT learning_seat_owned_classroom_assignment_work_project(p.id))))
   OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
         SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
   OR (p.project_scope = 'personal' AND learning_linked_project_access($3, p.id))
+  OR (p.project_scope = 'classroom' AND learning_legacy_classroom_work_access($3, p.id))
 )`;
 
 const EDIT_ACCESS_SQL = `(
@@ -134,6 +137,7 @@ const EDIT_ACCESS_SQL = `(
   OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
         SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
   OR (p.project_scope = 'personal' AND learning_linked_project_access($3, p.id))
+  OR (p.project_scope = 'classroom' AND learning_legacy_classroom_work_access($3, p.id))
 )`;
 
 interface ResolvedProjectContext {
@@ -526,7 +530,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             AND ((p.project_scope='personal'
                   AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id=$2)
                        OR p.created_by=$3))
-                 OR (p.project_scope='classroom' AND m.user_id IS NOT NULL))
+                 OR (p.project_scope='classroom' AND m.user_id IS NOT NULL
+                     AND (m.member_role IN ('owner', 'co_teacher')
+                          OR NOT learning_seat_owned_classroom_assignment_work_project(p.id)
+                          OR learning_legacy_classroom_work_access($2, p.id))))
           ${tail(5)}`,
         [tenantId, actor.principalId, actor.userId, status, ...pageValues],
       );

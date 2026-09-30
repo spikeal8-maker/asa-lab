@@ -58,6 +58,7 @@ export type LearningWorkContext =
       projectId: string;
       moduleKey: string;
       origin: {
+        immutable: boolean;
         participationId: string | null;
         activityRunId: string | null;
         learningActivityVersionId: string;
@@ -172,6 +173,46 @@ export async function learningWorkContextForProject(
     if (legacy.rows.length > 1) return { state: 'unavailable', projectId };
     if (legacy.rows.length === 1) {
       row = legacy.rows[0]!.context;
+      let readable: boolean;
+      if (row.sourceKind === 'course' && row.activityRunId) {
+        const proof = await pool.query<{
+          proof: { modernCourseRun?: boolean; activityRunId?: string; projectReadable?: boolean };
+        }>(`SELECT learning_course_modern_provenance($1,$2,$3,$4) AS proof`, [
+          viewerPrincipalId,
+          row.seatId,
+          row.activityRunId,
+          projectId,
+        ]);
+        readable =
+          proof.rows[0]?.proof?.modernCourseRun === true &&
+          proof.rows[0].proof.activityRunId === row.activityRunId &&
+          proof.rows[0].proof.projectReadable === true;
+      } else if (row.sourceKind === 'direct' && row.activityRunId) {
+        const proof = await pool.query<{ readable: boolean }>(
+          `SELECT learning_direct_modern_project_readable($1,$2,$3,$4,$5) AS readable`,
+          [viewerPrincipalId, row.seatId, row.classroomAssignmentId, row.activityRunId, projectId],
+        );
+        readable = proof.rows[0]?.readable === true;
+      } else {
+        const proof = await pool.query<{
+          proof: {
+            legacyDirect?: boolean;
+            legacyCourseLesson?: boolean;
+            legacyProjectReadable?: boolean;
+          };
+        }>(`SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`, [
+          viewerPrincipalId,
+          row.seatId,
+          row.classroomAssignmentId,
+          projectId,
+        ]);
+        readable =
+          proof.rows[0]?.proof?.legacyProjectReadable === true &&
+          (row.sourceKind === 'direct'
+            ? proof.rows[0].proof.legacyDirect === true
+            : row.sourceKind === 'course' && proof.rows[0].proof.legacyCourseLesson === true);
+      }
+      if (!readable) return { state: 'denied', projectId };
       projection = projections.get(canonicalProjectionKey(row.seatId, row.classroomAssignmentId));
     } else {
       const exists = await pool.query<{ linked: boolean }>(
@@ -235,6 +276,7 @@ export async function learningWorkContextForProject(
     projectId,
     moduleKey: row.moduleKey,
     origin: {
+      immutable: immutableOrigin,
       participationId: row.participationId,
       activityRunId: row.activityRunId,
       learningActivityVersionId: row.learningActivityVersionId,
