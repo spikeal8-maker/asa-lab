@@ -12,6 +12,12 @@ describe('ModulesController', () => {
       availability: 'active',
       creatable: true,
       safeModeSupported: true,
+      learningCapabilities: {
+        assignable: true,
+        editableEvidence: true,
+        submitProjectVersion: true,
+        preview: 'snapshot',
+      },
     });
     expect(modules.find((module) => module.moduleKey === 'chess')).toMatchObject({
       displayName: 'ASA Chess',
@@ -40,6 +46,7 @@ describe('ModulesController', () => {
       availability: 'active',
       creatable: true,
       previewKind: 'scene',
+      learningCapabilities: { assignable: true },
     });
   });
 
@@ -49,6 +56,7 @@ describe('ModulesController', () => {
     expect(modules.find((module) => module.moduleKey === 'drawing')).toMatchObject({
       availability: 'coming_soon',
       creatable: false,
+      learningCapabilities: { assignable: false },
     });
     expect(modules.map((module) => module.moduleKey)).toEqual(
       expect.arrayContaining([
@@ -61,6 +69,21 @@ describe('ModulesController', () => {
         'drawing',
       ]),
     );
+  });
+
+  it('keeps active game and Scratch project modules out of the learning chooser', () => {
+    const registry = createApiModuleRegistry();
+    expect(
+      registry
+        .listLearningAssignable()
+        .map((module) => module.moduleKey)
+        .sort(),
+    ).toEqual(['electronics', 'three-d']);
+    expect(registry.list().find((module) => module.moduleKey === 'blocks')).toMatchObject({
+      availability: 'active',
+      creatable: true,
+      learningCapabilities: { assignable: false },
+    });
   });
 
   it.each([undefined, '0', '1'])('keeps Scratch creatable with legacy preview flag %s', (flag) => {

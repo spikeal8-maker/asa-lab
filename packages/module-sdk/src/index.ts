@@ -13,6 +13,16 @@ export type ModuleAvailability = 'active' | 'coming_soon' | 'disabled';
 export type ModulePreviewKind = 'schematic' | 'board' | 'stage' | 'scene' | 'drawing' | 'summary';
 export type ModuleDiagnosticSeverity = 'error' | 'warning' | 'info';
 
+export type LearningPreviewMode = 'snapshot' | 'interactive' | 'summary' | 'none';
+
+/** Explicit learning support. An active project module is not automatically assignable. */
+export interface LearningCapabilities {
+  readonly assignable: boolean;
+  readonly editableEvidence: boolean;
+  readonly submitProjectVersion: boolean;
+  readonly preview: LearningPreviewMode;
+}
+
 export interface ModuleManifestV1 {
   readonly moduleKey: string;
   readonly moduleVersion: string;
@@ -29,6 +39,7 @@ export interface ModuleManifestV1 {
   readonly previewKind: ModulePreviewKind;
   readonly iconKey: string;
   readonly categories: readonly string[];
+  readonly learningCapabilities: LearningCapabilities;
 }
 
 export interface ModuleAnchor {
@@ -223,6 +234,7 @@ export interface ModuleSummary {
   readonly iconKey: string;
   readonly categories: readonly string[];
   readonly creatable: boolean;
+  readonly learningCapabilities: LearningCapabilities;
 }
 
 export class ModuleRegistryError extends Error {
@@ -255,6 +267,22 @@ function validateManifest(manifest: ModuleManifestV1): void {
   if (manifest.categories.length === 0) {
     throw new ModuleRegistryError(`module ${manifest.moduleKey} requires at least one category`);
   }
+  const learning = manifest.learningCapabilities;
+  if (
+    !learning ||
+    typeof learning.assignable !== 'boolean' ||
+    typeof learning.editableEvidence !== 'boolean' ||
+    typeof learning.submitProjectVersion !== 'boolean' ||
+    !['snapshot', 'interactive', 'summary', 'none'].includes(learning.preview) ||
+    (learning.submitProjectVersion && !learning.editableEvidence) ||
+    (!learning.assignable &&
+      (learning.editableEvidence ||
+        learning.submitProjectVersion ||
+        learning.preview !== 'none')) ||
+    (learning.assignable && manifest.availability !== 'active')
+  ) {
+    throw new ModuleRegistryError(`module ${manifest.moduleKey} has invalid learningCapabilities`);
+  }
 }
 
 function toSummary(entry: RegisteredModule): ModuleSummary {
@@ -275,6 +303,7 @@ function toSummary(entry: RegisteredModule): ModuleSummary {
     iconKey: manifest.iconKey,
     categories: manifest.categories,
     creatable: manifest.availability === 'active' && entry.provider !== undefined,
+    learningCapabilities: manifest.learningCapabilities,
   };
 }
 
@@ -304,6 +333,12 @@ export class ModuleRegistry {
 
   listCreatable(): readonly ModuleSummary[] {
     return this.list().filter((module) => module.creatable);
+  }
+
+  listLearningAssignable(): readonly ModuleSummary[] {
+    return this.list().filter(
+      (module) => module.creatable && module.learningCapabilities.assignable,
+    );
   }
 
   get(moduleKey: string): RegisteredModule | null {

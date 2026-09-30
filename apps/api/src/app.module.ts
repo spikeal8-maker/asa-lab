@@ -58,6 +58,7 @@ import { LearningActivitiesController } from './learning-activities.controller.j
 import { LearningDirectAssignmentController } from './learning-direct-assignment.controller.js';
 import { LearningNotificationsController } from './learning-notifications.controller.js';
 import { LearningWorkContextController } from './learning-work-context.controller.js';
+import { LearningStartController } from './learning-start.controller.js';
 import { LearningRemindersService } from './learning-reminders.service.js';
 import { GalleryController } from './gallery.controller.js';
 import { CollectionsController } from './collections.controller.js';
@@ -178,6 +179,7 @@ export class AppModule {
         LearningDirectAssignmentController,
         LearningNotificationsController,
         LearningWorkContextController,
+        LearningStartController,
         GalleryController,
         CollectionsController,
         ClassroomsController,

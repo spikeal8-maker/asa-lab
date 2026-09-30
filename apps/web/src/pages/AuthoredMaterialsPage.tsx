@@ -1,6 +1,11 @@
 import { AuthorVersionHistory } from '../components/AuthorVersionHistory';
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
-import { api, type AuthoredActivityDraft, type AuthoredActivityLearnerPreview } from '../api';
+import {
+  api,
+  type AuthoredActivityDraft,
+  type AuthoredActivityLearnerPreview,
+  type ModuleSummary,
+} from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
 
@@ -27,7 +32,7 @@ const initial: AuthoredActivityDraft = {
   title: '',
   goal: null,
   instructions: '',
-  moduleKey: 'electronics',
+  moduleKey: '',
   resultMode: 'completion',
   maxPoints: null,
   policies: {
@@ -40,7 +45,28 @@ const initial: AuthoredActivityDraft = {
   },
 };
 
-function LearnerPreviewPanel({ preview }: { readonly preview: AuthoredActivityLearnerPreview }) {
+const PREFERRED_AUTHOR_MODULE_KEY = 'electronics';
+
+function isAssignableModule(module: ModuleSummary): boolean {
+  return module.creatable && module.learningCapabilities?.assignable === true;
+}
+
+function defaultAssignableModuleKey(modules: readonly ModuleSummary[]): string {
+  const assignable = modules.filter(isAssignableModule);
+  return (
+    assignable.find((module) => module.moduleKey === PREFERRED_AUTHOR_MODULE_KEY)?.moduleKey ??
+    assignable[0]?.moduleKey ??
+    ''
+  );
+}
+
+function LearnerPreviewPanel({
+  preview,
+  modules,
+}: {
+  readonly preview: AuthoredActivityLearnerPreview;
+  readonly modules: readonly ModuleSummary[];
+}) {
   const maxAttempts = (preview.policies['attemptPolicy'] as Record<string, unknown> | null)?.[
     'maxAttempts'
   ];
@@ -74,13 +100,10 @@ function LearnerPreviewPanel({ preview }: { readonly preview: AuthoredActivityLe
         <div>
           <dt>Среда</dt>
           <dd>
-            {preview.moduleKey === 'electronics'
-              ? 'Электроника'
-              : preview.moduleKey === 'three-d'
-                ? '3D'
-                : preview.moduleKey === null
-                  ? 'Без редактора проекта'
-                  : 'Среда проекта'}
+            {preview.moduleKey === null
+              ? 'Без редактора проекта'
+              : (modules.find((module) => module.moduleKey === preview.moduleKey)?.displayName ??
+                preview.moduleKey)}
           </dd>
         </div>
         <div>
@@ -122,6 +145,9 @@ export function AuthoredMaterialsPage({
     { id: string; title: string; draftRevision: number; currentPublishedVersionId: string | null }[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
+  const [modulesLoading, setModulesLoading] = useState(true);
+  const assignableModules = modules.filter(isAssignableModule);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -141,6 +167,7 @@ export function AuthoredMaterialsPage({
   const request = useRef<{ payload: string; id: string } | null>(null);
   const savedPayload = useRef<string | null>(null);
   const previewRequest = useRef(0);
+  const modulesRequest = useRef(0);
   useEffect(() => {
     previewRequest.current += 1;
     setPreview(null);
@@ -155,6 +182,31 @@ export function AuthoredMaterialsPage({
   useEffect(() => {
     void refresh();
   }, [refresh]);
+  const refreshModules = useCallback(async () => {
+    const requestId = ++modulesRequest.current;
+    setModulesLoading(true);
+    const result = await api.listModules();
+    if (requestId === modulesRequest.current) {
+      if (result.ok) {
+        setModules(result.data.items);
+        setDraft((current) =>
+          current.moduleKey === ''
+            ? { ...current, moduleKey: defaultAssignableModuleKey(result.data.items) }
+            : current,
+        );
+      } else {
+        setModules([]);
+        setError(result.error.message || 'Список учебных сред недоступен.');
+      }
+      setModulesLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void refreshModules();
+    return () => {
+      modulesRequest.current += 1;
+    };
+  }, [refreshModules]);
   async function open(id: string) {
     previewRequest.current += 1;
     setPreview(null);
@@ -192,7 +244,8 @@ export function AuthoredMaterialsPage({
   }
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || !draft.title.trim()) return null;
+    if (busy || !draft.title.trim() || draft.moduleKey === '' || (!opened && !canAssignDraftModule))
+      return null;
     const payload = JSON.stringify(draft);
     const textDirty = !opened || savedPayload.current !== payload;
     if (!textDirty && pendingDraftSample === null) return opened;
@@ -366,6 +419,7 @@ export function AuthoredMaterialsPage({
     setBusy(false);
   }
   async function publish() {
+    if (!canPublish) return;
     const saved = await save();
     if (!saved) return;
     setBusy(true);
@@ -431,11 +485,19 @@ export function AuthoredMaterialsPage({
   }
 
   function policy(key: keyof AuthoredActivityDraft['policies'], value: Record<string, unknown>) {
-    setDraft({ ...draft, policies: { ...draft.policies, [key]: value } });
+    setDraft((current) => ({
+      ...current,
+      policies: { ...current.policies, [key]: value },
+    }));
   }
   const draftDirty =
     (opened !== null && savedPayload.current !== JSON.stringify(draft)) ||
     pendingDraftSample !== null;
+  const canAssignDraftModule =
+    !modulesLoading &&
+    draft.moduleKey !== null &&
+    assignableModules.some((module) => module.moduleKey === draft.moduleKey);
+  const canPublish = draft.moduleKey === null ? opened !== null : canAssignDraftModule;
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const Root = embedded ? 'section' : 'main';
   return (
@@ -460,7 +522,7 @@ export function AuthoredMaterialsPage({
             savedPayload.current = null;
             setDraftSampleImage(null);
             setPendingDraftSample(null);
-            setDraft(initial);
+            setDraft({ ...initial, moduleKey: defaultAssignableModuleKey(modules) });
             setInheritedGoal(null);
             setNotice(null);
             setError(null);
@@ -472,7 +534,13 @@ export function AuthoredMaterialsPage({
       {error ? (
         <p className="form-error" role="alert">
           {error}{' '}
-          <button type="button" onClick={() => void refresh()}>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              void Promise.all([refresh(), refreshModules()]);
+            }}
+          >
             Повторить чтение
           </button>
         </p>
@@ -518,7 +586,10 @@ export function AuthoredMaterialsPage({
               maxLength={255}
               value={draft.title}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+              onChange={(event) => {
+                const title = event.target.value;
+                setDraft((current) => ({ ...current, title }));
+              }}
             />
           </label>
           <label>
@@ -528,7 +599,10 @@ export function AuthoredMaterialsPage({
               maxLength={160}
               value={draft.goal === undefined ? (inheritedGoal ?? '') : (draft.goal ?? '')}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, goal: event.target.value })}
+              onChange={(event) => {
+                const goal = event.target.value;
+                setDraft((current) => ({ ...current, goal }));
+              }}
             />
           </label>
           {(draft.goal === undefined ? inheritedGoal !== null : draft.goal !== null) && (
@@ -536,7 +610,7 @@ export function AuthoredMaterialsPage({
               type="button"
               className="account-inline-action"
               disabled={busy}
-              onClick={() => setDraft({ ...draft, goal: null })}
+              onClick={() => setDraft((current) => ({ ...current, goal: null }))}
             >
               Очистить цель задания
             </button>
@@ -549,14 +623,17 @@ export function AuthoredMaterialsPage({
               rows={5}
               value={draft.instructions ?? ''}
               disabled={busy}
-              onChange={(event) => setDraft({ ...draft, instructions: event.target.value })}
+              onChange={(event) => {
+                const instructions = event.target.value;
+                setDraft((current) => ({ ...current, instructions }));
+              }}
             />
           </label>
           <AuthoredTaskBlocksEditor
             blocks={draft.blocks}
             instructions={draft.instructions}
             disabled={busy}
-            onChange={(blocks) => setDraft({ ...draft, blocks })}
+            onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
             onImageUpload={(file) => void uploadTaskImage(file)}
             imageUrl={(contentHash) =>
               opened
@@ -568,12 +645,31 @@ export function AuthoredMaterialsPage({
             Среда проекта
             <select
               value={draft.moduleKey ?? ''}
-              disabled={busy || draft.moduleKey === null}
-              onChange={(event) => setDraft({ ...draft, moduleKey: event.target.value })}
+              disabled={
+                busy || draft.moduleKey === null || modulesLoading || assignableModules.length === 0
+              }
+              onChange={(event) => {
+                const moduleKey = event.target.value;
+                setDraft((current) => ({ ...current, moduleKey }));
+              }}
             >
+              {draft.moduleKey === '' ? (
+                <option value="" disabled>
+                  Выберите среду
+                </option>
+              ) : null}
               {draft.moduleKey === null ? <option value="">Материал без редактора</option> : null}
-              <option value="electronics">Электроника</option>
-              <option value="three-d">3D-моделирование</option>
+              {draft.moduleKey &&
+              !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
+                <option value={draft.moduleKey}>
+                  {draft.moduleKey} · недоступно для назначения
+                </option>
+              ) : null}
+              {assignableModules.map((module) => (
+                <option key={module.moduleKey} value={module.moduleKey}>
+                  {module.displayName}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -581,13 +677,14 @@ export function AuthoredMaterialsPage({
             <select
               value={draft.resultMode}
               disabled={busy}
-              onChange={(event) =>
-                setDraft({
-                  ...draft,
-                  resultMode: event.target.value as AuthoredActivityDraft['resultMode'],
+              onChange={(event) => {
+                const resultMode = event.target.value as AuthoredActivityDraft['resultMode'];
+                setDraft((current) => ({
+                  ...current,
+                  resultMode,
                   maxPoints: null,
-                })
-              }
+                }));
+              }}
             >
               <option value="ungraded">Без оценки</option>
               <option value="completion">Выполнение</option>
@@ -604,9 +701,13 @@ export function AuthoredMaterialsPage({
                   min={1}
                   max={100000}
                   value={draft.maxPoints ?? ''}
-                  onChange={(event) =>
-                    setDraft({ ...draft, maxPoints: Number(event.target.value) || null })
-                  }
+                  onChange={(event) => {
+                    const maxPoints = Number(event.target.value) || null;
+                    setDraft((current) => ({
+                      ...current,
+                      maxPoints,
+                    }));
+                  }}
                 />
               </label>
               <label>
@@ -693,7 +794,11 @@ export function AuthoredMaterialsPage({
               type="submit"
               className="btn-primary"
               disabled={
-                busy || !draft.title.trim() || (draft.resultMode === 'graded' && !draft.maxPoints)
+                busy ||
+                !draft.title.trim() ||
+                draft.moduleKey === '' ||
+                (!opened && !canAssignDraftModule) ||
+                (draft.resultMode === 'graded' && !draft.maxPoints)
               }
             >
               {busy ? 'Сохраняем…' : opened ? 'Сохранить' : 'Создать материал'}
@@ -702,7 +807,11 @@ export function AuthoredMaterialsPage({
               type="button"
               className="btn-secondary"
               disabled={
-                busy || !draft.title.trim() || (draft.resultMode === 'graded' && !draft.maxPoints)
+                busy ||
+                !draft.title.trim() ||
+                draft.moduleKey === '' ||
+                !canPublish ||
+                (draft.resultMode === 'graded' && !draft.maxPoints)
               }
               onClick={() => void publish()}
             >
@@ -751,7 +860,9 @@ export function AuthoredMaterialsPage({
               {preview.message}
             </p>
           ) : null}
-          {preview?.kind === 'ready' ? <LearnerPreviewPanel preview={preview.data} /> : null}
+          {preview?.kind === 'ready' ? (
+            <LearnerPreviewPanel preview={preview.data} modules={modules} />
+          ) : null}
         </form>
       </div>
     </Root>

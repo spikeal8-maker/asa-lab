@@ -1,6 +1,12 @@
 import type pg from 'pg';
-import type { CanonicalLearningProjection } from './learning-canonical-projection.service.js';
-import { canonicalProjectionKey } from './learning-canonical-projection.service.js';
+import type {
+  CanonicalLearningProjection,
+  EvidenceRow,
+} from './learning-canonical-projection.service.js';
+import {
+  canonicalProjectionFromEvidence,
+  canonicalProjectionKey,
+} from './learning-canonical-projection.service.js';
 
 type WorkRow = {
   projectId: string;
@@ -136,22 +142,48 @@ export async function learningWorkContextForProject(
   projections: Map<string, CanonicalLearningProjection>,
   asOf = new Date().toISOString(),
 ): Promise<LearningWorkContext> {
-  const result = await pool.query<{ context: WorkRow }>(
-    'SELECT context FROM learning_work_context_for_project($1, $2)',
+  const origin = await pool.query<{ context: WorkRow; evidence: EvidenceRow }>(
+    'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
     [viewerPrincipalId, projectId],
   );
-  if (result.rows.length === 0) {
-    const exists = await pool.query<{ linked: boolean }>(
-      'SELECT learning_work_project_origin_exists($1, $2) AS linked',
+  if (origin.rows.length > 1) return { state: 'unavailable', projectId };
+  let row: WorkRow;
+  let projection: CanonicalLearningProjection | undefined;
+  const immutableOrigin = origin.rows.length === 1;
+  if (immutableOrigin) {
+    row = origin.rows[0]!.context;
+    try {
+      projection = canonicalProjectionFromEvidence(origin.rows[0]!.evidence, projectId, asOf);
+    } catch {
+      return { state: 'unavailable', projectId };
+    }
+  } else {
+    const canonical = await pool.query<{ linked: boolean }>(
+      'SELECT learning_immutable_project_origin_exists($1, $2) AS linked',
       [viewerPrincipalId, projectId],
     );
-    return { state: exists.rows[0]?.linked ? 'denied' : 'not_learning', projectId };
+    // An inaccessible or inconsistent immutable origin must never be treated
+    // as a legacy handout work row for the same Project.
+    if (canonical.rows[0]?.linked) return { state: 'denied', projectId };
+    const legacy = await pool.query<{ context: WorkRow }>(
+      'SELECT context FROM learning_work_context_for_project($1, $2)',
+      [viewerPrincipalId, projectId],
+    );
+    if (legacy.rows.length > 1) return { state: 'unavailable', projectId };
+    if (legacy.rows.length === 1) {
+      row = legacy.rows[0]!.context;
+      projection = projections.get(canonicalProjectionKey(row.seatId, row.classroomAssignmentId));
+    } else {
+      const exists = await pool.query<{ linked: boolean }>(
+        'SELECT learning_work_project_origin_exists($1, $2) AS linked',
+        [viewerPrincipalId, projectId],
+      );
+      return { state: exists.rows[0]?.linked ? 'denied' : 'not_learning', projectId };
+    }
   }
-  if (result.rows.length !== 1) return { state: 'unavailable', projectId };
-  const row = result.rows[0]!.context;
-  const projection = projections.get(canonicalProjectionKey(row.seatId, row.classroomAssignmentId));
   const conflicts = projection?.state.provenance.conflicts ?? [];
   const expectedReturnedMismatch =
+    !immutableOrigin &&
     projection?.surface.workflowState === 'changes_requested' &&
     projection.state.provenance.workflowAuthority === 'latest_attempt' &&
     row.attemptId !== null &&

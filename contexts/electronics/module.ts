@@ -98,6 +98,12 @@ const ELECTRONICS_MANIFEST = {
   previewKind: 'schematic',
   iconKey: 'circuit',
   categories: ['engineering', 'electronics'],
+  learningCapabilities: {
+    assignable: true,
+    editableEvidence: true,
+    submitProjectVersion: true,
+    preview: 'snapshot',
+  },
 } as const;
 
 function invalidDocument(message: string): readonly ModuleDiagnostic[] {

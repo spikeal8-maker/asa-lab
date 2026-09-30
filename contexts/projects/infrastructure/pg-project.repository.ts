@@ -119,6 +119,7 @@ const ACCESS_SQL = `(
            AND $4::uuid IS NOT NULL AND m.user_id = $4))
   OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
         SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
+  OR (p.project_scope = 'personal' AND learning_linked_project_access($3, p.id))
 )`;
 
 const EDIT_ACCESS_SQL = `(
@@ -132,6 +133,7 @@ const EDIT_ACCESS_SQL = `(
            AND m.member_role IN ('owner', 'co_teacher')))
   OR (p.project_scope = 'personal' AND p.owner_principal_id IN (
         SELECT scope.seat_principal_id FROM teacher_seat_scope($3) scope))
+  OR (p.project_scope = 'personal' AND learning_linked_project_access($3, p.id))
 )`;
 
 interface ResolvedProjectContext {
@@ -184,7 +186,15 @@ async function recordClassroomActivity(
 }
 
 export class PgProjectRepository implements ProjectRepositoryPort {
-  constructor(private readonly pool: pg.Pool) {}
+  constructor(
+    private readonly pool: pg.Pool,
+    private readonly transactionClient?: pg.PoolClient,
+  ) {}
+
+  /** Reuse the caller's transaction for a multi-domain command. */
+  inTransaction(client: pg.PoolClient): PgProjectRepository {
+    return new PgProjectRepository(this.pool, client);
+  }
 
   private async projectContext(
     _activeTenantId: string,
@@ -245,7 +255,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       projectTenantId = row.tenant_id;
       projectUserId = row.user_id;
     }
-    return withTenantContext(this.pool, projectTenantId, async (client) => {
+    const create = async (client: pg.PoolClient): Promise<CreateProjectResult> => {
       let projectTitle = input.title;
       if (input.automaticTitlePrefix) {
         const sequenceLockKey = JSON.stringify([
@@ -359,7 +369,14 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       );
       await recordClassroomActivity(client, principalId, project.id, 'project.created');
       return { kind: 'created', project };
-    });
+    };
+    if (this.transactionClient) {
+      await this.transactionClient.query("SELECT set_config('app.tenant_id', $1, true)", [
+        projectTenantId,
+      ]);
+      return create(this.transactionClient);
+    }
+    return withTenantContext(this.pool, projectTenantId, create);
   }
 
   async nextTitleSequence(input: {

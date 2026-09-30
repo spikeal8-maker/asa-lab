@@ -11,7 +11,7 @@ import {
 
 type ProjectionAudience = 'learner' | 'teacher';
 
-interface EvidenceRow {
+export interface EvidenceRow {
   tenantId: string;
   schoolId: string;
   classroomId: string;
@@ -40,6 +40,7 @@ interface EvidenceRow {
   validUnselectedResultCount: number;
   compatibilityGradingUnknown: boolean;
   reusableAuthoredContent: boolean;
+  projectId?: string | null;
 }
 
 export interface CanonicalLearningSurfaceState {
@@ -150,6 +151,28 @@ function surfaceState(
   };
 }
 
+/** Resolve one exact origin without the handout-keyed list projection. */
+export function canonicalProjectionFromEvidence(
+  evidence: EvidenceRow,
+  key: string,
+  asOf: string,
+  audience: ProjectionAudience = 'learner',
+): CanonicalLearningProjection {
+  const state = resolveEvidence(evidence, asOf);
+  return {
+    key,
+    state,
+    surface: {
+      ...surfaceState(state, audience),
+      effectiveDueAt: evidence.dueAt,
+      activityRunId: evidence.activityRunId ?? null,
+    },
+    compatibilityGradingUnknown: evidence.compatibilityGradingUnknown,
+    reusableAuthoredContent: evidence.reusableAuthoredContent,
+    projectId: evidence.projectId ?? evidence.legacyWork?.projectId ?? null,
+  };
+}
+
 export class LearningCanonicalProjectionService {
   constructor(
     private readonly pool: pg.Pool,
@@ -212,23 +235,8 @@ export class LearningCanonicalProjectionService {
     );
     return new Map(
       result.rows.map(({ evidence }) => {
-        const state = resolveEvidence(evidence, asOf);
         const key = canonicalProjectionKey(evidence.seatId, evidence.classroomAssignmentId);
-        return [
-          key,
-          {
-            key,
-            state,
-            surface: {
-              ...surfaceState(state, audience),
-              effectiveDueAt: evidence.dueAt,
-              activityRunId: evidence.activityRunId ?? null,
-            },
-            compatibilityGradingUnknown: evidence.compatibilityGradingUnknown,
-            reusableAuthoredContent: evidence.reusableAuthoredContent,
-            projectId: evidence.legacyWork?.projectId ?? null,
-          },
-        ];
+        return [key, canonicalProjectionFromEvidence(evidence, key, asOf, audience)];
       }),
     );
   }

@@ -857,6 +857,8 @@ export interface LearnerResult {
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
   id: string;
+  /** Exact Direct ActivityRun for a later atomic Start; null for legacy/course handouts. */
+  activityRunId?: string | null;
   title: string;
   brief: string | null;
   goal: string | null;
@@ -1196,6 +1198,12 @@ export interface ModuleSummary {
   iconKey: string;
   categories: string[];
   creatable: boolean;
+  learningCapabilities?: {
+    assignable: boolean;
+    editableEvidence: boolean;
+    submitProjectVersion: boolean;
+    preview: 'snapshot' | 'interactive' | 'summary' | 'none';
+  };
 }
 
 export interface ProjectDraft<TDocument = unknown> {
@@ -2455,7 +2463,7 @@ export const api = {
     lessonId: string | null,
     input: CourseLessonInput & { expectedRevision: number },
   ) =>
-    call<{ id: string }>(
+    call<{ id: string; draftRevision: number }>(
       lessonId
         ? `/api/courses/${encodeURIComponent(courseId)}/lessons/${encodeURIComponent(lessonId)}`
         : `/api/courses/${encodeURIComponent(courseId)}/lessons`,

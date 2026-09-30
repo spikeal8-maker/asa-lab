@@ -17,6 +17,7 @@ import {
   isAllowedMutationOrigin,
   resolveAdditionalWebOrigins,
   resolveCanonicalWebOrigin,
+  resolveIsolatedTestWebOrigin,
   resolveLocalApiOrigin,
 } from './origin-policy.js';
 import { MutationAbuseProtection } from './abuse-protection.js';
@@ -193,9 +194,16 @@ export async function createApiApp(
   const allowedLocalApiOrigin = resolveLocalApiOrigin(
     options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
   );
-  const additionalAllowedOrigins =
-    options.additionalAllowedOrigins ??
-    resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS']);
+  const isolatedTestWebOrigin = resolveIsolatedTestWebOrigin(
+    process.env['ASA_ISOLATED_TEST_WEB_ORIGIN'],
+    process.env['NODE_ENV'],
+    process.env['APP_DATABASE_URL'],
+  );
+  const additionalAllowedOrigins = [
+    ...(options.additionalAllowedOrigins ??
+      resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS'])),
+    ...(isolatedTestWebOrigin === null ? [] : [isolatedTestWebOrigin]),
+  ];
   const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
   const app = await NestFactory.create<NestFastifyApplication>(AppModule.forPool(pool), adapter, {
     logger: ['error', 'warn'],

@@ -115,9 +115,7 @@ async function course(version: string) {
     );
     expect(lesson.rows[0].id).toBeTruthy();
   }
-  const published = await tx((c) =>
-    c.query('SELECT * FROM course_publish($1,$2)', [principal, id]),
-  );
+  const published = await admin.query('SELECT * FROM course_publish($1,$2)', [principal, id]);
   expect(published.rows[0].version_number).toBe(1);
   return { id, versionId: published.rows[0].version_id as string };
 }
@@ -382,11 +380,8 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       )
     ).rows[0].id as string;
 
-    const v1 = (
-      await tx((client) =>
-        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
-      )
-    ).rows[0];
+    const v1 = (await admin.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      .rows[0];
     expect(v1).toMatchObject({ result_code: 'ok', version_number: 1, reused: false });
     expect(
       (
@@ -469,15 +464,11 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ])
     ).rows[0];
     expect(hiddenA).toMatchObject({ result_code: 'ok', hidden: true });
-    revision = Number(hiddenA.draft_revision);
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
     expect(await sampleForViewer()).toHaveLength(1);
 
-    const v2 = (
-      await tx((client) =>
-        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
-      )
-    ).rows[0];
+    const v2 = (await admin.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      .rows[0];
     expect(v2).toMatchObject({ result_code: 'ok', version_number: 2, reused: false });
     const v2Outline = (
       await admin.query('SELECT outline FROM course_versions WHERE id=$1', [v2.version_id])
@@ -575,7 +566,6 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ])
     ).rows[0];
     expect(shownA).toMatchObject({ result_code: 'ok', hidden: false });
-    revision = Number(shownA.draft_revision);
     expect((await visibleItems()).map((row) => row.id)).toEqual([task]);
     expect(await sampleForViewer()).toHaveLength(1);
     expect(
@@ -583,11 +573,8 @@ describe('Э1 existing course → exact versions → runs → inherited particip
         .rows,
     ).toEqual([{ id: lessonA }]);
 
-    const v3 = (
-      await tx((client) =>
-        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
-      )
-    ).rows[0];
+    const v3 = (await admin.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      .rows[0];
     expect(v3).toMatchObject({ result_code: 'ok', version_number: 3, reused: false });
     expect(
       (
@@ -610,15 +597,11 @@ describe('Э1 existing course → exact versions → runs → inherited particip
       ])
     ).rows[0];
     expect(hiddenSection).toMatchObject({ result_code: 'ok', hidden: true });
-    revision = Number(hiddenSection.draft_revision);
     expect(await visibleItems()).toHaveLength(0);
     expect(await sampleForViewer()).toHaveLength(0);
 
-    const v4 = (
-      await tx((client) =>
-        client.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]),
-      )
-    ).rows[0];
+    const v4 = (await admin.query('SELECT * FROM course_publish($1,$2)', [principal, courseId]))
+      .rows[0];
     expect(v4).toMatchObject({ result_code: 'ok', version_number: 4, reused: false });
     expect(
       (await admin.query('SELECT outline FROM course_versions WHERE id=$1', [v4.version_id]))

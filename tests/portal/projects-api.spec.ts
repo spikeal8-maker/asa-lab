@@ -188,6 +188,37 @@ afterAll(async () => {
 });
 
 describe('personal teacher projects', () => {
+  it('rejects a learner pre-creating or duplicating a Project with a Learning Start key', async () => {
+    const token = await registerPersonalAccount('learning-key-reservation');
+    const reservedKey = `learning:${crypto.randomUUID()}`;
+    const preCreate = await inject(app, {
+      method: 'POST',
+      url: '/api/projects',
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': reservedKey },
+      payload: { scope: 'personal', module: 'electronics', automaticTitle: true },
+    });
+    expect(preCreate.statusCode).toBe(400);
+    expect(preCreate.json().error.code).toBe('invalid_idempotency_key');
+
+    const ordinary = await createProject(token, { title: 'My project', scope: 'personal' });
+    expect(ordinary.status).toBe(201);
+    const preDuplicate = await inject(app, {
+      method: 'POST',
+      url: `/api/projects/${ordinary.body.project.id}/duplicate`,
+      cookies: { asa_session: token },
+      headers: { 'idempotency-key': reservedKey },
+      payload: { title: 'Prepared copy' },
+    });
+    expect(preDuplicate.statusCode).toBe(400);
+    expect(preDuplicate.json().error.code).toBe('invalid_idempotency_key');
+    const reservedRows = await admin.query(
+      'SELECT count(*)::int AS count FROM projects WHERE idempotency_key=$1',
+      [reservedKey],
+    );
+    expect(reservedRows.rows[0].count).toBe(0);
+  });
+
   it('validates bounded lists and replays server-named creates without a client title', async () => {
     const token = await registerPersonalAccount('home-contract');
     const request = {

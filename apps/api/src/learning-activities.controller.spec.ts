@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContextUseCase } from '@asa-lab/identity';
+import { createApiModuleRegistry } from './module-registry.js';
 import { LearningActivitiesController } from './learning-activities.controller.js';
 
 const PRINCIPAL_ID = '123e4567-e89b-42d3-a456-426614174001';
@@ -23,8 +24,20 @@ function request(): FastifyRequest {
   return { cookies: { asa_session: 'session' } } as unknown as FastifyRequest;
 }
 
-function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
+function target(options: { educator?: boolean; rows?: unknown[]; sourceRows?: unknown[] } = {}) {
   const query = vi.fn(async () => ({ rows: options.rows ?? [] }));
+  const sourceQuery = vi.fn(async (sql: string, params?: unknown[]) => {
+    if (sql.includes('set_config') && params?.[0] !== TENANT_ID) {
+      throw new Error('Unexpected tenant context');
+    }
+    return sql.includes('FROM teacher_assignments')
+      ? { rows: options.sourceRows ?? [{ module_key: 'electronics' }], command: 'SELECT' }
+      : sql.includes('learning_activity_create')
+        ? { rows: options.rows ?? [], command: 'SELECT' }
+        : { rows: [], command: sql === 'COMMIT' ? 'COMMIT' : sql };
+  });
+  const release = vi.fn();
+  const connect = vi.fn(async () => ({ query: sourceQuery, release }));
   const activeContext = {
     resolve: vi.fn(async () => ({
       principalId: PRINCIPAL_ID,
@@ -41,10 +54,19 @@ function target(options: { educator?: boolean; rows?: unknown[] } = {}) {
     ),
   } as unknown as AccountDirectoryPort;
   return {
-    value: new LearningActivitiesController(activeContext, accounts, {
-      query,
-    } as unknown as pg.Pool),
+    value: new LearningActivitiesController(
+      activeContext,
+      accounts,
+      {
+        query,
+        connect,
+      } as unknown as pg.Pool,
+      createApiModuleRegistry(),
+    ),
     query,
+    sourceQuery,
+    connect,
+    release,
   };
 }
 
@@ -145,6 +167,212 @@ describe('canonical learning activity API', () => {
     },
   );
 
+  it('rejects nonassignable and unknown project modules before authoring SQL', async () => {
+    const api = target();
+    for (const moduleKey of ['blocks', 'chess', 'robotics', 'unknown-module']) {
+      await expect(
+        api.value.create(request(), {
+          kind: 'project',
+          requestId: 'create:module:0001',
+          title: 'New task',
+          resultMode: 'completion',
+          policies,
+          moduleKey,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+      await expect(
+        api.value.putDraft(request(), ACTIVITY_ID, {
+          expectedRevision: 1,
+          title: 'New task',
+          resultMode: 'completion',
+          policies,
+          moduleKey,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    expect(api.query).not.toHaveBeenCalled();
+  });
+
+  it('checks the owned source and creates against one repeatable-read tenant snapshot', async () => {
+    const body = {
+      kind: 'project',
+      requestId: 'create:source:0001',
+      title: 'Imported task',
+      resultMode: 'completion',
+      policies,
+      moduleKey: 'electronics',
+      sourceTeacherAssignmentId: ACTIVITY_ID,
+    };
+    const accepted = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+    });
+    await expect(accepted.value.create(request(), body)).resolves.toEqual({
+      id: ACTIVITY_ID,
+      draftRevision: 1,
+    });
+    expect(accepted.sourceQuery).toHaveBeenCalledWith(
+      expect.stringContaining('FROM teacher_assignments'),
+      [ACTIVITY_ID, TENANT_ID, PRINCIPAL_ID],
+    );
+    expect(accepted.sourceQuery).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_create'),
+      expect.arrayContaining([ACTIVITY_ID]),
+    );
+    expect(accepted.sourceQuery.mock.calls.map(([sql]) => sql)).toEqual([
+      'BEGIN ISOLATION LEVEL REPEATABLE READ',
+      "SELECT set_config('app.tenant_id', $1, true)",
+      expect.stringContaining('FROM teacher_assignments'),
+      expect.stringContaining('learning_activity_create'),
+      'COMMIT',
+    ]);
+    expect(accepted.sourceQuery.mock.calls[1]?.[1]).toEqual([TENANT_ID]);
+    expect(accepted.connect).toHaveBeenCalledTimes(1);
+    expect(accepted.release).toHaveBeenCalledTimes(1);
+    expect(accepted.query).not.toHaveBeenCalled();
+
+    for (const sourceRows of [[], [{ module_key: 'blocks' }], [{ module_key: 'three-d' }]]) {
+      const rejected = target({ sourceRows });
+      await expect(rejected.value.create(request(), body)).rejects.toMatchObject({
+        status: sourceRows.length === 0 ? 403 : 400,
+      });
+      expect(rejected.query).not.toHaveBeenCalled();
+      expect(
+        rejected.sourceQuery.mock.calls.some(([sql]) => sql.includes('learning_activity_create')),
+      ).toBe(false);
+      expect(rejected.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
+    }
+  });
+
+  it.each([undefined, null])('derives an omitted or %s source module in SQL', async (moduleKey) => {
+    const accepted = target({
+      rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+    });
+    await expect(
+      accepted.value.create(request(), {
+        kind: 'project',
+        requestId: 'create:source:derive',
+        title: 'Imported task',
+        resultMode: 'completion',
+        policies,
+        ...(moduleKey === undefined ? {} : { moduleKey }),
+        sourceTeacherAssignmentId: ACTIVITY_ID,
+      }),
+    ).resolves.toEqual({ id: ACTIVITY_ID, draftRevision: 1 });
+    const create = accepted.sourceQuery.mock.calls.find(([sql]) =>
+      sql.includes('learning_activity_create'),
+    );
+    expect(create?.[1]?.[10]).toBeNull();
+    expect(accepted.query).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { code: '40001' },
+    { code: '23505', constraint: 'learning_activities_teacher_source_idx' },
+    { code: '23505', constraint: 'learning_activities_creation_request_idx' },
+  ])(
+    'retries an imported source in a fresh tenant transaction after $code $constraint',
+    async (sql) => {
+      const api = target();
+      const failure = Object.assign(new Error('concurrent import'), sql);
+      let createCalls = 0;
+      api.sourceQuery.mockImplementation(async (statement) => {
+        if (statement.includes('FROM teacher_assignments')) {
+          return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
+        }
+        if (statement.includes('learning_activity_create')) {
+          if (++createCalls === 1) throw failure;
+          return {
+            rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
+            command: 'SELECT',
+          };
+        }
+        return { rows: [], command: statement === 'COMMIT' ? 'COMMIT' : statement };
+      });
+      await expect(
+        api.value.create(request(), {
+          kind: 'project',
+          requestId: 'create:source:retry',
+          title: 'Imported task',
+          resultMode: 'completion',
+          policies,
+          moduleKey: 'electronics',
+          sourceTeacherAssignmentId: ACTIVITY_ID,
+        }),
+      ).resolves.toEqual({ id: ACTIVITY_ID, draftRevision: 1 });
+      expect(api.sourceQuery.mock.calls.map(([statement]) => statement)).toEqual([
+        'BEGIN ISOLATION LEVEL REPEATABLE READ',
+        "SELECT set_config('app.tenant_id', $1, true)",
+        expect.stringContaining('FROM teacher_assignments'),
+        expect.stringContaining('learning_activity_create'),
+        'ROLLBACK',
+        'BEGIN ISOLATION LEVEL REPEATABLE READ',
+        "SELECT set_config('app.tenant_id', $1, true)",
+        expect.stringContaining('FROM teacher_assignments'),
+        expect.stringContaining('learning_activity_create'),
+        'COMMIT',
+      ]);
+      expect(api.connect).toHaveBeenCalledTimes(2);
+      expect(api.release).toHaveBeenCalledTimes(2);
+      expect(api.query).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    { code: '23505', constraint: 'unrelated_unique_idx' },
+    { code: '23505' },
+    { code: '23503', constraint: 'learning_activities_teacher_source_fk' },
+  ])('does not retry an unrelated SQL error $code $constraint', async (sql) => {
+    const api = target();
+    const failure = Object.assign(new Error('SQL failure'), sql);
+    api.sourceQuery.mockImplementation(async (statement) => {
+      if (statement.includes('FROM teacher_assignments')) {
+        return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
+      }
+      if (statement.includes('learning_activity_create')) throw failure;
+      return { rows: [], command: statement === 'COMMIT' ? 'COMMIT' : statement };
+    });
+    await expect(
+      api.value.create(request(), {
+        kind: 'project',
+        requestId: 'create:source:no-retry',
+        title: 'Imported task',
+        resultMode: 'completion',
+        policies,
+        moduleKey: 'electronics',
+        sourceTeacherAssignmentId: ACTIVITY_ID,
+      }),
+    ).rejects.toBe(failure);
+    expect(api.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
+    expect(api.connect).toHaveBeenCalledTimes(1);
+    expect(api.release).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops source import after three failed fresh snapshots', async () => {
+    const api = target();
+    const failure = Object.assign(new Error('serialization failure'), { code: '40001' });
+    api.sourceQuery.mockImplementation(async (statement) => {
+      if (statement.includes('FROM teacher_assignments')) {
+        return { rows: [{ module_key: 'electronics' }], command: 'SELECT' };
+      }
+      if (statement.includes('learning_activity_create')) throw failure;
+      return { rows: [], command: statement === 'COMMIT' ? 'COMMIT' : statement };
+    });
+    await expect(
+      api.value.create(request(), {
+        kind: 'project',
+        requestId: 'create:source:limit',
+        title: 'Imported task',
+        resultMode: 'completion',
+        policies,
+        moduleKey: 'electronics',
+        sourceTeacherAssignmentId: ACTIVITY_ID,
+      }),
+    ).rejects.toBe(failure);
+    expect(api.connect).toHaveBeenCalledTimes(3);
+    expect(api.release).toHaveBeenCalledTimes(3);
+    expect(api.sourceQuery.mock.calls.at(-1)?.[0]).toBe('ROLLBACK');
+  });
+
   it.each(['ungraded', 'completion'])('does not fabricate maxPoints for %s', async (resultMode) => {
     const api = target({
       rows: [{ result_code: 'ok', activity_id: ACTIVITY_ID, draft_revision: 1 }],
@@ -210,9 +438,9 @@ describe('canonical learning activity API', () => {
       sourceTeacherAssignmentId: ACTIVITY_ID,
     };
     await api.value.create(request(), base);
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBeNull();
+    expect(api.sourceQuery.mock.calls.at(-2)?.[1]?.at(-2)).toBeNull();
     await api.value.create(request(), { ...base, goal: null });
-    expect(api.query.mock.calls.at(-1)?.[1]?.at(-2)).toBe('null');
+    expect(api.sourceQuery.mock.calls.at(-2)?.[1]?.at(-2)).toBe('null');
 
     const edit = {
       title: base.title,

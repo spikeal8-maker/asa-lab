@@ -530,6 +530,7 @@ export class CoursesController {
     expected: unknown,
     sql: string,
     values: unknown[],
+    includeRevision = false,
   ) {
     if (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 1) {
       throw new HttpException(
@@ -554,8 +555,21 @@ export class CoursesController {
           409,
         );
       const result = await client.query(sql, values);
+      const revision = includeRevision
+        ? await client.query('SELECT course_draft_revision($1,$2) AS draft_revision', [
+            context.principalId,
+            courseId,
+          ])
+        : null;
+      const draftRevision = revision ? Number(revision.rows[0]?.draft_revision) : null;
+      if (includeRevision && (!Number.isSafeInteger(draftRevision) || Number(draftRevision) < 1)) {
+        throw new HttpException(
+          error('draft_revision_missing', 'Не удалось подтвердить версию курса.'),
+          503,
+        );
+      }
       await client.query('COMMIT');
-      return result;
+      return { ...result, draftRevision };
     } catch (e) {
       await client.query('ROLLBACK');
       throw e;
@@ -618,11 +632,22 @@ export class CoursesController {
   @Post('courses/demo')
   async ensureDemo(@Req() request: FastifyRequest) {
     const context = await this.requireEducator(request);
-    const result = await this.requirePool().query(
-      `SELECT course_id, created, published_version
-         FROM course_demo_ensure($1)`,
-      [context.principalId],
-    );
+    let result: pg.QueryResult;
+    try {
+      result = await this.requirePool().query(
+        `SELECT course_id, created, published_version
+           FROM course_demo_ensure($1)`,
+        [context.principalId],
+      );
+    } catch (cause) {
+      if (cause && typeof cause === 'object' && 'code' in cause && cause.code === 'PZ001') {
+        throw new HttpException(
+          error('module_unavailable', 'Демо-курс пока недоступен: задания 3D отключены.'),
+          409,
+        );
+      }
+      throw cause;
+    }
     const row = result.rows[0] as
       { course_id: string; created: boolean; published_version: number | string } | undefined;
     if (!row?.course_id || Number(row.published_version) < 1) {
@@ -1414,7 +1439,7 @@ export class CoursesController {
     @Param('courseId') courseId: string,
     @Body() rawBody: unknown,
   ) {
-    return { id: await this.saveLesson(request, courseId, null, rawBody) };
+    return this.saveLesson(request, courseId, null, rawBody);
   }
 
   @Patch('courses/:courseId/lessons/:lessonId')
@@ -1425,7 +1450,7 @@ export class CoursesController {
     @Body() rawBody: unknown,
   ) {
     this.requireUuid(lessonId, 'lesson');
-    return { id: await this.saveLesson(request, courseId, lessonId, rawBody) };
+    return this.saveLesson(request, courseId, lessonId, rawBody);
   }
 
   private async saveLesson(
@@ -1433,7 +1458,7 @@ export class CoursesController {
     courseId: string,
     lessonId: string | null,
     rawBody: unknown,
-  ): Promise<string> {
+  ): Promise<{ id: string; draftRevision: number }> {
     const context = await this.requireAuthor(request);
     this.requireUuid(courseId, 'course');
     const shape = checkBodyShape(rawBody, [
@@ -1515,12 +1540,13 @@ export class CoursesController {
         estimatedMinutes,
         activityVersionId,
       ],
+      true,
     );
     const id = (result.rows[0] as { id: string | null } | undefined)?.id ?? null;
     if (!id) {
       throw new HttpException(error('lesson_not_saved', 'Урок или раздел не найдены.'), 404);
     }
-    return id;
+    return { id, draftRevision: Number(result.draftRevision) };
   }
 
   @Post('courses/:courseId/lessons/:lessonId/move')
