@@ -122,33 +122,50 @@ async function createPublishedProjectActivity(
   }
 }
 
-async function withSyntheticBlocksAssignable<T>(run: () => Promise<T>): Promise<T> {
+async function withSyntheticBlocksStartCapability<T>(run: () => Promise<T>): Promise<T> {
   // A0 verifies the existing Blocks work shell. Enable this legacy module only
-  // in the isolated browser test database while creating its synthetic run.
+  // in the isolated browser test database while creating and opening its run.
   const baseline = await admin.query(
-    `SELECT module_key,creatable,assignable FROM module_learning_capabilities
+    `SELECT module_key,creatable,assignable,editable_evidence,submit_project_version
+       FROM module_learning_capabilities
        WHERE module_key='blocks'`,
   );
   expect(baseline.rows).toHaveLength(1);
   expect(baseline.rows[0]).toMatchObject({ module_key: 'blocks', creatable: true });
-  if (baseline.rows[0].assignable === true) return await run();
+  const original = {
+    assignable: baseline.rows[0].assignable as boolean,
+    editable_evidence: baseline.rows[0].editable_evidence as boolean,
+    submit_project_version: baseline.rows[0].submit_project_version as boolean,
+  };
+  if (original.assignable && original.editable_evidence && original.submit_project_version)
+    return await run();
 
   const enabled = await admin.query(
-    `UPDATE module_learning_capabilities SET assignable=true
-       WHERE module_key='blocks' AND creatable AND NOT assignable
-       RETURNING module_key,assignable`,
+    `UPDATE module_learning_capabilities
+        SET assignable=true,editable_evidence=true,submit_project_version=true
+      WHERE module_key='blocks' AND creatable
+      RETURNING module_key,assignable,editable_evidence,submit_project_version`,
   );
   try {
-    expect(enabled.rows).toEqual([{ module_key: 'blocks', assignable: true }]);
+    expect(enabled.rows).toEqual([
+      {
+        module_key: 'blocks',
+        assignable: true,
+        editable_evidence: true,
+        submit_project_version: true,
+      },
+    ]);
     return await run();
   } finally {
     if (enabled.rowCount === 1) {
       const restored = await admin.query(
-        `UPDATE module_learning_capabilities SET assignable=false
-           WHERE module_key='blocks' AND assignable
-           RETURNING module_key,assignable`,
+        `UPDATE module_learning_capabilities
+            SET assignable=$1,editable_evidence=$2,submit_project_version=$3
+          WHERE module_key='blocks'
+          RETURNING module_key,assignable,editable_evidence,submit_project_version`,
+        [original.assignable, original.editable_evidence, original.submit_project_version],
       );
-      expect(restored.rows).toEqual([{ module_key: 'blocks', assignable: false }]);
+      expect(restored.rows).toEqual([{ module_key: 'blocks', ...original }]);
     }
   }
 }
@@ -518,6 +535,53 @@ test('approved Account starts a Direct assignment by its exact Run without legac
     (await listed.json()) as { items: Array<{ title: string; activityRunId: string | null }> }
   ).items.find((item) => item.title === title)?.activityRunId;
   expect(exactRun).toMatch(/^[0-9a-f-]{36}$/i);
+  const identity = await admin.query(
+    `SELECT account_id,principal_id FROM legacy_user_account_links
+      WHERE tenant_id=$1 AND user_id=$2`,
+    [account.tenantId, account.teacherId],
+  );
+  const accountId = identity.rows[0].account_id as string;
+  const accountPrincipalId = identity.rows[0].principal_id as string;
+  expect(
+    (await admin.query('SELECT * FROM auth_personal_workspace($1)', [accountId])).rows,
+  ).toEqual([]);
+  const missingWorkspaceStart = await learner.request.post(
+    `/api/learning/work/runs/${exactRun}/start`,
+    { data: { requestId: `account-no-personal:${sequence}` } },
+  );
+  expect(missingWorkspaceStart.status()).toBe(404);
+  expect(await missingWorkspaceStart.json()).toMatchObject({ error: { code: 'forbidden' } });
+
+  const personalTenant = await admin.query(
+    `INSERT INTO tenants (workspace_slug,title)
+     VALUES ($1,'Learning Account personal') RETURNING id`,
+    [`personal-${accountId.replaceAll('-', '')}`],
+  );
+  const personalTenantId = personalTenant.rows[0].id as string;
+  await admin.query(`INSERT INTO tenant_placements (tenant_id,mode) VALUES ($1,'SHARED_CLUSTER')`, [
+    personalTenantId,
+  ]);
+  const personalWorkspace = await admin.query(
+    `INSERT INTO workspaces (tenant_id,kind,title)
+     VALUES ($1,'personal','Learning Account personal') RETURNING id`,
+    [personalTenantId],
+  );
+  await admin.query(
+    `INSERT INTO workspace_memberships (account_id,workspace_id,role)
+     VALUES ($1,$2,'owner')`,
+    [accountId, personalWorkspace.rows[0].id],
+  );
+  expect(
+    (await admin.query('SELECT * FROM auth_personal_workspace($1)', [accountId])).rows,
+  ).toEqual([
+    {
+      workspace_id: personalWorkspace.rows[0].id,
+      tenant_id: personalTenantId,
+      principal_id: accountPrincipalId,
+    },
+  ]);
+  expect(personalTenantId).not.toBe(account.tenantId);
+  expect(personalTenantId).not.toBe(teacher.tenantId);
   const row = learner.getByTestId('attended-assignments').locator('li').filter({ hasText: title });
   await expect(row.getByRole('button', { name: 'Открыть', exact: true })).toBeVisible();
   const legacyPosts: string[] = [];
@@ -536,6 +600,9 @@ test('approved Account starts a Direct assignment by its exact Run without legac
   const receipt = await started;
   expect(receipt.ok()).toBe(true);
   const { projectId } = (await receipt.json()) as { projectId: string };
+  expect(
+    (await admin.query('SELECT tenant_id FROM projects WHERE id=$1', [projectId])).rows,
+  ).toEqual([{ tenant_id: personalTenantId }]);
   await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible({ timeout: 60_000 });
   expect(legacyPosts).toEqual([]);
   expect(
@@ -1016,7 +1083,7 @@ test('A0 Blocks keeps anchor and panel topmost over fullscreen Scratch', async (
 }) => {
   test.setTimeout(300_000);
   await page.setViewportSize(desktopV1Viewport);
-  const learner = await withSyntheticBlocksAssignable(() =>
+  const learner = await withSyntheticBlocksStartCapability(() =>
     openAssignedProject(browser, page, 'blocks', {
       viewport: desktopV1Viewport,
     }),
