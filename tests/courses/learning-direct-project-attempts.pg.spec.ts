@@ -7,6 +7,7 @@ import {
   canonicalProjectionKey,
 } from '../../apps/api/src/learning-canonical-projection.service';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
+import { acquireLearningSubmissionSuiteLock } from './learning-submission-suite-lock';
 
 const policies = {
   attemptPolicy: { maxAttempts: 1 },
@@ -23,6 +24,7 @@ let owner: SeededTeacher;
 let teacherPrincipal: string;
 let teacherAccount: string;
 let sequence = 0;
+let releaseSubmissionSuiteLock: (() => Promise<void>) | undefined;
 
 async function attention() {
   return teacherHomeAttention(
@@ -173,6 +175,7 @@ async function createProject(principalId: string, title: string): Promise<string
 }
 
 beforeAll(async () => {
+  releaseSubmissionSuiteLock = await acquireLearningSubmissionSuiteLock();
   admin = testAdminPool();
   app = testAppPool();
   owner = await seedTeacher(admin, 'learning-vs-002');
@@ -183,10 +186,14 @@ beforeAll(async () => {
   );
   teacherAccount = identity.rows[0].account_id as string;
   teacherPrincipal = identity.rows[0].principal_id as string;
-});
+}, 90_000);
 
 afterAll(async () => {
-  await Promise.all([admin.end(), app.end()]);
+  try {
+    await Promise.all([admin?.end(), app?.end()]);
+  } finally {
+    await releaseSubmissionSuiteLock?.();
+  }
 });
 
 describe('LRN-VS-002 canonical direct project attempt', () => {
