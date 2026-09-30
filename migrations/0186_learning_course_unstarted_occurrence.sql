@@ -29,7 +29,6 @@ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
             ON lesson.tenant_id=run.tenant_id
            AND lesson.run_id=course.id
            AND lesson.id=run.source_course_lesson_id
-           AND lesson.classroom_assignment_id=run.source_classroom_assignment_id
           JOIN LATERAL jsonb_array_elements(lesson.blocks) block(value)
             ON block.value ->> 'id'=run.source_course_block_id
            AND block.value ->> 'type'='activity'

@@ -933,6 +933,16 @@ describe('E1-FIX-11D4b learner Activity-block runtime projection', () => {
         [occurrence.activity_run_id],
       )
     ).rows[0];
+    // A material lesson owns no lesson-level handout. Each exact Activity
+    // block Run owns its separate handout through source_classroom_assignment_id.
+    expect(
+      (
+        await admin.query(
+          'SELECT classroom_assignment_id FROM classroom_course_run_lessons WHERE id=$1',
+          [source.source_course_lesson_id],
+        )
+      ).rows[0].classroom_assignment_id,
+    ).toBeNull();
     // The public creation contract allows another block run on this handout.
     // Its identity is distinct even though assignment_work cannot name it.
     const sibling = (
