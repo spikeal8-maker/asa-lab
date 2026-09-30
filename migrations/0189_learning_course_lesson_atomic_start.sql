@@ -62,7 +62,8 @@ BEGIN
            classroom.status AS classroom_status,
            assignment.status AS handout_status,
            assignment.course_run_id AS handout_course_run_id,
-           course.status AS course_status
+           course.status AS course_status,
+           pinned_course.outline AS course_outline
       INTO v_run
       FROM public.activity_runs run
       JOIN public.learning_activity_versions version
@@ -77,6 +78,10 @@ BEGIN
       LEFT JOIN public.classroom_course_runs course
         ON course.tenant_id = run.tenant_id
        AND course.id = run.source_course_run_id
+      LEFT JOIN public.course_versions pinned_course
+        ON pinned_course.tenant_id = course.tenant_id
+       AND pinned_course.course_id = course.course_id
+       AND pinned_course.id = course.course_version_id
      WHERE run.id = p_activity_run_id
      FOR SHARE OF run;
     IF v_run.tenant_id IS NULL THEN
@@ -152,6 +157,14 @@ BEGIN
                         AND lesson.kind = 'assignment'
                         AND lesson.classroom_assignment_id = v_run.source_classroom_assignment_id
                         AND lesson.module_key = v_run.module_key
+                        AND (SELECT count(*)
+                               FROM jsonb_array_elements(v_run.course_outline->'sections') section
+                               CROSS JOIN LATERAL jsonb_array_elements(section->'lessons') pinned_lesson
+                              WHERE section->>'sourceSectionId' = lesson.source_section_id::text
+                                AND pinned_lesson->>'sourceLessonId' = lesson.source_lesson_id::text
+                                AND pinned_lesson->>'kind' = 'assignment'
+                                AND pinned_lesson->>'learningActivityVersionId' =
+                                    v_run.learning_activity_version_id::text) = 1
                         AND NOT EXISTS (
                             SELECT 1 FROM public.classroom_assignment_work work
                              WHERE work.tenant_id = v_run.tenant_id
@@ -417,6 +430,10 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
           ON course.id = run.source_course_run_id
          AND course.tenant_id = origin.school_tenant_id
          AND course.classroom_id = run.classroom_id
+        LEFT JOIN public.course_versions pinned_course
+          ON pinned_course.id = course.course_version_id
+         AND pinned_course.tenant_id = origin.school_tenant_id
+         AND pinned_course.course_id = course.course_id
         LEFT JOIN public.classroom_course_run_lessons lesson
           ON lesson.id = run.source_course_lesson_id
          AND lesson.tenant_id = origin.school_tenant_id
@@ -462,7 +479,14 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
                   AND ((run.source_course_block_id IS NULL
                         AND lesson.kind = 'assignment'
                         AND lesson.classroom_assignment_id = run.source_classroom_assignment_id
-                        AND lesson.module_key = version.module_key)
+                        AND lesson.module_key = version.module_key
+                        AND (SELECT count(*)
+                               FROM jsonb_array_elements(pinned_course.outline->'sections') section
+                               CROSS JOIN LATERAL jsonb_array_elements(section->'lessons') pinned_lesson
+                              WHERE section->>'sourceSectionId' = lesson.source_section_id::text
+                                AND pinned_lesson->>'sourceLessonId' = lesson.source_lesson_id::text
+                                AND pinned_lesson->>'kind' = 'assignment'
+                                AND pinned_lesson->>'learningActivityVersionId' = version.id::text) = 1)
                     OR (run.source_course_block_id IS NOT NULL AND EXISTS (
                         SELECT 1 FROM jsonb_array_elements(lesson.blocks) block
                          WHERE block->>'id' = run.source_course_block_id

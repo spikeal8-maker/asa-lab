@@ -69,6 +69,8 @@ async function directHandout(targetClassroom = classroom) {
 }
 
 async function courseHandout(targetClassroom = classroom) {
+  const sourceSectionId = randomUUID();
+  const sourceLessonId = randomUUID();
   const course = await admin.query(
     `INSERT INTO courses (tenant_id,owner_principal_id,title,visibility)
      VALUES ($1,$2,$3,'private') RETURNING id`,
@@ -77,8 +79,29 @@ async function courseHandout(targetClassroom = classroom) {
   const version = await admin.query(
     `INSERT INTO course_versions
        (tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
-     VALUES ($1,$2,1,$3,'{"sections":[]}'::jsonb,$4,$5) RETURNING id`,
-    [owner.tenantId, course.rows[0].id, `Course ${sequence}`, `part-${sequence}`, ownerPrincipal],
+     VALUES ($1,$2,1,$3,$4::jsonb,$5,$6) RETURNING id`,
+    [
+      owner.tenantId,
+      course.rows[0].id,
+      `Course ${sequence}`,
+      JSON.stringify({
+        schemaVersion: 3,
+        sections: [
+          {
+            sourceSectionId,
+            lessons: [
+              {
+                sourceLessonId,
+                kind: 'assignment',
+                learningActivityVersionId: lav,
+              },
+            ],
+          },
+        ],
+      }),
+      `part-${sequence}`,
+      ownerPrincipal,
+    ],
   );
   const run = await admin.query(
     `INSERT INTO classroom_course_runs
@@ -104,9 +127,16 @@ async function courseHandout(targetClassroom = classroom) {
     `INSERT INTO classroom_course_run_lessons
        (tenant_id,run_id,source_section_id,source_lesson_id,section_title,section_position,
         title,kind,lesson_position,classroom_assignment_id,assignment_title,assignment_brief,module_key)
-     VALUES ($1,$2,gen_random_uuid(),gen_random_uuid(),'Section',1,$3,'assignment',1,
-             $4,$3,'Work','electronics') RETURNING id`,
-    [owner.tenantId, run.rows[0].id, `Lesson ${sequence}`, handout.rows[0].id],
+     VALUES ($1,$2,$3,$4,'Section',1,$5,'assignment',1,
+             $6,$5,'Work','electronics') RETURNING id`,
+    [
+      owner.tenantId,
+      run.rows[0].id,
+      sourceSectionId,
+      sourceLessonId,
+      `Lesson ${sequence}`,
+      handout.rows[0].id,
+    ],
   );
   return {
     handout: handout.rows[0].id as string,
@@ -120,6 +150,7 @@ async function createRun(input: {
   kind?: 'direct' | 'course';
   courseRun?: string | null;
   lesson?: string | null;
+  version?: string;
   opens?: string | null;
   due?: string | null;
   closes?: string | null;
@@ -132,7 +163,7 @@ async function createRun(input: {
       [
         ownerPrincipal,
         input.handout,
-        lav,
+        input.version ?? lav,
         input.kind ?? 'direct',
         input.courseRun ?? null,
         input.lesson ?? null,
@@ -2741,6 +2772,54 @@ describe('A4-2b atomic StartLearningWork', () => {
       `start:${randomUUID()}`,
     ]);
     expect(denied.result_code).toBe('forbidden');
+  }, 30_000);
+
+  it('rejects a same-module Course Run whose activity version differs from the published lesson pin', async () => {
+    const source = await courseHandout();
+    const authored = await inTenant(owner.tenantId, (client) =>
+      client.query(
+        `SELECT * FROM learning_activity_create(
+          $1,$2,'school','private','project','Other authored activity','Work','graded',20,
+          $3::jsonb,'electronics',NULL,NULL,NULL,$4)`,
+        [ownerPrincipal, owner.tenantId, JSON.stringify(policies), `create:${randomUUID()}`],
+      ),
+    );
+    const published = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
+        ownerPrincipal,
+        owner.tenantId,
+        authored.rows[0].activity_id,
+        `publish:${randomUUID()}`,
+      ]),
+    );
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+        ownerPrincipal,
+        source.courseRun,
+        learner,
+      ]),
+    );
+    const run = await createRun({
+      handout: source.handout,
+      kind: 'course',
+      courseRun: source.courseRun,
+      lesson: source.lesson,
+      version: published.rows[0].activity_version_id as string,
+    });
+    const participation = await assign(run, learner, enrollment.rows[0].enrollment_id);
+    expect(participation.result_code).toBe('ok');
+    await expect(
+      (await startController('seat')).start(startRequest, run, {
+        requestId: `start:${randomUUID()}`,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    const counts = await admin.query(
+      `SELECT (SELECT count(*)::int FROM projects WHERE idempotency_key=$1) AS projects,
+              (SELECT count(*)::int FROM learning_project_origins WHERE participation_id=$2) AS origins,
+              (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$2) AS attempts`,
+      [`learning:${participation.participation_id}`, participation.participation_id],
+    );
+    expect(counts.rows[0]).toEqual({ projects: 0, origins: 0, attempts: 0 });
   }, 30_000);
 
   it('rejects closed work, withdrawal and direct table writes by the runtime role', async () => {
