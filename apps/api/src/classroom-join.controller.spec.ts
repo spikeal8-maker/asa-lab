@@ -653,6 +653,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     const versionB = '56000000-0000-4000-8000-000000000002';
     const projectA = '57000000-0000-4000-8000-000000000001';
     const courseRow = {
+      viewer_seat_id: seatId,
       run_id: runId,
       course_id: '58000000-0000-4000-8000-000000000001',
       course_version_id: '59000000-0000-4000-8000-000000000001',
@@ -922,11 +923,36 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ).toBe(projectA);
     accountLinkRevoked = false;
 
+    // The lesson's own exact Run can start in one server request. A Course
+    // Activity block on its handout does not lend this permission.
+    Object.assign(courseRow, {
+      lesson_kind: 'assignment',
+      project_id: null,
+      modern_activity_run_id: activityRunA,
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunA,
+        projectReadable: false,
+        startAllowed: true,
+      },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        activityRunId: activityRunA,
+        courseStartAllowed: true,
+        projectId: null,
+      });
+    }
+
     // A modern null-block Course lesson keeps its exact work on revisit.
     // An Activity block on the same handout must not lend it a Project.
     const savedOccurrences = occurrenceRows.splice(0);
     Object.assign(courseRow, {
       lesson_kind: 'assignment',
+      project_id: projectA,
       modern_activity_run_id: activityRunA,
       modern_provenance: {
         modernCourseRun: true,
@@ -947,6 +973,26 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         legacySubmitAllowed: false,
       });
     }
+    presenceRows = [
+      {
+        seat_id: seatId,
+        source_kind: 'course',
+        classroom_assignment_id: assignmentA,
+        activity_run_id: activityRunA,
+        course_block_id: null,
+      },
+    ];
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        projectId: null,
+        canonicalState: null,
+        courseStartAllowed: false,
+      });
+    }
+    presenceRows = [];
     Object.assign(courseRow, { run_status: 'closed' });
     expect(
       (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0],

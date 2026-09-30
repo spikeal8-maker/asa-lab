@@ -377,6 +377,7 @@ function seatCourseRuns(
         canonicalState: CanonicalLearningSurfaceState | null;
         courseStartAllowed: boolean;
         legacySubmitAllowed: boolean;
+        activityRunId: string | null;
         activityOccurrences: CourseActivityOccurrenceView[];
       }>;
     }>;
@@ -388,14 +389,26 @@ function seatCourseRuns(
     const modernScope =
       row.modern_provenance?.modernCourseRun === true &&
       row.modern_provenance.activityRunId === row.modern_activity_run_id;
-    const modernWorkReadable = modernScope && row.modern_provenance?.projectReadable === true;
+    const lessonOriginPresent =
+      !!row.viewer_seat_id &&
+      !!row.modern_activity_run_id &&
+      origins?.courseLessonHasOrigin(row.viewer_seat_id, row.modern_activity_run_id) === true;
+    const originWork =
+      modernScope && row.viewer_seat_id && row.modern_activity_run_id
+        ? origins?.courseLessonWork(row.viewer_seat_id, row.modern_activity_run_id)
+        : null;
+    const exact =
+      originWork?.classroomAssignmentId === row.classroom_assignment_id ? originWork : null;
+    const modernWorkReadable =
+      !lessonOriginPresent && modernScope && row.modern_provenance?.projectReadable === true;
     const historicalWorkReadable =
+      !lessonOriginPresent &&
       row.legacy_provenance?.legacyCourseLesson === true &&
       row.legacy_provenance.legacyProjectReadable === true;
     const lessonWorkReadable =
       !suppressLegacyWork &&
       row.lesson_kind === 'assignment' &&
-      (modernWorkReadable || historicalWorkReadable);
+      (exact !== null || modernWorkReadable || historicalWorkReadable);
     const projected = canonicalFor(
       projections,
       row.classroom_assignment_id,
@@ -440,33 +453,53 @@ function seatCourseRuns(
       estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
       position: Number(row.lesson_position),
       classroomAssignmentId: row.classroom_assignment_id,
+      activityRunId: modernScope ? (row.modern_activity_run_id ?? null) : null,
       assignmentTitle: row.assignment_title,
-      assignmentGoal: row.assignment_goal,
-      assignmentBrief: row.assignment_brief,
+      assignmentGoal: exact?.goal ?? row.assignment_goal,
+      assignmentBrief: exact?.brief ?? row.assignment_brief,
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
-      projectId: lessonWorkReadable ? row.project_id : null,
-      submittedAt:
-        !lessonWorkReadable || row.submitted_at === null ? null : isoDate(row.submitted_at),
-      snapshotRevision:
-        !lessonWorkReadable || row.snapshot_revision === null
-          ? null
-          : Number(row.snapshot_revision),
-      updatedAt:
-        !lessonWorkReadable || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      projectId: lessonWorkReadable ? (exact?.projectId ?? row.project_id) : null,
+      submittedAt: !lessonWorkReadable
+        ? null
+        : exact
+          ? exact.submittedAt
+          : row.submitted_at === null
+            ? null
+            : isoDate(row.submitted_at),
+      snapshotRevision: !lessonWorkReadable
+        ? null
+        : exact
+          ? exact.snapshotRevision
+          : row.snapshot_revision === null
+            ? null
+            : Number(row.snapshot_revision),
+      updatedAt: !lessonWorkReadable
+        ? null
+        : exact
+          ? exact.updatedAt
+          : row.work_updated_at === null
+            ? null
+            : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
-      canonicalState:
-        !suppressLegacyWork &&
-        (historicalWorkReadable ||
-          (modernScope &&
+      canonicalState: suppressLegacyWork
+        ? null
+        : (exact?.canonicalState ??
+          (historicalWorkReadable ||
+          (!lessonOriginPresent &&
+            modernScope &&
             ((row.project_id === null && projected?.workflowState === 'not_started') ||
               modernWorkReadable) &&
-            projected?.activityRunId === row.modern_activity_run_id))
-          ? projected
-          : null,
-      // Lesson-level handouts have no proven exact Course Activity block origin.
-      // Their previously linked work stays readable, but new Start is closed.
-      courseStartAllowed: false,
+            projected?.activityRunId === row.modern_activity_run_id)
+            ? projected
+            : null)),
+      courseStartAllowed:
+        row.lesson_kind === 'assignment' &&
+        !suppressLegacyWork &&
+        !lessonOriginPresent &&
+        row.project_id === null &&
+        modernScope &&
+        row.modern_provenance?.startAllowed === true,
       legacySubmitAllowed:
         historicalWorkReadable &&
         !suppressLegacyWork &&

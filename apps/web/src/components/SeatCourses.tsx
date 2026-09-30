@@ -27,6 +27,7 @@ export function courseAssignmentShape(
 ): SeatAssignment {
   return {
     id: lesson.classroomAssignmentId ?? lesson.id,
+    activityRunId: lesson.activityRunId ?? null,
     title: lesson.assignmentTitle ?? lesson.title,
     brief: lesson.assignmentBrief ?? lesson.content,
     goal: lesson.assignmentGoal,
@@ -169,7 +170,10 @@ export function SeatCourses({
     setBusy(busyKey);
     setError(null);
     const started = await starter.current.start(occurrence.activityRunId);
-    if (started === null) return;
+    if (started === null) {
+      setBusy(null);
+      return;
+    }
     setBusy(null);
     if (!started.ok) {
       setError(started.error.message || 'Не удалось начать практику.');
@@ -177,6 +181,23 @@ export function SeatCourses({
     }
     await reload();
     onOpenProject(started.data.projectId, occurrence.moduleKey);
+  }
+
+  async function startLesson(lesson: SeatCourseRunLesson): Promise<void> {
+    setBusy(lesson.id);
+    setError(null);
+    const started = await starter.current.start(lesson.activityRunId);
+    if (started === null) {
+      setBusy(null);
+      return;
+    }
+    setBusy(null);
+    if (!started.ok) {
+      setError(started.error.message || 'Не удалось начать задание.');
+      return;
+    }
+    await reload();
+    onOpenProject(started.data.projectId, lesson.moduleKey ?? 'unknown');
   }
 
   async function markMaterial(lesson: SeatCourseRunLesson, completed: boolean): Promise<boolean> {
@@ -493,6 +514,15 @@ export function SeatCourses({
                             : 'Сдать'}
                       </button>
                     </>
+                  ) : assignment.courseStartAllowed ? (
+                    <button
+                      type="button"
+                      className="portal-create-button"
+                      disabled={busy === openLesson.id || !assignment.activityRunId}
+                      onClick={() => void startLesson(openLesson)}
+                    >
+                      {busy === openLesson.id ? 'Начинаем…' : 'Начать задание'}
+                    </button>
                   ) : (
                     <p className="seat-assignment-unavailable" role="status">
                       Начать новую работу по этому уроку пока нельзя. Уже начатая работа остаётся

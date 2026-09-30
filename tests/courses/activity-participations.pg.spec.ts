@@ -853,7 +853,7 @@ describe('A4-1 immutable learning project origin', () => {
      source_course_run_id,source_course_lesson_id,source_course_block_id,owner_principal_id)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`;
 
-  it('pins direct and block-aware course provenance and rejects identity substitution', async () => {
+  it('pins direct, lesson-level and block-aware course provenance and rejects identity substitution', async () => {
     const directRun = await createRun({ handout: await directHandout() });
     const directPart = await assign(directRun);
     expect(directPart.result_code).toBe('ok');
@@ -871,12 +871,24 @@ describe('A4-1 immutable learning project origin', () => {
     const legacyLessonPart = await assign(legacyLessonRun);
     expect(legacyLessonPart.result_code).toBe('ok');
     const legacyLessonProject = await project(learnerPrincipal);
-    await expect(
-      admin.query(
-        insertSql,
-        await originValues(legacyLessonPart.participation_id as string, legacyLessonProject),
-      ),
-    ).rejects.toThrow(/learning_project_origins_source_shape_check/);
+    await admin.query(
+      insertSql,
+      await originValues(legacyLessonPart.participation_id as string, legacyLessonProject),
+    );
+    expect(
+      (
+        await admin.query(
+          `SELECT source_kind,source_course_run_id,source_course_lesson_id,source_course_block_id
+           FROM learning_project_origins WHERE project_id=$1`,
+          [legacyLessonProject],
+        )
+      ).rows[0],
+    ).toEqual({
+      source_kind: 'course',
+      source_course_run_id: course.courseRun,
+      source_course_lesson_id: course.lesson,
+      source_course_block_id: null,
+    });
 
     const activityLesson = await admin.query(
       `INSERT INTO classroom_course_run_lessons
@@ -2633,6 +2645,103 @@ describe('A4-2b atomic StartLearningWork', () => {
       }),
     ).rejects.toMatchObject({ status: 404 });
   });
+
+  it('atomically starts an authored Course assignment lesson with exact origin and no orphan', async () => {
+    const first = await courseHandout();
+    const second = await courseHandout();
+    const sources = [first, second];
+    const runs: string[] = [];
+    const participations: string[] = [];
+    for (const source of sources) {
+      const enrollment = await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+          ownerPrincipal,
+          source.courseRun,
+          learner,
+        ]),
+      );
+      expect(enrollment.rows[0].result_code).toBe('ok');
+      const run = await createRun({
+        handout: source.handout,
+        kind: 'course',
+        courseRun: source.courseRun,
+        lesson: source.lesson,
+      });
+      runs.push(run);
+      const participation = await assign(run, learner, enrollment.rows[0].enrollment_id);
+      expect(participation.result_code).toBe('ok');
+      participations.push(participation.participation_id as string);
+    }
+    const controller = await startController('seat');
+    await expect(
+      controller.start(startRequest, runs[0]!, { requestId: `start:${randomUUID()}` }),
+    ).resolves.toBeDefined();
+    const requestId = `start:${randomUUID()}`;
+    const [one, retry] = await Promise.all([
+      controller.start(startRequest, runs[0]!, { requestId }),
+      controller.start(startRequest, runs[0]!, { requestId }),
+    ]);
+    expect(retry).toMatchObject({ projectId: one.projectId, attemptId: one.attemptId });
+    await expect(controller.start(startRequest, runs[1]!, { requestId })).rejects.toMatchObject({
+      status: 409,
+    });
+    expect(
+      (
+        await admin.query(
+          `SELECT (SELECT count(*)::int FROM projects WHERE idempotency_key=$1) AS projects,
+              (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$2) AS attempts`,
+          [`learning:${participations[1]}`, participations[1]],
+        )
+      ).rows[0],
+    ).toEqual({ projects: 0, attempts: 0 });
+    const two = await controller.start(startRequest, runs[1]!, {
+      requestId: `start:${randomUUID()}`,
+    });
+    expect(two.projectId).not.toBe(one.projectId);
+    expect(two.attemptId).not.toBe(one.attemptId);
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    for (const [index, started] of [one, two].entries()) {
+      const read = await inTenant(owner.tenantId, (client) =>
+        client.query(
+          'SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)',
+          [learnerPrincipal, started.projectId],
+        ),
+      );
+      expect(read.rows).toHaveLength(1);
+      expect(read.rows[0].context).toMatchObject({
+        projectId: started.projectId,
+        activityRunId: runs[index],
+        participationId: participations[index],
+        sourceKind: 'course',
+        courseRunId: sources[index]!.courseRun,
+        courseLessonId: sources[index]!.lesson,
+        courseBlockId: null,
+        attemptId: started.attemptId,
+      });
+      const list = await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
+      );
+      expect(list.rows.some((row) => row.context.projectId === started.projectId)).toBe(true);
+      const count = await admin.query(
+        `SELECT (SELECT count(*)::int FROM learning_project_origins WHERE participation_id=$1) AS origins,
+                (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$1) AS attempts,
+                (SELECT count(*)::int FROM projects WHERE id=$2) AS projects`,
+        [participations[index], started.projectId],
+      );
+      expect(count.rows[0]).toEqual({ origins: 1, attempts: 1, projects: 1 });
+    }
+    expect(
+      await submitOrigin(learnerPrincipal, one.projectId, `submit:${randomUUID()}`, 1),
+    ).toMatchObject({ result_code: 'ok', project_id: one.projectId, activity_run_id: runs[0] });
+    const denied = await command('learning_work_start_admit', [
+      outsiderPrincipal,
+      runs[1],
+      `start:${randomUUID()}`,
+    ]);
+    expect(denied.result_code).toBe('forbidden');
+  }, 30_000);
 
   it('rejects closed work, withdrawal and direct table writes by the runtime role', async () => {
     const past = new Date(Date.now() - 3600_000).toISOString();
