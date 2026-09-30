@@ -1,6 +1,29 @@
 -- Before immutable Learning origins, the Seat principal could own a classroom
 -- Project claimed by classroom_assignment_work_start. Preserve only that exact
 -- historical work; ordinary classroom membership remains the general policy.
+-- A student membership must not turn another Seat's claimed work into a shared
+-- classroom Project. Classify even malformed work so the generic branch fails
+-- closed; the strict actor-specific proof below decides whether it is readable.
+CREATE FUNCTION public.learning_seat_owned_classroom_assignment_work_project(
+    p_project_id uuid
+)
+RETURNS boolean
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.projects project
+        JOIN public.principals owner
+          ON owner.id=project.owner_principal_id AND owner.kind='student_seat'
+        JOIN public.classroom_assignment_work work
+          ON work.tenant_id=project.tenant_id AND work.project_id=project.id
+       WHERE project.id=p_project_id AND project.project_scope='classroom'
+    );
+$$;
+
+REVOKE ALL ON FUNCTION public.learning_seat_owned_classroom_assignment_work_project(uuid)
+    FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_seat_owned_classroom_assignment_work_project(uuid)
+    TO asalab_app;
+
 CREATE FUNCTION public.learning_legacy_classroom_work_access(
     p_actor_principal_id uuid, p_project_id uuid
 )
@@ -127,7 +150,10 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
        AND legacy_link.migration_state='active'
      WHERE principal.id=p_principal_id
        AND ((project.project_scope='personal' AND project.owner_principal_id=p_principal_id)
-         OR (project.project_scope='classroom' AND membership.user_id IS NOT NULL)
+         OR (project.project_scope='classroom' AND membership.user_id IS NOT NULL
+             AND (membership.member_role IN ('owner','co_teacher')
+                  OR NOT public.learning_seat_owned_classroom_assignment_work_project(
+                      project.id)))
          OR (project.project_scope='personal' AND project.owner_principal_id IN (
              SELECT scope.seat_principal_id FROM public.teacher_seat_scope(p_principal_id) scope))
          OR (project.project_scope='personal' AND public.learning_linked_project_access(

@@ -260,9 +260,44 @@ describe('LRN-VS-001 canonical direct assignment', () => {
     await admin.query(
       `INSERT INTO learner_identity_links
          (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
-       VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
+        VALUES (gen_random_uuid(),$1,$2,$3,'account',$4)`,
       [owner.tenantId, owner.schoolId, identity.rows[0].learner_identity_id, learnerAccount],
     );
+    // Legacy account-based classroom memberships still contain student rows.
+    // They must not make another Seat's claimed work readable as a class Project.
+    const studentMember = async (accountId: string, label: string) => {
+      const user = await admin.query(
+        `INSERT INTO users (tenant_id,school_id,role,email,display_name,password_hash)
+         VALUES ($1,$2,'teacher',$3,$4,'isolated-test-only') RETURNING id`,
+        [owner.tenantId, owner.schoolId, `${label}-${++sequence}@test.local`, label],
+      );
+      await admin.query(
+        `INSERT INTO classroom_memberships
+           (tenant_id,classroom_id,user_id,account_id,member_role)
+         VALUES ($1,$2,$3,$4,'student')`,
+        [owner.tenantId, classId, user.rows[0].id, accountId],
+      );
+      return user.rows[0].id as string;
+    };
+    const learnerUser = await studentMember(learnerAccount, 'linked-member');
+    const foreignAccount = (
+      await admin.query(
+        `INSERT INTO accounts (email,password_hash,birth_date,country)
+         VALUES ('other-classroom-' || gen_random_uuid()::text || '@test.local',
+                 'isolated-test-only',DATE '2000-01-01','RU') RETURNING id`,
+      )
+    ).rows[0].id as string;
+    const foreignAccountPrincipal = (
+      await admin.query(
+        `INSERT INTO principals (kind,account_id) VALUES ('account',$1) RETURNING id`,
+        [foreignAccount],
+      )
+    ).rows[0].id as string;
+    await admin.query(`UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2`, [
+      foreignAccount,
+      otherSeat,
+    ]);
+    const foreignUser = await studentMember(foreignAccount, 'foreign-member');
     const accountProject = await admin.query(
       `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
        VALUES ($1,'personal','electronics','Account generic work',$2) RETURNING id`,
@@ -285,6 +320,9 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       inTenant((client) =>
         client.query(`SELECT * FROM project_context_for_principal($1,$2)`, [actor, target]),
       );
+    const projects = new PgProjectRepository(app);
+    const listed = async (actor: string, userId: string) =>
+      projects.listForActor(owner.tenantId, { principalId: actor, userId }, {});
     expect((await projectContext(learnerPrincipal, projectId)).rows).toHaveLength(0);
     expect(
       await new PgProjectRepository(app).authorize(
@@ -352,6 +390,47 @@ describe('LRN-VS-001 canonical direct assignment', () => {
         'edit',
       ),
     ).toMatchObject({ projectId });
+    expect(
+      await projects.load(owner.tenantId, projectId, {
+        principalId: accountPrincipal,
+        userId: learnerUser,
+      }),
+    ).toMatchObject({ project: { id: projectId } });
+    expect((await listed(accountPrincipal, learnerUser)).map((project) => project.id)).toContain(
+      projectId,
+    );
+    expect((await projectContext(foreignAccountPrincipal, projectId)).rows).toHaveLength(0);
+    expect(
+      await projects.authorize(owner.tenantId, projectId, foreignAccountPrincipal, 'read'),
+    ).toBeNull();
+    expect(
+      await projects.authorize(owner.tenantId, projectId, foreignAccountPrincipal, 'edit'),
+    ).toBeNull();
+    expect(
+      await projects.load(owner.tenantId, projectId, {
+        principalId: foreignAccountPrincipal,
+        userId: foreignUser,
+      }),
+    ).toBeNull();
+    expect(
+      (await listed(foreignAccountPrincipal, foreignUser)).map((project) => project.id),
+    ).not.toContain(projectId);
+    expect((await projectContext(principal, projectId)).rows).toHaveLength(1);
+    expect(await projects.authorize(owner.tenantId, projectId, principal, 'edit')).toMatchObject({
+      projectId,
+    });
+    expect(
+      (
+        await projects.listForActor(
+          owner.tenantId,
+          {
+            principalId: principal,
+            userId: owner.teacherId,
+          },
+          { scope: 'classroom', classroomId: classId },
+        )
+      ).map((project) => project.id),
+    ).toContain(projectId);
     await admin.query(
       `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
         WHERE account_id=$1 AND link_kind='account'`,
@@ -362,6 +441,18 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       submitAllowed: false,
     });
     expect((await projectContext(accountPrincipal, projectId)).rows).toHaveLength(0);
+    expect(
+      await projects.authorize(owner.tenantId, projectId, accountPrincipal, 'read'),
+    ).toBeNull();
+    expect(
+      await projects.load(owner.tenantId, projectId, {
+        principalId: accountPrincipal,
+        userId: learnerUser,
+      }),
+    ).toBeNull();
+    expect(
+      (await listed(accountPrincipal, learnerUser)).map((project) => project.id),
+    ).not.toContain(projectId);
     expect(await proof(learnerPrincipal, learnerSeat, projectId)).toMatchObject({
       legacyProjectReadable: true,
       submitAllowed: true,
@@ -385,6 +476,8 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       )
     ).rows[0].id as string;
     expect((await projectContext(learnerPrincipal, unlinkedProject)).rows).toHaveLength(0);
+    // Ordinary classroom Projects retain the existing student membership read.
+    expect((await projectContext(foreignAccountPrincipal, unlinkedProject)).rows).toHaveLength(1);
     const otherClassId = await classroom();
     const wrongClassProject = (
       await admin.query(
