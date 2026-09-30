@@ -109,10 +109,10 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   );
   const project = await admin.query(
     `INSERT INTO projects
-       (tenant_id,project_scope,classroom_id,module_key,title,owner_principal_id)
-     VALUES ($1,'classroom',$2,'electronics','Canonical learner work',$3)
+       (tenant_id,project_scope,module_key,title,owner_principal_id)
+     VALUES ($1,'personal','electronics','Canonical learner work',$2)
      RETURNING id`,
-    [row.classroom_tenant_id, row.classroom_id, learnerPrincipal.rows[0].principal_id],
+    [row.classroom_tenant_id, learnerPrincipal.rows[0].principal_id],
   );
   await admin.query(
     `INSERT INTO project_drafts
@@ -126,7 +126,6 @@ test('legacy, revision and selected-result semantics stay equal across learner a
      VALUES ($1,$2,$3,$4)`,
     [row.classroom_tenant_id, row.assignment_id, row.seat_id, project.rows[0].id],
   );
-
   const studentContext = await browser.newContext();
   const student = await studentContext.newPage();
   const studentFailures = collectBrowserFailures(student, {
@@ -139,6 +138,15 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await student.getByLabel('Код ученика', { exact: true }).fill(studentCode);
   await student.getByRole('button', { name: 'Войти', exact: true }).click();
   await openLearnerLearning(student);
+  const historicalProof = await admin.query(
+    `SELECT learning_legacy_direct_provenance($1,$2,$3,$4) AS proof`,
+    [learnerPrincipal.rows[0].principal_id, row.seat_id, row.assignment_id, project.rows[0].id],
+  );
+  expect(historicalProof.rows[0]?.proof).toMatchObject({
+    legacyDirect: true,
+    legacyCourseLesson: false,
+    legacyProjectReadable: true,
+  });
   const assignment = student
     .getByTestId('seat-assignments')
     .locator('li')

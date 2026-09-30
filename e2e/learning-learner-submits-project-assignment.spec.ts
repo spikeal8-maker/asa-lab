@@ -547,7 +547,10 @@ test('approved Account starts a Direct assignment by its exact Run without legac
   ).toEqual([]);
   const missingWorkspaceStart = await learner.request.post(
     `/api/learning/work/runs/${exactRun}/start`,
-    { data: { requestId: `account-no-personal:${sequence}` } },
+    {
+      headers: { origin: new URL(learner.url()).origin },
+      data: { requestId: `account-no-personal:${sequence}` },
+    },
   );
   expect(missingWorkspaceStart.status()).toBe(404);
   expect(await missingWorkspaceStart.json()).toMatchObject({ error: { code: 'forbidden' } });
