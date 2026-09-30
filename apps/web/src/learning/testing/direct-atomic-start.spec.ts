@@ -133,52 +133,35 @@ describe('Direct learner Start cutover', () => {
   });
 
   it.each(['seat', 'account'] as const)(
-    '%s disables Start without an exact Run',
+    '%s explains why a new old-work Start is unavailable without an exact Run',
     async (source) => {
       const start = vi.spyOn(api, 'startLearningWork');
       const { view } = await renderSurface(source, { ...assignment, activityRunId: null });
-      const button = view.querySelector<HTMLButtonElement>(
-        '.seat-assignment-actions .portal-create-button',
+      expect(view.querySelector('.seat-assignment-actions button')).toBeNull();
+      expect(view.querySelector('.seat-assignment-actions [role="status"]')?.textContent).toContain(
+        'Начать новую работу',
       );
-      expect(button?.disabled).toBe(true);
-      expect(button?.textContent).toBe('Пока недоступно');
       expect(start).not.toHaveBeenCalled();
     },
   );
 
   it.each(['seat', 'account'] as const)(
-    '%s starts a proven old handout through its existing Project adapter',
+    '%s cannot start even a previously eligible old handout in two requests',
     async (source) => {
       const atomic = vi.spyOn(api, 'startLearningWork');
-      const create = vi.spyOn(api, 'createProject').mockResolvedValue({
-        ok: true,
-        status: 201,
-        data: { project: { id: 'historical-project' }, created: true },
-      } as Awaited<ReturnType<typeof api.createProject>>);
-      const legacy = vi.spyOn(api, 'startSeatAssignment').mockResolvedValue({
-        ok: true,
-        status: 200,
-        data: { projectId: 'historical-project' },
-      } as Awaited<ReturnType<typeof api.startSeatAssignment>>);
+      const create = vi.spyOn(api, 'createProject');
+      const legacy = vi.spyOn(api, 'startSeatAssignment');
       const { view, onOpenProject } = await renderSurface(source, {
         ...assignment,
         activityRunId: null,
         legacyStartAllowed: true,
       });
-      const button = view.querySelector<HTMLButtonElement>(
-        '.seat-assignment-actions .portal-create-button',
-      );
-      expect(button?.disabled).toBe(false);
-      await act(async () => button?.click());
-      expect(create).toHaveBeenCalledWith({
-        scope: 'personal',
-        module: 'electronics',
-        title: 'Circuit work',
-        idempotencyKey: 'handout-one',
-      });
-      expect(legacy).toHaveBeenCalledWith('handout-one', 'historical-project', true);
+      expect(view.querySelector('.seat-assignment-actions button')).toBeNull();
+      expect(view.querySelector('.seat-assignment-actions [role="status"]')).not.toBeNull();
+      expect(create).not.toHaveBeenCalled();
+      expect(legacy).not.toHaveBeenCalled();
       expect(atomic).not.toHaveBeenCalled();
-      expect(onOpenProject).toHaveBeenCalledWith('historical-project', 'electronics');
+      expect(onOpenProject).not.toHaveBeenCalled();
     },
   );
 
@@ -191,11 +174,30 @@ describe('Direct learner Start cutover', () => {
         activityRunId: null,
         legacyStartAllowed: false,
       });
-      const button = view.querySelector<HTMLButtonElement>(
-        '.seat-assignment-actions .portal-create-button',
-      );
-      expect(button?.disabled).toBe(true);
+      expect(view.querySelector('.seat-assignment-actions button')).toBeNull();
       expect(create).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['seat', 'account'] as const)(
+    '%s keeps a proven already-linked old Project resumable',
+    async (source) => {
+      const create = vi.spyOn(api, 'createProject');
+      const legacy = vi.spyOn(api, 'startSeatAssignment');
+      const { view, onOpenProject } = await renderSurface(source, {
+        ...assignment,
+        activityRunId: null,
+        projectId: 'historical-project',
+        legacySubmitAllowed: true,
+      });
+      const button = [
+        ...view.querySelectorAll<HTMLButtonElement>('.seat-assignment-actions button'),
+      ].find((item) => item.textContent === 'Открыть работу');
+      expect(button).toBeDefined();
+      await act(async () => button?.click());
+      expect(onOpenProject).toHaveBeenCalledWith('historical-project', 'electronics');
+      expect(create).not.toHaveBeenCalled();
+      expect(legacy).not.toHaveBeenCalled();
     },
   );
 });

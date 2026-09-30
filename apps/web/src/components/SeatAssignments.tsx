@@ -5,7 +5,6 @@ import { AssignmentView } from './AssignmentView';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from './school-time';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
-import { startLegacyDirectAssignment } from '../learning/start-legacy-direct-assignment';
 import './classroom-assignments.css';
 import {
   canonicalLearningClass,
@@ -53,9 +52,7 @@ export function SeatAssignments({
   async function start(assignment: SeatAssignment): Promise<void> {
     setBusy(assignment.id);
     setError(null);
-    const started = assignment.activityRunId
-      ? await starter.current.start(assignment.activityRunId)
-      : await startLegacyDirectAssignment(assignment);
+    const started = await starter.current.start(assignment.activityRunId);
     if (started === null) return;
     setBusy(null);
     if (!started.ok) {
@@ -211,23 +208,20 @@ export function SeatAssignments({
                         : 'Сдать'}
                   </button>
                 </>
-              ) : (
+              ) : assignment.activityRunId ? (
                 <button
                   type="button"
                   className="portal-create-button"
-                  disabled={
-                    busy === assignment.id ||
-                    assignment.status === 'closed' ||
-                    (!assignment.activityRunId && assignment.legacyStartAllowed !== true)
-                  }
+                  disabled={busy === assignment.id || assignment.status === 'closed'}
                   onClick={() => void start(assignment)}
                 >
-                  {busy === assignment.id
-                    ? 'Открываем…'
-                    : assignment.activityRunId || assignment.legacyStartAllowed
-                      ? 'Открыть'
-                      : 'Пока недоступно'}
+                  {busy === assignment.id ? 'Открываем…' : 'Открыть'}
                 </button>
+              ) : (
+                <p className="seat-assignment-unavailable" role="status">
+                  Начать новую работу по этому старому заданию пока нельзя. Уже начатая работа
+                  остаётся доступной в списке.
+                </p>
               )}
             </div>
           </li>

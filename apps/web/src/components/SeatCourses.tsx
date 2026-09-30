@@ -162,33 +162,6 @@ export function SeatCourses({
   const completion = courseCompletion(lessons);
   const completedLessonCount = completion.completed;
 
-  async function startAssignment(assignment: SeatAssignment, busyKey: string): Promise<void> {
-    // Lesson-level adapter: modern Course Runs use the canonical attempt command;
-    // proven historical Seat work retains the old compatibility command.
-    if (assignment.moduleKey === 'unknown' || assignment.courseStartAllowed !== true) return;
-    setBusy(busyKey);
-    setError(null);
-    const created = await api.createProject({
-      scope: 'personal',
-      module: assignment.moduleKey,
-      title: assignment.title,
-      idempotencyKey: assignment.id,
-    });
-    if (!created.ok) {
-      setBusy(null);
-      setError(created.error.message || 'Не удалось начать задание.');
-      return;
-    }
-    const linked = await api.startSeatAssignment(assignment.id, created.data.project.id);
-    setBusy(null);
-    if (!linked.ok) {
-      setError(linked.error.message || 'Не удалось начать задание.');
-      return;
-    }
-    await reload();
-    onOpenProject(linked.data.projectId, assignment.moduleKey);
-  }
-
   async function startActivity(
     occurrence: CourseActivityOccurrence,
     busyKey: string,
@@ -521,18 +494,10 @@ export function SeatCourses({
                       </button>
                     </>
                   ) : (
-                    <button
-                      type="button"
-                      className="portal-create-button"
-                      disabled={
-                        busy === openLesson.id ||
-                        openRun.status === 'closed' ||
-                        assignment.courseStartAllowed !== true
-                      }
-                      onClick={() => void startAssignment(assignment, openLesson.id)}
-                    >
-                      {busy === openLesson.id ? 'Готовим…' : 'Начать задание'}
-                    </button>
+                    <p className="seat-assignment-unavailable" role="status">
+                      Начать новую работу по этому уроку пока нельзя. Уже начатая работа остаётся
+                      доступной в курсе.
+                    </p>
                   )}
                 </div>
               </>

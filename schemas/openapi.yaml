@@ -3001,7 +3001,8 @@ paths:
   /api/class-join/me/assignments/{assignmentId}/work:
     post:
       operationId: startLearnerProjectAssignment
-      summary: Link the learner personal project and create or reuse the canonical participation Attempt
+      deprecated: true
+      summary: Retired project linking route; use exact ActivityRun atomic Start instead
       parameters:
         - in: path
           name: assignmentId
@@ -3013,15 +3014,13 @@ paths:
           application/json:
             schema: { $ref: '#/components/schemas/LearningProjectAttemptStartRequest' }
       responses:
-        '200':
-          description: Project linked and canonical Attempt started, or a legacy compatibility link
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/LearningProjectAttemptStartReceipt' }
         '400': { description: Invalid assignment or project identifier }
         '401': { description: No active learner session }
         '404': { description: Assignment excluded, cross-class or unavailable }
-        '409': { description: Participation lifecycle or effective availability blocks start }
+        '409':
+          {
+            description: Non-atomic project linking is unavailable; no Project or Attempt is created,
+          }
   /api/learning/work/runs/{activityRunId}/start:
     post:
       operationId: startExactLearningWork

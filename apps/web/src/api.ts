@@ -871,9 +871,9 @@ export interface SeatAssignment {
   id: string;
   /** Exact Direct ActivityRun for a later atomic Start; null for legacy/course handouts. */
   activityRunId?: string | null;
-  /** Server-proven old Direct handout with no canonical run or existing work. */
+  /** Retired old Direct Start hint; the server now always returns false. */
   legacyStartAllowed?: boolean;
-  /** Server-proven Course lesson Start, including a modern exact Run. */
+  /** Retired lesson-level Start hint; Course Activity blocks have their own exact Run. */
   courseStartAllowed?: boolean;
   /** Server-proven existing old Direct work with no immutable origin. */
   legacySubmitAllowed?: boolean;

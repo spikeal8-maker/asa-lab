@@ -181,13 +181,15 @@ describe('Course Activity work origin', () => {
     const button = [...view.querySelectorAll('button')].find(
       (item) => item.textContent === 'Начать задание',
     );
-    expect(button?.disabled).toBe(true);
-    await act(async () => button?.click());
+    expect(button).toBeUndefined();
+    expect(view.querySelector('.seat-assignment-unavailable')?.textContent).toContain(
+      'Начать новую работу',
+    );
     expect(create).not.toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('keeps a server-eligible modern Account Course lesson Start', async () => {
+  it('closes a modern lesson-level Start without an exact Course Activity block', async () => {
     const modern = course([]);
     Object.assign(modern.sections[0]!.lessons[0]!, {
       kind: 'assignment',
@@ -196,18 +198,20 @@ describe('Course Activity work origin', () => {
       moduleKey: 'electronics',
       courseStartAllowed: true,
     });
-    const create = vi.spyOn(api, 'createProject').mockResolvedValue({
-      ok: false,
-      status: 503,
-      error: { code: 'unavailable', message: 'Retry' },
-    });
+    const create = vi.spyOn(api, 'createProject');
+    const oldStart = vi.spyOn(api, 'startSeatAssignment');
+    const atomicStart = vi.spyOn(api, 'startLearningWork');
     const view = await renderCourse('account', [], vi.fn(), modern);
     const button = [...view.querySelectorAll('button')].find(
       (item) => item.textContent === 'Начать задание',
     );
-    expect(button?.disabled).toBe(false);
-    await act(async () => button?.click());
-    expect(create).toHaveBeenCalledOnce();
+    expect(button).toBeUndefined();
+    expect(view.querySelector('.seat-assignment-unavailable')?.textContent).toContain(
+      'Начать новую работу',
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(oldStart).not.toHaveBeenCalled();
+    expect(atomicStart).not.toHaveBeenCalled();
   });
 
   it.each(['seat', 'account'] as const)(

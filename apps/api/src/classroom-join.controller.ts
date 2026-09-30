@@ -464,11 +464,9 @@ function seatCourseRuns(
             projected?.activityRunId === row.modern_activity_run_id))
           ? projected
           : null,
-      courseStartAllowed:
-        !suppressLegacyWork &&
-        ((modernScope && row.modern_provenance?.startAllowed === true) ||
-          (row.legacy_provenance?.legacyCourseLesson === true &&
-            row.legacy_provenance.startAllowed === true)),
+      // Lesson-level handouts have no proven exact Course Activity block origin.
+      // Their previously linked work stays readable, but new Start is closed.
+      courseStartAllowed: false,
       legacySubmitAllowed:
         historicalWorkReadable &&
         !suppressLegacyWork &&
@@ -1209,10 +1207,7 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(row.seat_id, row.id),
-            legacyStartAllowed:
-              legacyAllowed &&
-              row.legacy_provenance?.legacyDirect === true &&
-              row.legacy_provenance.startAllowed === true,
+            legacyStartAllowed: false,
             legacySubmitAllowed:
               legacyAllowed &&
               row.legacy_provenance?.legacyDirect === true &&
@@ -1416,10 +1411,7 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(seat.seat_id, row.id),
-            legacyStartAllowed:
-              legacyAllowed &&
-              row.legacy_provenance?.legacyDirect === true &&
-              row.legacy_provenance.startAllowed === true,
+            legacyStartAllowed: false,
             legacySubmitAllowed:
               legacyAllowed &&
               row.legacy_provenance?.legacyDirect === true &&
@@ -1829,13 +1821,7 @@ export class ClassroomJoinController {
     };
   }
 
-  /**
-   * Records the project a learner just made as their copy of an assignment.
-   *
-   * The project is created through the ordinary route first, so nothing about
-   * making a project is reimplemented here — this only ties the two together,
-   * and the database refuses any project that is not the learner's own.
-   */
+  /** Retired two-request Start route: an unbound Project cannot gain learning provenance here. */
   @Post('me/assignments/:assignmentId/work')
   @HttpCode(200)
   async startAssignment(
@@ -1855,78 +1841,11 @@ export class ClassroomJoinController {
     if (typeof legacyOnly !== 'boolean')
       throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     const learner = await this.learnerForAssignment(request, assignmentId);
-    const seatId = learner.seatId;
-    await this.requireAssignmentAudience(seatId, assignmentId);
-    await this.requireExactCourseWorkOrigin(assignmentId);
-    const provenance = await this.legacyDirectProvenance(
-      learner.principalId,
-      seatId,
-      assignmentId,
-      projectId,
+    await this.requireAssignmentAudience(learner.seatId, assignmentId);
+    throw new HttpException(
+      error('non_atomic_start_unavailable', 'Начать новую работу можно только из точного задания.'),
+      409,
     );
-    if (legacyOnly && (!provenance.legacyDirect || !provenance.startAllowed))
-      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
-    // A new historical handout has no canonical run. An already linked old
-    // Project may still resume through the old adapter even if a run was later
-    // attached; no new Project may enter that route.
-    const canonical = legacyOnly
-      ? { rows: [] }
-      : await this.requirePool().query(
-          `SELECT result_code, participation_id, attempt_id, attempt_number,
-              attempt_state, project_id, reused
-         FROM learning_direct_project_attempt_start($1,$2,$3,$4)`,
-          [learner.principalId, seatId, assignmentId, projectId],
-        );
-    const canonicalRow = canonical.rows[0] as
-      | {
-          result_code: string;
-          participation_id: string | null;
-          attempt_id: string | null;
-          attempt_number: number | string | null;
-          attempt_state: string | null;
-          project_id: string | null;
-          reused: boolean;
-        }
-      | undefined;
-    if (canonicalRow && canonicalRow.result_code !== 'not_canonical') {
-      if (canonicalRow.result_code !== 'ok' || !canonicalRow.project_id) {
-        const status = canonicalRow.result_code === 'forbidden' ? 404 : 409;
-        throw new HttpException(error(canonicalRow.result_code, 'Задание недоступно.'), status);
-      }
-      return {
-        projectId: canonicalRow.project_id,
-        submittedAt: null,
-        participationId: canonicalRow.participation_id,
-        attemptId: canonicalRow.attempt_id,
-        attemptNumber: Number(canonicalRow.attempt_number),
-        state: canonicalRow.attempt_state,
-        reused: canonicalRow.reused,
-      };
-    }
-
-    // Explicit compatibility adapter for handouts without a canonical direct run.
-    if (!provenance.startAllowed || !(provenance.legacyDirect || provenance.legacyCourseLesson))
-      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
-    const legacy = await this.historicalAssignmentWrite(
-      learner,
-      assignmentId,
-      projectId,
-      'start',
-      legacyOnly,
-      `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
-      [seatId, assignmentId, projectId],
-    );
-    const row = legacy.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
-    if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
-    return {
-      projectId: row.project_id,
-      submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
-      participationId: null,
-      attemptId: null,
-      attemptNumber: null,
-      state: null,
-      reused: false,
-    };
   }
 
   /**
