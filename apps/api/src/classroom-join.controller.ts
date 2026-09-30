@@ -268,11 +268,9 @@ function courseActivityOccurrenceMap(
       title: row.title,
       goal: exact
         ? exact.goal
-        : !modernScope || (row.project_id !== null && !legacyAllowed)
+        : row.task_blocks?.present && row.task_blocks.blocks === null
           ? null
-          : row.task_blocks?.present && row.task_blocks.blocks === null
-            ? null
-            : (row.goal ?? null),
+          : (row.goal ?? null),
       blocks: exact?.blocksSnapshotPresent
         ? exact.blocks
         : row.task_blocks?.present

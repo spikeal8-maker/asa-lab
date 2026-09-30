@@ -122,6 +122,50 @@ async function renderCourse(
 }
 
 describe('Course Activity work origin', () => {
+  it.each(['seat', 'account'] as const)(
+    '%s shows distinct authored goals while unreadable old work remains hidden',
+    async (source) => {
+      const view = await renderCourse(source, [
+        { ...baseOccurrence, goal: 'Build circuit A', blocks: [], workOriginAmbiguous: true },
+        {
+          ...baseOccurrence,
+          blockId: 'activity-b',
+          activityRunId: 'run-b',
+          learningActivityVersionId: 'version-b',
+          title: 'Model practice',
+          goal: 'Build model B',
+          blocks: [],
+          workOriginAmbiguous: true,
+        },
+        {
+          ...baseOccurrence,
+          blockId: 'activity-c',
+          activityRunId: 'run-c',
+          learningActivityVersionId: 'version-c',
+          title: 'Pending practice',
+          goal: null,
+          blocks: null,
+          workOriginAmbiguous: true,
+        },
+      ]);
+      const activities = [...view.querySelectorAll('[data-testid="course-activity-runtime"]')];
+      expect(activities).toHaveLength(3);
+      expect(activities[0]?.textContent).toContain('Build circuit A');
+      expect(activities[0]?.textContent).not.toContain('Build model B');
+      expect(activities[1]?.textContent).toContain('Build model B');
+      expect(activities[1]?.textContent).not.toContain('Build circuit A');
+      expect(activities[2]?.textContent).toContain('Содержание откроется в назначенное время.');
+      expect(activities[2]?.textContent).not.toContain('Build circuit A');
+      expect(activities[2]?.textContent).not.toContain('Build model B');
+      expect(activities.every((activity) => activity.textContent?.includes('Не начато'))).toBe(
+        true,
+      );
+      expect(
+        activities.every((activity) => !activity.textContent?.includes('Открыть работу')),
+      ).toBe(true);
+    },
+  );
+
   it('denies a no-Run Account Course Start before creating a generic Project', async () => {
     const historical = course([]);
     Object.assign(historical.sections[0]!.lessons[0]!, {

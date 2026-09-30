@@ -666,6 +666,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroom_assignment_id: assignmentA,
         learning_activity_version_id: versionA,
         title: 'Electronics',
+        goal: 'Build the authored circuit',
+        task_blocks: { present: true, blocks: [{ id: 'authored-a', type: 'paragraph' }] },
         module_key: 'electronics',
         project_id: projectA,
         submitted_at: null,
@@ -687,6 +689,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         classroom_assignment_id: assignmentB,
         learning_activity_version_id: versionB,
         title: '3D',
+        goal: 'Build the authored model',
+        task_blocks: { present: true, blocks: [{ id: 'authored-b', type: 'paragraph' }] },
         module_key: 'three-d',
         project_id: null,
         submitted_at: null,
@@ -843,17 +847,40 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         },
       });
     }
+    Object.assign(occurrenceRows[1], { task_blocks: { present: true, blocks: null } });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1]).toMatchObject({
+        goal: null,
+        blocks: null,
+      });
+    }
+    Object.assign(occurrenceRows[1], {
+      task_blocks: { present: true, blocks: [{ id: 'authored-b', type: 'paragraph' }] },
+    });
     accountLinkRevoked = true;
     const revokedAccount = await controller.accountCourseRuns(accountRequest);
     expect(
       revokedAccount.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0],
     ).toMatchObject({
+      goal: 'Build the authored circuit',
+      blocks: [{ id: 'authored-a', type: 'paragraph' }],
       projectId: null,
       submittedAt: null,
       snapshotRevision: null,
       updatedAt: null,
       canonicalState: null,
       workOriginAmbiguous: true,
+    });
+    expect(
+      revokedAccount.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[1],
+    ).toMatchObject({
+      goal: 'Build the authored model',
+      blocks: [{ id: 'authored-b', type: 'paragraph' }],
+      projectId: null,
+      canonicalState: null,
     });
     expect(
       (await controller.courseRuns(seatRequest())).items[0]?.sections[0]?.lessons[0]
@@ -1044,6 +1071,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         canonicalState: null,
       });
       expect(lesson?.activityOccurrences?.[0]).toMatchObject({
+        goal: 'Build the authored circuit',
+        blocks: [{ id: 'authored-a', type: 'paragraph' }],
         projectId: null,
         submittedAt: null,
         snapshotRevision: null,
@@ -1051,11 +1080,16 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         canonicalState: null,
         workOriginAmbiguous: true,
       });
+      expect(lesson?.activityOccurrences?.[1]).toMatchObject({
+        goal: 'Build the authored model',
+        blocks: [{ id: 'authored-b', type: 'paragraph' }],
+      });
     }
     presenceRows = [];
     originRows = [exactOriginRows[0], exactOriginRows[0], exactOriginRows[1]];
     const duplicate = await controller.courseRuns(seatRequest());
     expect(duplicate.items[0]?.sections[0]?.lessons[0]?.activityOccurrences?.[0]).toMatchObject({
+      goal: 'Build the authored circuit',
       projectId: null,
       submittedAt: null,
       snapshotRevision: null,
