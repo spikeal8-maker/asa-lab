@@ -516,6 +516,6 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: Known E1-FIX-01 through E1-FIX-12 correction/verification requirements remain open
+    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; bounded A4/V3 evidence is recorded, while A5-A8 and owner acceptance remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null
