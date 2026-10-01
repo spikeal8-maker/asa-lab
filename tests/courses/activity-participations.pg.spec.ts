@@ -3542,6 +3542,41 @@ describe('A4-3b immutable-origin Project Submission', () => {
       }
     };
     const bySeatList = await readList('Seat', seatId);
+    if (process.env.ASA_ORIGIN_LIST_NESTED_PROFILE === 'true') {
+      const profiler = await admin.connect();
+      try {
+        await profiler.query("SET track_functions = 'all'");
+        await profiler.query('SELECT pg_stat_reset()');
+        await profiler.query('BEGIN');
+        await profiler.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
+        await profiler.query('SET LOCAL ROLE asalab_app');
+        const started = performance.now();
+        const profiled = await profiler.query(
+          'SELECT context FROM learning_origin_learner_list(NULL,$1)',
+          [accountId],
+        );
+        console.info(
+          '[Account list nested profile] rows',
+          profiled.rowCount,
+          'ms',
+          performance.now() - started,
+        );
+        await profiler.query('COMMIT');
+        await profiler.query('SELECT pg_stat_clear_snapshot()');
+        const functions = await profiler.query(
+          `SELECT funcname, calls, round(total_time::numeric,2) AS total_ms,
+                  round(self_time::numeric,2) AS self_ms
+             FROM pg_stat_user_functions
+            WHERE schemaname='public' AND (funcname LIKE 'learning_%'
+              OR funcname='project_context_for_principal')
+            ORDER BY total_time DESC LIMIT 30`,
+        );
+        console.info('[Account list nested profile] functions', JSON.stringify(functions.rows));
+      } finally {
+        profiler.release();
+      }
+      return;
+    }
     const byAccountList = await readList('Account', accountId);
     mark('learner list SQL calls complete');
     const originCount = await diagnosticPool
