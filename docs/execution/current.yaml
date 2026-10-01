@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
-      issue: 456
+      id: TASK-ELECTRONICS-LED-THERMAL-BROWSER-BASELINE-001
+      issue: 457
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: browser_clock_baseline_selected_preflight_pending
+      checkpoint: led_thermal_browser_baseline_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
+      convergence_baseline_sha: 650eb572c617e8dac6bb5dc7bf36321ed9ba0667
       head_sha: null
-      observed_at: '2026-10-01T18:46:48Z'
+      observed_at: '2026-10-01T19:53:49Z'
       main:
         branch: main
-        sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
-      observation_note: Dated main observation at browser baseline selection for issue 456; not a live HEAD or gate acceptance; fetch main before writes.
+        sha: 650eb572c617e8dac6bb5dc7bf36321ed9ba0667
+      observation_note: Dated main observation at LED thermal browser baseline selection for issue 457; not a live HEAD or gate acceptance; fetch main before writes.
     execution_lease:
-      executor_id: electronics-browser-clock-baseline-controller-452
+      executor_id: electronics-led-thermal-baseline-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -182,15 +182,25 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
-    pending_closeout:
-      task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
-      issue: 453
-      accepted_candidate_sha: a17026f6906854a3b433e99e1e510d7ca6c48750
-      integrated_sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
-      independent_review: approved
-      exact_main_general_run: 36907336808
-      exact_main_browser_run: 36907393951
-      status: waiting_for_browser_baseline_456
+    pending_closeouts:
+      - task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
+        issue: 453
+        accepted_candidate_sha: a17026f6906854a3b433e99e1e510d7ca6c48750
+        integrated_sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
+        independent_review: approved
+        exact_main_general_run: 36907336808
+        exact_main_browser_run: 36907393951
+        status: waiting_for_browser_baseline_457
+      - task_id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
+        issue: 456
+        accepted_candidate_sha: 724b0e95aecbd485d6f6bc7485f6ffa4a92e0e2c
+        integrated_sha: 650eb572c617e8dac6bb5dc7bf36321ed9ba0667
+        independent_review: approved
+        exact_candidate_general_run: 36912543228
+        exact_candidate_browser_run: 36912628099
+        exact_main_general_run: 36914343792
+        exact_main_browser_run: 36914366153
+        status: waiting_for_browser_baseline_457
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
@@ -523,8 +533,21 @@ blocking:
     allows:
       - bounded_browser_baseline_repair
       - focused_verification
-    reason: Integrated asset recovery passed 93 Electronics browser scenarios, but the exact-main gate failed the existing Arduino Reset LOW observation; issue 456 must distinguish missed transient output from stalled worker before closeout.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36907393951
+    reason: Integrated asset recovery and Arduino Reset baseline pass their scenarios, but full exact-main Electronics browser gate still fails the independent existing LED thermal scenario; issue 457 must distinguish insufficient worker progress from product failure before closeout.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36914366153
+  - id: ELEC-456-LED-BROWSER-BASELINE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
+    blocks:
+      - technical_closeout
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_browser_baseline_repair
+      - focused_verification
+    reason: The approved Arduino Reset test passed on candidate and integrated main, but the full exact-main browser gate failed an existing independent LED thermal timing scenario; issue 457 must establish committed worker progress before technical closeout.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36914366153
   - id: LRN-E1-CORRECTIONS
     kind: acceptance_blocker
     lane: learning
