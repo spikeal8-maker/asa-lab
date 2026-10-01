@@ -2347,6 +2347,45 @@ describe('A4-2b atomic StartLearningWork', () => {
       ]),
     );
     expect(wrongClassRead.rows).toEqual([]);
+    const deniedLinkedAccess = await inTenant(owner.tenantId, async (client) => ({
+      wrongClass: await client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
+        wrongClassPrincipal,
+        started.projectId,
+      ]),
+      foreign: await client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
+        outsiderPrincipal,
+        started.projectId,
+      ]),
+    }));
+    expect(deniedLinkedAccess.wrongClass.rows).toEqual([{ allowed: false }]);
+    expect(deniedLinkedAccess.foreign.rows).toEqual([{ allowed: false }]);
+
+    const linkedReader = await app.connect();
+    const linkRevoker = await admin.connect();
+    try {
+      await linkedReader.query('BEGIN');
+      await linkedReader.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
+      const access = await linkedReader.query(
+        'SELECT learning_linked_project_access($1,$2) AS allowed',
+        [learnerPrincipal, started.projectId],
+      );
+      expect(access.rows).toEqual([{ allowed: true }]);
+      await linkRevoker.query('BEGIN');
+      await linkRevoker.query("SET LOCAL lock_timeout = '250ms'");
+      await expect(
+        linkRevoker.query(
+          `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+           WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+             AND link_kind='account' AND account_id=$4`,
+          [owner.tenantId, owner.schoolId, learner, accountId],
+        ),
+      ).rejects.toThrow(/lock timeout/i);
+    } finally {
+      await linkRevoker.query('ROLLBACK').catch(() => undefined);
+      await linkedReader.query('ROLLBACK').catch(() => undefined);
+      linkRevoker.release();
+      linkedReader.release();
+    }
 
     await admin.query(
       `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
@@ -2368,6 +2407,13 @@ describe('A4-2b atomic StartLearningWork', () => {
     }));
     expect(revokedRead.seat.rows).toEqual([]);
     expect(revokedRead.account.rows).toEqual([]);
+    const revokedLinkedAccess = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
+        learnerPrincipal,
+        started.projectId,
+      ]),
+    );
+    expect(revokedLinkedAccess.rows).toEqual([{ allowed: false }]);
     expect(
       await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
     ).toBeNull();
