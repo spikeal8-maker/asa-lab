@@ -1411,7 +1411,11 @@ export function useElectronicsWorkbench(projectId: string) {
     return true;
   }
 
-  function consumeTerminalClick(): boolean {
+  function consumeTerminalClick(detail: number): boolean {
+    // Keyboard activation has no preceding pointer press. A touch click may
+    // arrive in a later task than pointerup, so only the click itself can
+    // consume the pointer press that already started the wire.
+    if (detail === 0) return false;
     if (!suppressTerminalClickRef.current) return false;
     suppressTerminalClickRef.current = false;
     return true;
@@ -1423,7 +1427,13 @@ export function useElectronicsWorkbench(projectId: string) {
     terminal: Terminal,
   ): void {
     event.stopPropagation();
-    if (event.button !== 0 || !document || reconnectEndpoint || pendingTerminal) {
+    if (pendingTerminal) {
+      // The previous touch can end without a click (capture/cancellation).
+      // Its suppression must not swallow this second terminal tap.
+      suppressTerminalClickRef.current = false;
+      return;
+    }
+    if (event.button !== 0 || !document || reconnectEndpoint) {
       return;
     }
     if (simulationRunning) {
@@ -2143,9 +2153,6 @@ export function useElectronicsWorkbench(projectId: string) {
       if (event.currentTarget.hasPointerCapture(event.pointerId)) {
         event.currentTarget.releasePointerCapture(event.pointerId);
       }
-      window.setTimeout(() => {
-        suppressTerminalClickRef.current = false;
-      }, 0);
       return;
     }
     const endpointDrag = endpointDragRef.current;

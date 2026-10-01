@@ -3007,7 +3007,36 @@ for (const [width, height] of [
       await expect(resistor).toHaveAttribute('data-x', movedX);
       await undo.tap();
       await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
+      if (width === 390 && height === 844) {
+        await page.evaluate(() => {
+          const probe = window as unknown as { batTapClicks: number };
+          probe.batTapClicks = 0;
+          window.addEventListener(
+            'click',
+            (event) => {
+              if (
+                event.target instanceof Element &&
+                event.target.closest(
+                  '[data-terminal-component-id="battery"][data-terminal-id="BAT+"]',
+                )
+              )
+                probe.batTapClicks += 1;
+            },
+            { capture: true },
+          );
+        });
+      }
       await tap(source);
+      if (width === 390 && height === 844) {
+        // The synthesized click follows touchend in a later browser task.
+        // Keep the first terminal pending after that actual click has arrived.
+        await expect
+          .poll(() =>
+            page.evaluate(() => (window as unknown as { batTapClicks: number }).batTapClicks),
+          )
+          .toBe(1);
+        await frames(page);
+      }
       await expect(page.locator('.workbench-wire-preview')).toHaveCount(1);
       await tap(target);
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);

@@ -957,7 +957,7 @@ export function WorkbenchStage({
                     }
                     onClick={(event) => {
                       event.stopPropagation();
-                      if (!c.consumeTerminalClick()) {
+                      if (!c.consumeTerminalClick(event.detail)) {
                         c.clickTerminal(component.id, hole.id, event.shiftKey, {
                           x: event.clientX,
                           y: event.clientY,
@@ -1027,7 +1027,7 @@ export function WorkbenchStage({
                 onPointerDown={(event) => c.startWireTerminalPointer(event, component.id, terminal)}
                 onClick={(event) => {
                   event.stopPropagation();
-                  if (!c.consumeTerminalClick()) {
+                  if (!c.consumeTerminalClick(event.detail)) {
                     c.clickTerminal(component.id, terminal, event.shiftKey, {
                       x: event.clientX,
                       y: event.clientY,
