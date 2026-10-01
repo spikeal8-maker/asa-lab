@@ -8,7 +8,7 @@ import {
   canonicalProjectionKey,
 } from './learning-canonical-projection.service.js';
 
-type WorkRow = {
+export type WorkRow = {
   projectId: string;
   seatId: string;
   classroomAssignmentId: string;
@@ -142,11 +142,16 @@ export async function learningWorkContextForProject(
   projectModuleKey: string,
   projections: Map<string, CanonicalLearningProjection>,
   asOf = new Date().toISOString(),
+  prefetchedOrigin?: readonly { context: WorkRow; evidence: EvidenceRow }[],
+  includeSampleImage = true,
 ): Promise<LearningWorkContext> {
-  const origin = await pool.query<{ context: WorkRow; evidence: EvidenceRow }>(
-    'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
-    [viewerPrincipalId, projectId],
-  );
+  const origin =
+    prefetchedOrigin === undefined
+      ? await pool.query<{ context: WorkRow; evidence: EvidenceRow }>(
+          'SELECT context,evidence FROM learning_origin_work_context_for_project($1, $2)',
+          [viewerPrincipalId, projectId],
+        )
+      : { rows: prefetchedOrigin };
   if (origin.rows.length > 1) return { state: 'unavailable', projectId };
   let row: WorkRow;
   let projection: CanonicalLearningProjection | undefined;
@@ -264,7 +269,7 @@ export async function learningWorkContextForProject(
   }
 
   let sampleImage = row.sampleImage;
-  if (row.sourceKind === 'course' && row.courseBlockId && row.activityRunId) {
+  if (includeSampleImage && row.sourceKind === 'course' && row.courseBlockId && row.activityRunId) {
     const sample = await pool.query<{ sample_image: string | null }>(
       `SELECT learning_course_activity_sample_url_for_viewer($1, NULL, $2) AS sample_image`,
       [row.activityRunId, row.seatId],

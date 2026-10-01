@@ -1973,9 +1973,25 @@ for (const module of ['electronics', 'three-d'])
       });
       await expect(learningCard).toBeVisible();
       await expect(learningCard.getByText('Учебная работа', { exact: true })).toBeVisible();
+      await expect(learningCard.getByText('В работе', { exact: true })).toBeVisible();
+      await expect(learningCard.getByRole('link', { name: 'Продолжить' })).toBeVisible();
+      await learningCard.hover();
+      await learningCard.locator('details > summary').click();
+      for (const action of ['Архивировать', 'В корзину', 'Дублировать', 'Свойства']) {
+        await expect(learningCard.getByRole('button', { name: action, exact: true })).toHaveCount(
+          0,
+        );
+      }
       await expect(learningCard).toContainText('Приватный');
       await expect(ordinaryCard).toBeVisible();
       await expect(ordinaryCard.getByText('Учебная работа')).toHaveCount(0);
+      await learner.getByRole('button', { name: 'Учебные', exact: true }).click();
+      await expect(learningCard).toBeVisible();
+      await expect(ordinaryCard).toHaveCount(0);
+      await learner.getByRole('button', { name: 'Личные', exact: true }).click();
+      await expect(ordinaryCard).toBeVisible();
+      await expect(learningCard).toHaveCount(0);
+      await learner.getByRole('button', { name: 'Все', exact: true }).first().click();
       for (const viewport of [
         { width: 1440, height: 900, label: 'desktop' },
         { width: 390, height: 844, label: 'mobile' },
@@ -1983,6 +1999,10 @@ for (const module of ['electronics', 'three-d'])
         await learner.setViewportSize(viewport);
         await learner.screenshot({
           path: `${evidenceDir}/v3-my-projects-after-start-${viewport.label}.png`,
+          fullPage: true,
+        });
+        await learner.screenshot({
+          path: `${evidenceDir}/a5b-${module}-active-${viewport.label}.png`,
           fullPage: true,
         });
       }
@@ -2003,6 +2023,25 @@ for (const module of ['electronics', 'three-d'])
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-submitted.png',
     });
+    await switchAccountWorkspace(learner, personalWorkspace.rows[0].id as string);
+    await learner.goto('/#/projects?kind=learning');
+    const submittedCard = learner.getByTestId('project-card').filter({
+      has: learner.locator(`a[href*="${startedProjectId}"]`),
+    });
+    await expect(submittedCard.getByText('Сдано, ждёт проверки', { exact: true })).toBeVisible();
+    await expect(submittedCard.getByRole('link', { name: 'Посмотреть' })).toBeVisible();
+    for (const viewport of [
+      { width: 1440, height: 900, label: 'desktop' },
+      { width: 390, height: 844, label: 'mobile' },
+    ]) {
+      await learner.setViewportSize(viewport);
+      await learner.screenshot({
+        path: `${evidenceDir}/a5b-${module}-submitted-${viewport.label}.png`,
+        fullPage: true,
+      });
+    }
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await switchAccountWorkspace(learner, organizationWorkspaceId);
     await page.getByRole('button', { name: /^Оповещения/ }).click();
     const inbox = page.getByRole('dialog', { name: 'Учебные оповещения' });
     const event = inbox
@@ -2022,6 +2061,23 @@ for (const module of ['electronics', 'three-d'])
     await learner.screenshot({
       path: evidenceDir + '/account-course-' + module + '-completed.png',
     });
+    await switchAccountWorkspace(learner, personalWorkspace.rows[0].id as string);
+    await learner.goto('/#/projects?kind=learning');
+    const completedCard = learner.getByTestId('project-card').filter({
+      has: learner.locator(`a[href*="${startedProjectId}"]`),
+    });
+    await expect(completedCard.getByText('Выполнено', { exact: true })).toBeVisible();
+    await expect(completedCard.getByRole('link', { name: 'Посмотреть' })).toBeVisible();
+    for (const viewport of [
+      { width: 1440, height: 900, label: 'desktop' },
+      { width: 390, height: 844, label: 'mobile' },
+    ]) {
+      await learner.setViewportSize(viewport);
+      await learner.screenshot({
+        path: `${evidenceDir}/a5b-${module}-completed-${viewport.label}.png`,
+        fullPage: true,
+      });
+    }
     await context.close();
   });
 

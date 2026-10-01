@@ -267,6 +267,19 @@
   line-height: 1.35;
 }
 
+.project-card-learning-detail,
+.project-card-learning-state {
+  margin: 2px 0;
+  color: var(--ink-muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.project-card-learning-state {
+  color: #0d5c83;
+  font-weight: 700;
+}
+
 .project-card-footer {
   display: flex;
   align-items: baseline;

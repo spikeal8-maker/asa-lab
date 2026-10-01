@@ -36,12 +36,19 @@ import type { ModuleRegistry } from '@asa-lab/module-sdk';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE, SeatContextUseCase } from './seat-context.js';
 import { FEEDBACK_BADGES, ProjectFeedbackService } from './project-feedback.js';
+import {
+  LearningCanonicalProjectionService,
+  type EvidenceRow,
+} from './learning-canonical-projection.service.js';
+import { learningWorkContextForProject, type WorkRow } from './learning-work-context.js';
 import { checkBodyShape, checkIdempotencyKey, isPlainObject } from './validation.js';
 
 interface ProjectRequestContext {
   readonly tenantId: string;
   readonly principalId: string;
   readonly userId: string | null;
+  readonly accountId: string | null;
+  readonly seatId: string | null;
 }
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -120,11 +127,19 @@ export class ProjectsController {
         tenantId: account.tenantId,
         principalId: account.principalId,
         userId: account.userId,
+        accountId: account.accountId,
+        seatId: null,
       };
     }
     const seat = await this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]);
     if (seat) {
-      return { tenantId: seat.tenantId, principalId: seat.principalId, userId: seat.userId };
+      return {
+        tenantId: seat.tenantId,
+        principalId: seat.principalId,
+        userId: seat.userId,
+        accountId: null,
+        seatId: seat.seatId,
+      };
     }
     throw new HttpException(error('unauthorized', 'no active session'), 401);
   }
@@ -153,6 +168,7 @@ export class ProjectsController {
   async list(
     @Req() request: FastifyRequest,
     @Query('scope') scope: string | undefined,
+    @Query('kind') kind: string | undefined,
     @Query('classroomId') classroomId: string | undefined,
     @Query('status') status: string | undefined,
     @Query('module') moduleKey: string | undefined,
@@ -166,12 +182,121 @@ export class ProjectsController {
     const result = await this.listUseCase.execute(
       context.tenantId,
       ProjectsController.actorOf(context),
-      { scope, classroomId, status, moduleKey, limit, cursor, search, sort, excludeGames },
+      { scope, kind, classroomId, status, moduleKey, limit, cursor, search, sort, excludeGames },
     );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     const last = result.value.at(-1);
+    const items: unknown[] = [...result.value];
+    if (result.value.some((project) => project.isLearningWork)) {
+      if (!this.pool) {
+        throw new HttpException(
+          error('dependency_unavailable', 'learning context unavailable'),
+          503,
+        );
+      }
+      const pool = this.pool;
+      const learningProjects = result.value.filter((project) => project.isLearningWork);
+      const origins = await pool.query<{
+        project_id: string;
+        context: WorkRow;
+        evidence: EvidenceRow;
+      }>(
+        `SELECT requested.project_id,reader.context,reader.evidence
+           FROM unnest($2::uuid[]) AS requested(project_id)
+           CROSS JOIN LATERAL learning_origin_work_context_for_project(
+             $1,requested.project_id) reader`,
+        [context.principalId, learningProjects.map((project) => project.id)],
+      );
+      const byProject = new Map<string, { context: WorkRow; evidence: EvidenceRow }[]>();
+      for (const row of origins.rows) {
+        const group = byProject.get(row.project_id) ?? [];
+        group.push({ context: row.context, evidence: row.evidence });
+        byProject.set(row.project_id, group);
+      }
+      // Canonical evidence for legacy compatibility is loaded only when this
+      // page contains a protected Project without an immutable origin reader.
+      const hasLegacyCandidate = learningProjects.some((project) => !byProject.has(project.id));
+      const canonical = new LearningCanonicalProjectionService(pool);
+      const legacyProjections = hasLegacyCandidate
+        ? context.accountId
+          ? await canonical.forAccount(context.accountId)
+          : context.seatId
+            ? await canonical.forSeat(context.seatId)
+            : new Map()
+        : new Map();
+      const asOf = new Date().toISOString();
+      const indices = result.value.flatMap((project, index) =>
+        project.isLearningWork ? [index] : [],
+      );
+      // Exact readers are authorized and capped by the requested page. Eight
+      // concurrent contexts avoid a serial 100-card request or a DB flood.
+      for (let offset = 0; offset < indices.length; offset += 8) {
+        await Promise.all(
+          indices.slice(offset, offset + 8).map(async (index) => {
+            const project = result.value[index]!;
+            const work = await learningWorkContextForProject(
+              pool,
+              context.principalId,
+              project.id,
+              project.moduleKey,
+              legacyProjections,
+              asOf,
+              byProject.get(project.id) ?? [],
+              false,
+            );
+            items[index] = {
+              ...project,
+              learningWork:
+                work.state === 'ready'
+                  ? {
+                      workflowState: work.workflow.canonicalState.workflowState,
+                      collectionState: work.presentation.learnerCollectionState,
+                      classroomTitle: work.presentation.classroomTitle,
+                      courseTitle: work.presentation.courseTitle,
+                      lessonTitle: work.presentation.lessonTitle,
+                      taskTitle: work.task.title,
+                      allowedActions: {
+                        open: true,
+                        continue:
+                          work.allowedActions.edit ||
+                          work.allowedActions.resumeAfterChangesRequested,
+                        submit: work.allowedActions.submit,
+                        changeGenericProjectStatus: work.allowedActions.changeGenericProjectStatus,
+                        duplicate: false,
+                        editProperties: false,
+                        moveToLearningArchive: work.allowedActions.moveToLearningArchive,
+                        restoreFromLearningArchive: work.allowedActions.restoreFromLearningArchive,
+                        createPersonalCopy: work.allowedActions.createPersonalCopy,
+                        publishOriginal: work.allowedActions.publishOriginal,
+                      },
+                    }
+                  : {
+                      workflowState: 'unavailable',
+                      collectionState: 'unavailable',
+                      classroomTitle: null,
+                      courseTitle: null,
+                      lessonTitle: null,
+                      taskTitle: null,
+                      allowedActions: {
+                        open: true,
+                        continue: false,
+                        submit: false,
+                        changeGenericProjectStatus: false,
+                        duplicate: false,
+                        editProperties: false,
+                        moveToLearningArchive: false,
+                        restoreFromLearningArchive: false,
+                        createPersonalCopy: false,
+                        publishOriginal: false,
+                      },
+                    },
+            };
+          }),
+        );
+      }
+    }
     return {
-      items: result.value,
+      items,
       ...(limit === undefined
         ? {}
         : {

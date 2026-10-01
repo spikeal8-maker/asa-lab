@@ -1992,6 +1992,16 @@ describe('A4-1 immutable learning project origin', () => {
         )
       ).rows[0].count,
     ).toBe(0);
+    expect(
+      (
+        await inTenant(owner.tenantId, (client) =>
+          client.query('SELECT learning_personal_project_is_learning($1,$2) AS learning', [
+            learnerPrincipal,
+            original,
+          ]),
+        )
+      ).rows[0].learning,
+    ).toBe(true);
     const duplicateKey = `a5-legacy-takeback-${randomUUID()}`;
     expect(
       await new DuplicateProjectUseCase(new PgProjectRepository(app)).execute({
@@ -3296,12 +3306,67 @@ describe('A4-2b atomic StartLearningWork', () => {
       expect(accountList.statusCode).toBe(200);
       expect(accountList.json().items).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: started.projectId, isLearningWork: true }),
+          expect.objectContaining({
+            id: started.projectId,
+            isLearningWork: true,
+            learningWork: expect.objectContaining({
+              workflowState: 'in_progress',
+              collectionState: 'working',
+              allowedActions: expect.objectContaining({
+                open: true,
+                continue: true,
+                changeGenericProjectStatus: false,
+                duplicate: false,
+                editProperties: false,
+              }),
+            }),
+          }),
+          expect.objectContaining({ id: ordinaryAccount.value.project.id, isLearningWork: false }),
+          expect.objectContaining({
+            id: seatOwned.projectId,
+            isLearningWork: true,
+            learningWork: expect.objectContaining({ workflowState: 'in_progress' }),
+          }),
+        ]),
+      );
+      const accountLearningList = await inject(api, {
+        method: 'GET',
+        url: '/api/projects?scope=personal&kind=learning&limit=1',
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountLearningList.statusCode).toBe(200);
+      expect(accountLearningList.json().items).toHaveLength(1);
+      const secondLearningPage = await inject(api, {
+        method: 'GET',
+        url: `/api/projects?scope=personal&kind=learning&limit=1&cursor=${encodeURIComponent(accountLearningList.json().nextCursor)}`,
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(secondLearningPage.statusCode).toBe(200);
+      expect(secondLearningPage.json().items).toHaveLength(1);
+      expect(
+        new Set([accountLearningList.json().items[0].id, secondLearningPage.json().items[0].id]),
+      ).toEqual(new Set([started.projectId, seatOwned.projectId]));
+      const unrelatedAccountLinkedList = await inTenant(owner.tenantId, (client) =>
+        client.query(
+          `SELECT project FROM learning_linked_account_project_list(
+             $1,'active',NULL,NULL,false,'recent',NULL,NULL,10)`,
+          [ownerPrincipal],
+        ),
+      );
+      expect(unrelatedAccountLinkedList.rows).toEqual([]);
+      const accountPersonalList = await inject(api, {
+        method: 'GET',
+        url: '/api/projects?scope=personal&kind=personal',
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountPersonalList.statusCode).toBe(200);
+      expect(accountPersonalList.json().items).toEqual(
+        expect.arrayContaining([
           expect.objectContaining({ id: ordinaryAccount.value.project.id, isLearningWork: false }),
         ]),
       );
-      expect(accountList.json().items).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ id: seatOwned.projectId })]),
+      expect(accountPersonalList.json().items).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: started.projectId })]),
       );
       const seatList = await inject(api, {
         method: 'GET',
@@ -3311,9 +3376,25 @@ describe('A4-2b atomic StartLearningWork', () => {
       expect(seatList.statusCode).toBe(200);
       expect(seatList.json().items).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ id: seatOwned.projectId, isLearningWork: true }),
+          expect.objectContaining({
+            id: seatOwned.projectId,
+            isLearningWork: true,
+            learningWork: expect.objectContaining({ workflowState: 'in_progress' }),
+          }),
           expect.objectContaining({ id: ordinary.value.project.id, isLearningWork: false }),
         ]),
+      );
+      const seatLearningList = await inject(api, {
+        method: 'GET',
+        url: '/api/projects?scope=personal&kind=learning',
+        cookies: { asa_student_session: seatToken },
+      });
+      expect(seatLearningList.statusCode).toBe(200);
+      expect(seatLearningList.json().items).toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: seatOwned.projectId })]),
+      );
+      expect(seatLearningList.json().items).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: ordinary.value.project.id })]),
       );
       expect(seatList.json().items).not.toEqual(
         expect.arrayContaining([expect.objectContaining({ id: started.projectId })]),

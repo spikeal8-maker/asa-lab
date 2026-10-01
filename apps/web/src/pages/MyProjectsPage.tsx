@@ -89,6 +89,20 @@ const STATUS_PLACES: ReadonlyArray<{ value: ProjectStatus; label: string }> = [
   { value: 'trashed', label: 'Корзина' },
 ];
 
+const LEARNING_STATES: Readonly<
+  Record<NonNullable<Project['learningWork']>['workflowState'], string>
+> = {
+  not_applicable: 'Состояние недоступно',
+  not_started: 'В работе',
+  in_progress: 'В работе',
+  submitted: 'Сдано, ждёт проверки',
+  waiting_review: 'Сдано, ждёт проверки',
+  changes_requested: 'Требуется доработка',
+  completed: 'Выполнено',
+  invalidated: 'Участие завершено',
+  unavailable: 'Состояние недоступно',
+};
+
 export function MyProjectsPage({
   onOpenProject,
   view,
@@ -103,7 +117,13 @@ export function MyProjectsPage({
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState(view.search ?? '');
-  const { module: selectedModule, search, sort, status, cursor } = view;
+  const { module: selectedModule, search, sort, status, cursor, workKind } = view;
+  const setWorkKind = (value: 'all' | 'personal' | 'learning'): void => {
+    const { workKind: _workKind, status: _status, ...rest } = firstPage;
+    void _workKind;
+    void _status;
+    onView({ ...rest, ...(value === 'all' ? {} : { workKind: value }) });
+  };
   const moduleFilter = selectedModule ?? 'all';
   const { cursor: _cursor, ...firstPage } = view;
   void _cursor;
@@ -140,6 +160,7 @@ export function MyProjectsPage({
     });
     const projectsResult = await api.listProjects({
       scope: 'personal',
+      kind: workKind ?? 'all',
       status: status ?? 'active',
       limit: 40,
       ...(selectedModule ? { module: selectedModule } : {}),
@@ -156,7 +177,7 @@ export function MyProjectsPage({
     }
     setItems(projectsResult.data.items);
     setNextCursor(projectsResult.data.nextCursor ?? null);
-  }, [selectedModule, search, sort, status, cursor]);
+  }, [selectedModule, search, sort, status, cursor, workKind]);
 
   useEffect(() => {
     mounted.current = true;
@@ -254,6 +275,26 @@ export function MyProjectsPage({
         </div>
       </section>
 
+      <div className="project-work-kind-tabs" role="group" aria-label="Тип работы">
+        {(
+          [
+            ['all', 'Все'],
+            ['personal', 'Личные'],
+            ['learning', 'Учебные'],
+          ] as const
+        ).map(([value, label]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={(workKind ?? 'all') === value}
+            className={(workKind ?? 'all') === value ? 'active' : undefined}
+            onClick={() => setWorkKind(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       {/*
         The first choice a person makes here is which kind of work they are
         looking for, so the environments lead. Archive and trash are places a
@@ -286,7 +327,7 @@ export function MyProjectsPage({
         </div>
 
         <div className="project-toolbar-tools">
-          {STATUS_PLACES.map((place) => (
+          {(workKind === 'learning' ? [] : STATUS_PLACES).map((place) => (
             <button
               type="button"
               key={place.value}
@@ -364,20 +405,24 @@ export function MyProjectsPage({
           <h2>
             {search || cursor
               ? 'Ничего не найдено'
-              : statusFilter === 'active'
-                ? 'Создайте первый проект'
-                : statusFilter === 'archived'
-                  ? 'Архив пуст'
-                  : 'Корзина пуста'}
+              : workKind === 'learning'
+                ? 'Учебных работ пока нет'
+                : statusFilter === 'active'
+                  ? 'Создайте первый проект'
+                  : statusFilter === 'archived'
+                    ? 'Архив пуст'
+                    : 'Корзина пуста'}
           </h2>
           <p>
             {search || cursor
               ? 'Измените поиск или вернитесь к началу списка.'
-              : statusFilter === 'active'
-                ? 'Выберите учебную среду. Класс для личной работы не требуется.'
-                : 'Здесь появятся проекты после соответствующего действия.'}
+              : workKind === 'learning'
+                ? 'Здесь появятся начатые задания из вашего обучения.'
+                : statusFilter === 'active'
+                  ? 'Выберите учебную среду. Класс для личной работы не требуется.'
+                  : 'Здесь появятся проекты после соответствующего действия.'}
           </p>
-          {statusFilter === 'active' ? <QuickCreateMenu /> : null}
+          {statusFilter === 'active' && workKind !== 'learning' ? <QuickCreateMenu /> : null}
         </section>
       ) : null}
 
@@ -400,6 +445,17 @@ export function MyProjectsPage({
             });
             const busy = actionBusy === project.id;
             const active = statusFilter === 'active';
+            const learning = project.isLearningWork === true;
+            const actions = project.learningWork?.allowedActions;
+            const canContinue = !learning || actions?.continue === true;
+            const learningDetail = project.learningWork
+              ? [
+                  project.learningWork.courseTitle ?? project.learningWork.classroomTitle,
+                  project.learningWork.lessonTitle,
+                ]
+                  .filter(Boolean)
+                  .join(' · ')
+              : undefined;
             // A teacher's verdict belongs on the learner's own card. Until now
             // it lived only on the teacher's copy: a mark nobody reads.
             const response = feedback[project.id];
@@ -411,6 +467,10 @@ export function MyProjectsPage({
                 module={module}
                 timeLabel={`Изменён ${formatDate(project.updatedAt)}`}
                 showLearningBadge={project.isLearningWork === true}
+                {...(learningDetail ? { learningDetail } : {})}
+                {...(learning && project.learningWork
+                  ? { learningStateLabel: LEARNING_STATES[project.learningWork.workflowState] }
+                  : {})}
                 footerLabel={
                   response
                     ? (FEEDBACK_LABELS[response.badge ?? ''] ?? 'Есть отклик педагога')
@@ -427,6 +487,9 @@ export function MyProjectsPage({
                   : {})}
                 {...(active
                   ? {
+                      ...(learning
+                        ? { primaryLabel: canContinue ? 'Продолжить' : 'Посмотреть' }
+                        : {}),
                       open: {
                         href: editorHref,
                         onNavigate: () => {
@@ -435,13 +498,24 @@ export function MyProjectsPage({
                         },
                       },
                     }
-                  : {
-                      primaryAction: {
-                        label: 'Восстановить',
-                        disabled: busy,
-                        onSelect: () => void changeStatus(project, 'active'),
-                      },
-                    })}
+                  : learning
+                    ? {
+                        primaryLabel: 'Посмотреть',
+                        open: {
+                          href: editorHref,
+                          onNavigate: () => {
+                            rememberScroll();
+                            onOpenProject(project.id, project.moduleKey);
+                          },
+                        },
+                      }
+                    : {
+                        primaryAction: {
+                          label: 'Восстановить',
+                          disabled: busy,
+                          onSelect: () => void changeStatus(project, 'active'),
+                        },
+                      })}
                 menuItems={
                   active
                     ? [
@@ -454,39 +528,55 @@ export function MyProjectsPage({
                               },
                             ]
                           : []),
-                        {
-                          // Имя, описание, теги, лицензия и то, кому работа
-                          // видна — в одном диалоге. Публикация живёт там же:
-                          // это состояние работы, а не действие сбоку.
-                          label: 'Свойства',
-                          onSelect: () => setProperties(project),
-                        },
-                        {
-                          label: 'Дублировать',
-                          disabled: busy,
-                          onSelect: () => void duplicate(project),
-                        },
+                        ...(!learning || actions?.editProperties === true
+                          ? [
+                              {
+                                // Имя, описание, теги, лицензия и то, кому работа
+                                // видна — в одном диалоге. Публикация живёт там же:
+                                // это состояние работы, а не действие сбоку.
+                                label: 'Свойства',
+                                onSelect: () => setProperties(project),
+                              },
+                            ]
+                          : []),
+                        ...(!learning || actions?.duplicate === true
+                          ? [
+                              {
+                                label: 'Дублировать',
+                                disabled: busy,
+                                onSelect: () => void duplicate(project),
+                              },
+                            ]
+                          : []),
                         {
                           label: 'Журнал версий',
                           onSelect: () => setHistory(project),
                         },
-                        {
-                          label: 'Добавить в коллекцию',
-                          onSelect: () => setCollecting(project),
-                        },
-                        {
-                          label: 'Архивировать',
-                          disabled: busy,
-                          onSelect: () => void changeStatus(project, 'archived'),
-                        },
-                        {
-                          label: 'В корзину',
-                          danger: true,
-                          disabled: busy,
-                          onSelect: () => void changeStatus(project, 'trashed'),
-                        },
+                        ...(!learning
+                          ? [
+                              {
+                                label: 'Добавить в коллекцию',
+                                onSelect: () => setCollecting(project),
+                              },
+                            ]
+                          : []),
+                        ...(!learning || actions?.changeGenericProjectStatus === true
+                          ? [
+                              {
+                                label: 'Архивировать',
+                                disabled: busy,
+                                onSelect: () => void changeStatus(project, 'archived'),
+                              },
+                              {
+                                label: 'В корзину',
+                                danger: true,
+                                disabled: busy,
+                                onSelect: () => void changeStatus(project, 'trashed'),
+                              },
+                            ]
+                          : []),
                       ]
-                    : statusFilter === 'archived'
+                    : statusFilter === 'archived' && !learning
                       ? [
                           {
                             label: 'В корзину',

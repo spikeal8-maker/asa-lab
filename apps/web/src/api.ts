@@ -1183,8 +1183,37 @@ export interface Project {
   moduleKey: string;
   title: string;
   status: ProjectStatus;
-  /** Present on personal list rows; derived from an authorized immutable Learning origin. */
+  /** Present on personal list rows; derived from protected Learning provenance. */
   isLearningWork?: boolean;
+  learningWork?: {
+    workflowState:
+      | 'not_applicable'
+      | 'not_started'
+      | 'in_progress'
+      | 'submitted'
+      | 'waiting_review'
+      | 'changes_requested'
+      | 'completed'
+      | 'invalidated'
+      | 'unavailable';
+    collectionState: 'working' | 'review' | 'completed' | 'unavailable';
+    classroomTitle: string | null;
+    courseTitle: string | null;
+    lessonTitle: string | null;
+    taskTitle: string | null;
+    allowedActions: {
+      open: boolean;
+      continue: boolean;
+      submit: boolean;
+      changeGenericProjectStatus: boolean;
+      duplicate: boolean;
+      editProperties: boolean;
+      moveToLearningArchive: boolean;
+      restoreFromLearningArchive: boolean;
+      createPersonalCopy: boolean;
+      publishOriginal: boolean;
+    };
+  };
   createdAt: string;
   updatedAt: string;
   preview: ProjectPreview | null;
@@ -1525,6 +1554,7 @@ export interface ProjectListOptions {
   search?: string;
   sort?: 'recent' | 'oldest' | 'title';
   scope?: ProjectScope;
+  kind?: 'all' | 'personal' | 'learning';
   classroomId?: string;
   status?: ProjectStatus;
   module?: string;
@@ -2906,6 +2936,7 @@ export const api = {
   listProjects: async (options: ProjectListOptions = {}) => {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);
+    if (options.kind && options.kind !== 'all') query.set('kind', options.kind);
     if (options.classroomId) query.set('classroomId', options.classroomId);
     if (options.status) query.set('status', options.status);
     if (options.module) query.set('module', options.module);
