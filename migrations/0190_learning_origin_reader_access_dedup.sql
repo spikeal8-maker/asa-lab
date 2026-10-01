@@ -305,22 +305,6 @@ $$;
 REVOKE ALL ON FUNCTION public.learning_origin_work_context_for_project_ids(uuid,uuid[])
     FROM PUBLIC;
 
--- Preserve the exact single-Project reader API and its current authorization.
-CREATE OR REPLACE FUNCTION public.learning_origin_work_context_for_project(
-    p_viewer_principal_id uuid, p_project_id uuid
-)
-RETURNS TABLE (context jsonb, evidence jsonb)
-LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-    SELECT context, evidence
-      FROM public.learning_origin_work_context_for_project_ids(
-          p_viewer_principal_id, ARRAY[p_project_id]);
-$$;
-
-REVOKE ALL ON FUNCTION public.learning_origin_work_context_for_project(uuid,uuid)
-    FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.learning_origin_work_context_for_project(uuid,uuid)
-    TO asalab_app;
-
 -- Materialize the same origin candidates, then project all of one actor's
 -- Projects in one reader call. Match the returned exact IDs back to each
 -- candidate exactly as the old per-row LATERAL reader did.
