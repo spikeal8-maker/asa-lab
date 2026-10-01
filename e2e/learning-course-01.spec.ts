@@ -850,7 +850,8 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
 }) => {
   test.setTimeout(180_000);
   const title = `Повтор начала работы ${++sequence}`;
-  await createPublishedProjectActivity(page, title);
+  const v3Teacher = await seedTeacher(admin, 'v3-start-repeat');
+  await createPublishedProjectActivity(page, title, 'electronics', 'completion', v3Teacher);
   const code = await createClassWithStudents(page, 'Класс повтора Start', [
     { label: 'Ирина', handle: 'v3-start-irina' },
   ]);
