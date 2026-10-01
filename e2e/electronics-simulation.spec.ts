@@ -1982,7 +1982,7 @@ function arduinoResetAcceptanceDocument(): SchematicDocument {
   };
 }
 
-async function observeArduinoWorkerClock(page: Page): Promise<void> {
+async function observeSimulationWorkerClock(page: Page): Promise<void> {
   await page.addInitScript(() => {
     type ClockSample = {
       workerId: number;
@@ -1993,11 +1993,11 @@ async function observeArduinoWorkerClock(page: Page): Promise<void> {
       receivedAt: number;
     };
     const clockWindow = window as Window & {
-      __arduinoClockSamples?: ClockSample[];
-      __arduinoWorkerCount?: number;
+      __simulationClockSamples?: ClockSample[];
+      __simulationWorkerCount?: number;
     };
     const samples: ClockSample[] = [];
-    clockWindow.__arduinoClockSamples = samples;
+    clockWindow.__simulationClockSamples = samples;
     let workerId = 0;
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
@@ -2006,7 +2006,7 @@ async function observeArduinoWorkerClock(page: Page): Promise<void> {
           return worker;
         }
         const id = ++workerId;
-        clockWindow.__arduinoWorkerCount = workerId;
+        clockWindow.__simulationWorkerCount = workerId;
         worker.addEventListener('message', (event: MessageEvent) => {
           const response = event.data as {
             ok?: boolean;
@@ -2035,6 +2035,35 @@ async function observeArduinoWorkerClock(page: Page): Promise<void> {
   });
 }
 
+async function simulationWorkerObservation(page: Page) {
+  return page.evaluate(() => {
+    const clockWindow = window as Window & {
+      __simulationWorkerCount?: number;
+      __simulationClockSamples?: Array<{
+        workerId: number;
+        generationId: number;
+        requestedMicroseconds: number;
+        committedMicroseconds: number;
+        status: string;
+        receivedAt: number;
+      }>;
+    };
+    const led = document.querySelector('[data-testid="schematic-component"][data-kind="led"]');
+    return {
+      workerCount: clockWindow.__simulationWorkerCount ?? 0,
+      workerSamples: (clockWindow.__simulationClockSamples ?? [])
+        .slice(-5)
+        .map(({ receivedAt, ...sample }) => ({ ...sample, ageMs: Date.now() - receivedAt })),
+      toolbarClock: document.querySelector('.workbench-simulation-time')?.textContent?.trim(),
+      ledDiagnostics: led?.getAttribute('data-diagnostics'),
+      ledRuntimeState: led
+        ?.querySelector('.workbench-production-visual')
+        ?.getAttribute('data-led-runtime-state'),
+      ledImageHref: led?.querySelector('image:not([filter])')?.getAttribute('href'),
+    };
+  });
+}
+
 async function expectArduinoBrightness(
   page: Page,
   expected: 'high' | 'low',
@@ -2047,28 +2076,7 @@ async function expectArduinoBrightness(
       await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
     }
   } catch (error) {
-    const observation = await page.evaluate(() => {
-      const clockWindow = window as Window & {
-        __arduinoWorkerCount?: number;
-        __arduinoClockSamples?: Array<{
-          workerId: number;
-          generationId: number;
-          requestedMicroseconds: number;
-          committedMicroseconds: number;
-          status: string;
-          receivedAt: number;
-        }>;
-      };
-      const samples = clockWindow.__arduinoClockSamples?.slice(-5) ?? [];
-      return {
-        toolbarClock: document.querySelector('.workbench-simulation-time')?.textContent?.trim(),
-        workerCount: clockWindow.__arduinoWorkerCount ?? 0,
-        workerSamples: samples.map(({ receivedAt, ...sample }) => ({
-          ...sample,
-          ageMs: Date.now() - receivedAt,
-        })),
-      };
-    });
+    const observation = await simulationWorkerObservation(page);
     throw new Error(
       `Arduino Reset ${phase}: expected ${expected}, brightness=${await brightnessValue(page)}, ` +
         `clock=${JSON.stringify(observation)}`,
@@ -2168,7 +2176,7 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
 }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-  await observeArduinoWorkerClock(page);
+  await observeSimulationWorkerClock(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await loginWithOrganization(page, teacher);
 
@@ -3674,6 +3682,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
 }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await observeSimulationWorkerClock(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await loginWithOrganization(page, teacher);
 
@@ -3935,19 +3944,61 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     circuitDocument({ switchClosed: true, resistorOhms: 0, reversedLed: false }),
   );
   await page.goto(`/#/home/${projectId}`);
+  const priorWorkerCount = await page.evaluate(
+    () => (window as Window & { __simulationWorkerCount?: number }).__simulationWorkerCount ?? 0,
+  );
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await selectLed(page);
-  await expect(led).toHaveAttribute('data-diagnostics', /led_burnout/);
-  await expect(led.locator('image:not([filter])')).toHaveAttribute(
-    'href',
-    /special\/led_red_burned\.svg$/,
-  );
-  await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
-  await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toBeVisible();
-  await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveAttribute(
-    'aria-label',
-    /компонент вышел из строя/i,
-  );
+  // A requested toolbar time is not proof that the worker completed the thermal model.
+  // Every Start creates a new worker, so only use replies from this run.
+  try {
+    await expect
+      .poll(
+        () =>
+          page.evaluate((beforeWorkerId) => {
+            const clockWindow = window as Window & {
+              __simulationWorkerCount?: number;
+              __simulationClockSamples?: Array<{
+                workerId: number;
+                committedMicroseconds: number;
+                status: string;
+              }>;
+            };
+            const currentWorkerId = clockWindow.__simulationWorkerCount ?? 0;
+            if (currentWorkerId <= beforeWorkerId) return 0;
+            const latestReady = clockWindow.__simulationClockSamples
+              ?.filter((sample) => sample.workerId === currentWorkerId && sample.status === 'ready')
+              .at(-1);
+            return latestReady?.committedMicroseconds ?? 0;
+          }, priorWorkerCount),
+        { timeout: 25_000 },
+      )
+      .toBeGreaterThanOrEqual(4_500_000);
+  } catch (error) {
+    const observation = await simulationWorkerObservation(page);
+    throw new Error(
+      `LED thermal worker did not confirm 4_500_000 us after Start (priorWorkerCount=${priorWorkerCount}): ${JSON.stringify(observation)}`,
+      { cause: error },
+    );
+  }
+  try {
+    await expect(led).toHaveAttribute('data-diagnostics', /led_burnout/);
+    await expect(led.locator('image:not([filter])')).toHaveAttribute(
+      'href',
+      /special\/led_red_burned\.svg$/,
+    );
+    await expect(diagnostic(page, 'led-5mm', 'led-diagnostic-badge')).toHaveCount(0);
+    await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toBeVisible();
+    await expect(diagnostic(page, 'led-5mm', 'led-burnout-explosion')).toHaveAttribute(
+      'aria-label',
+      /компонент вышел из строя/i,
+    );
+  } catch (error) {
+    throw new Error(
+      `LED thermal worker crossed 4_500_000 us but burnout presentation failed: ${JSON.stringify(await simulationWorkerObservation(page))}`,
+      { cause: error },
+    );
+  }
   await page.screenshot({
     path: `${ARTIFACT_DIR}/electronics-led-burnout.png`,
     fullPage: true,
