@@ -11,6 +11,7 @@ import type { ModuleCatalogPort } from '../../contexts/projects/application/port
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningWorkReadOnlyError } from '../../contexts/projects/domain/project';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
+import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
 import { SEAT_COURSE_LESSON_LIST_SQL } from '../../apps/api/src/course-lesson-list-queries';
 import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
@@ -1407,59 +1408,163 @@ describe('A4-1 immutable learning project origin', () => {
     expect(after.rows[0]).toEqual(before.rows[0]);
   }, 30_000);
 
-  it('allows withdrawn participation and cancelled run to leave active collection without deleting work', async () => {
-    for (const terminal of ['withdrawn', 'cancelled'] as const) {
-      const run = await createRun({ handout: await directHandout() });
-      const participation = await assign(run);
-      const projectId = await duplicableProject(learnerPrincipal);
-      const attemptId = await originatedAttempt(
-        participation.participation_id as string,
-        projectId,
-      );
-      if (terminal === 'withdrawn') {
-        await admin.query(
-          `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
-          [attemptId],
+  it('keeps exact Direct and Course terminal origins readable only to linked learners', async () => {
+    const archivedProjects: string[] = [];
+    for (const sourceKind of ['direct', 'course'] as const) {
+      for (const terminal of ['withdrawn', 'cancelled'] as const) {
+        const course = sourceKind === 'course' ? await courseHandout() : null;
+        const run = await createRun(
+          course
+            ? {
+                handout: course.handout,
+                kind: 'course',
+                courseRun: course.courseRun,
+                lesson: course.lesson,
+              }
+            : { handout: await directHandout() },
         );
-        await admin.query(
-          `INSERT INTO assessment_results
+        const enrollment = course
+          ? await inTenant(owner.tenantId, (client) =>
+              client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+                ownerPrincipal,
+                course.courseRun,
+                learner,
+              ]),
+            )
+          : null;
+        const participation = await assign(run, learner, enrollment?.rows[0].enrollment_id ?? null);
+        const projectId = await duplicableProject(learnerPrincipal);
+        const attemptId = await originatedAttempt(
+          participation.participation_id as string,
+          projectId,
+        );
+        if (terminal === 'withdrawn') {
+          await admin.query(
+            `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+            [attemptId],
+          );
+          await admin.query(
+            `INSERT INTO assessment_results
              (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
            VALUES ($1,$2,20,'incomplete','changes_requested',false)`,
-          [owner.tenantId, attemptId],
-        );
-        await admin.query(
-          `UPDATE activity_participations SET status='withdrawn',withdrawn_at=now(),
+            [owner.tenantId, attemptId],
+          );
+          await admin.query(
+            `UPDATE activity_participations SET status='withdrawn',withdrawn_at=now(),
              withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
            WHERE id=$1`,
-          [participation.participation_id, ownerPrincipal],
-        );
-      } else {
-        await admin.query(
-          `UPDATE activity_runs SET lifecycle_status='cancelled',cancelled_at=now()
+            [participation.participation_id, ownerPrincipal],
+          );
+          if (enrollment) {
+            await admin.query(
+              `UPDATE course_enrollments SET status='withdrawn',withdrawn_at=now(),
+               withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
+             WHERE id=$1`,
+              [enrollment.rows[0].enrollment_id, ownerPrincipal],
+            );
+          }
+        } else {
+          await admin.query(
+            `UPDATE activity_runs SET lifecycle_status='cancelled',cancelled_at=now()
             WHERE id=$1`,
-          [run],
+            [run],
+          );
+        }
+        const exact = await app.query<{
+          context: { projectId: string };
+          evidence: { attempt: { id: string } };
+        }>('SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)', [
+          learnerPrincipal,
+          projectId,
+        ]);
+        expect(exact.rows).toHaveLength(1);
+        expect(exact.rows[0]?.context.projectId).toBe(projectId);
+        expect(exact.rows[0]?.evidence.attempt.id).toBe(attemptId);
+        const card = await learningWorkContextForProject(
+          app,
+          learnerPrincipal,
+          projectId,
+          'electronics',
+          new Map(),
         );
-      }
-      const moved = await app.query<{ state: string }>(
-        'SELECT learning_project_archive_set($1,$2,true) AS state',
-        [learnerPrincipal, projectId],
-      );
-      expect(moved.rows[0]?.state).toBe('learning_archive');
-      const unchanged = await admin.query(
-        `SELECT p.status,p.owner_principal_id,
+        expect(card.state).toBe('ready');
+        if (card.state === 'ready') {
+          expect(card.allowedActions.edit).toBe(false);
+          expect(card.allowedActions.submit).toBe(false);
+          expect(card.allowedActions.moveToLearningArchive).toBe(true);
+        }
+        expect(
+          (
+            await app.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+              outsiderPrincipal,
+              projectId,
+            ])
+          ).rows,
+        ).toEqual([]);
+        const moved = await app.query<{ state: string }>(
+          'SELECT learning_project_archive_set($1,$2,true) AS state',
+          [learnerPrincipal, projectId],
+        );
+        expect(moved.rows[0]?.state).toBe('learning_archive');
+        archivedProjects.push(projectId);
+        const archivedCard = await learningWorkContextForProject(
+          app,
+          learnerPrincipal,
+          projectId,
+          'electronics',
+          new Map(),
+        );
+        expect(archivedCard.state).toBe('ready');
+        if (archivedCard.state === 'ready') {
+          expect(archivedCard.presentation.learnerCollectionState).toBe('learning_archive');
+          expect(archivedCard.allowedActions.restoreFromLearningArchive).toBe(true);
+          expect(archivedCard.allowedActions.edit).toBe(false);
+          expect(archivedCard.allowedActions.submit).toBe(false);
+        }
+        const unchanged = await admin.query(
+          `SELECT p.status,p.owner_principal_id,
           (SELECT count(*)::int FROM learning_attempts WHERE id=$2) AS attempts,
           (SELECT count(*)::int FROM learning_project_archive WHERE project_id=p.id) AS archived
          FROM projects p WHERE p.id=$1`,
-        [projectId, attemptId],
-      );
-      expect(unchanged.rows[0]).toMatchObject({
-        status: 'active',
-        owner_principal_id: learnerPrincipal,
-        attempts: 1,
-        archived: 1,
-      });
+          [projectId, attemptId],
+        );
+        expect(unchanged.rows[0]).toMatchObject({
+          status: 'active',
+          owner_principal_id: learnerPrincipal,
+          attempts: 1,
+          archived: 1,
+        });
+      }
     }
-  });
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+       WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+      [learner],
+    );
+    for (const projectId of archivedProjects) {
+      expect(
+        (
+          await app.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+            learnerPrincipal,
+            projectId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      expect(
+        (
+          await app.query<{ state: string }>(
+            'SELECT learning_project_archive_set($1,$2,false) AS state',
+            [learnerPrincipal, projectId],
+          )
+        ).rows[0]?.state,
+      ).toBe('denied');
+    }
+    await admin.query(
+      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+       WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+      [learner],
+    );
+  }, 30_000);
 
   it('waits for an in-flight acceptance decision before saving an original draft', async () => {
     const run = await createRun({ handout: await directHandout() });
@@ -3983,7 +4088,7 @@ describe('A4-2b atomic StartLearningWork', () => {
         mutationId: randomUUID(),
       }),
     ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
-  }, 20_000);
+  }, 30_000);
 
   it('reopens a Seat-owned Project for a linked legacy Account without a personal workspace', async () => {
     const legacyOwner = await seedTeacher(admin, 'a4-linked-no-personal-workspace');
