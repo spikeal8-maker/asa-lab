@@ -2,7 +2,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
 import pg from 'pg';
 import type { FastifyRequest } from 'fastify';
-import { CreateProjectUseCase } from '../../contexts/projects/application/project.usecases';
+import {
+  ChangeProjectStatusUseCase,
+  CreateProjectUseCase,
+} from '../../contexts/projects/application/project.usecases';
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
@@ -1228,6 +1231,11 @@ describe('A4-1 immutable learning project origin', () => {
       [owner.tenantId, owner.schoolId, learner, account.account_id],
     );
     await admin.query(insertSql, accountValues);
+    await expect(
+      inTenant(outsider.tenantId, (client) =>
+        client.query("UPDATE projects SET status='archived' WHERE id=$1", [accountProject]),
+      ),
+    ).rejects.toMatchObject({ code: 'P5L01' });
     const stored = (
       await admin.query(
         `SELECT project_tenant_id,school_tenant_id,
@@ -1405,6 +1413,253 @@ describe('A4-1 immutable learning project origin', () => {
     await expect(
       inTenant(owner.tenantId, (client) => client.query(`SELECT * FROM learning_project_origins`)),
     ).rejects.toThrow(/permission denied/);
+    expect(
+      (
+        await admin.query(
+          `SELECT has_table_privilege('asalab_app','learning_legacy_project_origins','SELECT') AS select,
+                  has_table_privilege('asalab_app','learning_legacy_project_origins','INSERT') AS insert,
+                  has_table_privilege('asalab_app','learning_legacy_project_origins','UPDATE') AS update,
+                  has_table_privilege('asalab_app','learning_legacy_project_origins','DELETE') AS delete`,
+        )
+      ).rows[0],
+    ).toEqual({ select: false, insert: false, update: false, delete: false });
+    await expect(
+      inTenant(owner.tenantId, (client) =>
+        client.query('SELECT * FROM learning_legacy_project_origins'),
+      ),
+    ).rejects.toThrow(/permission denied/);
+  });
+
+  it('protects only a persisted legacy assignment-work link from generic status changes', async () => {
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const original = await project(learnerPrincipal);
+    const handout = await directHandout();
+    await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+      [owner.tenantId, handout, seatId, original],
+    );
+    await expect(
+      admin.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    await expect(
+      admin.query("UPDATE projects SET status='trashed' WHERE id=$1", [original]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    const authoredAssignment = (
+      await admin.query('SELECT assignment_id FROM classroom_assignments WHERE id=$1', [handout])
+    ).rows[0].assignment_id as string;
+    expect(
+      (
+        await inTenant(owner.tenantId, (client) =>
+          client.query('SELECT teacher_assignment_hand_out($1,$2,$3,false,NULL) AS ok', [
+            ownerPrincipal,
+            authoredAssignment,
+            classroom,
+          ]),
+        )
+      ).rows[0].ok,
+    ).toBe(true);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_assignment_work WHERE project_id=$1',
+          [original],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+    const firstSourceWork = (
+      await admin.query(
+        'SELECT source_work_id FROM learning_legacy_project_origins WHERE project_id=$1',
+        [original],
+      )
+    ).rows[0].source_work_id as string;
+    const secondHandout = await directHandout();
+    const secondWork = (
+      await admin.query(
+        `INSERT INTO classroom_assignment_work
+           (tenant_id,assignment_id,seat_id,project_id)
+         VALUES ($1,$2,$3,$4) RETURNING id`,
+        [owner.tenantId, secondHandout, seatId, original],
+      )
+    ).rows[0].id as string;
+    expect(secondWork).not.toBe(firstSourceWork);
+    expect(
+      (
+        await admin.query(
+          'SELECT source_work_id FROM learning_legacy_project_origins WHERE project_id=$1',
+          [original],
+        )
+      ).rows[0].source_work_id,
+    ).toBe(firstSourceWork);
+    await expect(
+      admin.query('DELETE FROM learning_legacy_project_origins WHERE project_id=$1', [original]),
+    ).rejects.toThrow(/immutable/);
+    await admin.query('DELETE FROM classroom_assignment_work WHERE id=$1', [secondWork]);
+    await expect(
+      admin.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    await expect(
+      inTenant(owner.tenantId, (client) =>
+        client.query('SELECT gallery_publish($1,$2)', [ownerPrincipal, original]),
+      ),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+
+    const deletedOriginal = await project(learnerPrincipal);
+    const deletedHandout = await directHandout();
+    await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+      [owner.tenantId, deletedHandout, seatId, deletedOriginal],
+    );
+    const deletedAssignment = (
+      await admin.query('SELECT assignment_id FROM classroom_assignments WHERE id=$1', [
+        deletedHandout,
+      ])
+    ).rows[0].assignment_id as string;
+    expect(
+      (
+        await inTenant(owner.tenantId, (client) =>
+          client.query('SELECT teacher_assignment_delete($1,$2) AS ok', [
+            ownerPrincipal,
+            deletedAssignment,
+          ]),
+        )
+      ).rows[0].ok,
+    ).toBe(true);
+    await expect(
+      admin.query("UPDATE projects SET status='trashed' WHERE id=$1", [deletedOriginal]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    await expect(
+      inTenant(owner.tenantId, (client) =>
+        client.query('SELECT gallery_publish($1,$2)', [ownerPrincipal, deletedOriginal]),
+      ),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+
+    const personal = await project(learnerPrincipal);
+    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [personal]);
+    await expect(
+      admin.query(
+        `INSERT INTO classroom_assignment_work
+           (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+        [owner.tenantId, await directHandout(), seatId, personal],
+      ),
+    ).rejects.toThrow(/active unpublished project/);
+    await admin.query("UPDATE projects SET status='active' WHERE id=$1", [personal]);
+    await admin.query("UPDATE projects SET status='trashed' WHERE id=$1", [personal]);
+    expect(
+      (await admin.query('SELECT status FROM projects WHERE id=$1', [personal])).rows[0].status,
+    ).toBe('trashed');
+
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const archivedBeforeOrigin = await project(learnerPrincipal);
+    await admin.query("UPDATE projects SET status='archived' WHERE id=$1", [archivedBeforeOrigin]);
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(participation.participation_id as string, archivedBeforeOrigin),
+      ),
+    ).rejects.toThrow(/active unpublished project/);
+
+    const publishedBeforeLearning = await project(learnerPrincipal);
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,updated_by_principal_id)
+       VALUES ($1,$2,'{}'::jsonb,$3)`,
+      [owner.tenantId, publishedBeforeLearning, learnerPrincipal],
+    );
+    await admin.query(
+      `INSERT INTO project_snapshots
+         (tenant_id,project_id,image,content_type,width,height,
+          source_revision,captured_by_principal_id)
+       VALUES ($1,$2,decode(repeat('00',64),'hex'),'image/png',16,16,1,$3)`,
+      [owner.tenantId, publishedBeforeLearning, learnerPrincipal],
+    );
+    expect(
+      (
+        await app.query('SELECT gallery_publish($1,$2) AS ok', [
+          ownerPrincipal,
+          publishedBeforeLearning,
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
+    const publishedRun = await createRun({ handout: await directHandout() });
+    const publishedParticipation = await assign(publishedRun);
+    await expect(
+      admin.query(
+        insertSql,
+        await originValues(
+          publishedParticipation.participation_id as string,
+          publishedBeforeLearning,
+        ),
+      ),
+    ).rejects.toThrow(/active unpublished project/);
+    await expect(
+      admin.query(
+        `INSERT INTO classroom_assignment_work
+           (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+        [owner.tenantId, await directHandout(), seatId, publishedBeforeLearning],
+      ),
+    ).rejects.toThrow(/active unpublished project/);
+  });
+
+  it('keeps a linked Account legacy original protected across school and project tenants', async () => {
+    const seat = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const priorAccount = (
+      await admin.query('SELECT account_id FROM classroom_student_seats WHERE id=$1', [seat])
+    ).rows[0].account_id as string | null;
+    const linked = await seedTeacher(admin, 'a5-legacy-cross-tenant');
+    const account = (
+      await admin.query(
+        'SELECT account_id,principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+        [linked.tenantId, linked.teacherId],
+      )
+    ).rows[0];
+    try {
+      await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+        account.account_id,
+        seat,
+      ]);
+      const original = await project(account.principal_id as string, linked.tenantId);
+      const handout = await directHandout();
+      await admin.query(
+        `INSERT INTO classroom_assignment_work
+           (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+        [owner.tenantId, handout, seat, original],
+      );
+      expect(
+        (
+          await admin.query(
+            'SELECT school_tenant_id,project_tenant_id FROM learning_legacy_project_origins WHERE project_id=$1',
+            [original],
+          )
+        ).rows[0],
+      ).toEqual({ school_tenant_id: owner.tenantId, project_tenant_id: linked.tenantId });
+      const authoredAssignment = (
+        await admin.query('SELECT assignment_id FROM classroom_assignments WHERE id=$1', [handout])
+      ).rows[0].assignment_id as string;
+      await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT teacher_assignment_hand_out($1,$2,$3,false,NULL)', [
+          ownerPrincipal,
+          authoredAssignment,
+          classroom,
+        ]),
+      );
+      await expect(
+        inTenant(linked.tenantId, (client) =>
+          client.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
+        ),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+    } finally {
+      await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+        priorAccount,
+        seat,
+      ]);
+    }
   });
 });
 
@@ -1586,6 +1841,161 @@ describe('A4-2b atomic StartLearningWork', () => {
          AND link_kind='student_seat' AND seat_id=$4`,
       [owner.tenantId, owner.schoolId, learner, seatId],
     );
+  });
+
+  it('denies direct and Course originals at status and Gallery writes without mutating either', async () => {
+    const course = await courseHandout();
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+        ownerPrincipal,
+        course.courseRun,
+        learner,
+      ]),
+    );
+    expect(enrollment.rows[0].result_code).toBe('ok');
+    const cases = [
+      { run: await createRun({ handout: await directHandout() }), enrollmentId: null },
+      {
+        run: await createRun({
+          handout: course.handout,
+          kind: 'course',
+          courseRun: course.courseRun,
+          lesson: course.lesson,
+        }),
+        enrollmentId: enrollment.rows[0].enrollment_id as string,
+      },
+    ];
+    const repo = new PgProjectRepository(app);
+    const status = new ChangeProjectStatusUseCase(repo);
+    const actor = { principalId: learnerPrincipal, userId: null };
+    const controller = await startController('seat');
+    for (const { run, enrollmentId } of cases) {
+      const participation = await assign(run, learner, enrollmentId);
+      expect(participation.result_code).toBe('ok');
+      const started = await controller.start(startRequest, run, {
+        requestId: `start:${randomUUID()}`,
+      });
+      const projectId = started.projectId;
+      for (const target of ['archived', 'trashed'] as const) {
+        expect(
+          await status.execute({
+            tenantId: owner.tenantId,
+            projectId,
+            actor,
+            status: target,
+          }),
+        ).toMatchObject({ ok: false, code: 'learning_work_protected' });
+      }
+      await expect(
+        inTenant(owner.tenantId, (client) =>
+          client.query("UPDATE projects SET status='archived' WHERE id=$1", [projectId]),
+        ),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+
+      await expect(
+        app.query('SELECT gallery_publish($1,$2) AS ok', [ownerPrincipal, projectId]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+      await expect(
+        app.query('SELECT project_visibility_set($1,$2,$3) AS ok', [
+          ownerPrincipal,
+          projectId,
+          'link',
+        ]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+      expect(
+        (await app.query('SELECT gallery_publish($1,$2) AS ok', [outsiderPrincipal, projectId]))
+          .rows[0].ok,
+      ).toBe(false);
+
+      await admin.query(
+        `INSERT INTO project_snapshots
+           (tenant_id,project_id,image,content_type,width,height,
+            source_revision,captured_by_principal_id)
+         VALUES ($1,$2,decode(repeat('00',64),'hex'),'image/png',16,16,1,$3)`,
+        [owner.tenantId, projectId, learnerPrincipal],
+      );
+      await expect(
+        app.query('SELECT gallery_publish($1,$2) AS ok', [ownerPrincipal, projectId]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+      await expect(
+        app.query('SELECT project_visibility_set($1,$2,$3) AS ok', [
+          ownerPrincipal,
+          projectId,
+          'public',
+        ]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+      const outsiderPublish = await app.query('SELECT gallery_publish($1,$2) AS ok', [
+        outsiderPrincipal,
+        projectId,
+      ]);
+      expect(outsiderPublish.rows[0].ok).toBe(false);
+      const stored = await admin.query(
+        `SELECT project.status,
+                (SELECT count(*)::int FROM project_publication_state state
+                  WHERE state.project_id=project.id) AS publications
+           FROM projects project WHERE project.id=$1`,
+        [projectId],
+      );
+      expect(stored.rows[0]).toMatchObject({ status: 'active', publications: 0 });
+    }
+
+    const personal = await repo.createWithDraft({
+      tenantId: owner.tenantId,
+      scope: 'personal',
+      classroomId: null,
+      actor: { principalId: ownerPrincipal, userId: owner.teacherId },
+      moduleKey: 'electronics',
+      title: 'Ordinary personal Gallery work',
+      idempotencyKey: `a5:personal:${randomUUID()}`,
+      requestFingerprint: `a5-personal-${randomUUID()}`,
+      initialDocument: { schemaVersion: 1, components: [], connections: [] },
+      initialPreview: null,
+    });
+    expect(personal.kind).toBe('created');
+    if (personal.kind !== 'created') throw new Error('personal fixture creation failed');
+    await admin.query(
+      `INSERT INTO project_snapshots
+         (tenant_id,project_id,image,content_type,width,height,
+          source_revision,captured_by_principal_id)
+       VALUES ($1,$2,decode(repeat('00',64),'hex'),'image/png',16,16,1,$3)`,
+      [owner.tenantId, personal.project.id, ownerPrincipal],
+    );
+    expect(
+      (
+        await app.query('SELECT gallery_publish($1,$2) AS ok', [
+          ownerPrincipal,
+          personal.project.id,
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
+    expect(
+      (
+        await app.query('SELECT project_visibility_set($1,$2,$3) AS ok', [
+          ownerPrincipal,
+          personal.project.id,
+          'link',
+        ])
+      ).rows[0].ok,
+    ).toBe(true);
+    expect(
+      (
+        await admin.query(
+          `SELECT has_function_privilege(
+             'asalab_app','public.gallery_publish_unprotected(uuid,uuid)','EXECUTE'
+           ) AS callable`,
+        )
+      ).rows[0].callable,
+    ).toBe(false);
+    expect(
+      (
+        await repo.updateStatus(
+          owner.tenantId,
+          personal.project.id,
+          { principalId: ownerPrincipal, userId: owner.teacherId },
+          'archived',
+        )
+      )?.status,
+    ).toBe('archived');
   });
 
   it('does not attach a previously prepared Project with the reserved Start key', async () => {
@@ -2271,6 +2681,51 @@ describe('A4-2b atomic StartLearningWork', () => {
         payload: { workspaceId },
       });
       expect(personalContext.statusCode).toBe(201);
+      const protectedStatus = await inject(api, {
+        method: 'POST',
+        url: `/api/projects/${started.projectId}/status`,
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { status: 'archived' },
+      });
+      expect(protectedStatus.statusCode).toBe(403);
+      expect(protectedStatus.json().error.code).toBe('learning_work_protected');
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS n FROM project_snapshots WHERE project_id=$1',
+            [started.projectId],
+          )
+        ).rows[0].n,
+      ).toBe(0);
+      const protectedGallery = await inject(api, {
+        method: 'POST',
+        url: `/api/gallery/${started.projectId}`,
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(protectedGallery.statusCode).toBe(403);
+      expect(protectedGallery.json().error.code).toBe('learning_work_protected');
+      const projectTitle = (
+        await admin.query('SELECT title FROM projects WHERE id=$1', [started.projectId])
+      ).rows[0].title as string;
+      const protectedVisibility = await inject(api, {
+        method: 'PUT',
+        url: `/api/projects/${started.projectId}/properties`,
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { title: `${projectTitle} should roll back`, visibility: 'public' },
+      });
+      expect(protectedVisibility.statusCode).toBe(403);
+      expect(protectedVisibility.json().error.code).toBe('learning_work_protected');
+      expect(
+        (await admin.query('SELECT title FROM projects WHERE id=$1', [started.projectId])).rows[0]
+          .title,
+      ).toBe(projectTitle);
+      const unknownStatus = await inject(api, {
+        method: 'POST',
+        url: `/api/projects/${randomUUID()}/status`,
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { status: 'archived' },
+      });
+      expect(unknownStatus.statusCode).toBe(404);
       const accountList = await inject(api, {
         method: 'GET',
         url: '/api/projects?scope=personal',

@@ -1,6 +1,7 @@
 import type pg from 'pg';
 import { withTenantContext } from '@asa-lab/database';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
+import { LearningWorkProtectedError } from '../domain/project.js';
 import type {
   Project,
   ProjectDraft,
@@ -735,15 +736,27 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
     return withTenantContext(this.pool, access.tenantId, async (client) => {
-      const updated = await client.query(
-        `UPDATE projects p SET status=$5
+      const updated = await client
+        .query(
+          `UPDATE projects p SET status=$5
           WHERE p.tenant_id=$1 AND p.id=$2 AND ${EDIT_ACCESS_SQL}
             AND (($5 = 'archived' AND p.status = 'active')
               OR ($5 = 'trashed' AND p.status IN ('active', 'archived'))
               OR ($5 = 'active' AND p.status IN ('archived', 'trashed')))
           RETURNING id,project_scope,classroom_id,module_key,title,status,created_at`,
-        [access.tenantId, projectId, actor.principalId, access.userId, status],
-      );
+          [access.tenantId, projectId, actor.principalId, access.userId, status],
+        )
+        .catch((error: unknown) => {
+          if (
+            typeof error === 'object' &&
+            error !== null &&
+            'code' in error &&
+            error.code === 'P5L01'
+          ) {
+            throw new LearningWorkProtectedError();
+          }
+          throw error;
+        });
       const row = updated.rows[0] as ProjectRow | undefined;
       if (!row) return null;
       const activity = await client.query(

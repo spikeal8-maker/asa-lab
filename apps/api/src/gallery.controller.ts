@@ -402,10 +402,26 @@ export class GalleryController {
         403,
       );
     }
-    const result = await this.requirePool().query(`SELECT gallery_publish($1, $2) AS ok`, [
-      viewer.principalId,
-      projectId,
-    ]);
+    let result: pg.QueryResult;
+    try {
+      result = await this.requirePool().query(`SELECT gallery_publish($1, $2) AS ok`, [
+        viewer.principalId,
+        projectId,
+      ]);
+    } catch (cause) {
+      if (
+        typeof cause === 'object' &&
+        cause !== null &&
+        'code' in cause &&
+        cause.code === 'P5L01'
+      ) {
+        throw new HttpException(
+          error('learning_work_protected', 'Эту учебную работу нельзя публиковать в Сообществе.'),
+          403,
+        );
+      }
+      throw cause;
+    }
     if ((result.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
       throw new HttpException(
         error(

@@ -5,6 +5,7 @@ import {
   isProjectStatus,
   isValidCheckpointLabel,
   isValidProjectTitle,
+  LearningWorkProtectedError,
   type Project,
   type ProjectDraft,
   type ProjectPreview,
@@ -32,6 +33,7 @@ export type ProjectErrorCode =
   | 'dependency_unavailable'
   | 'idempotency_conflict'
   | 'project_revision_conflict'
+  | 'learning_work_protected'
   | 'classroom_not_found'
   | 'project_not_found';
 
@@ -365,12 +367,20 @@ export class ChangeProjectStatusUseCase {
         `project cannot change from ${current.project.status} to ${input.status}`,
       );
     }
-    const project = await this.repository.updateStatus(
-      input.tenantId,
-      input.projectId,
-      input.actor,
-      input.status,
-    );
+    let project: Project | null;
+    try {
+      project = await this.repository.updateStatus(
+        input.tenantId,
+        input.projectId,
+        input.actor,
+        input.status,
+      );
+    } catch (error) {
+      if (error instanceof LearningWorkProtectedError) {
+        return fail('learning_work_protected', error.message);
+      }
+      throw error;
+    }
     return project === null
       ? fail('project_not_found', 'project not found')
       : { ok: true, value: project };
