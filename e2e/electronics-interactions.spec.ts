@@ -459,6 +459,150 @@ async function pointOnBody(page: Page, id: string) {
     });
 }
 
+test.describe('asset recovery in the built editor', () => {
+  test('one failed mask request recovers two LEDs without enlarging their hit area', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const ledAsset = catalogEntry('led-5mm')!.asset;
+    await page.addInitScript((asset) => {
+      const NativeImage = window.Image;
+      let failed = false;
+      window.Image = new Proxy(NativeImage, {
+        construct(target, args) {
+          const image = Reflect.construct(target, args) as HTMLImageElement;
+          const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')!;
+          Object.defineProperty(image, 'src', {
+            get: () => src.get!.call(image) as string,
+            set(value: string) {
+              const url = new URL(value, location.href);
+              if (!failed && url.pathname === asset && image.decoding !== 'async') {
+                failed = true;
+                url.searchParams.set('__asset_recovery_mask', '1');
+                src.set!.call(image, url.href);
+              } else src.set!.call(image, value);
+            },
+          });
+          return image;
+        },
+      });
+    }, ledAsset);
+    let failedMaskRequests = 0;
+    await page.route(
+      (url) => url.searchParams.has('__asset_recovery_mask'),
+      async (route) => {
+        failedMaskRequests += 1;
+        await route.abort('failed');
+      },
+    );
+    let doc = documentFixture();
+    doc = addComponentToDocument(doc, 'led-5mm', { x: 790, y: 300 }, 'led-twin').document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    expect(failedMaskRequests).toBe(1);
+    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+      'href',
+      /\.svg$/,
+    );
+    expect(
+      await page.evaluate(
+        (asset) =>
+          new Promise<boolean>((resolve) => {
+            const image = document.createElement('img');
+            image.onload = () => resolve(true);
+            image.onerror = () => resolve(false);
+            image.src = asset;
+          }),
+        ledAsset,
+      ),
+    ).toBe(true);
+    const at = await pointOnBody(page, 'led');
+    await expect
+      .poll(
+        async () => {
+          await page.mouse.click(at.x, at.y);
+          return part(page, 'led').getAttribute('class');
+        },
+        { timeout: 10_000 },
+      )
+      .toContain('selected');
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
+    const originalX = await part(page, 'led').getAttribute('data-x');
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 35, at.y + 15, { steps: 8 });
+    await page.mouse.up();
+    await expect(part(page, 'led')).not.toHaveAttribute('data-x', originalX!);
+    expect(errors).toEqual([]);
+  });
+
+  test('failed interactive SVG text restores stage and catalog controls without reload', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let textRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() === 'fetch') {
+          textRequests += 1;
+          if (textRequests === 1) {
+            await route.abort('failed');
+            return;
+          }
+        }
+        await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page
+        .locator(
+          '.workbench-catalog-card[data-family-id="signal-generator"] [data-testid="signal-generator-runtime"]',
+        )
+        .first(),
+    ).toBeVisible();
+    expect(textRequests).toBe(2);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
+    await part(page, 'generator')
+      .locator('.workbench-signal-generator-square')
+      .dispatchEvent('pointerdown', { pointerId: 1 });
+    await expect
+      .poll(
+        () =>
+          readDocument().components.find((component) => component.id === 'generator')
+            ?.stateProperties?.['waveform'],
+      )
+      .toBe('square');
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe('interaction: electronics input and responsive layout', () => {
   test('drag follows the pointer, writes only on release, and Escape restores without saving', async ({
     page,
