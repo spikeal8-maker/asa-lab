@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-LED-THERMAL-BROWSER-BASELINE-001
-      issue: 457
+      id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
+      issue: 456
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: led_thermal_browser_baseline_selected_preflight_pending
+      checkpoint: reset_high_phase_bounded_repair_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 650eb572c617e8dac6bb5dc7bf36321ed9ba0667
+      convergence_baseline_sha: aff771b6e9a967ffc2ba5ae6c69907f301f210fe
       head_sha: null
-      observed_at: '2026-10-01T19:53:49Z'
+      observed_at: '2026-10-01T20:57:25Z'
       main:
         branch: main
-        sha: 650eb572c617e8dac6bb5dc7bf36321ed9ba0667
-      observation_note: Dated main observation at LED thermal browser baseline selection for issue 457; not a live HEAD or gate acceptance; fetch main before writes.
+        sha: aff771b6e9a967ffc2ba5ae6c69907f301f210fe
+      observation_note: Dated main observation at Arduino Reset HIGH repair selection for issue 456; not a live HEAD or gate acceptance; fetch main before writes.
     execution_lease:
-      executor_id: electronics-led-thermal-baseline-controller-452
+      executor_id: electronics-reset-high-repair-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -190,7 +190,7 @@ parallel_lanes:
         independent_review: approved
         exact_main_general_run: 36907336808
         exact_main_browser_run: 36907393951
-        status: waiting_for_browser_baseline_457
+        status: waiting_for_reset_high_repair_456
       - task_id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
         issue: 456
         accepted_candidate_sha: 724b0e95aecbd485d6f6bc7485f6ffa4a92e0e2c
@@ -199,8 +199,18 @@ parallel_lanes:
         exact_candidate_general_run: 36912543228
         exact_candidate_browser_run: 36912628099
         exact_main_general_run: 36914343792
-        exact_main_browser_run: 36914366153
-        status: waiting_for_browser_baseline_457
+        exact_main_browser_run: 36922989913
+        status: bounded_repair_selected_after_reset_high_miss
+      - task_id: TASK-ELECTRONICS-LED-THERMAL-BROWSER-BASELINE-001
+        issue: 457
+        accepted_candidate_sha: 71fa21a73401e2ecbef012cdb2cc39f1f3968edd
+        integrated_sha: aff771b6e9a967ffc2ba5ae6c69907f301f210fe
+        independent_review: approved
+        exact_candidate_general_run: 36921071963
+        exact_candidate_browser_run: 36921224037
+        exact_main_general_run: 36922968375
+        exact_main_browser_run: 36922989913
+        status: waiting_for_reset_high_repair_456
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
@@ -533,9 +543,9 @@ blocking:
     allows:
       - bounded_browser_baseline_repair
       - focused_verification
-    reason: Integrated asset recovery and Arduino Reset baseline pass their scenarios, but full exact-main Electronics browser gate still fails the independent existing LED thermal scenario; issue 457 must distinguish insufficient worker progress from product failure before closeout.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36914366153
-  - id: ELEC-456-LED-BROWSER-BASELINE
+    reason: Integrated asset recovery and LED thermal baseline pass their scenarios, but the full exact-main Electronics browser gate still misses the one-second HIGH phase after Arduino Reset under load; issue 456 bounded repair must make both phases observable before closeout.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36922989913
+  - id: ELEC-456-RESET-HIGH-OBSERVATION
     kind: acceptance_blocker
     lane: electronics
     task_id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
@@ -546,8 +556,21 @@ blocking:
     allows:
       - bounded_browser_baseline_repair
       - focused_verification
-    reason: The approved Arduino Reset test passed on candidate and integrated main, but the full exact-main browser gate failed an existing independent LED thermal timing scenario; issue 457 must establish committed worker progress before technical closeout.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36914366153
+    reason: After Reset the new worker reached more than eight seconds of model time and LED was LOW, so the browser test can miss its one-second HIGH phase; bounded issue 456 repair must verify both observable phases without weakening the runtime assertion.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36922989913
+  - id: ELEC-457-RESET-HIGH-BASELINE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-LED-THERMAL-BROWSER-BASELINE-001
+    blocks:
+      - technical_closeout
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_browser_baseline_repair
+      - focused_verification
+    reason: LED thermal scenario passes on integrated main, but full exact-main browser gate fails issue 456 Arduino Reset HIGH observation; closeout requires a full exact-head browser PASS.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36922989913
   - id: LRN-E1-CORRECTIONS
     kind: acceptance_blocker
     lane: learning
