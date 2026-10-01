@@ -1,9 +1,11 @@
--- Reuse the exact reader's owner-or-active-linked proof. For a personal
--- Project, either branch below already implies project_context_for_principal;
--- calling it separately repeated the linked-access scan for every list row.
--- Keep the learner Seat/Account, lineage, and source visibility checks intact.
-CREATE OR REPLACE FUNCTION public.learning_origin_work_context_for_project(
-    p_viewer_principal_id uuid, p_project_id uuid
+-- Batch exact-origin projection for learner lists. The authorization predicates
+-- are the same as the singleton reader in 0189, except that each candidate
+-- Project is processed by one set-based SQL statement. For a personal Project,
+-- owner-or-active-linked access already implies project_context_for_principal;
+-- the general check repeated the expensive linked scan for every list row.
+-- The helper is callable only inside these SECURITY DEFINER entrypoints.
+CREATE OR REPLACE FUNCTION public.learning_origin_work_context_for_project_ids(
+    p_viewer_principal_id uuid, p_project_ids uuid[]
 )
 RETURNS TABLE (context jsonb, evidence jsonb)
 LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -96,9 +98,9 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
           ON draft.project_id = project.id AND draft.tenant_id = project.tenant_id
         LEFT JOIN public.project_snapshots snapshot
           ON snapshot.project_id = project.id AND snapshot.tenant_id = project.tenant_id
-       WHERE origin.project_id = p_project_id
+       WHERE origin.project_id = ANY(p_project_ids)
          AND (origin.owner_principal_id = p_viewer_principal_id
-              OR public.learning_linked_project_access(p_viewer_principal_id, p_project_id))
+              OR public.learning_linked_project_access(p_viewer_principal_id, origin.project_id))
          AND (viewer.kind = 'student_seat' OR EXISTS (
              SELECT 1 FROM public.accounts account
              JOIN public.learner_identity_links account_link
@@ -299,3 +301,75 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
         'projectId', work.project_id
     ) FROM with_attempt work;
 $$;
+
+REVOKE ALL ON FUNCTION public.learning_origin_work_context_for_project_ids(uuid,uuid[])
+    FROM PUBLIC;
+
+-- Preserve the exact single-Project reader API and its current authorization.
+CREATE OR REPLACE FUNCTION public.learning_origin_work_context_for_project(
+    p_viewer_principal_id uuid, p_project_id uuid
+)
+RETURNS TABLE (context jsonb, evidence jsonb)
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    SELECT context, evidence
+      FROM public.learning_origin_work_context_for_project_ids(
+          p_viewer_principal_id, ARRAY[p_project_id]);
+$$;
+
+REVOKE ALL ON FUNCTION public.learning_origin_work_context_for_project(uuid,uuid)
+    FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_origin_work_context_for_project(uuid,uuid)
+    TO asalab_app;
+
+-- Materialize the same origin candidates, then project all of one actor's
+-- Projects in one reader call. Match the returned exact IDs back to each
+-- candidate exactly as the old per-row LATERAL reader did.
+CREATE OR REPLACE FUNCTION public.learning_origin_learner_list(
+    p_seat_id uuid, p_account_id uuid
+)
+RETURNS TABLE (context jsonb, evidence jsonb)
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    WITH candidates AS MATERIALIZED (
+      SELECT actor.id AS actor_id, seat.id AS seat_id,
+             origin.project_id, origin.participation_id, origin.activity_run_id
+        FROM public.classroom_student_seats seat
+        JOIN public.principals actor
+          ON (p_seat_id IS NOT NULL AND actor.kind = 'student_seat'
+              AND actor.seat_id = seat.id)
+          OR (p_account_id IS NOT NULL AND actor.kind = 'account'
+              AND actor.account_id = seat.account_id)
+        JOIN public.learner_identity_links seat_link
+          ON seat_link.tenant_id = seat.tenant_id
+         AND seat_link.seat_id = seat.id
+         AND seat_link.link_kind = 'student_seat'
+         AND seat_link.status = 'active'
+        JOIN public.learning_project_origins origin
+          ON origin.school_tenant_id = seat.tenant_id
+         AND origin.school_id = seat_link.school_id
+         AND origin.learner_identity_id = seat_link.learner_identity_id
+        JOIN public.activity_runs run
+          ON run.id = origin.activity_run_id
+         AND run.tenant_id = origin.school_tenant_id
+         AND run.classroom_id = seat.classroom_id
+       WHERE num_nonnulls(p_seat_id, p_account_id) = 1
+         AND seat.status = 'active'
+         AND ((p_seat_id IS NOT NULL AND seat.id = p_seat_id)
+              OR (p_account_id IS NOT NULL AND seat.account_id = p_account_id))
+    ), actors AS (
+      SELECT actor_id, array_agg(project_id) AS project_ids
+        FROM candidates GROUP BY actor_id
+    )
+    SELECT reader.context, reader.evidence
+      FROM actors actor
+      CROSS JOIN LATERAL public.learning_origin_work_context_for_project_ids(
+          actor.actor_id, actor.project_ids) reader
+      JOIN candidates candidate
+        ON candidate.actor_id = actor.actor_id
+       AND reader.context->>'projectId' = candidate.project_id::text
+       AND reader.context->>'seatId' = candidate.seat_id::text
+       AND reader.context->>'participationId' = candidate.participation_id::text
+       AND reader.context->>'activityRunId' = candidate.activity_run_id::text;
+$$;
+
+REVOKE ALL ON FUNCTION public.learning_origin_learner_list(uuid,uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.learning_origin_learner_list(uuid,uuid) TO asalab_app;
