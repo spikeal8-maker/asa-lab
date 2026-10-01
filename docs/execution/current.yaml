@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-ASSET-BOUNDARY-001
-      issue: 407
+      id: TASK-ELECTRONICS-ASSET-RECOVERY-001
+      issue: 453
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: wp_asset_01_map_verified
+      status: in_progress
+      checkpoint: asset_recovery_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 85e346cdad98b24d3757486b5ca1768dbea83e13
+      convergence_baseline_sha: 942068f22f7c4369a85e47dd62c4ebfd851757da
       head_sha: null
-      observed_at: '2026-09-27T15:59:00Z'
+      observed_at: '2026-10-01T15:53:30Z'
       main:
         branch: main
-        sha: 85e346cdad98b24d3757486b5ca1768dbea83e13
-      observation_note: Dated observation at WP-ASSET-01 selection; not a live remote HEAD; fetch main before writes.
+        sha: 942068f22f7c4369a85e47dd62c4ebfd851757da
+      observation_note: Dated observation at asset-recovery selection for issue 453; not product acceptance or a live HEAD; fetch main before writes.
     execution_lease:
-      executor_id: codex-electronics-eopt5b1d-known-unsupported-locality
+      executor_id: electronics-stabilization-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
