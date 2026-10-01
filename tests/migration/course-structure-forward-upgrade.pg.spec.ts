@@ -64,6 +64,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0189',
         '0190',
         '0191',
+        '0192',
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
@@ -222,6 +223,40 @@ describe('Course Builder structure forward upgrade', () => {
           [teacher.tenantId, classroom, teacher.teacherId],
         )
       ).rows[0].id as string;
+      const seatPrincipal = (
+        await pool.query('SELECT id FROM principals WHERE seat_id=$1', [seatId])
+      ).rows[0].id as string;
+      const legacyProject = (
+        await pool.query(
+          `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+           VALUES ($1,'personal','electronics','Forward legacy work',$2) RETURNING id`,
+          [teacher.tenantId, seatPrincipal],
+        )
+      ).rows[0].id as string;
+      const legacyTask = (
+        await pool.query(
+          `INSERT INTO teacher_assignments
+             (tenant_id,owner_principal_id,title,module_key,visibility)
+           VALUES ($1,$2,'Forward legacy task','electronics','private') RETURNING id`,
+          [teacher.tenantId, principal],
+        )
+      ).rows[0].id as string;
+      const legacyHandout = (
+        await pool.query(
+          `INSERT INTO classroom_assignments
+             (tenant_id,classroom_id,assignment_id,status,created_by)
+           VALUES ($1,$2,$3,'open',$4) RETURNING id`,
+          [teacher.tenantId, classroom, legacyTask, teacher.teacherId],
+        )
+      ).rows[0].id as string;
+      const legacyWork = (
+        await pool.query(
+          `INSERT INTO classroom_assignment_work
+             (tenant_id,assignment_id,seat_id,project_id)
+           VALUES ($1,$2,$3,$4) RETURNING id`,
+          [teacher.tenantId, legacyHandout, seatId, legacyProject],
+        )
+      ).rows[0].id as string;
       const sourceRun = (
         await pool.query(
           `SELECT classroom_id,source_classroom_assignment_id,learning_activity_version_id
@@ -263,7 +298,13 @@ describe('Course Builder structure forward upgrade', () => {
 
       const upgrade = await pool.connect();
       try {
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(expectedUpgradeVersions.length);
+        expect(
+          await applyIsolatedTestPlan(
+            upgrade,
+            plan.filter((item) => Number(item.version) <= 191),
+          ),
+        ).toBe(expectedUpgradeVersions.length - 1);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(1);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
@@ -272,6 +313,39 @@ describe('Course Builder structure forward upgrade', () => {
         (await pool.query('SELECT count(*)::int AS count FROM learning_project_origins')).rows[0]
           .count,
       ).toBe(0);
+      expect(
+        (
+          await pool.query(
+            `SELECT project_tenant_id,school_tenant_id,source_work_id
+               FROM learning_legacy_project_origins WHERE project_id=$1`,
+            [legacyProject],
+          )
+        ).rows[0],
+      ).toEqual({
+        project_tenant_id: teacher.tenantId,
+        school_tenant_id: teacher.tenantId,
+        source_work_id: legacyWork,
+      });
+      expect(
+        (
+          await pool.query('SELECT teacher_assignment_hand_out($1,$2,$3,false,NULL) AS ok', [
+            principal,
+            legacyTask,
+            classroom,
+          ])
+        ).rows[0].ok,
+      ).toBe(true);
+      expect(
+        (
+          await pool.query(
+            'SELECT count(*)::int AS count FROM classroom_assignment_work WHERE project_id=$1',
+            [legacyProject],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+      await expect(
+        pool.query("UPDATE projects SET status='archived' WHERE id=$1", [legacyProject]),
+      ).rejects.toMatchObject({ code: 'P5L01' });
       expect(
         (await pool.query('SELECT * FROM learning_attempts WHERE id=$1', [legacyAttemptId]))
           .rows[0],

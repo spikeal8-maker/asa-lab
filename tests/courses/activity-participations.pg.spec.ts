@@ -1413,6 +1413,21 @@ describe('A4-1 immutable learning project origin', () => {
     await expect(
       inTenant(owner.tenantId, (client) => client.query(`SELECT * FROM learning_project_origins`)),
     ).rejects.toThrow(/permission denied/);
+    expect(
+      (
+        await admin.query(
+          `SELECT has_table_privilege('asalab_app','learning_legacy_project_origins','SELECT') AS select,
+                  has_table_privilege('asalab_app','learning_legacy_project_origins','INSERT') AS insert,
+                  has_table_privilege('asalab_app','learning_legacy_project_origins','UPDATE') AS update,
+                  has_table_privilege('asalab_app','learning_legacy_project_origins','DELETE') AS delete`,
+        )
+      ).rows[0],
+    ).toEqual({ select: false, insert: false, update: false, delete: false });
+    await expect(
+      inTenant(owner.tenantId, (client) =>
+        client.query('SELECT * FROM learning_legacy_project_origins'),
+      ),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it('protects only a persisted legacy assignment-work link from generic status changes', async () => {
@@ -1420,16 +1435,106 @@ describe('A4-1 immutable learning project origin', () => {
       await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
     ).rows[0].seat_id as string;
     const original = await project(learnerPrincipal);
+    const handout = await directHandout();
     await admin.query(
       `INSERT INTO classroom_assignment_work
          (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
-      [owner.tenantId, await directHandout(), seatId, original],
+      [owner.tenantId, handout, seatId, original],
     );
     await expect(
       admin.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
     ).rejects.toMatchObject({ code: 'P5L01' });
     await expect(
       admin.query("UPDATE projects SET status='trashed' WHERE id=$1", [original]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    const authoredAssignment = (
+      await admin.query('SELECT assignment_id FROM classroom_assignments WHERE id=$1', [handout])
+    ).rows[0].assignment_id as string;
+    expect(
+      (
+        await inTenant(owner.tenantId, (client) =>
+          client.query('SELECT teacher_assignment_hand_out($1,$2,$3,false,NULL) AS ok', [
+            ownerPrincipal,
+            authoredAssignment,
+            classroom,
+          ]),
+        )
+      ).rows[0].ok,
+    ).toBe(true);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS count FROM classroom_assignment_work WHERE project_id=$1',
+          [original],
+        )
+      ).rows[0].count,
+    ).toBe(0);
+    const firstSourceWork = (
+      await admin.query(
+        'SELECT source_work_id FROM learning_legacy_project_origins WHERE project_id=$1',
+        [original],
+      )
+    ).rows[0].source_work_id as string;
+    const secondHandout = await directHandout();
+    const secondWork = (
+      await admin.query(
+        `INSERT INTO classroom_assignment_work
+           (tenant_id,assignment_id,seat_id,project_id)
+         VALUES ($1,$2,$3,$4) RETURNING id`,
+        [owner.tenantId, secondHandout, seatId, original],
+      )
+    ).rows[0].id as string;
+    expect(secondWork).not.toBe(firstSourceWork);
+    expect(
+      (
+        await admin.query(
+          'SELECT source_work_id FROM learning_legacy_project_origins WHERE project_id=$1',
+          [original],
+        )
+      ).rows[0].source_work_id,
+    ).toBe(firstSourceWork);
+    await expect(
+      admin.query('DELETE FROM learning_legacy_project_origins WHERE project_id=$1', [original]),
+    ).rejects.toThrow(/immutable/);
+    await admin.query('DELETE FROM classroom_assignment_work WHERE id=$1', [secondWork]);
+    await expect(
+      admin.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    await expect(
+      inTenant(owner.tenantId, (client) =>
+        client.query('SELECT gallery_publish($1,$2)', [ownerPrincipal, original]),
+      ),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+
+    const deletedOriginal = await project(learnerPrincipal);
+    const deletedHandout = await directHandout();
+    await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+      [owner.tenantId, deletedHandout, seatId, deletedOriginal],
+    );
+    const deletedAssignment = (
+      await admin.query('SELECT assignment_id FROM classroom_assignments WHERE id=$1', [
+        deletedHandout,
+      ])
+    ).rows[0].assignment_id as string;
+    expect(
+      (
+        await inTenant(owner.tenantId, (client) =>
+          client.query('SELECT teacher_assignment_delete($1,$2) AS ok', [
+            ownerPrincipal,
+            deletedAssignment,
+          ]),
+        )
+      ).rows[0].ok,
+    ).toBe(true);
+    await expect(
+      admin.query("UPDATE projects SET status='trashed' WHERE id=$1", [deletedOriginal]),
+    ).rejects.toMatchObject({ code: 'P5L01' });
+    await expect(
+      inTenant(owner.tenantId, (client) =>
+        client.query('SELECT gallery_publish($1,$2)', [ownerPrincipal, deletedOriginal]),
+      ),
     ).rejects.toMatchObject({ code: 'P5L01' });
 
     const personal = await project(learnerPrincipal);
@@ -1498,6 +1603,63 @@ describe('A4-1 immutable learning project origin', () => {
         [owner.tenantId, await directHandout(), seatId, publishedBeforeLearning],
       ),
     ).rejects.toThrow(/active unpublished project/);
+  });
+
+  it('keeps a linked Account legacy original protected across school and project tenants', async () => {
+    const seat = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const priorAccount = (
+      await admin.query('SELECT account_id FROM classroom_student_seats WHERE id=$1', [seat])
+    ).rows[0].account_id as string | null;
+    const linked = await seedTeacher(admin, 'a5-legacy-cross-tenant');
+    const account = (
+      await admin.query(
+        'SELECT account_id,principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+        [linked.tenantId, linked.teacherId],
+      )
+    ).rows[0];
+    try {
+      await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+        account.account_id,
+        seat,
+      ]);
+      const original = await project(account.principal_id as string, linked.tenantId);
+      const handout = await directHandout();
+      await admin.query(
+        `INSERT INTO classroom_assignment_work
+           (tenant_id,assignment_id,seat_id,project_id) VALUES ($1,$2,$3,$4)`,
+        [owner.tenantId, handout, seat, original],
+      );
+      expect(
+        (
+          await admin.query(
+            'SELECT school_tenant_id,project_tenant_id FROM learning_legacy_project_origins WHERE project_id=$1',
+            [original],
+          )
+        ).rows[0],
+      ).toEqual({ school_tenant_id: owner.tenantId, project_tenant_id: linked.tenantId });
+      const authoredAssignment = (
+        await admin.query('SELECT assignment_id FROM classroom_assignments WHERE id=$1', [handout])
+      ).rows[0].assignment_id as string;
+      await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT teacher_assignment_hand_out($1,$2,$3,false,NULL)', [
+          ownerPrincipal,
+          authoredAssignment,
+          classroom,
+        ]),
+      );
+      await expect(
+        inTenant(linked.tenantId, (client) =>
+          client.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
+        ),
+      ).rejects.toMatchObject({ code: 'P5L01' });
+    } finally {
+      await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+        priorAccount,
+        seat,
+      ]);
+    }
   });
 });
 
