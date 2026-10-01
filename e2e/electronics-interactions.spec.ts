@@ -948,7 +948,7 @@ test.describe('asset recovery in the built editor', () => {
     await expect(badge).toBeVisible();
     await expect(badge).toHaveAttribute('data-testid', 'owner-image-error');
     const label = badge.locator('text');
-    await expect(label).toHaveText('Ошибка');
+    await expect(label).toHaveText('!');
     await expect(label).toBeVisible();
     const outer = (await visual.boundingBox())!;
     const error = (await badge.boundingBox())!;
