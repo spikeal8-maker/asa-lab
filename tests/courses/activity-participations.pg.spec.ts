@@ -4108,12 +4108,14 @@ describe('A4-3b immutable-origin Project Submission', () => {
     });
     expect(pinned.rows[0].payload_digest).toMatch(/^[0-9a-f]{64}$/);
     const savedDocument = pinned.rows[0].document_json;
-    await admin.query(
-      `UPDATE project_drafts
-          SET revision=2,document_json='{"schemaVersion":1,"components":[]}'::jsonb
-        WHERE project_id=$1`,
-      [started.projectId],
-    );
+    await expect(
+      admin.query(
+        `UPDATE project_drafts
+            SET revision=2,document_json='{"schemaVersion":1,"components":[]}'::jsonb
+          WHERE project_id=$1`,
+        [started.projectId],
+      ),
+    ).rejects.toMatchObject({ code: 'P5L02' });
     expect((await submitOrigin(learnerPrincipal, started.projectId, requestId, 1)).reused).toBe(
       true,
     );
