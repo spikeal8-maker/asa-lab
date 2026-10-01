@@ -1004,6 +1004,7 @@ describe('A4-1 immutable learning project origin', () => {
     const claim = await admin.connect();
     let claimOpen = false;
     let pending: Promise<unknown> | undefined;
+    let duplicateSettled = false;
     const key = `a5-duplicate-race-${randomUUID()}`;
     try {
       await claim.query('BEGIN');
@@ -1017,7 +1018,16 @@ describe('A4-1 immutable learning project origin', () => {
           title: 'Копия во время Start',
           idempotencyKey: key,
         })
-        .catch((error: unknown) => ({ error }));
+        .then(
+          (result) => {
+            duplicateSettled = true;
+            return result;
+          },
+          (error: unknown) => {
+            duplicateSettled = true;
+            return { error };
+          },
+        );
       let lockWaitObserved = false;
       for (let attempt = 0; attempt < 100 && !lockWaitObserved; attempt++) {
         const waiting = await admin.query(
@@ -1025,12 +1035,15 @@ describe('A4-1 immutable learning project origin', () => {
              SELECT 1 FROM pg_stat_activity
               WHERE usename = 'asalab_app'
                 AND wait_event_type = 'Lock'
-                AND query LIKE '%FOR UPDATE OF p%'
+                -- pg_stat_activity may truncate a long query before its final
+                -- FOR UPDATE clause; match this command's distinctive prefix.
+                AND query LIKE 'SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.status,%'
            ) AS waiting`,
         );
         lockWaitObserved = waiting.rows[0].waiting as boolean;
         if (!lockWaitObserved) await new Promise((resolve) => setTimeout(resolve, 50));
       }
+      expect(duplicateSettled).toBe(false);
       await claim.query('COMMIT');
       claimOpen = false;
       expect(lockWaitObserved).toBe(true);
