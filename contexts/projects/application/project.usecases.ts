@@ -400,27 +400,24 @@ export class DuplicateProjectUseCase {
     if (!isValidProjectTitle(input.title)) {
       return fail('validation_error', 'title must be 1..255 characters');
     }
-    const source = await this.repository.load(input.tenantId, input.projectId, input.actor);
-    if (!source || source.project.status === 'trashed') {
-      return fail('project_not_found', 'project not found');
-    }
     const title = input.title.trim();
     const requestFingerprint = createHash('sha256')
       .update(JSON.stringify({ sourceProjectId: input.projectId, title }))
       .digest('hex');
-    const result = await this.repository.createWithDraft({
+    const result = await this.repository.duplicateWithDraft({
       tenantId: input.tenantId,
-      scope: source.project.scope,
-      classroomId: source.project.classroomId,
+      projectId: input.projectId,
       actor: input.actor,
-      moduleKey: source.project.moduleKey,
       title,
       idempotencyKey: input.idempotencyKey,
       requestFingerprint,
-      initialDocument: source.draft.document,
-      // A copy of the same document is the same picture; no need to redraw it.
-      initialPreview: source.draft.preview,
     });
+    if (result.kind === 'project_not_found') {
+      return fail('project_not_found', 'project not found');
+    }
+    if (result.kind === 'learning_work_protected') {
+      return fail('learning_work_protected', new LearningWorkProtectedError().message);
+    }
     if (result.kind === 'conflict') {
       return fail(
         'idempotency_conflict',

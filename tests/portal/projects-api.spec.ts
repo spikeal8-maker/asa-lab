@@ -477,6 +477,42 @@ describe('personal teacher projects', () => {
     });
     expect(opened.json().draft.document).toEqual(seriesDocument());
   });
+
+  it('rejects generic duplicate of a protected original without creating a copy', async () => {
+    const owner = await seedTeacher(admin, 'protected-duplicate-owner');
+    const outsider = await seedTeacher(admin, 'protected-duplicate-outsider');
+    const token = await login(owner);
+    const outsiderToken = await login(outsider);
+    const created = await createProject(token, { scope: 'personal', title: 'Учебный оригинал' });
+    expect(created.status).toBe(201);
+    const projectId = created.body.project.id;
+    await admin.query(
+      `INSERT INTO learning_legacy_project_origins
+         (project_id,project_tenant_id,school_tenant_id,source_work_id,claimed_at)
+       VALUES ($1,$2,$2,$3,now())`,
+      [projectId, owner.tenantId, crypto.randomUUID()],
+    );
+    const key = `protected-duplicate-${crypto.randomUUID()}`;
+    const request = {
+      method: 'POST' as const,
+      url: `/api/projects/${projectId}/duplicate`,
+      headers: { 'idempotency-key': key },
+      payload: { title: 'Нельзя копировать' },
+    };
+    const denied = await inject(app, { ...request, cookies: { asa_session: token } });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.json().error.code).toBe('learning_work_protected');
+    const hidden = await inject(app, { ...request, cookies: { asa_session: outsiderToken } });
+    expect(hidden.statusCode).toBe(404);
+    expect(hidden.body).not.toContain('learning_work_protected');
+    expect(
+      (
+        await admin.query('SELECT count(*)::int AS count FROM projects WHERE idempotency_key=$1', [
+          key,
+        ])
+      ).rows[0].count,
+    ).toBe(0);
+  });
 });
 
 describe('classroom projects', () => {

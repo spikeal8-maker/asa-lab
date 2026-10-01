@@ -70,6 +70,22 @@ function repo(overrides: Partial<ProjectRepositoryPort> = {}): {
       }
       return { kind: previous ? 'existing' : 'created', project: personalProject };
     },
+    duplicateWithDraft: async (input) => {
+      const source = await port.load(input.tenantId, input.projectId, input.actor);
+      if (!source || source.project.status === 'trashed') return { kind: 'project_not_found' };
+      return port.createWithDraft({
+        tenantId: input.tenantId,
+        scope: source.project.scope,
+        classroomId: source.project.classroomId,
+        actor: input.actor,
+        moduleKey: source.project.moduleKey,
+        title: input.title,
+        idempotencyKey: input.idempotencyKey,
+        requestFingerprint: input.requestFingerprint,
+        initialDocument: source.draft.document,
+        initialPreview: source.draft.preview,
+      });
+    },
     nextTitleSequence: async () => 4,
     listForActor: async () => [personalProject],
     authorize: async (_tenantId, projectId, _principalId, access) =>
@@ -481,6 +497,21 @@ describe('list, rename, draft and checkpoint', () => {
       moduleKey: 'electronics',
       initialDocument: { schemaVersion: 1, components: [], connections: [] },
     });
+  });
+
+  it('reports a protected learning original without creating a copy', async () => {
+    const { port, creates } = repo({
+      duplicateWithDraft: async () => ({ kind: 'learning_work_protected' }),
+    });
+    const result = await new DuplicateProjectUseCase(port).execute({
+      tenantId: 't1',
+      projectId: 'p1',
+      actor: { principalId: 'principal:1', userId: 'u1' },
+      title: 'Копия схемы',
+      idempotencyKey: 'duplicate-denied',
+    });
+    expect(result).toMatchObject({ ok: false, code: 'learning_work_protected' });
+    expect(creates).toHaveLength(0);
   });
 
   it('reports a missing project on open, rename, save and checkpoint', async () => {
