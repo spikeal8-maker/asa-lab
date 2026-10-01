@@ -2347,6 +2347,18 @@ describe('A4-2b atomic StartLearningWork', () => {
       ]),
     );
     expect(wrongClassRead.rows).toEqual([]);
+    const deniedLinkedAccess = await inTenant(owner.tenantId, async (client) => ({
+      wrongClass: await client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
+        wrongClassPrincipal,
+        started.projectId,
+      ]),
+      foreign: await client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
+        outsiderPrincipal,
+        started.projectId,
+      ]),
+    }));
+    expect(deniedLinkedAccess.wrongClass.rows).toEqual([{ allowed: false }]);
+    expect(deniedLinkedAccess.foreign.rows).toEqual([{ allowed: false }]);
 
     const linkedReader = await app.connect();
     const linkRevoker = await admin.connect();
@@ -2395,6 +2407,13 @@ describe('A4-2b atomic StartLearningWork', () => {
     }));
     expect(revokedRead.seat.rows).toEqual([]);
     expect(revokedRead.account.rows).toEqual([]);
+    const revokedLinkedAccess = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
+        learnerPrincipal,
+        started.projectId,
+      ]),
+    );
+    expect(revokedLinkedAccess.rows).toEqual([{ allowed: false }]);
     expect(
       await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
     ).toBeNull();
@@ -3569,57 +3588,6 @@ describe('A4-3b immutable-origin Project Submission', () => {
       }
     };
     const bySeatList = await readList('Seat', seatId);
-    if (process.env.ASA_ORIGIN_LIST_NESTED_PROFILE === 'true') {
-      const profiler = await admin.connect();
-      try {
-        await profiler.query("SET track_functions = 'all'");
-        await profiler.query('SELECT pg_stat_reset()');
-        await profiler.query('BEGIN');
-        await profiler.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
-        await profiler.query('SET LOCAL ROLE asalab_app');
-        const started = performance.now();
-        const profiled = await profiler.query(
-          'SELECT context FROM learning_origin_learner_list(NULL,$1)',
-          [accountId],
-        );
-        console.info(
-          '[Account list nested profile] rows',
-          profiled.rowCount,
-          'ms',
-          performance.now() - started,
-        );
-        await profiler.query('COMMIT');
-        await profiler.query('SELECT pg_stat_clear_snapshot()');
-        const functions = await profiler.query(
-          `SELECT funcname, calls, round(total_time::numeric,2) AS total_ms,
-                  round(self_time::numeric,2) AS self_ms
-             FROM pg_stat_user_functions
-            WHERE schemaname='public' AND (funcname LIKE 'learning_%'
-              OR funcname='project_context_for_principal')
-            ORDER BY total_time DESC LIMIT 30`,
-        );
-        console.info('[Account list nested profile] functions', JSON.stringify(functions.rows));
-        const accessSource = await profiler.query<{ prosrc: string }>(
-          `SELECT prosrc FROM pg_proc
-            WHERE oid='public.learning_linked_project_access(uuid,uuid)'::regprocedure`,
-        );
-        const accessSql = accessSource.rows[0]!.prosrc.replace(
-          /\bp_actor_principal_id\b/g,
-          '$1',
-        ).replace(/\bp_project_id\b/g, '$2');
-        const accessPlan = await profiler.query<{ 'QUERY PLAN': unknown }>(
-          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${accessSql}`,
-          [accountPrincipal, seatOwned.projectId],
-        );
-        console.info(
-          '[Account list linked access plan]',
-          JSON.stringify(accessPlan.rows[0]?.['QUERY PLAN'] ?? null),
-        );
-      } finally {
-        profiler.release();
-      }
-      return;
-    }
     const byAccountList = await readList('Account', accountId);
     mark('learner list SQL calls complete');
     const originCount = await diagnosticPool
