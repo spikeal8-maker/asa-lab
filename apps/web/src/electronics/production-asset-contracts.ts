@@ -167,6 +167,7 @@ export function ordinaryLedAsset(state: OrdinaryLedState): string {
 }
 
 const warmedProductionAssets = new Set<string>();
+const warmingProductionAssets = new Set<string>();
 
 /**
  * Warms one exact owner asset in the browser cache. LED state changes use
@@ -174,11 +175,25 @@ const warmedProductionAssets = new Set<string>();
  * Start prevents network latency from looking like solver latency.
  */
 export function warmProductionAsset(asset: string): void {
-  if (typeof window === 'undefined' || warmedProductionAssets.has(asset)) return;
-  warmedProductionAssets.add(asset);
+  if (
+    typeof window === 'undefined' ||
+    warmedProductionAssets.has(asset) ||
+    warmingProductionAssets.has(asset)
+  )
+    return;
+  warmingProductionAssets.add(asset);
   const image = new window.Image();
   image.decoding = 'async';
-  image.onerror = () => warmedProductionAssets.delete(asset);
+  const finish = (success: boolean): void => {
+    window.clearTimeout(timeout);
+    image.onload = null;
+    image.onerror = null;
+    warmingProductionAssets.delete(asset);
+    if (success) warmedProductionAssets.add(asset);
+  };
+  const timeout = window.setTimeout(() => finish(false), 2_500);
+  image.onload = () => finish(image.naturalWidth > 0 && image.naturalHeight > 0);
+  image.onerror = () => finish(false);
   image.src = asset;
 }
 

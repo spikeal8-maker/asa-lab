@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogEntry } from '../component-catalog';
 import {
   componentAssetContainsPoint,
+  componentHitMaskStatus,
   hitMaskContainsPoint,
   hitMaskVisibleBounds,
   preloadComponentHitMask,
@@ -71,6 +72,7 @@ describe('production component hit mask recovery', () => {
     pixels[(5 * 10 + 5) * 4 + 3] = 255;
     vi.stubGlobal('Image', TestImage);
     vi.stubGlobal('document', {
+      baseURI: 'http://localhost/',
       createElement: () => ({
         getContext: () => ({
           save() {},
@@ -93,5 +95,93 @@ describe('production component hit mask recovery', () => {
     expect(componentAssetContainsPoint(entry, 10, 10, { x: 0, y: 0 })).toBe(false);
     await preloadComponentHitMask(entry, 10, 10);
     expect(requests).toHaveLength(2);
+  });
+
+  it('times out a hung image and ignores its late response after a retry succeeds', async () => {
+    vi.useFakeTimers();
+    const requests: string[] = [];
+    const lateLoads: Array<() => void> = [];
+    class TestImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 10;
+      naturalHeight = 10;
+      set src(value: string) {
+        requests.push(value);
+        if (requests.length === 1 && this.onload) lateLoads.push(this.onload);
+        else queueMicrotask(() => this.onload?.());
+      }
+    }
+    const pixels = new Uint8ClampedArray(10 * 10 * 4);
+    pixels[(5 * 10 + 5) * 4 + 3] = 255;
+    vi.stubGlobal('Image', TestImage);
+    vi.stubGlobal('document', {
+      baseURI: 'http://localhost/',
+      createElement: () => ({
+        getContext: () => ({
+          save() {},
+          restore() {},
+          drawImage() {},
+          getImageData: () => ({ data: pixels }),
+        }),
+      }),
+    });
+    const entry = {
+      key: 'asset-recovery-hang',
+      asset: '/assets/electronics/hang.svg',
+    } as CatalogEntry;
+    const ready = preloadComponentHitMask(entry, 10, 10);
+    await vi.advanceTimersByTimeAsync(4_000);
+    await ready;
+    expect(requests).toHaveLength(2);
+    expect(componentHitMaskStatus(entry, 10, 10)).toBe('ready');
+    lateLoads[0]?.();
+    expect(componentAssetContainsPoint(entry, 10, 10, { x: 5, y: 5 })).toBe(true);
+  });
+
+  it('rejects an empty painted image, stops after three attempts, and re-arms on demand', async () => {
+    vi.useFakeTimers();
+    let requests = 0;
+    class TestImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = 10;
+      naturalHeight = 10;
+      set src(_value: string) {
+        requests += 1;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    vi.stubGlobal('Image', TestImage);
+    vi.stubGlobal('document', {
+      baseURI: 'http://localhost/',
+      createElement: () => ({
+        getContext: () => ({
+          save() {},
+          restore() {},
+          drawImage() {},
+          getImageData: () => {
+            const pixels = new Uint8ClampedArray(10 * 10 * 4);
+            if (requests > 3) pixels[(5 * 10 + 5) * 4 + 3] = 255;
+            return { data: pixels };
+          },
+        }),
+      }),
+    });
+    const entry = {
+      key: 'asset-recovery-empty',
+      asset: '/assets/electronics/empty.svg',
+    } as CatalogEntry;
+    const failed = preloadComponentHitMask(entry, 10, 10);
+    await vi.advanceTimersByTimeAsync(3_000);
+    await failed;
+    expect(requests).toBe(3);
+    expect(componentHitMaskStatus(entry, 10, 10)).toBe('failed');
+    expect(componentAssetContainsPoint(entry, 10, 10, { x: 5, y: 5 })).toBe(false);
+    await preloadComponentHitMask(entry, 10, 10);
+    expect(requests).toBe(3);
+    await preloadComponentHitMask(entry, 10, 10, true);
+    expect(requests).toBe(4);
+    expect(componentHitMaskStatus(entry, 10, 10)).toBe('ready');
   });
 });

@@ -1,6 +1,7 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
@@ -92,16 +93,228 @@ interface Props {
 }
 
 const ownerSvgSourceCache = new Map<string, Promise<string>>();
+const failedOwnerSvgAssets = new Set<string>();
+const OWNER_SVG_ATTEMPTS = 3;
+const OWNER_SVG_TIMEOUT_MS = 2_500;
 
-function ownerSvgSource(asset: string): Promise<string> {
+async function fetchOwnerSvgText(asset: string, reload: boolean): Promise<string> {
+  const controller = new AbortController();
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const expired = new Promise<never>((_resolve, reject) => {
+    timeout = setTimeout(() => {
+      controller.abort();
+      reject(new Error('Owner SVG request timed out'));
+    }, OWNER_SVG_TIMEOUT_MS);
+  });
+  try {
+    const source = await Promise.race([
+      fetch(asset, { cache: reload ? 'reload' : 'force-cache', signal: controller.signal }).then(
+        async (response) => {
+          if (!response.ok) throw new Error(`Owner SVG request failed: ${response.status}`);
+          return response.text();
+        },
+      ),
+      expired,
+    ]);
+    const parsed = new DOMParser().parseFromString(source, 'image/svg+xml');
+    if (
+      parsed.documentElement.localName !== 'svg' ||
+      parsed.documentElement.namespaceURI !== 'http://www.w3.org/2000/svg' ||
+      parsed.querySelector('parsererror')
+    ) {
+      throw new Error('Owner SVG response is not valid SVG');
+    }
+    return source;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+export function ownerSvgSource(asset: string): Promise<string> {
   const cached = ownerSvgSourceCache.get(asset);
   if (cached) return cached;
-  const pending = fetch(asset, { cache: 'force-cache' }).then((response) => {
-    if (!response.ok) throw new Error(`Owner SVG request failed: ${response.status}`);
-    return response.text();
-  });
+  const reload = failedOwnerSvgAssets.has(asset);
+  const pending = (async () => {
+    for (let attempt = 0; attempt < OWNER_SVG_ATTEMPTS; attempt += 1) {
+      try {
+        const source = await fetchOwnerSvgText(asset, reload || attempt > 0);
+        failedOwnerSvgAssets.delete(asset);
+        return source;
+      } catch (error) {
+        if (attempt + 1 === OWNER_SVG_ATTEMPTS) throw error;
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, 200 * 2 ** attempt + Math.random() * 200),
+        );
+      }
+    }
+    throw new Error('Owner SVG recovery exhausted');
+  })();
   ownerSvgSourceCache.set(asset, pending);
+  void pending.catch(() => {
+    if (ownerSvgSourceCache.get(asset) === pending) ownerSvgSourceCache.delete(asset);
+    failedOwnerSvgAssets.add(asset);
+  });
   return pending;
+}
+
+function useOwnerSvgSource(asset: string): {
+  readonly source: string | null;
+  readonly failed: boolean;
+} {
+  const [loaded, setLoaded] = useState<{
+    readonly asset: string;
+    readonly source: string | null;
+    readonly failed: boolean;
+  }>({ asset, source: null, failed: false });
+  useEffect(() => {
+    let active = true;
+    const load = (): void => {
+      setLoaded({ asset, source: null, failed: false });
+      void ownerSvgSource(asset)
+        .then((source) => {
+          if (active) setLoaded({ asset, source, failed: false });
+        })
+        .catch(() => {
+          if (active) setLoaded({ asset, source: null, failed: true });
+        });
+    };
+    const retry = (): void => {
+      if (failedOwnerSvgAssets.has(asset)) load();
+    };
+    const retryWhenVisible = (): void => {
+      if (!document.hidden) retry();
+    };
+    load();
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    document.addEventListener('visibilitychange', retryWhenVisible);
+    return () => {
+      active = false;
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      document.removeEventListener('visibilitychange', retryWhenVisible);
+    };
+  }, [asset]);
+  return loaded.asset === asset
+    ? { source: loaded.source, failed: loaded.failed }
+    : { source: null, failed: false };
+}
+
+const recoveredOwnerImages = new Map<string, Promise<string>>();
+const failedOwnerImages = new Set<string>();
+
+function recoverOwnerImage(asset: string): Promise<string> {
+  const cached = recoveredOwnerImages.get(asset);
+  if (cached) return cached;
+  const pending = (async () => {
+    for (let attempt = 0; attempt < OWNER_SVG_ATTEMPTS; attempt += 1) {
+      try {
+        const href = await new Promise<string>((resolve, reject) => {
+          const url = new URL(asset, document.baseURI);
+          url.searchParams.set('asa-image-retry', String(attempt));
+          const image = new Image();
+          let settled = false;
+          const finish = (completed: () => void): void => {
+            if (settled) return;
+            settled = true;
+            clearTimeout(timeout);
+            image.onload = null;
+            image.onerror = null;
+            completed();
+          };
+          const timeout = setTimeout(
+            () => finish(() => reject(new Error('Owner image timed out'))),
+            OWNER_SVG_TIMEOUT_MS,
+          );
+          image.onload = () =>
+            finish(() =>
+              image.naturalWidth > 0 && image.naturalHeight > 0
+                ? resolve(url.href)
+                : reject(new Error('Owner image has no dimensions')),
+            );
+          image.onerror = () => finish(() => reject(new Error('Owner image failed')));
+          image.src = url.href;
+        });
+        failedOwnerImages.delete(asset);
+        return href;
+      } catch (error) {
+        if (attempt + 1 === OWNER_SVG_ATTEMPTS) throw error;
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, 200 * 2 ** attempt + Math.random() * 200),
+        );
+      }
+    }
+    throw new Error('Owner image recovery exhausted');
+  })();
+  recoveredOwnerImages.set(asset, pending);
+  void pending.catch(() => {
+    if (recoveredOwnerImages.get(asset) === pending) recoveredOwnerImages.delete(asset);
+    failedOwnerImages.add(asset);
+  });
+  return pending;
+}
+
+function useOwnerImageHref(asset: string): {
+  readonly href: string;
+  readonly failed: boolean;
+  readonly onError: () => void;
+} {
+  const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
+  const current = useRef(loaded);
+  current.current = loaded;
+  const recoverRef = useRef<() => void>(() => undefined);
+  useEffect(() => {
+    let active = true;
+    let loading = false;
+    const recover = (): void => {
+      if (loading) return;
+      if (
+        current.current.asset === asset &&
+        current.current.href !== asset &&
+        !failedOwnerImages.has(asset)
+      ) {
+        // The validated retry URL failed in this mounted SVG image consumer.
+        recoveredOwnerImages.delete(asset);
+        failedOwnerImages.add(asset);
+        setLoaded({ asset, href: current.current.href, failed: true });
+        return;
+      }
+      loading = true;
+      setLoaded({ asset, href: asset, failed: false });
+      void recoverOwnerImage(asset)
+        .then((href) => {
+          if (active) setLoaded({ asset, href, failed: false });
+        })
+        .catch(() => {
+          if (active) setLoaded({ asset, href: asset, failed: true });
+        })
+        .finally(() => {
+          loading = false;
+        });
+    };
+    recoverRef.current = recover;
+    const retry = (): void => {
+      if (failedOwnerImages.has(asset)) recover();
+    };
+    const retryWhenVisible = (): void => {
+      if (!document.hidden) retry();
+    };
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    document.addEventListener('visibilitychange', retryWhenVisible);
+    return () => {
+      active = false;
+      recoverRef.current = () => undefined;
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      document.removeEventListener('visibilitychange', retryWhenVisible);
+    };
+  }, [asset]);
+  return {
+    href: loaded.asset === asset ? loaded.href : asset,
+    failed: loaded.asset === asset && loaded.failed,
+    onError: () => recoverRef.current(),
+  };
 }
 
 function OwnerMultimeterVisual({
@@ -121,26 +334,21 @@ function OwnerMultimeterVisual({
   readonly measuredValue: number | undefined;
   readonly onModeChange?: ((mode: 'dc-voltage' | 'dc-current' | 'resistance') => void) | undefined;
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const markup = useMemo(
     () => (ownerSvg ? multimeterRuntimeMarkup(ownerSvg, measurementMode, displayValue) : ''),
     [displayValue, measurementMode, ownerSvg],
   );
   if (!markup) {
-    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   }
   return (
     <svg
@@ -194,22 +402,18 @@ function OwnerPiezoVisual({
   readonly height: number;
   readonly viewBox: CatalogEntry['viewBox'];
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const markup = useMemo(() => (ownerSvg ? piezoRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
-  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  if (!markup)
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   return (
     <svg
       className="workbench-piezo-owner-runtime"
@@ -259,21 +463,8 @@ function OwnerRegulatedPowerSupplyVisual({
   readonly simulationRunning: boolean;
   readonly onChange?: Props['onRegulatedPowerSupplyChange'];
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
   const properties = component.stateProperties ?? {};
   const voltageSetpointVolt = Math.min(
     30,
@@ -333,7 +524,16 @@ function OwnerRegulatedPowerSupplyVisual({
         : { currentLimitAmp: Math.max(0, Math.round(value * 100) / 100) },
     );
   };
-  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  if (!markup)
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   return (
     <svg
       className="workbench-regulated-supply-runtime"
@@ -421,23 +621,10 @@ function OwnerSignalGeneratorVisual({
   readonly component: SchematicComponent;
   readonly onChange?: Props['onSignalGeneratorChange'];
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'frequency' | 'amplitude' | 'offset' | null>(
     null,
   );
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
   const properties = component.stateProperties ?? {};
   const waveformValue = String(properties['waveform'] ?? 'sine');
   const waveform =
@@ -480,7 +667,16 @@ function OwnerSignalGeneratorVisual({
           : { dcOffsetVolt: value },
     );
   };
-  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  if (!markup)
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   return (
     <svg
       className="workbench-signal-generator-runtime"
@@ -552,20 +748,7 @@ function OwnerOscilloscopeVisual({
   readonly result?: ComponentResult | undefined;
   readonly simulationRunning: boolean;
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const properties = component.stateProperties ?? {};
   const displayEnabled =
     properties['displayEnabled'] !== false && component.state !== false && simulationRunning;
@@ -590,7 +773,16 @@ function OwnerOscilloscopeVisual({
         : '',
     [displayEnabled, ownerSvg, result, timePerDivisionMs, voltsPerDivision],
   );
-  if (!markup) return <image href={asset} width={width} height={height} pointerEvents="none" />;
+  if (!markup)
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   return (
     <svg
       className="workbench-oscilloscope-runtime"
@@ -619,27 +811,22 @@ function OwnerPotentiometerVisual({
   readonly height: number;
   readonly wiperPosition: number;
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const angle = potentiometerKnobAngle(wiperPosition);
   const markup = useMemo(
     () => (ownerSvg ? potentiometerRuntimeMarkup(ownerSvg, wiperPosition) : ''),
     [ownerSvg, wiperPosition],
   );
   if (!markup) {
-    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   }
   return (
     <svg
@@ -668,23 +855,18 @@ function OwnerDcMotorVisual({
   readonly height: number;
   readonly motorRpm: number;
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const markup = useMemo(() => (ownerSvg ? dcMotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
-    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   }
   const motion = dcMotorVisualMotion(motorRpm);
   const motionStyle = {
@@ -725,23 +907,18 @@ function OwnerGearmotorVisual({
   readonly outputRpm: number;
   readonly simulationTimeMs: number;
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const markup = useMemo(() => (ownerSvg ? gearmotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
-    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   }
   const presentation = gearmotorVisualPresentation(simulationTimeMs, motorRpm, outputRpm);
   const presentationStyle = {
@@ -786,23 +963,18 @@ function OwnerVibrationMotorVisual({
   readonly frequencyHz: number;
   readonly vibrationLevelPercent: number;
 }): JSX.Element {
-  const [ownerSvg, setOwnerSvg] = useState<string | null>(null);
-  useEffect(() => {
-    let mounted = true;
-    void ownerSvgSource(asset)
-      .then((source) => {
-        if (mounted) setOwnerSvg(source);
-      })
-      .catch(() => {
-        if (mounted) setOwnerSvg(null);
-      });
-    return () => {
-      mounted = false;
-    };
-  }, [asset]);
+  const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const markup = useMemo(() => (ownerSvg ? vibrationMotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
-    return <image href={asset} width={width} height={height} pointerEvents="none" />;
+    return (
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        pointerEvents="none"
+        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+      />
+    );
   }
   const motion = vibrationMotorVisualMotion(frequencyHz, vibrationLevelPercent);
   const motionStyle = {
@@ -976,6 +1148,7 @@ export function ProductionComponentVisual({
           }
         : component;
   const asset = visualAsset(entry, visualComponent, visualState);
+  const ownerImage = useOwnerImageHref(asset);
   const toleranceValue = Number(properties['tolerancePercent'] ?? 5);
   const tolerance: ResistorTolerancePercent = [1, 2, 5, 10].includes(toleranceValue)
     ? (toleranceValue as ResistorTolerancePercent)
@@ -1116,7 +1289,8 @@ export function ProductionComponentVisual({
             </g>
           ) : (
             <image
-              href={asset}
+              href={ownerImage.href}
+              onError={ownerImage.onError}
               y={ownerAssetY}
               width={ownerAssetWidth}
               height={ownerAssetHeight}
@@ -1408,7 +1582,9 @@ export function ProductionComponentVisual({
           ) : (
             <image
               className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-              href={asset}
+              href={ownerImage.href}
+              onError={ownerImage.onError}
+              data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
               y={ownerAssetY}
               width={ownerAssetWidth}
               height={ownerAssetHeight}

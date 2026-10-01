@@ -28,6 +28,9 @@ type HitMaskState =
   | { readonly status: 'failed' };
 
 const MAX_MASK_DIMENSION = 192;
+// Three attempts cap one recovery cycle at 8.7 seconds, including jitter.
+const MASK_ATTEMPTS = 3;
+const MASK_TIMEOUT_MS = 2_500;
 const masks = new Map<string, HitMaskState>();
 
 function maskKey(entry: CatalogEntry, width: number, height: number): string {
@@ -75,60 +78,110 @@ function drawAsset(
   context.restore();
 }
 
+function maskAttemptAsset(asset: string, attempt: number): string {
+  if (attempt === 0) return asset;
+  const url = new URL(asset, document.baseURI);
+  url.searchParams.set('asa-mask-retry', String(attempt));
+  return url.href;
+}
+
+function loadComponentHitMask(
+  entry: CatalogEntry,
+  width: number,
+  height: number,
+  attempt: number,
+): Promise<{ mask: HitMask; visibleBounds: ComponentVisibleBounds }> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    let settled = false;
+    const finish = (completed: () => void): void => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      image.onload = null;
+      image.onerror = null;
+      completed();
+    };
+    const timeout = setTimeout(
+      () => finish(() => reject(new Error('Hit mask timed out'))),
+      MASK_TIMEOUT_MS,
+    );
+    image.onload = () =>
+      finish(() => {
+        try {
+          if (image.naturalWidth <= 0 || image.naturalHeight <= 0) {
+            throw new Error('Hit mask image has no dimensions');
+          }
+          const scale = Math.min(1, MAX_MASK_DIMENSION / Math.max(width, height));
+          const maskWidth = Math.max(1, Math.ceil(width * scale));
+          const maskHeight = Math.max(1, Math.ceil(height * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = maskWidth;
+          canvas.height = maskHeight;
+          const context = canvas.getContext('2d', { willReadFrequently: true });
+          if (!context) throw new Error('Canvas 2D is unavailable');
+          drawAsset(context, image, entry, width, height, scale);
+          const mask = {
+            width: maskWidth,
+            height: maskHeight,
+            alpha: context
+              .getImageData(0, 0, maskWidth, maskHeight)
+              .data.filter((_value, index) => index % 4 === 3),
+          } satisfies HitMask;
+          const visibleBounds = hitMaskVisibleBounds(mask, width, height);
+          if (!visibleBounds) throw new Error('Hit mask has no painted pixels');
+          resolve({ mask, visibleBounds });
+        } catch (error) {
+          reject(error);
+        }
+      });
+    image.onerror = () => finish(() => reject(new Error('Hit mask image failed')));
+    image.src = maskAttemptAsset(entry.asset, attempt);
+  });
+}
+
 /**
- * Prepares an alpha mask from the same owner asset that is drawn on the stage.
- * It does not alter or trace the source SVG; the browser only samples its
- * already-rendered alpha channel for pointer hit testing.
+ * Prepares an alpha mask from the owner asset without changing the SVG.
+ * A terminal failure is re-armed only by an explicit reconnection/focus event.
  */
 export function preloadComponentHitMask(
   entry: CatalogEntry,
   width: number,
   height: number,
+  retryFailed = false,
 ): Promise<void> {
   if (typeof document === 'undefined' || typeof Image === 'undefined') return Promise.resolve();
   const key = maskKey(entry, width, height);
   const existing = masks.get(key);
   if (existing?.status === 'loading') return existing.ready;
-  if (existing) return Promise.resolve();
+  if (existing && (existing.status === 'ready' || !retryFailed)) return Promise.resolve();
 
-  const image = new Image();
-  const ready = new Promise<void>((resolve) => {
-    image.onload = () => {
+  const ready = (async () => {
+    for (let attempt = 0; attempt < MASK_ATTEMPTS; attempt += 1) {
       try {
-        const scale = Math.min(1, MAX_MASK_DIMENSION / Math.max(width, height));
-        const maskWidth = Math.max(1, Math.ceil(width * scale));
-        const maskHeight = Math.max(1, Math.ceil(height * scale));
-        const canvas = document.createElement('canvas');
-        canvas.width = maskWidth;
-        canvas.height = maskHeight;
-        const context = canvas.getContext('2d', { willReadFrequently: true });
-        if (!context) throw new Error('Canvas 2D is unavailable');
-        drawAsset(context, image, entry, width, height, scale);
-        const mask = {
-          width: maskWidth,
-          height: maskHeight,
-          alpha: context
-            .getImageData(0, 0, maskWidth, maskHeight)
-            .data.filter((_value, index) => index % 4 === 3),
-        } satisfies HitMask;
-        masks.set(key, {
-          status: 'ready',
-          mask,
-          visibleBounds: hitMaskVisibleBounds(mask, width, height),
-        });
+        const loaded = await loadComponentHitMask(entry, width, height, attempt);
+        masks.set(key, { status: 'ready', ...loaded });
+        return;
       } catch {
-        masks.set(key, { status: 'failed' });
+        if (attempt + 1 < MASK_ATTEMPTS) {
+          await new Promise<void>((resolve) =>
+            setTimeout(resolve, 200 * 2 ** attempt + Math.random() * 200),
+          );
+        }
       }
-      resolve();
-    };
-    image.onerror = () => {
-      masks.set(key, { status: 'failed' });
-      resolve();
-    };
-  });
+    }
+    masks.set(key, { status: 'failed' });
+  })();
   masks.set(key, { status: 'loading', ready });
-  image.src = entry.asset;
   return ready;
+}
+
+export function componentHitMaskStatus(
+  entry: CatalogEntry,
+  width: number,
+  height: number,
+): HitMaskState['status'] | 'missing' {
+  return masks.get(maskKey(entry, width, height))?.status ?? 'missing';
 }
 
 /**
