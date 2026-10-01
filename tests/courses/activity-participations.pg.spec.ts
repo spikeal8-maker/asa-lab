@@ -2264,6 +2264,13 @@ describe('A4-2b atomic StartLearningWork', () => {
       expect(login.statusCode).toBe(200);
       const accountToken = login.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
       expect(accountToken).toBeTruthy();
+      const personalContext = await inject(api, {
+        method: 'POST',
+        url: '/api/session/context',
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { workspaceId },
+      });
+      expect(personalContext.statusCode).toBe(201);
       const accountList = await inject(api, {
         method: 'GET',
         url: '/api/projects?scope=personal',
