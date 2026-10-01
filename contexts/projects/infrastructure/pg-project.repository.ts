@@ -112,6 +112,19 @@ function toProject(row: ProjectRow, preview: ProjectPreview | null = toPreview(r
   };
 }
 
+function compareProjectPageRows(
+  left: Project,
+  right: Project,
+  sort: ProjectListFilter['sort'],
+): number {
+  const order =
+    sort === 'title'
+      ? Buffer.compare(Buffer.from(left.title), Buffer.from(right.title))
+      : Date.parse(left.updatedAt) - Date.parse(right.updatedAt);
+  const tie = left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+  return (sort === 'title' || sort === 'oldest' ? 1 : -1) * (order || tie);
+}
+
 const ACCESS_SQL = `(
   (p.project_scope = 'personal'
      AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $3)
@@ -234,6 +247,47 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     );
     const learningIds = new Set(markers.rows.map((row) => row.project_id));
     return rows.map((row) => ({ ...toProject(row), isLearningWork: learningIds.has(row.id) }));
+  }
+
+  private async mergeLinkedPersonalProjects(
+    actor: ProjectActor,
+    status: ProjectStatus,
+    filter: ProjectListFilter,
+    own: Project[],
+  ): Promise<Project[]> {
+    if (filter.kind === 'personal') return own;
+    const linkedRows: ProjectRow[] = [];
+    const linkedPageSize = filter.limit ?? 100;
+    let linkedAfter = filter.after;
+    while (true) {
+      const linked = await this.pool.query<{ project: ProjectRow }>(
+        `SELECT project FROM learning_linked_account_project_list(
+           $1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+        [
+          actor.principalId,
+          status,
+          filter.moduleKey ?? null,
+          filter.search ?? null,
+          filter.excludeGames ?? false,
+          filter.sort ?? 'recent',
+          linkedAfter?.id ?? null,
+          (filter.sort === 'title' ? linkedAfter?.title : linkedAfter?.updatedAt) ?? null,
+          linkedPageSize,
+        ],
+      );
+      linkedRows.push(...linked.rows.map((row) => row.project));
+      if (filter.limit !== undefined || linked.rows.length < linkedPageSize) break;
+      const last = toProject(linked.rows.at(-1)!.project);
+      linkedAfter = { id: last.id, title: last.title, updatedAt: last.updatedAt };
+    }
+    const combined = new Map(own.map((project) => [project.id, project]));
+    for (const row of linkedRows) {
+      const project = toProject(row);
+      combined.set(project.id, { ...project, isLearningWork: true });
+    }
+    return [...combined.values()]
+      .sort((left, right) => compareProjectPageRows(left, right, filter.sort))
+      .slice(0, filter.limit);
   }
 
   private async projectContext(
@@ -510,6 +564,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     filter: ProjectListFilter,
   ): Promise<Project[]> {
     const status = filter.status ?? 'active';
+    const kind = filter.kind ?? 'all';
     // Cursor precision matches the ISO milliseconds exposed by the API. ID is
     // the tie breaker, including multiple writes in the same millisecond.
     const sortColumn =
@@ -555,7 +610,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     }
     if (actor.userId === null) {
       if (filter.scope === 'classroom') return [];
-      return withTenantContext(this.pool, tenantId, async (client) => {
+      const own = await withTenantContext(this.pool, tenantId, async (client) => {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
@@ -567,8 +622,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
              LEFT JOIN project_snapshots s ON s.tenant_id=p.tenant_id AND s.project_id=p.id
             WHERE p.tenant_id=$1 AND p.owner_principal_id=$2
               AND p.project_scope='personal' AND p.status=$3
+              AND ($10::text = 'all' OR
+                   learning_personal_project_is_learning($2,p.id) = ($10::text = 'learning'))
             ${tail(4)}`,
-          [tenantId, actor.principalId, status, ...pageValues],
+          [tenantId, actor.principalId, status, ...pageValues, kind],
         );
         return this.markPersonalLearningProjects(
           client,
@@ -576,9 +633,10 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           result.rows as ProjectRow[],
         );
       });
+      return this.mergeLinkedPersonalProjects(actor, status, filter, own);
     }
-    return withTenantContext(this.pool, tenantId, async (client) => {
-      if (filter.scope === 'personal') {
+    if (filter.scope === 'personal') {
+      const own = await withTenantContext(this.pool, tenantId, async (client) => {
         const result = await client.query(
           `SELECT p.id, p.project_scope, p.classroom_id, p.module_key, p.title,
            p.copied_from_project_id, p.copied_from_author, p.copied_from_title, p.copied_at,
@@ -591,15 +649,20 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             WHERE p.tenant_id = $1 AND p.project_scope = 'personal' AND p.status = $4
               AND ((p.owner_principal_id IS NOT NULL AND p.owner_principal_id = $2)
                    OR p.created_by = $3)
+              AND ($11::text = 'all' OR
+                   learning_personal_project_is_learning($2,p.id) = ($11::text = 'learning'))
             ${tail(5)}`,
-          [tenantId, actor.principalId, actor.userId, status, ...pageValues],
+          [tenantId, actor.principalId, actor.userId, status, ...pageValues, kind],
         );
         return this.markPersonalLearningProjects(
           client,
           actor.principalId,
           result.rows as ProjectRow[],
         );
-      }
+      });
+      return this.mergeLinkedPersonalProjects(actor, status, filter, own);
+    }
+    return withTenantContext(this.pool, tenantId, async (client) => {
       const result = await client.query(
         `SELECT DISTINCT ${sortColumn} AS page_order,
                 p.id,p.project_scope,p.classroom_id,p.module_key,p.title,p.status,p.created_at,
