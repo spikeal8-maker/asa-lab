@@ -1627,6 +1627,31 @@ for (const module of ['electronics', 'three-d'])
     const context = await browser.newContext(),
       learner = await context.newPage();
     await loginWithOrganization(learner, learnerIdentity);
+    if (module === 'electronics') {
+      const ordinary = await learner.request.post('/api/projects', {
+        headers: {
+          origin: new URL(learner.url()).origin,
+          'idempotency-key': `v3-ordinary-${crypto.randomUUID()}`,
+        },
+        data: {
+          scope: 'personal',
+          classroomId: null,
+          module: 'electronics',
+          title: 'Обычный личный проект',
+        },
+      });
+      expect(ordinary.status()).toBe(201);
+      await learner.goto('/#/projects');
+      const ordinaryCard = learner.getByTestId('project-card').filter({
+        hasText: 'Обычный личный проект',
+      });
+      await expect(ordinaryCard).toBeVisible();
+      await expect(ordinaryCard.getByText('Учебная работа')).toHaveCount(0);
+      await learner.screenshot({
+        path: `${evidenceDir}/v3-my-projects-before-start-desktop.png`,
+        fullPage: true,
+      });
+    }
     await learner.goto('/#/attending');
     await learner.getByLabel('Код класса', { exact: true }).fill(code);
     await learner.getByRole('button', { name: 'Войти в класс', exact: true }).click();
@@ -1709,6 +1734,34 @@ for (const module of ['electronics', 'three-d'])
       path: `${evidenceDir}/account-course-${module}-started-project.png`,
       fullPage: true,
     });
+    if (module === 'electronics') {
+      const editorUrl = learner.url();
+      await learner.goto('/#/projects');
+      const learningCard = learner.getByTestId('project-card').filter({
+        has: learner.locator(`a[href*="${startedProjectId}"]`),
+      });
+      const ordinaryCard = learner.getByTestId('project-card').filter({
+        hasText: 'Обычный личный проект',
+      });
+      await expect(learningCard).toBeVisible();
+      await expect(learningCard.getByText('Учебная работа', { exact: true })).toBeVisible();
+      await expect(learningCard).toContainText('Приватный');
+      await expect(ordinaryCard).toBeVisible();
+      await expect(ordinaryCard.getByText('Учебная работа')).toHaveCount(0);
+      for (const viewport of [
+        { width: 1440, height: 900, label: 'desktop' },
+        { width: 390, height: 844, label: 'mobile' },
+      ]) {
+        await learner.setViewportSize(viewport);
+        await learner.screenshot({
+          path: `${evidenceDir}/v3-my-projects-after-start-${viewport.label}.png`,
+          fullPage: true,
+        });
+      }
+      await learner.setViewportSize({ width: 1440, height: 900 });
+      await learner.goto(editorUrl);
+      await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible();
+    }
     await editRealProject(learner, module);
     const brief = learner.getByTestId('assignment-brief');
     await expect(

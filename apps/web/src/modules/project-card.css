@@ -255,6 +255,18 @@
   line-height: 1.4;
 }
 
+.project-card-learning-badge {
+  justify-self: start;
+  margin: 3px 0 1px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: #e7f3fb;
+  color: #0d5c83;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
 .project-card-footer {
   display: flex;
   align-items: baseline;

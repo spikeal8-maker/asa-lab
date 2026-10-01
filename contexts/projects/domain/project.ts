@@ -24,6 +24,8 @@ export interface Project {
   readonly moduleKey: string;
   readonly title: string;
   readonly status: ProjectStatus;
+  /** True only on a personal list row with an authorized immutable Learning origin. */
+  readonly isLearningWork?: boolean;
   readonly createdAt: string;
   readonly updatedAt: string;
   /** Null while the project is empty, or on drafts saved before previews. */

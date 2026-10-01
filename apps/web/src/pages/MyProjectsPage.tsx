@@ -410,6 +410,7 @@ export function MyProjectsPage({
                 project={project}
                 module={module}
                 timeLabel={`Изменён ${formatDate(project.updatedAt)}`}
+                showLearningBadge={project.isLearningWork === true}
                 footerLabel={
                   response
                     ? (FEEDBACK_LABELS[response.badge ?? ''] ?? 'Есть отклик педагога')

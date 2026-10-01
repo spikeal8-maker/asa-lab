@@ -200,6 +200,20 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     return new PgProjectRepository(this.pool, client);
   }
 
+  private async markPersonalLearningProjects(
+    client: pg.PoolClient,
+    viewerPrincipalId: string,
+    rows: ProjectRow[],
+  ): Promise<Project[]> {
+    if (rows.length === 0) return [];
+    const markers = await client.query<{ project_id: string }>(
+      `SELECT project_id FROM learning_personal_project_origin_ids($1::uuid,$2::uuid[])`,
+      [viewerPrincipalId, rows.map((row) => row.id)],
+    );
+    const learningIds = new Set(markers.rows.map((row) => row.project_id));
+    return rows.map((row) => ({ ...toProject(row), isLearningWork: learningIds.has(row.id) }));
+  }
+
   private async projectContext(
     _activeTenantId: string,
     projectId: string,
@@ -494,7 +508,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             ${tail(4)}`,
           [tenantId, actor.principalId, status, ...pageValues],
         );
-        return (result.rows as ProjectRow[]).map((row) => toProject(row));
+        return this.markPersonalLearningProjects(
+          client,
+          actor.principalId,
+          result.rows as ProjectRow[],
+        );
       });
     }
     return withTenantContext(this.pool, tenantId, async (client) => {
@@ -514,7 +532,11 @@ export class PgProjectRepository implements ProjectRepositoryPort {
             ${tail(5)}`,
           [tenantId, actor.principalId, actor.userId, status, ...pageValues],
         );
-        return (result.rows as ProjectRow[]).map((row) => toProject(row));
+        return this.markPersonalLearningProjects(
+          client,
+          actor.principalId,
+          result.rows as ProjectRow[],
+        );
       }
       const result = await client.query(
         `SELECT DISTINCT ${sortColumn} AS page_order,
