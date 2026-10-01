@@ -1968,7 +1968,7 @@ function arduinoInputDocument(
 function arduinoResetAcceptanceDocument(): SchematicDocument {
   const base = arduinoInputDocument('button', '2');
   const source =
-    'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delay(1000);}void loop(){digitalWrite(13,LOW);delay(1000);digitalWrite(13,HIGH);delay(1000);}';
+    'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delay(1000);}void loop(){digitalWrite(13,LOW);delay(60000);}';
   return {
     ...base,
     components: base.components.map((component) =>
@@ -1980,6 +1980,101 @@ function arduinoResetAcceptanceDocument(): SchematicDocument {
         : component,
     ),
   };
+}
+
+async function observeArduinoWorkerClock(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    type ClockSample = {
+      workerId: number;
+      generationId: number;
+      requestedMicroseconds: number;
+      committedMicroseconds: number;
+      status: string;
+      receivedAt: number;
+    };
+    const clockWindow = window as Window & {
+      __arduinoClockSamples?: ClockSample[];
+      __arduinoWorkerCount?: number;
+    };
+    const samples: ClockSample[] = [];
+    clockWindow.__arduinoClockSamples = samples;
+    let workerId = 0;
+    window.Worker = new Proxy(window.Worker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation') {
+          return worker;
+        }
+        const id = ++workerId;
+        clockWindow.__arduinoWorkerCount = workerId;
+        worker.addEventListener('message', (event: MessageEvent) => {
+          const response = event.data as {
+            ok?: boolean;
+            kind?: string;
+            generationId?: number;
+            advance?: {
+              requestedHorizonMicroseconds: number;
+              committedHorizonMicroseconds: number;
+              executionStatus: string;
+            };
+          };
+          if (!response.ok || response.kind !== 'advance' || !response.advance) return;
+          samples.push({
+            workerId: id,
+            generationId: response.generationId ?? -1,
+            requestedMicroseconds: response.advance.requestedHorizonMicroseconds,
+            committedMicroseconds: response.advance.committedHorizonMicroseconds,
+            status: response.advance.executionStatus,
+            receivedAt: Date.now(),
+          });
+          if (samples.length > 20) samples.shift();
+        });
+        return worker;
+      },
+    });
+  });
+}
+
+async function expectArduinoBrightness(
+  page: Page,
+  expected: 'high' | 'low',
+  phase: string,
+): Promise<void> {
+  try {
+    if (expected === 'high') {
+      await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBeGreaterThan(0);
+    } else {
+      await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
+    }
+  } catch (error) {
+    const observation = await page.evaluate(() => {
+      const clockWindow = window as Window & {
+        __arduinoWorkerCount?: number;
+        __arduinoClockSamples?: Array<{
+          workerId: number;
+          generationId: number;
+          requestedMicroseconds: number;
+          committedMicroseconds: number;
+          status: string;
+          receivedAt: number;
+        }>;
+      };
+      const samples = clockWindow.__arduinoClockSamples?.slice(-5) ?? [];
+      return {
+        toolbarClock: document.querySelector('.workbench-simulation-time')?.textContent?.trim(),
+        workerCount: clockWindow.__arduinoWorkerCount ?? 0,
+        workerSamples: samples.map(({ receivedAt, ...sample }) => ({
+          ...sample,
+          ageMs: Date.now() - receivedAt,
+        })),
+      };
+    });
+    throw new Error(
+      `Arduino Reset ${phase}: expected ${expected}, brightness=${await brightnessValue(page)}, ` +
+        `clock=${JSON.stringify(observation)}`,
+      { cause: error },
+    );
+  }
 }
 
 for (const scenario of [
@@ -2073,6 +2168,7 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
 }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await observeArduinoWorkerClock(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await loginWithOrganization(page, teacher);
 
@@ -2085,21 +2181,21 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
 
   // Prove the canonical Arduino runtime has progressed beyond its initial state:
-  // setup() drives D13 high, then the first loop iteration drives it low after 1 s.
-  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBeGreaterThan(0);
-  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
+  // setup() drives D13 high, then the first loop iteration holds it low after 1 s.
+  await expectArduinoBrightness(page, 'high', 'before Reset');
+  await expectArduinoBrightness(page, 'low', 'before Reset');
 
   const resetButton = page.getByTestId('arduino-reset-button');
   await expect(resetButton).toHaveAttribute('aria-label', 'Перезапустить Arduino');
   await resetButton.click();
 
   // Reset must discard the old continuation and replay setup()/loop() from time zero.
-  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBeGreaterThan(0);
+  await expectArduinoBrightness(page, 'high', 'after Reset');
   await page.waitForTimeout(350);
   expect(await brightnessValue(page)).toBeGreaterThan(0);
 
   // The same deterministic sequence must repeat without a fault/stuck runtime.
-  await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
+  await expectArduinoBrightness(page, 'low', 'after Reset');
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   failures.assertEmpty();
 });
