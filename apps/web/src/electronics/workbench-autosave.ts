@@ -54,3 +54,29 @@ export function autosaveIsDue<TDocument>(state: DraftSaveState<TDocument>): bool
     state.savingDocument === null
   );
 }
+
+
+/** Owner-selected classroom cadence for automatic network draft writes. */
+export const AUTOSAVE_INTERVAL_MS = 60_000;
+
+/**
+ * Keeps one stable deadline while the document stays dirty. Repeated edits do
+ * not debounce the save forever; a clean/in-flight/error state clears the
+ * deadline and the next dirty cycle starts a new minute.
+ */
+export function nextAutosaveDeadline(
+  currentDeadlineMs: number | null,
+  nowMs: number,
+  due: boolean,
+): number | null {
+  if (!due) return null;
+  if (!Number.isFinite(nowMs)) throw new Error('Autosave clock must be finite.');
+  return currentDeadlineMs ?? nowMs + AUTOSAVE_INTERVAL_MS;
+}
+
+export function autosaveDelayMs(deadlineMs: number, nowMs: number): number {
+  if (!Number.isFinite(deadlineMs) || !Number.isFinite(nowMs)) {
+    throw new Error('Autosave deadline and clock must be finite.');
+  }
+  return Math.max(0, deadlineMs - nowMs);
+}

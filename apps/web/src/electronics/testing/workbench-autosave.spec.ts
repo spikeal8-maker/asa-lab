@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { autosaveIsDue, draftSaveStatus } from '../workbench-autosave';
+import {
+  AUTOSAVE_INTERVAL_MS,
+  autosaveDelayMs,
+  autosaveIsDue,
+  draftSaveStatus,
+  nextAutosaveDeadline,
+} from '../workbench-autosave';
 
 interface Draft {
   readonly resistorOhms: number;
@@ -108,6 +114,28 @@ describe('workbench draft save state', () => {
     const stateAfterReplacement = { ...stateBefore, document: { resistorOhms: 1000 } };
     expect(draftSaveStatus(stateAfterReplacement)).toBe('dirty');
     expect(autosaveIsDue(stateAfterReplacement)).toBe(true);
+  });
+
+  it('uses a one-minute automatic save cadence without debounce starvation', () => {
+    expect(AUTOSAVE_INTERVAL_MS).toBe(60_000);
+
+    const firstDeadline = nextAutosaveDeadline(null, 1_000, true);
+    expect(firstDeadline).toBe(61_000);
+
+    // More edits inside the minute keep the original deadline instead of
+    // postponing it another minute every time the document object changes.
+    expect(nextAutosaveDeadline(firstDeadline, 15_000, true)).toBe(firstDeadline);
+    expect(nextAutosaveDeadline(firstDeadline, 59_500, true)).toBe(firstDeadline);
+    expect(autosaveDelayMs(firstDeadline!, 59_500)).toBe(1_500);
+    expect(autosaveDelayMs(firstDeadline!, 61_500)).toBe(0);
+  });
+
+  it('starts a fresh minute only after the previous dirty cycle is no longer due', () => {
+    const firstDeadline = nextAutosaveDeadline(null, 10_000, true);
+    expect(nextAutosaveDeadline(firstDeadline, 20_000, false)).toBeNull();
+
+    const nextDeadline = nextAutosaveDeadline(null, 70_000, true);
+    expect(nextDeadline).toBe(130_000);
   });
 
   it('stops autosave after a failed save and resumes on the next edit', () => {

@@ -12,7 +12,12 @@ import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState } from './workbench-model';
-import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
+import {
+  autosaveDelayMs,
+  autosaveIsDue,
+  draftSaveStatus,
+  nextAutosaveDeadline,
+} from './workbench-autosave';
 
 import { electronicsDocumentsEqual, mergeElectronicsDocuments } from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
@@ -179,6 +184,9 @@ export function useWorkbenchProjectState(projectId: string) {
   // written into the new one's state.
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
+  useEffect(() => {
+    autosaveDeadlineRef.current = null;
+  }, [projectId]);
   const serverRevisionRef = useRef<number | null>(null);
 
   const saveStatus = draftSaveStatus({
@@ -191,6 +199,7 @@ export function useWorkbenchProjectState(projectId: string) {
   saveStatusRef.current = saveStatus;
   const saveFailedRef = useRef(saveFailed);
   saveFailedRef.current = saveFailed;
+  const autosaveDeadlineRef = useRef<number | null>(null);
 
   // Every document write goes through here so the ref and the dirty state move
   // together: no call site can change the document and forget to mark it unsaved.
@@ -545,24 +554,23 @@ export function useWorkbenchProjectState(projectId: string) {
   );
 
   useEffect(() => {
-    if (!document || simulationStatus === 'starting') return;
-    if (!autosaveIsDue({ document, savedDocument, savingDocument, failed: saveFailed })) return;
-    const timer = window.setTimeout(
-      () => {
-        void persist(document, true);
-      },
-      simulationRunning ? 700 : 1800,
-    );
+    const due =
+      document !== null &&
+      autosaveIsDue({ document, savedDocument, savingDocument, failed: saveFailed });
+    const deadline = nextAutosaveDeadline(autosaveDeadlineRef.current, Date.now(), due);
+    autosaveDeadlineRef.current = deadline;
+    if (deadline === null || simulationStatus === 'starting') return;
+
+    const timer = window.setTimeout(() => {
+      autosaveDeadlineRef.current = null;
+      const current = documentRef.current;
+      // Save the newest document at the minute boundary, not the render snapshot
+      // that first armed the timer. Continuous editing therefore cannot postpone
+      // autosave forever and cannot make the timer persist an older draft.
+      if (current && saveStatusRef.current === 'dirty') void persist(current, true);
+    }, autosaveDelayMs(deadline, Date.now()));
     return () => window.clearTimeout(timer);
-  }, [
-    document,
-    persist,
-    saveFailed,
-    savedDocument,
-    savingDocument,
-    simulationRunning,
-    simulationStatus,
-  ]);
+  }, [document, persist, saveFailed, savedDocument, savingDocument, simulationStatus]);
 
   useEffect(() => {
     const flush = (): void => {
