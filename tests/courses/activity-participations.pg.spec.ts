@@ -1683,23 +1683,35 @@ describe('A4-2b atomic StartLearningWork', () => {
 
   it('denies direct and Course originals at status and Gallery writes without mutating either', async () => {
     const course = await courseHandout();
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+        ownerPrincipal,
+        course.courseRun,
+        learner,
+      ]),
+    );
+    expect(enrollment.rows[0].result_code).toBe('ok');
     const cases = [
-      await createRun({ handout: await directHandout() }),
-      await createRun({
-        handout: course.handout,
-        kind: 'course',
-        courseRun: course.courseRun,
-        lesson: course.lesson,
-      }),
+      { run: await createRun({ handout: await directHandout() }), enrollmentId: null },
+      {
+        run: await createRun({
+          handout: course.handout,
+          kind: 'course',
+          courseRun: course.courseRun,
+          lesson: course.lesson,
+        }),
+        enrollmentId: enrollment.rows[0].enrollment_id as string,
+      },
     ];
     const repo = new PgProjectRepository(app);
     const status = new ChangeProjectStatusUseCase(repo);
     const actor = { principalId: learnerPrincipal, userId: null };
     const controller = await startController('seat');
-    for (const run of cases) {
-      await assign(run);
+    for (const { run, enrollmentId } of cases) {
+      const participation = await assign(run, learner, enrollmentId);
+      expect(participation.result_code).toBe('ok');
       const started = await controller.start(startRequest, run, {
-        requestId: `a5:guard:${randomUUID()}`,
+        requestId: `start:${randomUUID()}`,
       });
       const projectId = started.projectId;
       for (const target of ['archived', 'trashed'] as const) {
