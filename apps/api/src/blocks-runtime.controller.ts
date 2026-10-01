@@ -50,6 +50,7 @@ function runtimeStatus(code: string): number {
 function projectStatus(code: ProjectErrorCode): number {
   if (code === 'validation_error') return 400;
   if (code === 'idempotency_conflict' || code === 'project_revision_conflict') return 409;
+  if (code === 'learning_work_protected' || code === 'learning_work_read_only') return 403;
   if (code === 'project_not_found' || code === 'classroom_not_found') return 404;
   return 503;
 }

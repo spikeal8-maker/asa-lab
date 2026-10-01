@@ -1,4 +1,5 @@
 export {
+  LearningWorkReadOnlyError,
   isProjectScope,
   isProjectStatus,
   isValidCheckpointLabel,
