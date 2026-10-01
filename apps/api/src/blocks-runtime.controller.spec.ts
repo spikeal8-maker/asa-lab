@@ -104,6 +104,27 @@ describe('BlocksRuntimeController', () => {
     );
   });
 
+  it('returns a read-only refusal for an accepted Learning original', async () => {
+    const runtime = service({
+      save: vi.fn().mockResolvedValue({
+        ok: false,
+        code: 'learning_work_read_only',
+        message: 'Эта учебная работа сейчас доступна только для просмотра.',
+      }),
+    });
+    const controller = new BlocksRuntimeController(runtime);
+    await expect(
+      controller.putDraft(request(), reply().value, PROJECT, {
+        document: {},
+        baseRevision: 3,
+        mutationId: MUTATION,
+      }),
+    ).rejects.toMatchObject({
+      status: 403,
+      response: { error: { code: 'learning_work_read_only' } },
+    });
+  });
+
   it('fails closed when bearer authority is denied', async () => {
     const runtime = service({
       authorize: vi.fn().mockResolvedValue({ ok: false, code: 'permission_denied' }),

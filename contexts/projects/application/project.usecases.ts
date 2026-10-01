@@ -6,6 +6,7 @@ import {
   isValidCheckpointLabel,
   isValidProjectTitle,
   LearningWorkProtectedError,
+  LearningWorkReadOnlyError,
   type Project,
   type ProjectDraft,
   type ProjectPreview,
@@ -34,6 +35,7 @@ export type ProjectErrorCode =
   | 'idempotency_conflict'
   | 'project_revision_conflict'
   | 'learning_work_protected'
+  | 'learning_work_read_only'
   | 'classroom_not_found'
   | 'project_not_found';
 
@@ -458,12 +460,20 @@ export class RenameProjectUseCase {
     if (!isValidProjectTitle(input.title)) {
       return fail('validation_error', 'title must be 1..255 characters');
     }
-    const project = await this.repository.rename(
-      input.tenantId,
-      input.projectId,
-      input.actor,
-      input.title.trim(),
-    );
+    let project: Project | null;
+    try {
+      project = await this.repository.rename(
+        input.tenantId,
+        input.projectId,
+        input.actor,
+        input.title.trim(),
+      );
+    } catch (error) {
+      if (error instanceof LearningWorkReadOnlyError) {
+        return fail('learning_work_read_only', error.message);
+      }
+      throw error;
+    }
     return project === null
       ? fail('project_not_found', 'project not found')
       : { ok: true, value: project };
@@ -538,15 +548,23 @@ export class SaveDraftUseCase {
         return fail('dependency_unavailable', 'Project storage validation is unavailable.');
       }
     }
-    const draft = await this.repository.saveDraft({
-      tenantId: input.tenantId,
-      projectId: input.projectId,
-      actor: input.actor,
-      document,
-      preview: previewOf(module, document),
-      baseRevision: input.baseRevision,
-      mutationId: input.mutationId,
-    });
+    let draft: ProjectDraft | null;
+    try {
+      draft = await this.repository.saveDraft({
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        actor: input.actor,
+        document,
+        preview: previewOf(module, document),
+        baseRevision: input.baseRevision,
+        mutationId: input.mutationId,
+      });
+    } catch (error) {
+      if (error instanceof LearningWorkReadOnlyError) {
+        return fail('learning_work_read_only', error.message);
+      }
+      throw error;
+    }
     if (draft !== null) return { ok: true, value: draft };
     const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
     return current === null
@@ -583,13 +601,21 @@ export class SaveProjectSnapshotUseCase {
     if (!decoded.ok) return fail('validation_error', decoded.message);
     const validation = validateSnapshotImage(decoded.bytes);
     if (!validation.ok) return fail('validation_error', validation.message);
-    const saved = await this.repository.saveSnapshot({
-      tenantId: input.tenantId,
-      projectId: input.projectId,
-      actor: input.actor,
-      image: validation.image,
-      sourceRevision: Number(input.sourceRevision),
-    });
+    let saved: ProjectSnapshot | null;
+    try {
+      saved = await this.repository.saveSnapshot({
+        tenantId: input.tenantId,
+        projectId: input.projectId,
+        actor: input.actor,
+        image: validation.image,
+        sourceRevision: Number(input.sourceRevision),
+      });
+    } catch (error) {
+      if (error instanceof LearningWorkReadOnlyError) {
+        return fail('learning_work_read_only', error.message);
+      }
+      throw error;
+    }
     if (saved !== null) return { ok: true, value: saved };
     const current = await this.repository.load(input.tenantId, input.projectId, input.actor);
     return current === null
@@ -636,12 +662,20 @@ export class RestoreVersionUseCase {
     if (typeof input.versionId !== 'string' || input.versionId.length === 0) {
       return fail('validation_error', 'versionId is required');
     }
-    const restored = await this.repository.restoreVersion(
-      input.tenantId,
-      input.projectId,
-      input.actor,
-      input.versionId,
-    );
+    let restored: { draft: ProjectDraft; versions: readonly ProjectVersion[] } | null;
+    try {
+      restored = await this.repository.restoreVersion(
+        input.tenantId,
+        input.projectId,
+        input.actor,
+        input.versionId,
+      );
+    } catch (error) {
+      if (error instanceof LearningWorkReadOnlyError) {
+        return fail('learning_work_read_only', error.message);
+      }
+      throw error;
+    }
     return restored === null
       ? fail('project_not_found', 'project or version not found')
       : { ok: true, value: restored };
@@ -677,12 +711,20 @@ export class CreateCheckpointUseCase {
     }
     const label =
       typeof input.label === 'string' && input.label.trim().length > 0 ? input.label.trim() : null;
-    const version = await this.repository.createCheckpoint(
-      input.tenantId,
-      input.projectId,
-      input.actor,
-      label,
-    );
+    let version: ProjectVersion | null;
+    try {
+      version = await this.repository.createCheckpoint(
+        input.tenantId,
+        input.projectId,
+        input.actor,
+        label,
+      );
+    } catch (error) {
+      if (error instanceof LearningWorkReadOnlyError) {
+        return fail('learning_work_read_only', error.message);
+      }
+      throw error;
+    }
     return version === null
       ? fail('project_not_found', 'project not found')
       : { ok: true, value: version };

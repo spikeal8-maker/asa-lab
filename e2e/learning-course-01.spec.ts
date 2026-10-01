@@ -1188,7 +1188,22 @@ for (const module of ['three-d', 'electronics'])
     const firstVersion = await detail.getByTestId('submission-version-id').innerText();
     await detail.getByText('Содержимое и контрольная сумма сдачи', { exact: true }).click();
     const submittedDocument = await detail.locator('pre').innerText();
-    await editRealProject(learner.page, module);
+    const submittedProjectId = courseActivityProjectId(learner.page, module);
+    const readableOriginal = await learner.page.request.get(`/api/projects/${submittedProjectId}`);
+    expect(readableOriginal.status()).toBe(200);
+    const submittedDraft = (await readableOriginal.json()) as {
+      draft: { document: unknown; revision: number };
+    };
+    const deniedEdit = await learner.page.request.put(`/api/projects/${submittedProjectId}/draft`, {
+      headers: { origin: new URL(learner.page.url()).origin },
+      data: {
+        document: submittedDraft.draft.document,
+        baseRevision: submittedDraft.draft.revision,
+        mutationId: crypto.randomUUID(),
+      },
+    });
+    expect(deniedEdit.status()).toBe(403);
+    expect((await deniedEdit.json()).error.code).toBe('learning_work_read_only');
     await learner.page.reload();
     await page.getByRole('button', { name: 'Закрыть проверку', exact: true }).click();
     await cell.click();

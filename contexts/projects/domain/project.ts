@@ -15,6 +15,14 @@ export class LearningWorkProtectedError extends Error {
   }
 }
 
+/** A completed original remains available for reading and learning review. */
+export class LearningWorkReadOnlyError extends Error {
+  constructor() {
+    super('Эта учебная работа сейчас доступна только для просмотра.');
+    this.name = 'LearningWorkReadOnlyError';
+  }
+}
+
 /**
  * What a project card shows. The descriptor comes from the subject module and
  * Project Core never interprets it — it stores it, hands it to the client, and
