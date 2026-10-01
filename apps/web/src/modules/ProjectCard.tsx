@@ -16,8 +16,8 @@ import './project-card.css';
  * says — and nothing else.
  *
  * The picture is given most of the card. Everything that is not the work itself
- * — the actions, the menu — sits over the picture and appears on hover or
- * keyboard focus, so the resting card is the project and nothing else.
+ * — the actions, the menu — sits over the picture. Learning work keeps its
+ * Continue/View action visible; other cards reveal actions on hover or focus.
  */
 
 export interface ProjectCardMenuItem {

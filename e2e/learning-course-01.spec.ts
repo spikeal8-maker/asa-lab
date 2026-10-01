@@ -1992,11 +1992,16 @@ for (const module of ['electronics', 'three-d'])
       await expect(ordinaryCard).toBeVisible();
       await expect(learningCard).toHaveCount(0);
       await learner.getByRole('button', { name: 'Все', exact: true }).first().click();
+      await expect(learningCard).toBeVisible();
+      await expect(ordinaryCard).toBeVisible();
       for (const viewport of [
         { width: 1440, height: 900, label: 'desktop' },
         { width: 390, height: 844, label: 'mobile' },
       ]) {
         await learner.setViewportSize(viewport);
+        await expect(learningCard).toBeVisible();
+        await expect(ordinaryCard).toBeVisible();
+        await expect(learningCard.getByRole('link', { name: 'Продолжить' })).toBeVisible();
         await learner.screenshot({
           path: `${evidenceDir}/v3-my-projects-after-start-${viewport.label}.png`,
           fullPage: true,
