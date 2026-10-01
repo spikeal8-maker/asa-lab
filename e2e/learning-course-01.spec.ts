@@ -844,6 +844,198 @@ async function learnerAssignments(
   return { context, page };
 }
 
+test('V3 Direct Seat double Start, lost response, second tab and reload keep one work', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const title = `Повтор начала работы ${++sequence}`;
+  const v3Teacher = await seedTeacher(admin, 'v3-start-repeat');
+  await createPublishedProjectActivity(page, title, 'electronics', 'completion', v3Teacher);
+  const code = await createClassWithStudents(page, 'Класс повтора Start', [
+    { label: 'Ирина', handle: 'v3-start-irina' },
+  ]);
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2026-12-30' });
+
+  const learner = await learnerAssignments(browser, code, 'v3-start-irina');
+  const secondTab = await learner.context.newPage();
+  await secondTab.goto('/#/learning');
+  await openPortalSection(secondTab, 'Моё обучение');
+  const assignmentRow = (tab: Page) =>
+    tab.getByTestId('seat-assignments').locator('li').filter({ hasText: title });
+  const firstStart = assignmentRow(learner.page).getByRole('button', {
+    name: 'Открыть',
+    exact: true,
+  });
+  const secondStart = assignmentRow(secondTab).getByRole('button', {
+    name: 'Открыть',
+    exact: true,
+  });
+  await expect(firstStart).toBeVisible();
+  await expect(secondStart).toBeVisible();
+
+  type StartReceipt = {
+    projectId: string;
+    participationId: string;
+    activityRunId: string;
+    attemptId: string;
+    attemptNumber: number;
+    state: string;
+    reused: boolean;
+  };
+  const startPath = '**/api/learning/work/runs/*/start';
+  const isStart = (url: string) =>
+    /^\/api\/learning\/work\/runs\/[^/]+\/start$/.test(new URL(url).pathname);
+  const firstRequestIds: string[] = [];
+  const secondRequestIds: string[] = [];
+  learner.page.on('request', (request) => {
+    if (request.method() === 'POST' && isStart(request.url())) {
+      firstRequestIds.push((request.postDataJSON() as { requestId: string }).requestId);
+    }
+  });
+  secondTab.on('request', (request) => {
+    if (request.method() === 'POST' && isStart(request.url())) {
+      secondRequestIds.push((request.postDataJSON() as { requestId: string }).requestId);
+    }
+  });
+
+  let upstreamStatus: number | null = null;
+  let committedReceipt: StartReceipt | null = null;
+  // Lose only the browser response. route.fetch must first prove the server committed Start.
+  await learner.page.route(startPath, async (route) => {
+    const upstream = await route.fetch();
+    upstreamStatus = upstream.status();
+    if (upstream.ok()) committedReceipt = (await upstream.json()) as StartReceipt;
+    await route.abort('failed');
+  });
+  await firstStart.dblclick();
+  await expect.poll(() => committedReceipt).not.toBeNull();
+  expect(upstreamStatus).toBe(200);
+  await expect(learner.page.locator('.seat-assignments [role="alert"]')).toBeVisible();
+  await expect(firstStart).toBeEnabled();
+  expect(firstRequestIds).toHaveLength(1);
+  await learner.page.unroute(startPath);
+  const committed = committedReceipt as StartReceipt;
+  expect(committed).toMatchObject({ attemptNumber: 1, state: 'in_progress', reused: false });
+
+  // The other tab was opened before Start and sends its own request identity.
+  const secondResponsePromise = secondTab.waitForResponse(
+    (response) => response.request().method() === 'POST' && isStart(response.url()),
+  );
+  await secondStart.click();
+  const secondResponse = await secondResponsePromise;
+  expect(secondResponse.status()).toBe(200);
+  const secondReceipt = (await secondResponse.json()) as StartReceipt;
+  await expect(secondTab.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(secondTab, 'electronics')).toBe(committed.projectId);
+
+  // The first tab retries through the UI with the original key after the lost response.
+  const retryResponsePromise = learner.page.waitForResponse(
+    (response) => response.request().method() === 'POST' && isStart(response.url()),
+  );
+  await expect(firstStart).toBeEnabled();
+  await firstStart.click();
+  const retryResponse = await retryResponsePromise;
+  expect(retryResponse.status()).toBe(200);
+  const retryReceipt = (await retryResponse.json()) as StartReceipt;
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(committed.projectId);
+  const lostRequestId = firstRequestIds[0]!;
+  expect(firstRequestIds).toEqual([lostRequestId, lostRequestId]);
+  expect(secondRequestIds).toHaveLength(1);
+  expect(secondRequestIds[0]).not.toBe(firstRequestIds[0]);
+  for (const receipt of [secondReceipt, retryReceipt]) {
+    expect(receipt).toMatchObject({
+      projectId: committed.projectId,
+      participationId: committed.participationId,
+      activityRunId: committed.activityRunId,
+      attemptId: committed.attemptId,
+      attemptNumber: 1,
+      state: 'in_progress',
+      reused: true,
+    });
+  }
+
+  await learner.page.reload();
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(committed.projectId);
+  await learner.page.goto('/#/learning');
+  await openPortalSection(learner.page, 'Моё обучение');
+  const continueWork = assignmentRow(learner.page).getByRole('button', {
+    name: 'Открыть работу',
+    exact: true,
+  });
+  await expect(continueWork).toBeVisible();
+  await learner.page.screenshot({
+    path: `${evidenceDir}/V3-start-repeat-desktop.png`,
+    fullPage: true,
+  });
+  await learner.page.setViewportSize({ width: 390, height: 844 });
+  await expect(continueWork).toBeVisible();
+  await learner.page.screenshot({ path: `${evidenceDir}/V3-start-repeat-390.png`, fullPage: true });
+  await continueWork.click();
+  await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  expect(courseActivityProjectId(learner.page, 'electronics')).toBe(committed.projectId);
+
+  const stored = await admin.query(
+    `SELECT
+       (SELECT count(*)::int FROM projects WHERE idempotency_key=$1) AS projects,
+       (SELECT count(*)::int FROM project_drafts WHERE project_id=$2) AS drafts,
+       (SELECT count(*)::int FROM learning_project_origins WHERE participation_id=$3) AS origins,
+       (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$3) AS attempts,
+       (SELECT count(*)::int FROM learning_work_start_requests WHERE participation_id=$3) AS requests`,
+    [`learning:${committed.participationId}`, committed.projectId, committed.participationId],
+  );
+  expect(stored.rows[0]).toMatchObject({
+    projects: 1,
+    drafts: 1,
+    origins: 1,
+    attempts: 1,
+    requests: 2,
+  });
+  const identity = await admin.query(
+    `SELECT origin.project_id, origin.activity_run_id, attempt.id AS attempt_id,
+            attempt.attempt_number, attempt.state
+       FROM learning_project_origins origin
+       JOIN learning_attempts attempt
+         ON attempt.activity_participation_id=origin.participation_id
+      WHERE origin.participation_id=$1`,
+    [committed.participationId],
+  );
+  expect(identity.rows).toEqual([
+    {
+      project_id: committed.projectId,
+      activity_run_id: committed.activityRunId,
+      attempt_id: committed.attemptId,
+      attempt_number: 1,
+      state: 'in_progress',
+    },
+  ]);
+  const requestRows = await admin.query(
+    `SELECT request_id, project_id, attempt_id
+       FROM learning_work_start_requests
+      WHERE participation_id=$1 ORDER BY request_id`,
+    [committed.participationId],
+  );
+  expect(requestRows.rows).toEqual(
+    [lostRequestId, secondRequestIds[0]!].sort().map((requestId) => ({
+      request_id: requestId,
+      project_id: committed.projectId,
+      attempt_id: committed.attemptId,
+    })),
+  );
+  await learner.context.close();
+});
+
 test('teacher authors and assigns a canonical activity to the whole class and a learner sees it', async ({
   browser,
   page,
