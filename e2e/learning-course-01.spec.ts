@@ -13,6 +13,20 @@ let admin: pg.Pool;
 let teacher: SeededTeacher;
 let sequence = 0;
 const keys = new Map<string, string>();
+
+async function switchAccountWorkspace(page: Page, workspaceId: string): Promise<void> {
+  const switched = await page.request.post('/api/session/context', {
+    headers: { origin: new URL(page.url()).origin },
+    data: { workspaceId },
+  });
+  expect(switched.status()).toBe(201);
+  const session = await page.request.get('/api/auth/me');
+  expect(session.status()).toBe(200);
+  expect((await session.json()).activeWorkspace.workspaceId).toBe(workspaceId);
+  await page.goto('/#/home');
+  await page.reload();
+}
+
 async function editRealProject(page: Page, module: string) {
   const assignmentAnchor = page.getByTestId('assignment-brief-anchor');
   const assignmentPanel = page.getByTestId('assignment-brief');
@@ -1627,6 +1641,37 @@ for (const module of ['electronics', 'three-d'])
     const context = await browser.newContext(),
       learner = await context.newPage();
     await loginWithOrganization(learner, learnerIdentity);
+    const organizationSession = await learner.request.get('/api/auth/me');
+    expect(organizationSession.status()).toBe(200);
+    const organizationWorkspaceId = (await organizationSession.json()).activeWorkspace
+      .workspaceId as string;
+    if (module === 'electronics') {
+      await switchAccountWorkspace(learner, personalWorkspace.rows[0].id as string);
+      const ordinary = await learner.request.post('/api/projects', {
+        headers: {
+          origin: new URL(learner.url()).origin,
+          'idempotency-key': `v3-ordinary-${crypto.randomUUID()}`,
+        },
+        data: {
+          scope: 'personal',
+          classroomId: null,
+          module: 'electronics',
+          title: 'Обычный личный проект',
+        },
+      });
+      expect(ordinary.status()).toBe(201);
+      await learner.goto('/#/projects');
+      const ordinaryCard = learner.getByTestId('project-card').filter({
+        hasText: 'Обычный личный проект',
+      });
+      await expect(ordinaryCard).toBeVisible();
+      await expect(ordinaryCard.getByText('Учебная работа')).toHaveCount(0);
+      await learner.screenshot({
+        path: `${evidenceDir}/v3-my-projects-before-start-desktop.png`,
+        fullPage: true,
+      });
+      await switchAccountWorkspace(learner, organizationWorkspaceId);
+    }
     await learner.goto('/#/attending');
     await learner.getByLabel('Код класса', { exact: true }).fill(code);
     await learner.getByRole('button', { name: 'Войти в класс', exact: true }).click();
@@ -1709,6 +1754,36 @@ for (const module of ['electronics', 'three-d'])
       path: `${evidenceDir}/account-course-${module}-started-project.png`,
       fullPage: true,
     });
+    if (module === 'electronics') {
+      const editorUrl = learner.url();
+      await switchAccountWorkspace(learner, personalWorkspace.rows[0].id as string);
+      await learner.goto('/#/projects');
+      const learningCard = learner.getByTestId('project-card').filter({
+        has: learner.locator(`a[href*="${startedProjectId}"]`),
+      });
+      const ordinaryCard = learner.getByTestId('project-card').filter({
+        hasText: 'Обычный личный проект',
+      });
+      await expect(learningCard).toBeVisible();
+      await expect(learningCard.getByText('Учебная работа', { exact: true })).toBeVisible();
+      await expect(learningCard).toContainText('Приватный');
+      await expect(ordinaryCard).toBeVisible();
+      await expect(ordinaryCard.getByText('Учебная работа')).toHaveCount(0);
+      for (const viewport of [
+        { width: 1440, height: 900, label: 'desktop' },
+        { width: 390, height: 844, label: 'mobile' },
+      ]) {
+        await learner.setViewportSize(viewport);
+        await learner.screenshot({
+          path: `${evidenceDir}/v3-my-projects-after-start-${viewport.label}.png`,
+          fullPage: true,
+        });
+      }
+      await learner.setViewportSize({ width: 1440, height: 900 });
+      await switchAccountWorkspace(learner, organizationWorkspaceId);
+      await learner.goto(editorUrl);
+      await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible();
+    }
     await editRealProject(learner, module);
     const brief = learner.getByTestId('assignment-brief');
     await expect(

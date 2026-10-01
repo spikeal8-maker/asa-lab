@@ -1183,6 +1183,8 @@ export interface Project {
   moduleKey: string;
   title: string;
   status: ProjectStatus;
+  /** Present on personal list rows; derived from an authorized immutable Learning origin. */
+  isLearningWork?: boolean;
   createdAt: string;
   updatedAt: string;
   preview: ProjectPreview | null;

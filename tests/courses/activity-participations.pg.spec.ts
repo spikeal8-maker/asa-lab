@@ -2264,6 +2264,43 @@ describe('A4-2b atomic StartLearningWork', () => {
       expect(login.statusCode).toBe(200);
       const accountToken = login.cookies.find((cookie) => cookie.name === 'asa_session')?.value;
       expect(accountToken).toBeTruthy();
+      const personalContext = await inject(api, {
+        method: 'POST',
+        url: '/api/session/context',
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { workspaceId },
+      });
+      expect(personalContext.statusCode).toBe(201);
+      const accountList = await inject(api, {
+        method: 'GET',
+        url: '/api/projects?scope=personal',
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountList.statusCode).toBe(200);
+      expect(accountList.json().items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: started.projectId, isLearningWork: true }),
+          expect.objectContaining({ id: ordinaryAccount.value.project.id, isLearningWork: false }),
+        ]),
+      );
+      expect(accountList.json().items).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: seatOwned.projectId })]),
+      );
+      const seatList = await inject(api, {
+        method: 'GET',
+        url: '/api/projects?scope=personal',
+        cookies: { asa_student_session: seatToken },
+      });
+      expect(seatList.statusCode).toBe(200);
+      expect(seatList.json().items).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ id: seatOwned.projectId, isLearningWork: true }),
+          expect.objectContaining({ id: ordinary.value.project.id, isLearningWork: false }),
+        ]),
+      );
+      expect(seatList.json().items).not.toEqual(
+        expect.arrayContaining([expect.objectContaining({ id: started.projectId })]),
+      );
       const seatOpen = await inject(api, {
         method: 'GET',
         url: `/api/projects/${started.projectId}`,
@@ -2414,6 +2451,20 @@ describe('A4-2b atomic StartLearningWork', () => {
       ]),
     );
     expect(revokedLinkedAccess.rows).toEqual([{ allowed: false }]);
+    const revokedMarkers = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_personal_project_origin_ids($1,$2::uuid[])', [
+        accountPrincipal,
+        [seatOwned.projectId],
+      ]),
+    );
+    expect(revokedMarkers.rows).toEqual([]);
+    const foreignMarkers = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_personal_project_origin_ids($1,$2::uuid[])', [
+        outsiderPrincipal,
+        [seatOwned.projectId, started.projectId],
+      ]),
+    );
+    expect(foreignMarkers.rows).toEqual([]);
     expect(
       await projects.rename(owner.tenantId, started.projectId, seatActor, 'Denied'),
     ).toBeNull();
