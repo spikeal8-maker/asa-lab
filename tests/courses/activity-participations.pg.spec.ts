@@ -3359,10 +3359,16 @@ describe('A4-3b immutable-origin Project Submission', () => {
   it('permits reciprocal linked Seat and Account submissions and denies revoked replay', async () => {
     const diagnosticStart = performance.now();
     let phase = 'account setup';
+    let listBackendPid: number | null = null;
+    const poolState = () => ({
+      total: app.totalCount,
+      idle: app.idleCount,
+      waiting: app.waitingCount,
+    });
     const mark = (nextPhase: string) => {
       phase = nextPhase;
       console.info(
-        `[Access A reciprocal] ${Math.round(performance.now() - diagnosticStart)}ms ${phase}`,
+        `[Access A reciprocal] ${Math.round(performance.now() - diagnosticStart)}ms ${phase} ${JSON.stringify(poolState())}`,
       );
     };
     const diagnosticUrl = process.env.TEST_DATABASE_URL;
@@ -3381,7 +3387,9 @@ describe('A4-3b immutable-origin Project Submission', () => {
     // record PostgreSQL waits without logging SQL text or parameter values.
     const monitor = setInterval(() => {
       const elapsed = Math.round(performance.now() - diagnosticStart);
-      console.warn(`[Access A reciprocal] ${elapsed}ms waiting in ${phase}`);
+      console.warn(
+        `[Access A reciprocal] ${elapsed}ms waiting in ${phase} ${JSON.stringify({ appPool: poolState(), listBackendPid })}`,
+      );
       if (snapshotRunning) return;
       snapshotRunning = true;
       void diagnosticPool
@@ -3392,12 +3400,15 @@ describe('A4-3b immutable-origin Project Submission', () => {
           wait_event: string | null;
           blocked_by: number[];
           query_seconds: number | null;
+          is_list_backend: boolean;
         }>(
           `SELECT pid,state,wait_event_type,wait_event,pg_blocking_pids(pid) AS blocked_by,
-                  extract(epoch FROM now()-query_start)::int AS query_seconds
+                  extract(epoch FROM now()-query_start)::int AS query_seconds,
+                  COALESCE(pid=$1::int,false) AS is_list_backend
              FROM pg_stat_activity
             WHERE datname=current_database() AND pid<>pg_backend_pid() AND state<>'idle'
             ORDER BY query_start NULLS LAST LIMIT 20`,
+          [listBackendPid],
         )
         .then(({ rows }) =>
           console.warn('[Access A reciprocal] active PG sessions', JSON.stringify(rows)),
@@ -3503,11 +3514,45 @@ describe('A4-3b immutable-origin Project Submission', () => {
       project_id: seatOwned.projectId,
       attempt_id: seatOwned.attemptId,
     });
-    const bySeatList = await inTenant(owner.tenantId, (client) =>
-      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
-    );
-    const byAccountList = await inTenant(owner.tenantId, (client) =>
-      client.query('SELECT context FROM learning_origin_learner_list(NULL,$1)', [accountId]),
+    const readList = async (subject: 'Seat' | 'Account', subjectId: string) => {
+      mark(`${subject} list pool acquire start`);
+      const client = await app.connect();
+      mark(`${subject} list pool acquired`);
+      try {
+        await client.query('BEGIN');
+        await client.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
+        listBackendPid = (await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
+          .rows[0]!.pid;
+        mark(`${subject} list SQL start`);
+        const result = await client.query(
+          subject === 'Seat'
+            ? 'SELECT context FROM learning_origin_learner_list($1,NULL)'
+            : 'SELECT context FROM learning_origin_learner_list(NULL,$1)',
+          [subjectId],
+        );
+        mark(`${subject} list SQL complete`);
+        await client.query('COMMIT');
+        return result;
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        listBackendPid = null;
+        client.release();
+      }
+    };
+    const bySeatList = await readList('Seat', seatId);
+    const byAccountList = await readList('Account', accountId);
+    mark('learner list SQL calls complete');
+    const originCount = await diagnosticPool
+      .query<{ candidate_count: number }>(
+        `SELECT count(*)::int AS candidate_count FROM learning_project_origins
+          WHERE school_tenant_id=$1 AND learner_identity_id=$2`,
+        [owner.tenantId, learner],
+      )
+      .catch(() => null);
+    console.info(
+      `[Access A reciprocal] candidate origins ${originCount?.rows[0]?.candidate_count ?? 'unavailable'}`,
     );
     for (const list of [bySeatList, byAccountList]) {
       expect(list.rows.map((row) => row.context.projectId)).toEqual(
