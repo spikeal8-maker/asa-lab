@@ -68,6 +68,7 @@ const STATUS_BY_CODE: Record<ProjectErrorCode, number> = {
   dependency_unavailable: 503,
   idempotency_conflict: 409,
   project_revision_conflict: 409,
+  learning_work_protected: 403,
   classroom_not_found: 404,
   project_not_found: 404,
 };
@@ -540,42 +541,62 @@ export class ProjectsController {
 
     const pool = this.pool;
     if (!pool) throw new HttpException(error('database_unavailable', 'database'), 503);
-    const saved = await pool.query(`SELECT project_properties_save($1, $2, $3, $4, $5, $6) AS ok`, [
-      context.principalId,
-      projectId,
-      title.trim(),
-      description,
-      tags,
-      license,
-    ]);
-    if ((saved.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
-      throw new HttpException(error('project_not_found', 'Проект не найден.'), 404);
-    }
-
-    // Публикация — это состояние работы, а не действие сбоку, поэтому она тут же.
     if (visibility !== null) {
       if (typeof visibility !== 'string' || !['private', 'link', 'public'].includes(visibility)) {
         throw new HttpException(error('validation_error', 'Неизвестная видимость.'), 400);
       }
-      const changed = await pool.query(`SELECT project_visibility_set($1, $2, $3) AS ok`, [
-        context.principalId,
-        projectId,
-        visibility,
-      ]);
+    }
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const saved = await client.query(
+        `SELECT project_properties_save($1, $2, $3, $4, $5, $6) AS ok`,
+        [context.principalId, projectId, title.trim(), description, tags, license],
+      );
+      if ((saved.rows[0] as { ok: boolean } | undefined)?.ok !== true) {
+        throw new HttpException(error('project_not_found', 'Проект не найден.'), 404);
+      }
+
+      // Properties and visibility form one response: a refused publication
+      // must not acknowledge a partially changed Project.
+      if (visibility !== null) {
+        const changed = await client.query(`SELECT project_visibility_set($1, $2, $3) AS ok`, [
+          context.principalId,
+          projectId,
+          visibility,
+        ]);
+        if (
+          (changed.rows[0] as { ok: boolean } | undefined)?.ok !== true &&
+          visibility !== 'private'
+        ) {
+          throw new HttpException(
+            error(
+              'visibility_failed',
+              'Чтобы поделиться работой, откройте её — редактор сохранит картинку.',
+            ),
+            400,
+          );
+        }
+      }
+      await client.query('COMMIT');
+      return { ok: true as const };
+    } catch (cause) {
+      await client.query('ROLLBACK');
       if (
-        (changed.rows[0] as { ok: boolean } | undefined)?.ok !== true &&
-        visibility !== 'private'
+        typeof cause === 'object' &&
+        cause !== null &&
+        'code' in cause &&
+        cause.code === 'P5L01'
       ) {
         throw new HttpException(
-          error(
-            'visibility_failed',
-            'Чтобы поделиться работой, откройте её — редактор сохранит картинку.',
-          ),
-          400,
+          error('learning_work_protected', 'Эту учебную работу нельзя публиковать в Сообществе.'),
+          403,
         );
       }
+      throw cause;
+    } finally {
+      client.release();
     }
-    return { ok: true as const };
   }
 
   /** The history itself, for a panel that opens without reloading the editor. */

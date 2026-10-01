@@ -7,6 +7,14 @@ import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 export type ProjectScope = 'personal' | 'classroom';
 export type ProjectStatus = 'active' | 'archived' | 'trashed';
 
+/** A server-side guard found an immutable Learning origin for this Project. */
+export class LearningWorkProtectedError extends Error {
+  constructor() {
+    super('Эта работа связана с учебным заданием. Используйте учебный архив.');
+    this.name = 'LearningWorkProtectedError';
+  }
+}
+
 /**
  * What a project card shows. The descriptor comes from the subject module and
  * Project Core never interprets it — it stores it, hands it to the client, and
