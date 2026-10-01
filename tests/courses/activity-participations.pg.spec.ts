@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type pg from 'pg';
+import { afterAll, beforeAll, describe, expect, it, onTestFinished } from 'vitest';
+import pg from 'pg';
 import type { FastifyRequest } from 'fastify';
 import { CreateProjectUseCase } from '../../contexts/projects/application/project.usecases';
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
@@ -3357,6 +3357,71 @@ describe('A4-3b immutable-origin Project Submission', () => {
 
   // Linked ownership, coexistence and revocation require additional exact-list SQL reads.
   it('permits reciprocal linked Seat and Account submissions and denies revoked replay', async () => {
+    const diagnosticStart = performance.now();
+    let phase = 'account setup';
+    const mark = (nextPhase: string) => {
+      phase = nextPhase;
+      console.info(
+        `[Access A reciprocal] ${Math.round(performance.now() - diagnosticStart)}ms ${phase}`,
+      );
+    };
+    const diagnosticUrl = process.env.TEST_DATABASE_URL;
+    if (!diagnosticUrl || !new URL(diagnosticUrl).pathname.endsWith('_test')) {
+      throw new Error('Access A diagnostic requires an isolated *_test database');
+    }
+    const diagnosticPool = new pg.Pool({
+      connectionString: diagnosticUrl,
+      max: 1,
+      connectionTimeoutMillis: 2_000,
+      query_timeout: 3_000,
+    });
+    let snapshotRunning = false;
+    // This test is normally ~12s but intermittently reaches its 60s limit in
+    // the shared CI database. Keep diagnostic reads confined to this test and
+    // record PostgreSQL waits without logging SQL text or parameter values.
+    const monitor = setInterval(() => {
+      const elapsed = Math.round(performance.now() - diagnosticStart);
+      console.warn(`[Access A reciprocal] ${elapsed}ms waiting in ${phase}`);
+      if (snapshotRunning) return;
+      snapshotRunning = true;
+      void diagnosticPool
+        .query<{
+          pid: number;
+          state: string;
+          wait_event_type: string | null;
+          wait_event: string | null;
+          blocked_by: number[];
+          query_seconds: number | null;
+        }>(
+          `SELECT pid,state,wait_event_type,wait_event,pg_blocking_pids(pid) AS blocked_by,
+                  extract(epoch FROM now()-query_start)::int AS query_seconds
+             FROM pg_stat_activity
+            WHERE datname=current_database() AND pid<>pg_backend_pid() AND state<>'idle'
+            ORDER BY query_start NULLS LAST LIMIT 20`,
+        )
+        .then(({ rows }) =>
+          console.warn('[Access A reciprocal] active PG sessions', JSON.stringify(rows)),
+        )
+        .catch(() => console.warn('[Access A reciprocal] PG snapshot unavailable'))
+        .finally(() => {
+          snapshotRunning = false;
+        });
+    }, 15_000);
+    monitor.unref();
+    let stopped = false;
+    const stopMonitor = () => {
+      if (stopped) return;
+      stopped = true;
+      clearInterval(monitor);
+      clearTimeout(hardStop);
+      void diagnosticPool.end().catch(() => undefined);
+    };
+    // Vitest may keep awaiting an underlying PG query after reporting its
+    // 60s test timeout. Bound the monitor even if that promise never settles.
+    const hardStop = setTimeout(stopMonitor, 61_000);
+    hardStop.unref();
+    onTestFinished(stopMonitor);
+
     const accountOwner = await seedTeacher(admin, 'a4-submit-linked-account');
     const identity = await admin.query(
       `SELECT account_id,principal_id FROM legacy_user_account_links
@@ -3406,6 +3471,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
     const accountOwned = await (
       await startController('account', accountPrincipal)
     ).start(accountStartRequest, accountRun, { requestId: `start:${randomUUID()}` });
+    mark('account Start complete');
     expect(
       (
         await admin.query(
@@ -3421,10 +3487,12 @@ describe('A4-3b immutable-origin Project Submission', () => {
     ).start(startRequest, seatRun, {
       requestId: `start:${randomUUID()}`,
     });
+    mark('Seat Start complete');
     const seatRequest = `submit:${randomUUID()}`;
     const accountRequest = `submit:${randomUUID()}`;
     const bySeat = await submitOrigin(learnerPrincipal, accountOwned.projectId, seatRequest, 1);
     const byAccount = await submitOrigin(accountPrincipal, seatOwned.projectId, accountRequest, 1);
+    mark('reciprocal submissions complete');
     expect(bySeat).toMatchObject({
       result_code: 'ok',
       project_id: accountOwned.projectId,
@@ -3446,6 +3514,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
         expect.arrayContaining([accountOwned.projectId, seatOwned.projectId]),
       );
     }
+    mark('learner lists complete');
     const outsiderAccount = (
       await admin.query(
         `SELECT account_id FROM legacy_user_account_links
@@ -3514,6 +3583,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
       attempt_id: null,
       submission_id: null,
     });
+    mark('wrong-class and foreign denial complete');
     const seatHandout = (
       await admin.query('SELECT source_classroom_assignment_id FROM activity_runs WHERE id=$1', [
         seatRun,
@@ -3573,6 +3643,7 @@ describe('A4-3b immutable-origin Project Submission', () => {
       attempt_id: null,
       submission_id: null,
     });
+    mark('revocation and replay denial complete');
     const counts = await admin.query(
       `SELECT (SELECT count(*)::int FROM learning_project_origins
                 WHERE project_id=ANY($1::uuid[])) AS origins,
@@ -3587,5 +3658,6 @@ describe('A4-3b immutable-origin Project Submission', () => {
       ],
     );
     expect(counts.rows[0]).toEqual({ origins: 2, attempts: 2, submissions: 2 });
+    mark('final cardinality verified');
   }, 60_000);
 });
