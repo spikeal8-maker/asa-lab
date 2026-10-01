@@ -200,6 +200,41 @@ function useOwnerSvgSource(asset: string): {
     : { source: null, failed: false };
 }
 
+function OwnerAssetErrorBadge({
+  width,
+  height,
+  testId,
+}: {
+  readonly width: number;
+  readonly height: number;
+  readonly testId: 'owner-svg-error' | 'owner-image-error';
+}): JSX.Element {
+  const badgeWidth = Math.min(width, 132);
+  const badgeHeight = Math.min(height, 22);
+  const label = width >= 120 ? 'Ошибка изображения' : width >= 48 ? 'Ошибка' : '!';
+  return (
+    <g
+      role="status"
+      aria-label="Изображение детали не загрузилось"
+      data-testid={testId}
+      pointerEvents="none"
+    >
+      <rect width={badgeWidth} height={badgeHeight} rx="3" fill="#9f1d1d" />
+      <text
+        x={badgeWidth / 2}
+        y={badgeHeight / 2}
+        dominantBaseline="central"
+        textAnchor="middle"
+        fill="white"
+        fontSize={label === 'Ошибка изображения' ? 11 : 12}
+        fontWeight="700"
+      >
+        {label}
+      </text>
+    </g>
+  );
+}
+
 function OwnerSvgFallback({
   asset,
   width,
@@ -213,9 +248,6 @@ function OwnerSvgFallback({
   readonly failed: boolean;
   readonly sourceAvailable: boolean;
 }): JSX.Element {
-  const badgeWidth = Math.min(width, 132);
-  const badgeHeight = Math.min(height, 22);
-  const label = width >= 120 ? 'Ошибка изображения' : width >= 48 ? 'Ошибка' : '!';
   return (
     <g pointerEvents="none">
       <image
@@ -224,27 +256,7 @@ function OwnerSvgFallback({
         height={height}
         data-owner-svg-status={failed ? 'failed' : sourceAvailable ? 'unavailable' : 'loading'}
       />
-      {failed && (
-        <g
-          role="status"
-          aria-label="Изображение детали не загрузилось"
-          data-testid="owner-svg-error"
-          pointerEvents="none"
-        >
-          <rect width={badgeWidth} height={badgeHeight} rx="3" fill="#9f1d1d" />
-          <text
-            x={badgeWidth / 2}
-            y={badgeHeight / 2}
-            dominantBaseline="central"
-            textAnchor="middle"
-            fill="white"
-            fontSize={label === 'Ошибка изображения' ? 11 : 12}
-            fontWeight="700"
-          >
-            {label}
-          </text>
-        </g>
-      )}
+      {failed && <OwnerAssetErrorBadge width={width} height={height} testId="owner-svg-error" />}
     </g>
   );
 }
@@ -1296,7 +1308,7 @@ export function ProductionComponentVisual({
       style={
         rgbIsLit ? ({ '--workbench-rgb-led-glow': rgbDisplayColour } as CSSProperties) : undefined
       }
-      aria-hidden="true"
+      role="presentation"
     >
       {selected && !usesMeasuredTinkercadGeometry ? (
         <g
@@ -1629,18 +1641,27 @@ export function ProductionComponentVisual({
               simulationRunning={simulationRunning}
             />
           ) : (
-            <image
-              className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
-              href={ownerImage.href}
-              onError={ownerImage.onError}
-              data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
-              y={ownerAssetY}
-              width={ownerAssetWidth}
-              height={ownerAssetHeight}
-              transform={ownerAssetTransform}
-              preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
-              pointerEvents="none"
-            />
+            <>
+              <image
+                className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
+                href={ownerImage.href}
+                onError={ownerImage.onError}
+                data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
+                y={ownerAssetY}
+                width={ownerAssetWidth}
+                height={ownerAssetHeight}
+                transform={ownerAssetTransform}
+                preserveAspectRatio={narrowsDo41Body ? 'none' : imageFit}
+                pointerEvents="none"
+              />
+              {ownerImage.failed && (
+                <OwnerAssetErrorBadge
+                  width={ownerAssetWidth}
+                  height={ownerAssetHeight}
+                  testId="owner-image-error"
+                />
+              )}
+            </>
           )}
           {entry.key === 'temperature-sensor' ? (
             <g className="workbench-temperature-sensor-mark" pointerEvents="none">

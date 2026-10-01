@@ -700,10 +700,17 @@ test.describe('asset recovery in the built editor', () => {
     await expect(part(page, 'meter').locator('[data-owner-svg-status="failed"]')).toBeVisible({
       timeout: 10_000,
     });
-    const visibleError = part(page, 'meter').getByTestId('owner-svg-error');
+    const visibleError = part(page, 'meter').getByRole('status', {
+      name: 'Изображение детали не загрузилось',
+    });
     await expect(visibleError).toBeVisible();
-    await expect(visibleError).toHaveAttribute('aria-label', 'Изображение детали не загрузилось');
+    await expect(visibleError).toHaveAttribute('data-testid', 'owner-svg-error');
     await expect(visibleError.locator('text')).toHaveText('Ошибка изображения');
+    const card = page.locator('.workbench-catalog-card[data-family-id="multimeter"]');
+    await card.scrollIntoViewIfNeeded();
+    await expect(
+      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible();
     await expect.poll(() => imageResponses).toBeGreaterThan(0);
     expect(textRequests).toBe(3);
     await page.waitForTimeout(800);
@@ -833,11 +840,10 @@ test.describe('asset recovery in the built editor', () => {
         const url = new URL(route.request().url());
         if (
           route.request().resourceType() === 'image' &&
-          !url.searchParams.has('asa-image-retry') &&
-          failures === 0
+          !url.searchParams.has('asa-image-retry')
         ) {
           failures += 1;
-          await route.abort('failed');
+          await route.fulfill({ status: 404, body: 'temporarily unavailable' });
         } else await route.continue();
       },
     );
@@ -854,8 +860,50 @@ test.describe('asset recovery in the built editor', () => {
     await expect(card.locator('image')).toHaveAttribute('href', /asa-image-retry=0/, {
       timeout: 10_000,
     });
-    expect(failures).toBe(1);
+    expect(failures).toBeGreaterThanOrEqual(1);
     expect(readDocument()).toEqual(empty);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    let imageRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'image') return route.continue();
+        imageRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const stageError = part(page, 'holder').getByRole('status', {
+      name: 'Изображение детали не загрузилось',
+    });
+    await expect(stageError).toBeVisible({ timeout: 10_000 });
+    await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toBeVisible();
+    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+    await card.scrollIntoViewIfNeeded();
+    await expect(
+      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible();
+    const requestsAtFailure = imageRequests;
+    await page.waitForTimeout(800);
+    expect(imageRequests).toBe(requestsAtFailure);
+    expect(imageRequests).toBeLessThanOrEqual(6);
+    expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });

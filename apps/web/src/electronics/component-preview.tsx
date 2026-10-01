@@ -51,7 +51,7 @@ export function ComponentPreview({ preview, asset, entry, className = '' }: Prop
       pinIds: Object.keys(entry.terminals),
     };
     return (
-      <span className={`workbench-component-vector-preview ${className}`} aria-hidden="true">
+      <span className={`workbench-component-vector-preview ${className}`}>
         <ProductionComponentVisual
           entry={entry}
           component={component}
