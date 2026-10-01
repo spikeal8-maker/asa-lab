@@ -200,6 +200,55 @@ function useOwnerSvgSource(asset: string): {
     : { source: null, failed: false };
 }
 
+function OwnerSvgFallback({
+  asset,
+  width,
+  height,
+  failed,
+  sourceAvailable,
+}: {
+  readonly asset: string;
+  readonly width: number;
+  readonly height: number;
+  readonly failed: boolean;
+  readonly sourceAvailable: boolean;
+}): JSX.Element {
+  const badgeWidth = Math.min(width, 132);
+  const badgeHeight = Math.min(height, 22);
+  const label = width >= 120 ? 'Ошибка изображения' : width >= 48 ? 'Ошибка' : '!';
+  return (
+    <g pointerEvents="none">
+      <image
+        href={asset}
+        width={width}
+        height={height}
+        data-owner-svg-status={failed ? 'failed' : sourceAvailable ? 'unavailable' : 'loading'}
+      />
+      {failed && (
+        <g
+          role="status"
+          aria-label="Изображение детали не загрузилось"
+          data-testid="owner-svg-error"
+          pointerEvents="none"
+        >
+          <rect width={badgeWidth} height={badgeHeight} rx="3" fill="#9f1d1d" />
+          <text
+            x={badgeWidth / 2}
+            y={badgeHeight / 2}
+            dominantBaseline="central"
+            textAnchor="middle"
+            fill="white"
+            fontSize={label === 'Ошибка изображения' ? 11 : 12}
+            fontWeight="700"
+          >
+            {label}
+          </text>
+        </g>
+      )}
+    </g>
+  );
+}
+
 const recoveredOwnerImages = new Map<string, Promise<string>>();
 const failedOwnerImages = new Set<string>();
 
@@ -341,12 +390,12 @@ function OwnerMultimeterVisual({
   );
   if (!markup) {
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   }
@@ -406,12 +455,12 @@ function OwnerPiezoVisual({
   const markup = useMemo(() => (ownerSvg ? piezoRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup)
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   return (
@@ -526,12 +575,12 @@ function OwnerRegulatedPowerSupplyVisual({
   };
   if (!markup)
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   return (
@@ -669,12 +718,12 @@ function OwnerSignalGeneratorVisual({
   };
   if (!markup)
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   return (
@@ -775,12 +824,12 @@ function OwnerOscilloscopeVisual({
   );
   if (!markup)
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   return (
@@ -819,12 +868,12 @@ function OwnerPotentiometerVisual({
   );
   if (!markup) {
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   }
@@ -859,12 +908,12 @@ function OwnerDcMotorVisual({
   const markup = useMemo(() => (ownerSvg ? dcMotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   }
@@ -911,12 +960,12 @@ function OwnerGearmotorVisual({
   const markup = useMemo(() => (ownerSvg ? gearmotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   }
@@ -967,12 +1016,12 @@ function OwnerVibrationMotorVisual({
   const markup = useMemo(() => (ownerSvg ? vibrationMotorRuntimeMarkup(ownerSvg) : ''), [ownerSvg]);
   if (!markup) {
     return (
-      <image
-        href={asset}
+      <OwnerSvgFallback
+        asset={asset}
         width={width}
         height={height}
-        pointerEvents="none"
-        data-owner-svg-status={ownerSvgFailed ? 'failed' : ownerSvg ? 'unavailable' : 'loading'}
+        failed={ownerSvgFailed}
+        sourceAvailable={Boolean(ownerSvg)}
       />
     );
   }

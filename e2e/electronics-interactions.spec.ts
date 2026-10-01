@@ -671,6 +671,16 @@ test.describe('asset recovery in the built editor', () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('multimeter')!.asset;
     let textRequests = 0;
+    let imageResponses = 0;
+    page.on('response', (response) => {
+      if (
+        new URL(response.url()).pathname === asset &&
+        response.request().resourceType() === 'image' &&
+        response.status() === 200
+      ) {
+        imageResponses += 1;
+      }
+    });
     await page.route(
       (url) => url.pathname === asset,
       async (route) => {
@@ -690,6 +700,11 @@ test.describe('asset recovery in the built editor', () => {
     await expect(part(page, 'meter').locator('[data-owner-svg-status="failed"]')).toBeVisible({
       timeout: 10_000,
     });
+    const visibleError = part(page, 'meter').getByTestId('owner-svg-error');
+    await expect(visibleError).toBeVisible();
+    await expect(visibleError).toHaveAttribute('aria-label', 'Изображение детали не загрузилось');
+    await expect(visibleError.locator('text')).toHaveText('Ошибка изображения');
+    await expect.poll(() => imageResponses).toBeGreaterThan(0);
     expect(textRequests).toBe(3);
     await page.waitForTimeout(800);
     expect(textRequests).toBe(3);
@@ -730,12 +745,28 @@ test.describe('asset recovery in the built editor', () => {
     await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
       timeout: 12_000,
     });
-    await expect(part(page, 'generator').locator('.workbench-signal-generator-power')).toHaveCount(
-      1,
-    );
     expect(textRequests).toBe(2);
     expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
+    const runtime = part(page, 'generator').getByTestId('signal-generator-runtime');
+    const outputBefore = await runtime.getAttribute('data-output-enabled');
+    await runtime
+      .locator('.workbench-signal-generator-power')
+      .first()
+      .dispatchEvent('pointerdown', {
+        pointerId: 1,
+      });
+    await expect(runtime).toHaveAttribute(
+      'data-output-enabled',
+      outputBefore === 'true' ? 'false' : 'true',
+    );
+    await expect
+      .poll(
+        () =>
+          readDocument().components.find((component) => component.id === 'generator')
+            ?.stateProperties?.['outputEnabled'],
+      )
+      .toBe(outputBefore !== 'true');
     expect(errors).toEqual([]);
   });
 
