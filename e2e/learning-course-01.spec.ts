@@ -880,6 +880,8 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
     activityRunId: string;
     attemptId: string;
     attemptNumber: number;
+    state: string;
+    reused: boolean;
   };
   const startPath = '**/api/learning/work/runs/*/start';
   const isStart = (url: string) =>
@@ -914,6 +916,7 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
   expect(firstRequestIds).toHaveLength(1);
   await learner.page.unroute(startPath);
   const committed = committedReceipt as StartReceipt;
+  expect(committed).toMatchObject({ attemptNumber: 1, state: 'in_progress', reused: false });
 
   // The other tab was opened before Start and sends its own request identity.
   const secondResponsePromise = secondTab.waitForResponse(
@@ -945,8 +948,17 @@ test('V3 Direct Seat double Start, lost response, second tab and reload keep one
   expect(firstRequestIds).toEqual([lostRequestId, lostRequestId]);
   expect(secondRequestIds).toHaveLength(1);
   expect(secondRequestIds[0]).not.toBe(firstRequestIds[0]);
-  expect(secondReceipt).toMatchObject(committed);
-  expect(retryReceipt).toMatchObject(committed);
+  for (const receipt of [secondReceipt, retryReceipt]) {
+    expect(receipt).toMatchObject({
+      projectId: committed.projectId,
+      participationId: committed.participationId,
+      activityRunId: committed.activityRunId,
+      attemptId: committed.attemptId,
+      attemptNumber: 1,
+      state: 'in_progress',
+      reused: true,
+    });
+  }
 
   await learner.page.reload();
   await expect(learner.page.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible({
