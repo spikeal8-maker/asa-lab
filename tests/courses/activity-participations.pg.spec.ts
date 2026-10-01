@@ -9,6 +9,7 @@ import {
 } from '../../contexts/projects/application/project.usecases';
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+import { LearningWorkReadOnlyError } from '../../contexts/projects/domain/project';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
 import { SEAT_COURSE_LESSON_LIST_SQL } from '../../apps/api/src/course-lesson-list-queries';
 import { buildTestApp, inject } from '../portal/app';
@@ -909,6 +910,353 @@ describe('A4-1 immutable learning project origin', () => {
      learner_identity_id,activity_run_id,learning_activity_version_id,source_kind,
      source_course_run_id,source_course_lesson_id,source_course_block_id,owner_principal_id)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`;
+
+  async function originatedAttempt(participationId: string, projectId: string): Promise<string> {
+    await admin.query(insertSql, await originValues(participationId, projectId));
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const inserted = await admin.query(
+      `INSERT INTO learning_attempts
+         (tenant_id,classroom_id,classroom_assignment_id,
+          learning_activity_version_id,seat_id,learner_identity_id,
+          activity_participation_id,attempt_number,state)
+       SELECT participation.tenant_id,run.classroom_id,
+              run.source_classroom_assignment_id,run.learning_activity_version_id,
+              $2,participation.learner_identity_id,participation.id,1,'in_progress'
+         FROM activity_participations participation
+         JOIN activity_runs run ON run.id=participation.activity_run_id
+        WHERE participation.id=$1 RETURNING id`,
+      [participationId, seatId],
+    );
+    return inserted.rows[0].id as string;
+  }
+
+  it('fails closed for an origin missing its atomic Start attempt', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const projectId = await duplicableProject(learnerPrincipal);
+    await admin.query(
+      insertSql,
+      await originValues(participation.participation_id as string, projectId),
+    );
+    await expect(
+      new PgProjectRepository(app).saveDraft({
+        tenantId: owner.tenantId,
+        projectId,
+        actor: { principalId: learnerPrincipal, userId: null },
+        document: { unexpected: true },
+        preview: null,
+        baseRevision: 1,
+        mutationId: randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+  });
+
+  it('uses proven legacy work state and fails closed after its source disappears', async () => {
+    const repo = new PgProjectRepository(app);
+    const actor = { principalId: learnerPrincipal, userId: null };
+    const projectId = await duplicableProject(learnerPrincipal);
+    const seatId = (
+      await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
+    ).rows[0].seat_id as string;
+    const handout = await directHandout();
+    const work = await admin.query(
+      `INSERT INTO classroom_assignment_work
+         (tenant_id,assignment_id,seat_id,project_id)
+       VALUES ($1,$2,$3,$4) RETURNING id`,
+      [owner.tenantId, handout, seatId, projectId],
+    );
+    expect(
+      await repo.saveDraft({
+        tenantId: owner.tenantId,
+        projectId,
+        actor,
+        document: { legacy: 'started' },
+        preview: null,
+        baseRevision: 1,
+        mutationId: randomUUID(),
+      }),
+    ).toMatchObject({ revision: 2 });
+    const denied = () =>
+      repo.saveDraft({
+        tenantId: owner.tenantId,
+        projectId,
+        actor,
+        document: { legacy: 'after submission' },
+        preview: null,
+        baseRevision: 2,
+        mutationId: randomUUID(),
+      });
+    const submit = await admin.connect();
+    let submitOpen = false;
+    let pending: Promise<{ error?: unknown }> | undefined;
+    try {
+      await submit.query('BEGIN');
+      submitOpen = true;
+      await submit.query(`UPDATE classroom_assignment_work SET submitted_at=now() WHERE id=$1`, [
+        work.rows[0].id,
+      ]);
+      pending = denied().then(
+        () => ({}),
+        (error: unknown) => ({ error }),
+      );
+      let lockWaitObserved = false;
+      for (let attempt = 0; attempt < 100 && !lockWaitObserved; attempt++) {
+        const waiting = await admin.query(
+          `SELECT EXISTS (
+             SELECT 1 FROM pg_stat_activity
+              WHERE usename='asalab_app' AND wait_event_type='Lock'
+                AND query LIKE 'WITH updated AS (%'
+           ) AS waiting`,
+        );
+        lockWaitObserved = waiting.rows[0].waiting as boolean;
+        if (!lockWaitObserved) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      await submit.query('COMMIT');
+      submitOpen = false;
+      expect(lockWaitObserved).toBe(true);
+      expect((await pending).error).toBeInstanceOf(LearningWorkReadOnlyError);
+    } finally {
+      if (submitOpen) await submit.query('ROLLBACK');
+      submit.release();
+      if (pending) await pending;
+    }
+    await expect(denied()).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+    await admin.query(`DELETE FROM classroom_assignment_work WHERE id=$1`, [work.rows[0].id]);
+    await expect(denied()).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+  });
+
+  it('makes accepted direct and Course originals read-only across generic editor writes', async () => {
+    const repo = new PgProjectRepository(app);
+    const actor = { principalId: learnerPrincipal, userId: null };
+    const directRun = await createRun({ handout: await directHandout() });
+    const directPart = await assign(directRun);
+    const course = await courseHandout();
+    const courseRun = await createRun({
+      handout: course.handout,
+      kind: 'course',
+      courseRun: course.courseRun,
+      lesson: course.lesson,
+    });
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM course_enrollment_assign($1,$2,$3)`, [
+        ownerPrincipal,
+        course.courseRun,
+        learner,
+      ]),
+    );
+    const coursePart = await assign(courseRun, learner, enrollment.rows[0].enrollment_id);
+
+    for (const participation of [directPart, coursePart]) {
+      const projectId = await duplicableProject(learnerPrincipal);
+      const attemptId = await originatedAttempt(
+        participation.participation_id as string,
+        projectId,
+      );
+      const before = await repo.saveDraft({
+        tenantId: owner.tenantId,
+        projectId,
+        actor,
+        document: { before: 'acceptance' },
+        preview: null,
+        baseRevision: 1,
+        mutationId: randomUUID(),
+      });
+      expect(before?.revision).toBe(2);
+      const version = await repo.createCheckpoint(
+        owner.tenantId,
+        projectId,
+        actor,
+        'Before review',
+      );
+      expect(version).not.toBeNull();
+
+      for (const waitingState of ['submitted', 'evaluating']) {
+        await admin.query(`UPDATE learning_attempts SET state=$2 WHERE id=$1`, [
+          attemptId,
+          waitingState,
+        ]);
+        await expect(
+          repo.saveDraft({
+            tenantId: owner.tenantId,
+            projectId,
+            actor,
+            document: { waitingState },
+            preview: null,
+            baseRevision: 2,
+            mutationId: randomUUID(),
+          }),
+        ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+      }
+
+      await admin.query(
+        `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+        [attemptId],
+      );
+      await admin.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         VALUES ($1,$2,20,'passed','accepted',true)`,
+        [owner.tenantId, attemptId],
+      );
+      const state = await admin.query(
+        `SELECT d.document_json,d.revision,p.title,
+           (SELECT count(*)::int FROM project_versions v WHERE v.project_id=p.id) AS versions,
+           (SELECT count(*)::int FROM project_snapshots s WHERE s.project_id=p.id) AS snapshots
+         FROM projects p JOIN project_drafts d ON d.project_id=p.id WHERE p.id=$1`,
+        [projectId],
+      );
+      const initial = state.rows[0];
+      await expect(repo.rename(owner.tenantId, projectId, actor, 'Changed')).rejects.toBeInstanceOf(
+        LearningWorkReadOnlyError,
+      );
+      await expect(
+        repo.saveDraft({
+          tenantId: owner.tenantId,
+          projectId,
+          actor,
+          document: { after: 'acceptance' },
+          preview: null,
+          baseRevision: 2,
+          mutationId: randomUUID(),
+        }),
+      ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+      await expect(
+        repo.createCheckpoint(owner.tenantId, projectId, actor, 'Forbidden'),
+      ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+      await expect(
+        repo.restoreVersion(owner.tenantId, projectId, actor, version!.id),
+      ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+      await expect(
+        repo.saveSnapshot({
+          tenantId: owner.tenantId,
+          projectId,
+          actor,
+          image: { bytes: new Uint8Array(64), contentType: 'image/png', width: 16, height: 16 },
+          sourceRevision: 2,
+        }),
+      ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
+      await expect(
+        admin.query(`UPDATE projects SET description='changed' WHERE id=$1`, [projectId]),
+      ).rejects.toMatchObject({ code: 'P5L02' });
+      const after = await admin.query(
+        `SELECT d.document_json,d.revision,p.title,
+           (SELECT count(*)::int FROM project_versions v WHERE v.project_id=p.id) AS versions,
+           (SELECT count(*)::int FROM project_snapshots s WHERE s.project_id=p.id) AS snapshots
+         FROM projects p JOIN project_drafts d ON d.project_id=p.id WHERE p.id=$1`,
+        [projectId],
+      );
+      expect(after.rows[0]).toEqual(initial);
+      expect(await repo.load(owner.tenantId, projectId, actor)).not.toBeNull();
+    }
+  });
+
+  it('permits changes-requested original editing and ordinary personal work', async () => {
+    const repo = new PgProjectRepository(app);
+    const actor = { principalId: learnerPrincipal, userId: null };
+    const personalId = await duplicableProject(learnerPrincipal);
+    expect(await repo.rename(owner.tenantId, personalId, actor, 'Personal edit')).not.toBeNull();
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const projectId = await duplicableProject(learnerPrincipal);
+    const attemptId = await originatedAttempt(participation.participation_id as string, projectId);
+    await admin.query(
+      `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+      [attemptId],
+    );
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,
+          completion_value,correction_reason)
+       VALUES ($1,$2,20,'incomplete','changes_requested',false,'Revise work')`,
+      [owner.tenantId, attemptId],
+    );
+    expect(
+      await repo.saveDraft({
+        tenantId: owner.tenantId,
+        projectId,
+        actor,
+        document: { revision: 'requested' },
+        preview: null,
+        baseRevision: 1,
+        mutationId: randomUUID(),
+      }),
+    ).toMatchObject({ revision: 2 });
+    expect(
+      await repo.createCheckpoint(owner.tenantId, projectId, actor, 'Revision'),
+    ).not.toBeNull();
+  });
+
+  it('waits for an in-flight acceptance decision before saving an original draft', async () => {
+    const run = await createRun({ handout: await directHandout() });
+    const participation = await assign(run);
+    const projectId = await duplicableProject(learnerPrincipal);
+    const attemptId = await originatedAttempt(participation.participation_id as string, projectId);
+    const review = await admin.connect();
+    let reviewOpen = false;
+    let pending: Promise<{ value?: unknown; error?: unknown }> | undefined;
+    let saveSettled = false;
+    try {
+      await review.query('BEGIN');
+      reviewOpen = true;
+      await review.query(
+        `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+        [attemptId],
+      );
+      await review.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         VALUES ($1,$2,20,'passed','accepted',true)`,
+        [owner.tenantId, attemptId],
+      );
+      pending = new PgProjectRepository(app)
+        .saveDraft({
+          tenantId: owner.tenantId,
+          projectId,
+          actor: { principalId: learnerPrincipal, userId: null },
+          document: { tooLate: true },
+          preview: null,
+          baseRevision: 1,
+          mutationId: randomUUID(),
+        })
+        .then(
+          (value) => {
+            saveSettled = true;
+            return { value };
+          },
+          (error: unknown) => {
+            saveSettled = true;
+            return { error };
+          },
+        );
+      let lockWaitObserved = false;
+      for (let attempt = 0; attempt < 100 && !lockWaitObserved; attempt++) {
+        const waiting = await admin.query(
+          `SELECT EXISTS (
+             SELECT 1 FROM pg_stat_activity
+              WHERE usename='asalab_app' AND wait_event_type='Lock'
+                AND query LIKE 'WITH updated AS (%'
+           ) AS waiting`,
+        );
+        lockWaitObserved = waiting.rows[0].waiting as boolean;
+        if (!lockWaitObserved) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(saveSettled).toBe(false);
+      await review.query('COMMIT');
+      reviewOpen = false;
+      expect(lockWaitObserved).toBe(true);
+      expect((await pending).error).toBeInstanceOf(LearningWorkReadOnlyError);
+      expect(
+        (await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [projectId]))
+          .rows[0].revision,
+      ).toBe(1);
+    } finally {
+      if (reviewOpen) await review.query('ROLLBACK');
+      review.release();
+      if (pending) await pending;
+    }
+  }, 20_000);
 
   it('denies generic duplicate for direct and Course origins but permits personal work', async () => {
     const duplicate = new DuplicateProjectUseCase(new PgProjectRepository(app));
@@ -3199,6 +3547,34 @@ describe('A4-2b atomic StartLearningWork', () => {
       started.projectId,
     );
     expect(seatOwnedParticipation.participation_id).not.toBe(started.participationId);
+    await admin.query(
+      `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+      [started.attemptId],
+    );
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+       VALUES ($1,$2,20,'passed','accepted',true)`,
+      [owner.tenantId, started.attemptId],
+    );
+    const acceptedRevision = Number(
+      (
+        await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [
+          started.projectId,
+        ])
+      ).rows[0].revision,
+    );
+    await expect(
+      projects.saveDraft({
+        tenantId: personalTenant,
+        projectId: started.projectId,
+        actor: accountActor,
+        document: { account: 'after acceptance' },
+        preview: null,
+        baseRevision: acceptedRevision,
+        mutationId: randomUUID(),
+      }),
+    ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
   }, 20_000);
 
   it('reopens a Seat-owned Project for a linked legacy Account without a personal workspace', async () => {
@@ -3732,12 +4108,14 @@ describe('A4-3b immutable-origin Project Submission', () => {
     });
     expect(pinned.rows[0].payload_digest).toMatch(/^[0-9a-f]{64}$/);
     const savedDocument = pinned.rows[0].document_json;
-    await admin.query(
-      `UPDATE project_drafts
-          SET revision=2,document_json='{"schemaVersion":1,"components":[]}'::jsonb
-        WHERE project_id=$1`,
-      [started.projectId],
-    );
+    await expect(
+      admin.query(
+        `UPDATE project_drafts
+            SET revision=2,document_json='{"schemaVersion":1,"components":[]}'::jsonb
+          WHERE project_id=$1`,
+        [started.projectId],
+      ),
+    ).rejects.toMatchObject({ code: 'P5L02' });
     expect((await submitOrigin(learnerPrincipal, started.projectId, requestId, 1)).reused).toBe(
       true,
     );

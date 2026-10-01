@@ -1,7 +1,7 @@
 import type pg from 'pg';
 import { withTenantContext } from '@asa-lab/database';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
-import { LearningWorkProtectedError } from '../domain/project.js';
+import { LearningWorkProtectedError, LearningWorkReadOnlyError } from '../domain/project.js';
 import type {
   Project,
   ProjectDraft,
@@ -201,6 +201,25 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   /** Reuse the caller's transaction for a multi-domain command. */
   inTransaction(client: pg.PoolClient): PgProjectRepository {
     return new PgProjectRepository(this.pool, client);
+  }
+
+  private async withEditorWriteContext<T>(
+    tenantId: string,
+    operation: (client: pg.PoolClient) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await withTenantContext(this.pool, tenantId, operation);
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'code' in error &&
+        error.code === 'P5L02'
+      ) {
+        throw new LearningWorkReadOnlyError();
+      }
+      throw error;
+    }
   }
 
   private async markPersonalLearningProjects(
@@ -667,7 +686,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<Project | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
-    return withTenantContext(this.pool, access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, async (client) => {
       const updated = await client.query(
         `UPDATE projects p SET title=$5
           WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed' AND ${EDIT_ACCESS_SQL}
@@ -706,7 +725,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   async saveDraft(input: SaveDraftInput): Promise<ProjectDraft | null> {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
-    return withTenantContext(this.pool, access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, async (client) => {
       const updated = await client.query(
         `WITH updated AS (
           UPDATE project_drafts d
@@ -837,7 +856,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<ProjectVersion | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
-    return withTenantContext(this.pool, access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, async (client) => {
       const draft = await client.query(
         `SELECT d.document_json
            FROM project_drafts d
@@ -931,7 +950,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   ): Promise<{ draft: ProjectDraft; versions: readonly ProjectVersion[] } | null> {
     const access = await this.projectContext(tenantId, projectId, actor);
     if (access === null) return null;
-    return withTenantContext(this.pool, access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, async (client) => {
       // The version being returned to.
       const target = await client.query(
         `SELECT v.document_json, v.version_no
@@ -1042,7 +1061,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
   async saveSnapshot(input: SaveSnapshotInput): Promise<ProjectSnapshot | null> {
     const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
     if (access === null) return null;
-    return withTenantContext(this.pool, access.tenantId, async (client) => {
+    return this.withEditorWriteContext(access.tenantId, async (client) => {
       // The image is accepted only while the draft is still the exact revision
       // from which the editor rendered it. Otherwise an older canvas could be
       // stored under a newer immutable card URL.

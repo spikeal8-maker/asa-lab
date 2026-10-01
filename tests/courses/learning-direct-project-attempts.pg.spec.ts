@@ -1667,10 +1667,12 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ).rows[0].n,
     ).toBe(0);
     const submitted = await submit(requestId);
-    await admin.query(
-      `UPDATE project_drafts SET revision=2,document_json='{"schemaVersion":1,"components":[]}' WHERE project_id=$1`,
-      [projectId],
-    );
+    await expect(
+      admin.query(
+        `UPDATE project_drafts SET revision=2,document_json='{"schemaVersion":1,"components":[]}' WHERE project_id=$1`,
+        [projectId],
+      ),
+    ).rejects.toMatchObject({ code: 'P5L02' });
     const submitRetry = await submit(requestId);
     expect((await submit(requestId, 2)).result_code).toBe('request_conflict');
     expect((await submit(requestId, 1, teacherPrincipal)).result_code).toBe('forbidden');

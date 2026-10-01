@@ -69,6 +69,7 @@ const STATUS_BY_CODE: Record<ProjectErrorCode, number> = {
   idempotency_conflict: 409,
   project_revision_conflict: 409,
   learning_work_protected: 403,
+  learning_work_read_only: 403,
   classroom_not_found: 404,
   project_not_found: 404,
 };
@@ -582,6 +583,20 @@ export class ProjectsController {
       return { ok: true as const };
     } catch (cause) {
       await client.query('ROLLBACK');
+      if (
+        typeof cause === 'object' &&
+        cause !== null &&
+        'code' in cause &&
+        cause.code === 'P5L02'
+      ) {
+        throw new HttpException(
+          error(
+            'learning_work_read_only',
+            'Эта учебная работа сейчас доступна только для просмотра.',
+          ),
+          403,
+        );
+      }
       if (
         typeof cause === 'object' &&
         cause !== null &&
