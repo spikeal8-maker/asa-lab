@@ -5,6 +5,7 @@ import type { FastifyRequest } from 'fastify';
 import {
   ChangeProjectStatusUseCase,
   CreateProjectUseCase,
+  DuplicateProjectUseCase,
 } from '../../contexts/projects/application/project.usecases';
 import type { ModuleCatalogPort } from '../../contexts/projects/application/ports';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
@@ -863,6 +864,27 @@ describe('A4-1 immutable learning project origin', () => {
     return created.rows[0].id as string;
   }
 
+  async function duplicableProject(
+    principalId: string,
+    tenantId = owner.tenantId,
+    userId: string | null = null,
+  ) {
+    const created = await new PgProjectRepository(app).createWithDraft({
+      tenantId,
+      scope: 'personal',
+      classroomId: null,
+      actor: { principalId, userId },
+      moduleKey: 'electronics',
+      title: `Duplicate source ${++sequence}`,
+      idempotencyKey: `a5-duplicate-source-${randomUUID()}`,
+      requestFingerprint: randomUUID(),
+      initialDocument: { schemaVersion: 4, components: [], connections: [] },
+      initialPreview: null,
+    });
+    if (created.kind !== 'created') throw new Error('duplicate source was not created');
+    return created.project.id;
+  }
+
   async function originValues(
     participationId: string,
     projectId: string,
@@ -887,6 +909,159 @@ describe('A4-1 immutable learning project origin', () => {
      learner_identity_id,activity_run_id,learning_activity_version_id,source_kind,
      source_course_run_id,source_course_lesson_id,source_course_block_id,owner_principal_id)
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`;
+
+  it('denies generic duplicate for direct and Course origins but permits personal work', async () => {
+    const duplicate = new DuplicateProjectUseCase(new PgProjectRepository(app));
+    const actor = { principalId: learnerPrincipal, userId: null };
+    const personal = await duplicableProject(learnerPrincipal);
+    const personalCopy = await duplicate.execute({
+      tenantId: owner.tenantId,
+      projectId: personal,
+      actor,
+      title: 'Личная копия',
+      idempotencyKey: `a5-duplicate-personal-${randomUUID()}`,
+    });
+    expect(personalCopy).toMatchObject({ ok: true, value: { created: true } });
+
+    const directRun = await createRun({ handout: await directHandout() });
+    const directPart = await assign(directRun);
+    expect(directPart.result_code).toBe('ok');
+    const direct = await duplicableProject(learnerPrincipal);
+    const beforeClaimKey = `a5-duplicate-before-claim-${randomUUID()}`;
+    const beforeClaimInput = {
+      tenantId: owner.tenantId,
+      projectId: direct,
+      actor,
+      title: 'Копия до Start',
+      idempotencyKey: beforeClaimKey,
+    };
+    expect(await duplicate.execute(beforeClaimInput)).toMatchObject({
+      ok: true,
+      value: { created: true },
+    });
+    await admin.query(insertSql, await originValues(directPart.participation_id as string, direct));
+    expect(await duplicate.execute(beforeClaimInput)).toMatchObject({
+      ok: false,
+      code: 'learning_work_protected',
+    });
+
+    const course = await courseHandout();
+    const courseRun = await createRun({
+      handout: course.handout,
+      kind: 'course',
+      courseRun: course.courseRun,
+      lesson: course.lesson,
+    });
+    const enrollment = await inTenant(owner.tenantId, (client) =>
+      client.query(`SELECT * FROM course_enrollment_assign($1,$2,$3)`, [
+        ownerPrincipal,
+        course.courseRun,
+        learner,
+      ]),
+    );
+    const coursePart = await assign(courseRun, learner, enrollment.rows[0].enrollment_id);
+    expect(coursePart.result_code).toBe('ok');
+    const courseProject = await duplicableProject(learnerPrincipal);
+    await admin.query(
+      insertSql,
+      await originValues(coursePart.participation_id as string, courseProject),
+    );
+
+    for (const source of [direct, courseProject]) {
+      const key = `a5-duplicate-denied-${randomUUID()}`;
+      const input = {
+        tenantId: owner.tenantId,
+        projectId: source,
+        actor,
+        title: 'Обычная копия',
+        idempotencyKey: key,
+      };
+      expect(await duplicate.execute(input)).toMatchObject({
+        ok: false,
+        code: 'learning_work_protected',
+      });
+      expect(await duplicate.execute(input)).toMatchObject({
+        ok: false,
+        code: 'learning_work_protected',
+      });
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS count FROM projects WHERE idempotency_key=$1',
+            [key],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    }
+  });
+
+  it('waits for an in-flight origin claim before deciding whether to duplicate', async () => {
+    const directRun = await createRun({ handout: await directHandout() });
+    const directPart = await assign(directRun);
+    expect(directPart.result_code).toBe('ok');
+    const source = await duplicableProject(learnerPrincipal);
+    const values = await originValues(directPart.participation_id as string, source);
+    const claim = await admin.connect();
+    let claimOpen = false;
+    let pending: Promise<unknown> | undefined;
+    let duplicateSettled = false;
+    const key = `a5-duplicate-race-${randomUUID()}`;
+    try {
+      await claim.query('BEGIN');
+      claimOpen = true;
+      await claim.query(insertSql, values);
+      pending = new DuplicateProjectUseCase(new PgProjectRepository(app))
+        .execute({
+          tenantId: owner.tenantId,
+          projectId: source,
+          actor: { principalId: learnerPrincipal, userId: null },
+          title: 'Копия во время Start',
+          idempotencyKey: key,
+        })
+        .then(
+          (result) => {
+            duplicateSettled = true;
+            return result;
+          },
+          (error: unknown) => {
+            duplicateSettled = true;
+            return { error };
+          },
+        );
+      let lockWaitObserved = false;
+      for (let attempt = 0; attempt < 100 && !lockWaitObserved; attempt++) {
+        const waiting = await admin.query(
+          `SELECT EXISTS (
+             SELECT 1 FROM pg_stat_activity
+              WHERE usename = 'asalab_app'
+                AND wait_event_type = 'Lock'
+                -- pg_stat_activity may truncate a long query before its final
+                -- FOR UPDATE clause; match this command's distinctive prefix.
+                AND query LIKE 'SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.status,%'
+           ) AS waiting`,
+        );
+        lockWaitObserved = waiting.rows[0].waiting as boolean;
+        if (!lockWaitObserved) await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      expect(duplicateSettled).toBe(false);
+      await claim.query('COMMIT');
+      claimOpen = false;
+      expect(lockWaitObserved).toBe(true);
+      expect(await pending).toMatchObject({ ok: false, code: 'learning_work_protected' });
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS count FROM projects WHERE idempotency_key=$1',
+            [key],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+    } finally {
+      if (claimOpen) await claim.query('ROLLBACK');
+      claim.release();
+      await pending;
+    }
+  }, 20_000);
 
   it('pins direct, lesson-level and block-aware course provenance and rejects identity substitution', async () => {
     const directRun = await createRun({ handout: await directHandout() });
@@ -1434,7 +1609,7 @@ describe('A4-1 immutable learning project origin', () => {
     const seatId = (
       await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
     ).rows[0].seat_id as string;
-    const original = await project(learnerPrincipal);
+    const original = await duplicableProject(learnerPrincipal);
     const handout = await directHandout();
     await admin.query(
       `INSERT INTO classroom_assignment_work
@@ -1467,6 +1642,23 @@ describe('A4-1 immutable learning project origin', () => {
           'SELECT count(*)::int AS count FROM classroom_assignment_work WHERE project_id=$1',
           [original],
         )
+      ).rows[0].count,
+    ).toBe(0);
+    const duplicateKey = `a5-legacy-takeback-${randomUUID()}`;
+    expect(
+      await new DuplicateProjectUseCase(new PgProjectRepository(app)).execute({
+        tenantId: owner.tenantId,
+        projectId: original,
+        actor: { principalId: learnerPrincipal, userId: null },
+        title: 'Копия после возврата задания',
+        idempotencyKey: duplicateKey,
+      }),
+    ).toMatchObject({ ok: false, code: 'learning_work_protected' });
+    expect(
+      (
+        await admin.query('SELECT count(*)::int AS count FROM projects WHERE idempotency_key=$1', [
+          duplicateKey,
+        ])
       ).rows[0].count,
     ).toBe(0);
     const firstSourceWork = (
@@ -1624,7 +1816,11 @@ describe('A4-1 immutable learning project origin', () => {
         account.account_id,
         seat,
       ]);
-      const original = await project(account.principal_id as string, linked.tenantId);
+      const original = await duplicableProject(
+        account.principal_id as string,
+        linked.tenantId,
+        linked.teacherId,
+      );
       const handout = await directHandout();
       await admin.query(
         `INSERT INTO classroom_assignment_work
@@ -1654,6 +1850,24 @@ describe('A4-1 immutable learning project origin', () => {
           client.query("UPDATE projects SET status='archived' WHERE id=$1", [original]),
         ),
       ).rejects.toMatchObject({ code: 'P5L01' });
+      const duplicateKey = `a5-linked-takeback-${randomUUID()}`;
+      expect(
+        await new DuplicateProjectUseCase(new PgProjectRepository(app)).execute({
+          tenantId: linked.tenantId,
+          projectId: original,
+          actor: { principalId: account.principal_id as string, userId: linked.teacherId },
+          title: 'Linked Account copy',
+          idempotencyKey: duplicateKey,
+        }),
+      ).toMatchObject({ ok: false, code: 'learning_work_protected' });
+      expect(
+        (
+          await admin.query(
+            'SELECT count(*)::int AS count FROM projects WHERE idempotency_key=$1',
+            [duplicateKey],
+          )
+        ).rows[0].count,
+      ).toBe(0);
     } finally {
       await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
         priorAccount,

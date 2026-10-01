@@ -14,6 +14,8 @@ import type { ProjectSnapshot, ProjectSnapshotBytes, SnapshotFormat } from '../d
 import type {
   CreateProjectInput,
   CreateProjectResult,
+  DuplicateProjectInput,
+  DuplicateProjectResult,
   ProjectActor,
   ProjectListFilter,
   ProjectRepositoryPort,
@@ -396,6 +398,46 @@ export class PgProjectRepository implements ProjectRepositoryPort {
       return create(this.transactionClient);
     }
     return withTenantContext(this.pool, projectTenantId, create);
+  }
+
+  async duplicateWithDraft(input: DuplicateProjectInput): Promise<DuplicateProjectResult> {
+    const access = await this.projectContext(input.tenantId, input.projectId, input.actor);
+    if (access === null) return { kind: 'project_not_found' };
+    return withTenantContext(this.pool, access.tenantId, async (client) => {
+      // Origin and legacy-work claims lock this same Project row before writing
+      // their immutable proof. Keep the lock until the copy is committed so a
+      // retry cannot race a new claim or return an earlier idempotent copy.
+      const found = await client.query(
+        `SELECT p.id,p.project_scope,p.classroom_id,p.module_key,p.status,
+                d.document_json,d.preview_json,d.preview_digest
+           FROM projects p
+           JOIN project_drafts d ON d.tenant_id=p.tenant_id AND d.project_id=p.id
+          WHERE p.tenant_id=$1 AND p.id=$2 AND p.status <> 'trashed'
+            AND ${ACCESS_SQL}
+          FOR UPDATE OF p`,
+        [access.tenantId, input.projectId, input.actor.principalId, access.userId],
+      );
+      const source = found.rows[0] as (ProjectRow & { document_json: unknown }) | undefined;
+      if (!source) return { kind: 'project_not_found' };
+      const policy = await client.query<{ allowed: boolean }>(
+        `SELECT learning_original_project_duplicate_allowed($1,$2) AS allowed`,
+        [input.actor.principalId, input.projectId],
+      );
+      if (!policy.rows[0]?.allowed) return { kind: 'learning_work_protected' };
+      return this.inTransaction(client).createWithDraft({
+        tenantId: access.tenantId,
+        scope: source.project_scope,
+        classroomId: source.classroom_id,
+        actor: input.actor,
+        moduleKey: source.module_key,
+        title: input.title,
+        idempotencyKey: input.idempotencyKey,
+        requestFingerprint: input.requestFingerprint,
+        initialDocument: source.document_json,
+        // A copy of the same document is the same picture.
+        initialPreview: toPreview(source),
+      });
+    });
   }
 
   async nextTitleSequence(input: {

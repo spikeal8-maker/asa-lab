@@ -44,6 +44,20 @@ export type CreateProjectResult =
   | { readonly kind: 'conflict' }
   | { readonly kind: 'classroom_not_found' };
 
+export interface DuplicateProjectInput {
+  readonly tenantId: string;
+  readonly projectId: string;
+  readonly actor: ProjectActor;
+  readonly title: string;
+  readonly idempotencyKey: string;
+  readonly requestFingerprint: string;
+}
+
+export type DuplicateProjectResult =
+  | CreateProjectResult
+  | { readonly kind: 'project_not_found' }
+  | { readonly kind: 'learning_work_protected' };
+
 export interface ProjectListFilter {
   readonly scope?: ProjectScope;
   readonly classroomId?: string;
@@ -105,6 +119,8 @@ export interface ModuleCatalogPort {
 
 export interface ProjectRepositoryPort {
   createWithDraft(input: CreateProjectInput): Promise<CreateProjectResult>;
+  /** Authorize and copy the source under one Project row lock and transaction. */
+  duplicateWithDraft(input: DuplicateProjectInput): Promise<DuplicateProjectResult>;
   /**
    * Returns the next per-owner sequence number for a module. Every historical
    * row counts, including archived and trashed projects, so deleting a card
