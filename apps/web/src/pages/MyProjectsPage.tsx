@@ -463,6 +463,7 @@ export function MyProjectsPage({
             return (
               <ProjectCard
                 key={project.id}
+                {...(learning ? { className: 'is-learning' } : {})}
                 project={project}
                 module={module}
                 timeLabel={`Изменён ${formatDate(project.updatedAt)}`}
