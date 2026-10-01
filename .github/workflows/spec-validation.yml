@@ -190,6 +190,7 @@ jobs:
       VITEST_MIN_THREADS: "1"
       VITEST_MAX_FORKS: "2"
       VITEST_MIN_FORKS: "1"
+      ASA_LEARNING_ACCOUNT_LIST_PROFILE: "1"
     steps:
       - uses: actions/checkout@v4
         with:

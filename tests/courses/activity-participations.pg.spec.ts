@@ -3523,6 +3523,32 @@ describe('A4-3b immutable-origin Project Submission', () => {
         await client.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
         listBackendPid = (await client.query<{ pid: number }>('SELECT pg_backend_pid() AS pid'))
           .rows[0]!.pid;
+        if (subject === 'Account' && process.env.ASA_LEARNING_ACCOUNT_LIST_PROFILE === '1') {
+          const candidates = await admin.query<{
+            project_id: string;
+            owner_principal_id: string;
+          }>(
+            `SELECT project_id,owner_principal_id FROM learning_project_origins
+              WHERE school_tenant_id=$1 AND learner_identity_id=$2
+              ORDER BY created_at,project_id`,
+            [owner.tenantId, learner],
+          );
+          console.info(
+            `[Access A reciprocal] Account profile candidates ${candidates.rows.length}`,
+          );
+          for (const [index, origin] of candidates.rows.entries()) {
+            const started = performance.now();
+            const result = await client.query(
+              'SELECT context FROM learning_origin_work_context_for_project($1,$2)',
+              [accountPrincipal, origin.project_id],
+            );
+            console.info(
+              `[Access A reciprocal] Account profile origin ${index + 1}/${candidates.rows.length} ` +
+                `${origin.owner_principal_id === accountPrincipal ? 'owned' : 'non-owner'} ` +
+                `${Math.round(performance.now() - started)}ms rows=${result.rowCount}`,
+            );
+          }
+        }
         mark(`${subject} list SQL start`);
         const result = await client.query(
           subject === 'Seat'
