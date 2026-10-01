@@ -1,0 +1,76 @@
+{
+  "snapshot": "c945a048200855e65a433813e79f18e6dc6a38e4",
+  "kind": "isolated_control_flow_probes_not_field_reproduction",
+  "repositoryChanged": false,
+  "serverTouched": false,
+  "testsAgainstFixedCode": false,
+  "assertions": "All assertions of the current problematic/control behavior passed.",
+  "limitations": [
+    "Functions/branches manually transcribed with TypeScript annotations removed.",
+    "Network and image boundaries mocked; no production incident reproduced.",
+    "The mask probe intentionally covers only the failure/cache branch.",
+    "The canonical-state probe covers the classifier, not physical execution."
+  ],
+  "results": [
+    {
+      "mechanism": "rejected_svg_promise_retained",
+      "source": "apps/web/src/electronics/ProductionComponentVisual.tsx:ownerSvgSource",
+      "observed": {
+        "fetchCalls": 1,
+        "samePromiseAfterRecovery": true,
+        "secondAttemptRejected": true
+      },
+      "conclusion": "The function does not retry the same URL after a rejected cached request."
+    },
+    {
+      "mechanism": "failed_hit_mask_blocks_retry",
+      "source": "apps/web/src/electronics/component-hit-testing.ts:preloadComponentHitMask",
+      "scope": "Isolated control-flow branch only; no successful rasterization or DOM test.",
+      "observed": {
+        "imageRequests": 1,
+        "finalMaskState": "failed"
+      },
+      "conclusion": "A failed cached entry takes the early return on subsequent preload calls."
+    },
+    {
+      "mechanism": "canonical_structure_classification",
+      "source": "apps/web/src/electronics/live-simulation-worker-controller.ts:sameCanonicalStructure",
+      "change": "switch_state",
+      "observedSameStructure": true,
+      "consequenceInInspectedUpdate": "runtime-event path",
+      "scope": "Classifier only; no engine, physical model or browser executed."
+    },
+    {
+      "mechanism": "canonical_structure_classification",
+      "source": "apps/web/src/electronics/live-simulation-worker-controller.ts:sameCanonicalStructure",
+      "change": "temperature",
+      "observedSameStructure": true,
+      "consequenceInInspectedUpdate": "runtime-event path",
+      "scope": "Classifier only; no engine, physical model or browser executed."
+    },
+    {
+      "mechanism": "canonical_structure_classification",
+      "source": "apps/web/src/electronics/live-simulation-worker-controller.ts:sameCanonicalStructure",
+      "change": "voltage_setpoint",
+      "observedSameStructure": false,
+      "consequenceInInspectedUpdate": "beginGeneration(document, 0) branch",
+      "scope": "Classifier only; no engine, physical model or browser executed."
+    },
+    {
+      "mechanism": "canonical_structure_classification",
+      "source": "apps/web/src/electronics/live-simulation-worker-controller.ts:sameCanonicalStructure",
+      "change": "component_value",
+      "observedSameStructure": false,
+      "consequenceInInspectedUpdate": "beginGeneration(document, 0) branch",
+      "scope": "Classifier only; no engine, physical model or browser executed."
+    },
+    {
+      "mechanism": "canonical_structure_classification",
+      "source": "apps/web/src/electronics/live-simulation-worker-controller.ts:sameCanonicalStructure",
+      "change": "scope_time_scale",
+      "observedSameStructure": false,
+      "consequenceInInspectedUpdate": "beginGeneration(document, 0) branch",
+      "scope": "Classifier only; no engine, physical model or browser executed."
+    }
+  ]
+}

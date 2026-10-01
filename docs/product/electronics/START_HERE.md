@@ -25,6 +25,13 @@ path only. A review-found code repair must be explicitly returned to an executab
 
 Choose the task kind and resolve human keywords/component IDs in [COMPONENT_MAP.yaml](COMPONENT_MAP.yaml).
 
+For owner-directed classroom stability repairs (missing images, stuck component bodies,
+unexpected simulation stops, breadboard interaction), read the selected boundary in
+[Stabilization specification v2](ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md) before unrelated cleanup.
+Its published task cards still require formal selection in `current.yaml` before implementation.
+Root `AGENTS.md` §2.1 governs continuation by an owner-authorized programme controller;
+executor STOP does not end that programme or grant deployment/unspecified product decisions.
+
 For cleanup, technical-debt reduction, decomposition, legacy retirement, test-output
 hygiene or Electronics asset-packaging work, first confirm the selected task and then read
 [Maintenance, Cleanup & Optimization Execution Specification](ASA_ELECTRONICS_MAINTENANCE_EXECUTION_SPEC.md)
