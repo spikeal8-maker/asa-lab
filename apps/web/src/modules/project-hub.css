@@ -41,6 +41,30 @@
   color: #0d5c83;
 }
 
+.project-learning-collection-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -4px 0 16px;
+}
+
+.project-learning-collection-tabs button {
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid #cbd6df;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink-muted);
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.project-learning-collection-tabs button.active {
+  border-color: #1296cb;
+  background: #e7f3fb;
+  color: #0d5c83;
+}
+
 .project-hub-heading-tools {
   display: flex;
   align-items: center;

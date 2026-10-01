@@ -94,14 +94,14 @@ export type LearningWorkContext =
         edit: boolean;
         submit: boolean;
         resumeAfterChangesRequested: boolean;
-        moveToLearningArchive: false;
-        restoreFromLearningArchive: false;
+        moveToLearningArchive: boolean;
+        restoreFromLearningArchive: boolean;
         createPersonalCopy: false;
         changeGenericProjectStatus: false;
         publishOriginal: false;
       };
       presentation: {
-        learnerCollectionState: 'working' | 'review' | 'completed';
+        learnerCollectionState: 'working' | 'review' | 'completed' | 'learning_archive';
         classroomTitle: string;
         courseTitle: string | null;
         lessonTitle: string | null;
@@ -279,6 +279,17 @@ export async function learningWorkContextForProject(
 
   const canAct = timeAllowsAction(row, asOf);
   const workflow = projection.surface.workflowState;
+  let archiveBucket: 'active' | 'completed' | 'learning_archive' | null = null;
+  if (immutableOrigin) {
+    const archive = await pool.query<{ bucket: string | null }>(
+      'SELECT learning_project_archive_bucket($1,$2) AS bucket',
+      [viewerPrincipalId, projectId],
+    );
+    const bucket = archive.rows[0]?.bucket;
+    if (bucket !== 'active' && bucket !== 'completed' && bucket !== 'learning_archive')
+      return { state: 'unavailable', projectId };
+    archiveBucket = bucket;
+  }
   // A proven, already linked pre-origin Project needs no new Start. Its
   // compatibility Submit creates the next Attempt after changes_requested.
   const legacyRework = canAct && workflow === 'changes_requested' && legacyReworkSupported;
@@ -327,19 +338,21 @@ export async function learningWorkContextForProject(
       submit: (canAct && workflow === 'in_progress') || legacyRework,
       resumeAfterChangesRequested:
         canAct && workflow === 'changes_requested' && (immutableOrigin || legacyReworkSupported),
-      moveToLearningArchive: false,
-      restoreFromLearningArchive: false,
+      moveToLearningArchive: archiveBucket === 'completed',
+      restoreFromLearningArchive: archiveBucket === 'learning_archive',
       createPersonalCopy: false,
       changeGenericProjectStatus: false,
       publishOriginal: false,
     },
     presentation: {
       learnerCollectionState:
-        workflow === 'completed'
-          ? 'completed'
-          : workflow === 'submitted' || workflow === 'waiting_review'
-            ? 'review'
-            : 'working',
+        archiveBucket === 'learning_archive'
+          ? 'learning_archive'
+          : workflow === 'completed' || archiveBucket === 'completed'
+            ? 'completed'
+            : workflow === 'submitted' || workflow === 'waiting_review'
+              ? 'review'
+              : 'working',
       classroomTitle: row.classroomTitle,
       courseTitle: row.courseTitle,
       lessonTitle: row.lessonTitle,

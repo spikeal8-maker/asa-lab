@@ -117,11 +117,12 @@ export function MyProjectsPage({
   const [error, setError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [query, setQuery] = useState(view.search ?? '');
-  const { module: selectedModule, search, sort, status, cursor, workKind } = view;
+  const { module: selectedModule, search, sort, status, cursor, workKind, collection } = view;
   const setWorkKind = (value: 'all' | 'personal' | 'learning'): void => {
-    const { workKind: _workKind, status: _status, ...rest } = firstPage;
+    const { workKind: _workKind, status: _status, collection: _collection, ...rest } = firstPage;
     void _workKind;
     void _status;
+    void _collection;
     onView({ ...rest, ...(value === 'all' ? {} : { workKind: value }) });
   };
   const moduleFilter = selectedModule ?? 'all';
@@ -133,6 +134,12 @@ export function MyProjectsPage({
     onView({ ...rest, ...(value === 'all' ? {} : { module: value }) });
   };
   const statusFilter = status ?? 'active';
+  const learningCollection = collection ?? 'active';
+  const setLearningCollection = (value: 'active' | 'completed' | 'learning_archive'): void => {
+    const { status: _status, ...rest } = firstPage;
+    void _status;
+    onView({ ...rest, workKind: 'learning', collection: value });
+  };
   const setStatusFilter = (value: ProjectStatus): void => onView({ ...firstPage, status: value });
   const sortMode = sort ?? 'recent';
   const setSortMode = (value: SortMode): void => onView({ ...firstPage, sort: value });
@@ -161,6 +168,7 @@ export function MyProjectsPage({
     const projectsResult = await api.listProjects({
       scope: 'personal',
       kind: workKind ?? 'all',
+      ...(workKind === 'learning' ? { collection: collection ?? 'active' } : {}),
       status: status ?? 'active',
       limit: 40,
       ...(selectedModule ? { module: selectedModule } : {}),
@@ -177,7 +185,7 @@ export function MyProjectsPage({
     }
     setItems(projectsResult.data.items);
     setNextCursor(projectsResult.data.nextCursor ?? null);
-  }, [selectedModule, search, sort, status, cursor, workKind]);
+  }, [selectedModule, search, sort, status, cursor, workKind, collection]);
 
   useEffect(() => {
     mounted.current = true;
@@ -220,6 +228,22 @@ export function MyProjectsPage({
     setActionBusy(null);
     if (!result.ok) {
       setActionError(result.error.message || 'Не удалось изменить состояние проекта.');
+      return;
+    }
+    await load();
+  }
+
+  async function changeLearningCollection(
+    project: Project,
+    state: 'active' | 'learning_archive',
+  ): Promise<void> {
+    setActionBusy(project.id);
+    setActionError(null);
+    const result = await api.changeLearningCollection(project.id, state);
+    if (!mounted.current) return;
+    setActionBusy(null);
+    if (!result.ok) {
+      setActionError(result.error.message || 'Не удалось изменить учебный архив.');
       return;
     }
     await load();
@@ -294,6 +318,28 @@ export function MyProjectsPage({
           </button>
         ))}
       </div>
+
+      {workKind === 'learning' ? (
+        <div className="project-learning-collection-tabs" role="group" aria-label="Учебные работы">
+          {(
+            [
+              ['active', 'Активные'],
+              ['completed', 'Выполненные'],
+              ['learning_archive', 'Архив'],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={learningCollection === value}
+              className={learningCollection === value ? 'active' : undefined}
+              onClick={() => setLearningCollection(value)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
 
       {/*
         The first choice a person makes here is which kind of work they are
@@ -406,7 +452,11 @@ export function MyProjectsPage({
             {search || cursor
               ? 'Ничего не найдено'
               : workKind === 'learning'
-                ? 'Учебных работ пока нет'
+                ? learningCollection === 'learning_archive'
+                  ? 'Учебный архив пуст'
+                  : learningCollection === 'completed'
+                    ? 'Выполненных работ пока нет'
+                    : 'Активных учебных работ пока нет'
                 : statusFilter === 'active'
                   ? 'Создайте первый проект'
                   : statusFilter === 'archived'
@@ -417,7 +467,9 @@ export function MyProjectsPage({
             {search || cursor
               ? 'Измените поиск или вернитесь к началу списка.'
               : workKind === 'learning'
-                ? 'Здесь появятся начатые задания из вашего обучения.'
+                ? learningCollection === 'learning_archive'
+                  ? 'Завершённые работы можно убрать сюда из активного списка.'
+                  : 'Здесь появятся задания из вашего обучения.'
                 : statusFilter === 'active'
                   ? 'Выберите учебную среду. Класс для личной работы не требуется.'
                   : 'Здесь появятся проекты после соответствующего действия.'}
@@ -470,8 +522,30 @@ export function MyProjectsPage({
                 showLearningBadge={project.isLearningWork === true}
                 {...(learningDetail ? { learningDetail } : {})}
                 {...(learning && project.learningWork
-                  ? { learningStateLabel: LEARNING_STATES[project.learningWork.workflowState] }
+                  ? {
+                      learningStateLabel:
+                        project.learningWork.collectionState === 'learning_archive'
+                          ? 'В учебном архиве'
+                          : LEARNING_STATES[project.learningWork.workflowState],
+                    }
                   : {})}
+                {...(learning && actions?.moveToLearningArchive
+                  ? {
+                      learningCollectionAction: {
+                        label: 'Убрать из активных',
+                        disabled: busy,
+                        onSelect: () => void changeLearningCollection(project, 'learning_archive'),
+                      },
+                    }
+                  : learning && actions?.restoreFromLearningArchive
+                    ? {
+                        learningCollectionAction: {
+                          label: 'Вернуть в активные',
+                          disabled: busy,
+                          onSelect: () => void changeLearningCollection(project, 'active'),
+                        },
+                      }
+                    : {})}
                 footerLabel={
                   response
                     ? (FEEDBACK_LABELS[response.badge ?? ''] ?? 'Есть отклик педагога')

@@ -169,6 +169,7 @@ export class ProjectsController {
     @Req() request: FastifyRequest,
     @Query('scope') scope: string | undefined,
     @Query('kind') kind: string | undefined,
+    @Query('collection') collection: string | undefined,
     @Query('classroomId') classroomId: string | undefined,
     @Query('status') status: string | undefined,
     @Query('module') moduleKey: string | undefined,
@@ -182,7 +183,19 @@ export class ProjectsController {
     const result = await this.listUseCase.execute(
       context.tenantId,
       ProjectsController.actorOf(context),
-      { scope, kind, classroomId, status, moduleKey, limit, cursor, search, sort, excludeGames },
+      {
+        scope,
+        kind,
+        collection,
+        classroomId,
+        status,
+        moduleKey,
+        limit,
+        cursor,
+        search,
+        sort,
+        excludeGames,
+      },
     );
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     const last = result.value.at(-1);
@@ -461,6 +474,40 @@ export class ProjectsController {
     });
     if (!result.ok) ProjectsController.reject(result.code, result.message);
     return { project: result.value };
+  }
+
+  @Post(':projectId/learning-collection')
+  async changeLearningCollection(
+    @Req() request: FastifyRequest,
+    @Param('projectId') projectId: string,
+    @Body() rawBody: unknown,
+  ): Promise<{ collectionState: 'active' | 'learning_archive' }> {
+    const context = await this.requireContext(request);
+    const shape = checkBodyShape(rawBody, ['collectionState']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    if (
+      !/^[\da-f]{8}(-[\da-f]{4}){3}-[\da-f]{12}$/i.test(projectId) ||
+      !['active', 'learning_archive'].includes(String(shape.body['collectionState']))
+    ) {
+      throw new HttpException(
+        error('validation_error', 'invalid learning collection transition'),
+        400,
+      );
+    }
+    if (!this.pool)
+      throw new HttpException(error('dependency_unavailable', 'learning context unavailable'), 503);
+    const changed = await this.pool.query<{ state: string }>(
+      'SELECT learning_project_archive_set($1,$2,$3) AS state',
+      [context.principalId, projectId, shape.body['collectionState'] === 'learning_archive'],
+    );
+    const state = changed.rows[0]?.state;
+    if (state !== 'active' && state !== 'learning_archive') {
+      throw new HttpException(
+        error('learning_collection_denied', 'Эту учебную работу сейчас нельзя убрать или вернуть.'),
+        403,
+      );
+    }
+    return { collectionState: state };
   }
 
   @Put(':projectId/draft')

@@ -276,6 +276,25 @@
   line-height: 1.4;
 }
 
+.project-card-learning-collection {
+  margin-top: 8px;
+  padding: 5px 0;
+  border: 0;
+  background: transparent;
+  color: #0d5c83;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.project-card-learning-collection:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
 .project-card-learning-state {
   color: #0d5c83;
   font-weight: 700;

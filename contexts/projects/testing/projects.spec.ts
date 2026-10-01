@@ -355,6 +355,15 @@ describe('list, rename, draft and checkpoint', () => {
       ok: false,
       code: 'validation_error',
     });
+    for (const filter of [
+      { scope: 'personal', kind: 'personal', collection: 'learning_archive' },
+      { scope: 'classroom', kind: 'learning', collection: 'completed', classroomId: 'c1' },
+      { scope: 'personal', kind: 'learning', collection: 'trashed' },
+    ]) {
+      expect(
+        await usecase.execute('t1', { principalId: 'principal:1', userId: 'u1' }, filter),
+      ).toMatchObject({ ok: false, code: 'validation_error' });
+    }
   });
 
   it('renames a project and validates the title', async () => {
