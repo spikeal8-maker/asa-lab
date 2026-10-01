@@ -2218,6 +2218,28 @@ describe('A4-2b atomic StartLearningWork', () => {
       activityRunId: seatOwnedRun,
       attemptId: seatOwned.attemptId,
     });
+    // A teacher may open the Project through general project scope, but the
+    // learner origin reader must still require the exact Seat/Account lineage.
+    const teacherProjectScope = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM project_context_for_principal($1,$2)', [
+        ownerPrincipal,
+        seatOwned.projectId,
+      ]),
+    );
+    expect(teacherProjectScope.rows).toHaveLength(1);
+    const teacherOriginRead = await inTenant(owner.tenantId, (client) =>
+      client.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+        ownerPrincipal,
+        seatOwned.projectId,
+      ]),
+    );
+    expect(teacherOriginRead.rows).toEqual([]);
+    const privateBatchReader = await admin.query(
+      `SELECT has_function_privilege('asalab_app',
+         'public.learning_origin_work_context_for_project_ids(uuid,uuid[])',
+         'EXECUTE') AS app_can_execute`,
+    );
+    expect(privateBatchReader.rows[0].app_can_execute).toBe(false);
     const unchanged = await admin.query(
       `SELECT (SELECT count(*)::int FROM learning_attempts
                 WHERE activity_participation_id=$1) AS attempts,
@@ -3555,9 +3577,13 @@ describe('A4-3b immutable-origin Project Submission', () => {
       `[Access A reciprocal] candidate origins ${originCount?.rows[0]?.candidate_count ?? 'unavailable'}`,
     );
     for (const list of [bySeatList, byAccountList]) {
-      expect(list.rows.map((row) => row.context.projectId)).toEqual(
-        expect.arrayContaining([accountOwned.projectId, seatOwned.projectId]),
-      );
+      const knownProjects = new Set([accountOwned.projectId, seatOwned.projectId]);
+      expect(
+        list.rows
+          .map((row) => row.context.projectId as string)
+          .filter((projectId) => knownProjects.has(projectId))
+          .sort(),
+      ).toEqual([...knownProjects].sort());
     }
     mark('learner lists complete');
     const outsiderAccount = (
