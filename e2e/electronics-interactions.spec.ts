@@ -902,8 +902,65 @@ test.describe('asset recovery in the built editor', () => {
     const requestsAtFailure = imageRequests;
     await page.waitForTimeout(800);
     expect(imageRequests).toBe(requestsAtFailure);
-    expect(imageRequests).toBeLessThanOrEqual(6);
+    // Stage and catalog each load the original and validated retry URL; the
+    // shared recovery promise makes at most three probe requests between them.
+    expect(imageRequests).toBeLessThanOrEqual(7);
     expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a failed rotated DO-35 image keeps its error badge inside the visible component', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('diode-do35')!.asset;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() === 'image')
+          await route.fulfill({ status: 404, body: 'missing' });
+        else await route.continue();
+      },
+    );
+    const empty: SchematicDocument = {
+      schemaVersion: 4,
+      components: [],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    };
+    const doc = addComponentToDocument(
+      empty,
+      'diode-do35',
+      { x: 720, y: 420 },
+      'failed-diode',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const diode = part(page, 'failed-diode');
+    const visual = diode.locator('svg.workbench-production-visual');
+    const badge = diode.getByRole('status', { name: 'Изображение детали не загрузилось' });
+    await expect(diode.locator('image[data-owner-image-status="failed"]')).toHaveAttribute(
+      'transform',
+      /rotate\(90\)/,
+      { timeout: 10_000 },
+    );
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveAttribute('data-testid', 'owner-image-error');
+    const label = badge.locator('text');
+    await expect(label).toHaveText('Ошибка');
+    await expect(label).toBeVisible();
+    const outer = (await visual.boundingBox())!;
+    const error = (await badge.boundingBox())!;
+    const text = (await label.boundingBox())!;
+    expect(error.x).toBeGreaterThanOrEqual(outer.x - 1);
+    expect(error.y).toBeGreaterThanOrEqual(outer.y - 1);
+    expect(error.x + error.width).toBeLessThanOrEqual(outer.x + outer.width + 1);
+    expect(error.y + error.height).toBeLessThanOrEqual(outer.y + outer.height + 1);
+    expect(text.x).toBeGreaterThanOrEqual(outer.x - 1);
+    expect(text.x + text.width).toBeLessThanOrEqual(outer.x + outer.width + 1);
+    expect(await badge.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none');
+    expect(readDocument()).toEqual(doc);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });

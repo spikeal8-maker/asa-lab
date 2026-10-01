@@ -1655,11 +1655,7 @@ export function ProductionComponentVisual({
                 pointerEvents="none"
               />
               {ownerImage.failed && (
-                <OwnerAssetErrorBadge
-                  width={ownerAssetWidth}
-                  height={ownerAssetHeight}
-                  testId="owner-image-error"
-                />
+                <OwnerAssetErrorBadge width={width} height={height} testId="owner-image-error" />
               )}
             </>
           )}
