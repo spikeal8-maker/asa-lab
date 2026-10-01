@@ -3572,6 +3572,52 @@ describe('A4-3b immutable-origin Project Submission', () => {
             ORDER BY total_time DESC LIMIT 30`,
         );
         console.info('[Account list nested profile] functions', JSON.stringify(functions.rows));
+        const accessPlan = await profiler.query<{ 'QUERY PLAN': unknown }>(
+          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
+           SELECT EXISTS (
+             SELECT 1 FROM learning_project_origins origin
+             JOIN projects project ON project.id=origin.project_id
+               AND project.tenant_id=origin.project_tenant_id
+               AND project.project_scope='personal'
+               AND project.owner_principal_id=origin.owner_principal_id
+             JOIN activity_participations participation ON participation.id=origin.participation_id
+               AND participation.tenant_id=origin.school_tenant_id
+               AND participation.school_id=origin.school_id
+               AND participation.learner_identity_id=origin.learner_identity_id
+               AND participation.activity_run_id=origin.activity_run_id
+             JOIN activity_runs run ON run.id=origin.activity_run_id
+               AND run.tenant_id=origin.school_tenant_id AND run.school_id=origin.school_id
+             JOIN learner_identities learner ON learner.id=origin.learner_identity_id
+               AND learner.tenant_id=origin.school_tenant_id
+               AND learner.school_id=origin.school_id AND learner.state='active'
+             JOIN classroom_student_seats seat ON seat.tenant_id=origin.school_tenant_id
+               AND seat.classroom_id=run.classroom_id AND seat.status='active'
+             JOIN accounts account ON account.id=seat.account_id AND account.status='active'
+             JOIN learner_identity_links seat_link ON seat_link.tenant_id=origin.school_tenant_id
+               AND seat_link.school_id=origin.school_id
+               AND seat_link.learner_identity_id=origin.learner_identity_id
+               AND seat_link.link_kind='student_seat' AND seat_link.seat_id=seat.id
+               AND seat_link.status='active'
+             JOIN learner_identity_links account_link ON account_link.tenant_id=origin.school_tenant_id
+               AND account_link.school_id=origin.school_id
+               AND account_link.learner_identity_id=origin.learner_identity_id
+               AND account_link.link_kind='account' AND account_link.account_id=account.id
+               AND account_link.status='active'
+             JOIN principals owner ON owner.id=origin.owner_principal_id
+             JOIN principals actor ON actor.id=$1
+             WHERE origin.project_id=$2
+               AND ((owner.kind='student_seat' AND owner.seat_id=seat.id
+                     AND actor.kind='account' AND actor.account_id=account.id)
+                 OR (owner.kind='account' AND owner.account_id=account.id
+                     AND actor.kind='student_seat' AND actor.seat_id=seat.id))
+             FOR SHARE OF learner, seat, account, seat_link, account_link
+           )`,
+          [accountPrincipal, seatOwned.projectId],
+        );
+        console.info(
+          '[Account list linked access plan]',
+          JSON.stringify(accessPlan.rows[0]?.['QUERY PLAN'] ?? null),
+        );
       } finally {
         profiler.release();
       }
