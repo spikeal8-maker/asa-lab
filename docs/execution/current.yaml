@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-ASSET-RECOVERY-001
-      issue: 453
+      id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
+      issue: 456
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: asset_recovery_selected_preflight_pending
+      checkpoint: browser_clock_baseline_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 942068f22f7c4369a85e47dd62c4ebfd851757da
+      convergence_baseline_sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
       head_sha: null
-      observed_at: '2026-10-01T15:53:30Z'
+      observed_at: '2026-10-01T18:46:48Z'
       main:
         branch: main
-        sha: 942068f22f7c4369a85e47dd62c4ebfd851757da
-      observation_note: Dated observation at asset-recovery selection for issue 453; not product acceptance or a live HEAD; fetch main before writes.
+        sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
+      observation_note: Dated main observation at browser baseline selection for issue 456; not a live HEAD or gate acceptance; fetch main before writes.
     execution_lease:
-      executor_id: electronics-stabilization-controller-452
+      executor_id: electronics-browser-clock-baseline-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -182,6 +182,15 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+    pending_closeout:
+      task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
+      issue: 453
+      accepted_candidate_sha: a17026f6906854a3b433e99e1e510d7ca6c48750
+      integrated_sha: a668c8e71996e66ec8cfb027dbc7050814fb6475
+      independent_review: approved
+      exact_main_general_run: 36907336808
+      exact_main_browser_run: 36907393951
+      status: waiting_for_browser_baseline_456
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
@@ -503,6 +512,19 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELEC-453-BROWSER-BASELINE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
+    blocks:
+      - technical_closeout
+      - owner_acceptance
+      - release_claim
+    allows:
+      - bounded_browser_baseline_repair
+      - focused_verification
+    reason: Integrated asset recovery passed 93 Electronics browser scenarios, but the exact-main gate failed the existing Arduino Reset LOW observation; issue 456 must distinguish missed transient output from stalled worker before closeout.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36907393951
   - id: LRN-E1-CORRECTIONS
     kind: acceptance_blocker
     lane: learning
