@@ -1965,10 +1965,12 @@ function arduinoInputDocument(
   return { ...base, components, connections };
 }
 
+const ARDUINO_RESET_HIGH_HOLD_MILLISECONDS = 20_000;
+const ARDUINO_RESET_LOW_TIMEOUT_MILLISECONDS = ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 3;
+
 function arduinoResetAcceptanceDocument(): SchematicDocument {
   const base = arduinoInputDocument('button', '2');
-  const source =
-    'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delay(1000);}void loop(){digitalWrite(13,LOW);delay(60000);}';
+  const source = `void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);delay(${ARDUINO_RESET_HIGH_HOLD_MILLISECONDS});}void loop(){digitalWrite(13,LOW);delay(60000);}`;
   return {
     ...base,
     components: base.components.map((component) =>
@@ -2073,7 +2075,9 @@ async function expectArduinoBrightness(
     if (expected === 'high') {
       await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBeGreaterThan(0);
     } else {
-      await expect.poll(() => brightnessValue(page), { timeout: 10_000 }).toBe(0);
+      await expect
+        .poll(() => brightnessValue(page), { timeout: ARDUINO_RESET_LOW_TIMEOUT_MILLISECONDS })
+        .toBe(0);
     }
   } catch (error) {
     const observation = await simulationWorkerObservation(page);
@@ -2174,7 +2178,8 @@ for (const scenario of [
 test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run', async ({
   page,
 }) => {
-  test.setTimeout(120_000);
+  // Two 20-second model-time HIGH phases must complete within bounded wall time.
+  test.setTimeout(180_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await observeSimulationWorkerClock(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
@@ -2189,9 +2194,16 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
 
   // Prove the canonical Arduino runtime has progressed beyond its initial state:
-  // setup() drives D13 high, then the first loop iteration holds it low after 1 s.
+  // setup() holds D13 high long enough for a loaded browser to observe it,
+  // then the first loop iteration holds it low. Both phases repeat after Reset.
   await expectArduinoBrightness(page, 'high', 'before Reset');
   await expectArduinoBrightness(page, 'low', 'before Reset');
+  const beforeResetWorker = await simulationWorkerObservation(page);
+  const beforeResetSample = beforeResetWorker.workerSamples.at(-1);
+  expect(
+    beforeResetSample?.committedMicroseconds,
+    JSON.stringify(beforeResetWorker),
+  ).toBeGreaterThanOrEqual(ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000);
 
   const resetButton = page.getByTestId('arduino-reset-button');
   await expect(resetButton).toHaveAttribute('aria-label', 'Перезапустить Arduino');
@@ -2204,6 +2216,16 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
 
   // The same deterministic sequence must repeat without a fault/stuck runtime.
   await expectArduinoBrightness(page, 'low', 'after Reset');
+  const afterResetWorker = await simulationWorkerObservation(page);
+  expect(
+    afterResetWorker.workerSamples.some(
+      (sample) =>
+        sample.committedMicroseconds >= ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000 &&
+        (sample.workerId > (beforeResetSample?.workerId ?? 0) ||
+          sample.generationId > (beforeResetSample?.generationId ?? 0)),
+    ),
+    JSON.stringify(afterResetWorker),
+  ).toBe(true);
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   failures.assertEmpty();
 });
