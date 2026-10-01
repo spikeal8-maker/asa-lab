@@ -748,12 +748,14 @@ requirements:
   evidence:
   - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
   - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
+  - docs/review/LRN_A4_V3_EVIDENCE_2026_10_01.md
   tests:
   - tests/courses/assignment-brief-layout.spec.ts
+  - e2e/learning-course-01.spec.ts
   verification:
-    source_sha: null
-    method: implementation_started
-    observed_result: Normative and visual contract added; first bounded slice implements shared overlay geometry without changing subject editors.
+    source_sha: 19e9bd8e0422a674569e1613f65ded34d8eba5ea
+    method: bounded_a4_v3_ci_evidence
+    observed_result: A4/V3 atomic Start and immutable-origin path have merged engineering evidence, including the personal Project badge and repeated Direct StudentSeat Start. This is partial evidence for E1-FIX-13; A6 rich shell and A8 teacher review remain open.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:
@@ -805,11 +807,15 @@ requirements:
   evidence:
   - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
   - docs/product/learning/ASA_LEARNER_WORK_LIFECYCLE_SPEC.md
-  tests: []
+  - docs/review/LRN_A4_V3_EVIDENCE_2026_10_01.md
+  tests:
+  - tests/courses/activity-participations.pg.spec.ts
+  - tests/portal/project-learning-marker.spec.ts
+  - e2e/learning-course-01.spec.ts
   verification:
-    source_sha: null
-    method: specification_added
-    observed_result: Learner project provenance, protection, learning archive, publication ban and personal-copy boundary are now normative; implementation not yet claimed.
+    source_sha: 19e9bd8e0422a674569e1613f65ded34d8eba5ea
+    method: bounded_a4_v3_ci_evidence
+    observed_result: Immutable project origin and personal-list Learning badge plus Direct StudentSeat repeat/lost-response Start have merged engineering evidence. This is partial evidence for E1-FIX-14; A5 protection/archive and A7 personal copy remain open.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:
