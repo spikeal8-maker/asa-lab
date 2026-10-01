@@ -3,6 +3,8 @@
 Compact router for Electronics/Arduino work. Product behaviour lives in `README.md`;
 do not preload that full specification or the Electronics source/test trees.
 
+> **Classroom stabilization 2.1:** owner programme [#452](https://github.com/spikeal8-maker/asa-lab/issues/452) is governed by [ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md](ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md). Weekly-log evidence is in [evidence/stabilization-20261001-weekly-log-findings.md](evidence/stabilization-20261001-weekly-log-findings.md). Prepared owner decisions include the 60-second autosave task [#459](https://github.com/spikeal8-maker/asa-lab/issues/459); classroom FRP/session/save load is tracked in [#460](https://github.com/spikeal8-maker/asa-lab/issues/460). These links do not override the active task in `current.yaml`.
+
 ## 1. Confirm the selected task
 
 Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: run
