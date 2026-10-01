@@ -41,6 +41,7 @@ import { terminalPositionInDocument } from './workbench-document';
 import {
   componentAssetContainsPoint,
   componentAssetVisibleBounds,
+  componentHitMaskStatus,
   preloadComponentHitMask,
   type ComponentVisibleBounds,
 } from './component-hit-testing';
@@ -303,19 +304,39 @@ export function WorkbenchStage({
   ];
   useEffect(() => {
     let active = true;
-    const pending: Promise<void>[] = [];
-    for (const component of document.components) {
-      if (component.kind === 'wire') continue;
-      const entry = catalogEntry(component);
-      if (!entry?.asset) continue;
-      const size = renderedSize(entry, 0);
-      pending.push(preloadComponentHitMask(entry, size.width, size.height));
-    }
-    void Promise.all(pending).then(() => {
-      if (active) setHitMaskRevision((revision) => revision + 1);
-    });
+    let refreshFrame: number | null = null;
+    const refresh = (): void => {
+      if (!active || refreshFrame !== null) return;
+      refreshFrame = window.requestAnimationFrame(() => {
+        refreshFrame = null;
+        if (active) setHitMaskRevision((revision) => revision + 1);
+      });
+    };
+    const prepare = (retryFailed = false): void => {
+      const pending = new Set<Promise<void>>();
+      for (const component of document.components) {
+        if (component.kind === 'wire') continue;
+        const entry = catalogEntry(component);
+        if (!entry?.asset) continue;
+        const size = renderedSize(entry, 0);
+        pending.add(preloadComponentHitMask(entry, size.width, size.height, retryFailed));
+      }
+      for (const ready of pending) void ready.then(refresh);
+    };
+    const retry = (): void => prepare(true);
+    const retryWhenVisible = (): void => {
+      if (!window.document.hidden) retry();
+    };
+    prepare();
+    window.addEventListener('online', retry);
+    window.addEventListener('focus', retry);
+    window.document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
       active = false;
+      if (refreshFrame !== null) window.cancelAnimationFrame(refreshFrame);
+      window.removeEventListener('online', retry);
+      window.removeEventListener('focus', retry);
+      window.document.removeEventListener('visibilitychange', retryWhenVisible);
     };
   }, [document.components]);
 
@@ -678,6 +699,7 @@ export function WorkbenchStage({
           c.runtimePresentationResultByComponent.get(component.id)?.sourceOperatingMode
         }
         data-component-type={component.componentTypeId}
+        data-hit-mask-status={componentHitMaskStatus(entry, baseSize.width, baseSize.height)}
         data-hole-bindings={Object.keys(component.holeBindings ?? {}).length}
         data-hole-ids={Object.entries(component.holeBindings ?? {})
           .map(([pinId, binding]) => `${pinId}:${binding.holeId}`)

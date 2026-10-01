@@ -459,6 +459,565 @@ async function pointOnBody(page: Page, id: string) {
     });
 }
 
+test.describe('asset recovery in the built editor', () => {
+  test('one failed mask request recovers two LEDs without enlarging their hit area', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const ledAsset = catalogEntry('led-5mm')!.asset;
+    await page.addInitScript((asset) => {
+      const NativeImage = window.Image;
+      let failed = false;
+      window.Image = new Proxy(NativeImage, {
+        construct(target, args) {
+          const image = Reflect.construct(target, args) as HTMLImageElement;
+          const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')!;
+          Object.defineProperty(image, 'src', {
+            get: () => src.get!.call(image) as string,
+            set(value: string) {
+              const url = new URL(value, location.href);
+              if (!failed && url.pathname === asset && image.decoding !== 'async') {
+                failed = true;
+                url.searchParams.set('__asset_recovery_mask', '1');
+                src.set!.call(image, url.href);
+              } else src.set!.call(image, value);
+            },
+          });
+          return image;
+        },
+      });
+    }, ledAsset);
+    let failedMaskRequests = 0;
+    await page.route(
+      (url) => url.searchParams.has('__asset_recovery_mask'),
+      async (route) => {
+        failedMaskRequests += 1;
+        await route.abort('failed');
+      },
+    );
+    let doc = documentFixture();
+    doc = addComponentToDocument(doc, 'led-5mm', { x: 790, y: 300 }, 'led-twin').document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    await expect.poll(() => failedMaskRequests).toBe(1);
+    await expect(part(page, 'battery')).toHaveAttribute('data-hit-mask-status', 'ready');
+    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+      'href',
+      /\.svg$/,
+    );
+    expect(
+      await page.evaluate(
+        (asset) =>
+          new Promise<boolean>((resolve) => {
+            const image = document.createElement('img');
+            image.onload = () => resolve(true);
+            image.onerror = () => resolve(false);
+            image.src = asset;
+          }),
+        ledAsset,
+      ),
+    ).toBe(true);
+    const at = await pointOnBody(page, 'led');
+    await expect
+      .poll(
+        async () => {
+          await page.mouse.click(at.x, at.y);
+          return part(page, 'led').getAttribute('class');
+        },
+        { timeout: 10_000 },
+      )
+      .toContain('selected');
+    await expect(part(page, 'led-twin')).toHaveAttribute('data-hit-mask-status', 'ready');
+    const twinPoint = await pointOnBody(page, 'led-twin');
+    await page.mouse.click(twinPoint.x, twinPoint.y);
+    await expect(part(page, 'led-twin')).toHaveClass(/workbench-component-selected/);
+    const batteryPoint = await pointOnBody(page, 'battery');
+    await page.mouse.click(batteryPoint.x, batteryPoint.y);
+    await expect(part(page, 'battery')).toHaveClass(/workbench-component-selected/);
+    const ledBox = await part(page, 'led').locator('.workbench-part').boundingBox();
+    if (!ledBox) throw new Error('Missing LED body');
+    await page.mouse.click(ledBox.x + 1, ledBox.y + 1);
+    await expect(part(page, 'led')).not.toHaveClass(/workbench-component-selected/);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
+    const originalX = await part(page, 'led').getAttribute('data-x');
+    await page.mouse.move(at.x, at.y);
+    await page.mouse.down();
+    await page.mouse.move(at.x + 35, at.y + 15, { steps: 8 });
+    await page.mouse.up();
+    await expect(part(page, 'led')).not.toHaveAttribute('data-x', originalX!);
+    expect(errors).toEqual([]);
+  });
+
+  test('failed interactive SVG text restores stage and catalog controls without reload', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let textRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() === 'fetch') {
+          textRequests += 1;
+          if (textRequests === 1) {
+            await route.abort('failed');
+            return;
+          }
+        }
+        await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page
+        .locator(
+          '.workbench-catalog-card[data-family-id="signal-generator"] [data-testid="signal-generator-runtime"]',
+        )
+        .first(),
+    ).toBeVisible();
+    expect(textRequests).toBe(2);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
+    await part(page, 'generator')
+      .locator('.workbench-signal-generator-square')
+      .dispatchEvent('pointerdown', { pointerId: 1 });
+    await expect
+      .poll(
+        () =>
+          readDocument().components.find((component) => component.id === 'generator')
+            ?.stateProperties?.['waveform'],
+      )
+      .toBe('square');
+    expect(errors).toEqual([]);
+  });
+
+  test('invalid SVG content reaches a terminal fallback, then online re-arms mounted consumers', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let textRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        if (textRequests <= 3) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'text/html',
+            body: '<html>not an SVG</html>',
+          });
+        } else await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'generator').locator('[data-owner-svg-status="failed"]')).toBeVisible({
+      timeout: 10_000,
+    });
+    expect(textRequests).toBe(3);
+    await page.waitForTimeout(800);
+    expect(textRequests).toBe(3);
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
+      timeout: 10_000,
+    });
+    await expect(
+      page
+        .locator(
+          '.workbench-catalog-card[data-family-id="signal-generator"] [data-testid="signal-generator-runtime"]',
+        )
+        .first(),
+    ).toBeVisible();
+    expect(textRequests).toBe(4);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a permanently missing interactive SVG stops retrying and keeps honest failure state', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('multimeter')!.asset;
+    let textRequests = 0;
+    let imageResponses = 0;
+    page.on('response', (response) => {
+      if (
+        new URL(response.url()).pathname === asset &&
+        response.request().resourceType() === 'image' &&
+        response.status() === 200
+      ) {
+        imageResponses += 1;
+      }
+    });
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'multimeter',
+      { x: 790, y: 450 },
+      'meter',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'meter').locator('[data-owner-svg-status="failed"]')).toBeVisible({
+      timeout: 10_000,
+    });
+    const visibleError = part(page, 'meter').getByRole('status', {
+      name: 'Изображение детали не загрузилось',
+    });
+    await expect(visibleError).toBeVisible();
+    await expect(visibleError).toHaveAttribute('data-testid', 'owner-svg-error');
+    await expect(visibleError.locator('text')).toHaveText('Ошибка изображения');
+    const card = page.locator('.workbench-catalog-card[data-family-id="multimeter"]');
+    await card.scrollIntoViewIfNeeded();
+    await expect(
+      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible();
+    await expect.poll(() => imageResponses).toBeGreaterThan(0);
+    expect(textRequests).toBe(3);
+    await page.waitForTimeout(800);
+    expect(textRequests).toBe(3);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a hung SVG text request times out and restores existing instrument controls', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let textRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        if (textRequests === 1) {
+          await new Promise((resolve) => setTimeout(resolve, 4_000));
+          try {
+            await route.abort('failed');
+          } catch {
+            /* The browser timed out first. */
+          }
+        } else await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
+      timeout: 12_000,
+    });
+    expect(textRequests).toBe(2);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    const runtime = part(page, 'generator').getByTestId('signal-generator-runtime');
+    const outputBefore = await runtime.getAttribute('data-output-enabled');
+    await runtime
+      .locator('.workbench-signal-generator-power')
+      .first()
+      .dispatchEvent('pointerdown', {
+        pointerId: 1,
+      });
+    await expect(runtime).toHaveAttribute(
+      'data-output-enabled',
+      outputBefore === 'true' ? 'false' : 'true',
+    );
+    await expect
+      .poll(
+        () =>
+          readDocument().components.find((component) => component.id === 'generator')
+            ?.stateProperties?.['outputEnabled'],
+      )
+      .toBe(outputBefore !== 'true');
+    expect(errors).toEqual([]);
+  });
+
+  test('a bad HTTP body for the current LED state image recovers in the mounted stage', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const doc = documentFixture();
+    doc.components = doc.components.map((component) =>
+      component.id === 'led'
+        ? { ...component, stateProperties: { ...component.stateProperties, ledFault: 'reverse' } }
+        : component,
+    );
+    let badBodies = 0;
+    let retries = 0;
+    await page.route(
+      (url) => url.pathname.endsWith('/led_red_reverse_polarity.svg'),
+      async (route) => {
+        const url = new URL(route.request().url());
+        if (url.searchParams.has('asa-image-retry')) retries += 1;
+        if (
+          route.request().resourceType() === 'image' &&
+          !url.searchParams.has('asa-image-retry') &&
+          badBodies === 0
+        ) {
+          badBodies += 1;
+          await route.fulfill({
+            status: 200,
+            contentType: 'text/html',
+            body: '<html>bad image</html>',
+          });
+        } else await route.continue();
+      },
+    );
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    await expect(part(page, 'led').locator('image.workbench-led-asset')).toHaveAttribute(
+      'href',
+      /asa-image-retry=0/,
+      { timeout: 10_000 },
+    );
+    expect(badBodies).toBe(1);
+    expect(retries).toBeGreaterThanOrEqual(1);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
+    expect(errors).toEqual([]);
+  });
+
+  test('a failed catalog owner image recovers without placing or saving a component', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    let failures = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        const url = new URL(route.request().url());
+        if (
+          route.request().resourceType() === 'image' &&
+          !url.searchParams.has('asa-image-retry')
+        ) {
+          failures += 1;
+          await route.fulfill({ status: 404, body: 'temporarily unavailable' });
+        } else await route.continue();
+      },
+    );
+    const empty: SchematicDocument = {
+      schemaVersion: 4,
+      components: [],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    };
+    const { readDocument, requests, errors } = await openEditor(page, empty);
+    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+    await card.scrollIntoViewIfNeeded();
+    await expect(card.locator('image')).toHaveAttribute('href', /asa-image-retry=0/, {
+      timeout: 10_000,
+    });
+    expect(failures).toBeGreaterThanOrEqual(1);
+    expect(readDocument()).toEqual(empty);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    let imageRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'image') return route.continue();
+        imageRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const stageError = part(page, 'holder').getByRole('status', {
+      name: 'Изображение детали не загрузилось',
+    });
+    await expect(stageError).toBeVisible({ timeout: 10_000 });
+    await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toBeVisible();
+    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+    await card.scrollIntoViewIfNeeded();
+    await expect(
+      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible();
+    const requestsAtFailure = imageRequests;
+    await page.waitForTimeout(800);
+    expect(imageRequests).toBe(requestsAtFailure);
+    // Stage and catalog each load the original and validated retry URL; the
+    // shared recovery promise makes at most three probe requests between them.
+    expect(imageRequests).toBeLessThanOrEqual(7);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a failed rotated DO-35 image keeps its error badge inside the visible component', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('diode-do35')!.asset;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() === 'image')
+          await route.fulfill({ status: 404, body: 'missing' });
+        else await route.continue();
+      },
+    );
+    const empty: SchematicDocument = {
+      schemaVersion: 4,
+      components: [],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    };
+    const doc = addComponentToDocument(
+      empty,
+      'diode-do35',
+      { x: 720, y: 420 },
+      'failed-diode',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const diode = part(page, 'failed-diode');
+    const visual = diode.locator('svg.workbench-production-visual');
+    const badge = diode.getByRole('status', { name: 'Изображение детали не загрузилось' });
+    await expect(diode.locator('image[data-owner-image-status="failed"]')).toHaveAttribute(
+      'transform',
+      /rotate\(90\)/,
+      { timeout: 10_000 },
+    );
+    await expect(badge).toBeVisible();
+    await expect(badge).toHaveAttribute('data-testid', 'owner-image-error');
+    const label = badge.locator('text');
+    await expect(label).toHaveText('!');
+    await expect(label).toBeVisible();
+    const outer = (await visual.boundingBox())!;
+    const error = (await badge.boundingBox())!;
+    const text = (await label.boundingBox())!;
+    expect(error.x).toBeGreaterThanOrEqual(outer.x - 1);
+    expect(error.y).toBeGreaterThanOrEqual(outer.y - 1);
+    expect(error.x + error.width).toBeLessThanOrEqual(outer.x + outer.width + 1);
+    expect(error.y + error.height).toBeLessThanOrEqual(outer.y + outer.height + 1);
+    expect(text.x).toBeGreaterThanOrEqual(outer.x - 1);
+    expect(text.x + text.width).toBeLessThanOrEqual(outer.x + outer.width + 1);
+    expect(await badge.evaluate((element) => getComputedStyle(element).pointerEvents)).toBe('none');
+    expect(readDocument()).toEqual(doc);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('late instrument text cannot restore an unmounted stage component', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let heldRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() === 'fetch' && heldRequests++ === 0) await held;
+        await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    await part(page, 'generator').locator('.workbench-part').focus();
+    await page.keyboard.press('Enter');
+    await expect(part(page, 'generator')).toHaveClass(/workbench-component-selected/);
+    await page.keyboard.press('Delete');
+    await expect(part(page, 'generator')).toHaveCount(0);
+    await expect
+      .poll(() => readDocument().components.some((component) => component.id === 'generator'))
+      .toBe(false);
+    const afterDelete = readDocument();
+    const writes = await page.evaluate(
+      () => (window as unknown as { draftWrites: number }).draftWrites,
+    );
+    const savedRequests = requests.length;
+    release();
+    await expect(
+      page
+        .locator(
+          '.workbench-catalog-card[data-family-id="signal-generator"] [data-testid="signal-generator-runtime"]',
+        )
+        .first(),
+    ).toBeVisible({ timeout: 10_000 });
+    await expect(part(page, 'generator')).toHaveCount(0);
+    expect(readDocument()).toEqual(afterDelete);
+    expect(requests).toHaveLength(savedRequests);
+    expect(
+      await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
+    ).toBe(writes);
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe('interaction: electronics input and responsive layout', () => {
   test('drag follows the pointer, writes only on release, and Escape restores without saving', async ({
     page,

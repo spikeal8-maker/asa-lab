@@ -12,14 +12,18 @@ components:
     - apps/web/src/electronics/use-electronics-workbench.ts
     - apps/web/src/pages/SchematicEditor.tsx
     - apps/web/src/electronics/WorkbenchStage.tsx
+    - apps/web/src/electronics/ProductionComponentVisual.tsx
     - apps/web/src/electronics/WorkbenchSidebars.tsx
     - apps/web/src/electronics/WorkbenchHeader.tsx
     - apps/web/src/electronics/workbench-geometry.ts
     - apps/web/src/electronics/workbench-drag-preview.ts
     - apps/web/src/electronics/component-hit-testing.ts
+    - apps/web/src/electronics/production-asset-contracts.ts
     - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
+    - apps/web/src/electronics/testing/asset-recovery.spec.ts
+    - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-geometry.spec.ts
     - apps/web/src/electronics/testing/workbench-drag-preview.spec.ts
@@ -31,6 +35,9 @@ components:
     symbols:
     - useElectronicsWorkbench
     - WorkbenchStage
+    - ProductionComponentVisual
+    - preloadComponentHitMask
+    - warmProductionAsset
     - SchematicEditor
     - WorkbenchSidebars
   electronics.ui.catalog:
