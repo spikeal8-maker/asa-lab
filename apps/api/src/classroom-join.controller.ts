@@ -377,6 +377,7 @@ function seatCourseRuns(
         canonicalState: CanonicalLearningSurfaceState | null;
         courseStartAllowed: boolean;
         legacySubmitAllowed: boolean;
+        activityRunId: string | null;
         activityOccurrences: CourseActivityOccurrenceView[];
       }>;
     }>;
@@ -388,14 +389,26 @@ function seatCourseRuns(
     const modernScope =
       row.modern_provenance?.modernCourseRun === true &&
       row.modern_provenance.activityRunId === row.modern_activity_run_id;
-    const modernWorkReadable = modernScope && row.modern_provenance?.projectReadable === true;
+    const lessonOriginPresent =
+      !!row.viewer_seat_id &&
+      !!row.modern_activity_run_id &&
+      origins?.courseLessonHasOrigin(row.viewer_seat_id, row.modern_activity_run_id) === true;
+    const originWork =
+      modernScope && row.viewer_seat_id && row.modern_activity_run_id
+        ? origins?.courseLessonWork(row.viewer_seat_id, row.modern_activity_run_id)
+        : null;
+    const exact =
+      originWork?.classroomAssignmentId === row.classroom_assignment_id ? originWork : null;
+    const modernWorkReadable =
+      !lessonOriginPresent && modernScope && row.modern_provenance?.projectReadable === true;
     const historicalWorkReadable =
+      !lessonOriginPresent &&
       row.legacy_provenance?.legacyCourseLesson === true &&
       row.legacy_provenance.legacyProjectReadable === true;
     const lessonWorkReadable =
       !suppressLegacyWork &&
       row.lesson_kind === 'assignment' &&
-      (modernWorkReadable || historicalWorkReadable);
+      (exact !== null || modernWorkReadable || historicalWorkReadable);
     const projected = canonicalFor(
       projections,
       row.classroom_assignment_id,
@@ -440,35 +453,53 @@ function seatCourseRuns(
       estimatedMinutes: row.estimated_minutes === null ? null : Number(row.estimated_minutes),
       position: Number(row.lesson_position),
       classroomAssignmentId: row.classroom_assignment_id,
+      activityRunId: modernScope ? (row.modern_activity_run_id ?? null) : null,
       assignmentTitle: row.assignment_title,
-      assignmentGoal: row.assignment_goal,
-      assignmentBrief: row.assignment_brief,
+      assignmentGoal: exact?.goal ?? row.assignment_goal,
+      assignmentBrief: exact?.brief ?? row.assignment_brief,
       moduleKey: row.module_key,
       sampleImage: row.sample_image,
-      projectId: lessonWorkReadable ? row.project_id : null,
-      submittedAt:
-        !lessonWorkReadable || row.submitted_at === null ? null : isoDate(row.submitted_at),
-      snapshotRevision:
-        !lessonWorkReadable || row.snapshot_revision === null
-          ? null
-          : Number(row.snapshot_revision),
-      updatedAt:
-        !lessonWorkReadable || row.work_updated_at === null ? null : isoDate(row.work_updated_at),
+      projectId: lessonWorkReadable ? (exact?.projectId ?? row.project_id) : null,
+      submittedAt: !lessonWorkReadable
+        ? null
+        : exact
+          ? exact.submittedAt
+          : row.submitted_at === null
+            ? null
+            : isoDate(row.submitted_at),
+      snapshotRevision: !lessonWorkReadable
+        ? null
+        : exact
+          ? exact.snapshotRevision
+          : row.snapshot_revision === null
+            ? null
+            : Number(row.snapshot_revision),
+      updatedAt: !lessonWorkReadable
+        ? null
+        : exact
+          ? exact.updatedAt
+          : row.work_updated_at === null
+            ? null
+            : isoDate(row.work_updated_at),
       completedAt: row.completed_at === null ? null : isoDate(row.completed_at),
-      canonicalState:
-        !suppressLegacyWork &&
-        (historicalWorkReadable ||
-          (modernScope &&
+      canonicalState: suppressLegacyWork
+        ? null
+        : (exact?.canonicalState ??
+          (historicalWorkReadable ||
+          (!lessonOriginPresent &&
+            modernScope &&
             ((row.project_id === null && projected?.workflowState === 'not_started') ||
               modernWorkReadable) &&
-            projected?.activityRunId === row.modern_activity_run_id))
-          ? projected
-          : null,
+            projected?.activityRunId === row.modern_activity_run_id)
+            ? projected
+            : null)),
       courseStartAllowed:
+        row.lesson_kind === 'assignment' &&
         !suppressLegacyWork &&
-        ((modernScope && row.modern_provenance?.startAllowed === true) ||
-          (row.legacy_provenance?.legacyCourseLesson === true &&
-            row.legacy_provenance.startAllowed === true)),
+        !lessonOriginPresent &&
+        row.project_id === null &&
+        modernScope &&
+        row.modern_provenance?.startAllowed === true,
       legacySubmitAllowed:
         historicalWorkReadable &&
         !suppressLegacyWork &&
@@ -1209,10 +1240,7 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(row.seat_id, row.id),
-            legacyStartAllowed:
-              legacyAllowed &&
-              row.legacy_provenance?.legacyDirect === true &&
-              row.legacy_provenance.startAllowed === true,
+            legacyStartAllowed: false,
             legacySubmitAllowed:
               legacyAllowed &&
               row.legacy_provenance?.legacyDirect === true &&
@@ -1416,10 +1444,7 @@ export class ClassroomJoinController {
             sampleImage:
               row.task_blocks?.present && row.task_blocks.blocks === null ? null : row.sample_image,
             activityRunId: origins.directRunId(seat.seat_id, row.id),
-            legacyStartAllowed:
-              legacyAllowed &&
-              row.legacy_provenance?.legacyDirect === true &&
-              row.legacy_provenance.startAllowed === true,
+            legacyStartAllowed: false,
             legacySubmitAllowed:
               legacyAllowed &&
               row.legacy_provenance?.legacyDirect === true &&
@@ -1719,12 +1744,12 @@ export class ClassroomJoinController {
     };
   }
 
-  /** Reprove under exact FK-parent row locks, then write through the same transaction. */
+  /** Reprove under exact FK-parent row locks before a historical action. */
   private async historicalAssignmentWrite(
     learner: { seatId: string; principalId: string },
     assignmentId: string,
     projectId: string | null,
-    action: 'start' | 'submit',
+    action: 'resume' | 'submit',
     directOnly: boolean,
     sql: string,
     parameters: unknown[],
@@ -1741,9 +1766,12 @@ export class ClassroomJoinController {
       );
       if (
         !(proof.legacyDirect || (!directOnly && proof.legacyCourseLesson)) ||
-        (action === 'start' ? !proof.startAllowed : !proof.submitAllowed)
+        !proof.submitAllowed
       )
-        throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+        throw new HttpException(
+          error('assignment_unavailable', 'Задание недоступно.'),
+          action === 'resume' ? 409 : 404,
+        );
       const result = await client.query(sql, parameters);
       await client.query('COMMIT');
       return result;
@@ -1829,13 +1857,7 @@ export class ClassroomJoinController {
     };
   }
 
-  /**
-   * Records the project a learner just made as their copy of an assignment.
-   *
-   * The project is created through the ordinary route first, so nothing about
-   * making a project is reimplemented here — this only ties the two together,
-   * and the database refuses any project that is not the learner's own.
-   */
+  /** Compatibility Continue only: never attach a newly created Project. */
   @Post('me/assignments/:assignmentId/work')
   @HttpCode(200)
   async startAssignment(
@@ -1855,69 +1877,38 @@ export class ClassroomJoinController {
     if (typeof legacyOnly !== 'boolean')
       throw new HttpException(error('validation_error', 'legacyOnly is invalid'), 400);
     const learner = await this.learnerForAssignment(request, assignmentId);
-    const seatId = learner.seatId;
-    await this.requireAssignmentAudience(seatId, assignmentId);
+    await this.requireAssignmentAudience(learner.seatId, assignmentId);
     await this.requireExactCourseWorkOrigin(assignmentId);
-    const provenance = await this.legacyDirectProvenance(
+    const preliminary = await this.legacyDirectProvenance(
       learner.principalId,
-      seatId,
+      learner.seatId,
       assignmentId,
       projectId,
     );
-    if (legacyOnly && (!provenance.legacyDirect || !provenance.startAllowed))
-      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
-    // A new historical handout has no canonical run. An already linked old
-    // Project may still resume through the old adapter even if a run was later
-    // attached; no new Project may enter that route.
-    const canonical = legacyOnly
-      ? { rows: [] }
-      : await this.requirePool().query(
-          `SELECT result_code, participation_id, attempt_id, attempt_number,
-              attempt_state, project_id, reused
-         FROM learning_direct_project_attempt_start($1,$2,$3,$4)`,
-          [learner.principalId, seatId, assignmentId, projectId],
-        );
-    const canonicalRow = canonical.rows[0] as
-      | {
-          result_code: string;
-          participation_id: string | null;
-          attempt_id: string | null;
-          attempt_number: number | string | null;
-          attempt_state: string | null;
-          project_id: string | null;
-          reused: boolean;
-        }
-      | undefined;
-    if (canonicalRow && canonicalRow.result_code !== 'not_canonical') {
-      if (canonicalRow.result_code !== 'ok' || !canonicalRow.project_id) {
-        const status = canonicalRow.result_code === 'forbidden' ? 404 : 409;
-        throw new HttpException(error(canonicalRow.result_code, 'Задание недоступно.'), status);
-      }
-      return {
-        projectId: canonicalRow.project_id,
-        submittedAt: null,
-        participationId: canonicalRow.participation_id,
-        attemptId: canonicalRow.attempt_id,
-        attemptNumber: Number(canonicalRow.attempt_number),
-        state: canonicalRow.attempt_state,
-        reused: canonicalRow.reused,
-      };
-    }
-
-    // Explicit compatibility adapter for handouts without a canonical direct run.
-    if (!provenance.startAllowed || !(provenance.legacyDirect || provenance.legacyCourseLesson))
-      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
-    const legacy = await this.historicalAssignmentWrite(
+    if (
+      !(preliminary.legacyDirect || (!legacyOnly && preliminary.legacyCourseLesson)) ||
+      !preliminary.submitAllowed
+    )
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 409);
+    const linked = await this.historicalAssignmentWrite(
       learner,
       assignmentId,
       projectId,
-      'start',
+      'resume',
       legacyOnly,
-      `SELECT project_id, submitted_at FROM classroom_assignment_work_start($1, $2, $3)`,
-      [seatId, assignmentId, projectId],
+      preliminary.legacyDirect
+        ? `SELECT project_id, submitted_at
+             FROM classroom_assignments_for_seat($1)
+            WHERE id=$2 AND project_id=$3`
+        : `SELECT project_id, submitted_at
+             FROM classroom_course_runs_for_seat_v2($1)
+            WHERE classroom_assignment_id=$2 AND project_id=$3
+              AND lesson_kind='assignment'`,
+      [learner.seatId, assignmentId, projectId],
     );
-    const row = legacy.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
-    if (!row) throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 404);
+    const row = linked.rows[0] as { project_id: string; submitted_at: Date | null } | undefined;
+    if (!row || row.project_id !== projectId)
+      throw new HttpException(error('assignment_unavailable', 'Задание недоступно.'), 409);
     return {
       projectId: row.project_id,
       submittedAt: row.submitted_at ? isoDate(row.submitted_at) : null,
@@ -1925,7 +1916,7 @@ export class ClassroomJoinController {
       attemptId: null,
       attemptNumber: null,
       state: null,
-      reused: false,
+      reused: true,
     };
   }
 

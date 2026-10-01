@@ -475,6 +475,8 @@ export interface SeatCourseRunLesson extends Omit<
   ClassroomCourseRunLesson,
   'seatCount' | 'startedCount' | 'submittedCount' | 'completedCount'
 > {
+  /** Exact lesson-level Course ActivityRun; null when the origin is unprovable. */
+  activityRunId?: string | null;
   activityOccurrences: CourseActivityOccurrence[];
   projectId: string | null;
   submittedAt: string | null;
@@ -869,11 +871,11 @@ export interface LearnerResult {
 /** The same assignment as the learner sees it: theirs, and where they are. */
 export interface SeatAssignment {
   id: string;
-  /** Exact Direct ActivityRun for a later atomic Start; null for legacy/course handouts. */
+  /** Exact Direct or lesson-level Course ActivityRun for atomic Start. */
   activityRunId?: string | null;
-  /** Server-proven old Direct handout with no canonical run or existing work. */
+  /** Retired old Direct Start hint; the server now always returns false. */
   legacyStartAllowed?: boolean;
-  /** Server-proven Course lesson Start, including a modern exact Run. */
+  /** Server-proven atomic Start for an unstarted Course assignment lesson. */
   courseStartAllowed?: boolean;
   /** Server-proven existing old Direct work with no immutable origin. */
   legacySubmitAllowed?: boolean;

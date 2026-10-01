@@ -335,7 +335,7 @@ describe('immutable classroom submissions', () => {
     );
   });
 
-  it('starts the exact canonical participation attempt for the session seat', async () => {
+  it('rejects the old project-link route for a canonical participation', async () => {
     const assignmentId = '123e4567-e89b-42d3-a456-426614174020';
     const projectId = '123e4567-e89b-42d3-a456-426614174021';
     const query = vi.fn(async (sql: string) => {
@@ -366,7 +366,7 @@ describe('immutable classroom submissions', () => {
       }
       if (sql.includes('learning_legacy_direct_provenance')) {
         return {
-          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: true } }],
+          rows: [{ proof: { legacyDirect: false, startAllowed: false, submitAllowed: false } }],
         };
       }
       return {
@@ -390,19 +390,52 @@ describe('immutable classroom submissions', () => {
 
     await expect(
       controller.startAssignment(seatRequest(), assignmentId, { projectId }),
-    ).resolves.toEqual({
-      projectId,
-      submittedAt: null,
-      participationId: 'participation-id',
-      attemptId: 'attempt-id',
-      attemptNumber: 1,
-      state: 'in_progress',
-      reused: false,
-    });
-    expect(query).toHaveBeenLastCalledWith(
-      expect.stringContaining('learning_direct_project_attempt_start'),
-      ['learner-principal-id', 'seat-id', assignmentId, projectId],
+    ).rejects.toMatchObject({ status: 409 });
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
+    ).toBe(false);
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
     );
+  });
+
+  it('continues an exact linked historical Direct Project without a Start write', async () => {
+    const assignmentId = '123e4567-e89b-42d3-a456-426614174030';
+    const projectId = '123e4567-e89b-42d3-a456-426614174031';
+    const query = vi.fn(async (sql: string) => {
+      if (sql.includes('classroom_student_session_context'))
+        return { rows: [{ seat_id: 'seat-id' }] };
+      if (sql.includes('principal_for_seat')) return { rows: [{ principal_id: 'seat-principal' }] };
+      if (sql.includes('learning_direct_assignment_seat_visible'))
+        return { rows: [{ visible: true }] };
+      if (sql.includes('learning_course_activity_assignment_is_shared'))
+        return { rows: [{ shared: false }] };
+      if (
+        sql.includes('learning_legacy_direct_provenance') ||
+        sql.includes('learning_legacy_assignment_write_provenance')
+      )
+        return {
+          rows: [{ proof: { legacyDirect: true, startAllowed: false, submitAllowed: true } }],
+        };
+      if (sql.includes('classroom_assignments_for_seat'))
+        return { rows: [{ project_id: projectId, submitted_at: null }] };
+      return { rows: [] };
+    });
+    const controller = new ClassroomJoinController(
+      { query, connect: vi.fn(async () => ({ query, release: vi.fn() })) } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, { projectId, legacyOnly: true }),
+    ).resolves.toMatchObject({ projectId, reused: true, attemptId: null });
+    const statements = query.mock.calls.map(([sql]) => sql);
+    expect(statements).toContain('BEGIN');
+    expect(statements).toContain('COMMIT');
+    expect(
+      statements.some((sql) => sql.includes('learning_legacy_assignment_write_provenance')),
+    ).toBe(true);
+    expect(statements.some((sql) => /\b(?:INSERT|UPDATE|DELETE)\b/i.test(sql))).toBe(false);
+    expect(statements.some((sql) => sql.includes('classroom_assignment_work_start'))).toBe(false);
   });
 
   it('does not let the learner mutate a submitted snapshot back into a draft', async () => {
@@ -620,6 +653,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     const versionB = '56000000-0000-4000-8000-000000000002';
     const projectA = '57000000-0000-4000-8000-000000000001';
     const courseRow = {
+      viewer_seat_id: seatId,
       run_id: runId,
       course_id: '58000000-0000-4000-8000-000000000001',
       course_version_id: '59000000-0000-4000-8000-000000000001',
@@ -889,11 +923,36 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ).toBe(projectA);
     accountLinkRevoked = false;
 
+    // The lesson's own exact Run can start in one server request. A Course
+    // Activity block on its handout does not lend this permission.
+    Object.assign(courseRow, {
+      lesson_kind: 'assignment',
+      project_id: null,
+      modern_activity_run_id: activityRunA,
+      modern_provenance: {
+        modernCourseRun: true,
+        activityRunId: activityRunA,
+        projectReadable: false,
+        startAllowed: true,
+      },
+    });
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        activityRunId: activityRunA,
+        courseStartAllowed: true,
+        projectId: null,
+      });
+    }
+
     // A modern null-block Course lesson keeps its exact work on revisit.
     // An Activity block on the same handout must not lend it a Project.
     const savedOccurrences = occurrenceRows.splice(0);
     Object.assign(courseRow, {
       lesson_kind: 'assignment',
+      project_id: projectA,
       modern_activity_run_id: activityRunA,
       modern_provenance: {
         modernCourseRun: true,
@@ -914,6 +973,26 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         legacySubmitAllowed: false,
       });
     }
+    presenceRows = [
+      {
+        seat_id: seatId,
+        source_kind: 'course',
+        classroom_assignment_id: assignmentA,
+        activity_run_id: activityRunA,
+        course_block_id: null,
+      },
+    ];
+    for (const payload of [
+      await controller.accountCourseRuns(accountRequest),
+      await controller.courseRuns(seatRequest()),
+    ]) {
+      expect(payload.items[0]?.sections[0]?.lessons[0]).toMatchObject({
+        projectId: null,
+        canonicalState: null,
+        courseStartAllowed: false,
+      });
+    }
+    presenceRows = [];
     Object.assign(courseRow, { run_status: 'closed' });
     expect(
       (await controller.accountCourseRuns(accountRequest)).items[0]?.sections[0]?.lessons[0],
@@ -1177,7 +1256,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ).toBe(false);
   });
 
-  it('keeps a single historical Course lesson on its existing Start and Submit adapter', async () => {
+  it('continues only already linked Course lesson work and preserves its Submit', async () => {
     const assignmentId = '54000000-0000-4000-8000-000000000010';
     const projectId = '57000000-0000-4000-8000-000000000010';
     const query = vi.fn(async (sql: string) => {
@@ -1199,7 +1278,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
               proof: {
                 legacyDirect: false,
                 legacyCourseLesson: true,
-                startAllowed: true,
+                startAllowed: false,
                 submitAllowed: true,
               },
             },
@@ -1211,6 +1290,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       )
         return { rows: [{ result_code: 'not_canonical' }] };
       if (sql.includes('classroom_assignment_work_start'))
+        return { rows: [{ project_id: projectId, submitted_at: null }] };
+      if (sql.includes('classroom_course_runs_for_seat_v2'))
         return { rows: [{ project_id: projectId, submitted_at: null }] };
       if (sql.includes('learning_project_submission_create'))
         return {
@@ -1237,7 +1318,15 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     );
     await expect(
       controller.startAssignment(seatRequest(), assignmentId, { projectId }),
-    ).resolves.toMatchObject({ projectId });
+    ).resolves.toMatchObject({
+      projectId,
+      reused: true,
+    });
+    await expect(
+      controller.startAssignment(seatRequest(), assignmentId, {
+        projectId: '57000000-0000-4000-8000-000000000099',
+      }),
+    ).rejects.toMatchObject({ status: 409 });
     await expect(
       controller.submitAssignment(seatRequest(), assignmentId, {
         submitted: true,
@@ -1247,8 +1336,14 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       }),
     ).resolves.toMatchObject({ projectId, submissionId: 'submission-id' });
     expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
-      true,
+      false,
     );
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('classroom_course_runs_for_seat_v2')),
+    ).toBe(true);
+    expect(
+      query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
+    ).toBe(false);
     expect(
       query.mock.calls.some(([sql]) => sql.includes('learning_project_submission_create')),
     ).toBe(true);
@@ -1256,8 +1351,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     expect(statements).toContain('BEGIN');
     expect(statements).toContain('COMMIT');
     expect(
-      statements.findIndex((sql) => sql.includes('learning_legacy_assignment_write_provenance')),
-    ).toBeLessThan(statements.findIndex((sql) => sql.includes('classroom_assignment_work_start')));
+      statements.some((sql) => sql.includes('learning_legacy_assignment_write_provenance')),
+    ).toBe(true);
   });
 
   it('shows historical Course lesson work and submit proof only to its authorized Seat or Account', async () => {
@@ -1384,7 +1479,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         projectId,
         legacyOnly: true,
       }),
-    ).rejects.toMatchObject({ status: 404 });
+    ).rejects.toMatchObject({ status: 409 });
     await expect(
       controller.submitAssignment(seatRequest(), assignmentId, {
         submitted: true,
@@ -1400,7 +1495,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ).toBe(false);
   });
 
-  it('accepts only the freshly proven no-run Direct compatibility Start', async () => {
+  it('rejects a newly created unbound Project even with old Direct proof', async () => {
     const assignmentId = '54000000-0000-4000-8000-000000000012';
     const projectId = '57000000-0000-4000-8000-000000000012';
     const query = vi.fn(async (sql: string) => {
@@ -1432,10 +1527,13 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
         projectId,
         legacyOnly: true,
       }),
-    ).resolves.toMatchObject({ projectId, participationId: null });
+    ).rejects.toMatchObject({ status: 409 });
     expect(
       query.mock.calls.some(([sql]) => sql.includes('learning_direct_project_attempt_start')),
     ).toBe(false);
+    expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
+      false,
+    );
   });
 
   it('denies an unflagged LAV-backed Direct fallback with no Run before old adapters', async () => {
@@ -1464,7 +1562,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     );
     await expect(
       controller.startAssignment(seatRequest(), assignmentId, { projectId }),
-    ).rejects.toMatchObject({ status: 404 });
+    ).rejects.toMatchObject({ status: 409 });
     await expect(
       controller.submitAssignment(seatRequest(), assignmentId, {
         submitted: true,
@@ -1479,7 +1577,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     ).toBe(false);
   });
 
-  it('rolls back when historical proof is revoked between preliminary read and locked write', async () => {
+  it('rolls back when old Project proof is withdrawn before locked Continue', async () => {
     const assignmentId = '54000000-0000-4000-8000-000000000015';
     const projectId = '57000000-0000-4000-8000-000000000015';
     const query = vi.fn(async (sql: string) => {
@@ -1491,7 +1589,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
       if (sql.includes('learning_course_activity_assignment_is_shared'))
         return { rows: [{ shared: false }] };
       if (sql.includes('learning_legacy_direct_provenance'))
-        return { rows: [{ proof: { legacyDirect: true, startAllowed: true } }] };
+        return { rows: [{ proof: { legacyDirect: true, submitAllowed: true } }] };
       if (sql.includes('learning_legacy_assignment_write_provenance'))
         return { rows: [{ proof: { legacyDirect: true, startAllowed: false } }] };
       if (sql.includes('learning_direct_project_attempt_start'))
@@ -1505,7 +1603,8 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     const controller = new ClassroomJoinController(pool, {} as ActiveContextUseCase);
     await expect(
       controller.startAssignment(seatRequest(), assignmentId, { projectId }),
-    ).rejects.toMatchObject({ status: 404 });
+    ).rejects.toMatchObject({ status: 409 });
+    expect(query.mock.calls.map(([sql]) => sql)).toContain('BEGIN');
     expect(query.mock.calls.map(([sql]) => sql)).toContain('ROLLBACK');
     expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
       false,
@@ -1536,7 +1635,7 @@ describe('E1-FIX-11D4b learner course Activity occurrences', () => {
     accountRequest.cookies['asa_session'] = 'account-session';
     await expect(
       controller.startAssignment(accountRequest, assignmentId, { projectId }),
-    ).rejects.toMatchObject({ status: 404 });
+    ).rejects.toMatchObject({ status: 409 });
     expect(query.mock.calls.some(([sql]) => sql.includes('classroom_assignment_work_start'))).toBe(
       false,
     );

@@ -139,4 +139,28 @@ describe('origin learner list adapter', () => {
       new OriginLearnerList([first, first], [], asOf).courseHasOrigin(seatId, runId, 'first'),
     ).toBe(true);
   });
+
+  it('keeps a null-block Course lesson separate from Activity blocks and suppresses denied origins', () => {
+    const lesson = row('course', runId, null);
+    const activity = row('course', '30000000-0000-4000-8000-000000000003', 'lesson');
+    activity.context.projectId = '70000000-0000-4000-8000-000000000003';
+    activity.evidence.projectId = activity.context.projectId;
+    const list = new OriginLearnerList([lesson, activity], [], asOf);
+    expect(list.courseLessonWork(seatId, runId)?.projectId).toBe(projectId);
+    expect(list.courseWork(seatId, runId, 'lesson')).toBeNull();
+    expect(list.courseWork(seatId, activity.context.activityRunId, 'lesson')?.projectId).toBe(
+      activity.context.projectId,
+    );
+    const denied = new OriginLearnerList([], [], asOf, [
+      {
+        seat_id: seatId,
+        source_kind: 'course',
+        classroom_assignment_id: assignmentId,
+        activity_run_id: runId,
+        course_block_id: null,
+      },
+    ]);
+    expect(denied.courseLessonHasOrigin(seatId, runId)).toBe(true);
+    expect(denied.courseLessonWork(seatId, runId)).toBeNull();
+  });
 });

@@ -181,34 +181,71 @@ describe('Course Activity work origin', () => {
     const button = [...view.querySelectorAll('button')].find(
       (item) => item.textContent === 'Начать задание',
     );
-    expect(button?.disabled).toBe(true);
-    await act(async () => button?.click());
+    expect(button).toBeUndefined();
+    expect(view.querySelector('.seat-assignment-unavailable')?.textContent).toContain(
+      'Начать новую работу',
+    );
     expect(create).not.toHaveBeenCalled();
     expect(start).not.toHaveBeenCalled();
   });
 
-  it('keeps a server-eligible modern Account Course lesson Start', async () => {
-    const modern = course([]);
-    Object.assign(modern.sections[0]!.lessons[0]!, {
-      kind: 'assignment',
-      classroomAssignmentId: 'modern-course-handout',
-      assignmentTitle: 'Modern lesson',
-      moduleKey: 'electronics',
-      courseStartAllowed: true,
-    });
-    const create = vi.spyOn(api, 'createProject').mockResolvedValue({
-      ok: false,
-      status: 503,
-      error: { code: 'unavailable', message: 'Retry' },
-    });
-    const view = await renderCourse('account', [], vi.fn(), modern);
-    const button = [...view.querySelectorAll('button')].find(
-      (item) => item.textContent === 'Начать задание',
-    );
-    expect(button?.disabled).toBe(false);
-    await act(async () => button?.click());
-    expect(create).toHaveBeenCalledOnce();
-  });
+  it.each(['seat', 'account'] as const)(
+    '%s starts a proven lesson-level Run atomically and keeps the key for retry',
+    async (source) => {
+      const modern = course([]);
+      Object.assign(modern.sections[0]!.lessons[0]!, {
+        kind: 'assignment',
+        classroomAssignmentId: 'modern-course-handout',
+        assignmentTitle: 'Modern lesson',
+        moduleKey: 'electronics',
+        activityRunId: 'exact-course-lesson-run',
+        courseStartAllowed: true,
+      });
+      const create = vi.spyOn(api, 'createProject');
+      const oldStart = vi.spyOn(api, 'startSeatAssignment');
+      const atomicStart = vi
+        .spyOn(api, 'startLearningWork')
+        .mockResolvedValueOnce({
+          ok: false,
+          status: 0,
+          error: { code: 'network', message: 'Retry' },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          data: {
+            projectId: 'exact-project',
+            participationId: 'exact-participation',
+            activityRunId: 'exact-course-lesson-run',
+            attemptId: 'exact-attempt',
+            attemptNumber: 1,
+            state: 'in_progress',
+            reused: true,
+          },
+        });
+      const onOpenProject = vi.fn();
+      const view = await renderCourse(source, [], onOpenProject, modern);
+      const start = () =>
+        [...view.querySelectorAll<HTMLButtonElement>('button')].find(
+          (item) => item.textContent === 'Начать задание',
+        );
+      expect(start()).toBeDefined();
+      await act(async () => start()?.click());
+      expect(view.textContent).toContain('Retry');
+      await act(async () =>
+        [...view.querySelectorAll<HTMLButtonElement>('button')]
+          .find((item) => item.textContent === 'Повторить загрузку курсов')
+          ?.click(),
+      );
+      await act(async () => start()?.click());
+      expect(atomicStart).toHaveBeenCalledTimes(2);
+      expect(atomicStart.mock.calls[0]?.[0]).toBe('exact-course-lesson-run');
+      expect(atomicStart.mock.calls[0]?.[1]).toBe(atomicStart.mock.calls[1]?.[1]);
+      expect(onOpenProject).toHaveBeenCalledWith('exact-project', 'electronics');
+      expect(create).not.toHaveBeenCalled();
+      expect(oldStart).not.toHaveBeenCalled();
+    },
+  );
 
   it.each(['seat', 'account'] as const)(
     '%s submits a proven historical Course lesson without a Learning Activity Version',

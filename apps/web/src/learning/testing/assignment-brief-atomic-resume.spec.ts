@@ -215,14 +215,31 @@ describe('AssignmentBrief requested-revision resume', () => {
     expect(legacy).not.toHaveBeenCalled();
   });
 
-  it('keeps the historical resume path for a proven legacy context with run IDs', async () => {
+  it('continues only a proven historical Project, then submits its saved rework', async () => {
     vi.spyOn(api, 'learningWorkContext').mockResolvedValue({
       ok: true,
       status: 200,
-      data: { ...context, origin: { ...context.origin, immutable: false } },
+      data: {
+        ...context,
+        origin: { ...context.origin, immutable: false, activityRunId: null, participationId: null },
+        allowedActions: { ...context.allowedActions, edit: true, submit: true },
+      },
     });
     const exact = vi.spyOn(api, 'startLearningWork');
     const legacy = vi.spyOn(api, 'startSeatAssignment').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        projectId: 'current-project',
+        submittedAt: null,
+        participationId: null,
+        attemptId: null,
+        attemptNumber: null,
+        state: null,
+        reused: true,
+      },
+    });
+    const submit = vi.spyOn(api, 'submitSeatAssignment').mockResolvedValue({
       ok: false,
       status: 503,
       error: { code: 'lost_response', message: 'Retry' },
@@ -247,6 +264,16 @@ describe('AssignmentBrief requested-revision resume', () => {
       container?.querySelector<HTMLButtonElement>('.assignment-brief-submit')?.click(),
     );
     expect(legacy).toHaveBeenCalledWith('handout-one', 'current-project');
+    expect(exact).not.toHaveBeenCalled();
+    expect(submit).not.toHaveBeenCalled();
+    expect(
+      container?.querySelector<HTMLButtonElement>('.assignment-brief-submit')?.textContent,
+    ).toBe('Сдать доработку');
+    await act(async () =>
+      container?.querySelector<HTMLButtonElement>('.assignment-brief-submit')?.click(),
+    );
+    expect(legacy).toHaveBeenCalledOnce();
+    expect(submit).toHaveBeenCalledWith('handout-one', true, 1, expect.any(String));
     expect(exact).not.toHaveBeenCalled();
   });
 });

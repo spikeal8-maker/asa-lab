@@ -1584,6 +1584,46 @@ for (const module of ['electronics', 'three-d'])
     await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
     await expect(page.getByTestId('classroom-course-run')).toContainText(courseTitle);
     const learnerIdentity = await seedTeacher(admin, 'course01-account-browser');
+    // Account-owned Learning Projects live in a personal workspace. The
+    // organization-only seed has none; the Direct E1 journey tests that Start
+    // is forbidden until this separate Account workspace exists.
+    const learnerAccount = await admin.query(
+      `SELECT account_id,principal_id FROM legacy_user_account_links
+        WHERE tenant_id=$1 AND user_id=$2`,
+      [learnerIdentity.tenantId, learnerIdentity.teacherId],
+    );
+    const learnerAccountId = learnerAccount.rows[0].account_id as string;
+    const learnerPrincipalId = learnerAccount.rows[0].principal_id as string;
+    const personalTenant = await admin.query(
+      `INSERT INTO tenants (workspace_slug,title)
+       VALUES ($1,'Course learner personal') RETURNING id`,
+      [`course-personal-${learnerAccountId.replaceAll('-', '')}`],
+    );
+    const personalTenantId = personalTenant.rows[0].id as string;
+    await admin.query(
+      `INSERT INTO tenant_placements (tenant_id,mode)
+      VALUES ($1,'SHARED_CLUSTER')`,
+      [personalTenantId],
+    );
+    const personalWorkspace = await admin.query(
+      `INSERT INTO workspaces (tenant_id,kind,title)
+       VALUES ($1,'personal','Course learner personal') RETURNING id`,
+      [personalTenantId],
+    );
+    await admin.query(
+      `INSERT INTO workspace_memberships (account_id,workspace_id,role)
+       VALUES ($1,$2,'owner')`,
+      [learnerAccountId, personalWorkspace.rows[0].id],
+    );
+    expect(
+      (await admin.query('SELECT * FROM auth_personal_workspace($1)', [learnerAccountId])).rows,
+    ).toEqual([
+      {
+        workspace_id: personalWorkspace.rows[0].id,
+        tenant_id: personalTenantId,
+        principal_id: learnerPrincipalId,
+      },
+    ]);
     const context = await browser.newContext(),
       learner = await context.newPage();
     await loginWithOrganization(learner, learnerIdentity);
@@ -1627,7 +1667,48 @@ for (const module of ['electronics', 'three-d'])
       learner.getByRole('button', { name: 'Отметить непройденным', exact: true }),
     ).toBeVisible();
     await learner.getByRole('button', { name: 'Далее →', exact: true }).click();
-    await learner.getByRole('button', { name: 'Начать задание', exact: true }).click();
+    const startLesson = learner.getByRole('button', { name: 'Начать задание', exact: true });
+    await expect(learner.getByTestId('seat-course-player')).toContainText(courseTitle);
+    await expect(startLesson).toBeEnabled();
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await learner.screenshot({
+      path: `${evidenceDir}/account-course-${module}-start-desktop.png`,
+      fullPage: true,
+    });
+    await learner.setViewportSize({ width: 390, height: 844 });
+    await expect(startLesson).toBeVisible();
+    await learner.screenshot({
+      path: `${evidenceDir}/account-course-${module}-start-mobile.png`,
+      fullPage: true,
+    });
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await startLesson.click();
+    await expect(learner).toHaveURL(
+      module === 'three-d'
+        ? /#\/3d\/[^?]+/
+        : /\/projects\/[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}\/electronics\/edit\/?(?:\?returnTo=%23%2Flearning)?$/i,
+      { timeout: 60_000 },
+    );
+    const startedProjectId = courseActivityProjectId(learner, module);
+    const assignmentAnchor = learner.getByTestId('assignment-brief-anchor');
+    await expect(assignmentAnchor).toBeVisible({ timeout: 60_000 });
+    if ((await assignmentAnchor.getAttribute('aria-expanded')) !== 'true') {
+      await assignmentAnchor.click();
+    }
+    await expect(learner.getByTestId('assignment-brief')).toContainText(material);
+    if (module === 'three-d') {
+      await expect(learner.getByTestId('asa3d-viewport')).toHaveAttribute(
+        'data-runtime-ready',
+        'true',
+      );
+    } else {
+      await expect(learner.getByRole('button', { name: 'Резистор', exact: true })).toBeVisible();
+    }
+    expect(startedProjectId).not.toBe('');
+    await learner.screenshot({
+      path: `${evidenceDir}/account-course-${module}-started-project.png`,
+      fullPage: true,
+    });
     await editRealProject(learner, module);
     const brief = learner.getByTestId('assignment-brief');
     await expect(

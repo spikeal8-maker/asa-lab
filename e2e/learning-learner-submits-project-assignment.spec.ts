@@ -9,6 +9,7 @@ import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 const evidenceDir = 'e2e/artifacts/learning/vs-002';
 const workShellV1EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
 const ux1a4EvidenceDir = 'e2e/artifacts/learning/ux1a4-reference-window';
+const legacyStartEvidenceDir = 'e2e/artifacts/learning/a4-legacy-start-closure';
 const desktopV1Viewport = { width: 1440, height: 900 } as const;
 const mobileV1Viewports = [
   { width: 390, height: 844 },
@@ -35,6 +36,7 @@ test.beforeAll(async () => {
   mkdirSync(evidenceDir, { recursive: true });
   mkdirSync(workShellV1EvidenceDir, { recursive: true });
   mkdirSync(ux1a4EvidenceDir, { recursive: true });
+  mkdirSync(legacyStartEvidenceDir, { recursive: true });
 });
 
 test.afterAll(async () => {
@@ -617,6 +619,191 @@ test('approved Account starts a Direct assignment by its exact Run without legac
     ).rows[0]?.count,
   ).toBe(0);
   await learnerContext.close();
+});
+
+test('old Direct and lesson-level Course handouts cannot create an orphan Project', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(180_000);
+  const token = ++sequence;
+  const className = `Legacy Start closure ${token}`;
+  const directTitle = `Old Direct ${token}`;
+  const courseTitle = `Old Course ${token}`;
+  const handle = `legacy-start-${token}`;
+  const joinCode = await createClassWithStudents(page, className, [
+    { label: `Legacy learner ${token}`, handle },
+  ]);
+  const classId = (
+    await admin.query(`SELECT id FROM classrooms WHERE tenant_id=$1 AND title=$2`, [
+      teacher.tenantId,
+      className,
+    ])
+  ).rows[0].id as string;
+  const seatId = (
+    await admin.query(
+      `SELECT id FROM classroom_student_seats WHERE tenant_id=$1 AND classroom_id=$2 AND display_label=$3`,
+      [teacher.tenantId, classId, `Legacy learner ${token}`],
+    )
+  ).rows[0].id as string;
+  const teacherPrincipal = (
+    await admin.query(
+      `SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2`,
+      [teacher.tenantId, teacher.teacherId],
+    )
+  ).rows[0].principal_id as string;
+  const seatPrincipal = (
+    await admin.query(`SELECT principal_id FROM student_seat_principal($1)`, [seatId])
+  ).rows[0].principal_id as string;
+  const authored = await admin.query(
+    `INSERT INTO teacher_assignments
+       (tenant_id,owner_principal_id,title,brief,module_key,visibility)
+     VALUES ($1,$2,$3,'Build a circuit','electronics','private') RETURNING id`,
+    [teacher.tenantId, teacherPrincipal, directTitle],
+  );
+  const client = await admin.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`SELECT set_config('app.tenant_id',$1,true)`, [teacher.tenantId]);
+    await client.query(`SELECT teacher_assignment_hand_out($1,$2,$3,true,NULL)`, [
+      teacherPrincipal,
+      authored.rows[0].id,
+      classId,
+    ]);
+    await client.query('COMMIT');
+  } catch (reason) {
+    await client.query('ROLLBACK');
+    throw reason;
+  } finally {
+    client.release();
+  }
+  const directId = (
+    await admin.query(
+      `SELECT id FROM classroom_assignments WHERE tenant_id=$1 AND classroom_id=$2 AND assignment_id=$3`,
+      [teacher.tenantId, classId, authored.rows[0].id],
+    )
+  ).rows[0].id as string;
+  const course = await admin.query(
+    `INSERT INTO courses (tenant_id,owner_principal_id,title,visibility)
+     VALUES ($1,$2,$3,'private') RETURNING id`,
+    [teacher.tenantId, teacherPrincipal, courseTitle],
+  );
+  const version = await admin.query(
+    `INSERT INTO course_versions
+       (tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
+     VALUES ($1,$2,1,$3,'{"sections":[]}'::jsonb,$4,$5) RETURNING id`,
+    [teacher.tenantId, course.rows[0].id, courseTitle, `legacy-start-${token}`, teacherPrincipal],
+  );
+  const run = await admin.query(
+    `INSERT INTO classroom_course_runs
+       (tenant_id,classroom_id,course_id,course_version_id,title,version_number,assigned_by_principal_id)
+     VALUES ($1,$2,$3,$4,$5,1,$6) RETURNING id`,
+    [
+      teacher.tenantId,
+      classId,
+      course.rows[0].id,
+      version.rows[0].id,
+      courseTitle,
+      teacherPrincipal,
+    ],
+  );
+  const courseHandout = await admin.query(
+    `INSERT INTO classroom_assignments (tenant_id,classroom_id,status,created_by,course_run_id)
+     VALUES ($1,$2,'open',$3,$4) RETURNING id`,
+    [teacher.tenantId, classId, teacher.teacherId, run.rows[0].id],
+  );
+  await admin.query(
+    `INSERT INTO classroom_course_run_lessons
+       (tenant_id,run_id,source_section_id,source_lesson_id,section_title,section_position,
+        title,kind,lesson_position,classroom_assignment_id,assignment_title,assignment_brief,module_key)
+     VALUES ($1,$2,gen_random_uuid(),gen_random_uuid(),'Section',1,$3,'assignment',1,
+             $4,$3,'Build a circuit','electronics')`,
+    [teacher.tenantId, run.rows[0].id, `Old lesson ${token}`, courseHandout.rows[0].id],
+  );
+  const orphan = await admin.query(
+    `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+     VALUES ($1,'personal','electronics','Unbound before request',$2) RETURNING id`,
+    [teacher.tenantId, seatPrincipal],
+  );
+  const unboundProjectId = orphan.rows[0].id as string;
+  const learner = await learnerAssignments(browser, joinCode, handle);
+  const directRow = assignmentRow(learner.page, directTitle);
+  await expect(directRow).toContainText('Не начато');
+  await expect(directRow.getByText('Начать новую работу')).toBeVisible();
+  await expect(directRow.getByRole('button', { name: 'Открыть', exact: true })).toHaveCount(0);
+  await directRow.screenshot({ path: `${legacyStartEvidenceDir}/direct-unstarted.png` });
+  const courseRow = learner.page
+    .getByTestId('seat-courses')
+    .locator('li')
+    .filter({ hasText: courseTitle });
+  await expect(courseRow).toBeVisible();
+  await courseRow.getByRole('button').click();
+  await expect(
+    learner.page.getByTestId('seat-course-player').getByText('Начать новую работу'),
+  ).toBeVisible();
+  await expect(learner.page.getByRole('button', { name: 'Начать задание' })).toHaveCount(0);
+  await learner.page.getByTestId('seat-course-player').screenshot({
+    path: `${legacyStartEvidenceDir}/course-lesson-unstarted.png`,
+  });
+  const before = await admin.query(
+    `SELECT (SELECT COUNT(*)::int FROM projects WHERE owner_principal_id=$1) AS projects,
+            (SELECT COUNT(*)::int FROM classroom_assignment_work WHERE seat_id=$2) AS work`,
+    [seatPrincipal, seatId],
+  );
+  const posts = await Promise.all(
+    [directId, courseHandout.rows[0].id as string].flatMap((assignmentId) =>
+      [1, 2].map(() =>
+        learner.page.request.post(`/api/class-join/me/assignments/${assignmentId}/work`, {
+          headers: { origin: new URL(learner.page.url()).origin },
+          data: { projectId: unboundProjectId, legacyOnly: true },
+        }),
+      ),
+    ),
+  );
+  expect(posts.map((response) => response.status())).toEqual([409, 409, 409, 409]);
+  const after = await admin.query(
+    `SELECT (SELECT COUNT(*)::int FROM projects WHERE owner_principal_id=$1) AS projects,
+            (SELECT COUNT(*)::int FROM classroom_assignment_work WHERE seat_id=$2) AS work`,
+    [seatPrincipal, seatId],
+  );
+  expect(after.rows).toEqual(before.rows);
+
+  // A historically linked Project remains visible after closing new Start.
+  const courseProject = await admin.query(
+    `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+     VALUES ($1,'personal','electronics','Previously linked Course work',$2) RETURNING id`,
+    [teacher.tenantId, seatPrincipal],
+  );
+  for (const [assignmentId, projectId] of [
+    [directId, unboundProjectId],
+    [courseHandout.rows[0].id as string, courseProject.rows[0].id as string],
+  ]) {
+    await admin.query(
+      `INSERT INTO project_drafts
+         (tenant_id,project_id,document_json,revision,updated_by_principal_id)
+       VALUES ($1,$2,'{"schemaVersion":1,"components":[]}'::jsonb,1,$3)`,
+      [teacher.tenantId, projectId, seatPrincipal],
+    );
+    await admin.query(
+      `INSERT INTO classroom_assignment_work (tenant_id,assignment_id,seat_id,project_id)
+       VALUES ($1,$2,$3,$4)`,
+      [teacher.tenantId, assignmentId, seatId, projectId],
+    );
+  }
+  await learner.page.reload();
+  await expect(
+    assignmentRow(learner.page, directTitle).getByRole('button', { name: 'Открыть работу' }),
+  ).toBeVisible();
+  await learner.page
+    .getByTestId('seat-courses')
+    .locator('li')
+    .filter({ hasText: courseTitle })
+    .getByRole('button')
+    .click();
+  await expect(
+    learner.page.getByTestId('seat-course-player').getByRole('button', { name: 'Открыть работу' }),
+  ).toBeVisible();
+  await learner.context.close();
 });
 
 test('named audience excludes the third learner from read, start and submit', async ({

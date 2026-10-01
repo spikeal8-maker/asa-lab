@@ -3001,7 +3001,8 @@ paths:
   /api/class-join/me/assignments/{assignmentId}/work:
     post:
       operationId: startLearnerProjectAssignment
-      summary: Link the learner personal project and create or reuse the canonical participation Attempt
+      deprecated: true
+      summary: Read-only Continue of an already linked historical Project; new Start uses exact ActivityRun
       parameters:
         - in: path
           name: assignmentId
@@ -3014,14 +3015,18 @@ paths:
             schema: { $ref: '#/components/schemas/LearningProjectAttemptStartRequest' }
       responses:
         '200':
-          description: Project linked and canonical Attempt started, or a legacy compatibility link
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/LearningProjectAttemptStartReceipt' }
+          {
+            description: Existing linked Project returned after locked legacy provenance proof; no Project,
+            work link or Attempt is created,
+          }
         '400': { description: Invalid assignment or project identifier }
         '401': { description: No active learner session }
         '404': { description: Assignment excluded, cross-class or unavailable }
-        '409': { description: Participation lifecycle or effective availability blocks start }
+        '409':
+          {
+            description: No exact supported historical link or proof changed; no Project,
+            work link or Attempt is created,
+          }
   /api/learning/work/runs/{activityRunId}/start:
     post:
       operationId: startExactLearningWork

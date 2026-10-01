@@ -1,6 +1,8 @@
+import { createHash, randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type pg from 'pg';
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
+import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
 
 const policies = {
@@ -649,6 +651,136 @@ describe('LRN-VS-001 canonical direct assignment', () => {
       legacyProjectReadable: true,
       submitAllowed: true,
     });
+    const unboundProjectId = (
+      await admin.query(
+        `INSERT INTO projects (tenant_id,project_scope,module_key,title,owner_principal_id)
+         VALUES ($1,'personal','electronics','Unbound old course work',$2) RETURNING id`,
+        [owner.tenantId, learnerPrincipal],
+      )
+    ).rows[0].id as string;
+    const seatToken = `old-course-${randomUUID()}`;
+    await admin.query(
+      `INSERT INTO classroom_seat_credentials
+         (seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+       VALUES ($1,$2,1,$3,$4)`,
+      [learnerSeat, createHash('sha256').update(randomUUID()).digest('hex'), randomUUID(), account],
+    );
+    await admin.query(
+      `INSERT INTO classroom_student_sessions
+         (seat_id,token_hash,expires_at,credential_version)
+       VALUES ($1,$2,now()+interval '1 hour',1)`,
+      [learnerSeat, createHash('sha256').update(seatToken).digest('hex')],
+    );
+    const wrongSeatToken = `wrong-old-course-${randomUUID()}`;
+    await admin.query(
+      `INSERT INTO classroom_seat_credentials
+         (seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+       VALUES ($1,$2,1,$3,$4)`,
+      [wrongSeat, createHash('sha256').update(randomUUID()).digest('hex'), randomUUID(), account],
+    );
+    await admin.query(
+      `INSERT INTO classroom_student_sessions
+         (seat_id,token_hash,expires_at,credential_version)
+       VALUES ($1,$2,now()+interval '1 hour',1)`,
+      [wrongSeat, createHash('sha256').update(wrongSeatToken).digest('hex')],
+    );
+    const api = await buildTestApp(testAppPool());
+    const continueWork = (candidate: string, token = seatToken) =>
+      inject(api, {
+        method: 'POST',
+        url: `/api/class-join/me/assignments/${handout.rows[0].id}/work`,
+        cookies: { asa_student_session: token },
+        payload: { projectId: candidate },
+      });
+    try {
+      const linked = await continueWork(projectId);
+      expect(linked.statusCode).toBe(200);
+      expect(linked.json()).toMatchObject({ projectId, reused: true, attemptId: null });
+      const unbound = await continueWork(unboundProjectId);
+      expect(unbound.statusCode).toBe(409);
+      expect(unbound.body).not.toContain(unboundProjectId);
+      const wrongSeatResponse = await continueWork(projectId, wrongSeatToken);
+      expect(wrongSeatResponse.statusCode).toBe(409);
+      expect(wrongSeatResponse.body).not.toContain(projectId);
+      const first = await inject(api, {
+        method: 'POST',
+        url: `/api/class-join/me/assignments/${handout.rows[0].id}/submit`,
+        cookies: { asa_student_session: seatToken },
+        payload: { submitted: true, clientRequestId: `old-course:first:${randomUUID()}` },
+      });
+      expect(first.statusCode).toBe(200);
+      expect(first.json()).toMatchObject({ projectId, attemptNumber: 1 });
+      expect(
+        (
+          await admin.query(`SELECT * FROM learning_attempt_review($1,$2,$3,$4,$5,$6,$7,$8)`, [
+            account,
+            principal,
+            classId,
+            first.json().attemptId,
+            'changes_requested',
+            null,
+            'Please revise',
+            'Needs correction',
+          ])
+        ).rows[0],
+      ).toMatchObject({ result_code: 'ok', attempt_state: 'closed' });
+      const rework = await continueWork(projectId);
+      expect(rework.statusCode).toBe(200);
+      expect(rework.json()).toMatchObject({ projectId, reused: true });
+      await admin.query(
+        `UPDATE project_drafts
+            SET document_json='{"schemaVersion":1,"components":[{"kind":"reworked"}]}'::jsonb,
+                revision=revision+1 WHERE project_id=$1`,
+        [projectId],
+      );
+      const second = await inject(api, {
+        method: 'POST',
+        url: `/api/class-join/me/assignments/${handout.rows[0].id}/submit`,
+        cookies: { asa_student_session: seatToken },
+        payload: { submitted: true, clientRequestId: `old-course:second:${randomUUID()}` },
+      });
+      expect(second.statusCode).toBe(200);
+      expect(second.json()).toMatchObject({ projectId, attemptNumber: 2 });
+      expect(second.json().attemptId).not.toBe(first.json().attemptId);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::integer AS count FROM classroom_assignment_work
+              WHERE assignment_id=$1 AND seat_id=$2 AND project_id=$3`,
+            [handout.rows[0].id, learnerSeat, projectId],
+          )
+        ).rows[0].count,
+      ).toBe(1);
+      expect(
+        (
+          await admin.query(
+            `SELECT count(*)::integer AS count FROM learning_project_origins WHERE project_id=$1`,
+            [projectId],
+          )
+        ).rows[0].count,
+      ).toBe(0);
+      await admin.query(`UPDATE classroom_course_runs SET status='closed' WHERE id=$1`, [
+        run.rows[0].id,
+      ]);
+      expect((await continueWork(projectId)).statusCode).toBe(409);
+      await admin.query(`UPDATE classroom_course_runs SET status='open' WHERE id=$1`, [
+        run.rows[0].id,
+      ]);
+      await admin.query(`SELECT learning_audience_ensure_seat_identity($1)`, [learnerSeat]);
+      await admin.query(
+        `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+         WHERE seat_id=$1 AND link_kind='student_seat'`,
+        [learnerSeat],
+      );
+      expect((await continueWork(projectId)).statusCode).toBe(409);
+      await admin.query(
+        `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+         WHERE seat_id=$1 AND link_kind='student_seat'`,
+        [learnerSeat],
+      );
+    } finally {
+      await api.close();
+    }
     await admin.query(`UPDATE classroom_course_runs SET status='closed' WHERE id=$1`, [
       run.rows[0].id,
     ]);
