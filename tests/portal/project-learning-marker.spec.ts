@@ -36,6 +36,7 @@ describe('personal Project list Learning marker', () => {
       });
       const pool = {
         connect: async () => ({ query, release: vi.fn() }),
+        query: vi.fn(async () => ({ rows: [] })),
       } as unknown as pg.Pool;
       const listed = await new PgProjectRepository(pool).listForActor(
         tenantId,
@@ -43,8 +44,12 @@ describe('personal Project list Learning marker', () => {
         { scope: 'personal', status, limit: 40 },
       );
       expect(listed).toHaveLength(40);
-      expect(listed[0]?.isLearningWork).toBe(true);
-      expect(listed.slice(1).every((project) => project.isLearningWork === false)).toBe(true);
+      expect(listed.find((project) => project.id === rows[0]?.id)?.isLearningWork).toBe(true);
+      expect(
+        listed
+          .filter((project) => project.id !== rows[0]?.id)
+          .every((project) => project.isLearningWork === false),
+      ).toBe(true);
       const markerCalls = query.mock.calls.filter(([sql]) =>
         sql.includes('learning_personal_project_origin_ids'),
       );
@@ -52,4 +57,58 @@ describe('personal Project list Learning marker', () => {
       expect(markerCalls[0]?.[1]).toEqual([principalId, rows.map((row) => row.id)]);
     },
   );
+
+  it('merges only authorized linked Account rows before page truncation', async () => {
+    const principalId = randomUUID();
+    const tenantId = randomUUID();
+    const row = (id: string, updatedAt: string) => ({
+      id,
+      project_scope: 'personal',
+      classroom_id: null,
+      module_key: 'electronics',
+      title: id,
+      status: 'active',
+      created_at: updatedAt,
+      updated_at: updatedAt,
+      preview_json: null,
+      preview_digest: null,
+      snapshot_revision: null,
+    });
+    const ownNewest = row(randomUUID(), '2026-01-03T00:00:00.000Z');
+    const ownOlder = row(randomUUID(), '2026-01-01T00:00:00.000Z');
+    const linked = row(randomUUID(), '2026-01-02T00:00:00.000Z');
+    const query = vi.fn(async (sql: string) => {
+      if (sql === 'COMMIT') return { rows: [], command: 'COMMIT' };
+      if (sql.includes('learning_personal_project_origin_ids'))
+        return { rows: [{ project_id: ownNewest.id }] };
+      if (sql.includes('FROM projects p')) return { rows: [ownNewest, ownOlder] };
+      return { rows: [] };
+    });
+    const linkedQuery = vi.fn(async () => ({ rows: [{ project: linked }] }));
+    const pool = {
+      connect: async () => ({ query, release: vi.fn() }),
+      query: linkedQuery,
+    } as unknown as pg.Pool;
+    const repository = new PgProjectRepository(pool);
+    const actor = { principalId, userId: randomUUID() };
+    const all = await repository.listForActor(tenantId, actor, {
+      scope: 'personal',
+      limit: 2,
+      kind: 'all',
+    });
+    expect(all.map((project) => project.id)).toEqual([ownNewest.id, linked.id]);
+    expect(all[1]?.isLearningWork).toBe(true);
+    expect(linkedQuery).toHaveBeenCalledWith(
+      expect.stringContaining('learning_linked_account_project_list'),
+      [principalId, 'active', null, null, false, 'recent', null, null, 2],
+    );
+    linkedQuery.mockClear();
+    const personal = await repository.listForActor(tenantId, actor, {
+      scope: 'personal',
+      limit: 2,
+      kind: 'personal',
+    });
+    expect(personal.map((project) => project.id)).toEqual([ownNewest.id, ownOlder.id]);
+    expect(linkedQuery).not.toHaveBeenCalled();
+  });
 });

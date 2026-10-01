@@ -60,6 +60,7 @@ export type DuplicateProjectResult =
 
 export interface ProjectListFilter {
   readonly scope?: ProjectScope;
+  readonly kind?: 'all' | 'personal' | 'learning';
   readonly classroomId?: string;
   readonly status?: ProjectStatus;
   readonly moduleKey?: string;

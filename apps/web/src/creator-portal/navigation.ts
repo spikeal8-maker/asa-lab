@@ -16,6 +16,7 @@ export type CreatorPortalSection =
 
 export type ProjectListView = {
   kind: 'my-projects';
+  workKind?: 'personal' | 'learning';
   module?: string;
   search?: string;
   sort?: 'recent' | 'oldest' | 'title';
@@ -25,6 +26,7 @@ export type ProjectListView = {
 
 function projectListQuery(view: ProjectListView): string {
   const query = new URLSearchParams();
+  if (view.workKind) query.set('kind', view.workKind);
   if (view.module) query.set('filter', view.module);
   if (view.search) query.set('search', view.search);
   if (view.sort && view.sort !== 'recent') query.set('sort', view.sort);
@@ -36,12 +38,14 @@ function projectListQuery(view: ProjectListView): string {
 function projectListView(query: string | undefined): ProjectListView {
   const params = new URLSearchParams(query);
   const module = params.get('filter');
+  const workKind = params.get('kind');
   const search = params.get('search')?.slice(0, 255);
   const sort = params.get('sort');
   const status = params.get('status');
   const cursor = params.get('cursor');
   return {
     kind: 'my-projects',
+    ...(workKind === 'personal' || workKind === 'learning' ? { workKind } : {}),
     ...(module && /^[a-z][a-z0-9-]{0,63}$/.test(module) ? { module } : {}),
     ...(search ? { search } : {}),
     ...(sort === 'oldest' || sort === 'title' ? { sort } : {}),

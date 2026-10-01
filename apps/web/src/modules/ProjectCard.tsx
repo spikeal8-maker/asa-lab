@@ -16,8 +16,8 @@ import './project-card.css';
  * says — and nothing else.
  *
  * The picture is given most of the card. Everything that is not the work itself
- * — the actions, the menu — sits over the picture and appears on hover or
- * keyboard focus, so the resting card is the project and nothing else.
+ * — the actions, the menu — sits over the picture. Learning work keeps its
+ * Continue/View action visible; other cards reveal actions on hover or focus.
  */
 
 export interface ProjectCardMenuItem {
@@ -38,6 +38,8 @@ export function ProjectCard({
   module,
   timeLabel,
   showLearningBadge = false,
+  learningDetail,
+  learningStateLabel,
   footerLabel,
   footerTone,
   footerAction,
@@ -52,6 +54,8 @@ export function ProjectCard({
   readonly module?: ModuleSummary | undefined;
   readonly timeLabel: string;
   readonly showLearningBadge?: boolean;
+  readonly learningDetail?: string | undefined;
+  readonly learningStateLabel?: string | undefined;
   readonly footerLabel: string;
   /**
    * Turns the footer line into a coloured mark. A teacher's verdict has to be
@@ -168,7 +172,15 @@ export function ProjectCard({
             </h2>
             <p className="project-card-time">{timeLabel}</p>
             {showLearningBadge ? (
-              <p className="project-card-learning-badge">Учебная работа</p>
+              <div className="project-card-learning">
+                <p className="project-card-learning-badge">Учебная работа</p>
+                {learningDetail ? (
+                  <p className="project-card-learning-detail">{learningDetail}</p>
+                ) : null}
+                {learningStateLabel ? (
+                  <p className="project-card-learning-state">{learningStateLabel}</p>
+                ) : null}
+              </div>
             ) : null}
             {/* Where it came from, when it was taken from the gallery. Set once
                 at copy time and never removable, so a borrowed model cannot be

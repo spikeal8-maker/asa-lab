@@ -16,6 +16,31 @@
   font-size: clamp(26px, 3vw, 32px);
 }
 
+.project-work-kind-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
+.project-work-kind-tabs button {
+  min-height: 38px;
+  padding: 0 15px;
+  border: 1px solid #cbd6df;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--ink-muted);
+  font-size: 14px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.project-work-kind-tabs button.active {
+  border-color: #1296cb;
+  background: #e7f3fb;
+  color: #0d5c83;
+}
+
 .project-hub-heading-tools {
   display: flex;
   align-items: center;

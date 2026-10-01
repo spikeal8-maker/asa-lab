@@ -233,6 +233,7 @@ export class ListProjectsUseCase {
     actor: ProjectActor,
     rawFilter: {
       scope?: unknown;
+      kind?: unknown;
       classroomId?: unknown;
       status?: unknown;
       moduleKey?: unknown;
@@ -251,6 +252,15 @@ export class ListProjectsUseCase {
         return fail('validation_error', 'scope must be personal or classroom');
       }
       scope = rawFilter.scope;
+    }
+    if (
+      rawFilter.kind !== undefined &&
+      !['all', 'personal', 'learning'].includes(String(rawFilter.kind))
+    ) {
+      return fail('validation_error', 'kind must be all, personal or learning');
+    }
+    if (rawFilter.kind !== undefined && scope !== 'personal') {
+      return fail('validation_error', 'kind is only available for personal projects');
     }
     if (rawFilter.classroomId !== undefined) {
       if (typeof rawFilter.classroomId !== 'string' || rawFilter.classroomId.length === 0) {
@@ -276,6 +286,9 @@ export class ListProjectsUseCase {
       return fail('validation_error', 'limit must be 1..100');
     }
     const filter: ProjectListFilter = {
+      ...(rawFilter.kind === undefined
+        ? {}
+        : { kind: rawFilter.kind as 'all' | 'personal' | 'learning' }),
       ...(rawFilter.moduleKey === undefined ? {} : { moduleKey: rawFilter.moduleKey as string }),
       ...(limit === undefined ? {} : { limit }),
       ...(scope === undefined ? {} : { scope }),
