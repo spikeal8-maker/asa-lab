@@ -311,3 +311,79 @@ LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS 
         'projectId', work.project_id
     ) FROM with_attempt work;
 $$;
+
+-- A linked Project access query is also called by Start/replay and the general
+-- Project context resolver. Bound immutable origin/participation/run provenance
+-- before planning the lock-bearing identity join. Keep the same five FOR SHARE
+-- locks so concurrent link revocation cannot overtake an authorized read.
+CREATE OR REPLACE FUNCTION public.learning_linked_project_access(
+    p_actor_principal_id uuid, p_project_id uuid
+)
+RETURNS boolean
+LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+    WITH origin_scope AS MATERIALIZED (
+      SELECT origin.school_tenant_id, origin.school_id,
+             origin.learner_identity_id, run.classroom_id,
+             owner.kind AS owner_kind, owner.seat_id AS owner_seat_id,
+             owner.account_id AS owner_account_id,
+             actor.kind AS actor_kind, actor.seat_id AS actor_seat_id,
+             actor.account_id AS actor_account_id
+        FROM public.learning_project_origins origin
+        JOIN public.projects project
+          ON project.id = origin.project_id
+         AND project.tenant_id = origin.project_tenant_id
+         AND project.project_scope = 'personal'
+         AND project.owner_principal_id = origin.owner_principal_id
+        JOIN public.activity_participations participation
+          ON participation.id = origin.participation_id
+         AND participation.tenant_id = origin.school_tenant_id
+         AND participation.school_id = origin.school_id
+         AND participation.learner_identity_id = origin.learner_identity_id
+         AND participation.activity_run_id = origin.activity_run_id
+        JOIN public.activity_runs run
+          ON run.id = origin.activity_run_id
+         AND run.tenant_id = origin.school_tenant_id
+         AND run.school_id = origin.school_id
+        JOIN public.principals owner ON owner.id = origin.owner_principal_id
+        JOIN public.principals actor ON actor.id = p_actor_principal_id
+       WHERE origin.project_id = p_project_id
+    )
+    SELECT EXISTS (
+      SELECT 1
+        FROM origin_scope scope
+        JOIN public.learner_identities learner
+          ON learner.id = scope.learner_identity_id
+         AND learner.tenant_id = scope.school_tenant_id
+         AND learner.school_id = scope.school_id
+         AND learner.state = 'active'
+        JOIN public.classroom_student_seats seat
+          ON seat.tenant_id = scope.school_tenant_id
+         AND seat.classroom_id = scope.classroom_id
+         AND seat.status = 'active'
+        JOIN public.accounts account
+          ON account.id = seat.account_id AND account.status = 'active'
+        JOIN public.learner_identity_links seat_link
+          ON seat_link.tenant_id = scope.school_tenant_id
+         AND seat_link.school_id = scope.school_id
+         AND seat_link.learner_identity_id = scope.learner_identity_id
+         AND seat_link.link_kind = 'student_seat'
+         AND seat_link.seat_id = seat.id
+         AND seat_link.status = 'active'
+        JOIN public.learner_identity_links account_link
+          ON account_link.tenant_id = scope.school_tenant_id
+         AND account_link.school_id = scope.school_id
+         AND account_link.learner_identity_id = scope.learner_identity_id
+         AND account_link.link_kind = 'account'
+         AND account_link.account_id = account.id
+         AND account_link.status = 'active'
+       WHERE ((scope.owner_kind = 'student_seat'
+               AND scope.owner_seat_id = seat.id
+               AND scope.actor_kind = 'account'
+               AND scope.actor_account_id = account.id)
+              OR (scope.owner_kind = 'account'
+                  AND scope.owner_account_id = account.id
+                  AND scope.actor_kind = 'student_seat'
+                  AND scope.actor_seat_id = seat.id))
+       FOR SHARE OF learner, seat, account, seat_link, account_link
+    );
+$$;

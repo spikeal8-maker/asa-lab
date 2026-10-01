@@ -2348,6 +2348,33 @@ describe('A4-2b atomic StartLearningWork', () => {
     );
     expect(wrongClassRead.rows).toEqual([]);
 
+    const linkedReader = await app.connect();
+    const linkRevoker = await admin.connect();
+    try {
+      await linkedReader.query('BEGIN');
+      await linkedReader.query(`SELECT set_config('app.tenant_id',$1,true)`, [owner.tenantId]);
+      const access = await linkedReader.query(
+        'SELECT learning_linked_project_access($1,$2) AS allowed',
+        [learnerPrincipal, started.projectId],
+      );
+      expect(access.rows).toEqual([{ allowed: true }]);
+      await linkRevoker.query('BEGIN');
+      await linkRevoker.query("SET LOCAL lock_timeout = '250ms'");
+      await expect(
+        linkRevoker.query(
+          `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+           WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+             AND link_kind='account' AND account_id=$4`,
+          [owner.tenantId, owner.schoolId, learner, accountId],
+        ),
+      ).rejects.toThrow(/lock timeout/i);
+    } finally {
+      await linkRevoker.query('ROLLBACK').catch(() => undefined);
+      await linkedReader.query('ROLLBACK').catch(() => undefined);
+      linkRevoker.release();
+      linkedReader.release();
+    }
+
     await admin.query(
       `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
        WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
@@ -3572,46 +3599,16 @@ describe('A4-3b immutable-origin Project Submission', () => {
             ORDER BY total_time DESC LIMIT 30`,
         );
         console.info('[Account list nested profile] functions', JSON.stringify(functions.rows));
+        const accessSource = await profiler.query<{ prosrc: string }>(
+          `SELECT prosrc FROM pg_proc
+            WHERE oid='public.learning_linked_project_access(uuid,uuid)'::regprocedure`,
+        );
+        const accessSql = accessSource.rows[0]!.prosrc.replace(
+          /\bp_actor_principal_id\b/g,
+          '$1',
+        ).replace(/\bp_project_id\b/g, '$2');
         const accessPlan = await profiler.query<{ 'QUERY PLAN': unknown }>(
-          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
-           SELECT EXISTS (
-             SELECT 1 FROM learning_project_origins origin
-             JOIN projects project ON project.id=origin.project_id
-               AND project.tenant_id=origin.project_tenant_id
-               AND project.project_scope='personal'
-               AND project.owner_principal_id=origin.owner_principal_id
-             JOIN activity_participations participation ON participation.id=origin.participation_id
-               AND participation.tenant_id=origin.school_tenant_id
-               AND participation.school_id=origin.school_id
-               AND participation.learner_identity_id=origin.learner_identity_id
-               AND participation.activity_run_id=origin.activity_run_id
-             JOIN activity_runs run ON run.id=origin.activity_run_id
-               AND run.tenant_id=origin.school_tenant_id AND run.school_id=origin.school_id
-             JOIN learner_identities learner ON learner.id=origin.learner_identity_id
-               AND learner.tenant_id=origin.school_tenant_id
-               AND learner.school_id=origin.school_id AND learner.state='active'
-             JOIN classroom_student_seats seat ON seat.tenant_id=origin.school_tenant_id
-               AND seat.classroom_id=run.classroom_id AND seat.status='active'
-             JOIN accounts account ON account.id=seat.account_id AND account.status='active'
-             JOIN learner_identity_links seat_link ON seat_link.tenant_id=origin.school_tenant_id
-               AND seat_link.school_id=origin.school_id
-               AND seat_link.learner_identity_id=origin.learner_identity_id
-               AND seat_link.link_kind='student_seat' AND seat_link.seat_id=seat.id
-               AND seat_link.status='active'
-             JOIN learner_identity_links account_link ON account_link.tenant_id=origin.school_tenant_id
-               AND account_link.school_id=origin.school_id
-               AND account_link.learner_identity_id=origin.learner_identity_id
-               AND account_link.link_kind='account' AND account_link.account_id=account.id
-               AND account_link.status='active'
-             JOIN principals owner ON owner.id=origin.owner_principal_id
-             JOIN principals actor ON actor.id=$1
-             WHERE origin.project_id=$2
-               AND ((owner.kind='student_seat' AND owner.seat_id=seat.id
-                     AND actor.kind='account' AND actor.account_id=account.id)
-                 OR (owner.kind='account' AND owner.account_id=account.id
-                     AND actor.kind='student_seat' AND actor.seat_id=seat.id))
-             FOR SHARE OF learner, seat, account, seat_link, account_link
-           )`,
+          `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${accessSql}`,
           [accountPrincipal, seatOwned.projectId],
         );
         console.info(
