@@ -20,14 +20,36 @@ details.learning-notification-settings:not([open]) > :not(summary) {
   display: flex;
   gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   font-size: 14px;
+}
+.learning-notification-settings > label:first-of-type {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #f8fbfc;
+  font-weight: 700;
+}
+.learning-notification-settings input[type='checkbox'] {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 .learning-category-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 12px 0;
+  gap: 8px 10px;
+  padding: 8px 0;
+}
+.learning-category-grid > label {
+  min-height: 40px;
+  padding: 8px 10px;
+  border: 1px solid #dbe3ed;
+  border-radius: 8px;
+  background: #fff;
+  line-height: 1.35;
 }
 .learning-notification-settings fieldset {
   border: 1px solid #dbe3ed;
@@ -45,7 +67,55 @@ details.learning-notification-settings:not([open]) > :not(summary) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
 }
+.learning-notification-actions .btn-primary,
+.learning-notification-actions .btn-secondary {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+/* Account layout corrections: keep the existing information architecture, but
+ * remove accidental width constraints and duplicated visual hierarchy. */
+.account-settings-page > .account-heading .portal-eyebrow {
+  display: none;
+}
+
+.account-settings-page > .account-heading h1 {
+  margin: 0 0 18px;
+  font-size: clamp(30px, 2.5vw, 34px);
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+}
+
+.account-settings-section[aria-label='Возможности'] .account-school-empty {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.account-settings-section[aria-label='Возможности'] .account-school-empty > div {
+  min-width: 0;
+}
+
+.account-settings-section[aria-label='Возможности'] .account-school-empty h3 {
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.account-settings-section[aria-label='Возможности'] .account-school-empty p {
+  margin-top: 5px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.account-settings-section[aria-label='Возможности'] .account-school-empty .btn-primary,
+.account-settings-section[aria-label='Возможности'] .account-school-empty .btn-secondary {
+  width: auto;
+  justify-self: end;
+  white-space: nowrap;
+}
+
 .learning-inbox-dialog {
   width: min(820px, calc(100vw - 24px));
   max-height: 85dvh;
@@ -130,5 +200,13 @@ details.learning-notification-settings:not([open]) > :not(summary) {
   }
   .learning-inbox-button {
     font-size: 11px;
+  }
+  .account-settings-section[aria-label='Возможности'] .account-school-empty {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-settings-section[aria-label='Возможности'] .account-school-empty .btn-primary,
+  .account-settings-section[aria-label='Возможности'] .account-school-empty .btn-secondary {
+    justify-self: start;
+    white-space: normal;
   }
 }
