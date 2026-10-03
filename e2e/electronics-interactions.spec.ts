@@ -743,14 +743,13 @@ test.describe('asset recovery in the built editor', () => {
     test.setTimeout(60_000);
     await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('signal-generator')!.asset;
-    let unavailable = true;
     let textRequests = 0;
     await page.route(
       (url) => url.pathname === asset,
       async (route) => {
         if (route.request().resourceType() !== 'fetch') return route.continue();
         textRequests += 1;
-        if (unavailable) await route.abort('failed');
+        if (textRequests <= 6) await route.abort('failed');
         else await route.continue();
       },
     );
@@ -768,10 +767,9 @@ test.describe('asset recovery in the built editor', () => {
     expect(textRequests).toBe(3);
     // One complete quiet recovery cycle still fails. The next cycle must
     // recover without online/focus/visibility events or a page reload.
-    await expect.poll(() => textRequests, { timeout: 18_000 }).toBe(6);
-    unavailable = false;
     const runtime = part(page, 'generator').getByTestId('signal-generator-runtime');
     await expect(runtime).toBeVisible({ timeout: 30_000 });
+    expect(textRequests).toBeGreaterThanOrEqual(7);
     await expect(
       page
         .locator(
@@ -797,6 +795,98 @@ test.describe('asset recovery in the built editor', () => {
     );
     expect(afterControl.connections).toEqual(beforeControl.connections);
     expect(afterControl.simulation.running).toBe(beforeControl.simulation.running);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('temporary HTTP 404 recovers after all quick cycles through a sparse HEAD probe', async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let unavailable = true;
+    let textRequests = 0;
+    let headRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().method() === 'HEAD') {
+          headRequests += 1;
+          if (unavailable) await route.fulfill({ status: 404, body: '' });
+          else await route.continue();
+          return;
+        }
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        if (unavailable) await route.fulfill({ status: 404, body: 'temporarily missing' });
+        else await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const knownAsset = catalogEntry('led-5mm')!.asset;
+    expect(
+      await page.evaluate(
+        async (url) => (await fetch(url, { method: 'HEAD', cache: 'no-store' })).status,
+        knownAsset,
+      ),
+    ).toBe(200);
+    await expect(part(page, 'generator').getByTestId('owner-svg-error')).toBeVisible();
+    await expect.poll(() => textRequests, { timeout: 100_000 }).toBe(12);
+    await expect.poll(() => headRequests, { timeout: 65_000 }).toBe(1);
+    unavailable = false;
+    await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
+      timeout: 90_000,
+    });
+    expect(headRequests).toBe(2);
+    expect(textRequests).toBe(13);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('confirmed permanent HTTP 404 remains visible and stops late probes', async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('multimeter')!.asset;
+    let textRequests = 0;
+    let headRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().method() === 'HEAD') {
+          headRequests += 1;
+          await route.fulfill({ status: 404, body: '' });
+          return;
+        }
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'multimeter',
+      { x: 790, y: 450 },
+      'meter',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
+    await expect.poll(() => textRequests, { timeout: 100_000 }).toBe(12);
+    await expect.poll(() => headRequests, { timeout: 100_000 }).toBe(2);
+    await page.waitForTimeout(2_000);
+    expect(headRequests).toBe(2);
+    expect(textRequests).toBe(12);
+    await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
+    expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });

@@ -127,6 +127,210 @@ describe('mounted quiet asset recovery', () => {
     expect(probes).toBe(3);
     recovery.cancel();
   });
+
+  it('uses one sparse transport probe to recover an asset after all three quick cycles failed', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let transportReady = false;
+    const fetch = vi.fn().mockImplementation(async () => ({ status: transportReady ? 200 : 503 }));
+    vi.stubGlobal('fetch', fetch);
+    let imageRequests = 0;
+    const recovery = createQuietAssetRecovery(async () => {
+      imageRequests += 1;
+      return transportReady;
+    }, '/assets/electronics/late-return.svg');
+    recovery.failed();
+    await vi.advanceTimersByTimeAsync(75_000);
+    expect(imageRequests).toBe(3);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    transportReady = true;
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(imageRequests).toBe(4);
+    expect(recovery.permanent()).toBe(false);
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    recovery.cancel();
+  });
+
+  it('confirms a permanent 404 twice before stopping, but permits a temporary 404 to recover', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let status = 404;
+    const fetch = vi.fn().mockImplementation(async () => ({ status }));
+    vi.stubGlobal('fetch', fetch);
+    const missing = createQuietAssetRecovery(async () => false, '/assets/electronics/missing.svg');
+    missing.failed();
+    await vi.advanceTimersByTimeAsync(110_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(missing.permanent()).toBe(true);
+    await vi.advanceTimersByTimeAsync(110_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    missing.cancel();
+
+    let requests = 0;
+    const temporary = createQuietAssetRecovery(async () => {
+      requests += 1;
+      return status === 200;
+    }, '/assets/electronics/temporary.svg');
+    temporary.failed();
+    await vi.advanceTimersByTimeAsync(75_000);
+    expect(temporary.permanent()).toBe(false);
+    status = 200;
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(requests).toBe(4);
+    expect(temporary.permanent()).toBe(false);
+    temporary.cancel();
+  });
+
+  it('probes one of forty-two failed assets per interval rather than retrying the whole class', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const fetch = vi.fn().mockResolvedValue({ status: 503 });
+    vi.stubGlobal('fetch', fetch);
+    const group = Array.from({ length: 42 }, (_, index) =>
+      createQuietAssetRecovery(async () => false, `/assets/electronics/group-${index}.svg`),
+    );
+    group.forEach((recovery) => recovery.failed());
+    await vi.advanceTimersByTimeAsync(110_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(new Set(fetch.mock.calls.map(([asset]) => asset)).size).toBe(2);
+    group.forEach((recovery) => recovery.cancel());
+    await vi.advanceTimersByTimeAsync(110_000);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('re-arms forty-two distinct transient assets through one paced queue after transport returns', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let online = false;
+    const fetch = vi.fn().mockImplementation(async () => ({ status: online ? 200 : 503 }));
+    vi.stubGlobal('fetch', fetch);
+    const lateRequests: number[] = [];
+    const group = Array.from({ length: 42 }, (_, index) => {
+      let requests = 0;
+      return createQuietAssetRecovery(async () => {
+        requests += 1;
+        if (requests > 3) lateRequests.push(Date.now());
+        return online;
+      }, `/assets/electronics/group-return-${index}.svg`);
+    });
+    group.forEach((recovery) => recovery.failed());
+    await vi.advanceTimersByTimeAsync(75_000);
+    expect(lateRequests).toHaveLength(0);
+    online = true;
+    await vi.advanceTimersByTimeAsync(160_000);
+    expect(lateRequests).toHaveLength(42);
+    expect(lateRequests.at(-1)! - lateRequests[0]!).toBe(123_000);
+    const perSecond = new Map<number, number>();
+    for (const at of lateRequests) {
+      const second = Math.floor(at / 1_000);
+      perSecond.set(second, (perSecond.get(second) ?? 0) + 1);
+    }
+    expect(Math.max(...perSecond.values())).toBe(1);
+    expect(fetch.mock.calls.length).toBeLessThanOrEqual(6);
+    group.forEach((recovery) => recovery.cancel());
+  });
+
+  it('keeps a 2xx asset eligible after more than three late decode failures', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const fetch = vi.fn().mockResolvedValue({ status: 200 });
+    vi.stubGlobal('fetch', fetch);
+    let requests = 0;
+    const recovery = createQuietAssetRecovery(
+      async () => ++requests >= 8,
+      '/assets/decode-return.svg',
+    );
+    recovery.failed();
+    await vi.advanceTimersByTimeAsync(250_000);
+    expect(requests).toBe(8);
+    expect(recovery.permanent()).toBe(false);
+    const probes = fetch.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(90_000);
+    expect(fetch).toHaveBeenCalledTimes(probes);
+    recovery.cancel();
+  });
+
+  it('does not fan out every mounted asset after an isolated 5xx response', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (asset: string) => ({
+        status: asset.endsWith('healthy.svg') ? 200 : 503,
+      })),
+    );
+    const requests = [0, 0];
+    const healthy = createQuietAssetRecovery(async () => {
+      requests[0]! += 1;
+      return false;
+    }, '/assets/healthy.svg');
+    const bad = createQuietAssetRecovery(async () => {
+      requests[1]! += 1;
+      return false;
+    }, '/assets/bad.svg');
+    healthy.failed();
+    bad.failed();
+    await vi.advanceTimersByTimeAsync(135_000);
+    expect(requests).toEqual([5, 4]);
+    healthy.cancel();
+    bad.cancel();
+  });
+
+  it('spreads the shared late transport check across thirty simulated browser tabs', async () => {
+    vi.useFakeTimers();
+    let randomIndex = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => ((randomIndex++ * 17) % 31) / 31);
+    let online = false;
+    const fetch = vi.fn().mockImplementation(async () => ({ status: online ? 200 : 503 }));
+    vi.stubGlobal('fetch', fetch);
+    const lateRequests: number[] = [];
+    const clients = [];
+    for (let index = 0; index < 30; index += 1) {
+      // Each separately loaded module is one browser tab with its own shared
+      // transport probe and paced re-arm queue.
+      vi.resetModules();
+      const { createQuietAssetRecovery: createForTab } =
+        await import('../production-asset-contracts');
+      let requests = 0;
+      const client = createForTab(async () => {
+        requests += 1;
+        if (requests > 3) lateRequests.push(Date.now());
+        return online;
+      }, `/assets/electronics/class-${index}.svg`);
+      client.failed();
+      clients.push(client);
+    }
+    await vi.advanceTimersByTimeAsync(120_000);
+    online = true;
+    await vi.advanceTimersByTimeAsync(140_000);
+    expect(lateRequests).toHaveLength(30);
+    const perSecond = new Map<number, number>();
+    for (const at of lateRequests) {
+      const second = Math.floor(at / 1_000);
+      perSecond.set(second, (perSecond.get(second) ?? 0) + 1);
+    }
+    expect(Math.max(...perSecond.values())).toBeLessThanOrEqual(5);
+    clients.forEach((client) => client.cancel());
+  });
+
+  it('does not mistake an unsupported HEAD for permanent 404', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const fetch = vi.fn().mockImplementation(async (asset: string, options: RequestInit) => ({
+      status: asset === '/assets/no-head.svg' && options.method === 'HEAD' ? 405 : 200,
+    }));
+    vi.stubGlobal('fetch', fetch);
+    let requests = 0;
+    const recovery = createQuietAssetRecovery(async () => ++requests > 3, '/assets/no-head.svg');
+    recovery.failed();
+    await vi.advanceTimersByTimeAsync(80_000);
+    expect(fetch.mock.calls.map(([, options]) => options.method ?? 'GET')).toEqual(['HEAD', 'GET']);
+    expect(requests).toBe(4);
+    expect(recovery.permanent()).toBe(false);
+    recovery.cancel();
+  });
 });
 
 describe('production owner SVG text recovery', () => {

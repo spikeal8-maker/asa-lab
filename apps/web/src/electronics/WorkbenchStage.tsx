@@ -337,9 +337,10 @@ export function WorkbenchStage({
         refresh();
         return componentHitMaskStatus(entry, width, height) === 'ready';
       };
-      const recovery = createQuietAssetRecovery(() => prepare(true));
+      const recovery = createQuietAssetRecovery(() => prepare(true), entry.asset);
       return {
         start: (retryFailed = false): void => {
+          if (recovery.permanent()) return;
           void prepare(retryFailed).then((ready) => {
             if (!active) return;
             if (ready) recovery.recovered();

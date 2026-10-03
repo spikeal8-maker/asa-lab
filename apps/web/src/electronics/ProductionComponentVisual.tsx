@@ -199,8 +199,10 @@ function useOwnerSvgSource(asset: string): {
             if (active) setLoaded({ asset, source: null, failed: true });
           });
       },
+      asset,
     );
     const start = (): void => {
+      if (recovery.permanent()) return;
       void load().then((ready) => {
         if (!active) return;
         if (ready) recovery.recovered();
@@ -295,6 +297,13 @@ const recoveredOwnerImages = new Map<string, Promise<string>>();
 const failedOwnerImages = new Set<string>();
 const ownerImageCycles = new Map<string, number>();
 
+function isCurrentOwnerImageHref(asset: string, href: string): boolean {
+  return (
+    Number(new URL(href, document.baseURI).searchParams.get('asa-image-cycle')) ===
+    ownerImageCycles.get(asset)
+  );
+}
+
 function recoverOwnerImage(asset: string): Promise<string> {
   const cached = recoveredOwnerImages.get(asset);
   if (cached) return cached;
@@ -368,7 +377,8 @@ function useOwnerImageHref(asset: string): {
       setLoaded({ asset, href: asset, failed: false });
       pending = recoverOwnerImage(asset)
         .then((href) => {
-          if (active) setLoaded({ asset, href, failed: false });
+          if (active && isCurrentOwnerImageHref(asset, href))
+            setLoaded({ asset, href, failed: false });
           return true;
         })
         .catch(() => {
@@ -395,20 +405,23 @@ function useOwnerImageHref(asset: string): {
       () => {
         void recoverOwnerImage(asset)
           .then((href) => {
-            if (active) setLoaded({ asset, href, failed: false });
+            if (active && isCurrentOwnerImageHref(asset, href))
+              setLoaded({ asset, href, failed: false });
           })
           .catch(() => {
             if (active) setLoaded({ asset, href: asset, failed: true });
           });
       },
+      asset,
     );
     const start = (): void => {
+      if (recovery.permanent()) return;
       void load().then((ready) => {
         if (active && !ready) recovery.failed();
       });
     };
     const recover = (): void => {
-      if (!active || pending) return;
+      if (!active || pending || recovery.permanent()) return;
       if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
         return;
       if (
