@@ -181,6 +181,19 @@ async function advanceMinuteCheckpoint(page: import('@playwright/test').Page, ar
   await advanceMinuteAutosave(page, armCount);
 }
 
+async function editorClockNow(page: import('@playwright/test').Page) {
+  return page
+    .frameLocator('iframe[title="Scratch runtime"]')
+    .locator('body')
+    .evaluate(() => Date.now());
+}
+
+async function runEditorClockUntil(page: import('@playwright/test').Page, deadline: number) {
+  const remaining = deadline - (await editorClockNow(page));
+  if (remaining <= 0) throw new Error('minute autosave clock passed its assertion deadline');
+  await page.clock.runFor(remaining);
+}
+
 async function setServerSteps(
   frame: import('@playwright/test').FrameLocator,
   fromValue: string,
@@ -751,11 +764,12 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
 
     await setServerSteps(frame, '8', '37');
     await waitForMinuteAutosaveArm(page, 1);
-    await page.clock.fastForward(30_000);
+    const firstArmAt = await editorClockNow(page);
+    await runEditorClockUntil(page, firstArmAt + 30_000);
     await setServerSteps(frame, '37', '41');
-    await page.clock.fastForward(24_000);
+    await runEditorClockUntil(page, firstArmAt + 54_000);
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
-    await page.clock.runFor(11_000);
+    await runEditorClockUntil(page, firstArmAt + 65_000);
     await expect.poll(() => fixture.getServerRevision()).toBe(24);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     const savedFirst = fixture.runtimeDraftEvidence[0].body.document.projectJson.targets.find(
@@ -765,11 +779,12 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
 
     await setServerSteps(frame, '41', '43');
     await waitForMinuteAutosaveArm(page, 2);
-    await page.clock.fastForward(30_000);
+    const secondArmAt = await editorClockNow(page);
+    await runEditorClockUntil(page, secondArmAt + 30_000);
     await setServerSteps(frame, '43', '47');
-    await page.clock.fastForward(24_000);
+    await runEditorClockUntil(page, secondArmAt + 54_000);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
-    await page.clock.runFor(11_000);
+    await runEditorClockUntil(page, secondArmAt + 65_000);
     await expect.poll(() => fixture.getServerRevision()).toBe(25);
     expect(fixture.runtimeDraftEvidence).toHaveLength(2);
     const savedSecond = fixture.runtimeDraftEvidence[1].body.document.projectJson.targets.find(
