@@ -9,6 +9,7 @@ import {
 import { api, type LearningWorkContext, type SeatAssignment } from '../api';
 import { AssignmentView } from './AssignmentView';
 import { TaskImageReferenceWindow } from './TaskImageReferenceWindow';
+import type { TaskImageSelection } from './TaskBlocks';
 import './assignment-brief.css';
 import { useConfirmedProjectRevision } from '../modules/project-save-evidence';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
@@ -113,10 +114,15 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
     state: 'resolving',
   });
   const assignment = context.state === 'ready' ? assignmentFromContext(context) : null;
-  const [referenceOwner, setReferenceOwner] = useState<{
-    readonly projectId: string;
-    readonly assignmentId: string;
-  } | null>(null);
+  const [referenceOwner, setReferenceOwner] = useState<
+    | { readonly kind: 'sample'; readonly projectId: string; readonly assignmentId: string }
+    | ({
+        readonly kind: 'block';
+        readonly projectId: string;
+        readonly assignmentId: string;
+      } & TaskImageSelection)
+    | null
+  >(null);
   const [open, setOpen] = useState(() => readOpen(projectId));
   const [mobile, setMobile] = useState(() => window.matchMedia(MOBILE_QUERY).matches);
   const [rect, setRect] = useState<AssignmentBriefRect>(readRect);
@@ -165,7 +171,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
   }, []);
 
   useEffect(() => {
-    if (mobile) setReferenceOwner(null);
+    if (mobile) setReferenceOwner((current) => (current?.kind === 'sample' ? null : current));
   }, [mobile]);
 
   useEffect(() => {
@@ -506,12 +512,22 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
             <AssignmentView
               assignment={assignment}
               compact
+              onPinTaskImage={(image) =>
+                setReferenceOwner({
+                  kind: 'block',
+                  projectId,
+                  assignmentId: assignment.id,
+                  ...image,
+                })
+              }
               sampleAction={
                 !mobile && assignment.sampleImage ? (
                   <button
                     type="button"
                     className="assignment-brief-reference-open"
-                    onClick={() => setReferenceOwner({ projectId, assignmentId: assignment.id })}
+                    onClick={() =>
+                      setReferenceOwner({ kind: 'sample', projectId, assignmentId: assignment.id })
+                    }
                   >
                     Открыть отдельно
                   </button>
@@ -586,8 +602,30 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
         </aside>
       ) : null}
 
+      {referenceOwner?.kind === 'block' &&
+      referenceOwner.projectId === projectId &&
+      referenceOwner.assignmentId === assignment.id &&
+      assignment.blocks?.some(
+        (block) =>
+          block.type === 'image' &&
+          block.alt === referenceOwner.alt &&
+          (block.src?.startsWith('/api/learning/activities/') === true
+            ? block.src
+            : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`) ===
+            referenceOwner.src,
+      ) ? (
+        <TaskImageReferenceWindow
+          src={referenceOwner.src}
+          assignmentTitle={assignment.title}
+          imageAlt={referenceOwner.alt}
+          title="Материал"
+          onClose={() => setReferenceOwner(null)}
+        />
+      ) : null}
+
       {!mobile &&
       assignment.sampleImage &&
+      referenceOwner?.kind === 'sample' &&
       referenceOwner?.projectId === projectId &&
       referenceOwner.assignmentId === assignment.id ? (
         <TaskImageReferenceWindow

@@ -33,9 +33,9 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-function solidPng(red: number, green: number, blue: number): Buffer {
-  const image = new PNG({ width: 3, height: 3 });
-  for (let pixel = 0; pixel < 9; pixel += 1) {
+function solidPng(red: number, green: number, blue: number, width = 3, height = 3): Buffer {
+  const image = new PNG({ width, height });
+  for (let pixel = 0; pixel < width * height; pixel += 1) {
     const offset = pixel * 4;
     image.data[offset] = red;
     image.data[offset + 1] = green;
@@ -332,6 +332,7 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const title = `Exact learner image ${token}`;
   const imageA = solidPng(205, 45, 45);
   const imageB = solidPng(40, 75, 210);
+  const taskImage = solidPng(60, 130, 180, 240, 120);
 
   await loginWithOrganization(page, teacher);
   await page.goto('/#/challenges');
@@ -343,6 +344,14 @@ test('learner exact published task image stays pinned across v1 and v2', async (
     mimeType: 'image/png',
     buffer: imageA,
   });
+  await page.getByLabel('Файл блока изображения').setInputFiles({
+    name: 'ordered-task.png',
+    mimeType: 'image/png',
+    buffer: taskImage,
+  });
+  await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
+  await page.getByLabel('Описание блока 1').fill('Опубликованная схема');
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   const publishV1 = page.waitForResponse(
     (response) =>
       response.request().method() === 'POST' &&
@@ -401,6 +410,50 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const briefLightbox = learnerA.page.getByRole('dialog', { name: `Образец: ${title}` });
   await expect(briefLightbox).toBeVisible();
   await briefLightbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+
+  const orderedImage = brief.getByRole('img', { name: 'Опубликованная схема' });
+  await expect(orderedImage).toBeVisible();
+  const orderedSource = await orderedImage.getAttribute('src');
+  expect(orderedSource).toContain('/api/assignments/task-images/');
+  const orderedBytes = await learnerA.page.request.get(
+    new URL(orderedSource!, learnerA.page.url()).toString(),
+  );
+  expect(Buffer.compare(await orderedBytes.body(), taskImage)).toBe(0);
+  await brief.getByRole('button', { name: 'Открыть крупно: Опубликованная схема' }).click();
+  const orderedZoom = learnerA.page.getByRole('dialog', {
+    name: 'Изображение задания: Опубликованная схема',
+  });
+  await expect(orderedZoom.getByRole('img', { name: 'Опубликованная схема' })).toHaveAttribute(
+    'src',
+    orderedSource!,
+  );
+  await learnerA.page.screenshot({ path: `${evidenceDir}/a6-lab-zoom-desktop.png` });
+  await orderedZoom.getByRole('button', { name: 'Закрыть' }).click();
+  await brief.getByRole('button', { name: 'Закрепить изображение: Опубликованная схема' }).click();
+  const orderedReference = learnerA.page.getByTestId('task-image-reference-window');
+  await expect(orderedReference.getByRole('img', { name: 'Опубликованная схема' })).toHaveAttribute(
+    'src',
+    orderedSource!,
+  );
+  await briefAnchor.click();
+  await expect(brief).toHaveCount(0);
+  await expect(orderedReference).toBeVisible();
+  await learnerA.page.screenshot({ path: `${evidenceDir}/a6-lab-pinned-desktop.png` });
+  for (const width of [390, 320]) {
+    await learnerA.page.setViewportSize({ width, height: 844 });
+    await expect(orderedReference).toBeVisible();
+    const bounds = await orderedReference.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    const mobileTitle = orderedReference.locator('#task-image-reference-title');
+    await expect(mobileTitle).toHaveText('Материал');
+    expect(await mobileTitle.evaluate((title) => title.scrollWidth <= title.clientWidth)).toBe(
+      true,
+    );
+    await learnerA.page.screenshot({ path: `${evidenceDir}/a6-lab-pinned-${width}.png` });
+  }
+  await orderedReference.getByRole('button', { name: 'Закрыть окно: Материал' }).click();
 
   await page.goto('/#/challenges');
   await page.getByRole('button', { name: title, exact: true }).click();

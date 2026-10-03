@@ -1,7 +1,7 @@
 import { useEffect, useState, type JSX, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AssignmentGoal, BriefText } from './BriefText';
-import { TaskBlocks } from './TaskBlocks';
+import { TaskBlocks, type TaskImageSelection } from './TaskBlocks';
 import type { SafeTaskBlock } from '../api';
 import './assignment-view.css';
 
@@ -61,6 +61,7 @@ export function AssignmentView({
   sampleOnly = false,
   aside,
   sampleAction,
+  onPinTaskImage,
 }: {
   readonly assignment: AssignmentViewData;
   /** В узкой колонке образец и текст идут друг под другом. */
@@ -71,6 +72,7 @@ export function AssignmentView({
   readonly aside?: ReactNode;
   /** Optional action that belongs specifically to the visible sample image. */
   readonly sampleAction?: ReactNode;
+  readonly onPinTaskImage?: (image: TaskImageSelection) => void;
 }): JSX.Element {
   const [zoomed, setZoomed] = useState(false);
   const [sampleUnavailable, setSampleUnavailable] = useState(false);
@@ -84,7 +86,7 @@ export function AssignmentView({
           {assignment.blocks === null ? (
             <p className="account-hint">Содержание откроется в назначенное время.</p>
           ) : assignment.blocks !== undefined ? (
-            <TaskBlocks blocks={assignment.blocks} />
+            <TaskBlocks blocks={assignment.blocks} onPinImage={onPinTaskImage} />
           ) : assignment.brief ? (
             <BriefText text={assignment.brief} />
           ) : (

@@ -60,19 +60,32 @@ function readRect(): TaskImageReferenceRect {
 export function TaskImageReferenceWindow({
   src,
   assignmentTitle,
+  imageAlt,
+  title = 'Схема',
   onClose,
 }: {
   readonly src: string;
   readonly assignmentTitle: string;
+  readonly imageAlt?: string;
+  readonly title?: string;
   readonly onClose: () => void;
 }): JSX.Element {
   const [rect, setRect] = useState<TaskImageReferenceRect>(readRect);
   const [unavailable, setUnavailable] = useState(false);
+  const legacySample = imageAlt === undefined;
   const rectRef = useRef(rect);
   const operation = useRef<PointerOperation | null>(null);
   rectRef.current = rect;
 
   useEffect(() => setUnavailable(false), [src]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape' && !document.querySelector('[aria-modal="true"]')) onClose();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent): void => {
@@ -242,20 +255,24 @@ export function TaskImageReferenceWindow({
           type="button"
           className="task-image-reference-drag"
           data-testid="task-image-reference-drag"
-          aria-label="Переместить окно схемы"
+          aria-label={legacySample ? 'Переместить окно схемы' : `Переместить окно: ${title}`}
           aria-keyshortcuts="ArrowUp ArrowDown ArrowLeft ArrowRight"
-          title="Переместить окно схемы мышью или стрелками"
+          title={
+            legacySample
+              ? 'Переместить окно схемы мышью или стрелками'
+              : 'Переместить окно мышью или стрелками'
+          }
           onPointerDown={beginMove}
           onKeyDown={moveWithKeyboard}
         >
-          <span id="task-image-reference-title">Схема</span>
+          <span id="task-image-reference-title">{title}</span>
           <span aria-hidden="true">⠿</span>
         </button>
         <button
           type="button"
           className="task-image-reference-action"
-          aria-label="Уменьшить окно схемы"
-          title="Уменьшить окно схемы"
+          aria-label={legacySample ? 'Уменьшить окно схемы' : `Уменьшить окно: ${title}`}
+          title={legacySample ? 'Уменьшить окно схемы' : 'Уменьшить окно'}
           onClick={() => changeSize(-40)}
         >
           −
@@ -263,8 +280,8 @@ export function TaskImageReferenceWindow({
         <button
           type="button"
           className="task-image-reference-action"
-          aria-label="Увеличить окно схемы"
-          title="Увеличить окно схемы"
+          aria-label={legacySample ? 'Увеличить окно схемы' : `Увеличить окно: ${title}`}
+          title={legacySample ? 'Увеличить окно схемы' : 'Увеличить окно'}
           onClick={() => changeSize(40)}
         >
           +
@@ -272,8 +289,10 @@ export function TaskImageReferenceWindow({
         <button
           type="button"
           className="task-image-reference-action"
-          aria-label="Сбросить положение схемы"
-          title="Сбросить положение и размер схемы"
+          aria-label={legacySample ? 'Сбросить положение схемы' : `Сбросить положение: ${title}`}
+          title={
+            legacySample ? 'Сбросить положение и размер схемы' : 'Сбросить положение и размер окна'
+          }
           onClick={resetRect}
         >
           ↺
@@ -281,8 +300,8 @@ export function TaskImageReferenceWindow({
         <button
           type="button"
           className="task-image-reference-close"
-          aria-label="Закрыть схему"
-          title="Закрыть схему"
+          aria-label={legacySample ? 'Закрыть схему' : `Закрыть окно: ${title}`}
+          title={legacySample ? 'Закрыть схему' : 'Закрыть окно'}
           onClick={onClose}
         >
           ×
@@ -290,12 +309,15 @@ export function TaskImageReferenceWindow({
       </header>
       <div className="task-image-reference-body">
         {unavailable ? (
-          <p role="alert">Образец сейчас недоступен. Обновите задание и попробуйте снова.</p>
+          <p role="alert">
+            {legacySample ? 'Образец сейчас недоступен.' : 'Изображение сейчас недоступно.'}{' '}
+            Обновите задание и попробуйте снова.
+          </p>
         ) : (
           <img
             data-testid="task-image-reference-image"
             src={src}
-            alt={`Схема задания: ${assignmentTitle}`}
+            alt={imageAlt ?? `Схема задания: ${assignmentTitle}`}
             draggable={false}
             onError={() => setUnavailable(true)}
           />
