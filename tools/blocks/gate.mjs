@@ -63,6 +63,7 @@ const focused = [
     'contexts/blocks',
     'apps/web/src/blocks',
     'infra/scratch-editor/host',
+    'infra/scratch-editor/tests',
     'tools/blocks',
     'tools/verify-blocks-host-protocol.mjs',
     'tools/verify-blocks-host-shell.mjs',
@@ -78,6 +79,7 @@ const focused = [
     '--test',
     'tools/blocks/checks.test.mjs',
     'tools/blocks/host.test.mjs',
+    'infra/scratch-editor/tests/editor-autosave.test.mjs',
     'tools/blocks/recovery.test.mjs',
     'tools/blocks/save-semantics.test.mjs',
     'tools/blocks/local-origin.test.mjs',
@@ -90,6 +92,8 @@ const focused = [
   ['pnpm', 'nx', 'build', 'projects'],
   // Existing ProjectsController imports SeatContext; use its real identity dependency.
   ['pnpm', 'nx', 'build', 'identity'],
+  // ProjectsController now imports the Learning projection during API test collection.
+  ['pnpm', 'nx', 'build', 'learning'],
   ['pnpm', 'nx', 'run', 'blocks:typecheck'],
   ['pnpm', 'exec', 'tsc', '-p', 'apps/web/src/blocks/tsconfig.json'],
   ['pnpm', 'exec', 'eslint', 'contexts/blocks', 'apps/web/src/blocks'],

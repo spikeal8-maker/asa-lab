@@ -433,7 +433,7 @@ async function assertUiRegression(page, frame) {
   await page.setViewportSize({ width: 1440, height: 960 });
 }
 
-async function waitForRevisionAdvance(projectId, previousRevision, timeout = 45000) {
+async function waitForRevisionAdvance(projectId, previousRevision, timeout = 90000) {
   const startedAt = performance.now();
   await expect
     .poll(() => projectState(projectId).revision, { timeout })
@@ -591,7 +591,7 @@ try {
           projectHasStep(current, marker, 73),
         );
       },
-      { timeout: 45000 },
+      { timeout: 90000 },
     )
     .toBe(true);
   const p1 = projectState(projectId);
@@ -848,7 +848,7 @@ try {
     releaseRapidResponse();
 
     await expect
-      .poll(() => projectHasStep(projectState(projectId), marker, 76), { timeout: 45000 })
+      .poll(() => projectHasStep(projectState(projectId), marker, 76), { timeout: 90000 })
       .toBe(true);
     const pRapid1 = projectState(projectId);
     expect(delta(pRapid1.revision, pRapid0.revision)).toBe(2);
@@ -1049,7 +1049,7 @@ try {
     'Boing',
   );
   await expect(freshEditor.frame.getByText('Project could not save.', { exact: true })).toBeVisible(
-    { timeout: 20000 },
+    { timeout: 90000 },
   );
   const afterStorageFailure = projectState(projectId);
   expect(afterStorageFailure.revision).toBe(beforeStorageFailure.revision);

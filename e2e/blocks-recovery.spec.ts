@@ -162,6 +162,12 @@ async function waitReady(frame: import('@playwright/test').FrameLocator) {
   );
 }
 
+async function minuteClockPage(fixture: Awaited<ReturnType<typeof createProtocolFixture>>) {
+  const page = await fixture.context.newPage();
+  await page.clock.install();
+  return page;
+}
+
 async function expectSteps(frame: import('@playwright/test').FrameLocator, value: string) {
   await frame.getByRole('tab', { name: 'Code', exact: true }).click();
   await frame.getByRole('button', { name: 'Recovery Sprite', exact: true }).click();
@@ -225,7 +231,7 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
     expect(fixture.runtimeSnapshotEvidence).toHaveLength(0);
 
     await fixture.reopenContextWithIndexedDB();
-    page = await fixture.context.newPage();
+    page = await minuteClockPage(fixture);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
@@ -235,6 +241,7 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
     expect(fixture.getServerRevision()).toBe(23);
     expect(fixture.getSnapshotRevision()).toBe(23);
 
+    await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10_000 })
@@ -316,12 +323,13 @@ test('normal upstream autosave clears recovery only after durable save', async (
     runtimeAssets: serverProject.runtimeAssets,
   });
   try {
-    const page = await fixture.context.newPage();
+    const page = await minuteClockPage(fixture);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => (await readRecoveryRecords(frame)).length).toBe(1);
+    await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10_000 })
@@ -345,12 +353,13 @@ test('failed server autosave retains recovery', async () => {
     draftWriteStatus: 503,
   });
   try {
-    const page = await fixture.context.newPage();
+    const page = await minuteClockPage(fixture);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');
+    await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
     expect(fixture.getServerRevision()).toBe(23);
     expect(recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');

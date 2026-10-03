@@ -192,8 +192,10 @@ async function waitReady(frame: import('@playwright/test').FrameLocator) {
 async function openProduct(
   fixture: Awaited<ReturnType<typeof createProtocolFixture>>,
   suffix = '',
+  withMinuteClock = false,
 ) {
   const page = await fixture.context.newPage();
+  if (withMinuteClock) await page.clock.install();
   await page.goto(`${parentOrigin}/product${suffix}`, { waitUntil: 'domcontentloaded' });
   const frame = page.frameLocator('iframe[title="Scratch runtime"]');
   await waitReady(frame);
@@ -326,7 +328,8 @@ test('new stock sprite survives crash with exact recovery media and then reopens
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
 
     await fixture.reopenContextWithIndexedDB();
-    ({ frame } = await openProduct(fixture));
+    const resumed = await openProduct(fixture, '', true);
+    ({ frame } = resumed);
     const shell = frame.locator('[data-asa-host-shell]');
     await expect(shell).toHaveAttribute('data-project-source', 'recovery');
     const abbyButton = frame.getByRole('button', { name: 'Abby', exact: true });
@@ -344,6 +347,7 @@ test('new stock sprite survives crash with exact recovery media and then reopens
     expect(fixture.getServerRevision()).toBe(23);
     expect(fixture.getSnapshotRevision()).toBe(23);
 
+    await resumed.page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10000 })
@@ -402,7 +406,7 @@ test('new Bark sound survives crash with exact bytes and server roundtrip', asyn
     expect(fixture.getServerRevision()).toBe(23);
 
     await fixture.reopenContextWithIndexedDB();
-    ({ page, frame } = await openProduct(fixture));
+    ({ page, frame } = await openProduct(fixture, '', true));
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-project-source',
       'recovery',
@@ -426,6 +430,7 @@ test('new Bark sound survives crash with exact bytes and server roundtrip', asyn
     expect(createHash('md5').update(restoredBytes).digest('hex')).toBe(BARK_ASSET_ID);
     expect(restoredBytes.equals(barkBytes)).toBe(true);
 
+    await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await fixture.reopenContextWithIndexedDB();
     ({ frame } = await openProduct(fixture));
@@ -499,7 +504,7 @@ test('Paint costume versions keep only the latest recovery media and restore vis
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
 
     await fixture.reopenContextWithIndexedDB();
-    ({ page, frame } = await openProduct(fixture));
+    ({ page, frame } = await openProduct(fixture, '', true));
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-project-source',
       'recovery',
@@ -532,6 +537,7 @@ test('Paint costume versions keep only the latest recovery media and restore vis
     expect(createHash('sha256').update(restoredCostumeBytes).digest('hex')).toBe(assetB.sha256);
     expect(restoredCostumeBytes.equals(Buffer.from(assetB.bytes))).toBe(true);
 
+    await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10000 })
@@ -606,7 +612,8 @@ test('sprite sound and block edit survive one combined crash checkpoint', async 
     expect(fixture.getServerRevision()).toBe(23);
 
     await fixture.reopenContextWithIndexedDB();
-    ({ frame } = await openProduct(fixture));
+    const resumed = await openProduct(fixture, '', true);
+    ({ frame } = resumed);
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-project-source',
       'recovery',
@@ -627,6 +634,7 @@ test('sprite sound and block edit survive one combined crash checkpoint', async 
       frame.locator('.blocklyBlockCanvas').first().getByText('73', { exact: true }),
     ).toBeVisible();
 
+    await resumed.page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10000 })
@@ -647,7 +655,7 @@ test('asset PUT success plus draft failure keeps media recovery for crash retry'
     draftWriteStatus: () => (failDraft ? 503 : 200),
   });
   try {
-    let { frame } = await openProduct(fixture);
+    let { page, frame } = await openProduct(fixture, '', true);
     await frame.getByRole('button', { name: 'Recovery Sprite', exact: true }).click();
     await addBark(frame);
     const checkpoint = await waitForMediaRecovery(frame, (candidate) =>
@@ -655,6 +663,7 @@ test('asset PUT success plus draft failure keeps media recovery for crash retry'
     );
     expect(checkpoint.assets.some((asset) => asset.assetId === BARK_ASSET_ID)).toBe(true);
 
+    await page.clock.fastForward(66_000);
     await expect
       .poll(
         () =>
@@ -675,7 +684,7 @@ test('asset PUT success plus draft failure keeps media recovery for crash retry'
 
     failDraft = false;
     await fixture.reopenContextWithIndexedDB();
-    ({ frame } = await openProduct(fixture));
+    ({ page, frame } = await openProduct(fixture, '', true));
     await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
       'data-project-source',
       'recovery',
@@ -688,6 +697,7 @@ test('asset PUT success plus draft failure keeps media recovery for crash retry'
         .getByText('Bark', { exact: true }),
     ).toBeVisible();
 
+    await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     const totalBarkPuts = fixture.runtimeAssetPutEvidence.filter(
       (item) => item.assetFile === `${BARK_ASSET_ID}.wav`,
