@@ -1639,6 +1639,8 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
               (SELECT extra_attempts FROM activity_participations WHERE id=$3) AS extra_attempts,
               (SELECT submitted_at FROM classroom_assignment_work
                 WHERE assignment_id=$4 AND seat_id=$5) AS legacy_submitted_at,
+              (SELECT accepted_attempt_id FROM gradebook_entries
+                WHERE classroom_assignment_id=$4 AND seat_id=$5) AS selected_attempt,
               (SELECT assessment_result_id FROM gradebook_entries
                 WHERE classroom_assignment_id=$4 AND seat_id=$5) AS selected_result`,
       [
@@ -1654,7 +1656,29 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       frozen_version: firstSubmission.project_version_id,
       extra_attempts: 1,
       legacy_submitted_at: null,
-      selected_result: winner.assessment_result_id,
+      selected_attempt: null,
+      selected_result: null,
+    });
+    const gradeEvent = (
+      await admin.query(
+        `SELECT event_kind,assessment_result_id,reason,snapshot
+           FROM grade_change_events
+          WHERE gradebook_entry_id=(SELECT id FROM gradebook_entries
+            WHERE classroom_assignment_id=$1 AND seat_id=$2)
+          ORDER BY created_at DESC,id DESC LIMIT 1`,
+        [work.assignmentId, work.seatId],
+      )
+    ).rows[0];
+    expect(gradeEvent).toMatchObject({
+      event_kind: 'corrected',
+      assessment_result_id: winner.assessment_result_id,
+      reason: 'Fix the circuit',
+      snapshot: {
+        triggerResultRevisionId: winner.assessment_result_id,
+        selectedAttemptId: null,
+        selectedResultRevisionId: null,
+        projectionCleared: true,
+      },
     });
     const revisions = (
       await admin.query(
