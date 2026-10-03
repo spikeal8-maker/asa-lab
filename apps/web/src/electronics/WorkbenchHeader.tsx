@@ -15,6 +15,7 @@ import {
   PlayIcon,
   RedoIcon,
   RotateIcon,
+  SaveIcon,
   SchematicIcon,
   StopIcon,
   UndoIcon,
@@ -415,6 +416,16 @@ export function WorkbenchHeader({
             onClick={onToggleCode}
           >
             <CodeIcon /> Код
+          </button>
+          <button
+            type="button"
+            className="workbench-pill save"
+            aria-label="Сохранить проект"
+            title="Сохранить проект сейчас"
+            onClick={() => void c.saveNow()}
+            disabled={c.busy || c.saveStatus === 'saved' || c.saveStatus === 'saving'}
+          >
+            <SaveIcon /> Сохранить
           </button>
           <button
             type="button"

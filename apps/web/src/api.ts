@@ -5,7 +5,10 @@ import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type { ArduinoControllerState } from '@asa-lab/electronics/simulation';
 import { call } from './api-call';
 import { projectEntries } from './games/game-catalog';
-import { projectDraftMutationId } from './modules/project-draft-mutation';
+import {
+  projectDraftMutationId,
+  projectDraftMutationIdSync,
+} from './modules/project-draft-mutation';
 import { saveProjectSnapshot } from './project-snapshot-client';
 import { notifySessionLoggedOut } from './session-fetch';
 
@@ -3011,13 +3014,24 @@ export const api = {
     projectId: string,
     document: TDocument,
     baseRevision: number,
+    options: { unloading?: boolean } = {},
   ) => {
-    const mutationId = await projectDraftMutationId(projectId, baseRevision, document);
+    // The pagehide path must start fetch synchronously. An awaited Web Crypto
+    // digest can be abandoned before a request is even issued.
+    const mutationId = options.unloading
+      ? projectDraftMutationIdSync(projectId, baseRevision, document)
+      : await projectDraftMutationId(projectId, baseRevision, document);
+    const body = JSON.stringify({ document, baseRevision, mutationId });
+    // Fetch keepalive has a browser body-size quota. An oversized schematic
+    // still gets an immediate ordinary request; its local draft remains the
+    // recovery source if navigation cancels that request.
+    const keepalive = options.unloading && new TextEncoder().encode(body).byteLength <= 60_000;
     return call<{ draft: ProjectDraft<TDocument>; result: TResult | null }>(
       `/api/projects/${encodeURIComponent(projectId)}/draft`,
       {
         method: 'PUT',
-        body: JSON.stringify({ document, baseRevision, mutationId }),
+        body,
+        ...(keepalive ? { keepalive: true } : {}),
       },
     );
   },

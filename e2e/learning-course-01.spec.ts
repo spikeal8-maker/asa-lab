@@ -62,7 +62,20 @@ async function editRealProject(page: Page, module: string) {
   } else {
     const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
     await expect(resistor).toBeVisible({ timeout: 60000 });
+    const projectId = courseActivityProjectId(page, 'electronics');
     expectedObjectCount = (await page.getByTestId('schematic-component').count()) + 1;
+    const savedCurrentChange = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        response.ok() &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}/draft` &&
+        (
+          response.request().postDataJSON() as {
+            document: { components: unknown[] };
+          }
+        ).document.components.length === expectedObjectCount,
+      { timeout: 30_000 },
+    );
     const card = (await resistor.boundingBox())!,
       canvas = (await page.locator('.workbench-canvas').boundingBox())!;
     await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
@@ -72,6 +85,20 @@ async function editRealProject(page: Page, module: string) {
     });
     await page.mouse.up();
     await expect(page.getByTestId('schematic-component')).toHaveCount(expectedObjectCount);
+    await page
+      .locator('.workbench-toolbar')
+      .getByRole('button', { name: 'Сохранить проект', exact: true })
+      .click();
+    const saveResponse = await savedCurrentChange;
+    const savedBody = (await saveResponse.json()) as {
+      draft: { document: { components: unknown[] } };
+    };
+    expect(savedBody.draft.document.components).toHaveLength(expectedObjectCount);
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+    await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
   }
 
   await page.reload();
@@ -173,6 +200,18 @@ async function editCourseActivityProject(
     await page.mouse.up();
     await expect(components).toHaveCount(expectedObjectCount);
 
+    const saveButton = page
+      .locator('.workbench-toolbar')
+      .getByRole('button', { name: 'Сохранить проект', exact: true });
+    await expect(saveButton).toBeEnabled();
+    await page.screenshot({ path: `${evidenceDir}/electronics-manual-save-desktop.png` });
+    const desktopViewport = page.viewportSize();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(saveButton).toBeVisible();
+    await page.screenshot({ path: `${evidenceDir}/electronics-manual-save-mobile.png` });
+    await saveButton.click();
+    if (desktopViewport) await page.setViewportSize(desktopViewport);
+
     const saveResponse = await savedCurrentChange;
     const requestBody = saveResponse.request().postDataJSON() as {
       document: { components: Array<{ id: string; kind: string }> };
@@ -188,6 +227,10 @@ async function editCourseActivityProject(
     expect(savedBody.draft.document.components).toHaveLength(expectedObjectCount);
     expect(savedBody.draft.document.components).toContainEqual(
       expect.objectContaining({ id: addedComponentId, kind: 'resistor' }),
+    );
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
     );
   }
 

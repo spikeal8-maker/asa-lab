@@ -152,19 +152,19 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: autosave_cadence_owner_selected_preflight_pending
+      checkpoint: manual_pagehide_safety_repair_external_worktree_in_progress
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+      convergence_baseline_sha: f3ea8313b2618aecd895a9ec41d63ef570ba4ef8
       head_sha: null
-      observed_at: '2026-10-01T22:57:18Z'
+      observed_at: '2026-10-03T11:48:23Z'
       main:
         branch: main
-        sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
-      observation_note: Dated main observation after accepted browser blocker repairs and at owner-selected autosave cadence issue 459 selection; not a live HEAD or gate acceptance; fetch main before writes.
+        sha: f3ea8313b2618aecd895a9ec41d63ef570ba4ef8
+      observation_note: Dated main observation after autosave 459 was reopened because manual Save is inaccessible and pagehide may not dispatch the PUT. External bounded repair owns dirty product files. Fetch main before writes; hygiene checkpoint 480 is prepared but deferred.
     execution_lease:
-      executor_id: electronics-autosave-cadence-controller-452
+      executor_id: electronics-autosave-repair-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -244,6 +244,25 @@ parallel_lanes:
         closeout_main_general_run: 36936652517
         closeout_main_browser_run: 36936688834
         status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-AUTOSAVE-CADENCE-001
+        issue: 459
+        accepted_candidate_sha: 85603130e744f133093c8c2c6acf6def96d9e558
+        integrated_sha: 13b6be3b81c6113185daebb8c01603c1ec619689
+        independent_review: approved
+        exact_candidate_general_run: 37116894742
+        exact_candidate_browser_run: 37117559402
+        exact_main_general_run: 37118671617
+        exact_main_browser_run: 37119359903
+        initial_main_browser_failure_run: 37118687139
+        residual_followups:
+          - issue: 462
+            observation: One candidate browser attempt missed the permanent-missing catalog asset badge; controlled rerun on the same SHA passed.
+          - issue: 463
+            observation: One integrated-main browser attempt timed out in an unchanged Arduino Reset Worker scenario; controlled rerun on the same SHA passed.
+        status: acceptance_reopened
+        reopen_reason: Manual Save is inaccessible and pagehide may not dispatch the draft PUT before unload; new bounded repair and independent exact-head review required.
         owner_acceptance: pending
         deployment: not_run
   - id: chess
