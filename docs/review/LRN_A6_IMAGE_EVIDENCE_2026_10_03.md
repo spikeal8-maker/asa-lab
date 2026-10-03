@@ -35,11 +35,12 @@ source rather than a mutable draft. The screenshots were visually inspected.
 ## Programme boundary
 
 A6.1 closes the ordered immutable image zoom/pin slice with desktop and 320/390 px
-synthetic-browser evidence. A6 video and file/link materials remain to be built;
-the complete V6 visible-delivery contract also requires those materials and
-their mobile, unavailable and version behavior. A7 personal copy, A8 teacher
-review, the rest of E1-FIX-13/E1 corrections, authenticated installed journey
-and owner acceptance remain open. The Learning `acceptance_blocker` continues
+synthetic-browser evidence. Link authoring and safe HTTP(S) rendering already
+exist, but this slice does not close the full link journey. A6 video and file
+materials and the complete V6 visible-delivery contract remain open, including
+mobile, unavailable and version behavior for those materials. A7 personal copy,
+A8 teacher review, the rest of E1-FIX-13/E1 corrections, authenticated installed
+journey and owner acceptance remain open. The Learning `acceptance_blocker` continues
 to block owner acceptance, release claim and deployment authorization. No
 production deployment, working database action, backup or local staging was
 performed for this report.

@@ -763,9 +763,9 @@ requirements:
       A4/V3 atomic Start and immutable-origin path remain merged. A6.1 ordered
       task images now have merged exact-version zoom/pin, desktop and 320/390 px
       synthetic browser evidence, including the unavailable image state. This is
-      partial E1-FIX-13 evidence: A6 video/file/link, full V6, A8 teacher review
-      and whole E1 acceptance remain open. See the dated A6.1 report for exact
-      SHAs, CI and artifact references.
+      partial E1-FIX-13 evidence: A6 video/file work and full link/V6 browser
+      evidence, A8 teacher review and whole E1 acceptance remain open. See the
+      dated A6.1 report for exact SHAs, CI and artifact references.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:

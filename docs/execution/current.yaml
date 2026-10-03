@@ -620,6 +620,6 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; A5/V4 and A6.1 immutable image zoom/pin evidence is merged, while A6 video/file/link, A7 personal copy, A8 teacher review, V6 completion and owner acceptance remain open
+    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; A5/V4 and A6.1 immutable image zoom/pin evidence is merged, while A6 video/file work and full link/V6 browser evidence, A7 personal copy, A8 teacher review and owner acceptance remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null
