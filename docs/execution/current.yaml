@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-SIMULATION-FAULT-SEMANTICS-001
-      issue: 463
+      id: TASK-ELECTRONICS-RUNTIME-CONTINUITY-001
+      issue: 464
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: simulation_fault_semantics_selected_preflight_pending
+      checkpoint: existing_live_controls_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 8194270159265399a970d36f965b7592b61d5222
+      convergence_baseline_sha: f5c6ab788370f1f0accf4648572dbd4cc7a89b1e
       head_sha: null
-      observed_at: '2026-10-03T17:28:00Z'
+      observed_at: '2026-10-03T20:07:04Z'
       main:
         branch: main
-        sha: 8194270159265399a970d36f965b7592b61d5222
-      observation_note: Dated main observation after asset eventual recovery 462 was integrated and independently verified. Fetch main before writes; simulation fault semantics 463 is selected as one bounded production repair.
+        sha: f5c6ab788370f1f0accf4648572dbd4cc7a89b1e
+      observation_note: Dated main observation after simulation fault semantics 463 was integrated and independently verified. Fetch main before writes; existing live-control continuity 464 is selected as one bounded production repair. New resistor and battery-count persistence behavior awaits the owner's separate answer.
     execution_lease:
-      executor_id: electronics-simulation-fault-controller-452
+      executor_id: electronics-runtime-continuity-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -297,6 +297,18 @@ parallel_lanes:
         exact_main_browser_run: 37139776132
         initial_candidate_browser_failure_run: 37135914153
         repair_candidate_browser_failure_run: 37137213564
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-SIMULATION-FAULT-SEMANTICS-001
+        issue: 463
+        accepted_candidate_sha: 7c987fe21c5ef1edb331d11814dcebd8f627f90c
+        integrated_sha: f5c6ab788370f1f0accf4648572dbd4cc7a89b1e
+        independent_review: approved
+        exact_candidate_general_run: 37148204407
+        exact_candidate_browser_run: 37148204428
+        exact_main_general_run: 37149235024
+        exact_main_browser_run: 37149340971
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
