@@ -195,7 +195,7 @@ test.describe('interaction: document integrity', () => {
         vertices: [{ x: 820, y: 280 }],
       },
     ];
-    const { readDocument } = await openEditor(page, doc);
+    const { readEditorDocument } = await openEditor(page, doc);
     const wireHit = page.getByTestId('wire-hit');
     const wire = page.getByTestId('schematic-wire');
     const pointAtQuarter = () =>
@@ -210,11 +210,15 @@ test.describe('interaction: document integrity', () => {
     const trueDoublePoint = await pointAtQuarter();
     await page.mouse.dblclick(trueDoublePoint.x, trueDoublePoint.y);
     await expect(page.getByTestId('wire-vertex')).toHaveCount(2);
-    await expect.poll(() => readDocument().connections[0]?.vertices?.length).toBe(2);
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.length)
+      .toBe(2);
 
     await page.getByRole('button', { name: /Отменить/ }).click();
     await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
-    await expect.poll(() => readDocument().connections[0]?.vertices).toEqual([{ x: 820, y: 280 }]);
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices)
+      .toEqual([{ x: 820, y: 280 }]);
 
     // First click establishes a possible pair, but the command and its Undo
     // replace the document twice. The next select is not a double-click even
@@ -228,14 +232,18 @@ test.describe('interaction: document integrity', () => {
     await page.getByRole('button', { name: /Отменить/ }).click();
     await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
 
-    const beforeReselect = structuredClone(readDocument().connections[0]?.vertices ?? []);
+    const beforeReselect = structuredClone(
+      (await readEditorDocument()).connections[0]?.vertices ?? [],
+    );
     const writesBeforeReselect = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
     );
     const secondSelect = await pointAtQuarter();
     await page.mouse.click(secondSelect.x, secondSelect.y);
     await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
-    await expect.poll(() => readDocument().connections[0]?.vertices).toEqual(beforeReselect);
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices)
+      .toEqual(beforeReselect);
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writesBeforeReselect);
@@ -280,7 +288,7 @@ test.describe('interaction: document integrity', () => {
     }, pairPoint);
     expect(interruptedPairDurationMs).toBeLessThan(420);
     await expect(page.getByTestId('wire-vertex')).toHaveCount(1);
-    expect(readDocument().connections[0]?.vertices).toEqual(beforeReselect);
+    expect((await readEditorDocument()).connections[0]?.vertices).toEqual(beforeReselect);
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writesBeforeFocusPair);
@@ -397,7 +405,16 @@ async function openEditor(page: Page, initial = documentFixture()) {
   });
   await page.goto('/projects/' + ID + '/electronics/edit');
   await expect(page.getByTestId('schematic-component')).toHaveCount(initial.components.length);
-  return { requests, errors, readDocument: () => doc };
+  // The mock server changes only after PUT /draft. Interaction checks use the
+  // browser's synchronously written local draft until an explicit server save.
+  const readEditorDocument = async (): Promise<SchematicDocument> => {
+    const local = await page.evaluate((id) => {
+      const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
+      return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
+    }, ID);
+    return local ?? doc;
+  };
+  return { requests, errors, readDocument: () => doc, readEditorDocument };
 }
 
 const part = (page: Page, id: string) =>
@@ -580,7 +597,7 @@ test.describe('asset recovery in the built editor', () => {
       { x: 790, y: 450 },
       'generator',
     ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const { readDocument, requests, errors, readEditorDocument } = await openEditor(page, doc);
     const initial = readDocument();
     const writes = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
@@ -606,8 +623,8 @@ test.describe('asset recovery in the built editor', () => {
       .dispatchEvent('pointerdown', { pointerId: 1 });
     await expect
       .poll(
-        () =>
-          readDocument().components.find((component) => component.id === 'generator')
+        async () =>
+          (await readEditorDocument()).components.find((component) => component.id === 'generator')
             ?.stateProperties?.['waveform'],
       )
       .toBe('square');
@@ -747,7 +764,7 @@ test.describe('asset recovery in the built editor', () => {
       { x: 790, y: 450 },
       'generator',
     ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const { readDocument, requests, errors, readEditorDocument } = await openEditor(page, doc);
     const initial = readDocument();
     await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
       timeout: 12_000,
@@ -769,8 +786,8 @@ test.describe('asset recovery in the built editor', () => {
     );
     await expect
       .poll(
-        () =>
-          readDocument().components.find((component) => component.id === 'generator')
+        async () =>
+          (await readEditorDocument()).components.find((component) => component.id === 'generator')
             ?.stateProperties?.['outputEnabled'],
       )
       .toBe(outputBefore !== 'true');
@@ -986,16 +1003,18 @@ test.describe('asset recovery in the built editor', () => {
       { x: 790, y: 450 },
       'generator',
     ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const { requests, errors, readEditorDocument } = await openEditor(page, doc);
     await part(page, 'generator').locator('.workbench-part').focus();
     await page.keyboard.press('Enter');
     await expect(part(page, 'generator')).toHaveClass(/workbench-component-selected/);
     await page.keyboard.press('Delete');
     await expect(part(page, 'generator')).toHaveCount(0);
     await expect
-      .poll(() => readDocument().components.some((component) => component.id === 'generator'))
+      .poll(async () =>
+        (await readEditorDocument()).components.some((component) => component.id === 'generator'),
+      )
       .toBe(false);
-    const afterDelete = readDocument();
+    const afterDelete = await readEditorDocument();
     const writes = await page.evaluate(
       () => (window as unknown as { draftWrites: number }).draftWrites,
     );
@@ -1009,7 +1028,7 @@ test.describe('asset recovery in the built editor', () => {
         .first(),
     ).toBeVisible({ timeout: 10_000 });
     await expect(part(page, 'generator')).toHaveCount(0);
-    expect(readDocument()).toEqual(afterDelete);
+    expect(await readEditorDocument()).toEqual(afterDelete);
     expect(requests).toHaveLength(savedRequests);
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
@@ -1960,7 +1979,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       )!;
       const canonical = { x: previous.x, y: next.y };
       const alternate = { x: next.x, y: previous.y };
-      const { readDocument } = await openEditor(page, fixture);
+      const { readEditorDocument } = await openEditor(page, fixture);
       await page
         .getByRole('button', {
           name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
@@ -1975,7 +1994,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await expect(vertex).toBeVisible();
       // D4 is specifically committed-wire cable management, not new-wire
       // drafting: the route already exists and no creation preview is active.
-      expect(readDocument().connections[0]?.vertices).toEqual([{ x: 790, y: 430 }]);
+      expect((await readEditorDocument()).connections[0]?.vertices).toEqual([{ x: 790, y: 430 }]);
       await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
       const guide = page.getByTestId('wire-alignment-guide');
       const previousClient = await locatorCenter(wireTerminal(page, 'led', 'cathode'));
@@ -1987,7 +2006,7 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
           .getByRole('button', { name: /\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c/ })
           .click();
         await expect
-          .poll(() => readDocument().connections[0]?.vertices?.[0])
+          .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
           .toEqual({ x: 790, y: 430 });
       };
 
@@ -2010,13 +2029,17 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       ).toBeLessThanOrEqual(2);
       await page.screenshot({ path: 'reports/interactions/d4-committed-bend-soft-lock.png' });
       await page.mouse.up();
-      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).toEqual(canonical);
+      await expect
+        .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
+        .toEqual(canonical);
       await page.screenshot({ path: 'reports/interactions/f3-bend-soft-lock.png' });
       await resetByUndo();
       await page
         .getByRole('button', { name: /\u041f\u043e\u0432\u0442\u043e\u0440\u0438\u0442\u044c/ })
         .click();
-      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).toEqual(canonical);
+      await expect
+        .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
+        .toEqual(canonical);
       await resetByUndo();
 
       start = await locatorCenter(vertex);
@@ -2034,7 +2057,9 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         Math.hypot(releasedHandle.x - releasedPointer.x, releasedHandle.y - releasedPointer.y),
       ).toBeLessThanOrEqual(2);
       await page.mouse.up();
-      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).not.toEqual(canonical);
+      await expect
+        .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
+        .not.toEqual(canonical);
       await resetByUndo();
 
       start = await locatorCenter(vertex);
@@ -2052,7 +2077,9 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.screenshot({ path: 'reports/interactions/d1-bend-handle-follows-pointer.png' });
       await page.mouse.up();
       await page.keyboard.up('Alt');
-      await expect.poll(() => readDocument().connections[0]?.vertices?.[0]).not.toEqual(canonical);
+      await expect
+        .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
+        .not.toEqual(canonical);
       await resetByUndo();
 
       start = await locatorCenter(vertex);
@@ -2065,8 +2092,8 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
       await page.mouse.up();
       await page.keyboard.up('Shift');
       await expect
-        .poll(() => {
-          const point = readDocument().connections[0]?.vertices?.[0];
+        .poll(async () => {
+          const point = (await readEditorDocument()).connections[0]?.vertices?.[0];
           return Boolean(
             point &&
             ((point.x === canonical.x && point.y === canonical.y) ||
@@ -2280,7 +2307,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
         },
       ],
     };
-    const { readDocument } = await openEditor(page, fixture);
+    const { readDocument, readEditorDocument } = await openEditor(page, fixture);
     await page
       .getByRole('button', {
         name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
@@ -2328,7 +2355,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await clickBody('battery', true);
     await expect.poll(selectedIds).toEqual(['battery', 'led']);
 
-    const beforeMove = structuredClone(readDocument());
+    const beforeMove = structuredClone(await readEditorDocument());
     const ledBefore = beforeMove.components.find((item) => item.id === 'led')!.position;
     const resistorBefore = beforeMove.components.find(
       (item) => item.id === 'group-resistor',
@@ -2341,9 +2368,12 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await frames(page);
     await page.mouse.up();
     await expect
-      .poll(() => readDocument().components.find((item) => item.id === 'led')?.position)
+      .poll(
+        async () =>
+          (await readEditorDocument()).components.find((item) => item.id === 'led')?.position,
+      )
       .not.toEqual(ledBefore);
-    const moved = structuredClone(readDocument());
+    const moved = structuredClone(await readEditorDocument());
     const ledMoved = moved.components.find((item) => item.id === 'led')!.position;
     const batteryMoved = moved.components.find((item) => item.id === 'battery')!.position;
     expect(batteryMoved.x - batteryBefore.x).toBeCloseTo(ledMoved.x - ledBefore.x, 3);
@@ -2356,10 +2386,16 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       .getByRole('button', { name: /\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c/ })
       .click();
     await expect
-      .poll(() => readDocument().components.find((item) => item.id === 'led')?.position)
+      .poll(
+        async () =>
+          (await readEditorDocument()).components.find((item) => item.id === 'led')?.position,
+      )
       .toEqual(ledBefore);
     await expect
-      .poll(() => readDocument().components.find((item) => item.id === 'battery')?.position)
+      .poll(
+        async () =>
+          (await readEditorDocument()).components.find((item) => item.id === 'battery')?.position,
+      )
       .toEqual(batteryBefore);
 
     await clickBody('battery');
@@ -2431,10 +2467,10 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await clickBody('led');
     await clickBody('battery', true);
     await expect.poll(selectedIds).toEqual(['battery', 'led']);
-    const originalComponentCount = readDocument().components.length;
-    const originalConnectionCount = readDocument().connections.length;
+    const originalComponentCount = (await readEditorDocument()).components.length;
+    const originalConnectionCount = (await readEditorDocument()).connections.length;
     expect(
-      readDocument().connections.some(
+      (await readEditorDocument()).connections.some(
         (wire) =>
           new Set([wire.from.componentId, wire.to.componentId]).size === 2 &&
           [wire.from.componentId, wire.to.componentId].includes('led') &&
@@ -2444,9 +2480,13 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
 
     await physicalKey('KeyC', 'c', { ctrl: true });
     await physicalKey('KeyV', 'v', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
-    await expect.poll(() => readDocument().connections.length).toBe(originalConnectionCount + 1);
-    const firstPaste = structuredClone(readDocument());
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(originalComponentCount + 2);
+    await expect
+      .poll(async () => (await readEditorDocument()).connections.length)
+      .toBe(originalConnectionCount + 1);
+    const firstPaste = structuredClone(await readEditorDocument());
     const pastedIds = firstPaste.components
       .map((item) => item.id)
       .filter((id) => !fixture.components.some((source) => source.id === id));
@@ -2459,14 +2499,22 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     expect(copiedWire?.to.componentId).not.toBe('battery');
 
     await physicalKey('KeyZ', 'z', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount);
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(originalComponentCount);
     await physicalKey('KeyZ', 'z', { ctrl: true, shift: true });
-    await expect.poll(() => readDocument().components.length).toBe(originalComponentCount + 2);
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(originalComponentCount + 2);
 
     await page.screenshot({ path: 'reports/interactions/e5-e6-multiselect-copy-paste.png' });
 
-    const expectedComponents = readDocument().components.length;
-    const expectedConnections = readDocument().connections.length;
+    const expectedComponents = (await readEditorDocument()).components.length;
+    const expectedConnections = (await readEditorDocument()).connections.length;
+    const expectedDocument = await readEditorDocument();
+    await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+    await expect.poll(() => readDocument().components.length).toBe(expectedComponents);
+    expect(readDocument().connections).toEqual(expectedDocument.connections);
     await page.reload();
     await expect(page.getByTestId('schematic-component')).toHaveCount(expectedComponents);
     await expect(page.getByTestId('schematic-wire')).toHaveCount(expectedConnections);
@@ -2477,7 +2525,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     context,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
-    const { readDocument } = await openEditor(page, documentFixture());
+    const { readEditorDocument } = await openEditor(page, documentFixture());
     await page
       .getByRole('button', {
         name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
@@ -2528,28 +2576,44 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
 
     await selectBattery();
     const rotationBefore =
-      readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0;
+      (await readEditorDocument()).components.find((item) => item.id === 'battery')?.rotation ?? 0;
     await physicalKey('KeyR', '\u043a');
     await expect
-      .poll(() => readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0)
+      .poll(
+        async () =>
+          (await readEditorDocument()).components.find((item) => item.id === 'battery')?.rotation ??
+          0,
+      )
       .not.toBe(rotationBefore);
     await physicalKey('KeyZ', 'z', { ctrl: true });
     await expect
-      .poll(() => readDocument().components.find((item) => item.id === 'battery')?.rotation ?? 0)
+      .poll(
+        async () =>
+          (await readEditorDocument()).components.find((item) => item.id === 'battery')?.rotation ??
+          0,
+      )
       .toBe(rotationBefore);
 
-    const countBeforeDelete = readDocument().components.length;
+    const countBeforeDelete = (await readEditorDocument()).components.length;
     await selectBattery();
     await physicalKey('Delete', 'Delete');
-    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete - 1);
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(countBeforeDelete - 1);
     await physicalKey('KeyZ', 'z', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete);
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(countBeforeDelete);
 
     await selectBattery();
     await physicalKey('Backspace', 'Backspace');
-    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete - 1);
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(countBeforeDelete - 1);
     await physicalKey('KeyZ', 'z', { ctrl: true });
-    await expect.poll(() => readDocument().components.length).toBe(countBeforeDelete);
+    await expect
+      .poll(async () => (await readEditorDocument()).components.length)
+      .toBe(countBeforeDelete);
 
     await physicalKey('KeyA', 'a', { ctrl: true });
     const selectedComponentIds = () =>
@@ -2560,11 +2624,9 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
             .filter((id): id is string => Boolean(id))
             .sort(),
         );
-    await expect.poll(selectedComponentIds).toEqual(
-      readDocument()
-        .components.map((component) => component.id)
-        .sort(),
-    );
+    await expect
+      .poll(selectedComponentIds)
+      .toEqual((await readEditorDocument()).components.map((component) => component.id).sort());
     await physicalKey('Escape', 'Escape');
     await expect.poll(selectedComponentIds).toEqual([]);
 
@@ -2579,15 +2641,15 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     await page.keyboard.press('End');
     await page.keyboard.press('Control+v');
     await expect(title).toHaveValue('ABCABC');
-    const countBeforeTextKeys = readDocument().components.length;
+    const countBeforeTextKeys = (await readEditorDocument()).components.length;
     await physicalKey('KeyD', '\u0432', { ctrl: true });
-    expect(readDocument().components.length).toBe(countBeforeTextKeys);
+    expect((await readEditorDocument()).components.length).toBe(countBeforeTextKeys);
     await page.keyboard.press('Backspace');
     await expect(title).toHaveValue('ABCAB');
     await page.keyboard.press('Space');
     await page.keyboard.type('X');
     await expect(title).toHaveValue('ABCAB X');
-    expect(readDocument().components.length).toBe(countBeforeTextKeys);
+    expect((await readEditorDocument()).components.length).toBe(countBeforeTextKeys);
     await page.screenshot({ path: 'reports/interactions/e7-e8-shortcuts-editable.png' });
   });
 
@@ -2626,7 +2688,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
           },
         ],
       };
-      const { readDocument } = await openEditor(page, fixture);
+      const { readEditorDocument } = await openEditor(page, fixture);
       await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
 
       const wireHit = page.locator('[data-testid="wire-hit"][data-wire-id="simulation-lock-wire"]');
@@ -2658,24 +2720,26 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       expect(Number.parseInt(runningStyle.fontWeight, 10)).toBeGreaterThanOrEqual(700);
       await page.screenshot({ path: 'reports/interactions/d2-simulation-running.png' });
 
-      const batteryPosition = () => {
-        const item = readDocument().components.find((component) => component.id === 'battery');
+      const batteryPosition = async () => {
+        const item = (await readEditorDocument()).components.find(
+          (component) => component.id === 'battery',
+        );
         if (!item) throw new Error('Battery disappeared');
         return { ...item.position };
       };
-      const baseline = structuredClone(readDocument());
+      const baseline = structuredClone(await readEditorDocument());
 
       const batteryPoint = await pointOnBody(page, 'battery');
       await page.mouse.click(batteryPoint.x, batteryPoint.y);
       await expect(part(page, 'battery')).toHaveClass(/workbench-component-selected/);
       await expect(runningSimulation).toBeVisible();
 
-      const beforeDrag = batteryPosition();
+      const beforeDrag = await batteryPosition();
       await page.mouse.move(batteryPoint.x, batteryPoint.y);
       await page.mouse.down();
       await page.mouse.move(batteryPoint.x + 80, batteryPoint.y + 50, { steps: 6 });
       await page.mouse.up();
-      expect(batteryPosition()).toEqual(beforeDrag);
+      expect(await batteryPosition()).toEqual(beforeDrag);
       await expect(runningSimulation).toBeVisible();
 
       await page.keyboard.press('ArrowRight');
@@ -2687,21 +2751,21 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       await page.keyboard.press('Delete');
       await page.keyboard.press('Control+z');
       await page.keyboard.press('Control+Shift+z');
-      expect(readDocument()).toEqual(baseline);
+      expect(await readEditorDocument()).toEqual(baseline);
       await expect(runningSimulation).toBeVisible();
 
       await page.mouse.move(vertexPoint.x, vertexPoint.y);
       await page.mouse.down();
       await page.mouse.move(vertexPoint.x + 70, vertexPoint.y + 40, { steps: 5 });
       await page.mouse.up();
-      expect(readDocument()).toEqual(baseline);
+      expect(await readEditorDocument()).toEqual(baseline);
       await expect(runningSimulation).toBeVisible();
 
       const source = wireTerminal(page, 'battery', 'BAT+');
       const sourcePoint = await locatorCenter(source);
       await page.mouse.click(sourcePoint.x, sourcePoint.y);
       await expect(page.locator('.workbench-wire-preview')).toHaveCount(0);
-      expect(readDocument()).toEqual(baseline);
+      expect(await readEditorDocument()).toEqual(baseline);
       await expect(runningSimulation).toBeVisible();
 
       const buttonPoint = await pointOnBody(page, 'runtime-button');
@@ -2724,7 +2788,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       await slider.press('Home');
       await slider.press('End');
       await expect(runningSimulation).toBeVisible();
-      expect(readDocument()).toEqual(baseline);
+      expect(await readEditorDocument()).toEqual(baseline);
 
       const card = page.locator('.workbench-catalog-card[data-family-id="resistor"]');
       await card.scrollIntoViewIfNeeded();
@@ -2732,7 +2796,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       const stage = await page.locator('.workbench-stage').boundingBox();
       if (!stage) throw new Error('Missing stage for catalog placement');
       const drop = { x: stage.x + stage.width * 0.55, y: stage.y + stage.height * 0.42 };
-      const beforeCount = readDocument().components.length;
+      const beforeCount = (await readEditorDocument()).components.length;
       await page.mouse.move(cardPoint.x, cardPoint.y);
       await page.mouse.down();
       await page.mouse.move(cardPoint.x - 10, cardPoint.y - 12, { steps: 2 });
@@ -2740,7 +2804,9 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       await expect(page.getByTestId('catalog-placement-preview')).toHaveCount(1);
       await page.mouse.move(drop.x, drop.y, { steps: 10 });
       await page.mouse.up();
-      await expect.poll(() => readDocument().components.length).toBe(beforeCount + 1);
+      await expect
+        .poll(async () => (await readEditorDocument()).components.length)
+        .toBe(beforeCount + 1);
 
       await page.getByRole('button', { name: 'Начать моделирование' }).click();
       await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
@@ -2862,7 +2928,7 @@ for (const [width, height] of [
             ? { ...item, rotation: 45, stateProperties: { ...item.stateProperties, mirrorX: true } }
             : item,
         );
-      const { errors, readDocument } = await openEditor(page, fixture);
+      const { errors, readEditorDocument } = await openEditor(page, fixture);
       const session = await context.newCDPSession(page);
       const send = (
         type: 'touchStart' | 'touchMove' | 'touchEnd',
@@ -2968,7 +3034,7 @@ for (const [width, height] of [
         const box = await undo.boundingBox();
         if (!box) throw new Error('Undo button is not visible');
         const centre = { id: 1, x: box.x + box.width / 2, y: box.y + box.height / 2 };
-        const beforeCancelled = structuredClone(readDocument());
+        const beforeCancelled = structuredClone(await readEditorDocument());
         const writesBeforeCancelled = await page.evaluate(
           () => (window as unknown as { draftWrites: number }).draftWrites,
         );
@@ -2991,7 +3057,7 @@ for (const [width, height] of [
         await send('touchStart', [centre, { id: 2, x: centre.x + 44, y: centre.y }]);
         await send('touchEnd', []);
         await frames(page);
-        expect(readDocument()).toEqual(beforeCancelled);
+        expect(await readEditorDocument()).toEqual(beforeCancelled);
         expect(
           await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
         ).toBe(writesBeforeCancelled);
@@ -3000,7 +3066,7 @@ for (const [width, height] of [
       await undo.tap();
       await expect(page.getByTestId('schematic-wire')).toHaveCount(0);
       await expect(resistor).toHaveAttribute('data-x', movedX);
-      expect(readDocument().connections).toHaveLength(0);
+      expect((await readEditorDocument()).connections).toHaveLength(0);
       await expect(redo).toBeEnabled();
       await redo.tap();
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
@@ -3031,7 +3097,7 @@ for (const [width, height] of [
         // The synthesized click follows touchend in a later browser task.
         // Keep the first terminal pending after that actual click has arrived.
         await expect
-          .poll(() =>
+          .poll(async () =>
             page.evaluate(() => (window as unknown as { batTapClicks: number }).batTapClicks),
           )
           .toBe(1);
@@ -3041,7 +3107,12 @@ for (const [width, height] of [
       await tap(target);
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
       await expect
-        .poll(() => readDocument().connections.map((wire) => ({ from: wire.from, to: wire.to })))
+        .poll(async () =>
+          (await readEditorDocument()).connections.map((wire) => ({
+            from: wire.from,
+            to: wire.to,
+          })),
+        )
         .toEqual([
           {
             from: { componentId: 'battery', terminal: 'BAT+' },
@@ -3055,7 +3126,12 @@ for (const [width, height] of [
       await expect(page.getByTestId('schematic-wire')).toHaveCount(1);
       await expect(resistor).toHaveAttribute('data-x', movedX);
       await expect
-        .poll(() => readDocument().connections.map((wire) => ({ from: wire.from, to: wire.to })))
+        .poll(async () =>
+          (await readEditorDocument()).connections.map((wire) => ({
+            from: wire.from,
+            to: wire.to,
+          })),
+        )
         .toEqual([
           {
             from: { componentId: 'battery', terminal: 'BAT+' },
@@ -3144,7 +3220,7 @@ test.describe('owner D3-D6 acceptance', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
-    const { readDocument } = await openEditor(page, documentFixture());
+    const { readEditorDocument } = await openEditor(page, documentFixture());
     await page
       .getByRole('button', {
         name: '\u041f\u043e\u0434\u043e\u0433\u043d\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442',
@@ -3158,24 +3234,26 @@ test.describe('owner D3-D6 acceptance', () => {
       await page.mouse.click(at.x, at.y);
       if (shift) await page.keyboard.up('Shift');
     };
-    const position = (id: string) => {
-      const found = readDocument().components.find((component) => component.id === id);
+    const position = async (id: string) => {
+      const found = (await readEditorDocument()).components.find(
+        (component) => component.id === id,
+      );
       if (!found) throw new Error('Missing component ' + id);
       return { ...found.position };
     };
 
     await selectBody('battery');
-    const batteryStart = position('battery');
+    const batteryStart = await position('battery');
     await page.keyboard.press('ArrowRight');
     await expect
-      .poll(() => position('battery'))
+      .poll(async () => position('battery'))
       .toEqual({
         x: batteryStart.x + 5,
         y: batteryStart.y,
       });
     await page.keyboard.press('Shift+ArrowDown');
     await expect
-      .poll(() => position('battery'))
+      .poll(async () => position('battery'))
       .toEqual({
         x: batteryStart.x + 5,
         y: batteryStart.y + 20,
@@ -3183,17 +3261,17 @@ test.describe('owner D3-D6 acceptance', () => {
 
     await page.keyboard.press('Control+z');
     await expect
-      .poll(() => position('battery'))
+      .poll(async () => position('battery'))
       .toEqual({
         x: batteryStart.x + 5,
         y: batteryStart.y,
       });
     await page.keyboard.press('Control+z');
-    await expect.poll(() => position('battery')).toEqual(batteryStart);
+    await expect.poll(async () => position('battery')).toEqual(batteryStart);
     await page.keyboard.press('Control+Shift+z');
     await page.keyboard.press('Control+Shift+z');
     await expect
-      .poll(() => position('battery'))
+      .poll(async () => position('battery'))
       .toEqual({
         x: batteryStart.x + 5,
         y: batteryStart.y + 20,
@@ -3201,24 +3279,24 @@ test.describe('owner D3-D6 acceptance', () => {
 
     await selectBody('battery');
     await selectBody('led', true);
-    const batteryGroupStart = position('battery');
-    const ledGroupStart = position('led');
+    const batteryGroupStart = await position('battery');
+    const ledGroupStart = await position('led');
     await page.keyboard.press('ArrowLeft');
     await expect
-      .poll(() => position('battery'))
+      .poll(async () => position('battery'))
       .toEqual({
         x: batteryGroupStart.x - 5,
         y: batteryGroupStart.y,
       });
     await expect
-      .poll(() => position('led'))
+      .poll(async () => position('led'))
       .toEqual({
         x: ledGroupStart.x - 5,
         y: ledGroupStart.y,
       });
     await page.keyboard.press('Control+z');
-    await expect.poll(() => position('battery')).toEqual(batteryGroupStart);
-    await expect.poll(() => position('led')).toEqual(ledGroupStart);
+    await expect.poll(async () => position('battery')).toEqual(batteryGroupStart);
+    await expect.poll(async () => position('led')).toEqual(ledGroupStart);
 
     const title = page.getByRole('textbox', {
       name: '\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0435\u043a\u0442\u0430',
@@ -3277,6 +3355,8 @@ test.describe('owner D3-D6 acceptance', () => {
 
     await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
     await expect(page.getByLabel('Масштаб 148 процентов')).toBeVisible();
+    await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+    await expect.poll(() => readDocument().components.length).toBe(1);
     await page.reload();
     await expect(page.getByLabel('Масштаб 148 процентов')).toBeVisible();
     await expect(page.getByTestId('schematic-component')).toHaveCount(
