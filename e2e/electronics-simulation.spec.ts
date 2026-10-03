@@ -2702,6 +2702,12 @@ test('simulation fault semantics: technical Worker error stops, then current doc
     'data-simulation-code',
     'worker-post',
   );
+  await expect(page.locator('.workbench-simulation-message')).toContainText(
+    'Не удалось отправить запрос вычислительному модулю. Запустите моделирование снова.',
+  );
+  await expect(page.locator('.workbench-simulation-message')).not.toContainText(
+    'Injected Worker transport fault',
+  );
   await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
     'data-simulation-status',
     'stopped',

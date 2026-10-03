@@ -63,4 +63,22 @@ describe('simulation failure presentation', () => {
     expect(message).toMatchObject({ category: 'technical', code: 'worker-timeout' });
     expect(message.text).toContain('не ответил вовремя');
   });
+
+  it.each([
+    ['worker-start', 'Не удалось запустить вычислительный модуль'],
+    ['worker-post', 'Не удалось отправить запрос вычислительному модулю'],
+    ['worker-runtime', 'Ошибка работы вычислительного модуля'],
+    ['internal', 'Внутренняя ошибка вычислительного модуля'],
+    ['worker-message', 'Не удалось прочитать ответ вычислительного модуля'],
+    ['invalid-response', 'Не удалось прочитать ответ вычислительного модуля'],
+    ['invalid-request', 'Вычислительный модуль отклонил запрос'],
+  ] as const)('shows a safe visible cause and retry for %s', (code, cause) => {
+    const message = simulationFailureMessage(
+      new SimulationFailure('technical', code, 'Private exception detail'),
+    );
+    expect(message).toMatchObject({ category: 'technical', code });
+    expect(message.text).toContain(cause);
+    expect(message.text).toContain('Запустите моделирование снова');
+    expect(message.text).not.toContain('Private exception detail');
+  });
 });

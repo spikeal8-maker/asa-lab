@@ -89,6 +89,31 @@ export function workerFailure(reason: unknown): SimulationFailure {
   );
 }
 
+function technicalFailureText(code: string): string {
+  switch (code) {
+    case 'worker-timeout':
+      return 'Вычислительный модуль не ответил вовремя. Запустите моделирование снова.';
+    case 'protocol-mismatch':
+    case 'solver-mismatch':
+      return 'Версия вычислительного модуля не совпадает. Попробуйте запустить снова.';
+    case 'worker-start':
+      return 'Не удалось запустить вычислительный модуль. Запустите моделирование снова.';
+    case 'worker-post':
+      return 'Не удалось отправить запрос вычислительному модулю. Запустите моделирование снова.';
+    case 'worker-runtime':
+      return 'Ошибка работы вычислительного модуля. Запустите моделирование снова.';
+    case 'internal':
+      return 'Внутренняя ошибка вычислительного модуля. Запустите моделирование снова.';
+    case 'worker-message':
+    case 'invalid-response':
+      return 'Не удалось прочитать ответ вычислительного модуля. Запустите моделирование снова.';
+    case 'invalid-request':
+      return 'Вычислительный модуль отклонил запрос. Запустите моделирование снова.';
+    default:
+      return 'Технический сбой вычислительного модуля. Запустите моделирование снова.';
+  }
+}
+
 export function simulationFailureMessage(failure: SimulationFailure): SimulationStatusMessage {
   const detail = failure.message.trim();
   const text =
@@ -102,11 +127,7 @@ export function simulationFailureMessage(failure: SimulationFailure): Simulation
             ? `Переходный расчёт остановлен: ${detail}`
             : failure.category === 'runtime'
               ? `Исполнение программы остановлено: ${detail}`
-              : failure.code === 'worker-timeout'
-                ? 'Вычислительный модуль не ответил вовремя. Запустите моделирование снова.'
-                : failure.code === 'protocol-mismatch' || failure.code === 'solver-mismatch'
-                  ? 'Версия вычислительного модуля не совпадает. Попробуйте запустить снова.'
-                  : 'Технический сбой вычислительного модуля. Запустите моделирование снова.';
+              : technicalFailureText(failure.code);
   return { category: failure.category, code: failure.code, text };
 }
 
