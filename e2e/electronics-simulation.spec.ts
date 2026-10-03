@@ -3683,7 +3683,9 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
 });
 
 async function saveEditorNow(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+  // Exercise the mounted editor's immediate safety flush without unloading the
+  // test page, so the save response and server document remain observable.
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   await expect(page.locator('.workbench-main')).toHaveAttribute(
     'data-project-save-status',
     'saved',

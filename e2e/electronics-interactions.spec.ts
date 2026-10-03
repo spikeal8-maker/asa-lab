@@ -2512,7 +2512,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
     const expectedComponents = (await readEditorDocument()).components.length;
     const expectedConnections = (await readEditorDocument()).connections.length;
     const expectedDocument = await readEditorDocument();
-    await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     await expect.poll(() => readDocument().components.length).toBe(expectedComponents);
     expect(readDocument().connections).toEqual(expectedDocument.connections);
     await page.reload();
@@ -3358,7 +3358,7 @@ test.describe('owner D3-D6 acceptance', () => {
 
     await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
     await expect(page.getByLabel('Масштаб 148 процентов')).toBeVisible();
-    await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
     await expect.poll(() => readDocument().components.length).toBe(1);
     await page.reload();
     await expect(page.getByLabel('Масштаб 148 процентов')).toBeVisible();
