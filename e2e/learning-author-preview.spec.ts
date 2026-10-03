@@ -389,6 +389,25 @@ test('first-class image block survives draft reload and pins exact published byt
   await expect(versionImage).toBeVisible();
   const v1Source = await versionImage.getAttribute('src');
   expect(v1Source).toContain('/versions/');
+  const a6Evidence = 'e2e/artifacts/learning/task-image-a6';
+  mkdirSync(a6Evidence, { recursive: true });
+  await preview.getByRole('button', { name: 'Открыть крупно: Первая схема' }).click();
+  const desktopZoom = page.getByRole('dialog', { name: 'Изображение задания: Первая схема' });
+  await expect(desktopZoom.getByRole('img', { name: 'Первая схема' })).toHaveAttribute(
+    'src',
+    v1Source!,
+  );
+  await page.screenshot({ path: `${a6Evidence}/published-v1-zoom-desktop.png` });
+  await page.keyboard.press('Escape');
+  await expect(desktopZoom).toHaveCount(0);
+  await preview.getByRole('button', { name: 'Закрепить изображение: Первая схема' }).click();
+  const desktopReference = page.getByTestId('task-image-reference-window');
+  await expect(desktopReference.getByRole('img', { name: 'Первая схема' })).toHaveAttribute(
+    'src',
+    v1Source!,
+  );
+  await page.screenshot({ path: `${a6Evidence}/published-v1-pinned-desktop.png` });
+  await desktopReference.getByRole('button', { name: 'Закрыть окно: Изображение задания' }).click();
   await page.setViewportSize({ width: 320, height: 844 });
   await versionImage.scrollIntoViewIfNeeded();
   await expect(versionImage).toHaveJSProperty('naturalWidth', 240);
@@ -401,6 +420,26 @@ test('first-class image block survives draft reload and pins exact published byt
   expect(imageBounds!.x + imageBounds!.width).toBeLessThanOrEqual(320);
   mkdirSync('e2e/artifacts/learning/task-image-a2d', { recursive: true });
   await preview.screenshot({ path: 'e2e/artifacts/learning/task-image-a2d/published-v1-320.png' });
+  await preview.getByRole('button', { name: 'Открыть крупно: Первая схема' }).click();
+  const mobileZoom = page.getByRole('dialog', { name: 'Изображение задания: Первая схема' });
+  await expect(mobileZoom.getByRole('img', { name: 'Первая схема' })).toHaveAttribute(
+    'src',
+    v1Source!,
+  );
+  await page.screenshot({ path: `${a6Evidence}/published-v1-zoom-320.png` });
+  await mobileZoom.getByRole('button', { name: 'Закрыть' }).click();
+  await preview.getByRole('button', { name: 'Закрепить изображение: Первая схема' }).click();
+  const mobileReference = page.getByTestId('task-image-reference-window');
+  await expect(mobileReference.getByRole('img', { name: 'Первая схема' })).toHaveAttribute(
+    'src',
+    v1Source!,
+  );
+  const referenceBounds = await mobileReference.boundingBox();
+  expect(referenceBounds).not.toBeNull();
+  expect(referenceBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(referenceBounds!.x + referenceBounds!.width).toBeLessThanOrEqual(320);
+  await page.screenshot({ path: `${a6Evidence}/published-v1-pinned-320.png` });
+  await mobileReference.getByRole('button', { name: 'Закрыть окно: Изображение задания' }).click();
 
   await page.getByLabel('Заменить файл блока 1').setInputFiles({
     name: 'task-b.png',
@@ -420,6 +459,14 @@ test('first-class image block survives draft reload and pins exact published byt
   expect(v2Source).not.toBe(v1Source);
   const v2Bytes = await page.request.get(new URL(v2Source!, page.url()).toString());
   expect(Buffer.compare(await v2Bytes.body(), imageB)).toBe(0);
+  await page.route(new URL(v2Source!, page.url()).toString(), (route) =>
+    route.fulfill({ status: 404, body: 'unavailable' }),
+  );
+  await page.reload();
+  await page.getByRole('button', { name: title, exact: true }).click();
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  await expect(preview.getByRole('alert')).toContainText('Изображение задания недоступно');
+  await page.screenshot({ path: `${a6Evidence}/published-v2-unavailable-320.png` });
 });
 
 test('teacher draft image persists, replaces and deletes', async ({ page }) => {

@@ -51,6 +51,12 @@
   font-size: 17px;
   font-weight: 400;
 }
+.task-image-reference-drag > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 .task-image-reference-action,
 .task-image-reference-close {
@@ -169,4 +175,12 @@
   right: -5px;
   bottom: -5px;
   cursor: nwse-resize;
+}
+
+@media (max-width: 480px) {
+  .task-image-reference-action,
+  .task-image-reference-close {
+    width: 36px;
+    height: 36px;
+  }
 }

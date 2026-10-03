@@ -1,5 +1,7 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { SafeTaskBlock } from '../api';
+import { TaskImageReferenceWindow } from './TaskImageReferenceWindow';
 import './task-blocks.css';
 
 function safeHref(value: string): string | null {
@@ -11,38 +13,129 @@ function safeHref(value: string): string | null {
   }
 }
 
-function TaskImage({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'image' }> }) {
+export interface TaskImageSelection {
+  readonly src: string;
+  readonly alt: string;
+}
+
+function TaskImage({
+  block,
+  onPinImage,
+}: {
+  readonly block: Extract<SafeTaskBlock, { type: 'image' }>;
+  readonly onPinImage?: ((image: TaskImageSelection) => void) | undefined;
+}) {
   const [unavailable, setUnavailable] = useState(false);
+  const [zoomed, setZoomed] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const zoomTrigger = useRef<HTMLButtonElement>(null);
+  const zoomClose = useRef<HTMLButtonElement>(null);
   const src =
     block.src?.startsWith('/api/learning/activities/') === true
       ? block.src
       : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`;
-  useEffect(() => setUnavailable(false), [src]);
+  useEffect(() => {
+    setUnavailable(false);
+    setZoomed(false);
+    setPinned(false);
+  }, [src]);
+
+  useEffect(() => {
+    if (!zoomed) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') closeZoom();
+      if (event.key === 'Tab') {
+        event.preventDefault();
+        zoomClose.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [zoomed]);
+
+  function closeZoom(): void {
+    setZoomed(false);
+    zoomTrigger.current?.focus();
+  }
+
+  function imageUnavailable(): void {
+    setUnavailable(true);
+    setZoomed(false);
+    setPinned(false);
+  }
+
   return (
     <figure className="task-block-image">
       {unavailable ? (
         <p role="alert">Изображение задания недоступно. Обновите задание и попробуйте снова.</p>
       ) : (
-        <a
-          href={src}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`Открыть крупно: ${block.alt}`}
-        >
-          <img src={src} alt={block.alt} onError={() => setUnavailable(true)} />
-        </a>
+        <>
+          <button
+            ref={zoomTrigger}
+            type="button"
+            className="task-block-image-open"
+            aria-label={`Открыть крупно: ${block.alt}`}
+            onClick={() => setZoomed(true)}
+          >
+            <img src={src} alt={block.alt} onError={imageUnavailable} />
+          </button>
+          <div className="task-block-image-actions">
+            <button
+              type="button"
+              aria-label={`Закрепить изображение: ${block.alt}`}
+              onClick={() => (onPinImage ? onPinImage({ src, alt: block.alt }) : setPinned(true))}
+            >
+              Закрепить рядом
+            </button>
+          </div>
+        </>
       )}
       <figcaption>{block.alt}</figcaption>
+      {zoomed && !unavailable
+        ? createPortal(
+            <div
+              className="task-block-image-lightbox"
+              role="dialog"
+              aria-modal="true"
+              aria-label={`Изображение задания: ${block.alt}`}
+            >
+              <button ref={zoomClose} type="button" autoFocus onClick={closeZoom}>
+                Закрыть
+              </button>
+              <img src={src} alt={block.alt} onError={imageUnavailable} />
+            </div>,
+            document.body,
+          )
+        : null}
+      {pinned && !unavailable
+        ? createPortal(
+            <TaskImageReferenceWindow
+              src={src}
+              assignmentTitle={block.alt}
+              imageAlt={block.alt}
+              title="Изображение задания"
+              onClose={() => setPinned(false)}
+            />,
+            document.body,
+          )
+        : null}
     </figure>
   );
 }
 
 /** Render ordered safe task blocks without interpreting author text as HTML. */
-export function TaskBlocks({ blocks }: { readonly blocks: SafeTaskBlock[] }): JSX.Element {
+export function TaskBlocks({
+  blocks,
+  onPinImage,
+}: {
+  readonly blocks: SafeTaskBlock[];
+  readonly onPinImage?: ((image: TaskImageSelection) => void) | undefined;
+}): JSX.Element {
   return (
     <div className="task-blocks" data-testid="task-blocks">
       {blocks.map((block, index) => {
-        if (block.type === 'image') return <TaskImage key={index} block={block} />;
+        if (block.type === 'image')
+          return <TaskImage key={index} block={block} onPinImage={onPinImage} />;
         if (block.type === 'heading')
           return (
             <h3 key={index} className="task-block-heading">

@@ -34,6 +34,19 @@
 .task-block-image {
   min-width: 0;
 }
+.task-block-image-open {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: zoom-in;
+}
+.task-block-image-open:focus-visible,
+.task-block-image-actions button:focus-visible {
+  outline: 2px solid var(--accent, #5872d9);
+  outline-offset: 3px;
+}
 .task-block-image img,
 .task-block-editor-image {
   display: block;
@@ -41,6 +54,45 @@
   max-height: 30rem;
   object-fit: contain;
   border-radius: 0.4rem;
+}
+.task-block-image-actions {
+  display: flex;
+  margin-top: 0.4rem;
+}
+.task-block-image-actions button {
+  min-height: 36px;
+  cursor: pointer;
+}
+.task-block-image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 1150;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 0.75rem;
+  justify-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: rgba(9, 17, 28, 0.94);
+}
+.task-block-image-lightbox button {
+  justify-self: end;
+  min-height: 40px;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #fff;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #16232c;
+  cursor: pointer;
+}
+.task-block-image-lightbox img {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
+  max-width: none;
+  max-height: none;
+  object-fit: contain;
 }
 .task-block-image figcaption {
   margin-top: 0.35rem;
