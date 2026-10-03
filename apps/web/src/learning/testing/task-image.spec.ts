@@ -53,7 +53,7 @@ describe('ordered task image block', () => {
     expect(reference?.querySelector('img')?.getAttribute('alt')).toBe('Exact circuit');
     await act(async () =>
       reference
-        ?.querySelector<HTMLButtonElement>('button[aria-label="Закрыть окно: Изображение задания"]')
+        ?.querySelector<HTMLButtonElement>('button[aria-label="Закрыть окно: Материал"]')
         ?.click(),
     );
     expect(document.body.querySelector('[data-testid="task-image-reference-window"]')).toBeNull();

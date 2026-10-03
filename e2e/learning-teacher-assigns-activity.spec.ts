@@ -446,9 +446,14 @@ test('learner exact published task image stays pinned across v1 and v2', async (
     expect(bounds).not.toBeNull();
     expect(bounds!.x).toBeGreaterThanOrEqual(0);
     expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    const mobileTitle = orderedReference.locator('#task-image-reference-title');
+    await expect(mobileTitle).toHaveText('Материал');
+    expect(await mobileTitle.evaluate((title) => title.scrollWidth <= title.clientWidth)).toBe(
+      true,
+    );
     await learnerA.page.screenshot({ path: `${evidenceDir}/a6-lab-pinned-${width}.png` });
   }
-  await orderedReference.getByRole('button', { name: 'Закрыть окно: Изображение задания' }).click();
+  await orderedReference.getByRole('button', { name: 'Закрыть окно: Материал' }).click();
 
   await page.goto('/#/challenges');
   await page.getByRole('button', { name: title, exact: true }).click();

@@ -407,7 +407,7 @@ test('first-class image block survives draft reload and pins exact published byt
     v1Source!,
   );
   await page.screenshot({ path: `${a6Evidence}/published-v1-pinned-desktop.png` });
-  await desktopReference.getByRole('button', { name: 'Закрыть окно: Изображение задания' }).click();
+  await desktopReference.getByRole('button', { name: 'Закрыть окно: Материал' }).click();
   await page.setViewportSize({ width: 320, height: 844 });
   await versionImage.scrollIntoViewIfNeeded();
   await expect(versionImage).toHaveJSProperty('naturalWidth', 240);
@@ -438,8 +438,11 @@ test('first-class image block survives draft reload and pins exact published byt
   expect(referenceBounds).not.toBeNull();
   expect(referenceBounds!.x).toBeGreaterThanOrEqual(0);
   expect(referenceBounds!.x + referenceBounds!.width).toBeLessThanOrEqual(320);
+  const mobileTitle = mobileReference.locator('#task-image-reference-title');
+  await expect(mobileTitle).toHaveText('Материал');
+  expect(await mobileTitle.evaluate((title) => title.scrollWidth <= title.clientWidth)).toBe(true);
   await page.screenshot({ path: `${a6Evidence}/published-v1-pinned-320.png` });
-  await mobileReference.getByRole('button', { name: 'Закрыть окно: Изображение задания' }).click();
+  await mobileReference.getByRole('button', { name: 'Закрыть окно: Материал' }).click();
 
   await page.getByLabel('Заменить файл блока 1').setInputFiles({
     name: 'task-b.png',

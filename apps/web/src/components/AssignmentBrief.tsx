@@ -618,7 +618,7 @@ export function AssignmentBrief({ projectId }: { readonly projectId: string }): 
           src={referenceOwner.src}
           assignmentTitle={assignment.title}
           imageAlt={referenceOwner.alt}
-          title="Изображение задания"
+          title="Материал"
           onClose={() => setReferenceOwner(null)}
         />
       ) : null}

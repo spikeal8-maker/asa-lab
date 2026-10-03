@@ -113,7 +113,7 @@ function TaskImage({
               src={src}
               assignmentTitle={block.alt}
               imageAlt={block.alt}
-              title="Изображение задания"
+              title="Материал"
               onClose={() => setPinned(false)}
             />,
             document.body,
