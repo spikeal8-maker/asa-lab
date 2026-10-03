@@ -548,6 +548,57 @@ describe('canonical learning activity API', () => {
     expect(outsider.query).not.toHaveBeenCalled();
   });
 
+  it('accepts a bounded PDF block and rejects oversized or unsafe file payloads', async () => {
+    const api = target({
+      rows: [{ result_code: 'ok', draft_revision: 2, content_hash: 'c'.repeat(64) }],
+    });
+    const valid = Buffer.alloc(400_000, 0);
+    valid.write('%PDF-', 0, 'ascii');
+    const fileDataUrl = `data:application/pdf;base64,${valid.toString('base64')}`;
+    await expect(
+      api.value.putDraftTaskFile(request(), ACTIVITY_ID, {
+        expectedRevision: 1,
+        fileName: 'guide.pdf',
+        fileDataUrl,
+      }),
+    ).resolves.toMatchObject({
+      draftRevision: 2,
+      url: `/api/learning/activities/${ACTIVITY_ID}/draft-task-file?v=${'c'.repeat(64)}`,
+    });
+    expect(api.query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_activity_draft_task_file_set'),
+      [PRINCIPAL_ID, TENANT_ID, ACTIVITY_ID, 1, valid, 'guide.pdf'],
+    );
+    const oversized = Buffer.concat([valid, Buffer.from([0])]);
+    for (const bad of [
+      {
+        fileName: 'guide.pdf',
+        fileDataUrl: `data:application/pdf;base64,${oversized.toString('base64')}`,
+      },
+      { fileName: 'guide.pdf', fileDataUrl: `data:text/html;base64,${valid.toString('base64')}` },
+      {
+        fileName: 'guide.pdf',
+        fileDataUrl: `data:application/pdf;base64,${Buffer.from('<html>').toString('base64')}`,
+      },
+    ]) {
+      await expect(
+        api.value.putDraftTaskFile(request(), ACTIVITY_ID, {
+          expectedRevision: 1,
+          ...bad,
+        }),
+      ).rejects.toMatchObject({ status: 400 });
+    }
+    const outsider = target({ educator: false });
+    await expect(
+      outsider.value.putDraftTaskFile(request(), ACTIVITY_ID, {
+        expectedRevision: 1,
+        fileName: 'guide.pdf',
+        fileDataUrl,
+      }),
+    ).rejects.toMatchObject({ status: 403 });
+    expect(outsider.query).not.toHaveBeenCalled();
+  });
+
   it('returns an exact published goal in read-only learner preview', async () => {
     const api = target();
     api.query

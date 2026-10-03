@@ -392,6 +392,31 @@ export class AssignmentsController {
       .send(row.image_bytes);
   }
 
+  /** PDF bytes only for a signed-in learner with a readable exact pinned run. */
+  @Get('task-files/:contentHash')
+  async taskFile(
+    @Req() request: FastifyRequest,
+    @Param('contentHash') contentHash: string,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    if (!/^[0-9a-f]{64}$/.test(contentHash))
+      throw new HttpException(error('validation_error', 'file hash is invalid'), 400);
+    const viewer = await this.requireViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT file_bytes,content_type,content_hash
+         FROM learning_task_file_for_viewer($1,$2,$3,$4)`,
+      [contentHash, viewer.tenantId, viewer.accountId, viewer.seatId],
+    );
+    const row = result.rows[0] as { file_bytes: Buffer } | undefined;
+    if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, no-store')
+      .send(row.file_bytes);
+  }
+
   /** The picture itself, only for a viewer who may see this assignment. */
   @Get(':assignmentId/sample')
   async sample(

@@ -31,6 +31,29 @@
   overflow-wrap: anywhere;
 }
 
+.task-block-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.75rem;
+  min-width: 0;
+  padding: 0.65rem;
+  border: 1px solid var(--border, #d6d9e3);
+  border-radius: 0.5rem;
+}
+.task-block-file-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 600;
+}
+.task-block-file button {
+  max-width: 100%;
+}
+.task-block-file [role='alert'] {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .task-block-image {
   min-width: 0;
 }

@@ -529,3 +529,207 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   await learnerA.context.close();
   await learnerB.context.close();
 });
+
+test('A6 PDF material stays readable through exact direct assignment versions', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(240_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const token = ++sequence;
+  const title = `Exact PDF material ${token}`;
+  const pdfA = Buffer.from('%PDF-1.4\nA6 learner file A\n%%EOF');
+  const pdfB = Buffer.from('%PDF-1.4\nA6 learner file B\n%%EOF');
+
+  await loginWithOrganization(page, teacher);
+  await page.goto('/#/challenges');
+  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Содержание', { exact: true }).fill('Скачайте точный PDF задания.');
+  const fileUpload = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByLabel('PDF файл задания').setInputFiles({
+    name: 'guide-a.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfA,
+  });
+  const uploadedA = await fileUpload;
+  expect(uploadedA.ok()).toBe(true);
+  const hashA = ((await uploadedA.json()) as { contentHash: string }).contentHash;
+  await expect(page.getByText('PDF добавлен в содержание задания.')).toBeVisible();
+  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
+  const draftPreview = page.getByTestId('learner-preview');
+  await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
+  const draftDownload = page.waitForEvent('download');
+  await draftPreview.getByRole('button', { name: 'Скачать PDF: guide-a.pdf' }).click();
+  expect((await draftDownload).suggestedFilename()).toBe('guide-a.pdf');
+
+  const publishV1 = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const publishedA = await publishV1;
+  expect(publishedA.ok()).toBe(true);
+  const v1 = (await publishedA.json()) as { id: string; versionNumber: number };
+  expect(v1.versionNumber).toBe(1);
+  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
+  await expect(draftPreview.getByText('Опубликованная версия 1', { exact: false })).toBeVisible();
+  await draftPreview
+    .getByRole('button', { name: 'Скачать PDF: guide-a.pdf' })
+    .scrollIntoViewIfNeeded();
+  await draftPreview.screenshot({ path: `${evidenceDir}/a6-file-author-published-desktop.png` });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(
+    draftPreview.getByRole('button', { name: 'Скачать PDF: guide-a.pdf' }),
+  ).toBeVisible();
+  await draftPreview
+    .getByRole('button', { name: 'Скачать PDF: guide-a.pdf' })
+    .scrollIntoViewIfNeeded();
+  await draftPreview.screenshot({ path: `${evidenceDir}/a6-file-author-published-390.png` });
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  const joinCodeV1 = await createClassWithStudents(
+    page,
+    `A6 file V1 ${token}`,
+    [{ label: `PDF Learner A ${token}`, handle: `a6-file-a-${token}` }],
+    true,
+  );
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2027-09-30' });
+  const learnerA = await learnerAssignments(browser, joinCodeV1, `a6-file-a-${token}`);
+  const learnerAFailures = collectBrowserFailures(learnerA.page, {
+    allowAnonymousSessionProbe: true,
+    allowAdminAccessProbe: true,
+  });
+  const rowA = learnerA.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: title });
+  await rowA.getByRole('button', { name: title, exact: true }).click();
+  const downloadButton = rowA.getByRole('button', { name: 'Скачать PDF: guide-a.pdf' });
+  await expect(downloadButton).toBeVisible();
+  const learnerBytesA = await learnerA.page.request.get(
+    new URL(`/api/assignments/task-files/${hashA}`, learnerA.page.url()).toString(),
+  );
+  expect(learnerBytesA.ok()).toBe(true);
+  expect(learnerBytesA.headers()['content-disposition']).toContain('attachment');
+  expect(Buffer.compare(await learnerBytesA.body(), pdfA)).toBe(0);
+  const learnerDownload = learnerA.page.waitForEvent('download');
+  await downloadButton.click();
+  expect((await learnerDownload).suggestedFilename()).toBe('guide-a.pdf');
+  await learnerA.page.screenshot({ path: `${evidenceDir}/a6-file-learner-desktop.png` });
+  for (const width of [390, 320]) {
+    await learnerA.page.setViewportSize({ width, height: 844 });
+    await expect(downloadButton).toBeVisible();
+    const bounds = await downloadButton.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await learnerA.page.screenshot({ path: `${evidenceDir}/a6-file-learner-${width}.png` });
+  }
+
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: title, exact: true }).click();
+  const replacement = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByLabel('Заменить PDF блока 1').setInputFiles({
+    name: 'guide-b.pdf',
+    mimeType: 'application/pdf',
+    buffer: pdfB,
+  });
+  const uploadedB = await replacement;
+  expect(uploadedB.ok()).toBe(true);
+  const hashB = ((await uploadedB.json()) as { contentHash: string }).contentHash;
+  const publishV2 = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(response.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const publishedB = await publishV2;
+  expect(publishedB.ok()).toBe(true);
+  const v2 = (await publishedB.json()) as { id: string; versionNumber: number };
+  expect(v2.versionNumber).toBe(2);
+  expect(v2.id).not.toBe(v1.id);
+
+  const stillA = await learnerA.page.request.get(
+    new URL(`/api/assignments/task-files/${hashA}`, learnerA.page.url()).toString(),
+  );
+  expect(stillA.ok()).toBe(true);
+  expect(Buffer.compare(await stillA.body(), pdfA)).toBe(0);
+  const deniedB = await learnerA.page.request.get(
+    new URL(`/api/assignments/task-files/${hashB}`, learnerA.page.url()).toString(),
+  );
+  expect(deniedB.status()).toBe(404);
+  learnerAFailures.assertEmpty();
+  const expectedUnavailableConsole: { text: string; url: string }[] = [];
+  learnerA.page.on('console', (message) => {
+    if (message.type() === 'error') {
+      expectedUnavailableConsole.push({ text: message.text(), url: message.location().url });
+    }
+  });
+  await learnerA.page.route('**/api/assignments/task-files/**', (route) =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
+  );
+  await downloadButton.click();
+  const unavailableAlert = rowA.getByRole('alert');
+  await expect(unavailableAlert).toContainText('Файл задания недоступен');
+  await unavailableAlert.scrollIntoViewIfNeeded();
+  await expect(unavailableAlert).toBeInViewport();
+  await rowA.screenshot({ path: `${evidenceDir}/a6-file-unavailable-320.png` });
+  await learnerA.page.unroute('**/api/assignments/task-files/**');
+  expect(expectedUnavailableConsole).toEqual([
+    {
+      text: 'Failed to load resource: the server responded with a status of 404 (Not Found)',
+      url: new URL(`/api/assignments/task-files/${hashA}`, learnerA.page.url()).href,
+    },
+  ]);
+  expect(learnerAFailures.counts).toMatchObject({
+    consoleErrors: 1,
+    pageErrors: 0,
+    failedRequests: 0,
+    httpServerErrors: 0,
+  });
+
+  const joinCodeV2 = await createClassWithStudents(
+    page,
+    `A6 file V2 ${token}`,
+    [{ label: `PDF Learner B ${token}`, handle: `a6-file-b-${token}` }],
+    true,
+  );
+  await openAssignments(page);
+  await assignFromUi(page, { title, due: '2027-10-07' });
+  const learnerB = await learnerAssignments(browser, joinCodeV2, `a6-file-b-${token}`);
+  const rowB = learnerB.page
+    .getByTestId('seat-assignments')
+    .locator('li')
+    .filter({ hasText: title });
+  await rowB.getByRole('button', { name: title, exact: true }).click();
+  await expect(rowB.getByRole('button', { name: 'Скачать PDF: guide-b.pdf' })).toBeVisible();
+  const learnerBytesB = await learnerB.page.request.get(
+    new URL(`/api/assignments/task-files/${hashB}`, learnerB.page.url()).toString(),
+  );
+  expect(Buffer.compare(await learnerBytesB.body(), pdfB)).toBe(0);
+  const deniedA = await learnerB.page.request.get(
+    new URL(`/api/assignments/task-files/${hashA}`, learnerB.page.url()).toString(),
+  );
+  expect(deniedA.status()).toBe(404);
+  failures.assertEmpty();
+  expect(expectedUnavailableConsole).toHaveLength(1);
+  expect(learnerAFailures.counts).toMatchObject({
+    consoleErrors: 1,
+    pageErrors: 0,
+    failedRequests: 0,
+    httpServerErrors: 0,
+  });
+  await learnerA.context.close();
+  await learnerB.context.close();
+});
