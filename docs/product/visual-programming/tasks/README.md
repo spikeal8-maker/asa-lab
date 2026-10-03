@@ -72,7 +72,6 @@ integration or activate any new service. See its exact card before coding.
 [VSCR-M1-005A](VSCR-M1-005A.md): one manual save/open pipeline in Draft;
 independent review deferred to integrated release, never marked complete.
 
-
 ## Scratch classroom stabilisation program
 
 Owner architecture/program: `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`, issue #468.

@@ -13,6 +13,7 @@ Measure and reduce runtime asset DB amplification.
 ## Why
 
 Canonical rationale:
+
 - `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`;
 - `../../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`;
 - capacity target P1500 / #477.
@@ -46,6 +47,7 @@ Mandatory independent security review of the exact SHA and before/after query pa
 ## Bounded self-review
 
 Before PASS, verify:
+
 - only this bounded result was implemented/reviewed;
 - current-main behavior was reproduced or measured before claiming a fix;
 - local-first Scratch runtime invariant is preserved;

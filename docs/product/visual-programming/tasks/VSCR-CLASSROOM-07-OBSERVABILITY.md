@@ -13,6 +13,7 @@ Privacy-safe Scratch classroom telemetry.
 ## Why
 
 Canonical rationale:
+
 - `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`;
 - `../../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`;
 - capacity target P1500 / #477.
@@ -41,6 +42,7 @@ Unit validation of event/redaction shape plus browser incident scenario.
 ## Bounded self-review
 
 Before PASS, verify:
+
 - only this bounded result was implemented/reviewed;
 - current-main behavior was reproduced or measured before claiming a fix;
 - local-first Scratch runtime invariant is preserved;

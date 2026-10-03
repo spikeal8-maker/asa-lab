@@ -13,6 +13,7 @@ Controlled exit durability and pagehide local flush.
 ## Why
 
 Canonical rationale:
+
 - `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`;
 - `../../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`;
 - capacity target P1500 / #477.
@@ -45,6 +46,7 @@ Independent review must distinguish controlled navigation durability from forced
 ## Bounded self-review
 
 Before PASS, verify:
+
 - only this bounded result was implemented/reviewed;
 - current-main behavior was reproduced or measured before claiming a fix;
 - local-first Scratch runtime invariant is preserved;

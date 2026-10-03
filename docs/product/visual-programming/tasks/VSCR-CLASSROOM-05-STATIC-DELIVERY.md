@@ -13,6 +13,7 @@ Versioned immutable Scratch static delivery.
 ## Why
 
 Canonical rationale:
+
 - `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`;
 - `../../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`;
 - capacity target P1500 / #477.
@@ -42,6 +43,7 @@ Cold/warm before/after request count, bytes and latency; Docker/browser focused 
 ## Bounded self-review
 
 Before PASS, verify:
+
 - only this bounded result was implemented/reviewed;
 - current-main behavior was reproduced or measured before claiming a fix;
 - local-first Scratch runtime invariant is preserved;
