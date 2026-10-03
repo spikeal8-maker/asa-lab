@@ -4949,7 +4949,7 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
-  await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+  await page.getByRole('button', { name: 'Сохранить проект' }).click();
   await expect
     .poll(async () => {
       const saved = await page.context().request.get(`/api/projects/${projectId}`, {
