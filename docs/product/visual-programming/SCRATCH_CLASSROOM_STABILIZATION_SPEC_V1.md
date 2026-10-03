@@ -100,14 +100,14 @@ or asset-ownership boundaries.
 
 | Order | Issue | Task | Result |
 |---:|---:|---|---|
-| 1 | #469 | SCRATCH-CLASSROOM-01-SAVE-60S | minute remote autosave + fast local recovery |
-| 2 | #470 | SCRATCH-CLASSROOM-02-EXIT-SAFETY | controlled exit + pagehide local flush |
-| 3 | #471 | SCRATCH-CLASSROOM-03-STUDENTSEAT-RESILIENCE | reconnect != logout |
-| 4 | #472 | SCRATCH-CLASSROOM-04-RUNTIME-RECOVERY | asset/token transient recovery |
-| 5 | #473 | SCRATCH-CLASSROOM-05-STATIC-DELIVERY | versioned immutable core static |
-| 6 | #474 | SCRATCH-CLASSROOM-06-DB-PATH | measure/reduce asset DB amplification |
-| 7 | #475 | SCRATCH-CLASSROOM-07-OBSERVABILITY | privacy-safe incident correlation |
-| 8 | #476 | SCRATCH-CLASSROOM-08-CLASS30 | 30 independent Scratch users |
+| 1 | #469 | VSCR-CLASSROOM-01-SAVE-60S | minute remote autosave + fast local recovery |
+| 2 | #470 | VSCR-CLASSROOM-02-EXIT-SAFETY | controlled exit + pagehide local flush |
+| 3 | #471 | VSCR-CLASSROOM-03-STUDENTSEAT-RESILIENCE | reconnect != logout |
+| 4 | #472 | VSCR-CLASSROOM-04-RUNTIME-RECOVERY | asset/token transient recovery |
+| 5 | #473 | VSCR-CLASSROOM-05-STATIC-DELIVERY | versioned immutable core static |
+| 6 | #474 | VSCR-CLASSROOM-06-DB-PATH | measure/reduce asset DB amplification |
+| 7 | #475 | VSCR-CLASSROOM-07-OBSERVABILITY | privacy-safe incident correlation |
+| 8 | #476 | VSCR-CLASSROOM-08-CLASS30 | 30 independent Scratch users |
 | 9 | #477 | platform capacity | P1500 = 1500 active users |
 | 10 | #460 | mixed classroom | Scratch + Electronics shared acceptance |
 

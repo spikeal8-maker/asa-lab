@@ -45,9 +45,10 @@ components:
     risk: high
     ownership: cross_boundary
     purpose:
-      Real runtime-session open, parent-owned explicit Save, live-VM FLUSH persistence and
-      save-close-fresh-browser exact reopen are implemented candidates through common Project Core
-      and production PostgreSQL/private object-storage adapters; independent critical review remains pending.
+      Real runtime-session open and upstream ScratchStorage/GUIStorage persistence through ASA
+      Project Core are present, including save-close-fresh-browser reopen through production
+      PostgreSQL/private object-storage adapters. Classroom stabilisation now changes cadence,
+      exit and failure recovery without creating a second persistence engine.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: Asset-before-document invariant
@@ -78,10 +79,13 @@ components:
       - tools/blocks/portable-smoke.mjs
 
   - id: blocks.project.autosave
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Generation-aware latest-state queue; edits during an in-flight save are not lost."
+    purpose:
+      Current upstream ProjectSaverHOC/ASA storage path is generation-aware and preserves
+      newest edits during in-flight saves; its current 5–8 s remote cadence is explicitly
+      superseded by the owner minute-scale classroom repair.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Autosave transaction identity"
@@ -89,8 +93,17 @@ components:
         section: "Autosave execution contract"
       - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
         section: "Classroom load shaping"
-    task: VSCR-M1-006
+    task: VSCR-CLASSROOM-01-SAVE-60S
     depends_on: [blocks.project.load-save]
+    sources:
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [chooseAutoSaveIntervalSecs, mountEditor]
+      - path: infra/scratch-editor/host/storage.js
+        symbols: [createReadOnlyStorage, persistCanonicalDocument, saveProject]
+    tests:
+      - tools/blocks/save-semantics.test.mjs
+      - e2e/blocks-host-storage.spec.ts
+      - e2e/blocks-product-integration.spec.ts
 
   - id: blocks.project.preview
     state: blocked
@@ -106,18 +119,31 @@ components:
     depends_on: [blocks.project.load-save, blocks.project.autosave]
 
   - id: blocks.project.recovery
-    state: blocked
+    state: implemented
     risk: high
     ownership: asa
-    purpose: "Bounded recovery/offline retry without becoming canonical project storage."
+    purpose:
+      Identity/project-scoped IndexedDB recovery with finite TTL and media capture is present;
+      classroom work now hardens pagehide/exit and transient-network recovery around it without
+      turning it into a second server-save engine.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Conflict behaviour"
       - path: docs/product/visual-programming/VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md
         section: "Recovery-store minimum contract"
-    task: VSCR-M1-006
+    task: VSCR-CLASSROOM-02-EXIT-SAFETY
     depends_on: [blocks.project.load-save]
-    design_gap: "M1-006 must choose explicit finite recovery TTL/quota values and logout/account-switch cleanup policy before coding acceptance; payload storage is structured browser storage, never localStorage/sessionStorage."
+    sources:
+      - path: infra/scratch-editor/host/recovery.js
+        symbols: [createRecoveryStore, selectRecovery, createRecoveryController]
+      - path: infra/scratch-editor/host/editor.js
+        symbols: [mountEditor, restoreRecoveredProject]
+      - path: infra/scratch-editor/host/storage.js
+        symbols: [createReadOnlyStorage, captureRecoveryAssets]
+    tests:
+      - tools/blocks/recovery.test.mjs
+      - e2e/blocks-recovery.spec.ts
+      - e2e/blocks-recovery-media.spec.ts
 
   - id: blocks.project.conflict
     state: blocked
