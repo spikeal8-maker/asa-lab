@@ -69,6 +69,39 @@ const motor: SchematicComponent = {
 };
 
 describe('shared clock electrothermal phase', () => {
+  it('keeps Arduino-only GPIO meter current on the fuse-capable profile across live V to A', () => {
+    const meter: SchematicComponent = {
+      ...part('meter', 'visual', 0),
+      componentTypeId: 'multimeter',
+      pinIds: ['v-ohm-ma', 'com'],
+      stateProperties: { measurementMode: 'dc-voltage' },
+    };
+    const doc = circuit(
+      [uno, part('r', 'resistor', 100), meter],
+      [
+        ['uno', 'd13', 'r', 'a'],
+        ['r', 'b', 'meter', 'v-ohm-ma'],
+        ['meter', 'com', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const voltage = through(doc, 2_000);
+    expect(voltage.state!.profile).toBe('electrothermal-v1');
+    const currentEvent: ArduinoCircuitInputEvent = {
+      atMicroseconds: 2_001,
+      componentId: 'meter',
+      property: 'measurementMode',
+      value: 'dc-current',
+    };
+    const current = through(doc, 4_000, voltage.state!, 256, [currentEvent]);
+    expect(current.state!.profile).toBe('electrothermal-v1');
+    expect(
+      current.result!.components.find((entry) => entry.componentId === 'meter')?.current,
+    ).toBeGreaterThan(0.04);
+    expect(current.state!.physicalState!.multimeterFuses?.[0]?.fuseState).toBe('intact');
+    expect(current.state!.boards[0]!.runtime.phase).toBe('loop');
+    const unconnected = through(circuit([uno, meter], []), 1_000);
+    expect(unconnected.executionStatus).toBe('ready');
+  });
   it.each(['npn', 'pnp'])(
     'carries %s driver regions and motor history between clock quanta',
     (type) => {

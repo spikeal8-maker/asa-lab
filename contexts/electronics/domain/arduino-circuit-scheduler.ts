@@ -110,6 +110,7 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
     document.components.some(
       (component) =>
         isElectrolyticCapacitor(component) ||
+        isArduinoUno(component) ||
         electricalModelFor(component).id === 'ideal-dc-source' ||
         electricalModelFor(component).id === 'function-generator',
     )
