@@ -11,6 +11,9 @@
 - **RPS** — запросы в секунду на API.
 - **Job** — серверная компиляция, автопроверка, рендер, экспорт или симуляция.
 - **Lesson window** — период массового входа в начале урока и массовой сдачи в конце.
+- **P1500** — обязательный owner capacity profile: 1 500 одновременных активных пользователей
+  платформы; это не 1 500 idle tabs, а независимые authenticated sessions с реальной
+  модульной работой, чтением/сохранением и bounded reconnect/failure traffic.
 
 ## 2. Базовый школьный сценарий
 
@@ -27,6 +30,11 @@
 - 350 открытий проектов в течение первых 2–3 минут урока.
 
 Цель L1 задаётся с запасом: **500 CCU и 300 API RPS burst**.
+
+Дополнительно владелец 2026-10-03 установил обязательную эксплуатационную цель
+**P1500 = 1 500 CCU**. P1500 находится между L1 и L2 и имеет отдельный acceptance profile;
+он не переименовывает исторические tier-границы и не считается выполненным на основании
+линейно экстраполированного RPS.
 
 ## 3. Почему нельзя сохранять полный snapshot на каждое действие
 
@@ -105,9 +113,12 @@ SLO формирует error budget и release policy. Это не обещан�
 
 ### 8.2. Активное редактирование
 
-- 350 local editors;
-- batched operations каждые 5–15 секунд с jitter;
-- периодические checkpoints;
+- 350 local editors в историческом L1 baseline;
+- editor runtime вычисляет предметную интерактивность локально там, где это архитектурно возможно;
+- remote autosave cadence определяется контрактом модуля, а не общей частотой 5–15 s;
+- Scratch и Electronics используют minute-scale remote checkpoint policy по своим owner contracts;
+- локальное recovery не считается remote save;
+- периодические durable checkpoints;
 - 5% reconnect rate;
 - 2% concurrent two-tab conflicts;
 - 10% weak-network simulation.
@@ -130,6 +141,36 @@ SLO формирует error budget и release policy. Это не обещан�
 - database failover;
 - отказ realtime gateway;
 - временная ошибка OIDC.
+
+### 8.5. P1500 — обязательный owner profile
+
+P1500 проверяет **1 500 одновременных активных пользователей**. Базовая школьная
+декомпозиция для нагрузки — 50 классов × 30 пользователей, но реализация теста может
+использовать эквивалентный независимый session mix при сохранении поведения.
+
+Обязательные подпрофили:
+
+```text
+steady active       → 1500 authenticated active sessions
+lesson start        → входы + project opens + cold/warm static
+class-local burst   → 30 пользователей одного класса синхронно
+active editing      → local compute + module-defined remote checkpoints
+save wave           → без глобального thundering herd
+lesson end          → controlled exit/final save/submission burst
+weak network        → bounded reconnect/retry
+mixed modules       → Scratch + Electronics + другие поддерживаемые редакторы
+failure injection   → dependency faults без массового logout/project loss
+```
+
+Для P1500 не устанавливаются выдуманные CPU/RAM/pool/RPS числа до benchmark. PASS требует,
+чтобы 1 500 CCU выполняли профиль в применимых SLO, а evidence фиксировало фактически
+достигнутые RPS, p50/p95/p99, bytes/user, save rate, DB pool wait/timeouts, object-store
+latency, transport pressure, reconnect rate, unexpected logout и project loss.
+
+Scratch проходит отдельный функционально-нагрузочный CLASS-30 gate до P1500. Нагрузка на
+рабочий школьный сервис без отдельного разрешения владельца запрещена.
+
+Issue: #477.
 
 ## 9. Autoscaling signals
 

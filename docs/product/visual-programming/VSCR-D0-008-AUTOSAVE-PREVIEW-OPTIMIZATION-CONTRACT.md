@@ -1,6 +1,6 @@
 # VSCR-D0-008 — Autosave, preview and optimisation contract
 
-**Revision:** 1.1  
+**Revision:** 1.2  
 **Status:** accepted design contract for M1-006 and future M2 project-card work  
 **Master:** [`../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`](../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md)
 
@@ -50,9 +50,12 @@ Full project snapshots MUST NOT be transmitted on every Scratch editor action.
 ```text
 VM mutation
 → increment local dirty generation
-→ debounce/batch changes
-→ normal cadence stays inside the platform 5–15 s active-editing window
-→ serialise only when a save/checkpoint is due
+→ fast local recovery checkpoint is scheduled independently
+→ first dirty generation opens a bounded remote checkpoint window
+→ later edits coalesce to newest generation and do NOT restart the window indefinitely
+→ normal steady-state remote save is no more frequent than about once per 60 s per editor
+→ under healthy service, a dirty generation must receive a remote save attempt within the minute-scale deadline
+→ serialise only when a remote save/checkpoint is due
 → unchanged canonical fingerprint: no remote draft write
 → ensure only changed/unknown assets are durable
 → one draft PUT
@@ -88,10 +91,23 @@ offline, conflict, recovery or fatal error.
 
 ### 3.2. Classroom load shaping
 
-Hundreds of editors opened in one lesson MUST NOT synchronize their autosave bursts.
+A classroom and the P1500 platform target MUST NOT create a synchronized autosave
+thundering herd.
 
-Within the normal 5–15 s active-editing window the client applies bounded randomized
-jitter. Exact distribution is fixed by the M1-006 task after browser/load evidence.
+Load shaping may use a stable per-editor phase, bounded jitter, queue admission or equivalent
+mechanism, but MUST preserve all of these invariants:
+
+```text
+no debounce starvation
+new edits do not postpone the selected checkpoint indefinitely
+one remote save in flight per editor
+newest generation wins
+normal steady-state remote save is not a 5–8 s stream
+healthy-service durability target remains minute-scale
+reconnect does not replay historical generations
+```
+
+Exact distribution is selected only from CLASS-30/P1500 evidence.
 
 Retry policy:
 
@@ -116,9 +132,13 @@ recoverable generation after current authority/revision is re-established.
 Lost response/network retry reuses the same mutationId for the same serialised
 generation. A changed VM generation gets a new mutationId.
 
-Page hide/route exit may request an immediate best-effort flush. Browser/process
-termination is not a durability guarantee; local recovery keeps the newest unconfirmed
-generation until the server confirms an equal/newer state.
+Controlled ASA navigation away from a dirty Scratch editor MUST request an immediate
+durable save and wait for its result before normal navigation completes.
+
+`visibilitychange/pagehide` MUST first make the newest local recovery checkpoint eligible
+for immediate flush before teardown. A browser/process termination cannot guarantee completion
+of an arbitrary remote HTTP save; local recovery keeps the newest unconfirmed generation until
+the server confirms an equal/newer state on a later recovery path.
 
 On revision conflict remote autosave stops, local recovery stays, current server
 metadata is loaded, conflict is shown and no guessed baseRevision is used.
@@ -319,7 +339,9 @@ API write P95                    ≤ 700 ms
 Project metadata save P95       ≤ 700 ms
 Durable checkpoint P95 typical  ≤ 1.5 s
 Save error rate                 < 0.1%
-Active-edit batching window      5–15 s
+Scratch remote durable cadence  minute-scale (owner target: ~60 s)
+Scratch local recovery            fast/local; independent of remote cadence
+Platform capacity target          P1500 = 1500 active concurrent users
 ```
 
 These are system targets, not claims about an unmeasured developer machine.
@@ -419,7 +441,7 @@ M1-006 autosave/preview is not accepted until evidence proves:
 13. failed/unconfirmed generation cannot become the durable preview
 14. preview failure does not turn durable save into failure
 15. preview work is throttled/coalesced, not generated on every action
-16. classroom burst evidence shows save jitter rather than synchronized spikes
+16. CLASS-30 and P1500 evidence show bounded load shaping rather than synchronized save/retry spikes
 17. P0/P1/P2/P3 evidence is recorded
 18. L1 is complete and Scratch hygiene counter is updated
 19. applicable SLO/load evidence is recorded without unsupported claims

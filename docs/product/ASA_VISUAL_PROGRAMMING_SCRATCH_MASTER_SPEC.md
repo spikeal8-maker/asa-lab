@@ -1,6 +1,6 @@
 # ASA Lab Visual Programming — Scratch integration master specification
 
-**Version:** 3.8  
+**Version:** 3.9  
 **Module:** `blocks`  
 **Product:** `Визуальное программирование`
 
@@ -84,6 +84,39 @@ ASA Lab Web
 ```
 
 Scratch GUI/VM packages остаются вне основной dependency graph ASA Web.
+
+### 3.1. Local-first runtime invariant
+
+Scratch — автономный браузерный runtime, периодически синхронизируемый с ASA, а не
+«удалённый редактор», вычисляемый сервером.
+
+После успешного bootstrap обычное выполнение проекта происходит локально:
+
+```text
+Scratch VM / renderer / blocks / variables / sprites / sound
+→ CPU/RAM/GPU браузера ученика
+→ без server round-trip для каждого шага программы
+```
+
+ASA server допустим только для ограниченных обязанностей:
+
+```text
+initial identity/project authorisation
+initial project document + user project assets
+durable remote save/checkpoint
+upload новых/изменённых project assets
+редкий scoped runtime capability refresh
+ASA preview/version/submission/publication flows
+```
+
+Уже загруженный проект должен продолжать локальное исполнение при кратковременной
+недоступности API, если текущая операция не требует новой remote authority или durable
+persistence. Remote polling, save на каждое editor action и повторная загрузка уже
+полученных неизменяемых ресурсов не являются частью нормальной модели.
+
+Архитектурное уточнение и программа ремонта:
+`docs/architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md` и
+`docs/product/visual-programming/SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`.
 
 ## 4. Canonical project document
 
@@ -236,6 +269,9 @@ Stable rules:
 
 ```text
 no full project snapshot on every editor action
+normal Scratch remote durable autosave uses a minute-scale cadence, not 5–15 s
+first dirty generation cannot be postponed indefinitely by later edits
+fast local IndexedDB recovery is separate from remote durable cadence
 one remote draft save in flight per editor
 new edits coalesce to the newest pending generation
 unchanged project fingerprint does not create a redundant save
@@ -293,7 +329,7 @@ M1-002    ASA-owned Scratch host
 M1-003    runtime capability + exact Origin/CORS/CSP/current authority
 M1-004    durable tenant-private assets + S3/MinIO
 M1-005    ASA durable project load/save
-M1-006    autosave/recovery/conflict + exact-revision durable draft preview + load shaping
+M1-006    minute-scale autosave/recovery/conflict + exact-revision durable draft preview + load shaping
 M1-007    safe ASA .sb3 validation/import/export integration
 M1-008    full M1 durability/security acceptance
 
