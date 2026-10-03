@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light" />
+  <title>AsaLab — Проекты и знания</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="prototype-note">
+    <span>Прототип</span>
+    <p>Две общественные вкладки AsaLab: «Проекты» и «Знания».</p>
+  </div>
+
+  <header class="site-header">
+    <a class="brand" href="#projects" data-page-link="projects" aria-label="AsaLab">
+      <span class="brand-mark"><i></i><i></i><i></i></span>
+      <span>AsaLab</span>
+    </a>
+
+    <nav class="primary-nav" aria-label="Основная навигация">
+      <button class="nav-item" type="button">Создавать</button>
+      <button class="nav-item active" type="button" data-page-link="projects">Проекты</button>
+      <button class="nav-item" type="button" data-page-link="knowledge">Знания</button>
+      <button class="nav-item" type="button">Классы</button>
+    </nav>
+
+    <div class="header-actions">
+      <button class="icon-button" type="button" aria-label="Поиск"><span class="search-icon"></span></button>
+      <button class="profile-button" type="button">
+        <span class="avatar avatar-a">А</span>
+        <span class="profile-name">Александр</span>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <!-- PROJECTS -->
+    <section class="page page-projects active" id="projects-page" data-page="projects">
+      <div class="page-shell">
+        <header class="page-hero projects-hero">
+          <div class="eyebrow">Сообщество AsaLab</div>
+          <div class="hero-row">
+            <div>
+              <h1>Проекты</h1>
+              <p>Смотрите, что создают люди в AsaLab. Открывайте настоящие работы, изучайте их и делайте собственные версии.</p>
+            </div>
+            <button class="primary-button" type="button"><span>＋</span> Опубликовать проект</button>
+          </div>
+
+          <label class="big-search">
+            <span class="search-icon"></span>
+            <input type="search" placeholder="Найти проект, автора или тему" aria-label="Поиск проектов" />
+            <kbd>Ctrl K</kbd>
+          </label>
+        </header>
+
+        <div class="topic-strip" aria-label="Направления проектов">
+          <button class="topic-chip active" type="button">Все</button>
+          <button class="topic-chip" type="button">3D и CAD</button>
+          <button class="topic-chip" type="button">Программирование</button>
+          <button class="topic-chip" type="button">Электроника</button>
+          <button class="topic-chip" type="button">Графика</button>
+          <button class="topic-chip" type="button">ИИ</button>
+          <button class="topic-chip" type="button">Игры</button>
+        </div>
+
+        <section class="featured-project">
+          <div class="featured-copy">
+            <div class="content-label">Выбор AsaLab</div>
+            <h2>Марсоход: от схемы до корпуса</h2>
+            <p>Комбинированный проект: электроника, программирование и 3D-модель корпуса. Можно открыть каждый модуль и собрать свою версию.</p>
+            <div class="featured-meta">
+              <span class="avatar avatar-k">К</span>
+              <div><strong>Кирилл Орлов</strong><span>3 модуля · 2,4 тыс. просмотров</span></div>
+            </div>
+            <div class="featured-actions">
+              <button class="primary-button" type="button">Открыть проект</button>
+              <button class="secondary-button" type="button">Сделать свою версию</button>
+            </div>
+          </div>
+          <div class="featured-visual rover-art" aria-label="Иллюстрация марсохода">
+            <div class="planet-grid"></div>
+            <div class="rover-body"><i></i><i></i><span></span></div>
+            <div class="rover-wheel wheel-one"></div>
+            <div class="rover-wheel wheel-two"></div>
+            <div class="rover-sensor"></div>
+            <div class="art-badge badge-top">Электроника</div>
+            <div class="art-badge badge-bottom">3D + код</div>
+          </div>
+        </section>
+
+        <div class="section-head compact-head">
+          <div>
+            <h2>Интересное для вас</h2>
+            <p>Живые работы, которые можно открыть и продолжить в инструментах AsaLab.</p>
+          </div>
+          <div class="sort-tabs" role="tablist" aria-label="Сортировка проектов">
+            <button class="sort-tab active" type="button">Для вас</button>
+            <button class="sort-tab" type="button">Новые</button>
+            <button class="sort-tab" type="button">Популярные</button>
+          </div>
+        </div>
+
+        <div class="project-grid">
+          <article class="project-card">
+            <div class="project-cover cad-art">
+              <span class="cover-tag">3D и CAD</span>
+              <div class="cad-grid"></div>
+              <div class="gear gear-a"></div><div class="gear gear-b"></div>
+              <div class="cad-part"></div>
+              <div class="cover-actions"><button>Открыть</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Планетарный редуктор</h3>
+              <div class="author-line"><span class="avatar avatar-m">М</span><span>Максим Беляев</span></div>
+              <div class="metric-line"><span>♡ 248</span><span>◉ 3,8 тыс.</span><span>⧉ 37 версий</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover code-art">
+              <span class="cover-tag">Программирование</span>
+              <div class="game-stage"><div class="maze"></div><div class="game-hero"></div><div class="game-goal"></div></div>
+              <div class="code-stack"><i></i><i></i><i></i><i></i></div>
+              <div class="cover-actions"><button>Запустить</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Игра «Лабиринт»</h3>
+              <div class="author-line"><span class="avatar avatar-s">С</span><span>София Лебедева</span></div>
+              <div class="metric-line"><span>♡ 391</span><span>◉ 6,1 тыс.</span><span>⧉ 82 версии</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover electronics-art">
+              <span class="cover-tag">Электроника</span>
+              <div class="breadboard"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+              <div class="led led-one"></div><div class="led led-two"></div>
+              <div class="wire wire-one"></div><div class="wire wire-two"></div>
+              <div class="cover-actions"><button>Смотреть схему</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Умный ночник</h3>
+              <div class="author-line"><span class="avatar avatar-d">Д</span><span>Даниил Ким</span></div>
+              <div class="metric-line"><span>♡ 176</span><span>◉ 2,2 тыс.</span><span>⧉ 29 версий</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover graphic-art">
+              <span class="cover-tag">Графика</span>
+              <div class="photo-window photo-before"><span>до</span></div>
+              <div class="photo-window photo-after"><span>после</span></div>
+              <div class="brush-stroke"></div>
+              <div class="cover-actions"><button>Открыть</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Северное сияние — обработка</h3>
+              <div class="author-line"><span class="avatar avatar-v">В</span><span>Вера Лукина</span></div>
+              <div class="metric-line"><span>♡ 512</span><span>◉ 7,4 тыс.</span><span>⧉ 45 версий</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover ai-art">
+              <span class="cover-tag">ИИ</span>
+              <div class="ai-orbit orbit-a"></div><div class="ai-orbit orbit-b"></div><div class="ai-core"></div>
+              <div class="ai-prompt">Как объяснить закон Ома на простом примере?</div>
+              <div class="cover-actions"><button>Открыть</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>ИИ-помощник по физике</h3>
+              <div class="author-line"><span class="avatar avatar-i">И</span><span>Илья Романов</span></div>
+              <div class="metric-line"><span>♡ 203</span><span>◉ 3,3 тыс.</span><span>⧉ 18 версий</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover robot-art">
+              <span class="cover-tag">Робототехника</span>
+              <div class="robot-platform"></div><div class="robot-board"></div><div class="robot-eye one"></div><div class="robot-eye two"></div>
+              <div class="robot-wheel rw-one"></div><div class="robot-wheel rw-two"></div>
+              <div class="cover-actions"><button>Открыть</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Робот, объезжающий препятствия</h3>
+              <div class="author-line"><span class="avatar avatar-p">П</span><span>Полина Серова</span></div>
+              <div class="metric-line"><span>♡ 427</span><span>◉ 5,9 тыс.</span><span>⧉ 64 версии</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover architecture-art">
+              <span class="cover-tag">3D и CAD</span>
+              <div class="house-base"></div><div class="house-main"></div><div class="house-window hw-one"></div><div class="house-window hw-two"></div>
+              <div class="dimension-line dl-one"></div><div class="dimension-line dl-two"></div>
+              <div class="cover-actions"><button>3D-просмотр</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Модульный дом</h3>
+              <div class="author-line"><span class="avatar avatar-r">Р</span><span>Роман Яшин</span></div>
+              <div class="metric-line"><span>♡ 319</span><span>◉ 4,6 тыс.</span><span>⧉ 23 версии</span></div>
+            </div>
+          </article>
+
+          <article class="project-card">
+            <div class="project-cover game-art">
+              <span class="cover-tag">Игры</span>
+              <div class="space-planet"></div><div class="space-ship"></div><i class="star st-one"></i><i class="star st-two"></i><i class="star st-three"></i><i class="star st-four"></i>
+              <div class="cover-actions"><button>Играть</button><button>Своя версия</button></div>
+            </div>
+            <div class="project-info">
+              <h3>Космический патруль</h3>
+              <div class="author-line"><span class="avatar avatar-e">Е</span><span>Егор Новиков</span></div>
+              <div class="metric-line"><span>♡ 684</span><span>◉ 9,7 тыс.</span><span>⧉ 126 версий</span></div>
+            </div>
+          </article>
+        </div>
+
+        <button class="load-more" type="button">Показать ещё проекты</button>
+      </div>
+    </section>
+
+    <!-- KNOWLEDGE -->
+    <section class="page page-knowledge" id="knowledge-page" data-page="knowledge">
+      <div class="page-shell">
+        <header class="page-hero knowledge-hero">
+          <div class="eyebrow">Обучение и опыт сообщества</div>
+          <div class="hero-row">
+            <div>
+              <h1>Знания</h1>
+              <p>Находите короткие задания, полноценные курсы, статьи и видео. Учитесь самостоятельно или вместе с преподавателем.</p>
+            </div>
+            <button class="primary-button" type="button"><span>＋</span> Создать материал</button>
+          </div>
+          <label class="big-search knowledge-search">
+            <span class="search-icon"></span>
+            <input type="search" placeholder="Что хотите изучить? Например: Arduino, 3D, Scratch" aria-label="Поиск знаний" />
+            <button type="button">Найти</button>
+          </label>
+          <div class="popular-searches"><span>Популярное:</span><button>Arduino</button><button>3D-моделирование</button><button>Программирование</button><button>ИИ</button></div>
+        </header>
+
+        <section class="learning-resume">
+          <div class="section-head">
+            <div><span class="section-kicker">Ваше обучение</span><h2>Продолжить</h2></div>
+            <button class="text-link" type="button">Моё обучение →</button>
+          </div>
+          <div class="resume-grid">
+            <article class="resume-card">
+              <div class="resume-icon resume-electronics"><span></span></div>
+              <div class="resume-body"><span class="small-tag">Курс</span><h3>Arduino с нуля</h3><p>7 из 18 заданий</p><div class="progress"><i style="width:39%"></i></div></div>
+              <button class="round-arrow" type="button" aria-label="Продолжить">→</button>
+            </article>
+            <article class="resume-card">
+              <div class="resume-icon resume-3d"><span></span></div>
+              <div class="resume-body"><span class="small-tag">Набор заданий</span><h3>Первые детали в 3D</h3><p>3 из 6 заданий</p><div class="progress"><i style="width:50%"></i></div></div>
+              <button class="round-arrow" type="button" aria-label="Продолжить">→</button>
+            </article>
+          </div>
+        </section>
+
+        <section class="knowledge-section quick-tasks">
+          <div class="section-head">
+            <div><span class="section-kicker">Быстрый старт</span><h2>Попробуйте сделать</h2><p>Небольшие практические задания — результат можно получить уже сегодня.</p></div>
+            <button class="text-link" type="button">Все задания →</button>
+          </div>
+          <div class="task-grid">
+            <article class="task-card task-3d">
+              <div class="task-visual"><div class="mini-gear"></div><div class="mini-cube"></div><span class="task-time">20 мин</span></div>
+              <div class="task-body"><div class="card-label-row"><span>3D и CAD</span><b>Начальный</b></div><h3>Создайте свою первую шестерню</h3><p>Эскиз, размеры и первая объёмная деталь.</p><button type="button">Начать задание</button></div>
+            </article>
+            <article class="task-card task-code">
+              <div class="task-visual"><div class="mini-game"><i></i><i></i><span></span></div><span class="task-time">30 мин</span></div>
+              <div class="task-body"><div class="card-label-row"><span>Программирование</span><b>Начальный</b></div><h3>Сделайте игру «Поймай объект»</h3><p>События, движение и счёт без сложного кода.</p><button type="button">Начать задание</button></div>
+            </article>
+            <article class="task-card task-el">
+              <div class="task-visual"><div class="mini-led"></div><div class="mini-board"></div><span class="task-time">15 мин</span></div>
+              <div class="task-body"><div class="card-label-row"><span>Электроника</span><b>Начальный</b></div><h3>Зажгите светодиод</h3><p>Соберите схему и запустите симуляцию.</p><button type="button">Начать задание</button></div>
+            </article>
+            <article class="task-card task-art">
+              <div class="task-visual"><div class="mini-photo"></div><div class="mini-brush"></div><span class="task-time">25 мин</span></div>
+              <div class="task-body"><div class="card-label-row"><span>Графика</span><b>Начальный</b></div><h3>Исправьте фотографию</h3><p>Свет, цвет и локальная коррекция изображения.</p><button type="button">Начать задание</button></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="knowledge-section courses-section">
+          <div class="section-head">
+            <div><span class="section-kicker">Глубже в тему</span><h2>Курсы для вас</h2><p>Последовательное обучение с заданиями, проектами и сохранением прогресса.</p></div>
+            <button class="text-link" type="button">Все курсы →</button>
+          </div>
+          <div class="course-grid">
+            <article class="course-card course-cad">
+              <div class="course-visual">
+                <div class="course-stage cad-course-stage"><div class="cad-shape one"></div><div class="cad-shape two"></div><div class="cad-axis x"></div><div class="cad-axis y"></div></div>
+                <span class="course-badge">Самостоятельно</span>
+              </div>
+              <div class="course-content">
+                <span class="course-category">3D И CAD</span>
+                <h3>3D-моделирование с нуля</h3>
+                <p>От первого эскиза до собственного механического редуктора.</p>
+                <div class="course-result"><strong>Вы создадите</strong><span>4 проекта · 12 занятий · ≈ 9 часов</span></div>
+                <div class="course-footer"><div class="author-line"><span class="avatar avatar-a">А</span><span>Александр Аликин</span></div><button type="button">Открыть курс</button></div>
+              </div>
+            </article>
+            <article class="course-card course-robotics">
+              <div class="course-visual">
+                <div class="course-stage robot-course-stage"><div class="course-robot"></div><div class="course-wave w1"></div><div class="course-wave w2"></div></div>
+                <span class="course-badge live">С преподавателем</span>
+              </div>
+              <div class="course-content">
+                <span class="course-category">РОБОТОТЕХНИКА</span>
+                <h3>Робототехника: первый автономный робот</h3>
+                <p>Соберите схему, напишите программу и спроектируйте корпус.</p>
+                <div class="course-result"><strong>Набор в группу</strong><span>Старт 1 октября · 6 мест</span></div>
+                <div class="course-footer"><div class="author-line"><span class="avatar avatar-n">Н</span><span>Николай Семёнов</span></div><button type="button">Записаться</button></div>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section class="knowledge-section video-section">
+          <div class="section-head">
+            <div><span class="section-kicker">Смотреть</span><h2>Видео</h2><p>Короткие рассказы о возможностях AsaLab, модулях и технологиях.</p></div>
+            <button class="text-link" type="button">Все видео →</button>
+          </div>
+          <div class="video-grid">
+            <article class="video-card" data-video-title="Что такое AsaLab?">
+              <button class="video-thumb promo-video" type="button" data-video-open>
+                <span class="video-pill">О AsaLab</span>
+                <div class="promo-word"><i></i><strong>AsaLab</strong><small>Создавай · изучай · делись</small></div>
+                <span class="play-button"><i></i></span><span class="duration">02:18</span>
+              </button>
+              <div class="video-copy"><h3>Что такое AsaLab?</h3><p>Коротко показываем всю идею платформы: от первого задания до собственного проекта.</p><div class="video-meta"><span>AsaLab</span><span>12,4 тыс. просмотров</span></div></div>
+            </article>
+            <article class="video-card" data-video-title="3D и CAD: проектируем настоящие детали">
+              <button class="video-thumb cad-video" type="button" data-video-open>
+                <span class="video-pill">Модуль</span>
+                <div class="cad-video-model"><div></div><i></i><span></span></div>
+                <span class="play-button"><i></i></span><span class="duration">06:42</span>
+              </button>
+              <div class="video-copy"><h3>3D и CAD: проектируем настоящие детали</h3><p>Что можно будет делать в новом модуле и как из модели перейти к проекту.</p><div class="video-meta"><span>Команда AsaLab</span><span>8,1 тыс. просмотров</span></div></div>
+            </article>
+            <article class="video-card" data-video-title="Первый проект в электронике">
+              <button class="video-thumb el-video" type="button" data-video-open>
+                <span class="video-pill">Разбор</span>
+                <div class="el-video-board"><i></i><i></i><i></i><span></span></div>
+                <span class="play-button"><i></i></span><span class="duration">09:05</span>
+              </button>
+              <div class="video-copy"><h3>Первый проект в электронике</h3><p>Показываем, как схема превращается в работающую симуляцию и учебное задание.</p><div class="video-meta"><span>Александр Аликин</span><span>5,7 тыс. просмотров</span></div></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="knowledge-section article-section">
+          <div class="section-head">
+            <div><span class="section-kicker">Читать</span><h2>Новые статьи</h2><p>Объяснения, разборы и практический опыт сообщества.</p></div>
+            <button class="text-link" type="button">Все статьи →</button>
+          </div>
+          <div class="article-grid">
+            <article class="article-card"><div class="article-cover article-servo"><div class="servo-shape"><i></i><span></span></div><span>Электроника</span></div><div class="article-body"><p class="read-time">7 минут чтения</p><h3>Почему у сервопривода три провода?</h3><p>Разбираемся, как работает управление сервоприводом и что передаётся по сигнальному контакту.</p><div class="author-line"><span class="avatar avatar-a">А</span><span>Александр Аликин</span></div></div></article>
+            <article class="article-card"><div class="article-cover article-ai"><div class="article-ai-core"></div><span>ИИ</span></div><div class="article-body"><p class="read-time">11 минут чтения</p><h3>Как использовать ИИ для учёбы, а не вместо учёбы</h3><p>Пять сценариев, где помощник помогает разобраться, проверить себя и получить обратную связь.</p><div class="author-line"><span class="avatar avatar-o">О</span><span>Ольга Власова</span></div></div></article>
+            <article class="article-card"><div class="article-cover article-code"><div class="article-blocks"><i></i><i></i><i></i></div><span>Программирование</span></div><div class="article-body"><p class="read-time">6 минут чтения</p><h3>Циклы без формул: объясняем на игре</h3><p>Как показать идею повторения через движение персонажа и сразу проверить её в проекте.</p><div class="author-line"><span class="avatar avatar-g">Г</span><span>Галина Орлова</span></div></div></article>
+          </div>
+        </section>
+
+        <section class="knowledge-section community-band">
+          <div class="community-copy"><span class="section-kicker">Учитесь вместе</span><h2>Курсы с преподавателем и группы</h2><p>Открытый материал можно проходить самостоятельно. Если автор ведёт набор — присоединяйтесь к группе, получайте задания, обратную связь и оценки в классе.</p><button class="secondary-button light" type="button">Посмотреть наборы</button></div>
+          <div class="group-preview">
+            <div class="group-avatar-stack"><span class="avatar avatar-s">С</span><span class="avatar avatar-d">Д</span><span class="avatar avatar-m">М</span><span class="avatar avatar-v">В</span><span class="more-avatar">+12</span></div>
+            <div class="group-course"><span>Идёт набор</span><strong>Электроника для начинающих</strong><small>Старт 5 октября · 16 участников</small></div>
+          </div>
+        </section>
+
+        <section class="knowledge-section news-section">
+          <div class="section-head"><div><span class="section-kicker">От команды</span><h2>Новое в AsaLab</h2></div><button class="text-link" type="button">Все новости →</button></div>
+          <div class="news-list">
+            <article><time datetime="2026-09-12">12 сентября</time><div><span class="news-type">Обновление</span><h3>Проектируем новый модуль 3D и CAD</h3><p>Показываем первые идеи интерфейса и рассказываем, какие сценарии станут доступны.</p></div><button type="button">→</button></article>
+            <article><time datetime="2026-09-09">9 сентября</time><div><span class="news-type">Скоро</span><h3>Визуальное программирование в AsaLab</h3><p>Готовим среду, где можно создавать игры, анимации и интерактивные проекты.</p></div><button type="button">→</button></article>
+            <article><time datetime="2026-09-05">5 сентября</time><div><span class="news-type">Материалы</span><h3>Новые задания по электронике</h3><p>Добавили практические сценарии от первого светодиода до датчиков и двигателей.</p></div><button type="button">→</button></article>
+          </div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <div class="video-modal" id="video-modal" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="video-modal-title">
+    <div class="video-modal-backdrop" data-video-close></div>
+    <div class="video-modal-dialog">
+      <button class="modal-close" type="button" data-video-close aria-label="Закрыть">×</button>
+      <div class="modal-player"><div class="modal-play"><i></i></div><span>Демонстрационное видео</span></div>
+      <div class="modal-copy"><span class="section-kicker">Видео AsaLab</span><h2 id="video-modal-title">Видео</h2><p>В прототипе здесь будет воспроизводиться реальное видео или рассказ о модуле AsaLab.</p></div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
