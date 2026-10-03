@@ -143,8 +143,11 @@ BEGIN
        AND seat.status='active'
        AND capability.creatable AND capability.assignable
        AND capability.editable_evidence AND capability.submit_project_version
-       AND (NOT EXISTS (SELECT 1 FROM public.learning_project_origins origin
-              WHERE origin.participation_id=part.id)
+       -- Older first reviews may still return work without a Project origin;
+       -- a correction of an accepted Attempt must have an exact Project.
+       AND ((v_prior.id IS NULL AND NOT EXISTS (
+              SELECT 1 FROM public.learning_project_origins origin
+              WHERE origin.participation_id=part.id))
          OR EXISTS (
            SELECT 1 FROM public.learning_project_origins origin
            JOIN public.projects project ON project.id=origin.project_id

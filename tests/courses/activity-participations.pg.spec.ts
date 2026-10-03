@@ -4303,7 +4303,7 @@ describe('A4-2b atomic StartLearningWork', () => {
     const accepted = (
       await inTenant(owner.tenantId, (client) =>
         client.query(
-          "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',NULL,'Accepted',NULL,NULL,$5)",
+          "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',20,'Accepted',NULL,NULL,$5)",
           [ownerAccount, ownerPrincipal, classroom, first.attemptId, `review:${randomUUID()}`],
         ),
       )

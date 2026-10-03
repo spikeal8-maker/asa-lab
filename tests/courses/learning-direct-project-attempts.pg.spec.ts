@@ -1478,7 +1478,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
     });
   }, 60_000);
   it('returns an archived accepted original through exact append-only review without duplicate grants', async () => {
-    const submittedWork = async (label: string) => {
+    const submittedWork = async (label: string, attachOrigin = true) => {
       const classroomId = await createClass();
       const seatId = await createSeat(classroomId, label);
       const versionId = await createActivity(label);
@@ -1507,10 +1507,11 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         )
       ).rows[0];
       expect(submitted.result_code).toBe('ok');
-      // This fixture starts through the older Direct command; attach the
-      // exact immutable origin so the archive and list policy sees one work.
-      await admin.query(
-        `INSERT INTO learning_project_origins
+      // The older Direct command lacks an immutable origin. Attach it for
+      // canonical archive flows; omit it only for the negative legacy case.
+      if (attachOrigin) {
+        await admin.query(
+          `INSERT INTO learning_project_origins
            (project_id,project_tenant_id,participation_id,school_tenant_id,school_id,
             learner_identity_id,activity_run_id,learning_activity_version_id,source_kind,
             source_course_run_id,source_course_lesson_id,source_course_block_id,owner_principal_id)
@@ -1522,8 +1523,9 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
            JOIN activity_runs run ON run.id=part.activity_run_id
            JOIN projects project ON project.id=$1
           WHERE part.id=$2`,
-        [projectId, started.participation_id],
-      );
+          [projectId, started.participation_id],
+        );
+      }
       return { classroomId, seatId, assignmentId, learnerPrincipal, projectId, started, submitted };
     };
     const review = async (
@@ -1813,6 +1815,36 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         ])
       ).rows[0].extra_attempts,
     ).toBe(1);
+
+    const legacy = await submittedWork('V4 no immutable origin', false);
+    const legacyAccepted = await review(legacy, 'accepted', null, `v4:legacy-accept:${++sequence}`);
+    expect(legacyAccepted.result_code).toBe('ok');
+    expect(
+      (
+        await review(
+          legacy,
+          'changes_requested',
+          legacyAccepted.assessment_result_id,
+          `v4:legacy-return:${++sequence}`,
+          'No exact Project origin',
+        )
+      ).result_code,
+    ).toBe('invalid_transition');
+    expect(
+      (
+        await admin.query(
+          `SELECT
+             (SELECT count(*)::int FROM assessment_results WHERE attempt_id=$1) AS revisions,
+             (SELECT id FROM assessment_results WHERE attempt_id=$1) AS result_id,
+             (SELECT extra_attempts FROM activity_participations WHERE id=$2) AS extra_attempts`,
+          [legacy.started.attempt_id, legacy.started.participation_id],
+        )
+      ).rows[0],
+    ).toEqual({
+      revisions: 1,
+      result_id: legacyAccepted.assessment_result_id,
+      extra_attempts: 0,
+    });
 
     const closed = await submittedWork('V4 closed run');
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
