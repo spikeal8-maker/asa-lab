@@ -303,13 +303,14 @@ describe('Course Builder structure forward upgrade', () => {
 
       const upgrade = await pool.connect();
       try {
+        const post191Versions = expectedUpgradeVersions.filter((version) => Number(version) > 191);
         expect(
           await applyIsolatedTestPlan(
             upgrade,
             plan.filter((item) => Number(item.version) <= 191),
           ),
-        ).toBe(expectedUpgradeVersions.length - 5);
-        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(5);
+        ).toBe(expectedUpgradeVersions.length - post191Versions.length);
+        expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(post191Versions.length);
         expect(await applyIsolatedTestPlan(upgrade, plan)).toBe(0);
       } finally {
         upgrade.release();
