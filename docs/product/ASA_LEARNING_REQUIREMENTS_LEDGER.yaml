@@ -750,22 +750,27 @@ requirements:
   - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
   - docs/review/LRN_A4_V3_EVIDENCE_2026_10_01.md
   - docs/review/LRN_A6_IMAGE_EVIDENCE_2026_10_03.md
+  - docs/review/LRN_A6_FILE_EVIDENCE_2026_10_03.md
   tests:
   - tests/courses/assignment-brief-layout.spec.ts
   - apps/web/src/learning/testing/task-image.spec.ts
+  - tests/courses/learning-activity-task-file.pg.spec.ts
   - e2e/learning-author-preview.spec.ts
   - e2e/learning-teacher-assigns-activity.spec.ts
   - e2e/learning-course-01.spec.ts
   verification:
-    source_sha: a969dcd80ad941f16e8beaa93c8b85bc97d1ca28
-    method: bounded_a6_1_exact_head_ci_browser_visual_and_postmerge_general
+    source_sha: 44aa8088fded6236b2bd95a5ddec75585b6bf8b6
+    method: bounded_a6_1_and_a6_2a_exact_head_ci_pg_browser_visual_and_postmerge_general
     observed_result: >-
       A4/V3 atomic Start and immutable-origin path remain merged. A6.1 ordered
-      task images now have merged exact-version zoom/pin, desktop and 320/390 px
-      synthetic browser evidence, including the unavailable image state. This is
-      partial E1-FIX-13 evidence: A6 video/file work and full link/V6 browser
-      evidence, A8 teacher review and whole E1 acceptance remain open. See the
-      dated A6.1 report for exact SHAs, CI and artifact references.
+      task images have merged exact-version zoom/pin evidence. A6.2a adds one
+      immutable PDF task file (up to 400,000 bytes) with author preview,
+      exact-version Direct and Course authorization, attachment download,
+      desktop/390/320 px synthetic browser evidence and a visible unavailable
+      state. This is partial E1-FIX-13 evidence: A6 video/other file formats,
+      the full link/V6 journey, A8 teacher review and whole E1 acceptance remain
+      open. OpenAPI media endpoints also need separate documentation reconciliation.
+      See the dated A6.1 and A6.2a reports for exact SHAs, CI and artifacts.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:
