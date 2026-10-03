@@ -2147,6 +2147,14 @@
   font-weight: 600;
   white-space: nowrap;
 }
+.workbench-simulation-message {
+  padding: 7px 16px;
+  border-bottom: 1px solid #e5d3bf;
+  background: #fff7eb;
+  color: #654216;
+  font-size: 13px;
+  line-height: 1.4;
+}
 .workbench-wire-color {
   box-sizing: border-box;
   flex: 0 0 62px;

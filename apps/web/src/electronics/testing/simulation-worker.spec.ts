@@ -409,7 +409,10 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     const response = evaluateSimulationWorkerRequest(request);
 
     worker.respond({ ...response, projectSessionId: 'foreign-session' });
-    await expect(pending).rejects.toThrow('Stale Electronics Worker response');
+    await expect(pending).rejects.toMatchObject({
+      code: 'stale-response',
+      message: 'Stale Electronics Worker response was discarded.',
+    });
     client.dispose();
   });
   it('bounds silent requests and terminates the failed Worker', async () => {
@@ -417,7 +420,10 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     const worker = new FakeWorker();
     const client = new ElectronicsSimulationWorkerClient(() => worker, 100);
     const generation = client.beginGeneration('project-session-a');
-    const pending = expect(client.preflight(generation, circuit)).rejects.toThrow('timed out');
+    const pending = expect(client.preflight(generation, circuit)).rejects.toMatchObject({
+      code: 'worker-timeout',
+      message: expect.stringContaining('timed out'),
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     await pending;
@@ -437,7 +443,10 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     const client = new ElectronicsSimulationWorkerClient(factory);
 
     const failedGeneration = client.beginGeneration('project-session-a');
-    await expect(client.preflight(failedGeneration, circuit)).rejects.toThrow('startup blocked');
+    await expect(client.preflight(failedGeneration, circuit)).rejects.toMatchObject({
+      code: 'worker-start',
+      message: 'Worker startup blocked',
+    });
     const recoveredGeneration = client.beginGeneration('project-session-b');
     const recovered = client.preflight(recoveredGeneration, circuit);
     worker.respondTo(0);

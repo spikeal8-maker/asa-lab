@@ -3,6 +3,7 @@ import type {
   ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import type { SchematicDocument, SolveResult } from '../api';
+import { SimulationWorkerError, type SimulationWorkerErrorCode } from './simulation-failure';
 import {
   ELECTRONICS_SIMULATION_ENGINE_REVISION,
   ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
@@ -46,7 +47,7 @@ export class ElectronicsSimulationWorkerClient {
   private generationId = 0;
   private requestSequence = 0;
   private projectSessionId: string | null = null;
-  private workerFailure: string | null = null;
+  private workerFailure: SimulationWorkerError | null = null;
   private readonly pending = new Map<string, PendingSimulation>();
 
   constructor(
@@ -68,19 +69,26 @@ export class ElectronicsSimulationWorkerClient {
         } catch (error) {
           this.failWorker(
             worker,
+            'invalid-response',
             error instanceof Error ? error.message : 'Invalid Electronics Worker response.',
           );
         }
       };
       worker.onerror = (event) => {
-        this.failWorker(worker, event.message || 'Electronics Worker failed.');
+        this.failWorker(worker, 'worker-runtime', event.message || 'Electronics Worker failed.');
       };
       worker.onmessageerror = () => {
-        this.failWorker(worker, 'Electronics Worker response could not be decoded.');
+        this.failWorker(
+          worker,
+          'worker-message',
+          'Electronics Worker response could not be decoded.',
+        );
       };
     } catch (error) {
-      this.workerFailure =
-        error instanceof Error ? error.message : 'Electronics Worker could not start.';
+      this.workerFailure = new SimulationWorkerError(
+        'worker-start',
+        error instanceof Error ? error.message : 'Electronics Worker could not start.',
+      );
     }
     return this.generationId;
   }
@@ -169,13 +177,21 @@ export class ElectronicsSimulationWorkerClient {
   private send(request: EvaluationRequest): Promise<SimulationWorkerSuccessResponse> {
     if (!this.worker) {
       return Promise.reject(
-        new Error(this.workerFailure ?? 'Electronics simulation generation is no longer active.'),
+        this.workerFailure ??
+          new SimulationWorkerError(
+            'cancelled',
+            'Electronics simulation generation is no longer active.',
+          ),
       );
     }
     const worker = this.worker;
     return new Promise((resolve, reject) => {
       const timeout = setTimeout(() => {
-        this.failWorker(worker, `Electronics Worker timed out after ${this.requestTimeoutMs} ms.`);
+        this.failWorker(
+          worker,
+          'worker-timeout',
+          `Electronics Worker timed out after ${this.requestTimeoutMs} ms.`,
+        );
       }, this.requestTimeoutMs);
       this.pending.set(request.requestId, {
         generationId: request.generationId,
@@ -189,6 +205,7 @@ export class ElectronicsSimulationWorkerClient {
       } catch (error) {
         this.failWorker(
           worker,
+          'worker-post',
           error instanceof Error ? error.message : 'Electronics request could not be sent.',
         );
       }
@@ -232,10 +249,14 @@ export class ElectronicsSimulationWorkerClient {
     worker.terminate();
   }
 
-  private failWorker(worker: ElectronicsSimulationWorkerLike, message: string): void {
+  private failWorker(
+    worker: ElectronicsSimulationWorkerLike,
+    code: SimulationWorkerErrorCode,
+    message: string,
+  ): void {
     if (this.worker !== worker) return;
-    this.workerFailure = message;
-    this.rejectPending(message);
+    this.workerFailure = new SimulationWorkerError(code, message);
+    this.rejectPending(this.workerFailure);
     this.releaseWorker();
   }
 
@@ -252,20 +273,29 @@ export class ElectronicsSimulationWorkerClient {
       response.generationId !== this.generationId ||
       response.projectSessionId !== this.projectSessionId
     ) {
-      pending.reject(new Error('Stale Electronics Worker response was discarded.'));
+      pending.reject(
+        new SimulationWorkerError(
+          'stale-response',
+          'Stale Electronics Worker response was discarded.',
+        ),
+      );
       return;
     }
     if (!response.ok) {
-      pending.reject(new Error(`${response.code}: ${response.message}`));
+      pending.reject(
+        new SimulationWorkerError(response.code, `${response.code}: ${response.message}`),
+      );
       return;
     }
     pending.resolve(response);
   }
 
-  private rejectPending(message: string): void {
+  private rejectPending(reason: string | SimulationWorkerError): void {
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timeout);
-      pending.reject(new Error(message));
+      pending.reject(
+        typeof reason === 'string' ? new SimulationWorkerError('cancelled', reason) : reason,
+      );
     }
     this.pending.clear();
   }

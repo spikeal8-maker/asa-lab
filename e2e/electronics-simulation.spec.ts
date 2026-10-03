@@ -2548,6 +2548,183 @@ test.afterAll(async () => {
   await admin.end();
 });
 
+test('simulation fault semantics: unpowered supported circuit stays distinct from Worker failure', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Simulation circuit state classification');
+  const base = circuitDocument({ switchClosed: false, resistorOhms: 330, reversedLed: false });
+  await saveDocument(page, projectId, {
+    ...base,
+    components: base.components.filter((entry) => entry.id !== 'source'),
+    connections: base.connections.filter(
+      (entry) => entry.from.componentId !== 'source' && entry.to.componentId !== 'source',
+    ),
+  });
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-category',
+    'circuit-state',
+  );
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-code',
+    'no_source',
+  );
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+});
+
+test('simulation fault semantics: an unmodelled part stops without a false solved frame', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Simulation unsupported classification');
+  const base = circuitDocument({ switchClosed: true, resistorOhms: 330, reversedLed: false });
+  await saveDocument(page, projectId, {
+    ...base,
+    components: [
+      ...base.components,
+      {
+        id: 'unmodelled',
+        kind: 'visual',
+        componentTypeId: 'test-unmodelled-part',
+        variantId: 'test-unmodelled-part',
+        position: { x: 960, y: 250 },
+        value: 0,
+        pinIds: ['a', 'b'],
+      },
+    ],
+  });
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-category',
+    'unsupported',
+  );
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-code',
+    'unsupported_component',
+  );
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'stopped',
+  );
+  await expect(page.locator('.workbench-simulation-time')).toHaveCount(0);
+  await expect(
+    page.locator('[data-testid="schematic-component"][data-component-id="unmodelled"]'),
+  ).toHaveCount(1);
+});
+
+test('simulation fault semantics: technical Worker error stops, then current document restarts', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Simulation technical restart');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({
+      switchClosed: true,
+      resistorOhms: 330,
+      reversedLed: false,
+    }),
+  );
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    let failFirstPreflight = true;
+    let firstWorker: Worker | null = null;
+    Object.assign(window, {
+      __dispatchOldSimulationReply: () => {
+        firstWorker?.dispatchEvent(
+          new MessageEvent('message', {
+            data: { ok: false, requestId: 'old-generation', code: 'internal', message: 'stale' },
+          }),
+        );
+      },
+    });
+    window.Worker = new Proxy(NativeWorker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
+          return worker;
+        const originalPost = worker.postMessage.bind(worker);
+        worker.postMessage = ((message: { kind?: string }) => {
+          if (failFirstPreflight && message.kind === 'preflight') {
+            failFirstPreflight = false;
+            firstWorker = worker;
+            window.setTimeout(
+              () =>
+                worker.dispatchEvent(new ErrorEvent('error', { message: 'Injected Worker fault' })),
+              0,
+            );
+            return;
+          }
+          originalPost(message);
+        }) as Worker['postMessage'];
+        return worker;
+      },
+    });
+  });
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  const componentIds = await page
+    .locator('[data-testid="schematic-component"]')
+    .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-component-id')));
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-category',
+    'technical',
+  );
+  await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
+    'data-simulation-code',
+    'worker-runtime',
+  );
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'stopped',
+  );
+  await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  expect(
+    await page
+      .locator('[data-testid="schematic-component"]')
+      .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-component-id'))),
+  ).toEqual(componentIds);
+
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  await page.evaluate(() =>
+    (
+      window as Window & { __dispatchOldSimulationReply?: () => void }
+    ).__dispatchOldSimulationReply?.(),
+  );
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  expect(
+    await page
+      .locator('[data-testid="schematic-component"]')
+      .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-component-id'))),
+  ).toEqual(componentIds);
+});
+
 test.afterEach(async ({ page }) => {
   // Every Playwright test gets an isolated browser context. End its server
   // session as well, otherwise the eleventh journey reaches the account's
