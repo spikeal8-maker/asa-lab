@@ -1477,6 +1477,290 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       },
     });
   }, 60_000);
+  it('returns an archived accepted original through exact append-only review without duplicate grants', async () => {
+    const submittedWork = async (label: string) => {
+      const classroomId = await createClass();
+      const seatId = await createSeat(classroomId, label);
+      const versionId = await createActivity(label);
+      const assignmentId = await assign(classroomId, versionId, 'whole_class');
+      const learnerPrincipal = await activateSeat(seatId);
+      const projectId = await createProject(learnerPrincipal, label);
+      const started = (
+        await inTenant((c) =>
+          c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+            learnerPrincipal,
+            seatId,
+            assignmentId,
+            projectId,
+          ]),
+        )
+      ).rows[0];
+      expect(started.result_code).toBe('ok');
+      const submitted = (
+        await inTenant((c) =>
+          c.query('SELECT * FROM learning_direct_project_submission_create($1,$2,$3,$4,1)', [
+            learnerPrincipal,
+            seatId,
+            assignmentId,
+            `v4:submit:${++sequence}`,
+          ]),
+        )
+      ).rows[0];
+      expect(submitted.result_code).toBe('ok');
+      // This fixture starts through the older Direct command; attach the
+      // exact immutable origin so the archive and list policy sees one work.
+      await admin.query(
+        `INSERT INTO learning_project_origins
+           (project_id,project_tenant_id,participation_id,school_tenant_id,school_id,
+            learner_identity_id,activity_run_id,learning_activity_version_id,source_kind,
+            source_course_run_id,source_course_lesson_id,source_course_block_id,owner_principal_id)
+         SELECT project.id,project.tenant_id,part.id,part.tenant_id,part.school_id,
+                part.learner_identity_id,run.id,run.learning_activity_version_id,run.source_kind,
+                run.source_course_run_id,run.source_course_lesson_id,run.source_course_block_id,
+                project.owner_principal_id
+           FROM activity_participations part
+           JOIN activity_runs run ON run.id=part.activity_run_id
+           JOIN projects project ON project.id=$1
+          WHERE part.id=$2`,
+        [projectId, started.participation_id],
+      );
+      return { classroomId, seatId, assignmentId, learnerPrincipal, projectId, started, submitted };
+    };
+    const review = async (
+      work: Awaited<ReturnType<typeof submittedWork>>,
+      decision: 'accepted' | 'changes_requested',
+      expected: string | null,
+      requestId: string,
+      reason: string | null = null,
+      accountId = teacherAccount,
+    ) =>
+      (
+        await inTenant((c) =>
+          c.query('SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+            accountId,
+            teacherPrincipal,
+            work.classroomId,
+            work.started.attempt_id,
+            decision,
+            null,
+            'Exact work review',
+            reason,
+            expected,
+            requestId,
+          ]),
+        )
+      ).rows[0];
+    const work = await submittedWork('V4 archived original');
+    const accepted = await review(work, 'accepted', null, `v4:accept:${++sequence}`);
+    expect(accepted.result_code).toBe('ok');
+    const firstSubmission = (
+      await admin.query(
+        'SELECT id,project_version_id FROM learning_submissions WHERE attempt_id=$1',
+        [work.started.attempt_id],
+      )
+    ).rows[0];
+    const bucket = async () =>
+      (
+        await app.query<{ bucket: string }>(
+          'SELECT learning_project_archive_bucket($1,$2) AS bucket',
+          [work.learnerPrincipal, work.projectId],
+        )
+      ).rows[0].bucket;
+    expect(await bucket()).toBe('completed');
+    expect(
+      (
+        await app.query('SELECT learning_project_archive_set($1,$2,true) AS state', [
+          work.learnerPrincipal,
+          work.projectId,
+        ])
+      ).rows[0].state,
+    ).toBe('learning_archive');
+    expect(await bucket()).toBe('learning_archive');
+    expect(
+      (
+        await review(
+          work,
+          'changes_requested',
+          accepted.assessment_result_id,
+          `v4:reason:${++sequence}`,
+        )
+      ).result_code,
+    ).toBe('reason_required');
+    expect(
+      (
+        await review(
+          work,
+          'changes_requested',
+          accepted.assessment_result_id,
+          `v4:outsider:${++sequence}`,
+          'Exact correction',
+          crypto.randomUUID(),
+        )
+      ).result_code,
+    ).toBe('forbidden');
+    const requestA = `v4:return:${++sequence}`;
+    const requestB = `v4:return:${++sequence}`;
+    const corrections = await Promise.all([
+      review(work, 'changes_requested', accepted.assessment_result_id, requestA, 'Fix the circuit'),
+      review(work, 'changes_requested', accepted.assessment_result_id, requestB, 'Fix the circuit'),
+    ]);
+    expect(corrections.map((item) => item.result_code).sort()).toEqual([
+      'ok',
+      'result_revision_conflict',
+    ]);
+    const winner = corrections[0].result_code === 'ok' ? corrections[0] : corrections[1];
+    const winnerKey = corrections[0].result_code === 'ok' ? requestA : requestB;
+    expect(
+      (
+        await review(
+          work,
+          'changes_requested',
+          accepted.assessment_result_id,
+          winnerKey,
+          'Fix the circuit',
+        )
+      ).assessment_result_id,
+    ).toBe(winner.assessment_result_id);
+    expect(
+      (
+        await review(
+          work,
+          'changes_requested',
+          accepted.assessment_result_id,
+          winnerKey,
+          'Different reason',
+        )
+      ).result_code,
+    ).toBe('request_conflict');
+    expect(await bucket()).toBe('active');
+    const history = await admin.query(
+      `SELECT (SELECT count(*)::int FROM learning_submissions WHERE attempt_id=$1) AS submissions,
+              (SELECT project_version_id FROM learning_submissions WHERE id=$2) AS frozen_version,
+              (SELECT extra_attempts FROM activity_participations WHERE id=$3) AS extra_attempts,
+              (SELECT submitted_at FROM classroom_assignment_work
+                WHERE assignment_id=$4 AND seat_id=$5) AS legacy_submitted_at,
+              (SELECT assessment_result_id FROM gradebook_entries
+                WHERE classroom_assignment_id=$4 AND seat_id=$5) AS selected_result`,
+      [
+        work.started.attempt_id,
+        firstSubmission.id,
+        work.started.participation_id,
+        work.assignmentId,
+        work.seatId,
+      ],
+    );
+    expect(history.rows[0]).toMatchObject({
+      submissions: 1,
+      frozen_version: firstSubmission.project_version_id,
+      extra_attempts: 1,
+      legacy_submitted_at: null,
+      selected_result: winner.assessment_result_id,
+    });
+    const revisions = (
+      await admin.query(
+        'SELECT id,revision_number,supersedes_result_id,review_decision FROM assessment_results WHERE attempt_id=$1 ORDER BY revision_number',
+        [work.started.attempt_id],
+      )
+    ).rows;
+    expect(revisions).toMatchObject([
+      { id: accepted.assessment_result_id, revision_number: 1, review_decision: 'accepted' },
+      {
+        id: winner.assessment_result_id,
+        revision_number: 2,
+        supersedes_result_id: accepted.assessment_result_id,
+        review_decision: 'changes_requested',
+      },
+    ]);
+    const next = (
+      await inTenant((c) =>
+        c.query('SELECT * FROM learning_direct_project_attempt_start($1,$2,$3,$4)', [
+          work.learnerPrincipal,
+          work.seatId,
+          work.assignmentId,
+          work.projectId,
+        ]),
+      )
+    ).rows[0];
+    expect(next).toMatchObject({
+      result_code: 'ok',
+      attempt_number: 2,
+      project_id: work.projectId,
+    });
+    const reaccepted = await review(
+      work,
+      'accepted',
+      winner.assessment_result_id,
+      `v4:reaccept:${++sequence}`,
+      'Corrected the official decision',
+    );
+    expect(reaccepted.result_code).toBe('ok');
+    expect(
+      (
+        await review(
+          work,
+          'changes_requested',
+          reaccepted.assessment_result_id,
+          `v4:old-attempt:${++sequence}`,
+          'Cannot reopen an older attempt',
+        )
+      ).result_code,
+    ).toBe('invalid_transition');
+    expect(
+      (
+        await admin.query('SELECT extra_attempts FROM activity_participations WHERE id=$1', [
+          work.started.participation_id,
+        ])
+      ).rows[0].extra_attempts,
+    ).toBe(1);
+
+    const closed = await submittedWork('V4 closed run');
+    await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
+      closed.seatId,
+    ]);
+    expect(
+      (await review(closed, 'changes_requested', null, `v4:suspended:${++sequence}`, 'Return'))
+        .result_code,
+    ).toBe('invalid_transition');
+    await admin.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [
+      closed.seatId,
+    ]);
+    await admin.query(
+      `UPDATE activity_runs SET lifecycle_status='closed',closed_at=now()
+        WHERE id=(SELECT activity_run_id FROM activity_participations WHERE id=$1)`,
+      [closed.started.participation_id],
+    );
+    expect(
+      (await review(closed, 'changes_requested', null, `v4:closed:${++sequence}`, 'Return'))
+        .result_code,
+    ).toBe('invalid_transition');
+    const withdrawn = await submittedWork('V4 withdrawn learner');
+    const withdrawnAccepted = await review(
+      withdrawn,
+      'accepted',
+      null,
+      `v4:withdrawn-accept:${++sequence}`,
+    );
+    expect(withdrawnAccepted.result_code).toBe('ok');
+    await admin.query(
+      `UPDATE activity_participations
+          SET status='withdrawn',withdrawn_at=now(),withdrawn_by_principal_id=$2,
+              withdrawal_source='teacher_command'
+        WHERE id=$1`,
+      [withdrawn.started.participation_id, teacherPrincipal],
+    );
+    expect(
+      (
+        await review(
+          withdrawn,
+          'changes_requested',
+          withdrawnAccepted.assessment_result_id,
+          `v4:withdrawn:${++sequence}`,
+          'Return',
+        )
+      ).result_code,
+    ).toBe('invalid_transition');
+  }, 90_000);
+
   it('keeps the pre-E1 four-argument submit contract safe during DB-first rollout', async () => {
     const classroomId = await createClass();
     const seatId = await createSeat(classroomId, 'Rollout learner');

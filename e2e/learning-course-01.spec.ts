@@ -1694,7 +1694,9 @@ for (const module of ['electronics', 'three-d'])
     browser,
     page,
   }) => {
-    test.setTimeout(180_000);
+    // The accepted Course journey continues through archive, teacher
+    // correction, learner return, and the linked revision Start.
+    test.setTimeout(240_000);
     const material = 'Электроника курса ' + ++sequence,
       courseTitle = 'Первый курс ' + sequence;
     await createPublishedProjectActivity(page, material, module);
@@ -2107,10 +2109,100 @@ for (const module of ['electronics', 'three-d'])
       });
     }
     await learner.setViewportSize({ width: 1440, height: 900 });
-    await archivedCard.getByRole('button', { name: 'Вернуть в активные' }).click();
-    await expect(archivedCard).toHaveCount(0);
-    await learner.getByRole('button', { name: 'Выполненные', exact: true }).click();
-    await expect(completedCard).toBeVisible();
+    if (module === 'electronics') {
+      const originalSubmission = (
+        await admin.query(
+          `SELECT submission.id,submission.project_version_id,result.id AS result_id
+             FROM learning_project_origins origin
+             JOIN learning_attempts attempt ON attempt.activity_participation_id=origin.participation_id
+             JOIN learning_submissions submission ON submission.attempt_id=attempt.id
+             JOIN assessment_results result ON result.attempt_id=attempt.id
+            WHERE origin.project_id=$1 AND result.revision_number=1`,
+          [startedProjectId],
+        )
+      ).rows[0];
+      await expect(detail.getByRole('button', { name: 'Вернуть на доработку' })).toBeVisible();
+      await detail.getByLabel('Причина возврата или исправления').fill('Уточнить измерение');
+      await detail.getByRole('button', { name: 'Вернуть на доработку' }).click();
+      await expect(detail.getByText('Ревизия 2 · На доработке', { exact: true })).toBeVisible();
+      await page.screenshot({
+        path: `${evidenceDir}/a5-v4-teacher-returned.png`,
+        fullPage: true,
+      });
+
+      await learner.reload();
+      await expect(archivedCard).toHaveCount(0);
+      await learner.getByRole('button', { name: 'Активные', exact: true }).click();
+      const returnedCard = learner.getByTestId('project-card').filter({
+        has: learner.locator(`a[href*="${startedProjectId}"]`),
+      });
+      await expect(returnedCard.getByText('Требуется доработка', { exact: true })).toBeVisible();
+      await expect(returnedCard.getByRole('link', { name: 'Продолжить' })).toBeVisible();
+      for (const viewport of [
+        { width: 1440, height: 900, label: 'desktop' },
+        { width: 390, height: 844, label: 'mobile' },
+      ]) {
+        await learner.setViewportSize(viewport);
+        await expect(returnedCard).toBeVisible();
+        await learner.screenshot({
+          path: `${evidenceDir}/a5-v4-returned-${viewport.label}.png`,
+          fullPage: true,
+        });
+      }
+      await learner.setViewportSize({ width: 1440, height: 900 });
+      await switchAccountWorkspace(learner, organizationWorkspaceId);
+      await learner.goto('/#/learning');
+      await learner
+        .getByTestId('seat-courses')
+        .getByRole('button')
+        .filter({ hasText: courseTitle })
+        .click();
+      await expect(learner.getByRole('button', { name: 'Начать доработку' })).toBeVisible();
+      await learner.screenshot({
+        path: `${evidenceDir}/a5-v4-learning-hub-returned.png`,
+        fullPage: true,
+      });
+      await learner.getByRole('button', { name: 'Начать доработку' }).click();
+      await expect(learner).toHaveURL(new RegExp(startedProjectId, 'i'));
+      const returnedBrief = learner.getByTestId('assignment-brief');
+      const returnedAnchor = learner.getByTestId('assignment-brief-anchor');
+      await expect(returnedAnchor).toBeVisible();
+      if ((await returnedAnchor.getAttribute('aria-expanded')) !== 'true') {
+        await returnedAnchor.click();
+      }
+      await expect(
+        returnedBrief.getByRole('button', { name: 'Продолжить', exact: true }),
+      ).toBeVisible();
+      await learner.screenshot({
+        path: `${evidenceDir}/a5-v4-editor-returned.png`,
+        fullPage: true,
+      });
+      await returnedBrief.getByRole('button', { name: 'Продолжить', exact: true }).click();
+      await expect(
+        returnedBrief.getByRole('button', { name: 'Продолжить', exact: true }),
+      ).toHaveCount(0);
+      const history = await admin.query(
+        `SELECT (SELECT count(*)::int FROM learning_project_origins WHERE project_id=$1) AS origins,
+                (SELECT count(*)::int FROM learning_attempts attempt
+                   JOIN learning_project_origins origin
+                     ON origin.participation_id=attempt.activity_participation_id
+                  WHERE origin.project_id=$1) AS attempts,
+                (SELECT project_version_id FROM learning_submissions WHERE id=$2) AS frozen_version,
+                (SELECT review_decision FROM assessment_results WHERE id=$3) AS prior_decision`,
+        [startedProjectId, originalSubmission.id, originalSubmission.result_id],
+      );
+      expect(history.rows[0]).toMatchObject({
+        origins: 1,
+        attempts: 2,
+        frozen_version: originalSubmission.project_version_id,
+        prior_decision: 'accepted',
+      });
+    } else {
+      await archivedCard.getByRole('button', { name: 'Вернуть в активные' }).click();
+      await expect(archivedCard).toHaveCount(0);
+      await learner.getByRole('button', { name: 'Выполненные', exact: true }).click();
+      await expect(completedCard).toBeVisible();
+    }
     await context.close();
   });
 
