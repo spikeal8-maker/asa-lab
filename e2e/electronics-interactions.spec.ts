@@ -857,27 +857,33 @@ test.describe('asset recovery in the built editor', () => {
       timeout: 90_000,
     });
     expect(headRequests).toBeGreaterThanOrEqual(2);
-    expect(textAtSecondHead).toBe(textAtFirstHead);
-    expect(textRequests).toBeGreaterThan(textAtFirstHead);
-    expect(textRequests).toBeLessThanOrEqual(textAtFirstHead + 3);
+    // The editor's minute snapshot also fetches the SVG to inline its bytes.
+    // One such GET can land between two 30–60 s HEAD probes; the late recovery
+    // itself must wait for the successful second HEAD before rearming.
+    expect(textAtSecondHead).toBeGreaterThanOrEqual(textAtFirstHead);
+    expect(textAtSecondHead).toBeLessThanOrEqual(textAtFirstHead + 1);
+    expect(textRequests).toBeGreaterThan(textAtSecondHead);
+    expect(textRequests).toBeLessThanOrEqual(textAtSecondHead + 3);
     expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });
 
   test('confirmed permanent HTTP 404 remains visible and stops late probes', async ({ page }) => {
-    test.setTimeout(240_000);
+    test.setTimeout(300_000);
     await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('multimeter')!.asset;
     let textRequests = 0;
     let headRequests = 0;
     let textAtFirstHead = 0;
+    let textAtSecondHead = 0;
     await page.route(
       (url) => url.pathname === asset,
       async (route) => {
         if (route.request().method() === 'HEAD') {
           headRequests += 1;
           if (headRequests === 1) textAtFirstHead = textRequests;
+          if (headRequests === 2) textAtSecondHead = textRequests;
           await route.fulfill({ status: 404, body: '' });
           return;
         }
@@ -898,10 +904,17 @@ test.describe('asset recovery in the built editor', () => {
     await expect.poll(() => headRequests, { timeout: 210_000 }).toBe(2);
     expect(textAtFirstHead).toBeGreaterThanOrEqual(12);
     expect(textAtFirstHead).toBeLessThanOrEqual(18);
-    expect(textRequests).toBe(textAtFirstHead);
-    await page.waitForTimeout(2_000);
+    // Snapshot rasterisation may issue one ordinary GET between the two
+    // spaced HEAD requests, independently of asset recovery.
+    expect(textAtSecondHead).toBeGreaterThanOrEqual(textAtFirstHead);
+    expect(textAtSecondHead).toBeLessThanOrEqual(textAtFirstHead + 1);
+    // A live late listener would send another HEAD within 60 s. The confirmed
+    // 404 must stop that timer while the visible error remains honest.
+    await page.waitForTimeout(65_000);
     expect(headRequests).toBe(2);
-    expect(textRequests).toBe(textAtFirstHead);
+    // Snapshot capture runs once a minute, so at most two captures can fetch
+    // the same SVG in this 65 s observation window.
+    expect(textRequests).toBeLessThanOrEqual(textAtSecondHead + 2);
     await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
     expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
