@@ -455,9 +455,7 @@ export class ElectronicsLiveSimulationWorkerController {
       return;
     }
     if (this.pendingInputEvents.length === 0) {
-      this.callbacks?.onCommittedHorizon?.(
-        this.horizonOffsetMicroseconds + advance.committedHorizonMicroseconds,
-      );
+      this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
       this.callbacks?.onResult(advance.result);
     }
     this.pump();

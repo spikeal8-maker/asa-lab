@@ -670,9 +670,16 @@ describe('Electronics canonical Worker controller', () => {
 
   it('starts a fresh zero-based canonical generation for structural runtime changes', async () => {
     const executor = new FakeExecutor();
+    const onCommittedHorizon = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
-    controller.start('project-a', circuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    controller.start('project-a', circuit, {
+      onResult: vi.fn(),
+      onFailure: vi.fn(),
+      onCommittedHorizon,
+    });
     await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 400_000);
+    const oldPendingAdvance = executor.advances.at(-1)!;
 
     const changed = {
       ...circuit,
@@ -684,9 +691,17 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.generation).toBe(2);
     expect(executor.preflights).toHaveLength(2);
     await completeCanonicalStart(executor, 2, 2);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
+    const confirmedCount = onCommittedHorizon.mock.calls.length;
+    oldPendingAdvance.deferred.resolve(timedAdvance('ready', 400_000, 400_000, 999));
+    await flush();
+    expect(onCommittedHorizon).toHaveBeenCalledTimes(confirmedCount);
 
     controller.update(changed, 600_000);
     expect(executor.advances.at(-1)).toMatchObject({ requestedHorizonMicroseconds: 100_000 });
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 100_000, 100_000, 3));
+    await flush();
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(100_000);
   });
 
   it('keeps the canonical generation across presentation-only viewport changes', async () => {

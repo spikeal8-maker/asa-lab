@@ -217,11 +217,12 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
       kind: 'advance',
       document,
       state: resetElectronicsTimedState(),
-      requestedHorizonMicroseconds: 0,
+      requestedHorizonMicroseconds: 100_000,
     });
     expect(response.ok).toBe(true);
     if (!response.ok || response.kind !== 'advance') return;
     expect(response.advance.executionStatus).toBe('ready');
+    expect(response.advance.committedHorizonMicroseconds).toBe(100_000);
     expect(response.advance.result?.solved).toBe(false);
     expect(response.advance.result?.status).toBe('invalid');
     expect(response.advance.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
@@ -429,6 +430,31 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     await pending;
     expect(worker.terminated).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+    client.dispose();
+  });
+
+  it('classifies a crashed Worker and recovers on a new generation', async () => {
+    const workers: FakeWorker[] = [];
+    const client = new ElectronicsSimulationWorkerClient(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+    const failedGeneration = client.beginGeneration('project-session-a');
+    const failed = client.preflight(failedGeneration, circuit);
+    workers[0]?.fail('Worker runtime crashed');
+    await expect(failed).rejects.toMatchObject({
+      code: 'worker-runtime',
+      message: 'Worker runtime crashed',
+    });
+    expect(workers[0]?.terminated).toBe(true);
+
+    const recoveredGeneration = client.beginGeneration('project-session-b');
+    const recovered = client.preflight(recoveredGeneration, circuit);
+    workers[1]?.respondTo(0);
+    await expect(recovered).resolves.toMatchObject({ status: 'solved' });
+    workers[0]?.respondTo(0);
+    expect(workers[1]?.terminated).toBe(false);
     client.dispose();
   });
 

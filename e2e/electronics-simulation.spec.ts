@@ -2554,14 +2554,7 @@ test('simulation fault semantics: unpowered supported circuit stays distinct fro
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginWithOrganization(page, teacher);
   const projectId = await createProject(page, 'Simulation circuit state classification');
-  const base = circuitDocument({ switchClosed: false, resistorOhms: 330, reversedLed: false });
-  await saveDocument(page, projectId, {
-    ...base,
-    components: base.components.filter((entry) => entry.id !== 'source'),
-    connections: base.connections.filter(
-      (entry) => entry.from.componentId !== 'source' && entry.to.componentId !== 'source',
-    ),
-  });
+  await saveDocument(page, projectId, multimeterResistanceDocument(false));
   await page.goto(`/#/home/${projectId}`);
   await expect(page.locator('.workbench-stage')).toBeVisible();
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
@@ -2621,9 +2614,15 @@ test('simulation fault semantics: an unmodelled part stops without a false solve
     'stopped',
   );
   await expect(page.locator('.workbench-simulation-time')).toHaveCount(0);
-  await expect(
-    page.locator('[data-testid="schematic-component"][data-component-id="unmodelled"]'),
-  ).toHaveCount(1);
+  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(saved.status()).toBe(200);
+  expect(
+    (
+      (await saved.json()) as { draft: { document: SchematicDocument } }
+    ).draft.document.components.map((entry) => entry.id),
+  ).toContain('unmodelled');
 });
 
 test('simulation fault semantics: technical Worker error stops, then current document restarts', async ({
@@ -2664,12 +2663,7 @@ test('simulation fault semantics: technical Worker error stops, then current doc
           if (failFirstPreflight && message.kind === 'preflight') {
             failFirstPreflight = false;
             firstWorker = worker;
-            window.setTimeout(
-              () =>
-                worker.dispatchEvent(new ErrorEvent('error', { message: 'Injected Worker fault' })),
-              0,
-            );
-            return;
+            throw new Error('Injected Worker transport fault');
           }
           originalPost(message);
         }) as Worker['postMessage'];
@@ -2679,6 +2673,14 @@ test('simulation fault semantics: technical Worker error stops, then current doc
   });
   await page.goto(`/#/home/${projectId}`);
   await expect(page.locator('.workbench-stage')).toBeVisible();
+  await component(page, 'resistor-axial').locator('.workbench-part').click({ force: true });
+  const unsavedName = page.getByLabel('Имя', { exact: true });
+  await unsavedName.fill('R1 несохранённый');
+  await expect(unsavedName).toHaveValue('R1 несохранённый');
+  await expect(page.locator('.workbench-main')).not.toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
   const componentIds = await page
     .locator('[data-testid="schematic-component"]')
     .evaluateAll((entries) => entries.map((entry) => entry.getAttribute('data-component-id')));
@@ -2690,13 +2692,14 @@ test('simulation fault semantics: technical Worker error stops, then current doc
   );
   await expect(page.locator('.workbench-simulation-message')).toHaveAttribute(
     'data-simulation-code',
-    'worker-runtime',
+    'worker-post',
   );
   await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
     'data-simulation-status',
     'stopped',
   );
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
+  await expect(unsavedName).toHaveValue('R1 несохранённый');
   expect(
     await page
       .locator('[data-testid="schematic-component"]')
@@ -2709,6 +2712,7 @@ test('simulation fault semantics: technical Worker error stops, then current doc
     'data-simulation-status',
     'running',
   );
+  await expect(unsavedName).toHaveValue('R1 несохранённый');
   await page.evaluate(() =>
     (
       window as Window & { __dispatchOldSimulationReply?: () => void }
