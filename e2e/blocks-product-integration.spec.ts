@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
+let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
 let waitForMinuteAutosaveArm: typeof import('../tools/blocks/browser/fixture.mjs').waitForMinuteAutosaveArm;
 let parentOrigin: string;
@@ -130,8 +131,12 @@ async function realRuntimeBootstrapFixture() {
 }
 
 test.beforeAll(async () => {
-  ({ createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
-    await import('../tools/blocks/browser/fixture.mjs'));
+  ({
+    createProtocolFixture,
+    advanceMinuteAutosave,
+    installMinuteAutosaveClock,
+    waitForMinuteAutosaveArm,
+  } = await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin, projectId, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
@@ -173,8 +178,7 @@ async function minuteClockPage(fixture: Awaited<ReturnType<typeof createProtocol
 }
 
 async function advanceMinuteCheckpoint(page: import('@playwright/test').Page, armCount = 1) {
-  await waitForMinuteAutosaveArm(page, armCount);
-  await page.clock.fastForward(66_000);
+  await advanceMinuteAutosave(page, armCount);
 }
 
 async function setServerSteps(
@@ -751,7 +755,7 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
     await setServerSteps(frame, '37', '41');
     await page.clock.fastForward(24_000);
     expect(fixture.runtimeDraftEvidence).toHaveLength(0);
-    await page.clock.fastForward(12_000);
+    await page.clock.runFor(11_000);
     await expect.poll(() => fixture.getServerRevision()).toBe(24);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     const savedFirst = fixture.runtimeDraftEvidence[0].body.document.projectJson.targets.find(
@@ -765,7 +769,7 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
     await setServerSteps(frame, '43', '47');
     await page.clock.fastForward(24_000);
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
-    await page.clock.fastForward(12_000);
+    await page.clock.runFor(11_000);
     await expect.poll(() => fixture.getServerRevision()).toBe(25);
     expect(fixture.runtimeDraftEvidence).toHaveLength(2);
     const savedSecond = fixture.runtimeDraftEvidence[1].body.document.projectJson.targets.find(

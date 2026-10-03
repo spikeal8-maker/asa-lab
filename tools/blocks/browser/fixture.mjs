@@ -30,6 +30,13 @@ export async function waitForMinuteAutosaveArm(page, count = 1) {
     .toBeGreaterThanOrEqual(count);
 }
 
+export async function advanceMinuteAutosave(page, armCount = 1) {
+  await waitForMinuteAutosaveArm(page, armCount);
+  // A single jump fires the HOC timeout but can skip callbacks it schedules.
+  await page.clock.fastForward(54_000);
+  await page.clock.runFor(12_000);
+}
+
 export async function createProtocolFixture(options = {}) {
   const repoRoot = new URL('../../../', import.meta.url);
   const checkedSources = [

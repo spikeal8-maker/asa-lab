@@ -3,8 +3,8 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
+let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
 let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
-let waitForMinuteAutosaveArm: typeof import('../tools/blocks/browser/fixture.mjs').waitForMinuteAutosaveArm;
 let parentOrigin: string;
 let runtimeUrl: string;
 
@@ -122,7 +122,7 @@ type RecoveryRecordSummary = {
 };
 
 test.beforeAll(async () => {
-  ({ createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
+  ({ createProtocolFixture, advanceMinuteAutosave, installMinuteAutosaveClock } =
     await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
 });
@@ -350,8 +350,7 @@ test('new stock sprite survives crash with exact recovery media and then reopens
     expect(fixture.getServerRevision()).toBe(23);
     expect(fixture.getSnapshotRevision()).toBe(23);
 
-    await waitForMinuteAutosaveArm(resumed.page);
-    await resumed.page.clock.fastForward(66_000);
+    await advanceMinuteAutosave(resumed.page);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10000 })
@@ -434,8 +433,7 @@ test('new Bark sound survives crash with exact bytes and server roundtrip', asyn
     expect(createHash('md5').update(restoredBytes).digest('hex')).toBe(BARK_ASSET_ID);
     expect(restoredBytes.equals(barkBytes)).toBe(true);
 
-    await waitForMinuteAutosaveArm(page);
-    await page.clock.fastForward(66_000);
+    await advanceMinuteAutosave(page);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await fixture.reopenContextWithIndexedDB();
     ({ frame } = await openProduct(fixture));
@@ -542,8 +540,7 @@ test('Paint costume versions keep only the latest recovery media and restore vis
     expect(createHash('sha256').update(restoredCostumeBytes).digest('hex')).toBe(assetB.sha256);
     expect(restoredCostumeBytes.equals(Buffer.from(assetB.bytes))).toBe(true);
 
-    await waitForMinuteAutosaveArm(page);
-    await page.clock.fastForward(66_000);
+    await advanceMinuteAutosave(page);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10000 })
@@ -640,8 +637,7 @@ test('sprite sound and block edit survive one combined crash checkpoint', async 
       frame.locator('.blocklyBlockCanvas').first().getByText('73', { exact: true }),
     ).toBeVisible();
 
-    await waitForMinuteAutosaveArm(resumed.page);
-    await resumed.page.clock.fastForward(66_000);
+    await advanceMinuteAutosave(resumed.page);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10000 })
@@ -670,8 +666,7 @@ test('asset PUT success plus draft failure keeps media recovery for crash retry'
     );
     expect(checkpoint.assets.some((asset) => asset.assetId === BARK_ASSET_ID)).toBe(true);
 
-    await waitForMinuteAutosaveArm(page);
-    await page.clock.fastForward(66_000);
+    await advanceMinuteAutosave(page);
     await expect
       .poll(
         () =>
@@ -705,8 +700,7 @@ test('asset PUT success plus draft failure keeps media recovery for crash retry'
         .getByText('Bark', { exact: true }),
     ).toBeVisible();
 
-    await waitForMinuteAutosaveArm(page);
-    await page.clock.fastForward(66_000);
+    await advanceMinuteAutosave(page);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20000 }).toBe(24);
     const totalBarkPuts = fixture.runtimeAssetPutEvidence.filter(
       (item) => item.assetFile === `${BARK_ASSET_ID}.wav`,
