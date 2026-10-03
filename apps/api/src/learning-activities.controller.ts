@@ -41,7 +41,8 @@ type SafeTaskBlock =
   | { type: 'heading' | 'paragraph' | 'callout'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'link'; text: string; href: string }
-  | { type: 'image'; alt: string; contentHash: string; src?: string };
+  | { type: 'image'; alt: string; contentHash: string; src?: string }
+  | { type: 'file'; name: string; contentHash: string; src?: string };
 
 function safeTaskBlocks(value: unknown): value is SafeTaskBlock[] {
   if (!Array.isArray(value) || value.length > 32) return false;
@@ -50,10 +51,31 @@ function safeTaskBlocks(value: unknown): value is SafeTaskBlock[] {
       .length > 1
   )
     return false;
+  if (
+    value.filter((item: unknown) => (item as Record<string, unknown> | null)?.['type'] === 'file')
+      .length > 1
+  )
+    return false;
   return value.every((item: unknown) => {
     if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
     const block = item as Record<string, unknown>;
     const type = block['type'];
+    if (type === 'file') {
+      return (
+        Object.keys(block).every((key) => ['type', 'name', 'contentHash'].includes(key)) &&
+        typeof block['name'] === 'string' &&
+        block['name'].trim().length >= 5 &&
+        block['name'].trim().length <= 160 &&
+        block['name'].toLowerCase().endsWith('.pdf') &&
+        !block['name'].includes('/') &&
+        !block['name'].includes('\\') &&
+        !Array.from(block['name']).some(
+          (char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127,
+        ) &&
+        typeof block['contentHash'] === 'string' &&
+        /^[0-9a-f]{64}$/.test(block['contentHash'])
+      );
+    }
     if (type === 'image') {
       return (
         Object.keys(block).every((key) => ['type', 'alt', 'contentHash'].includes(key)) &&
@@ -141,6 +163,20 @@ function decodeDraftImage(raw: string): { bytes: Buffer; contentType: string } {
     throw new HttpException(error('validation_error', 'Картинка должна быть до 400 КБ.'), 400);
   }
   return { bytes, contentType: match[1] as string };
+}
+
+function decodeTaskPdf(raw: string): Buffer {
+  const match = /^data:application\/pdf;base64,([A-Za-z0-9+/]+={0,2})$/.exec(raw);
+  if (!match) throw new HttpException(error('validation_error', 'Подойдёт файл PDF.'), 400);
+  const bytes = Buffer.from(match[1] as string, 'base64');
+  if (
+    bytes.byteLength < 5 ||
+    bytes.byteLength > 400_000 ||
+    bytes.toString('ascii', 0, 5) !== '%PDF-'
+  ) {
+    throw new HttpException(error('validation_error', 'Подойдёт PDF до 400 КБ.'), 400);
+  }
+  return bytes;
 }
 
 type DraftInput = {
@@ -328,6 +364,14 @@ export class LearningActivitiesController {
 
   private versionTaskImageUrl(activityId: string, versionId: string, contentHash: string): string {
     return `/api/learning/activities/${encodeURIComponent(activityId)}/versions/${encodeURIComponent(versionId)}/task-image?v=${encodeURIComponent(contentHash)}`;
+  }
+
+  private draftTaskFileUrl(activityId: string, contentHash: string): string {
+    return `/api/learning/activities/${encodeURIComponent(activityId)}/draft-task-file?v=${encodeURIComponent(contentHash)}`;
+  }
+
+  private versionTaskFileUrl(activityId: string, versionId: string, contentHash: string): string {
+    return `/api/learning/activities/${encodeURIComponent(activityId)}/versions/${encodeURIComponent(versionId)}/task-file?v=${encodeURIComponent(contentHash)}`;
   }
 
   private versionSampleError(code: string | undefined): HttpException {
@@ -622,6 +666,76 @@ export class LearningActivitiesController {
     };
   }
 
+  @Put(':activityId/draft-task-file')
+  async putDraftTaskFile(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Body() rawBody: unknown,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    const shape = checkBodyShape(rawBody, ['fileDataUrl', 'fileName', 'expectedRevision']);
+    if (!shape.ok) throw new HttpException(error('validation_error', shape.message), 400);
+    const revision = shape.body['expectedRevision'];
+    const name = shape.body['fileName'];
+    if (
+      typeof shape.body['fileDataUrl'] !== 'string' ||
+      typeof name !== 'string' ||
+      !Number.isSafeInteger(revision) ||
+      Number(revision) < 1 ||
+      Number(revision) > 2147483647
+    )
+      throw new HttpException(error('validation_error', 'Проверьте PDF и редакцию.'), 400);
+    const bytes = decodeTaskPdf(shape.body['fileDataUrl']);
+    const result = await this.requirePool().query(
+      `SELECT result_code,draft_revision,content_hash
+         FROM learning_activity_draft_task_file_set($1,$2,$3,$4,$5,$6)`,
+      [context.principalId, context.tenantId, activityId, Number(revision), bytes, name],
+    );
+    const row = result.rows[0];
+    if (!row || row['result_code'] !== 'ok' || !row['content_hash']) {
+      const code = row?.['result_code'] as string | undefined;
+      if (code === 'invalid_media' || code === 'invalid_draft') {
+        throw new HttpException(
+          error(code, 'Подойдёт PDF до 400 КБ; проверьте блоки задания.'),
+          400,
+        );
+      }
+      throw this.draftSampleError(code);
+    }
+    return {
+      draftRevision: Number(row['draft_revision']),
+      contentHash: String(row['content_hash']),
+      url: this.draftTaskFileUrl(activityId, String(row['content_hash'])),
+    };
+  }
+
+  @Get(':activityId/draft-task-file')
+  async getDraftTaskFile(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Query('v') contentHash: string | undefined,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    if (!contentHash || !/^[0-9a-f]{64}$/.test(contentHash))
+      throw new HttpException(error('validation_error', 'file hash is invalid'), 400);
+    const result = await this.requirePool().query(
+      `SELECT file_bytes,content_type,content_hash
+         FROM learning_activity_draft_task_file_get($1,$2,$3,$4)`,
+      [context.principalId, context.tenantId, activityId, contentHash],
+    );
+    const row = result.rows[0];
+    if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, no-store')
+      .send(row['file_bytes'] as Buffer);
+  }
+
   @Put(':activityId/draft-sample')
   async putDraftSample(
     @Req() request: FastifyRequest,
@@ -750,6 +864,34 @@ export class LearningActivitiesController {
       .header('cache-control', 'private, no-store')
       .header('etag', `"${String(row['content_hash'])}"`)
       .send(row['bytes'] as Buffer);
+  }
+
+  @Get(':activityId/versions/:versionId/task-file')
+  async getVersionTaskFile(
+    @Req() request: FastifyRequest,
+    @Param('activityId') activityId: string,
+    @Param('versionId') versionId: string,
+    @Query('v') contentHash: string | undefined,
+    @Res({ passthrough: false }) reply: FastifyReply,
+  ) {
+    const context = await this.requireEducator(request);
+    this.requireUuid(activityId, 'activity');
+    this.requireUuid(versionId, 'version');
+    if (!contentHash || !/^[0-9a-f]{64}$/.test(contentHash))
+      throw new HttpException(error('validation_error', 'file hash is invalid'), 400);
+    const result = await this.requirePool().query(
+      `SELECT file_bytes,content_type,content_hash
+         FROM learning_activity_version_task_file_get($1,$2,$3,$4,$5)`,
+      [context.principalId, context.tenantId, activityId, versionId, contentHash],
+    );
+    const row = result.rows[0];
+    if (!row) throw new HttpException(error('file_not_found', 'Файл недоступен.'), 404);
+    return reply
+      .header('content-type', 'application/pdf')
+      .header('content-disposition', 'attachment; filename="material.pdf"')
+      .header('x-content-type-options', 'nosniff')
+      .header('cache-control', 'private, no-store')
+      .send(row['file_bytes'] as Buffer);
   }
 
   @Get(':activityId/preview')
@@ -883,7 +1025,15 @@ export class LearningActivitiesController {
                     ? this.draftTaskImageUrl(activityId, block.contentHash)
                     : this.versionTaskImageUrl(activityId, versionId!, block.contentHash),
               }
-            : block,
+            : block.type === 'file'
+              ? {
+                  ...block,
+                  src:
+                    source === 'draft'
+                      ? this.draftTaskFileUrl(activityId, block.contentHash)
+                      : this.versionTaskFileUrl(activityId, versionId!, block.contentHash),
+                }
+              : block,
         ),
         sampleImage,
       },

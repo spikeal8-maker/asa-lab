@@ -28,6 +28,20 @@ function checkDraftImage(file: File): string | null {
   return null;
 }
 
+function checkTaskPdf(file: File): string | null {
+  if (file.type !== 'application/pdf' || !file.name.toLowerCase().endsWith('.pdf'))
+    return 'Подойдёт файл PDF.';
+  if (file.size < 5 || file.size > 400_000) return 'PDF должен быть до 400 КБ.';
+  if (
+    file.name.length > 160 ||
+    file.name.includes('/') ||
+    file.name.includes('\\') ||
+    Array.from(file.name).some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
+  )
+    return 'Проверьте имя PDF файла.';
+  return null;
+}
+
 const initial: AuthoredActivityDraft = {
   title: '',
   goal: null,
@@ -386,6 +400,59 @@ export function AuthoredMaterialsPage({
     }
   }
 
+  async function uploadTaskFile(file: File) {
+    const problem = checkTaskPdf(file);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    const saved = await save();
+    if (!saved) return;
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const fileDataUrl = await readDraftImage(file);
+      const result = await api.saveAuthoredActivityTaskFile(
+        saved.id,
+        saved.revision,
+        file.name,
+        fileDataUrl,
+      );
+      if (!result.ok) {
+        setError(
+          result.error.code === 'revision_conflict'
+            ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
+            : result.error.message,
+        );
+        return;
+      }
+      const blocks = draft.blocks ?? [];
+      const nextBlocks = blocks.some((block) => block.type === 'file')
+        ? blocks.map((block) =>
+            block.type === 'file'
+              ? { ...block, name: file.name, contentHash: result.data.contentHash }
+              : block,
+          )
+        : [
+            ...blocks,
+            { type: 'file' as const, name: file.name, contentHash: result.data.contentHash },
+          ];
+      const nextDraft = { ...draft, blocks: nextBlocks };
+      setDraft(nextDraft);
+      savedPayload.current = JSON.stringify(nextDraft);
+      setOpened({ id: saved.id, revision: result.data.draftRevision });
+      setPreview(null);
+      setNotice('PDF добавлен в содержание задания.');
+      await refresh();
+      onChanged?.();
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : 'Не удалось прочитать PDF.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deleteDraftSample() {
     if (busy) return;
     if (!opened || draftSampleImage === null) {
@@ -635,6 +702,7 @@ export function AuthoredMaterialsPage({
             disabled={busy}
             onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
             onImageUpload={(file) => void uploadTaskImage(file)}
+            onFileUpload={(file) => void uploadTaskFile(file)}
             imageUrl={(contentHash) =>
               opened
                 ? `/api/learning/activities/${encodeURIComponent(opened.id)}/draft-task-image?v=${encodeURIComponent(contentHash)}`

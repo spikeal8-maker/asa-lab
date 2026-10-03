@@ -18,6 +18,55 @@ export interface TaskImageSelection {
   readonly alt: string;
 }
 
+function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'file' }> }) {
+  const [unavailable, setUnavailable] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const src =
+    block.src?.startsWith('/api/learning/activities/') === true
+      ? block.src
+      : `/api/assignments/task-files/${encodeURIComponent(block.contentHash)}`;
+  useEffect(() => setUnavailable(false), [src]);
+  async function download(): Promise<void> {
+    setLoading(true);
+    setUnavailable(false);
+    try {
+      const response = await fetch(src, { credentials: 'same-origin', cache: 'no-store' });
+      if (!response.ok || response.headers.get('content-type')?.split(';')[0] !== 'application/pdf')
+        throw new Error('file unavailable');
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = block.name;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+    } catch {
+      setUnavailable(true);
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <div className="task-block-file">
+      <span className="task-block-file-name">{block.name}</span>
+      <span className="account-hint">PDF</span>
+      <button
+        type="button"
+        disabled={loading}
+        onClick={() => void download()}
+        aria-label={`Скачать PDF: ${block.name}`}
+      >
+        {loading ? 'Загрузка…' : 'Скачать PDF'}
+      </button>
+      {unavailable ? (
+        <p role="alert">Файл задания недоступен. Обновите задание и попробуйте снова.</p>
+      ) : null}
+    </div>
+  );
+}
+
 function TaskImage({
   block,
   onPinImage,
@@ -136,6 +185,7 @@ export function TaskBlocks({
       {blocks.map((block, index) => {
         if (block.type === 'image')
           return <TaskImage key={index} block={block} onPinImage={onPinImage} />;
+        if (block.type === 'file') return <TaskFile key={index} block={block} />;
         if (block.type === 'heading')
           return (
             <h3 key={index} className="task-block-heading">
