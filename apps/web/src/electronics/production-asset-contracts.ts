@@ -169,6 +169,300 @@ export function ordinaryLedAsset(state: OrdinaryLedState): string {
 const warmedProductionAssets = new Set<string>();
 const warmingProductionAssets = new Set<string>();
 
+// Only a mounted consumer that has reached a terminal failure starts these
+// probes. Three spaced cycles keep a permanently missing asset bounded while
+// giving a quiet network recovery time to arrive without a browser event.
+const QUIET_RECOVERY_DELAYS_MS = [3_000, 9_000, 27_000] as const;
+const QUIET_RECOVERY_SPREAD_MS = [4_000, 9_000, 18_000] as const;
+const LATE_PROBE_BASE_MS = 30_000;
+const LATE_PROBE_SPREAD_MS = 30_000;
+const LATE_REARM_INITIAL_SPREAD_MS = 30_000;
+const LATE_REARM_PACE_MS = 3_000;
+const LATE_REARM_PACE_SPREAD_MS = 2_000;
+const LATE_PROBE_TIMEOUT_MS = 2_500;
+
+interface LateRecoveryListener {
+  readonly schedule: () => void;
+  readonly stop: () => void;
+}
+
+interface LateRecoveryAsset {
+  readonly listeners: Set<LateRecoveryListener>;
+  missingResponses: number;
+}
+
+const lateRecoveryAssets = new Map<string, LateRecoveryAsset>();
+const lateRearmQueue = new Set<LateRecoveryListener>();
+let lateProbeTimer: ReturnType<typeof setTimeout> | null = null;
+let lateRearmTimer: ReturnType<typeof setTimeout> | null = null;
+let lateProbeCursor = 0;
+let lateTransportHealthy = false;
+let lateProbeFailures = 0;
+
+function drainLateRearmQueue(initial = false): void {
+  if (lateRearmTimer !== null || lateRearmQueue.size === 0) return;
+  const delay = initial
+    ? Math.random() * LATE_REARM_INITIAL_SPREAD_MS
+    : LATE_REARM_PACE_MS + Math.random() * LATE_REARM_PACE_SPREAD_MS;
+  lateRearmTimer = setTimeout(() => {
+    lateRearmTimer = null;
+    const listener = lateRearmQueue.values().next().value;
+    if (listener) {
+      lateRearmQueue.delete(listener);
+      listener.schedule();
+    }
+    drainLateRearmQueue();
+  }, delay);
+}
+
+function queueLateRearm(listeners: Iterable<LateRecoveryListener>, initial = false): void {
+  for (const listener of listeners) lateRearmQueue.add(listener);
+  drainLateRearmQueue(initial);
+}
+
+async function inspectFailedAsset(asset: string): Promise<number | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), LATE_PROBE_TIMEOUT_MS);
+  try {
+    let response = await fetch(asset, {
+      method: 'HEAD',
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (response.status === 405 || response.status === 501) {
+      // Some static hosts reject HEAD. A bounded GET supplies the real status;
+      // never interpret an unsupported HEAD as a permanent missing asset.
+      response = await fetch(asset, { cache: 'no-store', signal: controller.signal });
+      await response.body?.cancel();
+    }
+    return response.status;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function scheduleLateProbe(): void {
+  if (lateProbeTimer !== null || lateRecoveryAssets.size === 0) return;
+  lateProbeTimer = setTimeout(
+    () => {
+      lateProbeTimer = null;
+      void probeOneFailedAsset();
+    },
+    LATE_PROBE_BASE_MS + Math.random() * LATE_PROBE_SPREAD_MS,
+  );
+}
+
+async function probeOneFailedAsset(): Promise<void> {
+  const assets = [...lateRecoveryAssets.keys()];
+  if (assets.length === 0) return;
+  const asset = assets[lateProbeCursor % assets.length]!;
+  lateProbeCursor += 1;
+  const state = lateRecoveryAssets.get(asset);
+  if (!state) return scheduleLateProbe();
+  const status = await inspectFailedAsset(asset);
+  if (lateRecoveryAssets.get(asset) !== state) return scheduleLateProbe();
+  if (status === 404 || status === 410) {
+    lateProbeFailures = 0;
+    state.missingResponses += 1;
+    // A single cache/proxy 404 can be transient. Confirm it in a later,
+    // separately paced probe before stopping this asset permanently.
+    if (state.missingResponses >= 2) {
+      for (const listener of [...state.listeners]) listener.stop();
+    }
+  } else if (status !== null && status >= 200 && status < 300) {
+    state.missingResponses = 0;
+    lateProbeFailures = 0;
+    if (!lateTransportHealthy) {
+      lateTransportHealthy = true;
+      // One healthy response proves the shared transport is back. Re-arm all
+      // mounted transient failures through a single paced queue, not a burst
+      // of per-asset timers or a 42-asset round-robin wait.
+      queueLateRearm(
+        [...lateRecoveryAssets.values()].flatMap((entry) => [...entry.listeners]),
+        true,
+      );
+    } else {
+      // A previously failed decode can recover later even while the transport
+      // stays healthy. This remains limited by the common probe cadence.
+      queueLateRearm(state.listeners);
+    }
+  } else {
+    if (status !== null) state.missingResponses = 0;
+    // One asset-specific 5xx must not repeatedly fan out the whole queue.
+    // Two consecutive spaced transport failures mark the next success as a
+    // new recovery.
+    lateProbeFailures += 1;
+    if (lateProbeFailures >= 2) lateTransportHealthy = false;
+  }
+  scheduleLateProbe();
+}
+
+function registerLateRecovery(asset: string, listener: LateRecoveryListener): () => void {
+  let state = lateRecoveryAssets.get(asset);
+  if (!state) {
+    state = { listeners: new Set(), missingResponses: 0 };
+    lateRecoveryAssets.set(asset, state);
+  }
+  state.listeners.add(listener);
+  if (lateTransportHealthy) queueLateRearm([listener]);
+  scheduleLateProbe();
+  return () => {
+    lateRearmQueue.delete(listener);
+    state.listeners.delete(listener);
+    if (state.listeners.size === 0 && lateRecoveryAssets.get(asset) === state)
+      lateRecoveryAssets.delete(asset);
+    if (lateRecoveryAssets.size === 0) {
+      if (lateProbeTimer !== null) clearTimeout(lateProbeTimer);
+      if (lateRearmTimer !== null) clearTimeout(lateRearmTimer);
+      lateProbeTimer = null;
+      lateRearmTimer = null;
+      lateRearmQueue.clear();
+      lateProbeCursor = 0;
+      lateTransportHealthy = false;
+      lateProbeFailures = 0;
+    }
+  };
+}
+
+export function createQuietAssetRecovery(
+  retry: () => Promise<boolean>,
+  lateAsset?: string,
+): {
+  failed: () => void;
+  recovered: () => void;
+  cancel: () => void;
+  permanent: () => boolean;
+} {
+  let cycle = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let lateCancel: (() => void) | null = null;
+  let lateInFlight = false;
+  let cancelled = false;
+  let permanent = false;
+  const stopLate = (): void => {
+    lateCancel?.();
+    lateCancel = null;
+  };
+  const recovered = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    stopLate();
+    cycle = 0;
+  };
+  const stop = (): void => {
+    permanent = true;
+    stopLate();
+  };
+  const scheduleLate = (): void => {
+    if (cancelled || permanent || lateInFlight) return;
+    lateInFlight = true;
+    void Promise.resolve()
+      .then(retry)
+      .then(
+        (ready) => {
+          if (!cancelled && !permanent && ready) recovered();
+        },
+        () => {
+          // A malformed or unavailable 2xx body is still transient. Only a
+          // separately confirmed missing HTTP response stops this listener.
+        },
+      )
+      .finally(() => {
+        lateInFlight = false;
+      });
+  };
+  const failed = (): void => {
+    if (cancelled || permanent || timer !== null) return;
+    if (cycle >= QUIET_RECOVERY_DELAYS_MS.length) {
+      if (lateAsset && lateCancel === null)
+        lateCancel = registerLateRecovery(lateAsset, { schedule: scheduleLate, stop });
+      return;
+    }
+    const delay =
+      QUIET_RECOVERY_DELAYS_MS[cycle]! + Math.random() * QUIET_RECOVERY_SPREAD_MS[cycle]!;
+    cycle += 1;
+    timer = setTimeout(() => {
+      timer = null;
+      if (cancelled) return;
+      void retry().then(
+        (ready) => {
+          if (cancelled) return;
+          if (ready) recovered();
+          else failed();
+        },
+        () => {
+          if (!cancelled) failed();
+        },
+      );
+    }, delay);
+  };
+  return {
+    failed,
+    recovered,
+    cancel: () => {
+      cancelled = true;
+      recovered();
+    },
+    permanent: () => permanent,
+  };
+}
+
+const sharedQuietRecoveries = new Map<
+  string,
+  {
+    readonly listeners: Set<() => void>;
+    readonly failedListeners: Set<() => void>;
+    readonly recovery: ReturnType<typeof createQuietAssetRecovery>;
+  }
+>();
+
+/** A mounted asset has one quiet probe cycle even when stage and catalog share it. */
+export function subscribeSharedQuietAssetRecovery(
+  key: string,
+  retry: () => Promise<boolean | 'pending'>,
+  onReady: () => void,
+  lateAsset?: string,
+): { failed: () => void; recovered: () => void; cancel: () => void; permanent: () => boolean } {
+  let shared = sharedQuietRecoveries.get(key);
+  if (!shared) {
+    const listeners = new Set<() => void>();
+    const failedListeners = new Set<() => void>();
+    const recovery = createQuietAssetRecovery(async () => {
+      const result = await retry();
+      if (result !== false) for (const listener of listeners) listener();
+      return result === true;
+    }, lateAsset);
+    shared = { listeners, failedListeners, recovery };
+    sharedQuietRecoveries.set(key, shared);
+  }
+  shared.listeners.add(onReady);
+  const entry = shared;
+  return {
+    failed: () => {
+      entry.failedListeners.add(onReady);
+      entry.recovery.failed();
+    },
+    recovered: () => {
+      entry.failedListeners.delete(onReady);
+      // A successful mounted image cannot clear another consumer's timer.
+      if (entry.failedListeners.size === 0) entry.recovery.recovered();
+    },
+    permanent: entry.recovery.permanent,
+    cancel: () => {
+      entry.listeners.delete(onReady);
+      entry.failedListeners.delete(onReady);
+      if (entry.listeners.size > 0) {
+        if (entry.failedListeners.size === 0) entry.recovery.recovered();
+        return;
+      }
+      entry.recovery.cancel();
+      if (sharedQuietRecoveries.get(key) === entry) sharedQuietRecoveries.delete(key);
+    },
+  };
+}
+
 /**
  * Warms one exact owner asset in the browser cache. LED state changes use
  * separate owner SVGs, so decoding the already calculated next state before

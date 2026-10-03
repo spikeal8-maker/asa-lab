@@ -31,6 +31,7 @@ import {
   wirePoints,
 } from './workbench-geometry';
 import {
+  createQuietAssetRecovery,
   formatMotorRpm,
   gearmotorDiagnosticBodyBounds,
   gearmotorRpmBodyPoint,
@@ -312,27 +313,54 @@ export function WorkbenchStage({
         if (active) setHitMaskRevision((revision) => revision + 1);
       });
     };
-    const prepare = (retryFailed = false): void => {
-      const pending = new Set<Promise<void>>();
-      for (const component of document.components) {
-        if (component.kind === 'wire') continue;
-        const entry = catalogEntry(component);
-        if (!entry?.asset) continue;
-        const size = renderedSize(entry, 0);
-        pending.add(preloadComponentHitMask(entry, size.width, size.height, retryFailed));
-      }
-      for (const ready of pending) void ready.then(refresh);
-    };
-    const retry = (): void => prepare(true);
+    const entries = new Map<
+      string,
+      { entry: NonNullable<ReturnType<typeof catalogEntry>>; width: number; height: number }
+    >();
+    for (const component of document.components) {
+      if (component.kind === 'wire') continue;
+      const entry = catalogEntry(component);
+      if (!entry?.asset) continue;
+      const size = renderedSize(entry, 0);
+      entries.set(
+        `${entry.key}|${entry.asset}|${entry.assetFit ?? 'meet'}|${size.width}|${size.height}`,
+        {
+          entry,
+          width: size.width,
+          height: size.height,
+        },
+      );
+    }
+    const consumers = [...entries.values()].map(({ entry, width, height }) => {
+      const prepare = async (retryFailed = false): Promise<boolean> => {
+        await preloadComponentHitMask(entry, width, height, retryFailed);
+        refresh();
+        return componentHitMaskStatus(entry, width, height) === 'ready';
+      };
+      const recovery = createQuietAssetRecovery(() => prepare(true), entry.asset);
+      return {
+        start: (retryFailed = false): void => {
+          if (recovery.permanent()) return;
+          void prepare(retryFailed).then((ready) => {
+            if (!active) return;
+            if (ready) recovery.recovered();
+            else recovery.failed();
+          });
+        },
+        cancel: recovery.cancel,
+      };
+    });
+    const retry = (): void => consumers.forEach((consumer) => consumer.start(true));
     const retryWhenVisible = (): void => {
       if (!window.document.hidden) retry();
     };
-    prepare();
+    consumers.forEach((consumer) => consumer.start());
     window.addEventListener('online', retry);
     window.addEventListener('focus', retry);
     window.document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
       active = false;
+      consumers.forEach((consumer) => consumer.cancel());
       if (refreshFrame !== null) window.cancelAnimationFrame(refreshFrame);
       window.removeEventListener('online', retry);
       window.removeEventListener('focus', retry);

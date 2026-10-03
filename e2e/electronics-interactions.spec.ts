@@ -572,6 +572,61 @@ test.describe('asset recovery in the built editor', () => {
     expect(errors).toEqual([]);
   });
 
+  test('terminal mask failure recovers quietly with a fresh URL and the same selectable component', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('led-5mm')!.asset;
+    await page.addInitScript((maskAsset) => {
+      const NativeImage = window.Image;
+      window.Image = new Proxy(NativeImage, {
+        construct(target, args) {
+          const image = Reflect.construct(target, args) as HTMLImageElement;
+          const src = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, 'src')!;
+          Object.defineProperty(image, 'src', {
+            get: () => src.get!.call(image) as string,
+            set(value: string) {
+              const url = new URL(value, location.href);
+              if (url.pathname === maskAsset && image.decoding !== 'async') {
+                url.searchParams.set('__asset_recovery_mask', '1');
+                src.set!.call(image, url.href);
+              } else src.set!.call(image, value);
+            },
+          });
+          return image;
+        },
+      });
+    }, asset);
+    let unavailable = true;
+    const maskUrls: string[] = [];
+    await page.route(
+      (url) => url.pathname === asset && url.searchParams.has('__asset_recovery_mask'),
+      async (route) => {
+        maskUrls.push(route.request().url());
+        if (unavailable) await route.abort('failed');
+        else await route.continue();
+      },
+    );
+    const doc = documentFixture();
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'led')).toHaveAttribute('data-hit-mask-status', 'failed', {
+      timeout: 10_000,
+    });
+    expect(maskUrls).toHaveLength(3);
+    unavailable = false;
+    await expect(part(page, 'led')).toHaveAttribute('data-hit-mask-status', 'ready', {
+      timeout: 20_000,
+    });
+    expect(new URL(maskUrls[3]!).searchParams.get('asa-mask-cycle')).toBe('1');
+    const at = await pointOnBody(page, 'led');
+    await page.mouse.click(at.x, at.y);
+    await expect(part(page, 'led')).toHaveClass(/workbench-component-selected/);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
   test('failed interactive SVG text restores stage and catalog controls without reload', async ({
     page,
   }) => {
@@ -677,6 +732,190 @@ test.describe('asset recovery in the built editor', () => {
         .first(),
     ).toBeVisible();
     expect(textRequests).toBe(4);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('terminal interactive SVG failure recovers quietly and its instrument controls work', async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let textRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        if (textRequests <= 6) await route.abort('failed');
+        else await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors, readEditorDocument } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'generator').getByTestId('owner-svg-error')).toBeVisible({
+      timeout: 10_000,
+    });
+    expect(textRequests).toBe(3);
+    // One complete quiet recovery cycle still fails. The next cycle must
+    // recover without online/focus/visibility events or a page reload.
+    const runtime = part(page, 'generator').getByTestId('signal-generator-runtime');
+    await expect(runtime).toBeVisible({ timeout: 30_000 });
+    expect(textRequests).toBeGreaterThanOrEqual(7);
+    await expect(
+      page
+        .locator(
+          '.workbench-catalog-card[data-family-id="signal-generator"] [data-testid="signal-generator-runtime"]',
+        )
+        .first(),
+    ).toBeVisible();
+    expect(readDocument()).toEqual(initial);
+    const beforeControl = await readEditorDocument();
+    await runtime.locator('.workbench-signal-generator-square').dispatchEvent('pointerdown', {
+      pointerId: 1,
+    });
+    await expect
+      .poll(
+        async () =>
+          (await readEditorDocument()).components.find((component) => component.id === 'generator')
+            ?.stateProperties?.['waveform'],
+      )
+      .toBe('square');
+    const afterControl = await readEditorDocument();
+    expect(afterControl.components.map(({ id, position }) => ({ id, position }))).toEqual(
+      beforeControl.components.map(({ id, position }) => ({ id, position })),
+    );
+    expect(afterControl.connections).toEqual(beforeControl.connections);
+    expect(afterControl.simulation.running).toBe(beforeControl.simulation.running);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('temporary HTTP 404 recovers after all quick cycles through a sparse HEAD probe', async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('signal-generator')!.asset;
+    let unavailable = true;
+    let textRequests = 0;
+    let headRequests = 0;
+    let textAtFirstHead = 0;
+    let textAtSecondHead = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().method() === 'HEAD') {
+          headRequests += 1;
+          if (unavailable) {
+            // HEAD begins only after the mounted consumers exhaust their three
+            // quick cycles. A shared stage/catalog source can add GETs, so the
+            // total is bounded rather than tied to one exact interleaving.
+            textAtFirstHead = textRequests;
+            await route.fulfill({ status: 404, body: '' });
+            unavailable = false;
+          } else {
+            if (headRequests === 2) textAtSecondHead = textRequests;
+            await route.continue();
+          }
+          return;
+        }
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        if (unavailable) await route.fulfill({ status: 404, body: 'temporarily missing' });
+        else await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'signal-generator',
+      { x: 790, y: 450 },
+      'generator',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    const knownAsset = catalogEntry('led-5mm')!.asset;
+    expect(
+      await page.evaluate(
+        async (url) => (await fetch(url, { method: 'HEAD', cache: 'no-store' })).status,
+        knownAsset,
+      ),
+    ).toBe(200);
+    await expect(part(page, 'generator').getByTestId('owner-svg-error')).toBeVisible();
+    await expect.poll(() => headRequests, { timeout: 150_000 }).toBeGreaterThanOrEqual(1);
+    expect(textAtFirstHead).toBeGreaterThanOrEqual(12);
+    expect(textAtFirstHead).toBeLessThanOrEqual(18);
+    await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
+      timeout: 90_000,
+    });
+    expect(headRequests).toBeGreaterThanOrEqual(2);
+    // The editor's minute snapshot also fetches the SVG to inline its bytes.
+    // One such GET can land between two 30–60 s HEAD probes; the late recovery
+    // itself must wait for the successful second HEAD before rearming.
+    expect(textAtSecondHead).toBeGreaterThanOrEqual(textAtFirstHead);
+    expect(textAtSecondHead).toBeLessThanOrEqual(textAtFirstHead + 1);
+    expect(textRequests).toBeGreaterThan(textAtSecondHead);
+    expect(textRequests).toBeLessThanOrEqual(textAtSecondHead + 3);
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('confirmed permanent HTTP 404 remains visible and stops late probes', async ({ page }) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('multimeter')!.asset;
+    let textRequests = 0;
+    let headRequests = 0;
+    let textAtFirstHead = 0;
+    let textAtSecondHead = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().method() === 'HEAD') {
+          headRequests += 1;
+          if (headRequests === 1) textAtFirstHead = textRequests;
+          if (headRequests === 2) textAtSecondHead = textRequests;
+          await route.fulfill({ status: 404, body: '' });
+          return;
+        }
+        if (route.request().resourceType() !== 'fetch') return route.continue();
+        textRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'multimeter',
+      { x: 790, y: 450 },
+      'meter',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
+    await expect.poll(() => headRequests, { timeout: 210_000 }).toBe(2);
+    expect(textAtFirstHead).toBeGreaterThanOrEqual(12);
+    expect(textAtFirstHead).toBeLessThanOrEqual(18);
+    // Snapshot rasterisation may issue one ordinary GET between the two
+    // spaced HEAD requests, independently of asset recovery.
+    expect(textAtSecondHead).toBeGreaterThanOrEqual(textAtFirstHead);
+    expect(textAtSecondHead).toBeLessThanOrEqual(textAtFirstHead + 1);
+    // A live late listener would send another HEAD within 60 s. The confirmed
+    // 404 must stop that timer while the visible error remains honest.
+    await page.waitForTimeout(65_000);
+    expect(headRequests).toBe(2);
+    // Snapshot capture runs once a minute, so at most two captures can fetch
+    // the same SVG in this 65 s observation window.
+    expect(textRequests).toBeLessThanOrEqual(textAtSecondHead + 2);
+    await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
     expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
@@ -842,6 +1081,51 @@ test.describe('asset recovery in the built editor', () => {
     expect(
       await page.evaluate(() => (window as unknown as { draftWrites: number }).draftWrites),
     ).toBe(writes);
+    expect(errors).toEqual([]);
+  });
+
+  test('terminal ordinary image failure recovers quietly with a fresh URL', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    let unavailable = true;
+    const imageUrls: string[] = [];
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'image') return route.continue();
+        imageUrls.push(route.request().url());
+        if (unavailable) await route.fulfill({ status: 503, body: 'temporarily unavailable' });
+        else await route.continue();
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    await expect(part(page, 'holder').getByTestId('owner-image-error')).toBeVisible({
+      timeout: 10_000,
+    });
+    const firstCycle = imageUrls.filter(
+      (href) => new URL(href).searchParams.get('asa-image-cycle') === '1',
+    );
+    expect(firstCycle.length).toBeGreaterThan(0);
+    unavailable = false;
+    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toHaveCount(
+      0,
+      {
+        timeout: 20_000,
+      },
+    );
+    await expect(part(page, 'holder').locator('image').first()).toHaveAttribute(
+      'href',
+      /asa-image-cycle=2/,
+    );
+    expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });
 
