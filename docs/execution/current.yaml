@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-004
-      issue: 480
+      id: TASK-ELECTRONICS-AUTOSAVE-CADENCE-001
+      issue: 459
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: post_stabilization_hygiene_selected_preflight_pending
+      checkpoint: manual_pagehide_safety_repair_external_worktree_in_progress
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 13b6be3b81c6113185daebb8c01603c1ec619689
+      convergence_baseline_sha: f3ea8313b2618aecd895a9ec41d63ef570ba4ef8
       head_sha: null
-      observed_at: '2026-10-03T11:38:35Z'
+      observed_at: '2026-10-03T11:48:23Z'
       main:
         branch: main
-        sha: 13b6be3b81c6113185daebb8c01603c1ec619689
-      observation_note: Dated main observation after autosave 459 integration and exact-main CI; not a live HEAD for future writes. Fetch main before writes. Mandatory hygiene checkpoint due after production-changing slices 453, 461 and 459.
+        sha: f3ea8313b2618aecd895a9ec41d63ef570ba4ef8
+      observation_note: Dated main observation after autosave 459 was reopened because manual Save is inaccessible and pagehide may not dispatch the PUT. External bounded repair owns dirty product files. Fetch main before writes; hygiene checkpoint 480 is prepared but deferred.
     execution_lease:
-      executor_id: electronics-hygiene-checkpoint-controller-452
+      executor_id: electronics-autosave-repair-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -261,7 +261,8 @@ parallel_lanes:
             observation: One candidate browser attempt missed the permanent-missing catalog asset badge; controlled rerun on the same SHA passed.
           - issue: 463
             observation: One integrated-main browser attempt timed out in an unchanged Arduino Reset Worker scenario; controlled rerun on the same SHA passed.
-        status: technical_accepted
+        status: acceptance_reopened
+        reopen_reason: Manual Save is inaccessible and pagehide may not dispatch the draft PUT before unload; new bounded repair and independent exact-head review required.
         owner_acceptance: pending
         deployment: not_run
   - id: chess
