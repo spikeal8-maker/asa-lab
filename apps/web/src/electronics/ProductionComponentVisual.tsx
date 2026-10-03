@@ -623,7 +623,10 @@ function OwnerRegulatedPowerSupplyVisual({
     Math.max(0, Number(properties['voltageSetpointVolt'] ?? component.value ?? 5)),
   );
   const currentLimitAmp = Math.min(5, Math.max(0, Number(properties['currentLimitAmp'] ?? 1)));
-  const outputEnabled = properties['outputEnabled'] === true || component.state === true;
+  const outputEnabled =
+    typeof properties['outputEnabled'] === 'boolean'
+      ? properties['outputEnabled']
+      : component.state === true;
   const mode = simulationRunning
     ? (result?.regulationMode ?? (outputEnabled ? 'cv' : 'off'))
     : 'off';
@@ -787,7 +790,10 @@ function OwnerSignalGeneratorVisual({
   );
   const amplitudeVpp = Math.min(10, Math.max(0, Number(properties['amplitudeVpp'] ?? 5)));
   const dcOffsetVolt = Math.min(5, Math.max(-5, Number(properties['dcOffsetVolt'] ?? 0)));
-  const outputEnabled = properties['outputEnabled'] === true || component.state === true;
+  const outputEnabled =
+    typeof properties['outputEnabled'] === 'boolean'
+      ? properties['outputEnabled']
+      : component.state === true;
   const markup = useMemo(
     () =>
       ownerSvg
@@ -903,7 +909,9 @@ function OwnerOscilloscopeVisual({
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const properties = component.stateProperties ?? {};
   const displayEnabled =
-    properties['displayEnabled'] !== false && component.state !== false && simulationRunning;
+    (typeof properties['displayEnabled'] === 'boolean'
+      ? properties['displayEnabled']
+      : component.state !== false) && simulationRunning;
   const voltsPerDivision = Math.max(0.001, Number(properties['voltsPerDivision'] ?? 1));
   const timePerDivisionMs = Math.max(0.001, Number(properties['timePerDivisionMs'] ?? 1));
   const markup = useMemo(

@@ -46,6 +46,14 @@ const TIMED_STATE_PROPERTIES = [
   'motionDetected',
   'distanceMeters',
 ] as const;
+const TIMED_CONTROL_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
+  'regulated-power-supply': ['voltageSetpointVolt', 'currentLimitAmp', 'outputEnabled'],
+  'signal-generator': ['waveform', 'frequencyHz', 'amplitudeVpp', 'dcOffsetVolt', 'outputEnabled'],
+  oscilloscope: ['voltsPerDivision', 'timePerDivisionMs', 'triggerLevelVolt', 'displayEnabled'],
+};
+const DISPLAY_ONLY_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
+  multimeter: ['meterRange'],
+};
 const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 
@@ -79,6 +87,10 @@ function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
       if (clone.stateProperties) {
         const stateProperties = { ...clone.stateProperties };
         for (const property of TIMED_STATE_PROPERTIES) delete stateProperties[property];
+        for (const property of TIMED_CONTROL_PROPERTIES[component.componentTypeId ?? ''] ?? [])
+          delete stateProperties[property];
+        for (const property of DISPLAY_ONLY_PROPERTIES[component.componentTypeId ?? ''] ?? [])
+          delete stateProperties[property];
         delete stateProperties[ARDUINO_SOURCE_PROPERTY];
         if (Object.keys(stateProperties).length > 0) clone.stateProperties = stateProperties;
         else delete clone.stateProperties;
@@ -152,6 +164,22 @@ function timedRuntimeEvents(
         (property === 'motionDetected'
           ? typeof value === 'boolean'
           : typeof value === 'number' && Number.isFinite(value))
+      ) {
+        events.push({
+          atMicroseconds,
+          targetId: component.id,
+          operation: property,
+          payload: value,
+        });
+      }
+    }
+    for (const property of TIMED_CONTROL_PROPERTIES[component.componentTypeId ?? ''] ?? []) {
+      const value = component.stateProperties?.[property];
+      if (
+        value !== before.stateProperties?.[property] &&
+        (typeof value === 'boolean' ||
+          typeof value === 'string' ||
+          (typeof value === 'number' && Number.isFinite(value)))
       ) {
         events.push({
           atMicroseconds,

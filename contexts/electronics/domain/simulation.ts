@@ -598,7 +598,8 @@ export function verifyCircuitQuality(
         component.componentTypeId === 'vibration-motor' ||
         component.componentTypeId === 'temperature-sensor' ||
         component.componentTypeId === 'soil-moisture-sensor' ||
-        component.componentTypeId === 'multimeter'),
+        component.componentTypeId === 'multimeter' ||
+        component.componentTypeId === 'oscilloscope'),
   );
   const powerBalanceApplicable =
     powerBalanceComponents.length > 0 &&

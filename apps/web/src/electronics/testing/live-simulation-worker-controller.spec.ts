@@ -323,6 +323,189 @@ describe('Electronics canonical Worker controller', () => {
     ]);
   });
 
+  it('keeps a progressed generation when the running supply changes canonical controls', async () => {
+    const executor = new FakeExecutor();
+    const supplyCircuit: SchematicDocument = {
+      ...circuit,
+      components: [
+        ...circuit.components,
+        {
+          id: 'supply',
+          kind: 'source',
+          value: 5,
+          position: { x: 100, y: 0 },
+          componentTypeId: 'regulated-power-supply',
+          pinIds: ['positive', 'negative'],
+          stateProperties: { voltageSetpointVolt: 5, currentLimitAmp: 1, outputEnabled: true },
+        },
+      ],
+    };
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', supplyCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(supplyCircuit, 20_000);
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 20_000, 20_000));
+    await flush();
+
+    const changed: SchematicDocument = {
+      ...supplyCircuit,
+      components: supplyCircuit.components.map((component) =>
+        component.id === 'supply'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                voltageSetpointVolt: 8,
+                currentLimitAmp: 0.5,
+                outputEnabled: false,
+              },
+            }
+          : component,
+      ),
+    };
+    controller.update(changed, 20_000);
+    expect(executor.generation).toBe(1);
+    expect(executor.preflights).toHaveLength(1);
+    expect(executor.advances.at(-1)).toMatchObject({
+      state: timedState(20_000),
+      inputEvents: [
+        {
+          atMicroseconds: 20_001,
+          targetId: 'supply',
+          operation: 'voltageSetpointVolt',
+          payload: 8,
+        },
+        { atMicroseconds: 20_001, targetId: 'supply', operation: 'currentLimitAmp', payload: 0.5 },
+        { atMicroseconds: 20_001, targetId: 'supply', operation: 'outputEnabled', payload: false },
+      ],
+    });
+    expect(
+      executor.advances.at(-1)!.document.components.find((component) => component.id === 'supply')
+        ?.stateProperties?.voltageSetpointVolt,
+    ).toBe(5);
+  });
+
+  it('updates scope observations without replacing the canonical generation', async () => {
+    const executor = new FakeExecutor();
+    const scopeCircuit: SchematicDocument = {
+      ...circuit,
+      components: [
+        ...circuit.components,
+        {
+          id: 'scope',
+          kind: 'visual',
+          value: 1,
+          position: { x: 100, y: 0 },
+          componentTypeId: 'oscilloscope',
+          pinIds: ['signal', 'ground'],
+          stateProperties: {
+            voltsPerDivision: 1,
+            timePerDivisionMs: 1,
+            triggerLevelVolt: 0,
+            displayEnabled: true,
+          },
+        },
+      ],
+    };
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', scopeCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    const changed: SchematicDocument = {
+      ...scopeCircuit,
+      components: scopeCircuit.components.map((component) =>
+        component.id === 'scope'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                voltsPerDivision: 2,
+                timePerDivisionMs: 5,
+                triggerLevelVolt: 1,
+                displayEnabled: false,
+              },
+            }
+          : component,
+      ),
+    };
+    controller.update(changed, 0);
+    expect(executor.generation).toBe(1);
+    expect(
+      executor.advances
+        .at(-1)!
+        .inputEvents.map(({ operation, payload }) => ({ operation, payload })),
+    ).toEqual([
+      { operation: 'voltsPerDivision', payload: 2 },
+      { operation: 'timePerDivisionMs', payload: 5 },
+      { operation: 'triggerLevelVolt', payload: 1 },
+      { operation: 'displayEnabled', payload: false },
+    ]);
+  });
+
+  it('applies generator settings as ordered timed inputs while retaining the initial document', async () => {
+    const executor = new FakeExecutor();
+    const generatorCircuit: SchematicDocument = {
+      ...circuit,
+      components: [
+        ...circuit.components,
+        {
+          id: 'generator',
+          kind: 'source',
+          value: 1_000,
+          position: { x: 100, y: 0 },
+          componentTypeId: 'signal-generator',
+          pinIds: ['signal', 'ground'],
+          stateProperties: {
+            waveform: 'sine',
+            frequencyHz: 1_000,
+            amplitudeVpp: 5,
+            dcOffsetVolt: 0,
+            outputEnabled: true,
+          },
+        },
+      ],
+    };
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', generatorCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    const changed: SchematicDocument = {
+      ...generatorCircuit,
+      components: generatorCircuit.components.map((component) =>
+        component.id === 'generator'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                waveform: 'square',
+                frequencyHz: 500,
+                amplitudeVpp: 2,
+                dcOffsetVolt: 1,
+                outputEnabled: false,
+              },
+            }
+          : component,
+      ),
+    };
+    controller.update(changed, 0);
+    expect(executor.generation).toBe(1);
+    expect(
+      executor.advances
+        .at(-1)!
+        .inputEvents.map(({ operation, payload }) => ({ operation, payload })),
+    ).toEqual([
+      { operation: 'waveform', payload: 'square' },
+      { operation: 'frequencyHz', payload: 500 },
+      { operation: 'amplitudeVpp', payload: 2 },
+      { operation: 'dcOffsetVolt', payload: 1 },
+      { operation: 'outputEnabled', payload: false },
+    ]);
+    expect(
+      executor.advances
+        .at(-1)!
+        .document.components.find((component) => component.id === 'generator')?.stateProperties
+        ?.frequencyHz,
+    ).toBe(1_000);
+  });
+
   it('routes Serial RX through the canonical pending input queue in accepted order', async () => {
     const executor = new FakeExecutor();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);

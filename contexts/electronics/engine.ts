@@ -211,6 +211,31 @@ function schedulerInputEvent(event: ElectronicsTimedInputEvent): ArduinoCircuitI
       value: event.payload,
     };
   }
+  if (
+    [
+      'voltageSetpointVolt',
+      'currentLimitAmp',
+      'outputEnabled',
+      'waveform',
+      'frequencyHz',
+      'amplitudeVpp',
+      'dcOffsetVolt',
+      'voltsPerDivision',
+      'timePerDivisionMs',
+      'triggerLevelVolt',
+      'displayEnabled',
+    ].includes(event.operation) &&
+    (typeof event.payload === 'boolean' ||
+      typeof event.payload === 'string' ||
+      (typeof event.payload === 'number' && Number.isFinite(event.payload)))
+  ) {
+    return {
+      atMicroseconds: event.atMicroseconds,
+      componentId: event.targetId,
+      property: event.operation as ArduinoCircuitInputEvent['property'],
+      value: event.payload,
+    };
+  }
   return null;
 }
 

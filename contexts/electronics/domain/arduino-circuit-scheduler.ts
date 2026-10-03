@@ -23,6 +23,14 @@ import {
 import { arduinoSnapshotFromState, arduinoSourceFor, isArduinoUno } from './arduino-model.js';
 import type { ElectronicsDocument, SchematicComponent, Terminal } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
+import { REGULATED_POWER_SUPPLY_PROFILE } from './models/regulated-power-supply-model.js';
+import {
+  SIGNAL_GENERATOR_MAX_AMPLITUDE_VPP,
+  SIGNAL_GENERATOR_MAX_FREQUENCY_HZ,
+  SIGNAL_GENERATOR_MAX_OFFSET_VOLT,
+  SIGNAL_GENERATOR_MIN_FREQUENCY_HZ,
+  SIGNAL_GENERATOR_MIN_OFFSET_VOLT,
+} from './models/signal-generator-model.js';
 import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
 import {
@@ -116,7 +124,18 @@ export interface ArduinoCircuitInputEvent {
     | 'moisturePercent'
     | 'motionDetected'
     | 'distanceMeters'
-    | 'serialRx';
+    | 'serialRx'
+    | 'voltageSetpointVolt'
+    | 'currentLimitAmp'
+    | 'outputEnabled'
+    | 'waveform'
+    | 'frequencyHz'
+    | 'amplitudeVpp'
+    | 'dcOffsetVolt'
+    | 'voltsPerDivision'
+    | 'timePerDivisionMs'
+    | 'triggerLevelVolt'
+    | 'displayEnabled';
   readonly value: boolean | number | string;
 }
 
@@ -171,6 +190,13 @@ function integerTime(value: number): boolean {
 function clockedComponent(component: SchematicComponent): boolean {
   // A narrow, opt-in electrical profile. Do not silently freeze physical history.
   const model = electricalModelFor(component);
+  if (model.id === 'function-generator' || model.id === 'oscilloscope') {
+    return (
+      model.support !== 'unsupported' &&
+      component.pinIds?.includes('signal') === true &&
+      component.pinIds?.includes('ground') === true
+    );
+  }
   return (
     model.support !== 'unsupported' &&
     (ELECTROTHERMAL_MODELS.has(model.id) ||
@@ -194,6 +220,45 @@ function clockedComponent(component: SchematicComponent): boolean {
         'capacitor',
       ].includes(model.id))
   );
+}
+
+function validLiveControl(component: SchematicComponent, event: ArduinoCircuitInputEvent): boolean {
+  const { property, value } = event;
+  if (component.componentTypeId === 'regulated-power-supply') {
+    if (property === 'outputEnabled') return typeof value === 'boolean';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    return property === 'voltageSetpointVolt'
+      ? value >= REGULATED_POWER_SUPPLY_PROFILE.voltageMinVolt &&
+          value <= REGULATED_POWER_SUPPLY_PROFILE.voltageMaxVolt
+      : property === 'currentLimitAmp' &&
+          value >= REGULATED_POWER_SUPPLY_PROFILE.currentMinAmp &&
+          value <= REGULATED_POWER_SUPPLY_PROFILE.currentMaxAmp;
+  }
+  if (component.componentTypeId === 'signal-generator') {
+    if (property === 'outputEnabled') return typeof value === 'boolean';
+    if (property === 'waveform')
+      return value === 'sine' || value === 'square' || value === 'triangle';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    if (property === 'frequencyHz')
+      return (
+        value >= SIGNAL_GENERATOR_MIN_FREQUENCY_HZ && value <= SIGNAL_GENERATOR_MAX_FREQUENCY_HZ
+      );
+    if (property === 'amplitudeVpp')
+      return value >= 0 && value <= SIGNAL_GENERATOR_MAX_AMPLITUDE_VPP;
+    return (
+      property === 'dcOffsetVolt' &&
+      value >= SIGNAL_GENERATOR_MIN_OFFSET_VOLT &&
+      value <= SIGNAL_GENERATOR_MAX_OFFSET_VOLT
+    );
+  }
+  if (component.componentTypeId === 'oscilloscope') {
+    if (property === 'displayEnabled') return typeof value === 'boolean';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    if (property === 'voltsPerDivision') return value > 0 && value <= 100;
+    if (property === 'timePerDivisionMs') return value > 0 && value <= 10_000;
+    return property === 'triggerLevelVolt' && value >= -100 && value <= 100;
+  }
+  return false;
 }
 
 function validInputs(
@@ -247,7 +312,8 @@ function validInputs(
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
-            event.value.length <= ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT))
+            event.value.length <= ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT) ||
+          validLiveControl(component, event))
       );
     })
   );
@@ -271,10 +337,7 @@ function applyInput(
     ...document,
     components: document.components.map((component) =>
       component.id === event.componentId
-        ? event.property === 'temperatureCelsius' ||
-          event.property === 'moisturePercent' ||
-          event.property === 'motionDetected' ||
-          event.property === 'distanceMeters'
+        ? event.property !== 'state' && event.property !== 'wiperPosition'
           ? {
               ...component,
               stateProperties: { ...component.stateProperties, [event.property]: event.value },

@@ -525,13 +525,17 @@ export function WorkbenchSidebars({
   const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
     ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
     : 0;
+  const generatorOutputProperty = c.selectedComponent?.stateProperties?.['outputEnabled'];
   const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
-    ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
-      c.selectedComponent?.state === true
+    ? typeof generatorOutputProperty === 'boolean'
+      ? generatorOutputProperty
+      : c.selectedComponent?.state === true
     : false;
+  const scopeDisplayProperty = c.selectedComponent?.stateProperties?.['displayEnabled'];
   const selectedScopeDisplayEnabled = selectedIsOscilloscope
-    ? c.selectedComponent?.stateProperties?.['displayEnabled'] !== false &&
-      c.selectedComponent?.state !== false
+    ? typeof scopeDisplayProperty === 'boolean'
+      ? scopeDisplayProperty
+      : c.selectedComponent?.state !== false
     : true;
   const selectedScopeVoltsPerDivision = selectedIsOscilloscope
     ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
@@ -1018,6 +1022,7 @@ export function WorkbenchSidebars({
                     <span>Режим</span>
                     <select
                       aria-label="Режим мультиметра"
+                      disabled={c.simulationRunning}
                       value={String(
                         c.selectedComponent.stateProperties?.['measurementMode'] ?? 'dc-voltage',
                       )}
@@ -1030,6 +1035,11 @@ export function WorkbenchSidebars({
                       <option value="resistance">Сопротивление</option>
                     </select>
                   </label>
+                  {c.simulationRunning ? (
+                    <p className="workbench-component-note">
+                      Для смены режима остановите моделирование, выберите режим и запустите снова.
+                    </p>
+                  ) : null}
                   <div className="workbench-multimeter-compact-reading">
                     <span>Показание</span>
                     <strong data-testid="multimeter-panel-reading">
@@ -1217,7 +1227,9 @@ export function WorkbenchSidebars({
                       aria-label="Включить экран осциллографа"
                       type="checkbox"
                       checked={selectedScopeDisplayEnabled}
-                      onChange={(event) => c.setSelectedState(event.target.checked)}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ displayEnabled: event.target.checked })
+                      }
                     />
                   </label>
                   <label>
