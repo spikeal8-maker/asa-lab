@@ -12,7 +12,7 @@ import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState } from './workbench-model';
-import { autosaveIsDue, draftSaveStatus } from './workbench-autosave';
+import { WorkbenchAutosaveScheduler, draftSaveStatus } from './workbench-autosave';
 
 import { electronicsDocumentsEqual, mergeElectronicsDocuments } from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
@@ -174,6 +174,7 @@ export function useWorkbenchProjectState(projectId: string) {
   // Saves run one at a time and in call order, so the stored draft cannot end up
   // holding an older document than the one the editor last sent.
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const autosaveSchedulerRef = useRef<WorkbenchAutosaveScheduler<SchematicDocument> | null>(null);
   // A queued save can still be in flight when the hook is pointed at another
   // project. Its response describes the previous project and must not be
   // written into the new one's state.
@@ -187,8 +188,6 @@ export function useWorkbenchProjectState(projectId: string) {
     savingDocument,
     failed: saveFailed,
   });
-  const saveStatusRef = useRef(saveStatus);
-  saveStatusRef.current = saveStatus;
   const saveFailedRef = useRef(saveFailed);
   saveFailedRef.current = saveFailed;
 
@@ -211,6 +210,7 @@ export function useWorkbenchProjectState(projectId: string) {
       setSaveFailed(false);
       setSaveError(null);
       setSaveIssue(null);
+      autosaveSchedulerRef.current?.update();
       setDocumentState(next);
     },
     [projectId],
@@ -410,6 +410,7 @@ export function useWorkbenchProjectState(projectId: string) {
       const sentForProject = projectId;
       const baseRevision = serverRevisionRef.current;
       if (baseRevision === null) {
+        saveFailedRef.current = true;
         setSaveFailed(true);
         setSaveError('Не удалось определить сохранённую версию проекта.');
         setSaveIssue('server');
@@ -515,6 +516,18 @@ export function useWorkbenchProjectState(projectId: string) {
         }
         if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
         return response.data.result;
+      } catch {
+        // A transport or request-construction exception must stop automatic
+        // retries just like an unsuccessful response. The local draft remains
+        // available, and the next edit starts a fresh minute.
+        if (projectIdRef.current === sentForProject) {
+          saveFailedRef.current = true;
+          setSaveFailed(true);
+          setSaveError('Последние изменения сохранены в браузере.');
+          setSaveIssue('server');
+          setNotice(null);
+        }
+        return null;
       } finally {
         // Runs even if saveDraft throws instead of returning { ok: false }.
         // Leaving savingDocument set would pin the indicator on 'saving' and stop
@@ -534,7 +547,20 @@ export function useWorkbenchProjectState(projectId: string) {
 
   const persist = useCallback(
     (nextDocument: SchematicDocument, quiet = false): Promise<SolveResult | null> => {
-      const queued = saveQueueRef.current.then(() => sendDraft(nextDocument, quiet));
+      autosaveSchedulerRef.current?.markSaveRequested(nextDocument);
+      const queued = saveQueueRef.current.then(() => {
+        // A preceding 409 may have replaced the live document with a merge.
+        // Sending this older snapshot with the newly loaded revision would erase
+        // the remote edit. The same check also drops superseded queued edits.
+        if (documentRef.current !== nextDocument) return null;
+        // Paired visibilitychange/pagehide events can queue the same safety
+        // write before savingDocumentRef moves. A failed or completed first
+        // request must not cause another automatic write of that snapshot.
+        if (quiet && (saveFailedRef.current || savedDocumentRef.current === nextDocument)) {
+          return null;
+        }
+        return sendDraft(nextDocument, quiet);
+      });
       saveQueueRef.current = queued.then(
         () => undefined,
         () => undefined,
@@ -545,30 +571,43 @@ export function useWorkbenchProjectState(projectId: string) {
   );
 
   useEffect(() => {
-    if (!document || simulationStatus === 'starting') return;
-    if (!autosaveIsDue({ document, savedDocument, savingDocument, failed: saveFailed })) return;
-    const timer = window.setTimeout(
-      () => {
-        void persist(document, true);
-      },
-      simulationRunning ? 700 : 1800,
+    if (status !== 'ready') return;
+    const scheduler = new WorkbenchAutosaveScheduler<SchematicDocument>(
+      () => ({
+        document: documentRef.current,
+        savedDocument: savedDocumentRef.current,
+        savingDocument: savingDocumentRef.current,
+        failed: saveFailedRef.current,
+        paused: simulationStatusRef.current === 'starting',
+      }),
+      (current) => void persist(current, true),
     );
-    return () => window.clearTimeout(timer);
-  }, [
-    document,
-    persist,
-    saveFailed,
-    savedDocument,
-    savingDocument,
-    simulationRunning,
-    simulationStatus,
-  ]);
+    autosaveSchedulerRef.current = scheduler;
+    scheduler.update();
+    return () => {
+      scheduler.dispose();
+      if (autosaveSchedulerRef.current === scheduler) autosaveSchedulerRef.current = null;
+    };
+  }, [persist, status]);
+
+  useEffect(() => {
+    autosaveSchedulerRef.current?.update();
+  }, [document, savedDocument, savingDocument, saveFailed, simulationStatus]);
 
   useEffect(() => {
     const flush = (): void => {
       if (simulationStatusRef.current === 'starting') return;
       const current = documentRef.current;
-      if (current && saveStatusRef.current === 'dirty') void persist(current, true);
+      // Read the refs here: pagehide can follow an edit before React commits a
+      // new render, so the previous render's indicator may still say "saved".
+      if (
+        !saveFailedRef.current &&
+        current &&
+        current !== savedDocumentRef.current &&
+        current !== savingDocumentRef.current
+      ) {
+        void persist(current, true);
+      }
     };
     const onVisibility = (): void => {
       if (globalThis.document.visibilityState === 'hidden') flush();
@@ -602,6 +641,7 @@ export function useWorkbenchProjectState(projectId: string) {
       setNotice(null);
       return;
     }
+    simulationStatusRef.current = 'starting';
     setSimulationStatus('starting');
     setResult(null);
     setSimulationRunning(true);

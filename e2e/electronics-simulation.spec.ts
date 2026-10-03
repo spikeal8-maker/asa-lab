@@ -2368,6 +2368,7 @@ for (const withArduino of [false, true]) {
       path: `${ARTIFACT_DIR}/tmp36-${withArduino ? 'arduino' : 'multimeter'}.png`,
     });
     await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    await saveEditorNow(page);
     // GET recomputes the stored document through the API's shared electronics provider.
     await expect
       .poll(
@@ -2498,6 +2499,7 @@ for (const withArduino of [false, true]) {
       path: `${ARTIFACT_DIR}/soil-${withArduino ? 'arduino' : 'multimeter'}.png`,
     });
     await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    await saveEditorNow(page);
     await expect
       .poll(
         async () => {
@@ -3262,7 +3264,7 @@ test('catalog placement is one hold-drag-release gesture and snaps on the first 
 
 persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
   persistenceVideoTest(
-    'real API wire workflow autosaves endpoints colour and vertices across reload',
+    'real API wire workflow saves endpoints colour and vertices across reload',
     async ({ page }) => {
       test.setTimeout(120_000);
       const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
@@ -3523,11 +3525,7 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
         expect(await editorVertices()).toEqual(verticesAfterStraightenUndo);
       }
 
-      await expect(page.locator('.workbench-main')).toHaveAttribute(
-        'data-project-save-status',
-        'saved',
-        { timeout: 15_000 },
-      );
+      await saveEditorNow(page);
       const readSavedWire = async () => {
         const response = await page.context().request.get(`/api/projects/${projectId}`, {
           headers: { origin: new URL(page.url()).origin },
@@ -3684,20 +3682,81 @@ persistenceVideoTest.describe('R1-R4 real API persistence evidence', () => {
   );
 });
 
-async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void> {
-  // Do not race pagehide's legitimate autosave with the next API fixture PUT.
-  // This is the controller's actual state, not the delayed/transient indicator.
-  // Waiting is only between fixture phases, never before local-simulation checks.
+async function saveEditorNow(page: Page): Promise<void> {
+  // Exercise the mounted editor's immediate safety flush without unloading the
+  // test page, so the save response and server document remain observable.
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
   await expect(page.locator('.workbench-main')).toHaveAttribute(
     'data-project-save-status',
     'saved',
     { timeout: 15_000 },
   );
+}
+
+async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void> {
+  // Do not race pagehide's legitimate autosave with the next API fixture PUT.
+  // This is the controller's actual state, not the delayed/transient indicator.
+  // Waiting is only between fixture phases, never before local-simulation checks.
+  await saveEditorNow(page);
   expect(
     await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
   ).toBeNull();
   await page.goto('/#/projects');
 }
+
+test('real API autosave sends the edited draft after one minute', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'R4-M1 minute autosave');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false }),
+  );
+  await page.clock.install();
+  await page.goto(`/#/home/${projectId}`);
+  const resistor = component(page, 'resistor-axial');
+  await resistor.locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+
+  const draftPuts: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      draftPuts.push(request.url());
+  });
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'dirty',
+  );
+  await page.clock.fastForward(58_000);
+  expect(draftPuts).toHaveLength(0);
+  await page.clock.fastForward(3_000);
+  await expect.poll(() => draftPuts.length).toBe(1);
+  await expect
+    .poll(async () => {
+      const response = await page.context().request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(response.ok()).toBe(true);
+      const payload = (await response.json()) as { draft: { document: SchematicDocument } };
+      return payload.draft.document.components.find((item) => item.id === 'resistor')?.value;
+    })
+    .toBe(166.7);
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+});
 
 test('real editor recalculates SPDT, resistor and LED without waiting for persistence', async ({
   page,
@@ -3879,6 +3938,7 @@ test('real editor recalculates SPDT, resistor and LED without waiting for persis
     fullPage: true,
   });
 
+  await saveEditorNow(page);
   await expect
     .poll(
       async () => {
@@ -4712,9 +4772,9 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
     fullPage: true,
   });
 
-  // The live solver updates before the debounced draft request finishes. Wait
-  // for the server, not an arbitrary delay or the already updated SVG. The
-  // runtime-only 0.2 A adjustment must not replace the saved 0.1 A setting.
+  // Persist the owner setting explicitly. The runtime-only 0.2 A adjustment
+  // must not replace the saved 0.1 A setting.
+  await saveEditorNow(page);
   await expect
     .poll(
       async () => {
