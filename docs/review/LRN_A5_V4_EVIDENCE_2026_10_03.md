@@ -30,8 +30,9 @@ in the cited Learning E1 workflows. The #467 exact-head independent review
 approved the corrected origin, eligibility and history guards.
 
 The #455 artifact `learning-e1-a65edc28ccc1f0cd257035889c54b39b7fad4f58`
-contains inspected populated Active, Submitted and Completed learner cards for
-Electronics and 3D at desktop and 390 px mobile widths. The #458 artifact
+contains inspected populated Active learner cards for Electronics, and Submitted
+and Completed cards for Electronics and 3D, at desktop and 390 px mobile widths.
+The #458 artifact
 `learning-e1-418b15600287c35e287c7681a49686ef71077e5e` contains inspected
 Electronics and 3D Learning Archive cards at those widths. The #467 artifact
 `learning-e1-904bbb19ae17101c621670699d7ca5cf0657f1bb` contains inspected
