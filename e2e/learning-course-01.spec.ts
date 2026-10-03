@@ -2177,7 +2177,20 @@ for (const module of ['electronics', 'three-d'])
         path: `${evidenceDir}/a5-v4-editor-returned.png`,
         fullPage: true,
       });
+      const resumedStart = learner.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/learning\/work\/runs\/[^/]+\/start$/.test(response.url()),
+      );
       await returnedBrief.getByRole('button', { name: 'Продолжить', exact: true }).click();
+      const resumedResponse = await resumedStart;
+      expect(resumedResponse.status()).toBe(200);
+      expect(await resumedResponse.json()).toMatchObject({
+        projectId: startedProjectId,
+        attemptNumber: 2,
+        state: 'in_progress',
+        reused: false,
+      });
       await expect(
         returnedBrief.getByRole('button', { name: 'Продолжить', exact: true }),
       ).toHaveCount(0);

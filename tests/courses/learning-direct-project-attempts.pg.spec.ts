@@ -1576,6 +1576,83 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ).rows[0].state,
     ).toBe('learning_archive');
     expect(await bucket()).toBe('learning_archive');
+    const setRunConditions = async (overrides: Record<string, unknown>) => {
+      await admin.query(
+        `UPDATE activity_runs SET operational_overrides=$2::jsonb
+          WHERE id=(SELECT activity_run_id FROM activity_participations WHERE id=$1)`,
+        [work.started.participation_id, JSON.stringify(overrides)],
+      );
+    };
+    const blockedCorrection = async (reason: string) =>
+      review(
+        work,
+        'changes_requested',
+        accepted.assessment_result_id,
+        `v4:blocked:${++sequence}`,
+        reason,
+      );
+    await setRunConditions({ opensAt: '2090-01-01T00:00:00.000Z' });
+    expect((await blockedCorrection('Future opening')).result_code).toBe('invalid_transition');
+    await setRunConditions({ closesAt: '2020-01-01T00:00:00.000Z' });
+    expect((await blockedCorrection('Closed work')).result_code).toBe('invalid_transition');
+    await setRunConditions({ dueAt: '2020-01-01T00:00:00.000Z', latePolicy: 'block_at_due' });
+    expect((await blockedCorrection('Past due without unlock')).result_code).toBe(
+      'invalid_transition',
+    );
+    await setRunConditions({});
+    const capabilityClient = await admin.connect();
+    try {
+      await capabilityClient.query('BEGIN');
+      await capabilityClient.query(
+        `UPDATE module_learning_capabilities
+            SET editable_evidence=false,submit_project_version=false
+          WHERE module_key='electronics'`,
+      );
+      expect(
+        (
+          await capabilityClient.query(
+            "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Exact work review','Capability revoked',$5,$6)",
+            [
+              teacherAccount,
+              teacherPrincipal,
+              work.classroomId,
+              work.started.attempt_id,
+              accepted.assessment_result_id,
+              `v4:capability:${++sequence}`,
+            ],
+          )
+        ).rows[0].result_code,
+      ).toBe('invalid_transition');
+    } finally {
+      await capabilityClient.query('ROLLBACK');
+      capabilityClient.release();
+    }
+    await setRunConditions({ dueAt: '2020-01-01T00:00:00.000Z', latePolicy: 'block_at_due' });
+    expect(await bucket()).toBe('learning_archive');
+    expect(
+      (
+        await admin.query(
+          `SELECT (SELECT count(*)::int FROM assessment_results WHERE attempt_id=$1) AS revisions,
+                  (SELECT extra_attempts FROM activity_participations WHERE id=$2) AS extra_attempts`,
+          [work.started.attempt_id, work.started.participation_id],
+        )
+      ).rows[0],
+    ).toEqual({ revisions: 1, extra_attempts: 0 });
+    const unlocked = (
+      await app.query(
+        `SELECT learning_participation_conditions_save(
+          $1,$2,$3,$4,$5,1,0,true,false,'Teacher unlock for correction',$6) AS code`,
+        [
+          teacherAccount,
+          teacherPrincipal,
+          work.classroomId,
+          work.assignmentId,
+          work.seatId,
+          `v4:unlock:${++sequence}`,
+        ],
+      )
+    ).rows[0].code;
+    expect(unlocked).toBe('ok');
     expect(
       (
         await review(
