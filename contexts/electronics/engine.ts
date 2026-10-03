@@ -224,6 +224,7 @@ function schedulerInputEvent(event: ElectronicsTimedInputEvent): ArduinoCircuitI
       'timePerDivisionMs',
       'triggerLevelVolt',
       'displayEnabled',
+      'measurementMode',
     ].includes(event.operation) &&
     (typeof event.payload === 'boolean' ||
       typeof event.payload === 'string' ||

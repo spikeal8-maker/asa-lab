@@ -50,6 +50,7 @@ const TIMED_CONTROL_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
   'regulated-power-supply': ['voltageSetpointVolt', 'currentLimitAmp', 'outputEnabled'],
   'signal-generator': ['waveform', 'frequencyHz', 'amplitudeVpp', 'dcOffsetVolt', 'outputEnabled'],
   oscilloscope: ['voltsPerDivision', 'timePerDivisionMs', 'triggerLevelVolt', 'displayEnabled'],
+  multimeter: ['measurementMode'],
 };
 const DISPLAY_ONLY_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
   multimeter: ['meterRange'],

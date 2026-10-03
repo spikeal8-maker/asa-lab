@@ -53,6 +53,62 @@ const part = (id: string, kind: string, value: number) => ({
 });
 
 describe('canonical live source and instrument controls', () => {
+  it('keeps a generator and meter on one canonical profile across V/A/R', () => {
+    const doc = document(
+      [
+        {
+          ...part('generator', 'source', 1_000),
+          componentTypeId: 'signal-generator',
+          pinIds: ['signal', 'ground'],
+          stateProperties: {
+            waveform: 'square',
+            frequencyHz: 1_000,
+            amplitudeVpp: 2,
+            dcOffsetVolt: 1,
+            outputEnabled: true,
+          },
+        },
+        {
+          ...part('meter', 'visual', 0),
+          componentTypeId: 'multimeter',
+          pinIds: ['v-ohm-ma', 'com'],
+          stateProperties: { measurementMode: 'dc-voltage' },
+        },
+      ],
+      [
+        ['generator', 'signal', 'meter', 'v-ohm-ma'],
+        ['generator', 'ground', 'meter', 'com'],
+      ],
+    );
+    const voltage = ready(doc, 1_000);
+    expect(voltage.state.continuation?.clockProfileId).toBe('electrothermal-v1');
+    const current = ready(doc, 2_000, voltage.state, [
+      {
+        atMicroseconds: 1_001,
+        targetId: 'meter',
+        operation: 'measurementMode',
+        payload: 'dc-current',
+      },
+    ]);
+    expect(current.state.continuation?.clockProfileId).toBe('electrothermal-v1');
+    expect(
+      current.observation.components.find((entry) => entry.componentId === 'meter')
+        ?.measurementMode,
+    ).toBe('dc-current');
+    const resistance = ready(doc, 3_000, current.state, [
+      {
+        atMicroseconds: 2_001,
+        targetId: 'meter',
+        operation: 'measurementMode',
+        payload: 'resistance',
+      },
+    ]);
+    expect(
+      resistance.observation.components.find((entry) => entry.componentId === 'meter')
+        ?.measurementMode,
+    ).toBe('resistance');
+    expect(resistance.observation.quality.passed).toBe(true);
+  });
   it('uses explicit live output and display switches over their initial component state', () => {
     const doc = document(
       [

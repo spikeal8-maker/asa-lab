@@ -1093,13 +1093,15 @@ export function useElectronicsWorkbench(projectId: string) {
       } else if (component?.kind === 'photoresistor') {
         runtimeOnlyControl = keys.every((key) => key === 'illumination');
       } else if (component?.componentTypeId === 'multimeter') {
-        if (keys.includes('measurementMode')) {
-          setNotice(
-            'Режим мультиметра меняет электрическое включение. Остановите моделирование, измените режим и запустите снова.',
-          );
+        runtimeOnlyControl = keys.every((key) => key === 'meterRange' || key === 'measurementMode');
+        if (
+          runtimeOnlyControl &&
+          keys.includes('measurementMode') &&
+          properties['measurementMode'] !== 'dc-voltage' &&
+          properties['measurementMode'] !== 'dc-current' &&
+          properties['measurementMode'] !== 'resistance'
+        )
           return;
-        }
-        runtimeOnlyControl = keys.every((key) => key === 'meterRange');
       } else if (component?.componentTypeId === 'pir-sensor') {
         runtimeOnlyControl = keys.every((key) => key === 'motionDetected');
       } else if (component?.componentTypeId === 'oscilloscope') {
@@ -1149,9 +1151,7 @@ export function useElectronicsWorkbench(projectId: string) {
     const component = runtimeDocument?.components.find((item) => item.id === componentId);
     if (!document || component?.componentTypeId !== 'multimeter') return;
     if (simulationRunning) {
-      setNotice(
-        'Режим мультиметра меняет электрическое включение. Остановите моделирование, измените режим и запустите снова.',
-      );
+      setRuntimeComponentOverride(componentId, { stateProperties: { measurementMode } });
       return;
     }
     commitDocument(

@@ -100,11 +100,18 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
     )
   )
     return true;
+  // Select the physical profile from the fixed circuit, not the live meter mode.
+  // A passive no-source circuit must retain the observable algebraic profile;
+  // energized circuits keep the fuse history across A/V/R changes.
   if (
     document.components.some(
+      (component) => electricalModelFor(component).id === 'digital-multimeter',
+    ) &&
+    document.components.some(
       (component) =>
-        electricalModelFor(component).id === 'digital-multimeter' &&
-        component.stateProperties?.['measurementMode'] === 'dc-current',
+        isElectrolyticCapacitor(component) ||
+        electricalModelFor(component).id === 'ideal-dc-source' ||
+        electricalModelFor(component).id === 'function-generator',
     )
   )
     return true;
@@ -135,7 +142,8 @@ export interface ArduinoCircuitInputEvent {
     | 'voltsPerDivision'
     | 'timePerDivisionMs'
     | 'triggerLevelVolt'
-    | 'displayEnabled';
+    | 'displayEnabled'
+    | 'measurementMode';
   readonly value: boolean | number | string;
 }
 
@@ -257,6 +265,9 @@ function validLiveControl(component: SchematicComponent, event: ArduinoCircuitIn
     if (property === 'voltsPerDivision') return value > 0 && value <= 100;
     if (property === 'timePerDivisionMs') return value > 0 && value <= 10_000;
     return property === 'triggerLevelVolt' && value >= -100 && value <= 100;
+  }
+  if (component.componentTypeId === 'multimeter' && property === 'measurementMode') {
+    return value === 'dc-voltage' || value === 'dc-current' || value === 'resistance';
   }
   return false;
 }

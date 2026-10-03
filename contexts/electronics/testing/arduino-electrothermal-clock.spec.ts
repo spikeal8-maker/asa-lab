@@ -6,6 +6,7 @@ import {
 } from '../domain/document.js';
 import {
   advanceArduinoCircuitClock,
+  type ArduinoCircuitInputEvent,
   type ArduinoCircuitClockState,
 } from '../domain/arduino-circuit-scheduler.js';
 import {
@@ -38,9 +39,13 @@ function through(
   time: number,
   previous?: ArduinoCircuitClockState,
   budget = 256,
+  inputs?: readonly ArduinoCircuitInputEvent[],
 ) {
   for (let count = 0; count < 10000; count++) {
-    const next = advanceArduinoCircuitClock(doc, time, previous, { maxClockEvents: budget });
+    const next = advanceArduinoCircuitClock(doc, time, previous, {
+      maxClockEvents: budget,
+      ...(inputs ? { inputs } : {}),
+    });
     expect(next.diagnostics, JSON.stringify({ target: time, previous })).toEqual([]);
     if (next.executionStatus === 'ready') return next;
     expect(next.executionStatus).toBe('yielded');
@@ -187,6 +192,123 @@ describe('shared clock electrothermal phase', () => {
     expect(
       done.result!.components.find((p) => p.componentId === 'meter')!.measuredValue,
     ).toBeCloseTo(5, 3);
+  });
+  it('keeps motor, thermal, Arduino and fuse histories across live meter modes', () => {
+    const meter: SchematicComponent = {
+      ...part('meter', 'visual', 0),
+      componentTypeId: 'multimeter',
+      pinIds: ['v-ohm-ma', 'com'],
+      stateProperties: { measurementMode: 'dc-voltage' },
+    };
+    const doc = circuit(
+      [uno, part('source', 'source', 5), part('r', 'resistor', 100), motor, meter],
+      [
+        ['source', 'a', 'r', 'a'],
+        ['r', 'b', 'meter', 'v-ohm-ma'],
+        ['meter', 'com', 'source', 'b'],
+        ['source', 'a', 'motor', 'positive'],
+        ['motor', 'negative', 'source', 'b'],
+        ['source', 'a', 'uno', 'power-5v'],
+        ['uno', 'power-gnd-1', 'source', 'b'],
+      ],
+    );
+    const initial = through(doc, 2_000);
+    expect(initial.state!.profile).toBe('electrothermal-v1');
+    expect(initial.state!.boards[0]!.runtime.phase).toBe('loop');
+    expect(
+      initial.state!.physicalState!.motors![0]!.motorAngularVelocityRadPerSecond,
+    ).toBeGreaterThan(0);
+    const currentEvent: ArduinoCircuitInputEvent = {
+      atMicroseconds: 2_001,
+      componentId: 'meter',
+      property: 'measurementMode',
+      value: 'dc-current',
+    };
+    const current = through(doc, 4_000, initial.state!, 256, [currentEvent]);
+    expect(current.state!.profile).toBe(initial.state!.profile);
+    expect(current.state!.reachedMicroseconds).toBe(4_000);
+    expect(current.result!.components.find((entry) => entry.componentId === 'meter')).toMatchObject(
+      {
+        measurementMode: 'dc-current',
+        meterFuseState: 'intact',
+      },
+    );
+    expect(current.state!.physicalState!.motors![0]!.simulationTimeSeconds).toBeGreaterThan(
+      initial.state!.physicalState!.motors![0]!.simulationTimeSeconds,
+    );
+    expect(
+      current.state!.physicalState!.motors![0]!.motorAngularVelocityRadPerSecond,
+    ).toBeGreaterThan(0);
+    expect(current.state!.boards[0]!.runtime.virtualTimeMs).toBeGreaterThanOrEqual(
+      initial.state!.boards[0]!.runtime.virtualTimeMs,
+    );
+    expect(current.state!.boards[0]!.runtime.phase).toBe('loop');
+    expect(current.state!.boards[0]!.runtime.pinModes).toEqual(
+      initial.state!.boards[0]!.runtime.pinModes,
+    );
+    const voltageEvent: ArduinoCircuitInputEvent = {
+      atMicroseconds: 4_001,
+      componentId: 'meter',
+      property: 'measurementMode',
+      value: 'dc-voltage',
+    };
+    const voltage = through(doc, 6_000, current.state!, 256, [currentEvent, voltageEvent]);
+    expect(voltage.state!.physicalState!.multimeterFuses).toEqual(
+      current.state!.physicalState!.multimeterFuses,
+    );
+    expect(
+      voltage.state!.physicalState!.thermal.every(
+        (entry, index) =>
+          entry.accumulatedDamage >=
+          current.state!.physicalState!.thermal[index]!.accumulatedDamage,
+      ),
+    ).toBe(true);
+    expect(voltage.result!.quality.passed).toBe(true);
+    const resistanceEvent: ArduinoCircuitInputEvent = {
+      atMicroseconds: 6_001,
+      componentId: 'meter',
+      property: 'measurementMode',
+      value: 'resistance',
+    };
+    const resistance = through(doc, 8_000, voltage.state!, 256, [
+      currentEvent,
+      voltageEvent,
+      resistanceEvent,
+    ]);
+    expect(resistance.state!.reachedMicroseconds).toBe(8_000);
+    expect(
+      resistance.result!.components.find((entry) => entry.componentId === 'meter')?.measurementMode,
+    ).toBe('resistance');
+    expect(resistance.state!.physicalState!.multimeterFuses).toEqual(
+      voltage.state!.physicalState!.multimeterFuses,
+    );
+    expect(resistance.state!.boards[0]!.runtime.virtualTimeMs).toBeGreaterThanOrEqual(
+      voltage.state!.boards[0]!.runtime.virtualTimeMs,
+    );
+    expect(resistance.state!.boards[0]!.runtime.phase).toBe('loop');
+    expect(resistance.result!.quality.passed).toBe(true);
+    const blownState: ArduinoCircuitClockState = {
+      ...current.state!,
+      physicalState: {
+        ...current.state!.physicalState!,
+        multimeterFuses: current.state!.physicalState!.multimeterFuses!.map((entry) => ({
+          ...entry,
+          fuseState: 'blown' as const,
+          accumulatedI2tAmpSquaredSecond: 1,
+        })),
+      },
+    };
+    const afterBlownVoltage = through(doc, 6_000, blownState, 256, [currentEvent, voltageEvent]);
+    const afterBlownCurrent = through(doc, 8_000, afterBlownVoltage.state!, 256, [
+      currentEvent,
+      voltageEvent,
+      { ...resistanceEvent, value: 'dc-current' },
+    ]);
+    expect(
+      afterBlownCurrent.result!.components.find((entry) => entry.componentId === 'meter')
+        ?.meterFuseState,
+    ).toBe('blown');
+    expect(afterBlownCurrent.state!.physicalState!.multimeterFuses![0]!.fuseState).toBe('blown');
   });
   it('never advances motor current, shaft or temperature in a zero-duration observation', () => {
     const doc = circuit(

@@ -702,6 +702,14 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     expect(observed.state?.profile).toBe('dc-inputs-v1');
     expect(observed.result?.solved).toBe(false);
     expect(observed.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
+    const resistance = through(doc, 1_000, observed.state!, [
+      { atMicroseconds: 1, componentId: 'meter', property: 'measurementMode', value: 'resistance' },
+    ]);
+    expect(resistance.executionStatus).toBe('ready');
+    expect(resistance.state?.profile).toBe('dc-inputs-v1');
+    expect(
+      resistance.result?.components.find((entry) => entry.componentId === 'meter')?.measuredValue,
+    ).toBeCloseTo(1_000, 3);
   });
 
   it('keeps unpowered resistance measurement on the algebraic meter source', () => {
@@ -742,6 +750,77 @@ describe('Arduino shared dc-inputs-v1 circuit clock', () => {
     });
     expect(meter?.measuredValue).toBeCloseTo(1_000, 3);
   });
+
+  it.each([0, 5])(
+    'keeps passive RC meter mode changes at one physical horizon (initial %i V)',
+    (initialVoltageVolt) => {
+      const doc = circuit(
+        [
+          part('load', 'resistor', 1_000),
+          {
+            id: 'cap',
+            kind: 'visual',
+            value: 100,
+            position: { x: 0, y: 0 },
+            componentTypeId: 'electrolytic-capacitor',
+            pinIds: ['positive', 'negative'],
+            stateProperties: { initialVoltageVolt, voltageRatingVolt: 25 },
+          },
+          {
+            id: 'meter',
+            kind: 'visual',
+            value: 0,
+            position: { x: 0, y: 0 },
+            componentTypeId: 'multimeter',
+            pinIds: ['com', 'v-ohm-ma'],
+            stateProperties: { measurementMode: 'dc-voltage' },
+          },
+        ],
+        [
+          ['cap', 'positive', 'load', 'a'],
+          ['load', 'b', 'cap', 'negative'],
+          ['meter', 'v-ohm-ma', 'cap', 'positive'],
+          ['meter', 'com', 'cap', 'negative'],
+        ],
+      );
+      const initial = through(doc, 2_000);
+      expect(initial.executionStatus).toBe('ready');
+      expect(initial.state?.profile).toBe('electrothermal-v1');
+      const currentEvent: ArduinoCircuitInputEvent = {
+        atMicroseconds: 2_001,
+        componentId: 'meter',
+        property: 'measurementMode',
+        value: 'dc-current',
+      };
+      const current = through(doc, 4_000, initial.state!, [currentEvent]);
+      expect(current.executionStatus).toBe('ready');
+      expect(current.state?.reachedMicroseconds).toBe(4_000);
+      const resistanceEvent: ArduinoCircuitInputEvent = {
+        atMicroseconds: 4_001,
+        componentId: 'meter',
+        property: 'measurementMode',
+        value: 'resistance',
+      };
+      const resistance = through(doc, 6_000, current.state!, [currentEvent, resistanceEvent]);
+      expect(resistance.executionStatus).toBe('ready');
+      expect(resistance.state?.reachedMicroseconds).toBe(6_000);
+      expect(resistance.result?.quality.passed).toBe(true);
+      const invalid = advanceArduinoCircuitClock(doc, 6_001, resistance.state!, {
+        inputs: [
+          currentEvent,
+          resistanceEvent,
+          {
+            atMicroseconds: 6_001,
+            componentId: 'meter',
+            property: 'measurementMode',
+            value: 'continuity',
+          },
+        ],
+      });
+      expect(invalid.executionStatus).toBe('fault');
+      expect(invalid.diagnostics[0]?.code).toBe('invalid_input_history');
+    },
+  );
 
   it('carries source thermal damage to a persistent failed state', () => {
     const doc = circuit(

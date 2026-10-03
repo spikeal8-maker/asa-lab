@@ -4945,7 +4945,8 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
-  await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
+  await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
+  await expect(meter.getByTestId('multimeter-runtime-display')).toContainText('1.000 kΩ');
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
@@ -5186,6 +5187,19 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   await expect(supplyVisual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
     '8.00 V',
   );
+  const output = inspector.getByLabel('Включить выход лабораторного источника');
+  await output.uncheck();
+  await expect(output).not.toBeChecked();
+  await expect(supplyVisual).toHaveAttribute('data-regulation-mode', 'off');
+  await expect(inspector.getByTestId('regulated-power-supply-panel-reading')).toContainText(
+    'Выход выключен',
+  );
+  await output.check();
+  await expect(output).toBeChecked();
+  await expect(supplyVisual).toHaveAttribute('data-regulation-mode', 'cv');
+  await expect(supplyVisual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+    '8.00 V',
+  );
   await scope.locator('.workbench-part').press('Enter');
   await expect
     .poll(async () =>
@@ -5356,13 +5370,13 @@ test('live generator waveform and frequency reach the scope calculation without 
   failures.assertEmpty();
 });
 
-test('multimeter topology mode remains a deliberate Stop and Start change', async ({ page }) => {
+test('multimeter A/V/R changes stay local to one canonical generation', async ({ page }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await observeSimulationWorkerClock(page);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await loginWithOrganization(page, teacher);
-  const projectId = await createProject(page, 'Meter mode is a structural control');
+  const projectId = await createProject(page, 'Live meter mode continuity');
   await saveDocument(page, projectId, multimeterResistanceDocument(false));
   await page.goto(`/#/home/${projectId}`);
   await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
@@ -5371,11 +5385,38 @@ test('multimeter topology mode remains a deliberate Stop and Start change', asyn
   await meter.locator('.workbench-part').press('Enter');
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   const mode = inspector.getByLabel('Режим мультиметра');
-  await expect(mode).toBeDisabled();
-  await expect(inspector).toContainText('Для смены режима остановите моделирование');
+  await expect(mode).toBeEnabled();
   await expect(mode).toHaveValue('dc-voltage');
+  await expect
+    .poll(
+      async () =>
+        (await simulationWorkerObservation(page)).workerSamples.filter(
+          (sample) => sample.status === 'ready',
+        ).length,
+    )
+    .toBeGreaterThan(0);
+  const initial = await simulationWorkerObservation(page);
+  const generation = initial.workerSamples
+    .filter((sample) => sample.status === 'ready')
+    .at(-1)!.generationId;
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
-  await expect(mode).toHaveValue('dc-voltage');
+  await expect(mode).toHaveValue('resistance');
+  const display = meter.getByTestId('multimeter-runtime-display');
+  await expect(display).toContainText('1.000 kΩ');
+  await mode.selectOption('dc-current');
+  await expect(display).toHaveAttribute('data-measurement-mode', 'dc-current');
+  await mode.selectOption('dc-voltage');
+  await expect(display).toHaveAttribute('data-measurement-mode', 'dc-voltage');
+  const after = await simulationWorkerObservation(page);
+  expect(
+    after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.generationId,
+  ).toBe(generation);
+  expect(
+    after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.committedMicroseconds,
+  ).toBeGreaterThanOrEqual(
+    initial.workerSamples.filter((sample) => sample.status === 'ready').at(-1)!
+      .committedMicroseconds,
+  );
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   const saved = await page.context().request.get(`/api/projects/${projectId}`, {
     headers: { origin: new URL(page.url()).origin },
@@ -5388,7 +5429,6 @@ test('multimeter topology mode remains a deliberate Stop and Start change', asyn
     ],
   ).toBe('dc-voltage');
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
-  await expect(mode).toBeEnabled();
   failures.assertEmpty();
 });
 

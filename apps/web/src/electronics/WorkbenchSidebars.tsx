@@ -506,8 +506,9 @@ export function WorkbenchSidebars({
     ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
     : 0;
   const selectedSupplyOutputEnabled = selectedIsAdjustableSource
-    ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
-      c.selectedComponent?.state === true
+    ? typeof c.selectedComponent?.stateProperties?.['outputEnabled'] === 'boolean'
+      ? c.selectedComponent.stateProperties['outputEnabled']
+      : c.selectedComponent?.state === true
     : false;
   const selectedGeneratorWaveform = selectedIsSignalGenerator
     ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
@@ -1022,7 +1023,6 @@ export function WorkbenchSidebars({
                     <span>Режим</span>
                     <select
                       aria-label="Режим мультиметра"
-                      disabled={c.simulationRunning}
                       value={String(
                         c.selectedComponent.stateProperties?.['measurementMode'] ?? 'dc-voltage',
                       )}
@@ -1035,11 +1035,6 @@ export function WorkbenchSidebars({
                       <option value="resistance">Сопротивление</option>
                     </select>
                   </label>
-                  {c.simulationRunning ? (
-                    <p className="workbench-component-note">
-                      Для смены режима остановите моделирование, выберите режим и запустите снова.
-                    </p>
-                  ) : null}
                   <div className="workbench-multimeter-compact-reading">
                     <span>Показание</span>
                     <strong data-testid="multimeter-panel-reading">

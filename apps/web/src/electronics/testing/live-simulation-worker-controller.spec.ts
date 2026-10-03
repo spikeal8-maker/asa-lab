@@ -385,6 +385,60 @@ describe('Electronics canonical Worker controller', () => {
     ).toBe(5);
   });
 
+  it('sends live meter modes through one progressed canonical generation', async () => {
+    const executor = new FakeExecutor();
+    const meterCircuit: SchematicDocument = {
+      ...circuit,
+      components: [
+        ...circuit.components,
+        {
+          id: 'meter',
+          kind: 'visual',
+          value: 0,
+          position: { x: 100, y: 0 },
+          componentTypeId: 'multimeter',
+          pinIds: ['com', 'v-ohm-ma'],
+          stateProperties: { measurementMode: 'dc-voltage' },
+        },
+      ],
+    };
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', meterCircuit, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(meterCircuit, 20_000);
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 20_000, 20_000));
+    await flush();
+    const changed: SchematicDocument = {
+      ...meterCircuit,
+      components: meterCircuit.components.map((component) =>
+        component.id === 'meter'
+          ? {
+              ...component,
+              stateProperties: { ...component.stateProperties, measurementMode: 'dc-current' },
+            }
+          : component,
+      ),
+    };
+    controller.update(changed, 20_000);
+    expect(executor.generation).toBe(1);
+    expect(executor.preflights).toHaveLength(1);
+    expect(executor.advances.at(-1)).toMatchObject({
+      state: timedState(20_000),
+      inputEvents: [
+        {
+          atMicroseconds: 20_001,
+          targetId: 'meter',
+          operation: 'measurementMode',
+          payload: 'dc-current',
+        },
+      ],
+    });
+    expect(
+      executor.advances.at(-1)!.document.components.find((component) => component.id === 'meter')
+        ?.stateProperties?.measurementMode,
+    ).toBe('dc-voltage');
+  });
+
   it('updates scope observations without replacing the canonical generation', async () => {
     const executor = new FakeExecutor();
     const scopeCircuit: SchematicDocument = {
