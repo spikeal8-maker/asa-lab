@@ -368,6 +368,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
   let props;
   let params;
   let requestedId;
+  const localCheckpoints = [];
   const storage = {
     async prepareProjectAssets() {
       prepared++;
@@ -407,6 +408,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
   };
   const shell = { dataset: {} };
   const api = loadHost('editor', {
+    ...(options.crypto ? { crypto: options.crypto } : {}),
     AsaBlocksStorage: {
       createReadOnlyStorage: () => storage,
     },
@@ -417,6 +419,9 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     projectJson: hasProjectJson ? { targets: [], monitors: [], extensions: [] } : null,
     hasProjectJson,
     assets: [],
+    ...(options.trackRecovery
+      ? { recoveryPrincipalKey: '33333333-3333-4333-8333-333333333333' }
+      : {}),
   };
   const editor = api.mountEditor({
     standalone,
@@ -424,6 +429,18 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
     shell,
     session: { mode, projectId: PROJECT_ID },
     bootstrap,
+    ...(options.trackRecovery
+      ? {
+          recoveryApi: {
+            createRecoveryStore: () => ({ close() {} }),
+            selectRecovery: async () => ({ kind: 'none' }),
+            createRecoveryController: () => ({
+              schedule: (generation) => localCheckpoints.push(generation),
+              dispose() {},
+            }),
+          },
+        }
+      : {}),
     getRuntimeToken: () => RUNTIME_TOKEN,
     onReady() {
       ready++;
@@ -450,6 +467,7 @@ async function editorFixture(hasProjectJson = false, mode = 'editor', options = 
       return requestedId;
     },
     dirtyGenerations,
+    localCheckpoints,
     homeRequests: () => homeRequests,
     counts: () => ({ stops, quits, unmounts, ready, prepared, disposedStorage }),
   };
@@ -461,7 +479,7 @@ test('new project mount uses Scratch default project and preserves native editor
   assert.equal(fixture.props.canSave, true);
   assert.equal(fixture.props.canCreateNew, true);
   assert.equal(fixture.props.showSaveNow, false);
-  assert.ok(fixture.props.autoSaveIntervalSecs >= 5 && fixture.props.autoSaveIntervalSecs <= 8);
+  assert.ok(fixture.props.autoSaveIntervalSecs >= 55 && fixture.props.autoSaveIntervalSecs <= 65);
   assert.equal(fixture.props.logo, './asa-lab-scratch-wordmark.svg');
   assert.equal(typeof fixture.props.onClickLogo, 'function');
   fixture.props.onClickLogo();
@@ -484,6 +502,33 @@ test('new project mount uses Scratch default project and preserves native editor
   fixture.machine.emit('PROJECT_RUN_STOP');
   assert.equal(fixture.shell.dataset.projectRunning, 'false');
   assert.equal(fixture.counts().prepared, 0);
+});
+
+test('minute remote interval stays fixed while every edit reaches fast local recovery', async () => {
+  let randomCalls = 0;
+  const fixture = await editorFixture(false, 'editor', {
+    trackRecovery: true,
+    crypto: {
+      getRandomValues(bytes) {
+        randomCalls += 1;
+        bytes[0] = 10;
+        return bytes;
+      },
+    },
+  });
+  fixture.props.onProjectLoaded();
+  assert.equal(fixture.props.autoSaveIntervalSecs, 65);
+  for (let generation = 1; generation <= 12; generation += 1) {
+    fixture.machine.emit('PROJECT_CHANGED');
+    assert.equal(fixture.localCheckpoints.at(-1), generation);
+    assert.equal(fixture.props.autoSaveIntervalSecs, 65);
+  }
+  assert.deepEqual(
+    fixture.dirtyGenerations,
+    Array.from({ length: 12 }, (_, i) => i + 1),
+  );
+  assert.equal(randomCalls, 1, 'later edits cannot select a new remote phase');
+  fixture.editor.dispose();
 });
 
 test('existing project cannot mount or report ready before confirmed asset preparation completes', async () => {

@@ -75,7 +75,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: "Generation-aware upstream autosave exists; #469 replaces current 5–8 s remote cadence with minute-scale saving."
+    purpose: "Upstream autosave uses a 55–65 s checkpoint from first edit; fast local recovery stays separate."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Autosave transaction identity"
@@ -91,6 +91,7 @@ components:
       - path: infra/scratch-editor/host/storage.js
         symbols: [createReadOnlyStorage, persistCanonicalDocument, saveProject]
     tests:
+      - infra/scratch-editor/tests/editor-autosave.test.mjs
       - tools/blocks/save-semantics.test.mjs
       - e2e/blocks-host-storage.spec.ts
 
