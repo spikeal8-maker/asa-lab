@@ -5,6 +5,7 @@ import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument } from '../../api';
+import { readLocalProjectDraft } from '../../modules/project-local-draft';
 import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
@@ -177,6 +178,15 @@ async function mountProject() {
   return save;
 }
 
+async function reopenProject() {
+  await act(async () => root!.unmount());
+  host?.remove();
+  host = document.body.appendChild(document.createElement('div'));
+  root = createRoot(host);
+  await act(async () => root!.render(createElement(Probe)));
+  expect(state().status).toBe('ready');
+}
+
 function edit(zoom: number) {
   const next = { ...state().document!, viewport: { x: 0, y: 0, zoom } };
   act(() => state().setDocument(next));
@@ -202,6 +212,53 @@ afterEach(() => {
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  it('recognizes reordered server JSON as saved but keeps a real migration dirty', async () => {
+    const save = await mountProject();
+    const normalized = normalizeLoadedDocument({
+      ...initialDocument,
+      components: [resistor('persisted', 10)],
+    });
+    const reordered = {
+      ...normalized,
+      components: normalized.components.map(
+        (component) => Object.fromEntries(Object.entries(component).reverse()) as typeof component,
+      ),
+    };
+    vi.mocked(api.openProject).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: reordered, revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await reopenProject();
+    expect(state().saveStatus).toBe('saved');
+    expect(state().serverRevision).toBe(2);
+    await advance(60_000);
+    expect(save).not.toHaveBeenCalled();
+
+    vi.mocked(api.openProject).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: {
+          projectId,
+          document: { ...normalized, simulation: { running: true, maxIterations: 24 } },
+          revision: 3,
+          updatedAt: '',
+        },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await reopenProject();
+    expect(state().saveStatus).toBe('dirty');
+  });
+
   it('sends the latest edit at the first 60-second deadline despite continued edits', async () => {
     const save = await mountProject();
     edit(2);
@@ -232,17 +289,28 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     const second = edit(3);
     Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
     await act(async () => document.dispatchEvent(new Event('visibilitychange')));
-    expect(save).toHaveBeenCalledWith(projectId, second, 2);
+    expect(save).toHaveBeenCalledWith(projectId, second, 2, { unloading: true });
 
     const third = { ...state().document!, viewport: { x: 0, y: 0, zoom: 4 } };
-    await act(async () => {
+    act(() => {
       state().setDocument(third);
       window.dispatchEvent(new Event('pagehide'));
     });
-    expect(save).toHaveBeenCalledWith(projectId, third, 3);
+    expect(save).toHaveBeenCalledWith(projectId, third, 3, { unloading: true });
+    await advance(0);
     await advance(60_000);
     expect(save).toHaveBeenCalledTimes(3);
     Reflect.deleteProperty(document, 'visibilityState');
+  });
+
+  it('starts a safety save when an SPA route unmounts the editor', async () => {
+    const save = await mountProject();
+    const changed = { ...state().document!, components: [resistor('route-edit', 10)] };
+    act(() => state().setDocument(changed));
+
+    act(() => root!.unmount());
+    root = null;
+    expect(save).toHaveBeenCalledWith(projectId, changed, 1, { unloading: true });
   });
 
   it('queues a later edit after the in-flight save without sending an old snapshot again', async () => {
@@ -306,7 +374,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     });
 
     expect(save).toHaveBeenCalledTimes(1);
-    expect(save).toHaveBeenCalledWith(projectId, local, 1);
+    expect(save).toHaveBeenCalledWith(projectId, local, 1, { unloading: true });
     expect(state().document?.viewport.zoom).toBe(2);
     expect(state().document?.components.map((item) => item.id)).toEqual(['remote', 'local']);
     expect(state().saveStatus).toBe('dirty');
@@ -331,6 +399,56 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(save).toHaveBeenCalledTimes(1);
     expect(state().saveStatus).toBe('error');
     expect(window.localStorage.length).toBeGreaterThan(0);
+  });
+
+  it('restores a newer dirty document when pagehide interrupts an older in-flight save', async () => {
+    const save = await mountProject();
+    save.mockImplementationOnce(() => new Promise(() => undefined));
+    const first = { ...edit(2), components: [resistor('first', 10)] };
+    act(() => state().setDocument(first));
+    await act(async () => {
+      void state().saveNow();
+    });
+    expect(save).toHaveBeenCalledWith(projectId, first, 1);
+    const newest = { ...edit(3), components: [...first.components, resistor('newest', 20)] };
+    act(() => state().setDocument(newest));
+
+    act(() => window.dispatchEvent(new Event('pagehide')));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(window.localStorage.length).toBeGreaterThan(0);
+    expect(
+      readLocalProjectDraft<SchematicDocument>(
+        window.localStorage,
+        projectId,
+        'electronics',
+      )?.document.components.map((component) => component.id),
+    ).toEqual(['first', 'newest']);
+    await reopenProject();
+    expect(state().document?.components.map((component) => component.id)).toEqual([
+      'first',
+      'newest',
+    ]);
+    expect(state().saveStatus).toBe('dirty');
+  });
+
+  it('restores an oversized dirty document when the unload request fails', async () => {
+    const save = await mountProject();
+    const large = {
+      ...state().document!,
+      components: [{ ...resistor('large', 10), name: 'x'.repeat(70_000) }],
+    };
+    act(() => state().setDocument(large));
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'network', message: 'Unload request cancelled' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+
+    act(() => window.dispatchEvent(new Event('pagehide')));
+    expect(save).toHaveBeenCalledWith(projectId, large, 1, { unloading: true });
+    await reopenProject();
+    expect(state().document?.components[0]?.name).toBe(large.components[0]?.name);
+    expect(state().saveStatus).toBe('dirty');
   });
 
   it('does not send a queued later edit from before a conflict merge', async () => {
@@ -516,6 +634,28 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     await advance(60_000);
     expect(save).toHaveBeenCalledTimes(2);
     expect(state().saveStatus).toBe('saved');
+  });
+
+  it('clears the error after a successful manual retry without creating another autosave', async () => {
+    const save = await mountProject();
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'offline', message: 'Offline' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    const changed = { ...state().document!, components: [resistor('retry', 10)] };
+    act(() => state().setDocument(changed));
+
+    await act(async () => state().saveNow());
+    expect(state().saveStatus).toBe('error');
+    expect(window.localStorage.length).toBeGreaterThan(0);
+    await act(async () => state().saveNow());
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(projectId, changed, 1);
+    expect(state().saveStatus).toBe('saved');
+    expect(window.localStorage.length).toBe(0);
+    await advance(60_000);
+    expect(save).toHaveBeenCalledTimes(2);
   });
 
   it('keeps a due save behind simulation startup until the local Worker confirms', async () => {

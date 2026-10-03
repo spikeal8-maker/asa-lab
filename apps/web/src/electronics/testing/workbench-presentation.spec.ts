@@ -205,6 +205,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(editorSource).toContain('controller={controller}');
     expect(editorSource).toContain('drawerWidth={codePanelWidth}');
     expect(headerSource).toContain('aria-label="Отправить — пока недоступно"');
+    expect(headerSource).toContain('aria-label="Сохранить проект"');
+    expect(headerSource).toContain('onClick={() => void c.saveNow()}');
+    expect(workbenchCss).toContain('.workbench-toolbar-group.right .workbench-pill.save,');
     expect(workbenchCss).toContain('width: 222px');
     expect(workbenchCss).toContain('overflow-x: clip');
     expect(workbenchCss).toMatch(
