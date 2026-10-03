@@ -159,7 +159,8 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('ASA Lab');
     expect(headerSource).not.toContain('workbench-brand-grid');
     expect(headerSource).toContain('Время моделирования:');
-    expect(headerSource).toContain('formatSimulationTime(simulationElapsedSeconds)');
+    expect(headerSource).toContain('formatSimulationTime(c.committedSimulationTimeMs / 1000)');
+    expect(headerSource).not.toContain('Date.now() - startedAt');
     expect(headerSource).toContain('<EditorPersistenceIndicator');
     expect(persistenceIndicatorSource).toContain("label: 'Сохранено'");
     expect(persistenceIndicatorSource).toContain("label: 'Не удалось сохранить'");

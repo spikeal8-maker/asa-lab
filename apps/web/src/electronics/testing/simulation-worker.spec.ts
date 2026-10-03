@@ -217,11 +217,12 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
       kind: 'advance',
       document,
       state: resetElectronicsTimedState(),
-      requestedHorizonMicroseconds: 0,
+      requestedHorizonMicroseconds: 100_000,
     });
     expect(response.ok).toBe(true);
     if (!response.ok || response.kind !== 'advance') return;
     expect(response.advance.executionStatus).toBe('ready');
+    expect(response.advance.committedHorizonMicroseconds).toBe(100_000);
     expect(response.advance.result?.solved).toBe(false);
     expect(response.advance.result?.status).toBe('invalid');
     expect(response.advance.result?.diagnostics.map((entry) => entry.code)).toContain('no_source');
@@ -409,20 +410,87 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     const response = evaluateSimulationWorkerRequest(request);
 
     worker.respond({ ...response, projectSessionId: 'foreign-session' });
-    await expect(pending).rejects.toThrow('Stale Electronics Worker response');
+    await expect(pending).rejects.toMatchObject({
+      code: 'stale-response',
+      message: 'Stale Electronics Worker response was discarded.',
+    });
     client.dispose();
   });
+
+  it('retains invalid-response codes for wrong Worker response kinds', async () => {
+    const preflightWorker = new FakeWorker();
+    const preflightClient = new ElectronicsSimulationWorkerClient(() => preflightWorker);
+    const preflightGeneration = preflightClient.beginGeneration('project-session-a');
+    const preflight = preflightClient.preflight(preflightGeneration, circuit);
+    const preflightRequest = preflightWorker.messages[0];
+    if (!preflightRequest || preflightRequest.kind === 'cancel-generation')
+      throw new Error('Missing preflight request.');
+    preflightWorker.respond({
+      ...evaluateSimulationWorkerRequest(preflightRequest),
+      kind: 'advance',
+    } as ElectronicsSimulationWorkerResponse);
+    await expect(preflight).rejects.toMatchObject({ code: 'invalid-response' });
+    preflightClient.dispose();
+
+    const advanceWorker = new FakeWorker();
+    const advanceClient = new ElectronicsSimulationWorkerClient(() => advanceWorker);
+    const advanceGeneration = advanceClient.beginGeneration('project-session-b');
+    const advance = advanceClient.advance(
+      advanceGeneration,
+      circuit,
+      resetElectronicsTimedState(),
+      100_000,
+    );
+    const advanceRequest = advanceWorker.messages[0];
+    if (!advanceRequest || advanceRequest.kind === 'cancel-generation')
+      throw new Error('Missing advance request.');
+    advanceWorker.respond({
+      ...evaluateSimulationWorkerRequest(advanceRequest),
+      kind: 'preflight',
+    } as ElectronicsSimulationWorkerResponse);
+    await expect(advance).rejects.toMatchObject({ code: 'invalid-response' });
+    advanceClient.dispose();
+  });
+
   it('bounds silent requests and terminates the failed Worker', async () => {
     vi.useFakeTimers();
     const worker = new FakeWorker();
     const client = new ElectronicsSimulationWorkerClient(() => worker, 100);
     const generation = client.beginGeneration('project-session-a');
-    const pending = expect(client.preflight(generation, circuit)).rejects.toThrow('timed out');
+    const pending = expect(client.preflight(generation, circuit)).rejects.toMatchObject({
+      code: 'worker-timeout',
+      message: expect.stringContaining('timed out'),
+    });
 
     await vi.advanceTimersByTimeAsync(100);
     await pending;
     expect(worker.terminated).toBe(true);
     expect(vi.getTimerCount()).toBe(0);
+    client.dispose();
+  });
+
+  it('classifies a crashed Worker and recovers on a new generation', async () => {
+    const workers: FakeWorker[] = [];
+    const client = new ElectronicsSimulationWorkerClient(() => {
+      const worker = new FakeWorker();
+      workers.push(worker);
+      return worker;
+    });
+    const failedGeneration = client.beginGeneration('project-session-a');
+    const failed = client.preflight(failedGeneration, circuit);
+    workers[0]?.fail('Worker runtime crashed');
+    await expect(failed).rejects.toMatchObject({
+      code: 'worker-runtime',
+      message: 'Worker runtime crashed',
+    });
+    expect(workers[0]?.terminated).toBe(true);
+
+    const recoveredGeneration = client.beginGeneration('project-session-b');
+    const recovered = client.preflight(recoveredGeneration, circuit);
+    workers[1]?.respondTo(0);
+    await expect(recovered).resolves.toMatchObject({ status: 'solved' });
+    workers[0]?.respondTo(0);
+    expect(workers[1]?.terminated).toBe(false);
     client.dispose();
   });
 
@@ -437,7 +505,10 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     const client = new ElectronicsSimulationWorkerClient(factory);
 
     const failedGeneration = client.beginGeneration('project-session-a');
-    await expect(client.preflight(failedGeneration, circuit)).rejects.toThrow('startup blocked');
+    await expect(client.preflight(failedGeneration, circuit)).rejects.toMatchObject({
+      code: 'worker-start',
+      message: 'Worker startup blocked',
+    });
     const recoveredGeneration = client.beginGeneration('project-session-b');
     const recovered = client.preflight(recoveredGeneration, circuit);
     worker.respondTo(0);
@@ -452,7 +523,10 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
 
     const stale = client.preflight(staleGeneration, circuit);
     expect(stale).toBeInstanceOf(Promise);
-    await expect(stale).rejects.toThrow('no longer active');
+    await expect(stale).rejects.toMatchObject({
+      code: 'cancelled',
+      message: 'Electronics simulation generation is no longer active.',
+    });
     client.dispose();
   });
 });

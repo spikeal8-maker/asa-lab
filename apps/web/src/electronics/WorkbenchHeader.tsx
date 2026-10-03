@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import type { PublicUser } from '../api';
 import { EditorAvatar, useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 import { EditorPersistenceIndicator } from '../components/editor-chrome/EditorPersistenceIndicator';
@@ -167,20 +167,7 @@ export function WorkbenchHeader({
 }): JSX.Element {
   const hasComponentSelection = c.selection?.kind === 'component';
   const wireColorMenuRef = useRef<HTMLDetailsElement>(null);
-  const [simulationElapsedSeconds, setSimulationElapsedSeconds] = useState(0);
   const avatar = useEditorAvatar(user);
-
-  useEffect(() => {
-    if (!c.simulationRunning) {
-      setSimulationElapsedSeconds(0);
-      return;
-    }
-    const startedAt = Date.now();
-    const update = () => setSimulationElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
-    update();
-    const timer = window.setInterval(update, 250);
-    return () => window.clearInterval(timer);
-  }, [c.simulationRunning]);
 
   return (
     <>
@@ -392,7 +379,7 @@ export function WorkbenchHeader({
         )}
         {c.simulationRunning ? (
           <span className="workbench-simulation-time" aria-label="Время моделирования">
-            Время моделирования: {formatSimulationTime(simulationElapsedSeconds)}
+            Время моделирования: {formatSimulationTime(c.committedSimulationTimeMs / 1000)}
           </span>
         ) : null}
         <div className="workbench-toolbar-spacer" />
@@ -429,7 +416,7 @@ export function WorkbenchHeader({
           </button>
           <button
             type="button"
-            className={`workbench-pill simulate${c.simulationRunning ? ' running' : ''}`}
+            className={`workbench-pill simulate${c.simulationStatus === 'running' ? ' running' : ''}`}
             onClick={() => void c.toggleSimulation()}
             disabled={c.busy}
             data-simulation-status={c.simulationStatus}
@@ -455,6 +442,17 @@ export function WorkbenchHeader({
           </button>
         </div>
       </div>
+      {c.simulationMessage ? (
+        <div
+          className="workbench-simulation-message"
+          role="status"
+          aria-live="polite"
+          data-simulation-category={c.simulationMessage.category}
+          data-simulation-code={c.simulationMessage.code}
+        >
+          {c.simulationMessage.text}
+        </div>
+      ) : null}
     </>
   );
 }

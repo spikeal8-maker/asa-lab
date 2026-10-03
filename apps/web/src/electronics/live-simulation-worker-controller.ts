@@ -5,6 +5,12 @@ import {
   type ElectronicsTimedState,
 } from '@asa-lab/electronics/engine';
 import type { ProductionStateValue, SchematicDocument, SolveResult } from '../api';
+import {
+  preflightFailure,
+  timedAdvanceFailure,
+  workerFailure,
+  type SimulationFailure,
+} from './simulation-failure';
 import { ElectronicsSimulationWorkerClient } from './simulation-worker-client';
 import type { SimulationTimedAdvancePayload } from './simulation-worker-protocol';
 
@@ -23,9 +29,11 @@ export interface ElectronicsSimulationWorkerExecutor {
 }
 
 export interface LiveSimulationWorkerCallbacks {
+  readonly onGenerationPending?: () => void;
   readonly onResult: (result: SolveResult) => void;
+  readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
-  readonly onFailure: (error: Error) => void;
+  readonly onFailure: (failure: SimulationFailure) => void;
 }
 
 interface SimulationTarget {
@@ -309,6 +317,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.generationId = generationId;
     this.inFlight = true;
     this.inFlightKind = 'preflight';
+    this.callbacks?.onGenerationPending?.();
     void this.executor
       .preflight(generationId, document)
       .then((result) => this.completePreflight(generationId, result))
@@ -400,7 +409,11 @@ export class ElectronicsLiveSimulationWorkerController {
     if (generationId !== this.generationId) return;
     this.inFlight = false;
     this.inFlightKind = null;
-    void result;
+    const failure = preflightFailure(result);
+    if (failure) {
+      this.fail(generationId, failure);
+      return;
+    }
     this.pump();
   }
 
@@ -412,17 +425,12 @@ export class ElectronicsLiveSimulationWorkerController {
     if (generationId !== this.generationId) return;
     this.inFlight = false;
     this.inFlightKind = null;
-    this.timedState = advance.state;
-    this.callbacks?.onSerialProjection?.(advance.serial);
     if (advance.executionStatus === 'fault') {
-      const message =
-        advance.diagnostics
-          .map((entry) => entry.message)
-          .filter(Boolean)
-          .join(' ') || 'Electronics canonical timed advance failed.';
-      this.fail(generationId, new Error(message));
+      this.fail(generationId, timedAdvanceFailure(advance));
       return;
     }
+    this.timedState = advance.state;
+    this.callbacks?.onSerialProjection?.(advance.serial);
     this.retimePendingInputsAfterCommitted(
       advance.committedHorizonMicroseconds,
       target.requestedHorizonMicroseconds,
@@ -448,7 +456,10 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));
       return;
     }
-    if (this.pendingInputEvents.length === 0) this.callbacks?.onResult(advance.result);
+    if (this.pendingInputEvents.length === 0) {
+      this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
+      this.callbacks?.onResult(advance.result);
+    }
     this.pump();
   }
 
@@ -458,8 +469,6 @@ export class ElectronicsLiveSimulationWorkerController {
     const active = this.generationId !== null;
     this.clearGeneration();
     if (active) this.executor.cancelActiveGeneration();
-    callbacks?.onFailure(
-      reason instanceof Error ? reason : new Error('Electronics simulation Worker failed.'),
-    );
+    callbacks?.onFailure(workerFailure(reason));
   }
 }

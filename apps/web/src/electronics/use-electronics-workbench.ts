@@ -89,6 +89,11 @@ import {
 } from './workbench-model';
 import { calculateLiveSimulation, calculateSimulationPreflight } from './live-simulation';
 import { ElectronicsLiveSimulationWorkerController } from './live-simulation-worker-controller';
+import {
+  circuitStateMessage,
+  simulationFailureMessage,
+  type SimulationStatusMessage,
+} from './simulation-failure';
 import { warmProductionAsset } from './production-asset-contracts';
 import { unlockPiezoAudio, usePiezoAudio } from './use-piezo-audio';
 import {
@@ -203,7 +208,7 @@ export function useElectronicsWorkbench(projectId: string) {
     redo: projectRedo,
     commitDocument: projectCommitDocument,
     saveNow,
-    toggleSimulation,
+    toggleSimulation: toggleProjectSimulation,
     resetSimulation,
     checkpoint,
     renameProject,
@@ -269,6 +274,9 @@ export function useElectronicsWorkbench(projectId: string) {
 
   const simulationStartedAtRef = useRef<number | null>(null);
   const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
+  const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
+  const [generationPending, setGenerationPending] = useState(false);
+  const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
   const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
   const [arduinoSerialByBoard, setArduinoSerialByBoard] = useState<
     Readonly<Record<string, ElectronicsArduinoSerialProjection>>
@@ -282,6 +290,12 @@ export function useElectronicsWorkbench(projectId: string) {
   const resetSimulationRef = useRef(resetSimulation);
   resetSimulationRef.current = resetSimulation;
 
+  async function toggleSimulation(): Promise<void> {
+    setSimulationMessage(null);
+    setCommittedHorizonMicroseconds(0);
+    await toggleProjectSimulation();
+  }
+
   function stopSimulationForCatalogPlacement(): void {
     if (!simulationRunning) return;
     simulationWorkerRef.current?.stop();
@@ -289,6 +303,8 @@ export function useElectronicsWorkbench(projectId: string) {
     setRuntimeOverrides({});
     simulationStartedAtRef.current = null;
     setRequestedHorizonMicroseconds(0);
+    setCommittedHorizonMicroseconds(0);
+    setSimulationMessage(null);
     setLiveResult(null);
     setArduinoSerialByBoard({});
   }
@@ -303,6 +319,7 @@ export function useElectronicsWorkbench(projectId: string) {
     if (!simulationRunning) {
       simulationStartedAtRef.current = null;
       setRequestedHorizonMicroseconds(0);
+      setCommittedHorizonMicroseconds(0);
       setLiveResult(null);
       setArduinoSerialByBoard({});
       return;
@@ -333,10 +350,19 @@ export function useElectronicsWorkbench(projectId: string) {
     setLiveResult(null);
     setArduinoSerialByBoard({});
     controller.start(projectId, initialDocument, {
+      onGenerationPending: () => {
+        setGenerationPending(true);
+        setCommittedHorizonMicroseconds(0);
+        setLiveResult(null);
+        setSimulationMessage(null);
+      },
       onResult: (nextResult) => {
+        setGenerationPending(false);
         setLiveResult(nextResult);
+        setSimulationMessage(circuitStateMessage(nextResult));
         confirmSimulationStarted();
       },
+      onCommittedHorizon: setCommittedHorizonMicroseconds,
       onSerialProjection: (serial) => {
         setArduinoSerialByBoard(
           Object.fromEntries(serial.map((entry) => [entry.componentId, entry])) as Readonly<
@@ -344,11 +370,12 @@ export function useElectronicsWorkbench(projectId: string) {
           >,
         );
       },
-      onFailure: () => {
+      onFailure: (failure) => {
+        setGenerationPending(false);
         resetSimulationRef.current();
-        setNotice(
-          'Моделирование остановлено: вычислительный модуль не отвечает. Запустите его ещё раз.',
-        );
+        setLiveResult(null);
+        setArduinoSerialByBoard({});
+        setSimulationMessage(simulationFailureMessage(failure));
       },
     });
     return () => controller.stop();
@@ -2759,7 +2786,9 @@ export function useElectronicsWorkbench(projectId: string) {
     arduinoSerialByBoard,
     sendArduinoSerialRx,
     simulationTimeMs: requestedHorizonMicroseconds / 1000,
-    simulationStatus,
+    committedSimulationTimeMs: committedHorizonMicroseconds / 1000,
+    simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
+    simulationMessage,
     libraryOpen,
     setLibraryOpen,
     libraryQuery,
