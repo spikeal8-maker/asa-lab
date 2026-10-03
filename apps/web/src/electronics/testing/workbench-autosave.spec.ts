@@ -1,5 +1,11 @@
-import { describe, expect, it } from 'vitest';
-import { autosaveIsDue, draftSaveStatus } from '../workbench-autosave';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  AUTOSAVE_INTERVAL_MS,
+  WorkbenchAutosaveScheduler,
+  autosaveIsDue,
+  draftSaveStatus,
+  type TimedDraftSaveState,
+} from '../workbench-autosave';
 
 interface Draft {
   readonly resistorOhms: number;
@@ -7,6 +13,8 @@ interface Draft {
 
 const at220: Draft = { resistorOhms: 220 };
 const at1000: Draft = { resistorOhms: 1000 };
+
+afterEach(() => vi.useRealTimers());
 
 describe('workbench draft save state', () => {
   it('reports saved only for the document the editor is showing', () => {
@@ -125,5 +133,60 @@ describe('workbench draft save state', () => {
     expect(
       autosaveIsDue({ document: at1000, savedDocument: null, savingDocument: null, failed: false }),
     ).toBe(true);
+  });
+
+  it('anchors the deadline to the first edit and reads the newest document at expiry', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let state: TimedDraftSaveState<Draft> = {
+      document: at220,
+      savedDocument: at220,
+      savingDocument: null,
+      failed: false,
+      paused: false,
+    };
+    const save = vi.fn();
+    const scheduler = new WorkbenchAutosaveScheduler(() => state, save);
+    state = { ...state, document: at1000 };
+    scheduler.update();
+    vi.advanceTimersByTime(30_000);
+    const latest = { resistorOhms: 470 };
+    state = { ...state, document: latest };
+    scheduler.update();
+    vi.advanceTimersByTime(29_999);
+    expect(save).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(save).toHaveBeenCalledExactlyOnceWith(latest);
+    scheduler.dispose();
+  });
+
+  it('starts a new minute for an edit during an in-flight request', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(0);
+    let state: TimedDraftSaveState<Draft> = {
+      document: at1000,
+      savedDocument: at220,
+      savingDocument: null,
+      failed: false,
+      paused: false,
+    };
+    const save = vi.fn();
+    const scheduler = new WorkbenchAutosaveScheduler(() => state, save);
+    scheduler.update();
+    vi.advanceTimersByTime(AUTOSAVE_INTERVAL_MS);
+    expect(save).toHaveBeenCalledWith(at1000);
+    state = { ...state, savingDocument: at1000 };
+    scheduler.update();
+    vi.advanceTimersByTime(10_000);
+    const next = { resistorOhms: 680 };
+    state = { ...state, document: next };
+    scheduler.update();
+    vi.advanceTimersByTime(AUTOSAVE_INTERVAL_MS);
+    expect(save).toHaveBeenCalledTimes(1);
+    state = { ...state, savedDocument: at1000, savingDocument: null };
+    scheduler.update();
+    vi.advanceTimersByTime(0);
+    expect(save).toHaveBeenLastCalledWith(next);
+    scheduler.dispose();
   });
 });

@@ -54,3 +54,75 @@ export function autosaveIsDue<TDocument>(state: DraftSaveState<TDocument>): bool
     state.savingDocument === null
   );
 }
+
+export const AUTOSAVE_INTERVAL_MS = 60_000;
+
+export interface TimedDraftSaveState<TDocument> extends DraftSaveState<TDocument> {
+  /** A simulation is starting, so its first local Worker result has not arrived yet. */
+  readonly paused: boolean;
+}
+
+/**
+ * One deadline starts with the first edit that is not already being saved. Later
+ * edits replace the document read at the deadline, without moving that deadline.
+ * An edit during an in-flight request starts its own minute; when that minute
+ * expires, the next request waits for the previous one to finish.
+ */
+export class WorkbenchAutosaveScheduler<TDocument> {
+  private deadline: number | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(
+    private readonly readState: () => TimedDraftSaveState<TDocument>,
+    private readonly save: (document: TDocument) => void,
+  ) {}
+
+  update(): void {
+    this.clearTimer();
+    const state = this.readState();
+    if (state.failed || state.document === null || state.document === state.savedDocument) {
+      this.deadline = null;
+      return;
+    }
+    if (state.document === state.savingDocument) return;
+    this.deadline ??= Date.now() + AUTOSAVE_INTERVAL_MS;
+    if (state.savingDocument !== null || state.paused) return;
+
+    this.timer = setTimeout(() => this.onDeadline(), Math.max(0, this.deadline - Date.now()));
+  }
+
+  /** An immediate manual/safety save (or the due autosave) covers this document. */
+  markSaveRequested(document: TDocument): void {
+    if (this.readState().document !== document) return;
+    this.deadline = null;
+    this.clearTimer();
+  }
+
+  dispose(): void {
+    this.clearTimer();
+    this.deadline = null;
+  }
+
+  private onDeadline(): void {
+    this.timer = null;
+    const state = this.readState();
+    if (
+      !autosaveIsDue(state) ||
+      state.paused ||
+      this.deadline === null ||
+      Date.now() < this.deadline
+    ) {
+      this.update();
+      return;
+    }
+    const document = state.document;
+    if (document === null) return;
+    this.markSaveRequested(document);
+    this.save(document);
+  }
+
+  private clearTimer(): void {
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+  }
+}
