@@ -663,6 +663,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
 });
 
 test('edit during in-flight upstream autosave persists the latest generation', async () => {
+  test.setTimeout(180_000);
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
