@@ -808,13 +808,24 @@ test.describe('asset recovery in the built editor', () => {
     let unavailable = true;
     let textRequests = 0;
     let headRequests = 0;
+    let textAtFirstHead = 0;
+    let textAtSecondHead = 0;
     await page.route(
       (url) => url.pathname === asset,
       async (route) => {
         if (route.request().method() === 'HEAD') {
           headRequests += 1;
-          if (unavailable) await route.fulfill({ status: 404, body: '' });
-          else await route.continue();
+          if (unavailable) {
+            // HEAD begins only after the mounted consumers exhaust their three
+            // quick cycles. A shared stage/catalog source can add GETs, so the
+            // total is bounded rather than tied to one exact interleaving.
+            textAtFirstHead = textRequests;
+            await route.fulfill({ status: 404, body: '' });
+            unavailable = false;
+          } else {
+            if (headRequests === 2) textAtSecondHead = textRequests;
+            await route.continue();
+          }
           return;
         }
         if (route.request().resourceType() !== 'fetch') return route.continue();
@@ -839,14 +850,16 @@ test.describe('asset recovery in the built editor', () => {
       ),
     ).toBe(200);
     await expect(part(page, 'generator').getByTestId('owner-svg-error')).toBeVisible();
-    await expect.poll(() => textRequests, { timeout: 100_000 }).toBe(12);
-    await expect.poll(() => headRequests, { timeout: 65_000 }).toBe(1);
-    unavailable = false;
+    await expect.poll(() => headRequests, { timeout: 150_000 }).toBeGreaterThanOrEqual(1);
+    expect(textAtFirstHead).toBeGreaterThanOrEqual(12);
+    expect(textAtFirstHead).toBeLessThanOrEqual(18);
     await expect(part(page, 'generator').getByTestId('signal-generator-runtime')).toBeVisible({
       timeout: 90_000,
     });
-    expect(headRequests).toBe(2);
-    expect(textRequests).toBe(13);
+    expect(headRequests).toBeGreaterThanOrEqual(2);
+    expect(textAtSecondHead).toBe(textAtFirstHead);
+    expect(textRequests).toBeGreaterThan(textAtFirstHead);
+    expect(textRequests).toBeLessThanOrEqual(textAtFirstHead + 3);
     expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
@@ -858,11 +871,13 @@ test.describe('asset recovery in the built editor', () => {
     const asset = catalogEntry('multimeter')!.asset;
     let textRequests = 0;
     let headRequests = 0;
+    let textAtFirstHead = 0;
     await page.route(
       (url) => url.pathname === asset,
       async (route) => {
         if (route.request().method() === 'HEAD') {
           headRequests += 1;
+          if (headRequests === 1) textAtFirstHead = textRequests;
           await route.fulfill({ status: 404, body: '' });
           return;
         }
@@ -880,11 +895,13 @@ test.describe('asset recovery in the built editor', () => {
     const { readDocument, requests, errors } = await openEditor(page, doc);
     const initial = readDocument();
     await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
-    await expect.poll(() => textRequests, { timeout: 100_000 }).toBe(12);
-    await expect.poll(() => headRequests, { timeout: 100_000 }).toBe(2);
+    await expect.poll(() => headRequests, { timeout: 210_000 }).toBe(2);
+    expect(textAtFirstHead).toBeGreaterThanOrEqual(12);
+    expect(textAtFirstHead).toBeLessThanOrEqual(18);
+    expect(textRequests).toBe(textAtFirstHead);
     await page.waitForTimeout(2_000);
     expect(headRequests).toBe(2);
-    expect(textRequests).toBe(12);
+    expect(textRequests).toBe(textAtFirstHead);
     await expect(part(page, 'meter').getByTestId('owner-svg-error')).toBeVisible();
     expect(readDocument()).toEqual(initial);
     expect(requests).toHaveLength(0);

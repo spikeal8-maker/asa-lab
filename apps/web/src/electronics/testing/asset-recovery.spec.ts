@@ -128,6 +128,28 @@ describe('mounted quiet asset recovery', () => {
     recovery.cancel();
   });
 
+  it('keeps retrying a failed mounted image when another consumer of the same asset loads', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let probes = 0;
+    const retry = async (): Promise<'pending'> => {
+      probes += 1;
+      return 'pending';
+    };
+    const first = subscribeSharedQuietAssetRecovery('image:mixed-outcomes', retry, () => {});
+    const second = subscribeSharedQuietAssetRecovery('image:mixed-outcomes', retry, () => {});
+    first.failed();
+    second.failed();
+    first.recovered(); // Its mounted <image> loaded; the second consumer is still failed.
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(probes).toBe(3);
+    second.recovered();
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(probes).toBe(3);
+    first.cancel();
+    second.cancel();
+  });
+
   it('uses one sparse transport probe to recover an asset after all three quick cycles failed', async () => {
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(0);

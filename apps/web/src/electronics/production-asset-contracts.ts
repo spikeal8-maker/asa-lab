@@ -413,6 +413,7 @@ const sharedQuietRecoveries = new Map<
   string,
   {
     readonly listeners: Set<() => void>;
+    readonly failedListeners: Set<() => void>;
     readonly recovery: ReturnType<typeof createQuietAssetRecovery>;
   }
 >();
@@ -427,24 +428,37 @@ export function subscribeSharedQuietAssetRecovery(
   let shared = sharedQuietRecoveries.get(key);
   if (!shared) {
     const listeners = new Set<() => void>();
+    const failedListeners = new Set<() => void>();
     const recovery = createQuietAssetRecovery(async () => {
       const result = await retry();
       if (result !== false) for (const listener of listeners) listener();
       return result === true;
     }, lateAsset);
-    shared = { listeners, recovery };
+    shared = { listeners, failedListeners, recovery };
     sharedQuietRecoveries.set(key, shared);
   }
   shared.listeners.add(onReady);
+  const entry = shared;
   return {
-    failed: shared.recovery.failed,
-    recovered: shared.recovery.recovered,
-    permanent: shared.recovery.permanent,
+    failed: () => {
+      entry.failedListeners.add(onReady);
+      entry.recovery.failed();
+    },
+    recovered: () => {
+      entry.failedListeners.delete(onReady);
+      // A successful mounted image cannot clear another consumer's timer.
+      if (entry.failedListeners.size === 0) entry.recovery.recovered();
+    },
+    permanent: entry.recovery.permanent,
     cancel: () => {
-      shared.listeners.delete(onReady);
-      if (shared.listeners.size > 0) return;
-      shared.recovery.cancel();
-      if (sharedQuietRecoveries.get(key) === shared) sharedQuietRecoveries.delete(key);
+      entry.listeners.delete(onReady);
+      entry.failedListeners.delete(onReady);
+      if (entry.listeners.size > 0) {
+        if (entry.failedListeners.size === 0) entry.recovery.recovered();
+        return;
+      }
+      entry.recovery.cancel();
+      if (sharedQuietRecoveries.get(key) === entry) sharedQuietRecoveries.delete(key);
     },
   };
 }
