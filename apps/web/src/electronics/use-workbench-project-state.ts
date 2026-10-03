@@ -174,6 +174,7 @@ export function useWorkbenchProjectState(projectId: string) {
   // Saves run one at a time and in call order, so the stored draft cannot end up
   // holding an older document than the one the editor last sent.
   const saveQueueRef = useRef<Promise<unknown>>(Promise.resolve());
+  const pendingSavesRef = useRef(0);
   const autosaveSchedulerRef = useRef<WorkbenchAutosaveScheduler<SchematicDocument> | null>(null);
   // A queued save can still be in flight when the hook is pointed at another
   // project. Its response describes the previous project and must not be
@@ -406,7 +407,11 @@ export function useWorkbenchProjectState(projectId: string) {
   }
 
   const sendDraft = useCallback(
-    async (nextDocument: SchematicDocument, quiet: boolean): Promise<SolveResult | null> => {
+    async (
+      nextDocument: SchematicDocument,
+      quiet: boolean,
+      unloading = false,
+    ): Promise<SolveResult | null> => {
       const sentForProject = projectId;
       const baseRevision = serverRevisionRef.current;
       if (baseRevision === null) {
@@ -419,11 +424,18 @@ export function useWorkbenchProjectState(projectId: string) {
       savingDocumentRef.current = nextDocument;
       setSavingDocument(nextDocument);
       try {
-        const response = await api.saveDraft<SchematicDocument, SolveResult>(
-          sentForProject,
-          nextDocument,
-          baseRevision,
-        );
+        const response = unloading
+          ? await api.saveDraft<SchematicDocument, SolveResult>(
+              sentForProject,
+              nextDocument,
+              baseRevision,
+              { unloading: true },
+            )
+          : await api.saveDraft<SchematicDocument, SolveResult>(
+              sentForProject,
+              nextDocument,
+              baseRevision,
+            );
         // The editor moved to another project while this was in flight. The
         // response describes the previous one and says nothing about what is on
         // screen now.
@@ -546,24 +558,37 @@ export function useWorkbenchProjectState(projectId: string) {
   );
 
   const persist = useCallback(
-    (nextDocument: SchematicDocument, quiet = false): Promise<SolveResult | null> => {
+    (
+      nextDocument: SchematicDocument,
+      quiet = false,
+      unloading = false,
+    ): Promise<SolveResult | null> => {
       autosaveSchedulerRef.current?.markSaveRequested(nextDocument);
-      const queued = saveQueueRef.current.then(() => {
+      const send = (): Promise<SolveResult | null> => {
         // A preceding 409 may have replaced the live document with a merge.
         // Sending this older snapshot with the newly loaded revision would erase
         // the remote edit. The same check also drops superseded queued edits.
-        if (documentRef.current !== nextDocument) return null;
+        if (documentRef.current !== nextDocument) return Promise.resolve(null);
         // Paired visibilitychange/pagehide events can queue the same safety
         // write before savingDocumentRef moves. A failed or completed first
         // request must not cause another automatic write of that snapshot.
         if (quiet && (saveFailedRef.current || savedDocumentRef.current === nextDocument)) {
-          return null;
+          return Promise.resolve(null);
         }
-        return sendDraft(nextDocument, quiet);
-      });
+        return sendDraft(nextDocument, quiet, unloading);
+      };
+      // No queued request: issue a keepalive PUT during pagehide itself. A
+      // Promise.then callback may never run after the document is destroyed.
+      const idle = pendingSavesRef.current === 0;
+      pendingSavesRef.current += 1;
+      const queued = unloading && idle ? send() : saveQueueRef.current.then(send);
       saveQueueRef.current = queued.then(
-        () => undefined,
-        () => undefined,
+        () => {
+          pendingSavesRef.current -= 1;
+        },
+        () => {
+          pendingSavesRef.current -= 1;
+        },
       );
       return queued;
     },
@@ -596,6 +621,9 @@ export function useWorkbenchProjectState(projectId: string) {
 
   useEffect(() => {
     const flush = (): void => {
+      // A project switch must not send the new project's document through the
+      // old route's save closure during effect cleanup.
+      if (projectIdRef.current !== projectId) return;
       if (simulationStatusRef.current === 'starting') return;
       const current = documentRef.current;
       // Read the refs here: pagehide can follow an edit before React commits a
@@ -606,7 +634,7 @@ export function useWorkbenchProjectState(projectId: string) {
         current !== savedDocumentRef.current &&
         current !== savingDocumentRef.current
       ) {
-        void persist(current, true);
+        void persist(current, true, true);
       }
     };
     const onVisibility = (): void => {
@@ -615,19 +643,23 @@ export function useWorkbenchProjectState(projectId: string) {
     globalThis.document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('pagehide', flush);
     return () => {
+      // SPA navigation does not fire pagehide. Leaving the editor still gets
+      // the same immediate safety write while the browser remains alive.
+      flush();
       globalThis.document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('pagehide', flush);
     };
-  }, [persist]);
+  }, [persist, projectId]);
 
   const confirmSimulationStarted = useCallback((): void => {
     setSimulationStatus((current) => (current === 'starting' ? 'running' : current));
   }, []);
 
   async function saveNow(): Promise<void> {
-    if (!document || busy) return;
+    const current = documentRef.current;
+    if (!current || busy) return;
     setBusy(true);
-    await persist(document);
+    await persist(current);
     setBusy(false);
   }
 

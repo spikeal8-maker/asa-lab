@@ -4944,6 +4944,7 @@ html.arduino-palette-resizing * {
     background: #fff;
   }
   .workbench-toolbar-group.right .workbench-pill.code,
+  .workbench-toolbar-group.right .workbench-pill.save,
   .workbench-toolbar-group.right .workbench-pill.simulate,
   .workbench-mobile-library-toggle {
     display: inline-flex;
@@ -4970,6 +4971,7 @@ html.arduino-palette-resizing * {
   }
   .workbench-mobile-library-toggle svg,
   .workbench-toolbar-group.right .workbench-pill.code svg,
+  .workbench-toolbar-group.right .workbench-pill.save svg,
   .workbench-toolbar-group.right .workbench-pill.simulate svg {
     width: 21px;
     height: 21px;

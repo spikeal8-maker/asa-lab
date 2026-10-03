@@ -9,17 +9,7 @@ import { sha256Bytes } from '../components/sha256';
  * project, base revision and exact JSON payload makes retries stable across
  * queues, reloads and browser tabs without storing another copy of the draft.
  */
-export async function projectDraftMutationId(
-  projectId: string,
-  baseRevision: number,
-  document: unknown,
-): Promise<string> {
-  const payload = JSON.stringify([projectId, baseRevision, document]);
-  const encoded = new TextEncoder().encode(payload);
-  const subtle = globalThis.crypto?.subtle;
-  const digest = subtle
-    ? new Uint8Array(await subtle.digest('SHA-256', encoded))
-    : sha256Bytes(encoded);
+function mutationIdFromDigest(digest: Uint8Array): string {
   const bytes = digest.slice(0, 16);
   // RFC 4122 UUID v4 shape. The remaining bits still come from SHA-256, so two
   // different logical writes have a cryptographically negligible collision
@@ -31,4 +21,34 @@ export async function projectDraftMutationId(
     16,
     20,
   )}-${hex.slice(20)}`;
+}
+
+function mutationPayload(
+  projectId: string,
+  baseRevision: number,
+  document: unknown,
+): Uint8Array<ArrayBuffer> {
+  return new TextEncoder().encode(JSON.stringify([projectId, baseRevision, document]));
+}
+
+/** The unload path must issue fetch before the browser tears down the page. */
+export function projectDraftMutationIdSync(
+  projectId: string,
+  baseRevision: number,
+  document: unknown,
+): string {
+  return mutationIdFromDigest(sha256Bytes(mutationPayload(projectId, baseRevision, document)));
+}
+
+export async function projectDraftMutationId(
+  projectId: string,
+  baseRevision: number,
+  document: unknown,
+): Promise<string> {
+  const encoded = mutationPayload(projectId, baseRevision, document);
+  const subtle = globalThis.crypto?.subtle;
+  const digest = subtle
+    ? new Uint8Array(await subtle.digest('SHA-256', encoded))
+    : sha256Bytes(encoded);
+  return mutationIdFromDigest(digest);
 }
