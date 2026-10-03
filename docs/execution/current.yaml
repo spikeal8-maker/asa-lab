@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-TOUCH-WIRE-AFTER-UNDO-001
-      issue: 461
+      id: TASK-ELECTRONICS-AUTOSAVE-CADENCE-001
+      issue: 459
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: touch_wire_after_undo_independent_blocker_repair_selected
+      checkpoint: autosave_cadence_owner_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f406da311253383c62ed547869a5da13a5d42bba
+      convergence_baseline_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
       head_sha: null
-      observed_at: '2026-10-01T21:52:40Z'
+      observed_at: '2026-10-01T22:57:18Z'
       main:
         branch: main
-        sha: f406da311253383c62ed547869a5da13a5d42bba
-      observation_note: Dated main observation at separate touch-wire-after-Undo blocker repair selection for issue 461; not a live HEAD or gate acceptance; fetch main before writes.
+        sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+      observation_note: Dated main observation after accepted browser blocker repairs and at owner-selected autosave cadence issue 459 selection; not a live HEAD or gate acceptance; fetch main before writes.
     execution_lease:
-      executor_id: electronics-touch-wire-repair-controller-452
+      executor_id: electronics-autosave-cadence-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -182,7 +182,7 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
-    pending_closeouts:
+    accepted_slices:
       - task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
         issue: 453
         accepted_candidate_sha: a17026f6906854a3b433e99e1e510d7ca6c48750
@@ -190,8 +190,12 @@ parallel_lanes:
         independent_review: approved
         exact_main_general_run: 36907336808
         exact_main_browser_run: 36907393951
-        latest_exact_main_browser_run: 36929619491
-        status: waiting_for_touch_wire_repair_461
+        closeout_main_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+        closeout_main_general_run: 36936652517
+        closeout_main_browser_run: 36936688834
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
         issue: 456
         accepted_candidate_sha: 724b0e95aecbd485d6f6bc7485f6ffa4a92e0e2c
@@ -208,7 +212,12 @@ parallel_lanes:
         repair_exact_candidate_browser_run: 36928120995
         repair_exact_main_general_run: 36929596858
         repair_exact_main_browser_run: 36929619491
-        status: waiting_for_touch_wire_repair_461
+        closeout_main_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+        closeout_main_general_run: 36936652517
+        closeout_main_browser_run: 36936688834
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-LED-THERMAL-BROWSER-BASELINE-001
         issue: 457
         accepted_candidate_sha: 71fa21a73401e2ecbef012cdb2cc39f1f3968edd
@@ -218,8 +227,25 @@ parallel_lanes:
         exact_candidate_browser_run: 36921224037
         exact_main_general_run: 36922968375
         exact_main_browser_run: 36922989913
-        latest_exact_main_browser_run: 36929619491
-        status: waiting_for_touch_wire_repair_461
+        closeout_main_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+        closeout_main_general_run: 36936652517
+        closeout_main_browser_run: 36936688834
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-TOUCH-WIRE-AFTER-UNDO-001
+        issue: 461
+        accepted_candidate_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+        integrated_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+        independent_review: approved
+        exact_candidate_general_run: 36935189253
+        exact_candidate_browser_run: 36935204995
+        closeout_main_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+        closeout_main_general_run: 36936652517
+        closeout_main_browser_run: 36936688834
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
@@ -541,58 +567,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: ELEC-453-BROWSER-BASELINE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
-    blocks:
-      - technical_closeout
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_browser_baseline_repair
-      - focused_verification
-    reason: Asset recovery and Reset scenarios pass on exact main, but full Electronics browser gate fails the separate touch-wire-after-Undo scenario tracked in issue 461; technical closeout still needs a full exact-head browser PASS.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36929619491
-  - id: ELEC-456-RESET-HIGH-OBSERVATION
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-BROWSER-CLOCK-BASELINE-001
-    blocks:
-      - technical_closeout
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_browser_baseline_repair
-      - focused_verification
-    reason: Bounded HIGH-phase repair passes its candidate and exact-main Arduino Reset scenario, but full exact-main browser gate fails the separate touch-wire-after-Undo scenario tracked in issue 461; technical closeout still needs a full exact-head browser PASS.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36929619491
-  - id: ELEC-457-RESET-HIGH-BASELINE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-LED-THERMAL-BROWSER-BASELINE-001
-    blocks:
-      - technical_closeout
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_browser_baseline_repair
-      - focused_verification
-    reason: LED thermal scenario passes on exact main, but full Electronics browser gate fails the separate touch-wire-after-Undo scenario tracked in issue 461; technical closeout still needs a full exact-head browser PASS.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36929619491
-  - id: ELEC-461-TOUCH-WIRE-AFTER-UNDO
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-TOUCH-WIRE-AFTER-UNDO-001
-    blocks:
-      - technical_closeout
-      - owner_acceptance
-      - release_claim
-    allows:
-      - bounded_browser_baseline_repair
-      - focused_verification
-    reason: Exact-main browser gate delivered a tap to the free BAT+ terminal after Undo but did not show the wire preview; issue 461 requires a separate bounded diagnosis and repair before technical closeout.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/36929619491
   - id: LRN-E1-CORRECTIONS
     kind: acceptance_blocker
     lane: learning
