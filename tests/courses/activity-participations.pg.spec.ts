@@ -4824,7 +4824,9 @@ describe('A4-3b immutable-origin Project Submission', () => {
                     withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
               WHERE id=$1`,
         args: [started.participationId, ownerPrincipal],
-        expected: 'forbidden',
+        // The exact historical origin remains readable, but Submit's active
+        // Participation gate still denies every new Submission.
+        expected: 'not_available',
       },
     ];
     for (const gate of cases) {
