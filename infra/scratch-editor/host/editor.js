@@ -89,6 +89,7 @@
     let readyReported = false;
     let upstreamProjectSaver = null;
     let saveBeforeExitPromise = null;
+    let disposePromise = null;
     let upstreamSaverRearmSequence = 0;
     const upstreamSaverRearmWaiters = new Set();
     const autoSaveIntervalSecs = chooseAutoSaveIntervalSecs();
@@ -150,7 +151,7 @@
     };
 
     const dispose = () => {
-      if (disposed) return;
+      if (disposePromise) return disposePromise;
       disposed = true;
       loaded = false;
       upstreamProjectSaver = null;
@@ -158,17 +159,23 @@
         upstreamSaverRearmWaiters.delete(waiter);
         waiter.resolve(false);
       }
-      recoveryController?.dispose();
-      recoveryStore?.close();
-      storage?.dispose();
-      try {
-        disposeVm();
-      } finally {
-        root?.unmount();
-        shell.dataset.editorState = 'disposed';
-        shell.dataset.projectRunning = 'false';
-      }
+      disposePromise = Promise.resolve(recoveryController?.dispose())
+        .catch(() => undefined)
+        .then(() => {
+          recoveryStore?.close();
+          storage?.dispose();
+          try {
+            disposeVm();
+          } finally {
+            root?.unmount();
+            shell.dataset.editorState = 'disposed';
+            shell.dataset.projectRunning = 'false';
+          }
+        });
+      return disposePromise;
     };
+
+    const flushRecovery = () => recoveryController?.flush() ?? Promise.resolve();
 
     const reportReady = () => {
       if (disposed || readyReported) return;
@@ -446,7 +453,7 @@
     };
 
     const startup = start();
-    return { dispose, saveBeforeExit, startup };
+    return { dispose, flushRecovery, saveBeforeExit, startup };
   }
 
   globalThis.AsaBlocksEditor = { mountEditor };

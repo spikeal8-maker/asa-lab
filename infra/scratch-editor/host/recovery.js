@@ -283,6 +283,8 @@
     let timer = null;
     let pendingGeneration = null;
     let disposed = false;
+    let disposing = false;
+    let disposePromise = null;
     let writeTail = Promise.resolve();
 
     const publishState = (state, extra = {}) => {
@@ -387,7 +389,8 @@
       });
 
     const schedule = (generation) => {
-      if (disposed || !store || !Number.isSafeInteger(generation) || generation < 1) return;
+      if (disposed || disposing || !store || !Number.isSafeInteger(generation) || generation < 1)
+        return;
       pendingGeneration = generation;
       clearTimer();
       timer = globalThis.setTimeout(() => {
@@ -401,7 +404,13 @@
     };
 
     const durable = (savedGeneration) => {
-      if (!Number.isSafeInteger(savedGeneration) || savedGeneration < 0 || !store) {
+      if (
+        disposed ||
+        disposing ||
+        !Number.isSafeInteger(savedGeneration) ||
+        savedGeneration < 0 ||
+        !store
+      ) {
         return Promise.resolve(false);
       }
       if (pendingGeneration !== null && savedGeneration >= pendingGeneration) {
@@ -428,9 +437,16 @@
     };
 
     const dispose = () => {
-      disposed = true;
-      clearTimer();
-      pendingGeneration = null;
+      if (disposePromise) return disposePromise;
+      disposing = true;
+      disposePromise = Promise.resolve(flush())
+        .catch(() => undefined)
+        .then(() => {
+          disposed = true;
+          clearTimer();
+          pendingGeneration = null;
+        });
+      return disposePromise;
     };
 
     return Object.freeze({ schedule, durable, flush, dispose });

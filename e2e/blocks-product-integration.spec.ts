@@ -1502,6 +1502,59 @@ test('dirty Home waits for upstream durable save and a fresh browser reopens the
   }
 });
 
+test('new media Home uploads assets and draft before leaving the editor', async () => {
+  const serverProject = await realRuntimeBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  try {
+    const page = await fixture.context.newPage();
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-editor-state',
+      'ready',
+      { timeout: 45000 },
+    );
+
+    await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
+    await frame.getByText('Abby', { exact: true }).click();
+    await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
+    expect(fixture.getServerRevision()).toBe(23);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(0);
+
+    await frame.getByRole('button', { name: 'Home', exact: true }).click();
+    await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    expect(fixture.getServerRevision()).toBe(24);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(1);
+
+    const savedDocument = fixture.runtimeDraftEvidence[0].body.document;
+    const abby = savedDocument.projectJson.targets.find(
+      (target: { name?: string }) => target.name === 'Abby',
+    );
+    expect(abby).toBeTruthy();
+    const assetFiles = [...abby.costumes, ...abby.sounds].map(
+      (asset: { assetId: string; dataFormat: string }) => `${asset.assetId}.${asset.dataFormat}`,
+    );
+    const uploaded = new Set(fixture.runtimeAssetPutEvidence.map((item) => item.assetFile));
+    for (const assetFile of assetFiles) expect(uploaded.has(assetFile)).toBe(true);
+    const draftIndex = fixture.runtimeWriteEvents.findIndex((event) => event.kind === 'draft-put');
+    expect(draftIndex).toBeGreaterThan(0);
+    expect(
+      fixture.runtimeWriteEvents.slice(0, draftIndex).every((event) => event.kind === 'asset-put'),
+    ).toBe(true);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('dirty Home stays in the editor when upstream draft save fails', async () => {
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
@@ -2250,6 +2303,8 @@ test('clean Scratch ASA logo requests parent Home with no overlay', async () => 
     await expect(logo).toHaveAttribute('src', './asa-lab-scratch-wordmark.svg');
     await frame.getByRole('button', { name: 'Home', exact: true }).click();
     await expect(page).toHaveURL(`${parentOrigin}/product#/home`);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(0);
+    expect(fixture.runtimePersistenceMetrics.revisionCommits).toBe(0);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();

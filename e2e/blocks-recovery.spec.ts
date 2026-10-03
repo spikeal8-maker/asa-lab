@@ -267,6 +267,57 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
   }
 });
 
+test('pagehide before the local debounce flushes newest recovery for a fresh browser', async () => {
+  const serverProject = recoveryBootstrapFixture();
+  const fixture = await createProtocolFixture({
+    product: true,
+    locale: 'en-US',
+    runtimeSession: {
+      draftRevision: 23,
+      projectJson: serverProject.projectJson,
+      assets: serverProject.assets,
+    },
+    runtimeAssets: serverProject.runtimeAssets,
+  });
+  try {
+    let page = await minuteClockPage(fixture);
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    let frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await waitReady(frame);
+
+    const program = frame.locator('.blocklyBlockCanvas').first();
+    await program.getByText('10', { exact: true }).dblclick();
+    const input = frame.locator('.blocklyHtmlInput:focus');
+    await input.fill('73');
+    await page.clock.pauseAt(Date.now());
+    await input.press('Enter');
+    await page.clock.runFor(100);
+    await expect(program.getByText('73', { exact: true })).toBeVisible();
+    expect(await readRecoveryRecords(frame)).toEqual([]);
+
+    await frame.locator('html').evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await expect
+      .poll(async () => recoverySteps((await readRecoveryRecords(frame))[0]), { timeout: 5000 })
+      .toBe('73');
+    expect(fixture.getServerRevision()).toBe(23);
+    expect(fixture.runtimeDraftEvidence).toHaveLength(0);
+
+    await fixture.reopenContextWithIndexedDB();
+    page = await fixture.context.newPage();
+    await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
+    frame = page.frameLocator('iframe[title="Scratch runtime"]');
+    await waitReady(frame);
+    await expect(frame.locator('[data-asa-host-shell]')).toHaveAttribute(
+      'data-project-source',
+      'recovery',
+    );
+    await expectSteps(frame, '73');
+    expect(fixture.getServerRevision()).toBe(23);
+  } finally {
+    await fixture.close();
+  }
+});
+
 test('rapid dirty edits coalesce to one latest recovery record', async () => {
   const serverProject = recoveryBootstrapFixture();
   const fixture = await createProtocolFixture({

@@ -395,6 +395,66 @@ test('debounce coalesces rapid dirty generations and durable save clears only th
   assert.equal(await store.get(PRINCIPAL_A, PROJECT_ID), null);
   controller.dispose();
 });
+
+test('dispose flushes the newest pending recovery before closing the editor', async () => {
+  const api = loadRecovery();
+  const store = api.createRecoveryStore({ indexedDB: createFakeIndexedDb(), now: () => 1_000 });
+  let marker = 20;
+  const controller = api.createRecoveryController({
+    store,
+    principalKey: PRINCIPAL_A,
+    projectId: PROJECT_ID,
+    debounceMs: 400,
+    now: () => 1_000,
+    captureProjectJson: () => project(marker),
+    canRecoverProject: () => true,
+    getBaseRevision: () => 5,
+  });
+
+  controller.schedule(1);
+  marker = 73;
+  controller.schedule(2);
+  await controller.dispose();
+  await controller.dispose();
+
+  const record = await store.get(PRINCIPAL_A, PROJECT_ID);
+  assert.equal(record?.generation, 2);
+  assert.equal(record?.projectJson.marker, 73);
+});
+
+test('repeated lifecycle flushes write one recovery record and ignore later edits', async () => {
+  const api = loadRecovery();
+  const databaseStore = api.createRecoveryStore({
+    indexedDB: createFakeIndexedDb(),
+    now: () => 1_000,
+  });
+  let puts = 0;
+  const store = {
+    ...databaseStore,
+    put: async (record) => {
+      puts += 1;
+      return databaseStore.put(record);
+    },
+  };
+  const controller = api.createRecoveryController({
+    store,
+    principalKey: PRINCIPAL_A,
+    projectId: PROJECT_ID,
+    debounceMs: 400,
+    now: () => 1_000,
+    captureProjectJson: () => project(73),
+    canRecoverProject: () => true,
+    getBaseRevision: () => 5,
+  });
+
+  controller.schedule(3);
+  await Promise.all([controller.flush(), controller.flush(), controller.dispose()]);
+  controller.schedule(4);
+  await controller.dispose();
+
+  assert.equal(puts, 1);
+  assert.equal((await databaseStore.get(PRINCIPAL_A, PROJECT_ID))?.generation, 3);
+});
 test('001A refuses a checkpoint when referenced media is not already recoverable', async () => {
   const api = loadRecovery();
   const store = api.createRecoveryStore({ indexedDB: createFakeIndexedDb(), now: () => 1_000 });

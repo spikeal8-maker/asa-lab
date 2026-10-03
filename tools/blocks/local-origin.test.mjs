@@ -26,6 +26,7 @@ function resolvedParentOrigin(configuredParentOrigin, runtimeHref) {
     URL,
     GUI: gui,
     document: {
+      addEventListener() {},
       querySelector(selector) {
         if (selector === '[data-asa-host-shell]') return shell;
         if (selector === 'meta[name="asa-parent-origin"]') {

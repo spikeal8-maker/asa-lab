@@ -145,7 +145,7 @@
     },
     onStop() {
       reporter?.status('stopped');
-      editor?.dispose();
+      void editor?.dispose().catch(() => undefined);
       shell.dataset.runtimeState = 'stopped';
       status.textContent = 'Среда остановлена приложением ASA Lab.';
     },
@@ -157,13 +157,19 @@
     shell.dataset.runtimeState = 'error';
     status.textContent = 'Среда визуального программирования завершилась с ошибкой.';
     reporter.fatal(code);
-    editor?.dispose();
+    void editor?.dispose().catch(() => undefined);
   };
 
   window.addEventListener('error', () => reportFatal('runtime_error'));
   window.addEventListener('unhandledrejection', () => reportFatal('runtime_unhandled_rejection'));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      void editor?.flushRecovery().catch(() => undefined);
+    }
+  });
   window.addEventListener('pagehide', () => {
-    editor?.dispose();
+    void editor?.flushRecovery().catch(() => undefined);
+    void editor?.dispose().catch(() => undefined);
     protocol.dispose();
   });
 

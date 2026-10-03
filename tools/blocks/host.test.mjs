@@ -581,8 +581,8 @@ test('existing project mount preloads runtime assets and uses the real ASA proje
   assert.equal(fixture.params.isPlayerOnly, true);
   assert.equal(fixture.shell.dataset.projectSource, 'runtime-session');
   assert.equal(fixture.counts().prepared, 1);
-  fixture.editor.dispose();
-  fixture.editor.dispose();
+  await fixture.editor.dispose();
+  await fixture.editor.dispose();
   fixture.props.onProjectLoaded();
   fixture.machine.emit('PROJECT_CHANGED');
   assert.equal(fixture.shell.dataset.editorState, 'disposed');
@@ -1528,6 +1528,7 @@ for (const [query, mode, delegated] of [
         addEventListener() {},
       },
       document: {
+        addEventListener() {},
         querySelector: (selector) =>
           selector === '[data-asa-host-shell]' ? shell : { getAttribute: () => API_ORIGIN },
         getElementById: (id) => (id === 'runtime-status' ? status : root),
