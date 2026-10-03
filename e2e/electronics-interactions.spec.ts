@@ -2814,7 +2814,7 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
 
       const unlockedPoint = await pointOnBody(page, 'battery');
-      const unlockedBefore = batteryPosition();
+      const unlockedBefore = await batteryPosition();
       await page.mouse.move(unlockedPoint.x, unlockedPoint.y);
       await page.mouse.down();
       await page.mouse.move(unlockedPoint.x + 55, unlockedPoint.y + 30, { steps: 6 });
@@ -3303,10 +3303,10 @@ test.describe('owner D3-D6 acceptance', () => {
       exact: true,
     });
     await title.fill('Arrow field');
-    const beforeEditableArrow = position('battery');
+    const beforeEditableArrow = await position('battery');
     await page.keyboard.press('ArrowLeft');
     await page.keyboard.press('ArrowRight');
-    expect(position('battery')).toEqual(beforeEditableArrow);
+    expect(await position('battery')).toEqual(beforeEditableArrow);
 
     await page.screenshot({ path: 'reports/interactions/d3-keyboard-nudge.png' });
   });
