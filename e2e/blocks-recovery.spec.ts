@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
+let advanceMinuteAutosave: typeof import('../tools/blocks/browser/fixture.mjs').advanceMinuteAutosave;
+let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
 let parentOrigin: string;
 
 const PRINCIPAL_A = '33333333-3333-4333-8333-333333333333';
@@ -106,7 +108,8 @@ type RecoveryRecord = {
 };
 
 test.beforeAll(async () => {
-  ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
+  ({ createProtocolFixture, advanceMinuteAutosave, installMinuteAutosaveClock } =
+    await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin } = await import('../tools/blocks/browser/protocol.mjs'));
 });
 async function readRecoveryRecords(
@@ -162,6 +165,12 @@ async function waitReady(frame: import('@playwright/test').FrameLocator) {
   );
 }
 
+async function minuteClockPage(fixture: Awaited<ReturnType<typeof createProtocolFixture>>) {
+  const page = await fixture.context.newPage();
+  await installMinuteAutosaveClock(page);
+  return page;
+}
+
 async function expectSteps(frame: import('@playwright/test').FrameLocator, value: string) {
   await frame.getByRole('tab', { name: 'Code', exact: true }).click();
   await frame.getByRole('button', { name: 'Recovery Sprite', exact: true }).click();
@@ -197,6 +206,7 @@ function snapshot23() {
   };
 }
 test('dirty crash restores real Scratch state, autosaves it, clears recovery and second reopen uses server', async () => {
+  test.setTimeout(150_000);
   const serverProject = recoveryBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -235,7 +245,7 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
     expect(fixture.getServerRevision()).toBe(23);
     expect(fixture.getSnapshotRevision()).toBe(23);
 
-    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 90_000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10_000 })
       .toBe(0);
@@ -304,6 +314,7 @@ test('rapid dirty edits coalesce to one latest recovery record', async () => {
 });
 
 test('normal upstream autosave clears recovery only after durable save', async () => {
+  test.setTimeout(150_000);
   const serverProject = recoveryBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -322,7 +333,7 @@ test('normal upstream autosave clears recovery only after durable save', async (
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => (await readRecoveryRecords(frame)).length).toBe(1);
-    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 90_000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10_000 })
       .toBe(0);
@@ -345,12 +356,13 @@ test('failed server autosave retains recovery', async () => {
     draftWriteStatus: 503,
   });
   try {
-    const page = await fixture.context.newPage();
+    const page = await minuteClockPage(fixture);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');
+    await advanceMinuteAutosave(page);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
     expect(fixture.getServerRevision()).toBe(23);
     expect(recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');

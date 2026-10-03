@@ -79,6 +79,7 @@ test('stable gate has bounded build/type dependencies and includes the C unit an
       'pnpm nx build blocks',
       'pnpm nx build projects',
       'pnpm nx build identity',
+      'pnpm nx build learning',
       'pnpm nx run blocks:typecheck',
     ],
   );

@@ -14,13 +14,17 @@ async function mountWithRandomByte(randomByte) {
   let randomCalls = 0;
   let props;
   const context = vm.createContext({
-    crypto: {
-      getRandomValues(bytes) {
-        randomCalls += 1;
-        bytes[0] = randomByte;
-        return bytes;
-      },
-    },
+    ...(randomByte === null
+      ? {}
+      : {
+          crypto: {
+            getRandomValues(bytes) {
+              randomCalls += 1;
+              bytes[0] = randomByte;
+              return bytes;
+            },
+          },
+        }),
     AsaBlocksStorage: {
       createReadOnlyStorage: () => ({ dispose() {} }),
     },
@@ -62,7 +66,7 @@ async function mountWithRandomByte(randomByte) {
   return { editor, machine, props, dirtyGenerations, randomCalls: () => randomCalls };
 }
 
-test('first dirty generation selects a 55–65 second checkpoint that later edits cannot postpone', async () => {
+test('host supplies one minute-scale interval per mount and reports every dirty generation', async () => {
   for (const [randomByte, seconds] of [
     [0, 55],
     [5, 60],
@@ -71,46 +75,21 @@ test('first dirty generation selects a 55–65 second checkpoint that later edit
     const fixture = await mountWithRandomByte(randomByte);
     assert.equal(fixture.props.autoSaveIntervalSecs, seconds);
 
-    // The pinned ProjectSaverHOC arms on the first dirty transition. Model
-    // that timer with fake time while exercising the actual host dirty events.
-    let now = 0;
-    let deadline = null;
-    let latest = null;
-    const checkpoints = [];
-    const edit = (value) => {
-      latest = value;
-      fixture.machine.emit('PROJECT_CHANGED');
-      if (deadline === null) deadline = now + fixture.props.autoSaveIntervalSecs * 1000;
-    };
-    const advance = (milliseconds) => {
-      now += milliseconds;
-      if (deadline !== null && now >= deadline) {
-        checkpoints.push({ at: deadline, value: latest });
-        deadline = null;
-      }
-    };
-
-    edit('A');
-    advance(30_000);
-    edit('B');
-    advance(seconds * 1000 - 30_001);
-    assert.equal(checkpoints.length, 0);
-    advance(1);
-    assert.deepEqual(checkpoints, [{ at: seconds * 1000, value: 'B' }]);
-
-    edit('C0');
-    let elapsed = 0;
-    while (elapsed + 5_000 < seconds * 1000) {
-      advance(5_000);
-      elapsed += 5_000;
-      edit(`C${elapsed}`);
-    }
-    advance(seconds * 1000 - elapsed);
-    assert.equal(checkpoints.length, 2);
-    assert.equal(checkpoints[1].at, seconds * 2000);
-    assert.equal(checkpoints[1].value, `C${elapsed}`);
+    fixture.machine.emit('PROJECT_CHANGED');
+    fixture.machine.emit('PROJECT_CHANGED');
+    assert.deepEqual(fixture.dirtyGenerations, [1, 2]);
+    assert.equal(fixture.props.autoSaveIntervalSecs, seconds);
     assert.equal(fixture.randomCalls(), 1);
-    assert.equal(fixture.dirtyGenerations.length, 3 + elapsed / 5_000);
     fixture.editor.dispose();
   }
+});
+
+test('host falls back to a 60 second interval without crypto', async () => {
+  const fixture = await mountWithRandomByte(null);
+  assert.equal(fixture.props.autoSaveIntervalSecs, 60);
+  assert.equal(fixture.randomCalls(), 0);
+  fixture.machine.emit('PROJECT_CHANGED');
+  assert.deepEqual(fixture.dirtyGenerations, [1]);
+  assert.equal(fixture.props.autoSaveIntervalSecs, 60);
+  fixture.editor.dispose();
 });
