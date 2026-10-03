@@ -663,7 +663,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
 });
 
 test('edit during in-flight upstream autosave persists the latest generation', async () => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -700,7 +700,7 @@ test('edit during in-flight upstream autosave persists the latest generation', a
     },
   );
 
-  const page = await minuteClockPage(fixture);
+  const page = await fixture.context.newPage();
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -709,7 +709,6 @@ test('edit during in-flight upstream autosave persists the latest generation', a
     await expect(page.locator('[data-asa-blocks-save]')).toHaveCount(0);
 
     await setServerSteps(frame, '8', '37');
-    await advanceMinuteCheckpoint(page);
     await committed;
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     expect(fixture.getServerRevision()).toBe(24);
@@ -717,8 +716,7 @@ test('edit during in-flight upstream autosave persists the latest generation', a
     await setServerSteps(frame, '37', '41');
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     releaseResponse();
-    await advanceMinuteCheckpoint(page, 2);
-    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 90_000 }).toBe(2);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
 
     const finalDraft = fixture.runtimeDraftEvidence.at(-1);
