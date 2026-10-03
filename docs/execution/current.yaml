@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-004
-      issue: 480
+      id: TASK-ELECTRONICS-ASSET-EVENTUAL-RECOVERY-001
+      issue: 462
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: post_stabilization_hygiene_selected_preflight_pending
+      checkpoint: quiet_network_asset_recovery_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: aca44e8dd499ae5cf133f50708b7b9cb50ce8743
+      convergence_baseline_sha: 56ffc5c3e8d97036ef64be1f981ac3790e66226d
       head_sha: null
-      observed_at: '2026-10-03T14:32:34Z'
+      observed_at: '2026-10-03T15:11:20Z'
       main:
         branch: main
-        sha: aca44e8dd499ae5cf133f50708b7b9cb50ce8743
-      observation_note: Dated main observation after autosave 459 safety repair was merged and verified on the exact product SHA. Fetch main before writes; the mandatory hygiene checkpoint 480 is selected before another production-changing Electronics slice.
+        sha: 56ffc5c3e8d97036ef64be1f981ac3790e66226d
+      observation_note: Dated main observation after hygiene checkpoint 480 evidence was integrated and independently verified. Fetch main before writes; quiet-network asset recovery 462 is selected as one bounded production repair.
     execution_lease:
-      executor_id: electronics-hygiene-controller-452
+      executor_id: electronics-asset-eventual-recovery-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -272,6 +272,18 @@ parallel_lanes:
             observation: One integrated-main browser attempt timed out in an unchanged Arduino Reset Worker scenario; controlled rerun on the same SHA passed.
         status: technical_accepted
         reopened_gap_closed: Manual Save is accessible and pagehide dispatches a bounded synchronous keepalive request or preserves a local recovery draft; exact-head independent review and CI passed.
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-004
+        issue: 480
+        accepted_candidate_sha: 50cc11afb9286cfd7115146b1356f2a57f5abb70
+        integrated_sha: 5ff6ad503f2c50f2697787952504871c93ee4f82
+        independent_review: approved
+        exact_candidate_general_run: 37130662785
+        integrated_main_general_cancelled_run: 37131498359
+        exact_including_main_sha: 56ffc5c3e8d97036ef64be1f981ac3790e66226d
+        exact_including_main_general_run: 37131616731
+        status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
   - id: chess
