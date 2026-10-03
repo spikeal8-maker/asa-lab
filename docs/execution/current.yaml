@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-AUTOSAVE-CADENCE-001
-      issue: 459
+      id: TASK-ELECTRONICS-GOVERNANCE-004
+      issue: 480
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: autosave_cadence_owner_selected_preflight_pending
+      checkpoint: post_stabilization_hygiene_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
+      convergence_baseline_sha: 13b6be3b81c6113185daebb8c01603c1ec619689
       head_sha: null
-      observed_at: '2026-10-01T22:57:18Z'
+      observed_at: '2026-10-03T11:38:35Z'
       main:
         branch: main
-        sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
-      observation_note: Dated main observation after accepted browser blocker repairs and at owner-selected autosave cadence issue 459 selection; not a live HEAD or gate acceptance; fetch main before writes.
+        sha: 13b6be3b81c6113185daebb8c01603c1ec619689
+      observation_note: Dated main observation after autosave 459 integration and exact-main CI; not a live HEAD for future writes. Fetch main before writes. Mandatory hygiene checkpoint due after production-changing slices 453, 461 and 459.
     execution_lease:
-      executor_id: electronics-autosave-cadence-controller-452
+      executor_id: electronics-hygiene-checkpoint-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -243,6 +243,24 @@ parallel_lanes:
         closeout_main_sha: 9b23ec4e004ccb2cf92c338ed1ca57b615b7d0e4
         closeout_main_general_run: 36936652517
         closeout_main_browser_run: 36936688834
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-AUTOSAVE-CADENCE-001
+        issue: 459
+        accepted_candidate_sha: 85603130e744f133093c8c2c6acf6def96d9e558
+        integrated_sha: 13b6be3b81c6113185daebb8c01603c1ec619689
+        independent_review: approved
+        exact_candidate_general_run: 37116894742
+        exact_candidate_browser_run: 37117559402
+        exact_main_general_run: 37118671617
+        exact_main_browser_run: 37119359903
+        initial_main_browser_failure_run: 37118687139
+        residual_followups:
+          - issue: 462
+            observation: One candidate browser attempt missed the permanent-missing catalog asset badge; controlled rerun on the same SHA passed.
+          - issue: 463
+            observation: One integrated-main browser attempt timed out in an unchanged Arduino Reset Worker scenario; controlled rerun on the same SHA passed.
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
