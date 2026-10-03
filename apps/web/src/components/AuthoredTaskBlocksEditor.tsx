@@ -22,6 +22,7 @@ export function AuthoredTaskBlocksEditor({
   disabled,
   onChange,
   onImageUpload,
+  onFileUpload,
   imageUrl,
 }: {
   readonly blocks: SafeTaskBlock[] | undefined;
@@ -29,6 +30,7 @@ export function AuthoredTaskBlocksEditor({
   readonly disabled: boolean;
   readonly onChange: (blocks: SafeTaskBlock[]) => void;
   readonly onImageUpload: (file: File) => void;
+  readonly onFileUpload: (file: File) => void;
   readonly imageUrl: (contentHash: string) => string;
 }): JSX.Element {
   const items = blocks ?? [];
@@ -77,6 +79,22 @@ export function AuthoredTaskBlocksEditor({
             />
           </label>
         ) : null}
+        {!items.some((block) => block.type === 'file') ? (
+          <label className="btn-secondary">
+            + PDF файл
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              aria-label="PDF файл задания"
+              disabled={disabled || items.length >= blockLimit}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                event.target.value = '';
+                if (file) onFileUpload(file);
+              }}
+            />
+          </label>
+        ) : null}
       </div>
       {items.map((block, index) => (
         <div className="task-block-editor-item" key={index} data-testid="authored-task-block">
@@ -84,7 +102,9 @@ export function AuthoredTaskBlocksEditor({
             {index + 1}.{' '}
             {block.type === 'image'
               ? 'Изображение'
-              : choices.find(([type]) => type === block.type)?.[1]}
+              : block.type === 'file'
+                ? 'PDF файл'
+                : choices.find(([type]) => type === block.type)?.[1]}
           </strong>
           <div className="task-block-editor-actions">
             <button
@@ -138,6 +158,24 @@ export function AuthoredTaskBlocksEditor({
                     const file = event.target.files?.[0];
                     event.target.value = '';
                     if (file) onImageUpload(file);
+                  }}
+                />
+              </label>
+            </>
+          ) : block.type === 'file' ? (
+            <>
+              <p>{block.name} · PDF</p>
+              <label className="btn-secondary">
+                Заменить PDF
+                <input
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  aria-label={`Заменить PDF блока ${index + 1}`}
+                  disabled={disabled}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file) onFileUpload(file);
                   }}
                 />
               </label>

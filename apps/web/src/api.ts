@@ -25,7 +25,8 @@ export type SafeTaskBlock =
   | { type: 'heading' | 'paragraph' | 'callout'; text: string }
   | { type: 'list'; items: string[] }
   | { type: 'link'; text: string; href: string }
-  | { type: 'image'; alt: string; contentHash: string; src?: string };
+  | { type: 'image'; alt: string; contentHash: string; src?: string }
+  | { type: 'file'; name: string; contentHash: string; src?: string };
 
 export interface AuthoredActivityDraft {
   quizVersionId?: string | null;
@@ -1907,6 +1908,19 @@ export const api = {
       {
         method: 'PUT',
         body: JSON.stringify({ expectedRevision, imageDataUrl }),
+      },
+    ),
+  saveAuthoredActivityTaskFile: (
+    id: string,
+    expectedRevision: number,
+    fileName: string,
+    fileDataUrl: string,
+  ) =>
+    call<{ draftRevision: number; contentHash: string; url: string }>(
+      `/api/learning/activities/${encodeURIComponent(id)}/draft-task-file`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ expectedRevision, fileName, fileDataUrl }),
       },
     ),
   deleteAuthoredActivityDraftSample: (id: string, expectedRevision: number) =>
