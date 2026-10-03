@@ -1093,14 +1093,40 @@ export function useElectronicsWorkbench(projectId: string) {
       } else if (component?.kind === 'photoresistor') {
         runtimeOnlyControl = keys.every((key) => key === 'illumination');
       } else if (component?.componentTypeId === 'multimeter') {
-        runtimeOnlyControl = keys.every((key) => key === 'measurementMode' || key === 'meterRange');
+        runtimeOnlyControl = keys.every((key) => key === 'meterRange' || key === 'measurementMode');
+        if (
+          runtimeOnlyControl &&
+          keys.includes('measurementMode') &&
+          properties['measurementMode'] !== 'dc-voltage' &&
+          properties['measurementMode'] !== 'dc-current' &&
+          properties['measurementMode'] !== 'resistance'
+        )
+          return;
       } else if (component?.componentTypeId === 'pir-sensor') {
         runtimeOnlyControl = keys.every((key) => key === 'motionDetected');
       } else if (component?.componentTypeId === 'oscilloscope') {
         runtimeOnlyControl = keys.every(
           (key) =>
-            key === 'voltsPerDivision' || key === 'timePerDivisionMs' || key === 'triggerLevelVolt',
+            key === 'voltsPerDivision' ||
+            key === 'timePerDivisionMs' ||
+            key === 'triggerLevelVolt' ||
+            key === 'displayEnabled',
         );
+        if (runtimeOnlyControl) {
+          for (const [key, value] of Object.entries(properties)) {
+            if (key === 'displayEnabled') {
+              if (typeof value !== 'boolean') return;
+            } else if (
+              typeof value !== 'number' ||
+              !Number.isFinite(value) ||
+              (key === 'voltsPerDivision' && (value <= 0 || value > 100)) ||
+              (key === 'timePerDivisionMs' && (value <= 0 || value > 10_000)) ||
+              (key === 'triggerLevelVolt' && (value < -100 || value > 100))
+            ) {
+              return;
+            }
+          }
+        }
       }
 
       if (persistentEnvironmentInput) {

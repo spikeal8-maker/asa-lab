@@ -23,6 +23,14 @@ import {
 import { arduinoSnapshotFromState, arduinoSourceFor, isArduinoUno } from './arduino-model.js';
 import type { ElectronicsDocument, SchematicComponent, Terminal } from './document.js';
 import { simulationInputDigest } from './simulation-input-digest.js';
+import { REGULATED_POWER_SUPPLY_PROFILE } from './models/regulated-power-supply-model.js';
+import {
+  SIGNAL_GENERATOR_MAX_AMPLITUDE_VPP,
+  SIGNAL_GENERATOR_MAX_FREQUENCY_HZ,
+  SIGNAL_GENERATOR_MAX_OFFSET_VOLT,
+  SIGNAL_GENERATOR_MIN_FREQUENCY_HZ,
+  SIGNAL_GENERATOR_MIN_OFFSET_VOLT,
+} from './models/signal-generator-model.js';
 import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
 import {
@@ -92,11 +100,19 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
     )
   )
     return true;
+  // Select the physical profile from the fixed circuit, not the live meter mode.
+  // A passive no-source circuit must retain the observable algebraic profile;
+  // energized circuits keep the fuse history across A/V/R changes.
   if (
     document.components.some(
+      (component) => electricalModelFor(component).id === 'digital-multimeter',
+    ) &&
+    document.components.some(
       (component) =>
-        electricalModelFor(component).id === 'digital-multimeter' &&
-        component.stateProperties?.['measurementMode'] === 'dc-current',
+        isElectrolyticCapacitor(component) ||
+        isArduinoUno(component) ||
+        electricalModelFor(component).id === 'ideal-dc-source' ||
+        electricalModelFor(component).id === 'function-generator',
     )
   )
     return true;
@@ -116,7 +132,19 @@ export interface ArduinoCircuitInputEvent {
     | 'moisturePercent'
     | 'motionDetected'
     | 'distanceMeters'
-    | 'serialRx';
+    | 'serialRx'
+    | 'voltageSetpointVolt'
+    | 'currentLimitAmp'
+    | 'outputEnabled'
+    | 'waveform'
+    | 'frequencyHz'
+    | 'amplitudeVpp'
+    | 'dcOffsetVolt'
+    | 'voltsPerDivision'
+    | 'timePerDivisionMs'
+    | 'triggerLevelVolt'
+    | 'displayEnabled'
+    | 'measurementMode';
   readonly value: boolean | number | string;
 }
 
@@ -171,6 +199,13 @@ function integerTime(value: number): boolean {
 function clockedComponent(component: SchematicComponent): boolean {
   // A narrow, opt-in electrical profile. Do not silently freeze physical history.
   const model = electricalModelFor(component);
+  if (model.id === 'function-generator' || model.id === 'oscilloscope') {
+    return (
+      model.support !== 'unsupported' &&
+      component.pinIds?.includes('signal') === true &&
+      component.pinIds?.includes('ground') === true
+    );
+  }
   return (
     model.support !== 'unsupported' &&
     (ELECTROTHERMAL_MODELS.has(model.id) ||
@@ -194,6 +229,48 @@ function clockedComponent(component: SchematicComponent): boolean {
         'capacitor',
       ].includes(model.id))
   );
+}
+
+function validLiveControl(component: SchematicComponent, event: ArduinoCircuitInputEvent): boolean {
+  const { property, value } = event;
+  if (component.componentTypeId === 'regulated-power-supply') {
+    if (property === 'outputEnabled') return typeof value === 'boolean';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    return property === 'voltageSetpointVolt'
+      ? value >= REGULATED_POWER_SUPPLY_PROFILE.voltageMinVolt &&
+          value <= REGULATED_POWER_SUPPLY_PROFILE.voltageMaxVolt
+      : property === 'currentLimitAmp' &&
+          value >= REGULATED_POWER_SUPPLY_PROFILE.currentMinAmp &&
+          value <= REGULATED_POWER_SUPPLY_PROFILE.currentMaxAmp;
+  }
+  if (component.componentTypeId === 'signal-generator') {
+    if (property === 'outputEnabled') return typeof value === 'boolean';
+    if (property === 'waveform')
+      return value === 'sine' || value === 'square' || value === 'triangle';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    if (property === 'frequencyHz')
+      return (
+        value >= SIGNAL_GENERATOR_MIN_FREQUENCY_HZ && value <= SIGNAL_GENERATOR_MAX_FREQUENCY_HZ
+      );
+    if (property === 'amplitudeVpp')
+      return value >= 0 && value <= SIGNAL_GENERATOR_MAX_AMPLITUDE_VPP;
+    return (
+      property === 'dcOffsetVolt' &&
+      value >= SIGNAL_GENERATOR_MIN_OFFSET_VOLT &&
+      value <= SIGNAL_GENERATOR_MAX_OFFSET_VOLT
+    );
+  }
+  if (component.componentTypeId === 'oscilloscope') {
+    if (property === 'displayEnabled') return typeof value === 'boolean';
+    if (typeof value !== 'number' || !Number.isFinite(value)) return false;
+    if (property === 'voltsPerDivision') return value > 0 && value <= 100;
+    if (property === 'timePerDivisionMs') return value > 0 && value <= 10_000;
+    return property === 'triggerLevelVolt' && value >= -100 && value <= 100;
+  }
+  if (component.componentTypeId === 'multimeter' && property === 'measurementMode') {
+    return value === 'dc-voltage' || value === 'dc-current' || value === 'resistance';
+  }
+  return false;
 }
 
 function validInputs(
@@ -247,7 +324,8 @@ function validInputs(
           (event.property === 'serialRx' &&
             isArduinoUno(component) &&
             typeof event.value === 'string' &&
-            event.value.length <= ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT))
+            event.value.length <= ARDUINO_SERIAL_RX_INGRESS_TEXT_LIMIT) ||
+          validLiveControl(component, event))
       );
     })
   );
@@ -271,10 +349,7 @@ function applyInput(
     ...document,
     components: document.components.map((component) =>
       component.id === event.componentId
-        ? event.property === 'temperatureCelsius' ||
-          event.property === 'moisturePercent' ||
-          event.property === 'motionDetected' ||
-          event.property === 'distanceMeters'
+        ? event.property !== 'state' && event.property !== 'wiperPosition'
           ? {
               ...component,
               stateProperties: { ...component.stateProperties, [event.property]: event.value },
@@ -321,6 +396,9 @@ export function advanceArduinoCircuitClock(
       ? 'rc-inputs-v2'
       : 'dc-inputs-v1';
   const hasPhysics = profile !== 'dc-inputs-v1';
+  const hasTimeDependentGenerator = document.components.some(
+    (component) => component.componentTypeId === 'signal-generator',
+  );
   const unsupported = document.components.find((component) => !clockedComponent(component));
   if (unsupported)
     return fault(
@@ -645,7 +723,12 @@ export function advanceArduinoCircuitClock(
       time,
     );
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
-    if (cachedFrame && (profile === 'dc-inputs-v1' || cachedFrameTime === time)) return cachedFrame;
+    // Only generator DC frames change with the horizon without an event or state update.
+    if (
+      cachedFrame &&
+      (cachedFrameTime === time || (profile === 'dc-inputs-v1' && !hasTimeDependentGenerator))
+    )
+      return cachedFrame;
     if (hasPhysics) {
       // A horizon between canonical events may be observed but never committed:
       // otherwise UI frame rate would change adaptive integration and later ADC reads.

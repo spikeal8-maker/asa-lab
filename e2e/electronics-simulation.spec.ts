@@ -4944,8 +4944,42 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await page.evaluate(() => {
+    document
+      .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')
+      ?.addEventListener(
+        'pointerdown',
+        (event) => {
+          (window as Window & { __meterPointerTargetClass?: string }).__meterPointerTargetClass =
+            (event.target as Element).getAttribute('class') ?? '';
+        },
+        { capture: true, once: true },
+      );
+  });
+  await meter.locator('.workbench-multimeter-mode-resistance').first().click();
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __meterPointerTargetClass?: string }).__meterPointerTargetClass,
+    ),
+  ).toContain('workbench-multimeter-mode-resistance');
+  await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
+  await expect(meter.getByTestId('multimeter-runtime-display')).toContainText('1.000 kΩ');
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
+  await page.getByRole('button', { name: 'Сохранить проект' }).click();
+  await expect
+    .poll(async () => {
+      const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(saved.ok()).toBe(true);
+      const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
+      return savedPayload.draft.document.components.find((item) => item.id === 'meter')
+        ?.stateProperties?.['measurementMode'];
+    })
+    .toBe('resistance');
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
   const display = meter.getByTestId('multimeter-runtime-display');
   await expect(display).toHaveAttribute('data-measurement-mode', 'resistance');
@@ -4966,16 +5000,6 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
     path: `${ARTIFACT_DIR}/electronics-multimeter-resistance.png`,
     fullPage: true,
   });
-
-  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
-    headers: { origin: new URL(page.url()).origin },
-  });
-  const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
-  expect(
-    savedPayload.draft.document.components.find((item) => item.id === 'meter')?.stateProperties?.[
-      'measurementMode'
-    ],
-  ).toBe('dc-voltage');
 
   const poweredProjectId = await createProject(page, 'Мультиметр: R под питанием');
   await saveDocument(page, poweredProjectId, multimeterResistanceDocument(true));
@@ -5076,6 +5100,363 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
   await expect(visual).toHaveAttribute('data-output-enabled', 'true');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
   await expect(visual).toHaveAttribute('data-regulation-mode', 'cc');
+  failures.assertEmpty();
+});
+
+test('live supply and oscilloscope controls keep one canonical generation and the saved circuit', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await observeSimulationWorkerClock(page);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Live source and scope continuity');
+  const base = regulatedPowerSupplyDocument();
+  const circuit: SchematicDocument = {
+    ...base,
+    components: [
+      ...base.components.map((item) =>
+        item.id === 'bench-supply'
+          ? {
+              ...item,
+              state: true,
+              stateProperties: { ...item.stateProperties, outputEnabled: true },
+            }
+          : item,
+      ),
+      {
+        id: 'scope',
+        kind: 'visual',
+        componentTypeId: 'oscilloscope',
+        variantId: 'oscilloscope',
+        name: 'Осциллограф',
+        position: { x: 700, y: 540 },
+        rotation: 0,
+        value: 1,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          voltsPerDivision: 1,
+          timePerDivisionMs: 1,
+          triggerLevelVolt: 0,
+          displayEnabled: true,
+        },
+      },
+    ],
+    connections: [
+      ...base.connections,
+      {
+        id: 'scope-signal',
+        from: { componentId: 'bench-supply', terminal: 'positive' },
+        to: { componentId: 'scope', terminal: 'signal' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'scope-ground',
+        from: { componentId: 'bench-supply', terminal: 'negative' },
+        to: { componentId: 'scope', terminal: 'ground' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+  };
+  await saveDocument(page, projectId, circuit);
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const supply = component(page, 'regulated-power-supply');
+  const supplyVisual = supply.getByTestId('regulated-power-supply-runtime');
+  await expect(supplyVisual).toHaveAttribute('data-regulation-mode', 'cv');
+  await expect(supplyVisual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+    '5.00 V',
+  );
+  await expect
+    .poll(
+      async () =>
+        (await simulationWorkerObservation(page)).workerSamples
+          .filter((sample) => sample.status === 'ready')
+          .at(-1)?.committedMicroseconds ?? 0,
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(100_000);
+  const before = await simulationWorkerObservation(page);
+  const generation = before.workerSamples
+    .filter((sample) => sample.status === 'ready')
+    .at(-1)!.generationId;
+  const beforeHorizon = before.workerSamples
+    .filter((sample) => sample.status === 'ready')
+    .at(-1)!.committedMicroseconds;
+
+  const scope = component(page, 'oscilloscope');
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await scope.locator('.workbench-part').press('Enter');
+  await expect
+    .poll(async () =>
+      Number.parseFloat(
+        (await inspector.getByTestId('oscilloscope-panel-reading').textContent()) ?? '',
+      ),
+    )
+    .toBeGreaterThan(4.9);
+  await supply.locator('.workbench-part').press('Enter');
+  await inspector.getByLabel('Уставка напряжения лабораторного источника').fill('8');
+  await expect(supplyVisual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+    '8.00 V',
+  );
+  const output = inspector.getByLabel('Включить выход лабораторного источника');
+  await output.uncheck();
+  await expect(output).not.toBeChecked();
+  await expect(supplyVisual).toHaveAttribute('data-regulation-mode', 'off');
+  await expect(inspector.getByTestId('regulated-power-supply-panel-reading')).toContainText(
+    'Выход выключен',
+  );
+  await output.check();
+  await expect(output).toBeChecked();
+  await expect(supplyVisual).toHaveAttribute('data-regulation-mode', 'cv');
+  await expect(supplyVisual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+    '8.00 V',
+  );
+  await scope.locator('.workbench-part').press('Enter');
+  await expect
+    .poll(async () =>
+      Number.parseFloat(
+        (await inspector.getByTestId('oscilloscope-panel-reading').textContent()) ?? '',
+      ),
+    )
+    .toBeGreaterThan(7.9);
+  await inspector.getByLabel('Масштаб осциллографа по напряжению').fill('2');
+  await expect(
+    scope.getByTestId('oscilloscope-runtime').locator('.workbench-oscilloscope-scale'),
+  ).toContainText('2.00 V/div');
+  await expect
+    .poll(
+      async () =>
+        (await simulationWorkerObservation(page)).workerSamples
+          .filter((sample) => sample.status === 'ready')
+          .at(-1)?.committedMicroseconds ?? 0,
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(beforeHorizon);
+  const after = await simulationWorkerObservation(page);
+  expect(
+    after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.generationId,
+  ).toBe(generation);
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+
+  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(saved.ok()).toBe(true);
+  const persisted = (await saved.json()) as { draft: { document: SchematicDocument } };
+  expect(
+    persisted.draft.document.components.find((item) => item.id === 'bench-supply')
+      ?.stateProperties?.['voltageSetpointVolt'],
+  ).toBe(5);
+  expect(
+    persisted.draft.document.components.find((item) => item.id === 'scope')?.stateProperties?.[
+      'voltsPerDivision'
+    ],
+  ).toBe(1);
+  expect(persisted.draft.document.connections).toEqual(circuit.connections);
+  failures.assertEmpty();
+});
+
+test('live generator waveform and frequency reach the scope calculation without a new generation', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await observeSimulationWorkerClock(page);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Live generator continuity');
+  const circuit: SchematicDocument = {
+    schemaVersion: 4,
+    components: [
+      {
+        id: 'generator',
+        kind: 'source',
+        componentTypeId: 'signal-generator',
+        variantId: 'signal-generator',
+        name: 'Генератор',
+        position: { x: 270, y: 250 },
+        rotation: 0,
+        value: 1_000,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          waveform: 'sine',
+          frequencyHz: 1_000,
+          amplitudeVpp: 5,
+          dcOffsetVolt: 0,
+          outputEnabled: true,
+          outputResistanceOhm: 50,
+          maxContinuousCurrentAmp: 0.1,
+        },
+      },
+      {
+        id: 'scope',
+        kind: 'visual',
+        componentTypeId: 'oscilloscope',
+        variantId: 'oscilloscope',
+        name: 'Осциллограф',
+        position: { x: 720, y: 310 },
+        rotation: 0,
+        value: 1,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          voltsPerDivision: 1,
+          timePerDivisionMs: 1,
+          triggerLevelVolt: 0,
+          displayEnabled: true,
+        },
+      },
+    ],
+    connections: [
+      {
+        id: 'signal',
+        from: { componentId: 'generator', terminal: 'signal' },
+        to: { componentId: 'scope', terminal: 'signal' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'ground',
+        from: { componentId: 'generator', terminal: 'ground' },
+        to: { componentId: 'scope', terminal: 'ground' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 1 },
+    simulation: { running: false, maxIterations: 24 },
+  };
+  await saveDocument(page, projectId, circuit);
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await expect
+    .poll(
+      async () =>
+        (await simulationWorkerObservation(page)).workerSamples
+          .filter((sample) => sample.status === 'ready')
+          .at(-1)?.committedMicroseconds ?? 0,
+      { timeout: 15_000 },
+    )
+    .toBeGreaterThan(100_000);
+  const before = await simulationWorkerObservation(page);
+  const generation = before.workerSamples
+    .filter((sample) => sample.status === 'ready')
+    .at(-1)!.generationId;
+  const generator = component(page, 'signal-generator');
+  await generator.locator('.workbench-part').press('Enter');
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  await inspector.getByLabel('Форма сигнала').selectOption('square');
+  await inspector.getByLabel('Частота генератора').fill('2');
+  await expect(generator.getByTestId('signal-generator-runtime')).toHaveAttribute(
+    'data-waveform',
+    'square',
+  );
+  const scope = component(page, 'oscilloscope');
+  await scope.locator('.workbench-part').press('Enter');
+  const scopeReading = inspector.getByTestId('oscilloscope-panel-reading');
+  await expect(scopeReading).toContainText('2 Гц');
+  await expect
+    .poll(async () => Number.parseFloat((await scopeReading.textContent()) ?? ''), {
+      timeout: 15_000,
+    })
+    .toBeLessThan(-2.49);
+  await expect
+    .poll(async () => Number.parseFloat((await scopeReading.textContent()) ?? ''), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(2.49);
+  const after = await simulationWorkerObservation(page);
+  expect(
+    after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.generationId,
+  ).toBe(generation);
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
+  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(saved.ok()).toBe(true);
+  const persisted = (await saved.json()) as { draft: { document: SchematicDocument } };
+  expect(
+    persisted.draft.document.components.find((item) => item.id === 'generator')?.stateProperties?.[
+      'waveform'
+    ],
+  ).toBe('sine');
+  expect(
+    persisted.draft.document.components.find((item) => item.id === 'generator')?.stateProperties?.[
+      'frequencyHz'
+    ],
+  ).toBe(1_000);
+  failures.assertEmpty();
+});
+
+test('multimeter A/V/R changes stay local to one canonical generation', async ({ page }) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await observeSimulationWorkerClock(page);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Live meter mode continuity');
+  await saveDocument(page, projectId, multimeterResistanceDocument(false));
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  const meter = component(page, 'multimeter');
+  await meter.locator('.workbench-part').press('Enter');
+  const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+  const mode = inspector.getByLabel('Режим мультиметра');
+  await expect(mode).toBeEnabled();
+  await expect(mode).toHaveValue('dc-voltage');
+  await expect
+    .poll(
+      async () =>
+        (await simulationWorkerObservation(page)).workerSamples.filter(
+          (sample) => sample.status === 'ready',
+        ).length,
+    )
+    .toBeGreaterThan(0);
+  const initial = await simulationWorkerObservation(page);
+  const generation = initial.workerSamples
+    .filter((sample) => sample.status === 'ready')
+    .at(-1)!.generationId;
+  await meter.locator('.workbench-multimeter-mode-resistance').first().click();
+  await expect(mode).toHaveValue('resistance');
+  const display = meter.getByTestId('multimeter-runtime-display');
+  await expect(display).toContainText('1.000 kΩ');
+  await mode.selectOption('dc-current');
+  await expect(display).toHaveAttribute('data-measurement-mode', 'dc-current');
+  await mode.selectOption('dc-voltage');
+  await expect(display).toHaveAttribute('data-measurement-mode', 'dc-voltage');
+  const after = await simulationWorkerObservation(page);
+  expect(
+    after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.generationId,
+  ).toBe(generation);
+  expect(
+    after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.committedMicroseconds,
+  ).toBeGreaterThanOrEqual(
+    initial.workerSamples.filter((sample) => sample.status === 'ready').at(-1)!
+      .committedMicroseconds,
+  );
+  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(saved.ok()).toBe(true);
+  const persisted = (await saved.json()) as { draft: { document: SchematicDocument } };
+  expect(
+    persisted.draft.document.components.find((item) => item.id === 'meter')?.stateProperties?.[
+      'measurementMode'
+    ],
+  ).toBe('dc-voltage');
+  await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   failures.assertEmpty();
 });
 

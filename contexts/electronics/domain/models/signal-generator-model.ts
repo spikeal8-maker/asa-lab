@@ -36,7 +36,9 @@ export function signalGeneratorSettings(component: SchematicComponent): SignalGe
     amplitudeVpp: finiteProperty(component, 'amplitudeVpp', 5),
     dcOffsetVolt: finiteProperty(component, 'dcOffsetVolt', 0),
     outputEnabled:
-      component.stateProperties?.['outputEnabled'] === true || component.state === true,
+      typeof component.stateProperties?.['outputEnabled'] === 'boolean'
+        ? component.stateProperties['outputEnabled']
+        : component.state === true,
     outputResistanceOhm: finiteProperty(
       component,
       'outputResistanceOhm',
@@ -124,7 +126,9 @@ export function oscilloscopeSettings(component: SchematicComponent): Oscilloscop
     timePerDivisionMs: finiteProperty(component, 'timePerDivisionMs', 1),
     triggerLevelVolt: finiteProperty(component, 'triggerLevelVolt', 0),
     displayEnabled:
-      component.stateProperties?.['displayEnabled'] !== false && component.state !== false,
+      typeof component.stateProperties?.['displayEnabled'] === 'boolean'
+        ? component.stateProperties['displayEnabled']
+        : component.state !== false,
   };
 }
 

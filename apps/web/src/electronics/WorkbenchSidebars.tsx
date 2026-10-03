@@ -506,8 +506,9 @@ export function WorkbenchSidebars({
     ? Number(c.selectedComponent?.stateProperties?.['currentLimitAmp'] ?? 1)
     : 0;
   const selectedSupplyOutputEnabled = selectedIsAdjustableSource
-    ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
-      c.selectedComponent?.state === true
+    ? typeof c.selectedComponent?.stateProperties?.['outputEnabled'] === 'boolean'
+      ? c.selectedComponent.stateProperties['outputEnabled']
+      : c.selectedComponent?.state === true
     : false;
   const selectedGeneratorWaveform = selectedIsSignalGenerator
     ? String(c.selectedComponent?.stateProperties?.['waveform'] ?? 'sine')
@@ -525,13 +526,17 @@ export function WorkbenchSidebars({
   const selectedGeneratorOffsetVolt = selectedIsSignalGenerator
     ? Number(c.selectedComponent?.stateProperties?.['dcOffsetVolt'] ?? 0)
     : 0;
+  const generatorOutputProperty = c.selectedComponent?.stateProperties?.['outputEnabled'];
   const selectedGeneratorOutputEnabled = selectedIsSignalGenerator
-    ? c.selectedComponent?.stateProperties?.['outputEnabled'] === true ||
-      c.selectedComponent?.state === true
+    ? typeof generatorOutputProperty === 'boolean'
+      ? generatorOutputProperty
+      : c.selectedComponent?.state === true
     : false;
+  const scopeDisplayProperty = c.selectedComponent?.stateProperties?.['displayEnabled'];
   const selectedScopeDisplayEnabled = selectedIsOscilloscope
-    ? c.selectedComponent?.stateProperties?.['displayEnabled'] !== false &&
-      c.selectedComponent?.state !== false
+    ? typeof scopeDisplayProperty === 'boolean'
+      ? scopeDisplayProperty
+      : c.selectedComponent?.state !== false
     : true;
   const selectedScopeVoltsPerDivision = selectedIsOscilloscope
     ? Number(c.selectedComponent?.stateProperties?.['voltsPerDivision'] ?? 1)
@@ -1217,7 +1222,9 @@ export function WorkbenchSidebars({
                       aria-label="Включить экран осциллографа"
                       type="checkbox"
                       checked={selectedScopeDisplayEnabled}
-                      onChange={(event) => c.setSelectedState(event.target.checked)}
+                      onChange={(event) =>
+                        c.setSelectedProperties({ displayEnabled: event.target.checked })
+                      }
                     />
                   </label>
                   <label>
