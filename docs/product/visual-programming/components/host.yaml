@@ -152,7 +152,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose: 'ScratchStorage/GUIStorage adapter with canonical fingerprint/no-op/replay semantics.'
+    purpose: 'ScratchStorage/GUIStorage fingerprint/no-op/replay adapter.'
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-001-SCRATCH-HOST-CONTRACT.md
         section: 'Scratch storage adapter'

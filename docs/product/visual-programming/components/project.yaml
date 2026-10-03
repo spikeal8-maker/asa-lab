@@ -44,11 +44,7 @@ components:
     state: implemented
     risk: high
     ownership: cross_boundary
-    purpose:
-      Real runtime-session open and upstream ScratchStorage/GUIStorage persistence through ASA
-      Project Core are present, including save-close-fresh-browser reopen through production
-      PostgreSQL/private object-storage adapters. Classroom stabilisation now changes cadence,
-      exit and failure recovery without creating a second persistence engine.
+    purpose: Real ASA runtime-session/open/save/reopen through Project Core and private object storage.
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: Asset-before-document invariant
@@ -82,10 +78,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose:
-      Current upstream ProjectSaverHOC/ASA storage path is generation-aware and preserves
-      newest edits during in-flight saves; its current 5–8 s remote cadence is explicitly
-      superseded by the owner minute-scale classroom repair.
+    purpose: "Generation-aware upstream autosave exists; #469 replaces current 5–8 s remote cadence with minute-scale saving."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Autosave transaction identity"
@@ -103,7 +96,6 @@ components:
     tests:
       - tools/blocks/save-semantics.test.mjs
       - e2e/blocks-host-storage.spec.ts
-      - e2e/blocks-product-integration.spec.ts
 
   - id: blocks.project.preview
     state: blocked
@@ -122,10 +114,7 @@ components:
     state: implemented
     risk: high
     ownership: asa
-    purpose:
-      Identity/project-scoped IndexedDB recovery with finite TTL and media capture is present;
-      classroom work now hardens pagehide/exit and transient-network recovery around it without
-      turning it into a second server-save engine.
+    purpose: "IndexedDB project/media recovery exists; #470 hardens exit/pagehide without creating a second server-save engine."
     contracts:
       - path: docs/product/visual-programming/VSCR-D0-002-PERSISTENCE-CONTRACT.md
         section: "Conflict behaviour"
@@ -142,7 +131,6 @@ components:
         symbols: [createReadOnlyStorage, captureRecoveryAssets]
     tests:
       - tools/blocks/recovery.test.mjs
-      - e2e/blocks-recovery.spec.ts
       - e2e/blocks-recovery-media.spec.ts
 
   - id: blocks.project.conflict
