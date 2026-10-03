@@ -251,7 +251,8 @@ function ReviewDetail({
                 />
               </label>
               <div className="gradebook-review-actions">
-                {!latest ? (
+                {!latest ||
+                (latest.decision === 'accepted' && context.attempts[0]?.id === attempt.id) ? (
                   <button
                     className="btn-secondary"
                     disabled={busy || !reason.trim()}

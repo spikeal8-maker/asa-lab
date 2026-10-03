@@ -4300,6 +4300,47 @@ describe('A4-2b atomic StartLearningWork', () => {
         `exact:${randomUUID()}`,
       ],
     );
+    const accepted = (
+      await inTenant(owner.tenantId, (client) =>
+        client.query(
+          "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'accepted',20,'Accepted',NULL,NULL,$5)",
+          [ownerAccount, ownerPrincipal, classroom, first.attemptId, `review:${randomUUID()}`],
+        ),
+      )
+    ).rows[0];
+    expect(accepted.result_code).toBe('ok');
+    await admin.query('UPDATE classroom_course_run_lessons SET blocks=$1::jsonb WHERE id=$2', [
+      JSON.stringify([{ ...blocks[0], hidden: true }, blocks[1], blocks[2]]),
+      source.lesson,
+    ]);
+    const hiddenCorrection = (
+      await inTenant(owner.tenantId, (client) =>
+        client.query(
+          "SELECT * FROM learning_attempt_review_v2($1,$2,$3,$4,'changes_requested',NULL,'Return','Rework',$5,$6)",
+          [
+            ownerAccount,
+            ownerPrincipal,
+            classroom,
+            first.attemptId,
+            accepted.assessment_result_id,
+            `review:${randomUUID()}`,
+          ],
+        ),
+      )
+    ).rows[0];
+    expect(hiddenCorrection.result_code).toBe('invalid_transition');
+    await admin.query('UPDATE classroom_course_run_lessons SET blocks=$1::jsonb WHERE id=$2', [
+      JSON.stringify(blocks),
+      source.lesson,
+    ]);
+    expect(
+      (
+        await admin.query(
+          'SELECT count(*)::int AS revisions FROM assessment_results WHERE attempt_id=$1',
+          [first.attemptId],
+        )
+      ).rows[0].revisions,
+    ).toBe(1);
     const exactReads = await inTenant(owner.tenantId, async (client) =>
       Promise.all(
         [first.projectId, second.projectId].map((projectId) =>
