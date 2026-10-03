@@ -385,7 +385,9 @@ function useOwnerImageHref(asset: string): {
       async () => {
         try {
           await recoverOwnerImage(asset);
-          return true;
+          // A preflight Image is not proof that the mounted SVG <image> decoded.
+          // Its onLoad is the success signal; onError keeps the finite budget.
+          return 'pending';
         } catch {
           return false;
         }

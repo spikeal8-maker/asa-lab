@@ -186,6 +186,7 @@ export function createQuietAssetRecovery(retry: () => Promise<boolean>): {
   const recovered = (): void => {
     if (timer !== null) clearTimeout(timer);
     timer = null;
+    cycle = 0;
   };
   const failed = (): void => {
     if (cancelled || timer !== null || cycle >= QUIET_RECOVERY_DELAYS_MS.length) return;
@@ -228,16 +229,16 @@ const sharedQuietRecoveries = new Map<
 /** A mounted asset has one quiet probe cycle even when stage and catalog share it. */
 export function subscribeSharedQuietAssetRecovery(
   key: string,
-  retry: () => Promise<boolean>,
+  retry: () => Promise<boolean | 'pending'>,
   onReady: () => void,
 ): { failed: () => void; recovered: () => void; cancel: () => void } {
   let shared = sharedQuietRecoveries.get(key);
   if (!shared) {
     const listeners = new Set<() => void>();
     const recovery = createQuietAssetRecovery(async () => {
-      const ready = await retry();
-      if (ready) for (const listener of listeners) listener();
-      return ready;
+      const result = await retry();
+      if (result !== false) for (const listener of listeners) listener();
+      return result === true;
     });
     shared = { listeners, recovery };
     sharedQuietRecoveries.set(key, shared);

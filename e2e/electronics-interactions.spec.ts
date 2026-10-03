@@ -740,6 +740,7 @@ test.describe('asset recovery in the built editor', () => {
   test('terminal interactive SVG failure recovers quietly and its instrument controls work', async ({
     page,
   }) => {
+    test.setTimeout(60_000);
     await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('signal-generator')!.asset;
     let unavailable = true;
@@ -765,9 +766,21 @@ test.describe('asset recovery in the built editor', () => {
       timeout: 10_000,
     });
     expect(textRequests).toBe(3);
+    // One complete quiet recovery cycle still fails. The next cycle must
+    // recover without online/focus/visibility events or a page reload.
+    await expect.poll(() => textRequests, { timeout: 18_000 }).toBe(6);
     unavailable = false;
     const runtime = part(page, 'generator').getByTestId('signal-generator-runtime');
-    await expect(runtime).toBeVisible({ timeout: 20_000 });
+    await expect(runtime).toBeVisible({ timeout: 30_000 });
+    await expect(
+      page
+        .locator(
+          '.workbench-catalog-card[data-family-id="signal-generator"] [data-testid="signal-generator-runtime"]',
+        )
+        .first(),
+    ).toBeVisible();
+    expect(readDocument()).toEqual(initial);
+    const beforeControl = await readEditorDocument();
     await runtime.locator('.workbench-signal-generator-square').dispatchEvent('pointerdown', {
       pointerId: 1,
     });
@@ -778,9 +791,12 @@ test.describe('asset recovery in the built editor', () => {
             ?.stateProperties?.['waveform'],
       )
       .toBe('square');
-    expect(readDocument().components.map((component) => component.id)).toEqual(
-      initial.components.map((component) => component.id),
+    const afterControl = await readEditorDocument();
+    expect(afterControl.components.map(({ id, position }) => ({ id, position }))).toEqual(
+      beforeControl.components.map(({ id, position }) => ({ id, position })),
     );
+    expect(afterControl.connections).toEqual(beforeControl.connections);
+    expect(afterControl.simulation.running).toBe(beforeControl.simulation.running);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });

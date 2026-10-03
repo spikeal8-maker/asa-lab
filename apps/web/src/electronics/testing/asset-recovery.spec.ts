@@ -72,6 +72,9 @@ describe('mounted quiet asset recovery', () => {
     recovery.failed();
     await vi.advanceTimersByTimeAsync(100_000);
     expect(requests).toBe(1);
+    recovery.failed();
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(requests).toBe(2);
     recovery.cancel();
   });
 
@@ -99,6 +102,30 @@ describe('mounted quiet asset recovery', () => {
     second.cancel();
     await vi.advanceTimersByTimeAsync(100_000);
     expect(requests).toBe(2);
+  });
+
+  it('does not reset the finite budget when a preflight image never loads in its mounted consumer', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let probes = 0;
+    let mountedUpdates = 0;
+    const recovery = subscribeSharedQuietAssetRecovery(
+      'image:mounted-failure',
+      async () => {
+        probes += 1;
+        return 'pending';
+      },
+      () => {
+        mountedUpdates += 1;
+      },
+    );
+    recovery.failed();
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(probes).toBe(3);
+    expect(mountedUpdates).toBe(3);
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(probes).toBe(3);
+    recovery.cancel();
   });
 });
 
