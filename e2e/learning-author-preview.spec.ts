@@ -465,7 +465,13 @@ test('first-class image block survives draft reload and pins exact published byt
   await page.reload();
   await page.getByRole('button', { name: title, exact: true }).click();
   await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
-  await expect(preview.getByRole('alert')).toContainText('Изображение задания недоступно');
+  const unavailableAlert = preview.getByRole('alert');
+  await expect(unavailableAlert).toContainText('Изображение задания недоступно');
+  await unavailableAlert.scrollIntoViewIfNeeded();
+  const unavailableBounds = await unavailableAlert.boundingBox();
+  expect(unavailableBounds).not.toBeNull();
+  expect(unavailableBounds!.y).toBeGreaterThanOrEqual(0);
+  expect(unavailableBounds!.y + unavailableBounds!.height).toBeLessThanOrEqual(844);
   await page.screenshot({ path: `${a6Evidence}/published-v2-unavailable-320.png` });
 });
 

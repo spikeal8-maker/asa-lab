@@ -178,6 +178,10 @@
 }
 
 @media (max-width: 480px) {
+  .task-image-reference-drag > span:last-child {
+    display: none;
+  }
+
   .task-image-reference-action,
   .task-image-reference-close {
     width: 36px;
