@@ -2,7 +2,7 @@
 
 **Kind:** executable implementation slice  
 **Risk:** high  
-**Execution:** starts only when `docs/execution/current.yaml.task.id` is exactly `VSCR-CLASSROOM-01-SAVE-60S` and `docs/execution/current.yaml.task.status` is exactly `in_progress`.  
+**Execution:** card `VSCR-CLASSROOM-01-SAVE-60S` starts only when `docs/execution/current.yaml.task.id` is exactly `TASK-VSCR-CLASSROOM-001`, `docs/execution/current.yaml.task.issue` is `469`, and `docs/execution/current.yaml.task.status` is exactly `in_progress`.
 **Program:** #468  
 **Issue:** #469
 
