@@ -561,7 +561,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: a6_1_image_zoom_pin_closed_a6_media_a7_a8_open
+      checkpoint: a6_2a_immutable_pdf_closed_a6_video_link_v6_a7_a8_open
       owner_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
@@ -634,6 +634,6 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; A5/V4 and A6.1 immutable image zoom/pin evidence is merged, while A6 video/file work and full link/V6 browser evidence, A7 personal copy, A8 teacher review and owner acceptance remain open
+    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; A5/V4, A6.1 immutable image zoom/pin and A6.2a immutable PDF task-file evidence are merged, while A6 video/other file formats, full link/V6 browser evidence, A7 personal copy, A8 teacher review and owner acceptance remain open
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null
