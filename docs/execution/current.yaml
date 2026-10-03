@@ -507,7 +507,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: e1_spec_clarified_corrections_open
+      checkpoint: a5_engineering_merged_v4_visual_closeout_open
       owner_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
@@ -580,6 +580,6 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; bounded A4/V3 evidence is recorded, while A5-A8 and owner acceptance remain open
+    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; A5 engineering evidence is merged, V4 narrow teacher visual evidence and A6-A8 remain open, and owner acceptance is pending
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null
