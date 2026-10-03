@@ -808,14 +808,20 @@ requirements:
   - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
   - docs/product/learning/ASA_LEARNER_WORK_LIFECYCLE_SPEC.md
   - docs/review/LRN_A4_V3_EVIDENCE_2026_10_01.md
+  - docs/review/LRN_A5_V4_EVIDENCE_2026_10_03.md
   tests:
   - tests/courses/activity-participations.pg.spec.ts
   - tests/portal/project-learning-marker.spec.ts
   - e2e/learning-course-01.spec.ts
   verification:
-    source_sha: 19e9bd8e0422a674569e1613f65ded34d8eba5ea
-    method: bounded_a4_v3_ci_evidence
-    observed_result: Immutable project origin and personal-list Learning badge plus Direct StudentSeat repeat/lost-response Start have merged engineering evidence. This is partial evidence for E1-FIX-14; A5 protection/archive and A7 personal copy remain open.
+    source_sha: 7a88d56db12311b1c6bc29a467558aee3cef6c95
+    method: bounded_a5_v4_exact_head_ci_and_postmerge_general
+    observed_result: >-
+      A4/V3 origin and Start plus A5 original-work mutation guards, server-derived
+      learner list, archive/restore and accepted-work return have merged engineering,
+      PostgreSQL, browser and inspected screenshot evidence. V4 teacher correction
+      lacks narrow/mobile visual evidence; A7 personal copy and whole E1 acceptance
+      remain open. See the dated A5/V4 evidence report for exact SHAs and CI runs.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:
