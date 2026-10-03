@@ -2671,6 +2671,14 @@ test('simulation fault semantics: technical Worker error stops, then current doc
       },
     });
   });
+  await page.reload();
+  expect(
+    await page.evaluate(
+      () =>
+        typeof (window as Window & { __dispatchOldSimulationReply?: () => void })
+          .__dispatchOldSimulationReply,
+    ),
+  ).toBe('function');
   await page.goto(`/#/home/${projectId}`);
   await expect(page.locator('.workbench-stage')).toBeVisible();
   await component(page, 'resistor-axial').locator('.workbench-part').click({ force: true });

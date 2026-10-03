@@ -416,6 +416,42 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
     });
     client.dispose();
   });
+
+  it('retains invalid-response codes for wrong Worker response kinds', async () => {
+    const preflightWorker = new FakeWorker();
+    const preflightClient = new ElectronicsSimulationWorkerClient(() => preflightWorker);
+    const preflightGeneration = preflightClient.beginGeneration('project-session-a');
+    const preflight = preflightClient.preflight(preflightGeneration, circuit);
+    const preflightRequest = preflightWorker.messages[0];
+    if (!preflightRequest || preflightRequest.kind === 'cancel-generation')
+      throw new Error('Missing preflight request.');
+    preflightWorker.respond({
+      ...evaluateSimulationWorkerRequest(preflightRequest),
+      kind: 'advance',
+    } as ElectronicsSimulationWorkerResponse);
+    await expect(preflight).rejects.toMatchObject({ code: 'invalid-response' });
+    preflightClient.dispose();
+
+    const advanceWorker = new FakeWorker();
+    const advanceClient = new ElectronicsSimulationWorkerClient(() => advanceWorker);
+    const advanceGeneration = advanceClient.beginGeneration('project-session-b');
+    const advance = advanceClient.advance(
+      advanceGeneration,
+      circuit,
+      resetElectronicsTimedState(),
+      100_000,
+    );
+    const advanceRequest = advanceWorker.messages[0];
+    if (!advanceRequest || advanceRequest.kind === 'cancel-generation')
+      throw new Error('Missing advance request.');
+    advanceWorker.respond({
+      ...evaluateSimulationWorkerRequest(advanceRequest),
+      kind: 'preflight',
+    } as ElectronicsSimulationWorkerResponse);
+    await expect(advance).rejects.toMatchObject({ code: 'invalid-response' });
+    advanceClient.dispose();
+  });
+
   it('bounds silent requests and terminates the failed Worker', async () => {
     vi.useFakeTimers();
     const worker = new FakeWorker();
@@ -487,7 +523,10 @@ describe('ASA Electronics E-OPT-3D Worker boundary', () => {
 
     const stale = client.preflight(staleGeneration, circuit);
     expect(stale).toBeInstanceOf(Promise);
-    await expect(stale).rejects.toThrow('no longer active');
+    await expect(stale).rejects.toMatchObject({
+      code: 'cancelled',
+      message: 'Electronics simulation generation is no longer active.',
+    });
     client.dispose();
   });
 });

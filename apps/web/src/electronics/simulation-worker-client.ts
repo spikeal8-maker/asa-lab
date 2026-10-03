@@ -101,7 +101,10 @@ export class ElectronicsSimulationWorkerClient {
         document,
       }).then((response) => {
         if (response.kind !== 'preflight') {
-          throw new Error('Electronics Worker returned the wrong response kind.');
+          throw new SimulationWorkerError(
+            'invalid-response',
+            'Electronics Worker returned the wrong response kind.',
+          );
         }
         return response.result;
       });
@@ -129,7 +132,10 @@ export class ElectronicsSimulationWorkerClient {
         ...(inputEvents.length > 0 ? { inputEvents } : {}),
       }).then((response) => {
         if (response.kind !== 'advance') {
-          throw new Error('Electronics Worker returned the wrong response kind.');
+          throw new SimulationWorkerError(
+            'invalid-response',
+            'Electronics Worker returned the wrong response kind.',
+          );
         }
         return response.advance;
       });
@@ -163,7 +169,10 @@ export class ElectronicsSimulationWorkerClient {
     projectSessionId: string;
   } {
     if (generationId !== this.generationId || !this.projectSessionId) {
-      throw new Error('Electronics simulation generation is no longer active.');
+      throw new SimulationWorkerError(
+        'cancelled',
+        'Electronics simulation generation is no longer active.',
+      );
     }
     return {
       protocolVersion: ELECTRONICS_SIMULATION_WORKER_PROTOCOL,
