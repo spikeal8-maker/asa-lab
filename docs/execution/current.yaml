@@ -145,26 +145,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-ASSET-EVENTUAL-RECOVERY-001
-      issue: 462
+      id: TASK-ELECTRONICS-SIMULATION-FAULT-SEMANTICS-001
+      issue: 463
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: quiet_network_asset_recovery_selected_preflight_pending
+      checkpoint: simulation_fault_semantics_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 56ffc5c3e8d97036ef64be1f981ac3790e66226d
+      convergence_baseline_sha: 8194270159265399a970d36f965b7592b61d5222
       head_sha: null
-      observed_at: '2026-10-03T15:11:20Z'
+      observed_at: '2026-10-03T17:28:00Z'
       main:
         branch: main
-        sha: 56ffc5c3e8d97036ef64be1f981ac3790e66226d
-      observation_note: Dated main observation after hygiene checkpoint 480 evidence was integrated and independently verified. Fetch main before writes; quiet-network asset recovery 462 is selected as one bounded production repair.
+        sha: 8194270159265399a970d36f965b7592b61d5222
+      observation_note: Dated main observation after asset eventual recovery 462 was integrated and independently verified. Fetch main before writes; simulation fault semantics 463 is selected as one bounded production repair.
     execution_lease:
-      executor_id: electronics-asset-eventual-recovery-controller-452
+      executor_id: electronics-simulation-fault-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -283,6 +283,20 @@ parallel_lanes:
         integrated_main_general_cancelled_run: 37131498359
         exact_including_main_sha: 56ffc5c3e8d97036ef64be1f981ac3790e66226d
         exact_including_main_general_run: 37131616731
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-ASSET-EVENTUAL-RECOVERY-001
+        issue: 462
+        accepted_candidate_sha: 3621cf35e77dfe85c641503f56151c74a5ae703b
+        integrated_sha: 8194270159265399a970d36f965b7592b61d5222
+        independent_review: approved
+        exact_candidate_general_run: 37138618816
+        exact_candidate_browser_run: 37138618778
+        exact_main_general_run: 37139649773
+        exact_main_browser_run: 37139776132
+        initial_candidate_browser_failure_run: 37135914153
+        repair_candidate_browser_failure_run: 37137213564
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
