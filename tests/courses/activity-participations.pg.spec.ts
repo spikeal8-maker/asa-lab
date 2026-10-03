@@ -1541,29 +1541,32 @@ describe('A4-1 immutable learning project origin', () => {
        WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
       [learner],
     );
-    for (const projectId of archivedProjects) {
-      expect(
-        (
-          await app.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
-            learnerPrincipal,
-            projectId,
-          ])
-        ).rows,
-      ).toEqual([]);
-      expect(
-        (
-          await app.query<{ state: string }>(
-            'SELECT learning_project_archive_set($1,$2,false) AS state',
-            [learnerPrincipal, projectId],
-          )
-        ).rows[0]?.state,
-      ).toBe('denied');
+    try {
+      for (const projectId of archivedProjects) {
+        expect(
+          (
+            await app.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+              learnerPrincipal,
+              projectId,
+            ])
+          ).rows,
+        ).toEqual([]);
+        expect(
+          (
+            await app.query<{ state: string }>(
+              'SELECT learning_project_archive_set($1,$2,false) AS state',
+              [learnerPrincipal, projectId],
+            )
+          ).rows[0]?.state,
+        ).toBe('denied');
+      }
+    } finally {
+      await admin.query(
+        `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+         WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+        [learner],
+      );
     }
-    await admin.query(
-      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
-       WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
-      [learner],
-    );
   }, 30_000);
 
   it('waits for an in-flight acceptance decision before saving an original draft', async () => {
@@ -2772,26 +2775,29 @@ describe('A4-2b atomic StartLearningWork', () => {
          AND link_kind='student_seat' AND seat_id=$4`,
       [owner.tenantId, owner.schoolId, learner, seatId],
     );
-    const deniedAfterSeatUnlink = await inTenant(owner.tenantId, (client) =>
-      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
-    );
-    expect(
-      deniedAfterSeatUnlink.rows.some((row) => row.context.projectId === first.projectId),
-    ).toBe(false);
-    const historicalPresence = await inTenant(owner.tenantId, (client) =>
-      client.query(
-        'SELECT activity_run_id FROM learning_origin_learner_presence($1,NULL) WHERE classroom_assignment_id=$2',
-        [seatId, target.rows[0].classroom_assignment_id],
-      ),
-    );
-    expect(historicalPresence.rows).toEqual([{ activity_run_id: run }]);
-    await admin.query(
-      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
-       WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
-         AND link_kind='student_seat' AND seat_id=$4`,
-      [owner.tenantId, owner.schoolId, learner, seatId],
-    );
-  });
+    try {
+      const deniedAfterSeatUnlink = await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
+      );
+      expect(
+        deniedAfterSeatUnlink.rows.some((row) => row.context.projectId === first.projectId),
+      ).toBe(false);
+      const historicalPresence = await inTenant(owner.tenantId, (client) =>
+        client.query(
+          'SELECT activity_run_id FROM learning_origin_learner_presence($1,NULL) WHERE classroom_assignment_id=$2',
+          [seatId, target.rows[0].classroom_assignment_id],
+        ),
+      );
+      expect(historicalPresence.rows).toEqual([{ activity_run_id: run }]);
+    } finally {
+      await admin.query(
+        `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+         WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+           AND link_kind='student_seat' AND seat_id=$4`,
+        [owner.tenantId, owner.schoolId, learner, seatId],
+      );
+    }
+  }, 20_000);
 
   it('denies direct and Course originals at status and Gallery writes without mutating either', async () => {
     const course = await courseHandout();
