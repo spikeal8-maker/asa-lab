@@ -6,10 +6,12 @@
 
   const failure = (code) => Object.assign(new Error(code), { code });
   const chooseAutoSaveIntervalSecs = () => {
-    if (!globalThis.crypto?.getRandomValues) return 6;
+    if (!globalThis.crypto?.getRandomValues) return 60;
     const value = new Uint8Array(1);
     globalThis.crypto.getRandomValues(value);
-    return 5 + (value[0] % 4);
+    // ProjectSaverHOC arms once on the first dirty transition. Later edits do
+    // not move its deadline, so the checkpoint remains bounded during activity.
+    return 55 + (value[0] % 11);
   };
 
   const readBlobAsDataUrl = (blob) =>

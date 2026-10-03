@@ -35,7 +35,8 @@ The 25.09–01.10 incident archive and current-code audit established:
 - FRP logged 1 264 `work connection pool is full, discarding` events in the same window.
   This proves pressure, not loss of every corresponding HTTP request.
 - A separate 30.09 episode contains real `pg-pool` connection timeout failures.
-- Current Scratch host source selects 5–8 s remote autosave.
+- At the #469 selection baseline, Scratch host source selected 5–8 s remote autosave;
+  the #469 source change selects one 55–65 s interval per editor mount.
 - Local IndexedDB recovery already exists at a much faster local cadence.
 - Controlled `saveBeforeExit()` exists, but pagehide/local-flush semantics require repair.
 - StudentSeat transient failure can be reduced to anonymous and generic 401 refresh is not
