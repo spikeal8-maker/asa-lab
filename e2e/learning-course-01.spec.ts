@@ -2121,13 +2121,31 @@ for (const module of ['electronics', 'three-d'])
           [startedProjectId],
         )
       ).rows[0];
-      await expect(detail.getByRole('button', { name: 'Вернуть на доработку' })).toBeVisible();
+      const correctionAction = detail.getByRole('button', { name: 'Вернуть на доработку' });
+      await expect(correctionAction).toBeVisible();
       await detail.getByLabel('Причина возврата или исправления').fill('Уточнить измерение');
-      await detail.getByRole('button', { name: 'Вернуть на доработку' }).click();
-      await expect(detail.getByText('Ревизия 2 · На доработке', { exact: true })).toBeVisible();
+      await page.setViewportSize({ width: 390, height: 844 });
+      await correctionAction.scrollIntoViewIfNeeded();
+      await expect(correctionAction).toBeInViewport();
+      await page.screenshot({
+        path: `${evidenceDir}/a5-v4-teacher-correction-mobile.png`,
+        fullPage: false,
+      });
+      await correctionAction.click();
+      const returnedRevision = detail.getByText('Ревизия 2 · На доработке', {
+        exact: true,
+      });
+      await expect(returnedRevision).toBeVisible();
+      await returnedRevision.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: `${evidenceDir}/a5-v4-teacher-returned-mobile.png`,
+        fullPage: false,
+      });
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await returnedRevision.scrollIntoViewIfNeeded();
       await page.screenshot({
         path: `${evidenceDir}/a5-v4-teacher-returned.png`,
-        fullPage: true,
+        fullPage: false,
       });
 
       await learner.reload();
