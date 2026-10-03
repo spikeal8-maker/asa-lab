@@ -46,6 +46,32 @@ Settings/File/Edit/Extensions не переписываются ради бре�
 ASA меняет product logo, product colour и parent-owned avatar/account
 ```
 
+## Classroom stabilisation architecture
+
+Owner decision 2026-10-03:
+
+```text
+Scratch computes locally in the browser
+ASA server is persistence/authority, not Scratch compute
+fast local recovery is separate from remote save
+remote Scratch save is minute-scale, not every 5–8 seconds
+controlled exit saves immediately
+temporary network failure must recover without logout/F5
+capacity target is P1500 = 1500 simultaneous active users
+```
+
+Canonical program:
+[`SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`](SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md).
+
+Architecture:
+[`ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`](../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md).
+
+Program issue: #468. Capacity target: #477. Existing mixed Scratch/Electronics load dependency:
+#460.
+
+These documents do not select an implementation task. `docs/execution/current.yaml` remains
+the execution authority.
+
 ## Read only the selected concern
 
 ```text
@@ -80,6 +106,7 @@ Cumulative runner: `tools/blocks/gate.mjs`. Extend existing Scratch gate instead
 | Product goal/invariants        | `../ASA_VISUAL_PROGRAMMING_SCRATCH_MASTER_SPEC.md`              |
 | Autosave/preview/optimisation  | `VSCR-D0-008-AUTOSAVE-PREVIEW-OPTIMIZATION-CONTRACT.md`         |
 | Repository optimisation policy | `../../delivery/REPOSITORY_HYGIENE_AND_OPTIMIZATION_POLICY.md`  |
-| Architecture decision          | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md` |
+| Architecture decisions         | `../../architecture/ADR-VSCR-001-SCRATCH-EDITOR-INTEGRATION.md`, `../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md` |
+| Classroom stabilisation         | `SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`                    |
 
 Preserve exact upstream pin and accepted parent/iframe boundary. Scratch GUI/VM stays outside `apps/web` dependencies. New upstream patches require explicit reviewed need. Deployment/activation require separate owner instruction.

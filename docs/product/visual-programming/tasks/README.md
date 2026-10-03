@@ -71,3 +71,25 @@ integration or activate any new service. See its exact card before coding.
 
 [VSCR-M1-005A](VSCR-M1-005A.md): one manual save/open pipeline in Draft;
 independent review deferred to integrated release, never marked complete.
+
+
+## Scratch classroom stabilisation program
+
+Owner architecture/program: `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`, issue #468.
+
+Cards below are not a work queue and become executable only when the exact task is selected in
+`docs/execution/current.yaml`:
+
+```text
+SCRATCH-CLASSROOM-01-SAVE-60S.md
+SCRATCH-CLASSROOM-02-EXIT-SAFETY.md
+SCRATCH-CLASSROOM-03-STUDENTSEAT-RESILIENCE.md
+SCRATCH-CLASSROOM-04-RUNTIME-RECOVERY.md
+SCRATCH-CLASSROOM-05-STATIC-DELIVERY.md
+SCRATCH-CLASSROOM-06-DB-PATH.md
+SCRATCH-CLASSROOM-07-OBSERVABILITY.md
+SCRATCH-CLASSROOM-08-CLASS30.md
+```
+
+After CLASS-30 the platform-wide capacity gate is P1500 / issue #477, then the existing mixed
+Scratch + Electronics dependency #460. Do not collapse these gates into one code slice.
