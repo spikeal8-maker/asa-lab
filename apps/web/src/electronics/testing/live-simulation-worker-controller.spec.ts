@@ -585,21 +585,35 @@ describe('Electronics canonical Worker controller', () => {
   it('restarts the active canonical generation from time zero', async () => {
     const executor = new FakeExecutor();
     const onResult = vi.fn();
+    const onGenerationPending = vi.fn();
+    const onCommittedHorizon = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
-    controller.start('project-a', circuit, { onResult, onFailure: vi.fn() });
+    controller.start('project-a', circuit, {
+      onResult,
+      onGenerationPending,
+      onCommittedHorizon,
+      onFailure: vi.fn(),
+    });
     await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 200_000);
+    executor.advances[1]!.deferred.resolve(timedAdvance('ready', 200_000, 200_000, 2));
+    await flush();
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
     onResult.mockClear();
 
     controller.update(circuit, 300_000);
-    const oldAdvance = executor.advances[1]!;
+    const oldAdvance = executor.advances[2]!;
     controller.restart(circuit);
 
     expect(executor.generation).toBe(2);
     expect(executor.preflights).toHaveLength(2);
+    expect(onGenerationPending).toHaveBeenCalledTimes(2);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
 
     oldAdvance.deferred.resolve(timedAdvance('ready', 300_000, 300_000, 9));
     await flush();
     expect(onResult).not.toHaveBeenCalled();
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
 
     executor.preflights[1]!.resolve(result(2));
     await flush();
@@ -613,6 +627,7 @@ describe('Electronics canonical Worker controller', () => {
     resetAdvance!.deferred.resolve(timedAdvance('ready', 0, 0, 2));
     await flush();
     expect(onResult).toHaveBeenCalledWith(result(2));
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
 
     controller.update(circuit, 50_000);
     expect(executor.advances.at(-1)).toMatchObject({
@@ -671,13 +686,20 @@ describe('Electronics canonical Worker controller', () => {
   it('starts a fresh zero-based canonical generation for structural runtime changes', async () => {
     const executor = new FakeExecutor();
     const onCommittedHorizon = vi.fn();
+    const onGenerationPending = vi.fn();
+    const onResult = vi.fn();
     const controller = new ElectronicsLiveSimulationWorkerController(executor);
     controller.start('project-a', circuit, {
-      onResult: vi.fn(),
+      onResult,
       onFailure: vi.fn(),
       onCommittedHorizon,
+      onGenerationPending,
     });
     await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 200_000);
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 200_000, 200_000, 2));
+    await flush();
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
     controller.update(circuit, 400_000);
     const oldPendingAdvance = executor.advances.at(-1)!;
 
@@ -690,12 +712,16 @@ describe('Electronics canonical Worker controller', () => {
     controller.update(changed, 500_000);
     expect(executor.generation).toBe(2);
     expect(executor.preflights).toHaveLength(2);
-    await completeCanonicalStart(executor, 2, 2);
-    expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
+    expect(onGenerationPending).toHaveBeenCalledTimes(2);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(200_000);
+    const resultCount = onResult.mock.calls.length;
     const confirmedCount = onCommittedHorizon.mock.calls.length;
     oldPendingAdvance.deferred.resolve(timedAdvance('ready', 400_000, 400_000, 999));
     await flush();
+    expect(onResult).toHaveBeenCalledTimes(resultCount);
     expect(onCommittedHorizon).toHaveBeenCalledTimes(confirmedCount);
+    await completeCanonicalStart(executor, 2, 2);
+    expect(onCommittedHorizon).toHaveBeenLastCalledWith(0);
 
     controller.update(changed, 600_000);
     expect(executor.advances.at(-1)).toMatchObject({ requestedHorizonMicroseconds: 100_000 });

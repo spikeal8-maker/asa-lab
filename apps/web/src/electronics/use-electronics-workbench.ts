@@ -275,6 +275,7 @@ export function useElectronicsWorkbench(projectId: string) {
   const simulationStartedAtRef = useRef<number | null>(null);
   const [requestedHorizonMicroseconds, setRequestedHorizonMicroseconds] = useState(0);
   const [committedHorizonMicroseconds, setCommittedHorizonMicroseconds] = useState(0);
+  const [generationPending, setGenerationPending] = useState(false);
   const [simulationMessage, setSimulationMessage] = useState<SimulationStatusMessage | null>(null);
   const [liveResult, setLiveResult] = useState<typeof persistedResult>(null);
   const [arduinoSerialByBoard, setArduinoSerialByBoard] = useState<
@@ -349,7 +350,14 @@ export function useElectronicsWorkbench(projectId: string) {
     setLiveResult(null);
     setArduinoSerialByBoard({});
     controller.start(projectId, initialDocument, {
+      onGenerationPending: () => {
+        setGenerationPending(true);
+        setCommittedHorizonMicroseconds(0);
+        setLiveResult(null);
+        setSimulationMessage(null);
+      },
       onResult: (nextResult) => {
+        setGenerationPending(false);
         setLiveResult(nextResult);
         setSimulationMessage(circuitStateMessage(nextResult));
         confirmSimulationStarted();
@@ -363,6 +371,7 @@ export function useElectronicsWorkbench(projectId: string) {
         );
       },
       onFailure: (failure) => {
+        setGenerationPending(false);
         resetSimulationRef.current();
         setLiveResult(null);
         setArduinoSerialByBoard({});
@@ -2778,7 +2787,7 @@ export function useElectronicsWorkbench(projectId: string) {
     sendArduinoSerialRx,
     simulationTimeMs: requestedHorizonMicroseconds / 1000,
     committedSimulationTimeMs: committedHorizonMicroseconds / 1000,
-    simulationStatus,
+    simulationStatus: simulationRunning && generationPending ? 'starting' : simulationStatus,
     simulationMessage,
     libraryOpen,
     setLibraryOpen,

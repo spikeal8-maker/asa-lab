@@ -2037,6 +2037,46 @@ async function observeSimulationWorkerClock(page: Page): Promise<void> {
   });
 }
 
+async function holdNextSimulationPreflight(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const probe = window as Window & {
+      __secondSimulationPreflightQueued?: boolean;
+      __armNextSimulationPreflight?: () => void;
+      __releaseSecondSimulationPreflight?: () => void;
+    };
+    let holdNext = false;
+    let release: (() => void) | null = null;
+    probe.__secondSimulationPreflightQueued = false;
+    probe.__armNextSimulationPreflight = () => {
+      holdNext = true;
+    };
+    probe.__releaseSecondSimulationPreflight = () => {
+      const pending = release;
+      release = null;
+      pending?.();
+    };
+    window.Worker = new Proxy(window.Worker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation') {
+          return worker;
+        }
+        const originalPost = worker.postMessage.bind(worker);
+        worker.postMessage = ((message: { kind?: string }) => {
+          if (message.kind === 'preflight' && holdNext) {
+            holdNext = false;
+            release = () => originalPost(message);
+            probe.__secondSimulationPreflightQueued = true;
+            return;
+          }
+          originalPost(message);
+        }) as Worker['postMessage'];
+        return worker;
+      },
+    });
+  });
+}
+
 async function simulationWorkerObservation(page: Page) {
   return page.evaluate(() => {
     const clockWindow = window as Window & {
@@ -2182,6 +2222,7 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
   test.setTimeout(180_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await observeSimulationWorkerClock(page);
+  await holdNextSimulationPreflight(page);
   await page.setViewportSize({ width: 1600, height: 1000 });
   await loginWithOrganization(page, teacher);
 
@@ -2204,10 +2245,48 @@ test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonica
     beforeResetSample?.committedMicroseconds,
     JSON.stringify(beforeResetWorker),
   ).toBeGreaterThanOrEqual(ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000);
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
+  await expect(page.locator('.workbench-simulation-time')).not.toHaveText(
+    'Время моделирования: 00:00:00',
+  );
 
   const resetButton = page.getByTestId('arduino-reset-button');
   await expect(resetButton).toHaveAttribute('aria-label', 'Перезапустить Arduino');
+  await page.evaluate(() =>
+    (
+      window as Window & { __armNextSimulationPreflight?: () => void }
+    ).__armNextSimulationPreflight?.(),
+  );
   await resetButton.click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as Window & { __secondSimulationPreflightQueued?: boolean })
+            .__secondSimulationPreflightQueued ?? false,
+      ),
+    )
+    .toBe(true);
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'starting',
+  );
+  await expect(page.locator('.workbench-simulation-time')).toHaveText(
+    'Время моделирования: 00:00:00',
+  );
+  await page.evaluate(() =>
+    (
+      window as Window & { __releaseSecondSimulationPreflight?: () => void }
+    ).__releaseSecondSimulationPreflight?.(),
+  );
+  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+    'data-simulation-status',
+    'running',
+  );
 
   // Reset must discard the old continuation and replay setup()/loop() from time zero.
   await expectArduinoBrightness(page, 'high', 'after Reset');

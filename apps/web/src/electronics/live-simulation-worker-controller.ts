@@ -29,6 +29,7 @@ export interface ElectronicsSimulationWorkerExecutor {
 }
 
 export interface LiveSimulationWorkerCallbacks {
+  readonly onGenerationPending?: () => void;
   readonly onResult: (result: SolveResult) => void;
   readonly onCommittedHorizon?: (committedHorizonMicroseconds: number) => void;
   readonly onSerialProjection?: (serial: readonly ElectronicsArduinoSerialProjection[]) => void;
@@ -316,6 +317,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.generationId = generationId;
     this.inFlight = true;
     this.inFlightKind = 'preflight';
+    this.callbacks?.onGenerationPending?.();
     void this.executor
       .preflight(generationId, document)
       .then((result) => this.completePreflight(generationId, result))
