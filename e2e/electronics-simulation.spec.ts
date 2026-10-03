@@ -4949,6 +4949,18 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
+  await page.getByRole('button', { name: 'Сохранить сейчас' }).click();
+  await expect
+    .poll(async () => {
+      const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(saved.ok()).toBe(true);
+      const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
+      return savedPayload.draft.document.components.find((item) => item.id === 'meter')
+        ?.stateProperties?.['measurementMode'];
+    })
+    .toBe('resistance');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
 
   const display = meter.getByTestId('multimeter-runtime-display');
@@ -4970,16 +4982,6 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
     path: `${ARTIFACT_DIR}/electronics-multimeter-resistance.png`,
     fullPage: true,
   });
-
-  const saved = await page.context().request.get(`/api/projects/${projectId}`, {
-    headers: { origin: new URL(page.url()).origin },
-  });
-  const savedPayload = (await saved.json()) as { draft: { document: SchematicDocument } };
-  expect(
-    savedPayload.draft.document.components.find((item) => item.id === 'meter')?.stateProperties?.[
-      'measurementMode'
-    ],
-  ).toBe('resistance');
 
   const poweredProjectId = await createProject(page, 'Мультиметр: R под питанием');
   await saveDocument(page, poweredProjectId, multimeterResistanceDocument(true));
@@ -5381,7 +5383,7 @@ test('multimeter topology mode remains a deliberate Stop and Start change', asyn
   expect(saved.ok()).toBe(true);
   const persisted = (await saved.json()) as { draft: { document: SchematicDocument } };
   expect(
-    persisted.draft.document.components.find((item) => item.id === 'multimeter')?.stateProperties?.[
+    persisted.draft.document.components.find((item) => item.id === 'meter')?.stateProperties?.[
       'measurementMode'
     ],
   ).toBe('dc-voltage');
