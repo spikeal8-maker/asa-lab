@@ -142,13 +142,15 @@ describe('production component hit mask recovery', () => {
   it('rejects an empty painted image, stops after three attempts, and re-arms on demand', async () => {
     vi.useFakeTimers();
     let requests = 0;
+    const urls: string[] = [];
     class TestImage {
       onload: (() => void) | null = null;
       onerror: (() => void) | null = null;
       naturalWidth = 10;
       naturalHeight = 10;
-      set src(_value: string) {
+      set src(value: string) {
         requests += 1;
+        urls.push(value);
         queueMicrotask(() => this.onload?.());
       }
     }
@@ -182,6 +184,8 @@ describe('production component hit mask recovery', () => {
     expect(requests).toBe(3);
     await preloadComponentHitMask(entry, 10, 10, true);
     expect(requests).toBe(4);
+    expect(new URL(urls[3]!).searchParams.get('asa-mask-cycle')).toBe('1');
+    expect(urls[3]).not.toBe(urls[0]);
     expect(componentHitMaskStatus(entry, 10, 10)).toBe('ready');
   });
 });

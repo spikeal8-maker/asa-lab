@@ -32,6 +32,7 @@ const MAX_MASK_DIMENSION = 192;
 const MASK_ATTEMPTS = 3;
 const MASK_TIMEOUT_MS = 2_500;
 const masks = new Map<string, HitMaskState>();
+const maskCycles = new Map<string, number>();
 
 function maskKey(entry: CatalogEntry, width: number, height: number): string {
   return [entry.key, entry.asset, entry.assetFit ?? 'meet', width, height].join('|');
@@ -78,10 +79,11 @@ function drawAsset(
   context.restore();
 }
 
-function maskAttemptAsset(asset: string, attempt: number): string {
-  if (attempt === 0) return asset;
+function maskAttemptAsset(asset: string, attempt: number, cycle: number): string {
+  if (attempt === 0 && cycle === 0) return asset;
   const url = new URL(asset, document.baseURI);
-  url.searchParams.set('asa-mask-retry', String(attempt));
+  if (attempt > 0) url.searchParams.set('asa-mask-retry', String(attempt));
+  if (cycle > 0) url.searchParams.set('asa-mask-cycle', String(cycle));
   return url.href;
 }
 
@@ -90,6 +92,7 @@ function loadComponentHitMask(
   width: number,
   height: number,
   attempt: number,
+  cycle: number,
 ): Promise<{ mask: HitMask; visibleBounds: ComponentVisibleBounds }> {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -136,13 +139,14 @@ function loadComponentHitMask(
         }
       });
     image.onerror = () => finish(() => reject(new Error('Hit mask image failed')));
-    image.src = maskAttemptAsset(entry.asset, attempt);
+    image.src = maskAttemptAsset(entry.asset, attempt, cycle);
   });
 }
 
 /**
  * Prepares an alpha mask from the owner asset without changing the SVG.
- * A terminal failure is re-armed only by an explicit reconnection/focus event.
+ * A terminal failure can be re-armed by a mounted consumer's bounded quiet
+ * recovery cycle or by an explicit reconnection/focus event.
  */
 export function preloadComponentHitMask(
   entry: CatalogEntry,
@@ -156,11 +160,14 @@ export function preloadComponentHitMask(
   if (existing?.status === 'loading') return existing.ready;
   if (existing && (existing.status === 'ready' || !retryFailed)) return Promise.resolve();
 
+  const cycle = existing?.status === 'failed' ? (maskCycles.get(key) ?? 0) + 1 : 0;
+  maskCycles.set(key, cycle);
+
   const ready = (async () => {
     for (let attempt = 0; attempt < MASK_ATTEMPTS; attempt += 1) {
       try {
-        const loaded = await loadComponentHitMask(entry, width, height, attempt);
-        masks.set(key, { status: 'ready', ...loaded });
+        const loaded = await loadComponentHitMask(entry, width, height, attempt, cycle);
+        if (maskCycles.get(key) === cycle) masks.set(key, { status: 'ready', ...loaded });
         return;
       } catch {
         if (attempt + 1 < MASK_ATTEMPTS) {
@@ -170,7 +177,7 @@ export function preloadComponentHitMask(
         }
       }
     }
-    masks.set(key, { status: 'failed' });
+    if (maskCycles.get(key) === cycle) masks.set(key, { status: 'failed' });
   })();
   masks.set(key, { status: 'loading', ready });
   return ready;

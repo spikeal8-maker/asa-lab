@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ownerSvgSource } from '../ProductionComponentVisual';
-import { warmProductionAsset } from '../production-asset-contracts';
+import {
+  createQuietAssetRecovery,
+  subscribeSharedQuietAssetRecovery,
+  warmProductionAsset,
+} from '../production-asset-contracts';
 
 const validSvg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="4" height="4"/></svg>';
 
@@ -19,7 +23,83 @@ class SvgParser {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+describe('mounted quiet asset recovery', () => {
+  it('spreads thirty failed consumers, stops permanently missing assets after three cycles, and cancels on unmount', async () => {
+    vi.useFakeTimers();
+    let randomIndex = 0;
+    vi.spyOn(Math, 'random').mockImplementation(() => ((randomIndex++ * 17) % 31) / 31);
+    const requests: number[] = [];
+    const consumers = Array.from({ length: 30 }, () =>
+      createQuietAssetRecovery(async () => {
+        requests.push(Date.now());
+        return false;
+      }),
+    );
+    consumers.forEach((consumer) => consumer.failed());
+    await vi.advanceTimersByTimeAsync(110_000);
+    expect(requests).toHaveLength(90);
+    const perSecond = new Map<number, number>();
+    for (const at of requests) {
+      const second = Math.floor(at / 1_000);
+      perSecond.set(second, (perSecond.get(second) ?? 0) + 1);
+    }
+    expect(Math.max(...perSecond.values())).toBeLessThanOrEqual(10);
+    await vi.advanceTimersByTimeAsync(110_000);
+    expect(requests).toHaveLength(90);
+
+    const cancelled = createQuietAssetRecovery(async () => {
+      requests.push(Date.now());
+      return false;
+    });
+    cancelled.failed();
+    cancelled.cancel();
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(requests).toHaveLength(90);
+  });
+
+  it('does not probe a recovered asset again', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let requests = 0;
+    const recovery = createQuietAssetRecovery(async () => {
+      requests += 1;
+      return true;
+    });
+    recovery.failed();
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(requests).toBe(1);
+    recovery.cancel();
+  });
+
+  it('shares a failed asset probe across mounted consumers and cancels after the last unmount', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let requests = 0;
+    let notices = 0;
+    const retry = async (): Promise<boolean> => {
+      requests += 1;
+      return requests === 2;
+    };
+    const first = subscribeSharedQuietAssetRecovery('shared:test', retry, () => {
+      notices += 1;
+    });
+    const second = subscribeSharedQuietAssetRecovery('shared:test', retry, () => {
+      notices += 1;
+    });
+    first.failed();
+    second.failed();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(requests).toBe(2);
+    expect(notices).toBe(2);
+    first.cancel();
+    second.cancel();
+    await vi.advanceTimersByTimeAsync(100_000);
+    expect(requests).toBe(2);
+  });
 });
 
 describe('production owner SVG text recovery', () => {

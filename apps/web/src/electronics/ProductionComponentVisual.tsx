@@ -11,6 +11,7 @@ import type { CatalogEntry, ComponentVisualState } from './component-catalog';
 import { visualAsset } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
 import {
+  subscribeSharedQuietAssetRecovery,
   dcMotorRuntimeMarkup,
   dcMotorVisualMotion,
   gearmotorRuntimeMarkup,
@@ -168,28 +169,57 @@ function useOwnerSvgSource(asset: string): {
   }>({ asset, source: null, failed: false });
   useEffect(() => {
     let active = true;
-    const load = (): void => {
+    const load = async (): Promise<boolean> => {
       setLoaded({ asset, source: null, failed: false });
-      void ownerSvgSource(asset)
-        .then((source) => {
-          if (active) setLoaded({ asset, source, failed: false });
-        })
-        .catch(() => {
-          if (active) setLoaded({ asset, source: null, failed: true });
-        });
+      try {
+        const source = await ownerSvgSource(asset);
+        if (active) setLoaded({ asset, source, failed: false });
+        return true;
+      } catch {
+        if (active) setLoaded({ asset, source: null, failed: true });
+        return false;
+      }
+    };
+    const recovery = subscribeSharedQuietAssetRecovery(
+      `svg:${asset}`,
+      async () => {
+        try {
+          await ownerSvgSource(asset);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      () => {
+        void ownerSvgSource(asset)
+          .then((source) => {
+            if (active) setLoaded({ asset, source, failed: false });
+          })
+          .catch(() => {
+            if (active) setLoaded({ asset, source: null, failed: true });
+          });
+      },
+    );
+    const start = (): void => {
+      void load().then((ready) => {
+        if (!active) return;
+        if (ready) recovery.recovered();
+        else recovery.failed();
+      });
     };
     const retry = (): void => {
-      if (failedOwnerSvgAssets.has(asset)) load();
+      if (failedOwnerSvgAssets.has(asset)) start();
     };
     const retryWhenVisible = (): void => {
       if (!document.hidden) retry();
     };
-    load();
+    start();
     window.addEventListener('online', retry);
     window.addEventListener('focus', retry);
     document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
       active = false;
+      recovery.cancel();
       window.removeEventListener('online', retry);
       window.removeEventListener('focus', retry);
       document.removeEventListener('visibilitychange', retryWhenVisible);
@@ -263,16 +293,20 @@ function OwnerSvgFallback({
 
 const recoveredOwnerImages = new Map<string, Promise<string>>();
 const failedOwnerImages = new Set<string>();
+const ownerImageCycles = new Map<string, number>();
 
 function recoverOwnerImage(asset: string): Promise<string> {
   const cached = recoveredOwnerImages.get(asset);
   if (cached) return cached;
+  const cycle = (ownerImageCycles.get(asset) ?? 0) + 1;
+  ownerImageCycles.set(asset, cycle);
   const pending = (async () => {
     for (let attempt = 0; attempt < OWNER_SVG_ATTEMPTS; attempt += 1) {
       try {
         const href = await new Promise<string>((resolve, reject) => {
           const url = new URL(asset, document.baseURI);
           url.searchParams.set('asa-image-retry', String(attempt));
+          url.searchParams.set('asa-image-cycle', String(cycle));
           const image = new Image();
           let settled = false;
           const finish = (completed: () => void): void => {
@@ -319,16 +353,62 @@ function useOwnerImageHref(asset: string): {
   readonly href: string;
   readonly failed: boolean;
   readonly onError: () => void;
+  readonly onLoad: () => void;
 } {
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
   const current = useRef(loaded);
   current.current = loaded;
   const recoverRef = useRef<() => void>(() => undefined);
+  const loadedRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     let active = true;
-    let loading = false;
+    let pending: Promise<boolean> | null = null;
+    const load = (): Promise<boolean> => {
+      if (pending) return pending;
+      setLoaded({ asset, href: asset, failed: false });
+      pending = recoverOwnerImage(asset)
+        .then((href) => {
+          if (active) setLoaded({ asset, href, failed: false });
+          return true;
+        })
+        .catch(() => {
+          if (active) setLoaded({ asset, href: asset, failed: true });
+          return false;
+        })
+        .finally(() => {
+          pending = null;
+        });
+      return pending;
+    };
+    const recovery = subscribeSharedQuietAssetRecovery(
+      `image:${asset}`,
+      async () => {
+        try {
+          await recoverOwnerImage(asset);
+          return true;
+        } catch {
+          return false;
+        }
+      },
+      () => {
+        void recoverOwnerImage(asset)
+          .then((href) => {
+            if (active) setLoaded({ asset, href, failed: false });
+          })
+          .catch(() => {
+            if (active) setLoaded({ asset, href: asset, failed: true });
+          });
+      },
+    );
+    const start = (): void => {
+      void load().then((ready) => {
+        if (active && !ready) recovery.failed();
+      });
+    };
     const recover = (): void => {
-      if (loading) return;
+      if (!active || pending) return;
+      if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
+        return;
       if (
         current.current.asset === asset &&
         current.current.href !== asset &&
@@ -338,24 +418,17 @@ function useOwnerImageHref(asset: string): {
         recoveredOwnerImages.delete(asset);
         failedOwnerImages.add(asset);
         setLoaded({ asset, href: current.current.href, failed: true });
+        recovery.failed();
         return;
       }
-      loading = true;
-      setLoaded({ asset, href: asset, failed: false });
-      void recoverOwnerImage(asset)
-        .then((href) => {
-          if (active) setLoaded({ asset, href, failed: false });
-        })
-        .catch(() => {
-          if (active) setLoaded({ asset, href: asset, failed: true });
-        })
-        .finally(() => {
-          loading = false;
-        });
+      start();
     };
     recoverRef.current = recover;
+    loadedRef.current = () => {
+      if (active && current.current.asset === asset) recovery.recovered();
+    };
     const retry = (): void => {
-      if (failedOwnerImages.has(asset)) recover();
+      if (failedOwnerImages.has(asset)) start();
     };
     const retryWhenVisible = (): void => {
       if (!document.hidden) retry();
@@ -365,7 +438,9 @@ function useOwnerImageHref(asset: string): {
     document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
       active = false;
+      recovery.cancel();
       recoverRef.current = () => undefined;
+      loadedRef.current = () => undefined;
       window.removeEventListener('online', retry);
       window.removeEventListener('focus', retry);
       document.removeEventListener('visibilitychange', retryWhenVisible);
@@ -375,6 +450,7 @@ function useOwnerImageHref(asset: string): {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
     onError: () => recoverRef.current(),
+    onLoad: () => loadedRef.current(),
   };
 }
 
@@ -1352,6 +1428,7 @@ export function ProductionComponentVisual({
             <image
               href={ownerImage.href}
               onError={ownerImage.onError}
+              onLoad={ownerImage.onLoad}
               y={ownerAssetY}
               width={ownerAssetWidth}
               height={ownerAssetHeight}
@@ -1646,6 +1723,7 @@ export function ProductionComponentVisual({
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
                 href={ownerImage.href}
                 onError={ownerImage.onError}
+                onLoad={ownerImage.onLoad}
                 data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
                 y={ownerAssetY}
                 width={ownerAssetWidth}

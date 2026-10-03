@@ -169,6 +169,92 @@ export function ordinaryLedAsset(state: OrdinaryLedState): string {
 const warmedProductionAssets = new Set<string>();
 const warmingProductionAssets = new Set<string>();
 
+// Only a mounted consumer that has reached a terminal failure starts these
+// probes. Three spaced cycles keep a permanently missing asset bounded while
+// giving a quiet network recovery time to arrive without a browser event.
+const QUIET_RECOVERY_DELAYS_MS = [3_000, 9_000, 27_000] as const;
+const QUIET_RECOVERY_SPREAD_MS = [4_000, 9_000, 18_000] as const;
+
+export function createQuietAssetRecovery(retry: () => Promise<boolean>): {
+  failed: () => void;
+  recovered: () => void;
+  cancel: () => void;
+} {
+  let cycle = 0;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let cancelled = false;
+  const recovered = (): void => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+  };
+  const failed = (): void => {
+    if (cancelled || timer !== null || cycle >= QUIET_RECOVERY_DELAYS_MS.length) return;
+    const delay =
+      QUIET_RECOVERY_DELAYS_MS[cycle]! + Math.random() * QUIET_RECOVERY_SPREAD_MS[cycle]!;
+    cycle += 1;
+    timer = setTimeout(() => {
+      timer = null;
+      if (cancelled) return;
+      void retry().then(
+        (ready) => {
+          if (cancelled) return;
+          if (ready) recovered();
+          else failed();
+        },
+        () => {
+          if (!cancelled) failed();
+        },
+      );
+    }, delay);
+  };
+  return {
+    failed,
+    recovered,
+    cancel: () => {
+      cancelled = true;
+      recovered();
+    },
+  };
+}
+
+const sharedQuietRecoveries = new Map<
+  string,
+  {
+    readonly listeners: Set<() => void>;
+    readonly recovery: ReturnType<typeof createQuietAssetRecovery>;
+  }
+>();
+
+/** A mounted asset has one quiet probe cycle even when stage and catalog share it. */
+export function subscribeSharedQuietAssetRecovery(
+  key: string,
+  retry: () => Promise<boolean>,
+  onReady: () => void,
+): { failed: () => void; recovered: () => void; cancel: () => void } {
+  let shared = sharedQuietRecoveries.get(key);
+  if (!shared) {
+    const listeners = new Set<() => void>();
+    const recovery = createQuietAssetRecovery(async () => {
+      const ready = await retry();
+      if (ready) for (const listener of listeners) listener();
+      return ready;
+    });
+    shared = { listeners, recovery };
+    sharedQuietRecoveries.set(key, shared);
+  }
+  shared.listeners.add(onReady);
+  return {
+    failed: shared.recovery.failed,
+    recovered: shared.recovery.recovered,
+    cancel: () => {
+      shared.listeners.delete(onReady);
+      if (shared.listeners.size > 0) return;
+      shared.recovery.cancel();
+      if (sharedQuietRecoveries.get(key) === shared) sharedQuietRecoveries.delete(key);
+    },
+  };
+}
+
 /**
  * Warms one exact owner asset in the browser cache. LED state changes use
  * separate owner SVGs, so decoding the already calculated next state before
