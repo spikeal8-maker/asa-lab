@@ -505,6 +505,8 @@ export function useWorkbenchProjectState(projectId: string) {
           setNotice(null);
           return null;
         }
+        saveFailedRef.current = false;
+        setSaveFailed(false);
         setSaveError(null);
         setSaveIssue(null);
         serverRevisionRef.current = response.data.draft.revision;

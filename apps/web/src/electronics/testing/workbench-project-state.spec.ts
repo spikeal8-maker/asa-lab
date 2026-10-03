@@ -589,6 +589,28 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(state().saveStatus).toBe('saved');
   });
 
+  it('clears the error after a successful manual retry without creating another autosave', async () => {
+    const save = await mountProject();
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'offline', message: 'Offline' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    const changed = { ...state().document!, components: [resistor('retry', 10)] };
+    act(() => state().setDocument(changed));
+
+    await act(async () => state().saveNow());
+    expect(state().saveStatus).toBe('error');
+    expect(window.localStorage.length).toBeGreaterThan(0);
+    await act(async () => state().saveNow());
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(projectId, changed, 1);
+    expect(state().saveStatus).toBe('saved');
+    expect(window.localStorage.length).toBe(0);
+    await advance(60_000);
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
   it('keeps a due save behind simulation startup until the local Worker confirms', async () => {
     const save = await mountProject();
     edit(2);
