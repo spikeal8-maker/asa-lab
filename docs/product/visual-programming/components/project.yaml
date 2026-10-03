@@ -52,7 +52,6 @@ components:
         section: Project save interaction
     task: VSCR-M1-005A
     completion_task: VSCR-M1-005B
-    candidate_status: implementation_complete_independent_review_pending
     depends_on:
       - blocks.project.persistence-guard
       - blocks.assets.upload
@@ -69,10 +68,8 @@ components:
           - inspectScratchProject
     tests:
       - apps/api/src/blocks-project-persistence.spec.ts
-      - apps/web/src/blocks/testing/editor-runtime-session.spec.ts
       - e2e/blocks-product-integration.spec.ts
       - tools/blocks/save-semantics.test.mjs
-      - tools/blocks/portable-smoke.mjs
 
   - id: blocks.project.autosave
     state: implemented
