@@ -287,6 +287,52 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(state().saveStatus).toBe('saved');
   });
 
+  it.each([
+    { name: 'offline', status: 0, code: 'offline' },
+    { name: 'revision conflict', status: 409, code: 'project_revision_conflict' },
+  ])(
+    'does not flush an unchanged failed draft on repeated hide events after $name',
+    async (failure) => {
+      const save = await mountProject();
+      if (failure.status === 409) {
+        vi.mocked(api.openProject).mockResolvedValueOnce({
+          ok: false,
+          status: 0,
+          error: { code: 'offline', message: 'Cannot load latest revision' },
+        } as Awaited<ReturnType<typeof api.openProject>>);
+      }
+      save.mockResolvedValueOnce({
+        ok: false,
+        status: failure.status,
+        error: { code: failure.code, message: failure.name },
+      } as Awaited<ReturnType<typeof api.saveDraft>>);
+
+      edit(2);
+      await advance(60_000);
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(state().saveStatus).toBe('error');
+
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+      await act(async () => {
+        document.dispatchEvent(new Event('visibilitychange'));
+        document.dispatchEvent(new Event('visibilitychange'));
+        window.dispatchEvent(new Event('pagehide'));
+        window.dispatchEvent(new Event('pagehide'));
+      });
+      expect(save).toHaveBeenCalledTimes(1);
+      await advance(120_000);
+      expect(save).toHaveBeenCalledTimes(1);
+
+      const recovered = edit(3);
+      await advance(59_999);
+      expect(save).toHaveBeenCalledTimes(1);
+      await advance(1);
+      expect(save).toHaveBeenCalledTimes(2);
+      expect(save).toHaveBeenLastCalledWith(projectId, recovered, 1);
+      Reflect.deleteProperty(document, 'visibilityState');
+    },
+  );
+
   it('stops automatic retries when the draft request throws', async () => {
     const save = await mountProject();
     save.mockRejectedValueOnce(new Error('network request failed'));

@@ -588,6 +588,7 @@ export function useWorkbenchProjectState(projectId: string) {
       // Read the refs here: pagehide can follow an edit before React commits a
       // new render, so the previous render's indicator may still say "saved".
       if (
+        !saveFailedRef.current &&
         current &&
         current !== savedDocumentRef.current &&
         current !== savingDocumentRef.current
