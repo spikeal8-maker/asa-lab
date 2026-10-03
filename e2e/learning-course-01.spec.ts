@@ -2035,6 +2035,7 @@ for (const module of ['electronics', 'three-d'])
     });
     await expect(submittedCard.getByText('Сдано, ждёт проверки', { exact: true })).toBeVisible();
     await expect(submittedCard.getByRole('link', { name: 'Посмотреть' })).toBeVisible();
+    await expect(submittedCard.getByRole('button', { name: 'Убрать из активных' })).toHaveCount(0);
     for (const viewport of [
       { width: 1440, height: 900, label: 'desktop' },
       { width: 390, height: 844, label: 'mobile' },
@@ -2068,11 +2069,13 @@ for (const module of ['electronics', 'three-d'])
     });
     await switchAccountWorkspace(learner, personalWorkspace.rows[0].id as string);
     await learner.goto('/#/projects?kind=learning');
+    await learner.getByRole('button', { name: 'Выполненные', exact: true }).click();
     const completedCard = learner.getByTestId('project-card').filter({
       has: learner.locator(`a[href*="${startedProjectId}"]`),
     });
     await expect(completedCard.getByText('Выполнено', { exact: true })).toBeVisible();
     await expect(completedCard.getByRole('link', { name: 'Посмотреть' })).toBeVisible();
+    await expect(completedCard.getByRole('button', { name: 'Убрать из активных' })).toBeVisible();
     for (const viewport of [
       { width: 1440, height: 900, label: 'desktop' },
       { width: 390, height: 844, label: 'mobile' },
@@ -2083,6 +2086,31 @@ for (const module of ['electronics', 'three-d'])
         fullPage: true,
       });
     }
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await completedCard.getByRole('button', { name: 'Убрать из активных' }).click();
+    await expect(completedCard).toHaveCount(0);
+    await learner.getByRole('button', { name: 'Архив', exact: true }).click();
+    const archivedCard = learner.getByTestId('project-card').filter({
+      has: learner.locator(`a[href*="${startedProjectId}"]`),
+    });
+    await expect(archivedCard.getByText('В учебном архиве', { exact: true })).toBeVisible();
+    await expect(archivedCard.getByRole('button', { name: 'Вернуть в активные' })).toBeVisible();
+    for (const viewport of [
+      { width: 1440, height: 900, label: 'desktop' },
+      { width: 390, height: 844, label: 'mobile' },
+    ]) {
+      await learner.setViewportSize(viewport);
+      await expect(archivedCard).toBeVisible();
+      await learner.screenshot({
+        path: `${evidenceDir}/a5c-${module}-archive-${viewport.label}.png`,
+        fullPage: true,
+      });
+    }
+    await learner.setViewportSize({ width: 1440, height: 900 });
+    await archivedCard.getByRole('button', { name: 'Вернуть в активные' }).click();
+    await expect(archivedCard).toHaveCount(0);
+    await learner.getByRole('button', { name: 'Выполненные', exact: true }).click();
+    await expect(completedCard).toBeVisible();
     await context.close();
   });
 

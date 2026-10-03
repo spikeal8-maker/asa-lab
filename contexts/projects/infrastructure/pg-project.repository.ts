@@ -262,7 +262,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
     while (true) {
       const linked = await this.pool.query<{ project: ProjectRow }>(
         `SELECT project FROM learning_linked_account_project_list(
-           $1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
         [
           actor.principalId,
           status,
@@ -273,6 +273,7 @@ export class PgProjectRepository implements ProjectRepositoryPort {
           linkedAfter?.id ?? null,
           (filter.sort === 'title' ? linkedAfter?.title : linkedAfter?.updatedAt) ?? null,
           linkedPageSize,
+          filter.collection ?? null,
         ],
       );
       linkedRows.push(...linked.rows.map((row) => row.project));
@@ -624,8 +625,12 @@ export class PgProjectRepository implements ProjectRepositoryPort {
               AND p.project_scope='personal' AND p.status=$3
               AND ($10::text = 'all' OR
                    learning_personal_project_is_learning($2,p.id) = ($10::text = 'learning'))
+              AND (($11::text IS NULL AND
+                    COALESCE(learning_project_archive_bucket($2,p.id),'active') <> 'learning_archive')
+                   OR ($11::text IS NOT NULL AND
+                    COALESCE(learning_project_archive_bucket($2,p.id),'active') = $11))
             ${tail(4)}`,
-          [tenantId, actor.principalId, status, ...pageValues, kind],
+          [tenantId, actor.principalId, status, ...pageValues, kind, filter.collection ?? null],
         );
         return this.markPersonalLearningProjects(
           client,
@@ -651,8 +656,20 @@ export class PgProjectRepository implements ProjectRepositoryPort {
                    OR p.created_by = $3)
               AND ($11::text = 'all' OR
                    learning_personal_project_is_learning($2,p.id) = ($11::text = 'learning'))
+              AND (($12::text IS NULL AND
+                    COALESCE(learning_project_archive_bucket($2,p.id),'active') <> 'learning_archive')
+                   OR ($12::text IS NOT NULL AND
+                    COALESCE(learning_project_archive_bucket($2,p.id),'active') = $12))
             ${tail(5)}`,
-          [tenantId, actor.principalId, actor.userId, status, ...pageValues, kind],
+          [
+            tenantId,
+            actor.principalId,
+            actor.userId,
+            status,
+            ...pageValues,
+            kind,
+            filter.collection ?? null,
+          ],
         );
         return this.markPersonalLearningProjects(
           client,

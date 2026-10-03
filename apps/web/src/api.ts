@@ -947,7 +947,7 @@ export type LearningWorkContext =
         publishOriginal: boolean;
       };
       presentation: {
-        learnerCollectionState: 'working' | 'review' | 'completed';
+        learnerCollectionState: 'working' | 'review' | 'completed' | 'learning_archive';
         classroomTitle: string;
         courseTitle: string | null;
         lessonTitle: string | null;
@@ -1196,7 +1196,7 @@ export interface Project {
       | 'completed'
       | 'invalidated'
       | 'unavailable';
-    collectionState: 'working' | 'review' | 'completed' | 'unavailable';
+    collectionState: 'working' | 'review' | 'completed' | 'learning_archive' | 'unavailable';
     classroomTitle: string | null;
     courseTitle: string | null;
     lessonTitle: string | null;
@@ -1555,6 +1555,7 @@ export interface ProjectListOptions {
   sort?: 'recent' | 'oldest' | 'title';
   scope?: ProjectScope;
   kind?: 'all' | 'personal' | 'learning';
+  collection?: 'active' | 'completed' | 'learning_archive';
   classroomId?: string;
   status?: ProjectStatus;
   module?: string;
@@ -2937,6 +2938,7 @@ export const api = {
     const query = new URLSearchParams();
     if (options.scope) query.set('scope', options.scope);
     if (options.kind && options.kind !== 'all') query.set('kind', options.kind);
+    if (options.collection) query.set('collection', options.collection);
     if (options.classroomId) query.set('classroomId', options.classroomId);
     if (options.status) query.set('status', options.status);
     if (options.module) query.set('module', options.module);
@@ -2993,6 +2995,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ status }),
     }),
+  changeLearningCollection: (projectId: string, collectionState: 'active' | 'learning_archive') =>
+    call<{ collectionState: 'active' | 'learning_archive' }>(
+      `/api/projects/${encodeURIComponent(projectId)}/learning-collection`,
+      { method: 'POST', body: JSON.stringify({ collectionState }) },
+    ),
   openProject: <TDocument = unknown, TResult = unknown>(projectId: string) =>
     call<{
       project: Project;

@@ -100,7 +100,7 @@ describe('personal Project list Learning marker', () => {
     expect(all[1]?.isLearningWork).toBe(true);
     expect(linkedQuery).toHaveBeenCalledWith(
       expect.stringContaining('learning_linked_account_project_list'),
-      [principalId, 'active', null, null, false, 'recent', null, null, 2],
+      [principalId, 'active', null, null, false, 'recent', null, null, 2, null],
     );
     linkedQuery.mockClear();
     const personal = await repository.listForActor(tenantId, actor, {

@@ -148,6 +148,8 @@ describe('A1 project-scoped Learning Work Context', () => {
       query: vi.fn().mockImplementation(async (sql: string) => {
         if (sql.includes('learning_origin_work_context_for_project'))
           return { rows: [{ context: originRow, evidence: originEvidence }] };
+        if (sql.includes('learning_project_archive_bucket'))
+          return { rows: [{ bucket: 'active' }] };
         if (sql.includes('learning_course_activity_sample_url_for_viewer'))
           return { rows: [{ sample_image: null }] };
         throw new Error('handout fallback was attempted');
@@ -173,6 +175,56 @@ describe('A1 project-scoped Learning Work Context', () => {
       workflow: { attemptId: exactAttempt, canonicalState: { workflowState: 'in_progress' } },
     });
   });
+
+  it.each([
+    ['completed', 'completed', true, false],
+    ['learning_archive', 'learning_archive', false, true],
+    ['active', 'working', false, false],
+  ] as const)(
+    'uses shared server archive policy %s for exact original actions',
+    async (bucket, expectedCollection, canMove, canRestore) => {
+      const completedEvidence =
+        bucket === 'active'
+          ? originEvidence
+          : {
+              ...originEvidence,
+              attempt: {
+                ...originEvidence.attempt!,
+                state: 'closed' as const,
+                reviewDecision: 'accepted' as const,
+                submittedAt: '2026-09-26T01:00:00Z',
+              },
+            };
+      const query = vi.fn(async (sql: string) => {
+        if (sql.includes('learning_origin_work_context_for_project'))
+          return {
+            rows: [
+              {
+                context: { ...row, attemptId: originEvidence.attempt!.id },
+                evidence: completedEvidence,
+              },
+            ],
+          };
+        if (sql.includes('learning_project_archive_bucket')) return { rows: [{ bucket }] };
+        throw new Error('unexpected project context query');
+      });
+      const result = await learningWorkContextForProject(
+        { query } as unknown as pg.Pool,
+        'viewer',
+        projectId,
+        'electronics',
+        new Map(),
+        '2026-09-27T00:00:00.000Z',
+        undefined,
+        false,
+      );
+      expect(result).toMatchObject({
+        state: 'ready',
+        presentation: { learnerCollectionState: expectedCollection },
+        allowedActions: { moveToLearningArchive: canMove, restoreFromLearningArchive: canRestore },
+      });
+    },
+  );
 
   it('never falls back to shared handout work when immutable origin is unreadable', async () => {
     const pool = {

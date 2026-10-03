@@ -40,6 +40,7 @@ export function ProjectCard({
   showLearningBadge = false,
   learningDetail,
   learningStateLabel,
+  learningCollectionAction,
   footerLabel,
   footerTone,
   footerAction,
@@ -56,6 +57,7 @@ export function ProjectCard({
   readonly showLearningBadge?: boolean;
   readonly learningDetail?: string | undefined;
   readonly learningStateLabel?: string | undefined;
+  readonly learningCollectionAction?: ProjectCardMenuItem | undefined;
   readonly footerLabel: string;
   /**
    * Turns the footer line into a coloured mark. A teacher's verdict has to be
@@ -179,6 +181,16 @@ export function ProjectCard({
                 ) : null}
                 {learningStateLabel ? (
                   <p className="project-card-learning-state">{learningStateLabel}</p>
+                ) : null}
+                {learningCollectionAction ? (
+                  <button
+                    type="button"
+                    className="project-card-learning-collection"
+                    disabled={learningCollectionAction.disabled === true}
+                    onClick={learningCollectionAction.onSelect}
+                  >
+                    {learningCollectionAction.label}
+                  </button>
                 ) : null}
               </div>
             ) : null}

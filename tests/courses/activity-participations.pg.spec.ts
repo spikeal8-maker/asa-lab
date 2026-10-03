@@ -11,6 +11,7 @@ import type { ModuleCatalogPort } from '../../contexts/projects/application/port
 import { PgProjectRepository } from '../../contexts/projects/infrastructure/pg-project.repository';
 import { LearningWorkReadOnlyError } from '../../contexts/projects/domain/project';
 import { LearningStartController } from '../../apps/api/src/learning-start.controller';
+import { learningWorkContextForProject } from '../../apps/api/src/learning-work-context';
 import { SEAT_COURSE_LESSON_LIST_SQL } from '../../apps/api/src/course-lesson-list-queries';
 import { buildTestApp, inject } from '../portal/app';
 import { seedTeacher, testAdminPool, testAppPool, type SeededTeacher } from '../portal/helpers';
@@ -967,6 +968,26 @@ describe('A4-1 immutable learning project origin', () => {
        VALUES ($1,$2,$3,$4) RETURNING id`,
       [owner.tenantId, handout, seatId, projectId],
     );
+    const legacyTitle = `A5 legacy active ${randomUUID()}`;
+    await repo.rename(owner.tenantId, projectId, actor, legacyTitle);
+    expect(
+      (
+        await repo.listForActor(owner.tenantId, actor, {
+          scope: 'personal',
+          kind: 'learning',
+          collection: 'active',
+          search: legacyTitle,
+        })
+      ).map((item) => item.id),
+    ).toEqual([projectId]);
+    expect(
+      (
+        await app.query<{ state: string }>(
+          'SELECT learning_project_archive_set($1,$2,true) AS state',
+          [learnerPrincipal, projectId],
+        )
+      ).rows[0]?.state,
+    ).toBe('denied');
     expect(
       await repo.saveDraft({
         tenantId: owner.tenantId,
@@ -1187,6 +1208,366 @@ describe('A4-1 immutable learning project origin', () => {
       await repo.createCheckpoint(owner.tenantId, projectId, actor, 'Revision'),
     ).not.toBeNull();
   });
+
+  it('archives only terminal originals and keeps evidence and paginated collections exact', async () => {
+    const repo = new PgProjectRepository(app);
+    const actor = { principalId: learnerPrincipal, userId: null };
+    const prefix = `A5 archive ${randomUUID()}`;
+    const work: { projectId: string; attemptId: string; participationId: string }[] = [];
+    for (let index = 0; index < 4; index++) {
+      const run = await createRun({ handout: await directHandout() });
+      const participation = await assign(run);
+      const projectId = await duplicableProject(learnerPrincipal);
+      const attemptId = await originatedAttempt(
+        participation.participation_id as string,
+        projectId,
+      );
+      await repo.rename(owner.tenantId, projectId, actor, `${prefix} ${index}`);
+      work.push({
+        projectId,
+        attemptId,
+        participationId: participation.participation_id as string,
+      });
+    }
+    const set = (projectId: string, archived: boolean, principal = learnerPrincipal) =>
+      app.query<{ state: string }>('SELECT learning_project_archive_set($1,$2,$3) AS state', [
+        principal,
+        projectId,
+        archived,
+      ]);
+    expect((await set(work[0]!.projectId, true)).rows[0]?.state).toBe('denied');
+    await admin.query(
+      `UPDATE learning_attempts SET state='submitted',submitted_at=now() WHERE id=$1`,
+      [work[0]!.attemptId],
+    );
+    expect((await set(work[0]!.projectId, true)).rows[0]?.state).toBe('denied');
+    for (const item of work.slice(1)) {
+      await admin.query(
+        `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+        [item.attemptId],
+      );
+      await admin.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         VALUES ($1,$2,20,'passed','accepted',true)`,
+        [owner.tenantId, item.attemptId],
+      );
+    }
+    const before = await admin.query(
+      `SELECT p.status,p.owner_principal_id,d.document_json,d.revision,
+         (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$2) AS attempts,
+         (SELECT count(*)::int FROM assessment_results WHERE attempt_id=$3) AS results,
+         (SELECT count(*)::int FROM learning_submissions WHERE attempt_id=$3) AS submissions
+       FROM projects p JOIN project_drafts d ON d.project_id=p.id WHERE p.id=$1`,
+      [work[1]!.projectId, work[1]!.participationId, work[1]!.attemptId],
+    );
+    const [first, replay] = await Promise.all([
+      set(work[1]!.projectId, true),
+      set(work[1]!.projectId, true),
+    ]);
+    expect([first.rows[0]?.state, replay.rows[0]?.state]).toEqual([
+      'learning_archive',
+      'learning_archive',
+    ]);
+    expect((await set(work[1]!.projectId, true, outsiderPrincipal)).rows[0]?.state).toBe('denied');
+    expect(
+      (await admin.query('SELECT status FROM projects WHERE id=$1', [work[1]!.projectId])).rows[0]
+        .status,
+    ).toBe('active');
+    const completed = await repo.listForActor(owner.tenantId, actor, {
+      scope: 'personal',
+      kind: 'learning',
+      collection: 'completed',
+      search: prefix,
+      limit: 1,
+    });
+    expect(completed).toHaveLength(1);
+    expect([work[2]!.projectId, work[3]!.projectId]).toContain(completed[0]!.id);
+    const next = await repo.listForActor(owner.tenantId, actor, {
+      scope: 'personal',
+      kind: 'learning',
+      collection: 'completed',
+      search: prefix,
+      limit: 1,
+      after: {
+        id: completed[0]!.id,
+        updatedAt: completed[0]!.updatedAt,
+        title: completed[0]!.title,
+      },
+    });
+    expect(new Set([completed[0]!.id, next[0]?.id])).toEqual(
+      new Set([work[2]!.projectId, work[3]!.projectId]),
+    );
+    const review = await admin.connect();
+    let reviewOpen = false;
+    try {
+      await review.query('BEGIN');
+      reviewOpen = true;
+      await review.query('SELECT id FROM activity_participations WHERE id=$1 FOR UPDATE', [
+        work[2]!.participationId,
+      ]);
+      await review.query('SELECT id FROM learning_attempts WHERE id=$1 FOR UPDATE', [
+        work[2]!.attemptId,
+      ]);
+      const prior = (
+        await review.query('SELECT id FROM assessment_results WHERE attempt_id=$1', [
+          work[2]!.attemptId,
+        ])
+      ).rows[0].id as string;
+      await review.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value,
+            revision_number,supersedes_result_id,correction_reason)
+         VALUES ($1,$2,20,'incomplete','changes_requested',false,2,$3,'Review correction')`,
+        [owner.tenantId, work[2]!.attemptId, prior],
+      );
+      let settled = false;
+      const archiveDuringReview = set(work[2]!.projectId, true).then((value) => {
+        settled = true;
+        return value;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      expect(settled).toBe(false);
+      await review.query('COMMIT');
+      reviewOpen = false;
+      expect((await archiveDuringReview).rows[0]?.state).toBe('denied');
+    } finally {
+      if (reviewOpen) await review.query('ROLLBACK');
+      review.release();
+    }
+    const archived = await repo.listForActor(owner.tenantId, actor, {
+      scope: 'personal',
+      kind: 'learning',
+      collection: 'learning_archive',
+      search: prefix,
+      limit: 1,
+    });
+    expect(archived.map((item) => item.id)).toEqual([work[1]!.projectId]);
+    expect((await set(work[3]!.projectId, true)).rows[0]?.state).toBe('learning_archive');
+    const acceptedResult = (
+      await admin.query('SELECT id FROM assessment_results WHERE attempt_id=$1', [
+        work[3]!.attemptId,
+      ])
+    ).rows[0].id as string;
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value,
+          revision_number,supersedes_result_id,correction_reason,published_at)
+       VALUES ($1,$2,20,'incomplete','changes_requested',false,2,$3,'Reopen review',
+               clock_timestamp()+interval '1 second')`,
+      [owner.tenantId, work[3]!.attemptId, acceptedResult],
+    );
+    const bucket = (projectId: string) =>
+      app.query<{ bucket: string }>('SELECT learning_project_archive_bucket($1,$2) AS bucket', [
+        learnerPrincipal,
+        projectId,
+      ]);
+    expect((await bucket(work[3]!.projectId)).rows[0]?.bucket).toBe('active');
+    expect((await set(work[3]!.projectId, true)).rows[0]?.state).toBe('denied');
+    const newAttempt = await admin.query(
+      `INSERT INTO learning_attempts
+         (tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+          seat_id,learner_identity_id,activity_participation_id,attempt_number,state,
+          revision_of_attempt_id,started_at,submitted_at)
+       SELECT tenant_id,classroom_id,classroom_assignment_id,learning_activity_version_id,
+          seat_id,learner_identity_id,activity_participation_id,2,'submitted',id,
+          clock_timestamp()+interval '2 seconds',clock_timestamp()+interval '3 seconds'
+         FROM learning_attempts WHERE id=$1 RETURNING id`,
+      [work[3]!.attemptId],
+    );
+    expect((await bucket(work[3]!.projectId)).rows[0]?.bucket).toBe('active');
+    const activeAgain = await repo.listForActor(owner.tenantId, actor, {
+      scope: 'personal',
+      kind: 'learning',
+      collection: 'active',
+      search: prefix,
+    });
+    expect(activeAgain.map((item) => item.id)).toContain(work[3]!.projectId);
+    await admin.query(
+      `UPDATE learning_attempts SET state='closed',evaluated_at=now()
+      WHERE id=$1`,
+      [newAttempt.rows[0].id],
+    );
+    await admin.query(
+      `INSERT INTO assessment_results
+         (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+       VALUES ($1,$2,20,'passed','accepted',true)`,
+      [owner.tenantId, newAttempt.rows[0].id],
+    );
+    expect((await bucket(work[3]!.projectId)).rows[0]?.bucket).toBe('completed');
+    expect((await set(work[1]!.projectId, false)).rows[0]?.state).toBe('active');
+    expect((await set(work[1]!.projectId, false)).rows[0]?.state).toBe('active');
+    const after = await admin.query(
+      `SELECT p.status,p.owner_principal_id,d.document_json,d.revision,
+         (SELECT count(*)::int FROM learning_attempts WHERE activity_participation_id=$2) AS attempts,
+         (SELECT count(*)::int FROM assessment_results WHERE attempt_id=$3) AS results,
+         (SELECT count(*)::int FROM learning_submissions WHERE attempt_id=$3) AS submissions
+       FROM projects p JOIN project_drafts d ON d.project_id=p.id WHERE p.id=$1`,
+      [work[1]!.projectId, work[1]!.participationId, work[1]!.attemptId],
+    );
+    expect(after.rows[0]).toEqual(before.rows[0]);
+  }, 30_000);
+
+  it('keeps exact Direct and Course terminal origins readable only to linked learners', async () => {
+    const archivedProjects: string[] = [];
+    for (const sourceKind of ['direct', 'course'] as const) {
+      for (const terminal of ['withdrawn', 'cancelled'] as const) {
+        const course = sourceKind === 'course' ? await courseHandout() : null;
+        const run = await createRun(
+          course
+            ? {
+                handout: course.handout,
+                kind: 'course',
+                courseRun: course.courseRun,
+                lesson: course.lesson,
+              }
+            : { handout: await directHandout() },
+        );
+        const enrollment = course
+          ? await inTenant(owner.tenantId, (client) =>
+              client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+                ownerPrincipal,
+                course.courseRun,
+                learner,
+              ]),
+            )
+          : null;
+        const participation = await assign(run, learner, enrollment?.rows[0].enrollment_id ?? null);
+        const projectId = await duplicableProject(learnerPrincipal);
+        const attemptId = await originatedAttempt(
+          participation.participation_id as string,
+          projectId,
+        );
+        if (terminal === 'withdrawn') {
+          await admin.query(
+            `UPDATE learning_attempts SET state='closed',evaluated_at=now() WHERE id=$1`,
+            [attemptId],
+          );
+          await admin.query(
+            `INSERT INTO assessment_results
+             (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+           VALUES ($1,$2,20,'incomplete','changes_requested',false)`,
+            [owner.tenantId, attemptId],
+          );
+          await admin.query(
+            `UPDATE activity_participations SET status='withdrawn',withdrawn_at=now(),
+             withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
+           WHERE id=$1`,
+            [participation.participation_id, ownerPrincipal],
+          );
+          if (enrollment) {
+            await admin.query(
+              `UPDATE course_enrollments SET status='withdrawn',withdrawn_at=now(),
+               withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
+             WHERE id=$1`,
+              [enrollment.rows[0].enrollment_id, ownerPrincipal],
+            );
+          }
+        } else {
+          await admin.query(
+            `UPDATE activity_runs SET lifecycle_status='cancelled',cancelled_at=now()
+            WHERE id=$1`,
+            [run],
+          );
+        }
+        const exact = await app.query<{
+          context: { projectId: string };
+          evidence: { attempt: { id: string } };
+        }>('SELECT context,evidence FROM learning_origin_work_context_for_project($1,$2)', [
+          learnerPrincipal,
+          projectId,
+        ]);
+        expect(exact.rows).toHaveLength(1);
+        expect(exact.rows[0]?.context.projectId).toBe(projectId);
+        expect(exact.rows[0]?.evidence.attempt.id).toBe(attemptId);
+        const card = await learningWorkContextForProject(
+          app,
+          learnerPrincipal,
+          projectId,
+          'electronics',
+          new Map(),
+        );
+        expect(card.state).toBe('ready');
+        if (card.state === 'ready') {
+          expect(card.allowedActions.edit).toBe(false);
+          expect(card.allowedActions.submit).toBe(false);
+          expect(card.allowedActions.moveToLearningArchive).toBe(true);
+        }
+        expect(
+          (
+            await app.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+              outsiderPrincipal,
+              projectId,
+            ])
+          ).rows,
+        ).toEqual([]);
+        const moved = await app.query<{ state: string }>(
+          'SELECT learning_project_archive_set($1,$2,true) AS state',
+          [learnerPrincipal, projectId],
+        );
+        expect(moved.rows[0]?.state).toBe('learning_archive');
+        archivedProjects.push(projectId);
+        const archivedCard = await learningWorkContextForProject(
+          app,
+          learnerPrincipal,
+          projectId,
+          'electronics',
+          new Map(),
+        );
+        expect(archivedCard.state).toBe('ready');
+        if (archivedCard.state === 'ready') {
+          expect(archivedCard.presentation.learnerCollectionState).toBe('learning_archive');
+          expect(archivedCard.allowedActions.restoreFromLearningArchive).toBe(true);
+          expect(archivedCard.allowedActions.edit).toBe(false);
+          expect(archivedCard.allowedActions.submit).toBe(false);
+        }
+        const unchanged = await admin.query(
+          `SELECT p.status,p.owner_principal_id,
+          (SELECT count(*)::int FROM learning_attempts WHERE id=$2) AS attempts,
+          (SELECT count(*)::int FROM learning_project_archive WHERE project_id=p.id) AS archived
+         FROM projects p WHERE p.id=$1`,
+          [projectId, attemptId],
+        );
+        expect(unchanged.rows[0]).toMatchObject({
+          status: 'active',
+          owner_principal_id: learnerPrincipal,
+          attempts: 1,
+          archived: 1,
+        });
+      }
+    }
+    await admin.query(
+      `UPDATE learner_identity_links SET status='inactive',disabled_at=now()
+       WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+      [learner],
+    );
+    try {
+      for (const projectId of archivedProjects) {
+        expect(
+          (
+            await app.query('SELECT * FROM learning_origin_work_context_for_project($1,$2)', [
+              learnerPrincipal,
+              projectId,
+            ])
+          ).rows,
+        ).toEqual([]);
+        expect(
+          (
+            await app.query<{ state: string }>(
+              'SELECT learning_project_archive_set($1,$2,false) AS state',
+              [learnerPrincipal, projectId],
+            )
+          ).rows[0]?.state,
+        ).toBe('denied');
+      }
+    } finally {
+      await admin.query(
+        `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+         WHERE learner_identity_id=$1 AND link_kind='student_seat'`,
+        [learner],
+      );
+    }
+  }, 30_000);
 
   it('waits for an in-flight acceptance decision before saving an original draft', async () => {
     const run = await createRun({ handout: await directHandout() });
@@ -2394,26 +2775,29 @@ describe('A4-2b atomic StartLearningWork', () => {
          AND link_kind='student_seat' AND seat_id=$4`,
       [owner.tenantId, owner.schoolId, learner, seatId],
     );
-    const deniedAfterSeatUnlink = await inTenant(owner.tenantId, (client) =>
-      client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
-    );
-    expect(
-      deniedAfterSeatUnlink.rows.some((row) => row.context.projectId === first.projectId),
-    ).toBe(false);
-    const historicalPresence = await inTenant(owner.tenantId, (client) =>
-      client.query(
-        'SELECT activity_run_id FROM learning_origin_learner_presence($1,NULL) WHERE classroom_assignment_id=$2',
-        [seatId, target.rows[0].classroom_assignment_id],
-      ),
-    );
-    expect(historicalPresence.rows).toEqual([{ activity_run_id: run }]);
-    await admin.query(
-      `UPDATE learner_identity_links SET status='active',disabled_at=NULL
-       WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
-         AND link_kind='student_seat' AND seat_id=$4`,
-      [owner.tenantId, owner.schoolId, learner, seatId],
-    );
-  });
+    try {
+      const deniedAfterSeatUnlink = await inTenant(owner.tenantId, (client) =>
+        client.query('SELECT context FROM learning_origin_learner_list($1,NULL)', [seatId]),
+      );
+      expect(
+        deniedAfterSeatUnlink.rows.some((row) => row.context.projectId === first.projectId),
+      ).toBe(false);
+      const historicalPresence = await inTenant(owner.tenantId, (client) =>
+        client.query(
+          'SELECT activity_run_id FROM learning_origin_learner_presence($1,NULL) WHERE classroom_assignment_id=$2',
+          [seatId, target.rows[0].classroom_assignment_id],
+        ),
+      );
+      expect(historicalPresence.rows).toEqual([{ activity_run_id: run }]);
+    } finally {
+      await admin.query(
+        `UPDATE learner_identity_links SET status='active',disabled_at=NULL
+         WHERE tenant_id=$1 AND school_id=$2 AND learner_identity_id=$3
+           AND link_kind='student_seat' AND seat_id=$4`,
+        [owner.tenantId, owner.schoolId, learner, seatId],
+      );
+    }
+  }, 20_000);
 
   it('denies direct and Course originals at status and Gallery writes without mutating either', async () => {
     const course = await courseHandout();
@@ -3437,6 +3821,55 @@ describe('A4-2b atomic StartLearningWork', () => {
         origin: { participationId: seatOwned.participationId, activityRunId: seatOwnedRun },
         workflow: { attemptId: seatOwned.attemptId },
       });
+      const deniedArchive = await inject(api, {
+        method: 'POST',
+        url: `/api/projects/${seatOwned.projectId}/learning-collection`,
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { collectionState: 'learning_archive' },
+      });
+      expect(deniedArchive.statusCode).toBe(403);
+      await admin.query(
+        `UPDATE learning_attempts SET state='closed',evaluated_at=now()
+        WHERE id=$1`,
+        [seatOwned.attemptId],
+      );
+      await admin.query(
+        `INSERT INTO assessment_results
+           (tenant_id,attempt_id,max_points,outcome,review_decision,completion_value)
+         VALUES ($1,$2,20,'passed','accepted',true)`,
+        [owner.tenantId, seatOwned.attemptId],
+      );
+      const accountArchive = await inject(api, {
+        method: 'POST',
+        url: `/api/projects/${seatOwned.projectId}/learning-collection`,
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { collectionState: 'learning_archive' },
+      });
+      expect(accountArchive.statusCode).toBe(201);
+      expect(accountArchive.json()).toEqual({ collectionState: 'learning_archive' });
+      const accountArchivePage = await inject(api, {
+        method: 'GET',
+        url: '/api/projects?scope=personal&kind=learning&collection=learning_archive&limit=1',
+        cookies: { asa_session: accountToken ?? '' },
+      });
+      expect(accountArchivePage.statusCode).toBe(200);
+      expect(accountArchivePage.json().items).toEqual([
+        expect.objectContaining({
+          id: seatOwned.projectId,
+          learningWork: expect.objectContaining({
+            collectionState: 'learning_archive',
+            allowedActions: expect.objectContaining({ restoreFromLearningArchive: true }),
+          }),
+        }),
+      ]);
+      const accountRestore = await inject(api, {
+        method: 'POST',
+        url: `/api/projects/${seatOwned.projectId}/learning-collection`,
+        cookies: { asa_session: accountToken ?? '' },
+        payload: { collectionState: 'active' },
+      });
+      expect(accountRestore.statusCode).toBe(201);
+      expect(accountRestore.json()).toEqual({ collectionState: 'active' });
     } finally {
       await api.close();
     }
@@ -3542,6 +3975,11 @@ describe('A4-2b atomic StartLearningWork', () => {
     }));
     expect(revokedRead.seat.rows).toEqual([]);
     expect(revokedRead.account.rows).toEqual([]);
+    const revokedArchive = await app.query<{ state: string }>(
+      'SELECT learning_project_archive_set($1,$2,true) AS state',
+      [accountPrincipal, seatOwned.projectId],
+    );
+    expect(revokedArchive.rows).toEqual([{ state: 'denied' }]);
     const revokedLinkedAccess = await inTenant(owner.tenantId, (client) =>
       client.query('SELECT learning_linked_project_access($1,$2) AS allowed', [
         learnerPrincipal,
@@ -3656,7 +4094,7 @@ describe('A4-2b atomic StartLearningWork', () => {
         mutationId: randomUUID(),
       }),
     ).rejects.toBeInstanceOf(LearningWorkReadOnlyError);
-  }, 20_000);
+  }, 30_000);
 
   it('reopens a Seat-owned Project for a linked legacy Account without a personal workspace', async () => {
     const legacyOwner = await seedTeacher(admin, 'a4-linked-no-personal-workspace');
@@ -4392,7 +4830,9 @@ describe('A4-3b immutable-origin Project Submission', () => {
                     withdrawn_by_principal_id=$2,withdrawal_source='teacher_command'
               WHERE id=$1`,
         args: [started.participationId, ownerPrincipal],
-        expected: 'forbidden',
+        // The exact historical origin remains readable, but Submit's active
+        // Participation gate still denies every new Submission.
+        expected: 'not_available',
       },
     ];
     for (const gate of cases) {

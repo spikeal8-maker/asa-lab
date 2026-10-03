@@ -234,6 +234,7 @@ export class ListProjectsUseCase {
     rawFilter: {
       scope?: unknown;
       kind?: unknown;
+      collection?: unknown;
       classroomId?: unknown;
       status?: unknown;
       moduleKey?: unknown;
@@ -262,6 +263,14 @@ export class ListProjectsUseCase {
     if (rawFilter.kind !== undefined && scope !== 'personal') {
       return fail('validation_error', 'kind is only available for personal projects');
     }
+    if (
+      rawFilter.collection !== undefined &&
+      (scope !== 'personal' ||
+        rawFilter.kind !== 'learning' ||
+        !['active', 'completed', 'learning_archive'].includes(String(rawFilter.collection)))
+    ) {
+      return fail('validation_error', 'collection requires a learning personal list');
+    }
     if (rawFilter.classroomId !== undefined) {
       if (typeof rawFilter.classroomId !== 'string' || rawFilter.classroomId.length === 0) {
         return fail('validation_error', 'classroomId must be a non-empty string');
@@ -289,6 +298,11 @@ export class ListProjectsUseCase {
       ...(rawFilter.kind === undefined
         ? {}
         : { kind: rawFilter.kind as 'all' | 'personal' | 'learning' }),
+      ...(rawFilter.collection === undefined
+        ? {}
+        : {
+            collection: rawFilter.collection as 'active' | 'completed' | 'learning_archive',
+          }),
       ...(rawFilter.moduleKey === undefined ? {} : { moduleKey: rawFilter.moduleKey as string }),
       ...(limit === undefined ? {} : { limit }),
       ...(scope === undefined ? {} : { scope }),
