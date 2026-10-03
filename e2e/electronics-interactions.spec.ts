@@ -3305,7 +3305,10 @@ test.describe('owner D3-D6 acceptance', () => {
     await title.fill('Arrow field');
     const beforeEditableArrow = await position('battery');
     await page.keyboard.press('ArrowLeft');
+    await frames(page);
+    expect(await position('battery')).toEqual(beforeEditableArrow);
     await page.keyboard.press('ArrowRight');
+    await frames(page);
     expect(await position('battery')).toEqual(beforeEditableArrow);
 
     await page.screenshot({ path: 'reports/interactions/d3-keyboard-nudge.png' });
