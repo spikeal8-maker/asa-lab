@@ -685,8 +685,9 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(productionVisualSource).toContain('data-measured-value');
     expect(productionVisualSource).toContain('OwnerMultimeterVisual');
     expect(productionVisualSource).toContain(
-      'multimeterRuntimeMarkup(ownerSvg, measurementMode, displayValue)',
+      "multimeterRuntimeMarkup(ownerSvg, measurementMode, '')",
     );
+    expect(productionVisualSource).toContain('<g dangerouslySetInnerHTML={{ __html: markup }} />');
     expect(productionVisualSource).toContain("return '';");
     expect(productionVisualSource).toContain('workbench-multimeter-mode-current');
     expect(productionVisualSource).toContain('workbench-multimeter-mode-resistance');

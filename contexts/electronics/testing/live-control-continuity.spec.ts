@@ -241,6 +241,55 @@ describe('canonical live source and instrument controls', () => {
       ready(initialDoc, 2_000, resetElectronicsTimedState(), events).state,
     );
   });
+  it('resamples generator voltage at each DC horizon after a live waveform event', () => {
+    const doc = document(
+      [
+        {
+          ...part('generator', 'source', 1_000),
+          componentTypeId: 'signal-generator',
+          pinIds: ['signal', 'ground'],
+          state: true,
+          stateProperties: {
+            waveform: 'sine',
+            frequencyHz: 1_000,
+            amplitudeVpp: 5,
+            dcOffsetVolt: 0,
+            outputEnabled: true,
+          },
+        },
+        {
+          ...part('scope', 'visual', 1),
+          componentTypeId: 'oscilloscope',
+          pinIds: ['signal', 'ground'],
+          state: true,
+          stateProperties: { voltsPerDivision: 1, timePerDivisionMs: 1, displayEnabled: true },
+        },
+      ],
+      [
+        ['generator', 'signal', 'scope', 'signal'],
+        ['generator', 'ground', 'scope', 'ground'],
+      ],
+    );
+    const events: ElectronicsTimedInputEvent[] = [
+      { atMicroseconds: 1, targetId: 'generator', operation: 'waveform', payload: 'square' },
+      { atMicroseconds: 1, targetId: 'generator', operation: 'frequencyHz', payload: 500 },
+    ];
+    const atPositivePhase = ready(doc, 500, resetElectronicsTimedState(), events);
+    const atNegativePhase = ready(doc, 1_500, atPositivePhase.state);
+    const oneShot = ready(doc, 1_500, resetElectronicsTimedState(), events);
+    const scopeVoltage = (advance: typeof atPositivePhase) =>
+      advance.observation.components.find((entry) => entry.componentId === 'scope')
+        ?.oscilloscopeInputVoltageVolt;
+    const loadedVoltage = 2.5 * (10_000_000 / (10_000_000 + 50));
+
+    expect(atPositivePhase.state.continuation?.clockProfileId).toBe('dc-inputs-v1');
+    expect(scopeVoltage(atPositivePhase)).toBeCloseTo(loadedVoltage, 6);
+    expect(scopeVoltage(atNegativePhase)).toBeCloseTo(-loadedVoltage, 6);
+    expect(scopeVoltage(oneShot)).toBeCloseTo(-loadedVoltage, 6);
+    expect(atNegativePhase.observation).toEqual(oneShot.observation);
+    expect(atNegativePhase.state).toEqual(oneShot.state);
+    expect(atNegativePhase.observation.quality.passed).toBe(true);
+  });
   it('applies supply setpoint at an event barrier while carrying capacitor charge and time', () => {
     const doc = document(
       [

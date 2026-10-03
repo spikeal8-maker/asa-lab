@@ -4944,7 +4944,24 @@ test('MATH-10A3 multimeter measures resistance from the owner R button and block
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('dc-voltage');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
+  await page.evaluate(() => {
+    document
+      .querySelector('[data-testid="schematic-component"][data-component-id="meter"]')
+      ?.addEventListener(
+        'pointerdown',
+        (event) => {
+          (window as Window & { __meterPointerTargetClass?: string }).__meterPointerTargetClass =
+            (event.target as Element).getAttribute('class') ?? '';
+        },
+        { capture: true, once: true },
+      );
+  });
   await meter.locator('.workbench-multimeter-mode-resistance').first().click();
+  expect(
+    await page.evaluate(
+      () => (window as Window & { __meterPointerTargetClass?: string }).__meterPointerTargetClass,
+    ),
+  ).toContain('workbench-multimeter-mode-resistance');
   await expect(inspector.getByLabel('Режим мультиметра')).toHaveValue('resistance');
   await expect(meter.getByTestId('multimeter-runtime-display')).toContainText('1.000 kΩ');
   await page.getByRole('button', { name: 'Остановить моделирование' }).click();
@@ -5338,14 +5355,25 @@ test('live generator waveform and frequency reach the scope calculation without 
   await generator.locator('.workbench-part').press('Enter');
   const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
   await inspector.getByLabel('Форма сигнала').selectOption('square');
-  await inspector.getByLabel('Частота генератора').fill('500');
+  await inspector.getByLabel('Частота генератора').fill('2');
   await expect(generator.getByTestId('signal-generator-runtime')).toHaveAttribute(
     'data-waveform',
     'square',
   );
   const scope = component(page, 'oscilloscope');
   await scope.locator('.workbench-part').press('Enter');
-  await expect(inspector.getByTestId('oscilloscope-panel-reading')).toContainText('500 Гц');
+  const scopeReading = inspector.getByTestId('oscilloscope-panel-reading');
+  await expect(scopeReading).toContainText('2 Гц');
+  await expect
+    .poll(async () => Number.parseFloat((await scopeReading.textContent()) ?? ''), {
+      timeout: 15_000,
+    })
+    .toBeLessThan(-2.49);
+  await expect
+    .poll(async () => Number.parseFloat((await scopeReading.textContent()) ?? ''), {
+      timeout: 15_000,
+    })
+    .toBeGreaterThan(2.49);
   const after = await simulationWorkerObservation(page);
   expect(
     after.workerSamples.filter((sample) => sample.status === 'ready').at(-1)?.generationId,

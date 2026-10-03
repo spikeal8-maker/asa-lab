@@ -488,8 +488,8 @@ function OwnerMultimeterVisual({
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const markup = useMemo(
-    () => (ownerSvg ? multimeterRuntimeMarkup(ownerSvg, measurementMode, displayValue) : ''),
-    [displayValue, measurementMode, ownerSvg],
+    () => (ownerSvg ? multimeterRuntimeMarkup(ownerSvg, measurementMode, '') : ''),
+    [measurementMode, ownerSvg],
   );
   if (!markup) {
     return (
@@ -538,8 +538,21 @@ function OwnerMultimeterVisual({
           onModeChange?.('resistance');
         }
       }}
-      dangerouslySetInnerHTML={{ __html: markup }}
-    />
+    >
+      <g dangerouslySetInnerHTML={{ __html: markup }} />
+      {displayValue ? (
+        <text
+          className="workbench-multimeter-reading"
+          x="218.5"
+          y="108"
+          fontSize="58"
+          textAnchor="middle"
+          dominantBaseline="central"
+        >
+          {displayValue}
+        </text>
+      ) : null}
+    </svg>
   );
 }
 

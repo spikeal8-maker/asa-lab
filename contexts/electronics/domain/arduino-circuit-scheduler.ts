@@ -396,6 +396,9 @@ export function advanceArduinoCircuitClock(
       ? 'rc-inputs-v2'
       : 'dc-inputs-v1';
   const hasPhysics = profile !== 'dc-inputs-v1';
+  const hasTimeDependentGenerator = document.components.some(
+    (component) => component.componentTypeId === 'signal-generator',
+  );
   const unsupported = document.components.find((component) => !clockedComponent(component));
   if (unsupported)
     return fault(
@@ -720,7 +723,12 @@ export function advanceArduinoCircuitClock(
       time,
     );
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
-    if (cachedFrame && (profile === 'dc-inputs-v1' || cachedFrameTime === time)) return cachedFrame;
+    // Only generator DC frames change with the horizon without an event or state update.
+    if (
+      cachedFrame &&
+      (cachedFrameTime === time || (profile === 'dc-inputs-v1' && !hasTimeDependentGenerator))
+    )
+      return cachedFrame;
     if (hasPhysics) {
       // A horizon between canonical events may be observed but never committed:
       // otherwise UI frame rate would change adaptive integration and later ADC reads.
