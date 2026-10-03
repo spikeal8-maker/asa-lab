@@ -749,13 +749,23 @@ requirements:
   - docs/product/ASA_INTEGRATED_IMPLEMENTATION_SPEC.md
   - docs/product/learning/ASA_LEARNING_WORK_SHELL_SPEC.md
   - docs/review/LRN_A4_V3_EVIDENCE_2026_10_01.md
+  - docs/review/LRN_A6_IMAGE_EVIDENCE_2026_10_03.md
   tests:
   - tests/courses/assignment-brief-layout.spec.ts
+  - apps/web/src/learning/testing/task-image.spec.ts
+  - e2e/learning-author-preview.spec.ts
+  - e2e/learning-teacher-assigns-activity.spec.ts
   - e2e/learning-course-01.spec.ts
   verification:
-    source_sha: 19e9bd8e0422a674569e1613f65ded34d8eba5ea
-    method: bounded_a4_v3_ci_evidence
-    observed_result: A4/V3 atomic Start and immutable-origin path have merged engineering evidence, including the personal Project badge and repeated Direct StudentSeat Start. This is partial evidence for E1-FIX-13; A6 rich shell and A8 teacher review remain open.
+    source_sha: a969dcd80ad941f16e8beaa93c8b85bc97d1ca28
+    method: bounded_a6_1_exact_head_ci_browser_visual_and_postmerge_general
+    observed_result: >-
+      A4/V3 atomic Start and immutable-origin path remain merged. A6.1 ordered
+      task images now have merged exact-version zoom/pin, desktop and 320/390 px
+      synthetic browser evidence, including the unavailable image state. This is
+      partial E1-FIX-13 evidence: A6 video/file/link, full V6, A8 teacher review
+      and whole E1 acceptance remain open. See the dated A6.1 report for exact
+      SHAs, CI and artifact references.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:
