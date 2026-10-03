@@ -206,6 +206,7 @@ function snapshot23() {
   };
 }
 test('dirty crash restores real Scratch state, autosaves it, clears recovery and second reopen uses server', async () => {
+  test.setTimeout(150_000);
   const serverProject = recoveryBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -234,7 +235,7 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
     expect(fixture.runtimeSnapshotEvidence).toHaveLength(0);
 
     await fixture.reopenContextWithIndexedDB();
-    page = await minuteClockPage(fixture);
+    page = await fixture.context.newPage();
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
@@ -244,8 +245,7 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
     expect(fixture.getServerRevision()).toBe(23);
     expect(fixture.getSnapshotRevision()).toBe(23);
 
-    await advanceMinuteAutosave(page);
-    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 90_000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10_000 })
       .toBe(0);
@@ -314,6 +314,7 @@ test('rapid dirty edits coalesce to one latest recovery record', async () => {
 });
 
 test('normal upstream autosave clears recovery only after durable save', async () => {
+  test.setTimeout(150_000);
   const serverProject = recoveryBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -326,14 +327,13 @@ test('normal upstream autosave clears recovery only after durable save', async (
     runtimeAssets: serverProject.runtimeAssets,
   });
   try {
-    const page = await minuteClockPage(fixture);
+    const page = await fixture.context.newPage();
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => (await readRecoveryRecords(frame)).length).toBe(1);
-    await advanceMinuteAutosave(page);
-    await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
+    await expect.poll(() => fixture.getServerRevision(), { timeout: 90_000 }).toBe(24);
     await expect
       .poll(async () => (await readRecoveryRecords(frame)).length, { timeout: 10_000 })
       .toBe(0);

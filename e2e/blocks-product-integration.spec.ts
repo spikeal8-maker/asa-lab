@@ -552,6 +552,7 @@ test('existing project adding Abby dirties default-cached Pop and completes ordi
 });
 
 test('long-lived editor rotates capability in place and upstream autosaves with the refreshed bearer', async () => {
+  test.setTimeout(180_000);
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -565,7 +566,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
     runtimeSessionExpiresAt: (sequence: number) =>
       Math.floor(Date.now() / 1000) + (sequence === 1 ? 62 : 600),
   });
-  const page = await minuteClockPage(fixture);
+  const page = await fixture.context.newPage();
   await installBlocksMessageCapture(page);
   let runtimeNavigations = 0;
   page.on('framenavigated', (navigated) => {
@@ -597,7 +598,6 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
       ).__asaCapabilityRefreshMarker = 'same-runtime-realm';
     });
     await setServerSteps(frame, '8', '37');
-    await page.clock.fastForward(5_000);
     await expect.poll(() => fixture.getRuntimeSessionSequence(), { timeout: 10_000 }).toBe(2);
     expect(
       await frame
@@ -612,8 +612,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
       frame.locator('.blocklyBlockCanvas').first().getByText('37', { exact: true }),
     ).toBeVisible();
 
-    await advanceMinuteCheckpoint(page);
-    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 90_000 }).toBe(1);
     expect(fixture.runtimeDraftEvidence[0].authorizationOk).toBe(true);
     expect(
       fixture.runtimeDraftEvidence[0].body.document.projectJson.targets.find(
@@ -647,8 +646,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
     expect(runtimeNavigations).toBe(1);
 
     await setServerSteps(frame, '37', '41');
-    await advanceMinuteCheckpoint(page, 2);
-    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 90_000 }).toBe(2);
     const latestDraft = fixture.runtimeDraftEvidence.at(-1);
     expect(
       latestDraft.body.document.projectJson.targets.find(
@@ -1101,6 +1099,7 @@ test('lost draft response followed by edit reconciles A before saving B without 
 });
 
 test('server revision movement rejects autosave without overwrite or automatic retry', async () => {
+  test.setTimeout(150_000);
   const serverProject = await realRuntimeBootstrapFixture();
   const fixture = await createProtocolFixture({
     product: true,
@@ -1112,7 +1111,7 @@ test('server revision movement rejects autosave without overwrite or automatic r
     },
     runtimeAssets: serverProject.runtimeAssets,
   });
-  const page = await minuteClockPage(fixture);
+  const page = await fixture.context.newPage();
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -1121,8 +1120,7 @@ test('server revision movement rejects autosave without overwrite or automatic r
     await setServerSteps(frame, '8', '37');
     expect(fixture.runtimeWriteEvents).toEqual([]);
     expect(fixture.advanceServerRevision()).toBe(24);
-    await advanceMinuteCheckpoint(page);
-    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 90_000 }).toBe(1);
     await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible({
       timeout: 20_000,
     });
@@ -1307,6 +1305,7 @@ test('status presentation opt-in cannot hide local errors before accepted INIT',
 });
 
 test('native File New resets the same managed ASA project and reopens the Scratch default', async () => {
+  test.setTimeout(180_000);
   const serverProject = await realRuntimeBootstrapFixture();
   let fixture: Awaited<ReturnType<typeof createProtocolFixture>> | undefined;
   try {
@@ -1320,7 +1319,7 @@ test('native File New resets the same managed ASA project and reopens the Scratc
       },
       runtimeAssets: serverProject.runtimeAssets,
     });
-    const page = await minuteClockPage(fixture);
+    const page = await fixture.context.newPage();
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     let frame = page.frameLocator('iframe[title="Scratch runtime"]');
     const shell = frame.locator('[data-asa-host-shell]');
@@ -1332,8 +1331,7 @@ test('native File New resets the same managed ASA project and reopens the Scratc
     await expect(frame.getByText('Save now', { exact: true })).toHaveCount(0);
     await expect(frame.getByText('Save to your computer', { exact: true })).toBeVisible();
     await frame.getByText('File', { exact: true }).click();
-    await advanceMinuteCheckpoint(page);
-    await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
+    await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 90_000 }).toBe(1);
     expect(fixture.getServerRevision()).toBe(24);
     const editedDraft = fixture.runtimeDraftEvidence[0]!.body.document.projectJson.targets.find(
       (target: { name?: string }) => target.name === 'Server Bootstrap Sprite',
@@ -1352,8 +1350,7 @@ test('native File New resets the same managed ASA project and reopens the Scratc
       frame.getByRole('button', { name: 'Server Bootstrap Sprite', exact: true }),
     ).toHaveCount(0);
     await expect(frame.getByText('Could not find project', { exact: false })).toHaveCount(0);
-    await advanceMinuteCheckpoint(page, 2);
-    await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
+    await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 90_000 }).toBe(2);
     expect(fixture.getServerRevision()).toBe(25);
     const resetDocument = fixture.runtimeDraftEvidence.at(-1)!.body.document;
     expect(
