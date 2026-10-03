@@ -94,6 +94,11 @@ async function editRealProject(page: Page, module: string) {
       draft: { document: { components: unknown[] } };
     };
     expect(savedBody.draft.document.components).toHaveLength(expectedObjectCount);
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+    await expect(assignmentPanel.getByText('Сохранено', { exact: true })).toBeVisible();
   }
 
   await page.reload();
@@ -222,6 +227,10 @@ async function editCourseActivityProject(
     expect(savedBody.draft.document.components).toHaveLength(expectedObjectCount);
     expect(savedBody.draft.document.components).toContainEqual(
       expect.objectContaining({ id: addedComponentId, kind: 'resistor' }),
+    );
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
     );
   }
 

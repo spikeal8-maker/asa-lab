@@ -212,6 +212,53 @@ afterEach(() => {
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  it('recognizes reordered server JSON as saved but keeps a real migration dirty', async () => {
+    const save = await mountProject();
+    const normalized = normalizeLoadedDocument({
+      ...initialDocument,
+      components: [resistor('persisted', 10)],
+    });
+    const reordered = {
+      ...normalized,
+      components: normalized.components.map(
+        (component) => Object.fromEntries(Object.entries(component).reverse()) as typeof component,
+      ),
+    };
+    vi.mocked(api.openProject).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: reordered, revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await reopenProject();
+    expect(state().saveStatus).toBe('saved');
+    expect(state().serverRevision).toBe(2);
+    await advance(60_000);
+    expect(save).not.toHaveBeenCalled();
+
+    vi.mocked(api.openProject).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: {
+          projectId,
+          document: { ...normalized, simulation: { running: true, maxIterations: 24 } },
+          revision: 3,
+          updatedAt: '',
+        },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await reopenProject();
+    expect(state().saveStatus).toBe('dirty');
+  });
+
   it('sends the latest edit at the first 60-second deadline despite continued edits', async () => {
     const save = await mountProject();
     edit(2);

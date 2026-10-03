@@ -14,7 +14,11 @@ import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState } from './workbench-model';
 import { WorkbenchAutosaveScheduler, draftSaveStatus } from './workbench-autosave';
 
-import { electronicsDocumentsEqual, mergeElectronicsDocuments } from './electronics-document-merge';
+import {
+  electronicsDocumentPayloadsEqual,
+  electronicsDocumentsEqual,
+  mergeElectronicsDocuments,
+} from './electronics-document-merge';
 import type { EditorPersistenceIssue } from '../components/editor-chrome/EditorPersistenceIndicator';
 import {
   clearLocalProjectDraft,
@@ -234,8 +238,10 @@ export function useWorkbenchProjectState(projectId: string) {
     setProject(response.data.project);
     setProjectTitle(response.data.project.title);
     const serverDocument = normalizeLoadedDocument(response.data.draft.document);
-    const migrated =
-      JSON.stringify(serverDocument) !== JSON.stringify(response.data.draft.document);
+    const migrated = !electronicsDocumentPayloadsEqual(
+      serverDocument,
+      response.data.draft.document,
+    );
     const local = readLocalProjectDraft(window.localStorage, projectId, 'electronics');
     const localDocument =
       local && isLocalSchematicDocument(local.document)

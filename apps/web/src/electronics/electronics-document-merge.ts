@@ -29,6 +29,14 @@ function same(left: unknown, right: unknown): boolean {
   return JSON.stringify(canonical(left)) === JSON.stringify(canonical(right));
 }
 
+/** Compare the entire stored document while ignoring JSON object key order. */
+export function electronicsDocumentPayloadsEqual(
+  left: SchematicDocument,
+  right: SchematicDocument,
+): boolean {
+  return same(left, right);
+}
+
 export function electronicsDocumentsEqual(
   left: SchematicDocument,
   right: SchematicDocument,
