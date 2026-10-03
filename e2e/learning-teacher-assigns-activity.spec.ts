@@ -578,12 +578,19 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   expect(v1.versionNumber).toBe(1);
   await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
   await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
-  await page.screenshot({ path: `${evidenceDir}/a6-file-author-published-desktop.png` });
+  await expect(draftPreview.getByText('Опубликованная версия 1', { exact: false })).toBeVisible();
+  await draftPreview
+    .getByRole('button', { name: 'Скачать PDF: guide-a.pdf' })
+    .scrollIntoViewIfNeeded();
+  await draftPreview.screenshot({ path: `${evidenceDir}/a6-file-author-published-desktop.png` });
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(
     draftPreview.getByRole('button', { name: 'Скачать PDF: guide-a.pdf' }),
   ).toBeVisible();
-  await page.screenshot({ path: `${evidenceDir}/a6-file-author-published-390.png` });
+  await draftPreview
+    .getByRole('button', { name: 'Скачать PDF: guide-a.pdf' })
+    .scrollIntoViewIfNeeded();
+  await draftPreview.screenshot({ path: `${evidenceDir}/a6-file-author-published-390.png` });
   await page.setViewportSize({ width: 1280, height: 720 });
 
   const joinCodeV1 = await createClassWithStudents(
@@ -662,13 +669,35 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     new URL(`/api/assignments/task-files/${hashB}`, learnerA.page.url()).toString(),
   );
   expect(deniedB.status()).toBe(404);
+  learnerAFailures.assertEmpty();
+  const expectedUnavailableConsole: { text: string; url: string }[] = [];
+  learnerA.page.on('console', (message) => {
+    if (message.type() === 'error') {
+      expectedUnavailableConsole.push({ text: message.text(), url: message.location().url });
+    }
+  });
   await learnerA.page.route('**/api/assignments/task-files/**', (route) =>
     route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }),
   );
   await downloadButton.click();
-  await expect(rowA.getByRole('alert')).toContainText('Файл задания недоступен');
-  await learnerA.page.screenshot({ path: `${evidenceDir}/a6-file-unavailable-320.png` });
+  const unavailableAlert = rowA.getByRole('alert');
+  await expect(unavailableAlert).toContainText('Файл задания недоступен');
+  await unavailableAlert.scrollIntoViewIfNeeded();
+  await expect(unavailableAlert).toBeInViewport();
+  await rowA.screenshot({ path: `${evidenceDir}/a6-file-unavailable-320.png` });
   await learnerA.page.unroute('**/api/assignments/task-files/**');
+  expect(expectedUnavailableConsole).toEqual([
+    {
+      text: 'Failed to load resource: the server responded with a status of 404 (Not Found)',
+      url: new URL(`/api/assignments/task-files/${hashA}`, learnerA.page.url()).href,
+    },
+  ]);
+  expect(learnerAFailures.counts).toMatchObject({
+    consoleErrors: 1,
+    pageErrors: 0,
+    failedRequests: 0,
+    httpServerErrors: 0,
+  });
 
   const joinCodeV2 = await createClassWithStudents(
     page,
@@ -694,7 +723,13 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   );
   expect(deniedA.status()).toBe(404);
   failures.assertEmpty();
-  learnerAFailures.assertEmpty();
+  expect(expectedUnavailableConsole).toHaveLength(1);
+  expect(learnerAFailures.counts).toMatchObject({
+    consoleErrors: 1,
+    pageErrors: 0,
+    failedRequests: 0,
+    httpServerErrors: 0,
+  });
   await learnerA.context.close();
   await learnerB.context.close();
 });
