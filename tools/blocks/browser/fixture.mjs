@@ -3,8 +3,32 @@ import http from 'node:http';
 import { Buffer } from 'node:buffer';
 import { createHash } from 'node:crypto';
 import { URL } from 'node:url';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 import { runtimeUrl, parentPort, parentOrigin, projectId, runtimeToken } from './protocol.mjs';
+
+export async function installMinuteAutosaveClock(page) {
+  await page.clock.install();
+  await page.addInitScript(() => {
+    if (!globalThis.location.pathname.startsWith('/internal/blocks/')) return;
+    const nativeSetTimeout = globalThis.setTimeout;
+    globalThis.__asaMinuteAutosaveArms = 0;
+    globalThis.setTimeout = (callback, delay, ...args) => {
+      if (typeof delay === 'number' && delay >= 55_000 && delay <= 65_000) {
+        globalThis.__asaMinuteAutosaveArms += 1;
+      }
+      return nativeSetTimeout.call(globalThis, callback, delay, ...args);
+    };
+  });
+}
+
+export async function waitForMinuteAutosaveArm(page, count = 1) {
+  const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+  await expect
+    .poll(() => frame.locator('body').evaluate(() => globalThis.__asaMinuteAutosaveArms ?? 0), {
+      timeout: 10_000,
+    })
+    .toBeGreaterThanOrEqual(count);
+}
 
 export async function createProtocolFixture(options = {}) {
   const repoRoot = new URL('../../../', import.meta.url);

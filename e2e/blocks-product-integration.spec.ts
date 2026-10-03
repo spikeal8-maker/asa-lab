@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
+let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
+let waitForMinuteAutosaveArm: typeof import('../tools/blocks/browser/fixture.mjs').waitForMinuteAutosaveArm;
 let parentOrigin: string;
 let projectId: string;
 let runtimeUrl: string;
@@ -128,7 +130,8 @@ async function realRuntimeBootstrapFixture() {
 }
 
 test.beforeAll(async () => {
-  ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
+  ({ createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
+    await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin, projectId, runtimeUrl } = await import('../tools/blocks/browser/protocol.mjs'));
   fs.mkdirSync(evidenceDir, { recursive: true });
 });
@@ -165,11 +168,12 @@ async function installBlocksMessageCapture(page: import('@playwright/test').Page
 
 async function minuteClockPage(fixture: Awaited<ReturnType<typeof createProtocolFixture>>) {
   const page = await fixture.context.newPage();
-  await page.clock.install();
+  await installMinuteAutosaveClock(page);
   return page;
 }
 
-async function advanceMinuteCheckpoint(page: import('@playwright/test').Page) {
+async function advanceMinuteCheckpoint(page: import('@playwright/test').Page, armCount = 1) {
+  await waitForMinuteAutosaveArm(page, armCount);
   await page.clock.fastForward(66_000);
 }
 
@@ -626,7 +630,7 @@ test('long-lived editor rotates capability in place and upstream autosaves with 
     expect(runtimeNavigations).toBe(1);
 
     await setServerSteps(frame, '37', '41');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
     const latestDraft = fixture.runtimeDraftEvidence.at(-1);
     expect(
@@ -697,7 +701,7 @@ test('edit during in-flight upstream autosave persists the latest generation', a
     await setServerSteps(frame, '37', '41');
     expect(fixture.runtimeDraftEvidence).toHaveLength(1);
     releaseResponse();
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
 
@@ -729,8 +733,7 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
     },
     runtimeAssets: serverProject.runtimeAssets,
   });
-  const page = await fixture.context.newPage();
-  await page.clock.install(); // before loading the parent and the shipping Scratch iframe
+  const page = await minuteClockPage(fixture);
   try {
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -743,6 +746,7 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
     );
 
     await setServerSteps(frame, '8', '37');
+    await waitForMinuteAutosaveArm(page, 1);
     await page.clock.fastForward(30_000);
     await setServerSteps(frame, '37', '41');
     await page.clock.fastForward(24_000);
@@ -756,6 +760,7 @@ test('shipping ProjectSaverHOC checkpoints the newest edit at a bounded minute d
     expect(savedFirst.blocks.move.inputs.STEPS[1][1]).toBe('41');
 
     await setServerSteps(frame, '41', '43');
+    await waitForMinuteAutosaveArm(page, 2);
     await page.clock.fastForward(30_000);
     await setServerSteps(frame, '43', '47');
     await page.clock.fastForward(24_000);
@@ -892,7 +897,7 @@ test('ordinary autosave persists canonical state, stays idle while unchanged and
     expect(fixture.runtimeDraftEvidence).toHaveLength(draftsBeforeNoop);
 
     await setServerSteps(frame, '37', '41');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     const p3 = {
@@ -1012,7 +1017,7 @@ test('lost draft response followed by edit reconciles A before saving B without 
     const blobRowsBeforeRetry = afterLost.blobRows;
     const aliasRowsBeforeRetry = afterLost.aliasRows;
     await setServerSteps(frame, '37', '41');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(3);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     const replayMutation = fixture.runtimeDraftEvidence[1].body;
@@ -1328,7 +1333,7 @@ test('native File New resets the same managed ASA project and reopens the Scratc
       frame.getByRole('button', { name: 'Server Bootstrap Sprite', exact: true }),
     ).toHaveCount(0);
     await expect(frame.getByText('Could not find project', { exact: false })).toHaveCount(0);
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture?.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
     expect(fixture.getServerRevision()).toBe(25);
     const resetDocument = fixture.runtimeDraftEvidence.at(-1)!.body.document;
@@ -1749,7 +1754,7 @@ test('next confirmed autosave replaces the project preview with the next revisio
     await frame.getByRole('button', { name: 'Apple', exact: true }).click();
     await frame.getByPlaceholder('x', { exact: true }).fill('166');
     await frame.getByPlaceholder('x', { exact: true }).press('Enter');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(25);
     expect(fixture.runtimeSnapshotEvidence.map((item) => item.sourceRevision)).toEqual([24, 25]);
@@ -1797,7 +1802,7 @@ test('failed draft save keeps the previous preview and never publishes dirty wor
     await frame.getByRole('button', { name: 'Apple', exact: true }).click();
     await frame.getByPlaceholder('x', { exact: true }).fill('177');
     await frame.getByPlaceholder('x', { exact: true }).press('Enter');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(2);
     await expect(frame.getByText('Project could not save.', { exact: true })).toBeVisible();
     expect(fixture.getServerRevision()).toBe(24);
@@ -1839,7 +1844,7 @@ test('thumbnail upload failure never rolls back a successful project autosave', 
     await frame.getByRole('button', { name: 'Apple', exact: true }).click();
     await frame.getByPlaceholder('x', { exact: true }).fill('188');
     await frame.getByPlaceholder('x', { exact: true }).press('Enter');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     await expect.poll(() => fixture.runtimeSnapshotEvidence.length, { timeout: 20_000 }).toBe(2);
     expect(fixture.getSnapshotRevision()).toBe(24);
@@ -1907,7 +1912,7 @@ test('stale thumbnail arriving after a newer autosave cannot replace the newer p
     await frame.getByRole('button', { name: 'Apple', exact: true }).click();
     await frame.getByPlaceholder('x', { exact: true }).fill('199');
     await frame.getByPlaceholder('x', { exact: true }).press('Enter');
-    await advanceMinuteCheckpoint(page);
+    await advanceMinuteCheckpoint(page, 2);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(25);
     await expect.poll(() => fixture.getSnapshotRevision(), { timeout: 20_000 }).toBe(25);
 

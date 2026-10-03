@@ -2,6 +2,8 @@ import { expect, test } from '@playwright/test';
 import { createHash } from 'node:crypto';
 
 let createProtocolFixture: typeof import('../tools/blocks/browser/fixture.mjs').createProtocolFixture;
+let installMinuteAutosaveClock: typeof import('../tools/blocks/browser/fixture.mjs').installMinuteAutosaveClock;
+let waitForMinuteAutosaveArm: typeof import('../tools/blocks/browser/fixture.mjs').waitForMinuteAutosaveArm;
 let parentOrigin: string;
 
 const PRINCIPAL_A = '33333333-3333-4333-8333-333333333333';
@@ -106,7 +108,8 @@ type RecoveryRecord = {
 };
 
 test.beforeAll(async () => {
-  ({ createProtocolFixture } = await import('../tools/blocks/browser/fixture.mjs'));
+  ({ createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
+    await import('../tools/blocks/browser/fixture.mjs'));
   ({ parentOrigin } = await import('../tools/blocks/browser/protocol.mjs'));
 });
 async function readRecoveryRecords(
@@ -164,7 +167,7 @@ async function waitReady(frame: import('@playwright/test').FrameLocator) {
 
 async function minuteClockPage(fixture: Awaited<ReturnType<typeof createProtocolFixture>>) {
   const page = await fixture.context.newPage();
-  await page.clock.install();
+  await installMinuteAutosaveClock(page);
   return page;
 }
 
@@ -241,6 +244,7 @@ test('dirty crash restores real Scratch state, autosaves it, clears recovery and
     expect(fixture.getServerRevision()).toBe(23);
     expect(fixture.getSnapshotRevision()).toBe(23);
 
+    await waitForMinuteAutosaveArm(page);
     await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
     await expect
@@ -329,6 +333,7 @@ test('normal upstream autosave clears recovery only after durable save', async (
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => (await readRecoveryRecords(frame)).length).toBe(1);
+    await waitForMinuteAutosaveArm(page);
     await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.getServerRevision(), { timeout: 20_000 }).toBe(24);
     await expect
@@ -359,6 +364,7 @@ test('failed server autosave retains recovery', async () => {
     await waitReady(frame);
     await setSteps(frame, '10', '73');
     await expect.poll(async () => recoverySteps((await readRecoveryRecords(frame))[0])).toBe('73');
+    await waitForMinuteAutosaveArm(page);
     await page.clock.fastForward(66_000);
     await expect.poll(() => fixture.runtimeDraftEvidence.length, { timeout: 20_000 }).toBe(1);
     expect(fixture.getServerRevision()).toBe(23);
