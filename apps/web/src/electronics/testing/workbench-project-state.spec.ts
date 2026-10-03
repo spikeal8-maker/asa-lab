@@ -120,6 +120,13 @@ const initialDocument: SchematicDocument = {
   viewport: { x: 0, y: 0, zoom: 1 },
   simulation: { running: false, maxIterations: 24 },
 };
+const resistor = (id: string, x: number): SchematicDocument['components'][number] => ({
+  id,
+  kind: 'resistor',
+  name: id,
+  value: 220,
+  position: { x, y: 10 },
+});
 
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -191,6 +198,7 @@ afterEach(() => {
   window.localStorage.clear();
   vi.restoreAllMocks();
   vi.useRealTimers();
+  Reflect.deleteProperty(document, 'visibilityState');
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
@@ -265,6 +273,168 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     await advance(0);
     expect(save).toHaveBeenCalledTimes(2);
     expect(save).toHaveBeenLastCalledWith(projectId, second, 2);
+  });
+
+  it('does not overwrite an independently changed server document after same-turn safety events', async () => {
+    const save = await mountProject();
+    const remote = {
+      ...initialDocument,
+      components: [resistor('remote', 50)],
+    };
+    vi.mocked(api.openProject).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+
+    const local = { ...edit(2), components: [resistor('local', 10)] };
+    act(() => state().setDocument(local));
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pagehide'));
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith(projectId, local, 1);
+    expect(state().document?.viewport.zoom).toBe(2);
+    expect(state().document?.components.map((item) => item.id)).toEqual(['remote', 'local']);
+    expect(state().saveStatus).toBe('dirty');
+    expect(window.localStorage.length).toBeGreaterThan(0);
+  });
+
+  it('does not send a second queued safety write after the first fails offline', async () => {
+    const save = await mountProject();
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'offline', message: 'Offline' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+
+    edit(2);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      window.dispatchEvent(new Event('pagehide'));
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(state().saveStatus).toBe('error');
+    expect(window.localStorage.length).toBeGreaterThan(0);
+  });
+
+  it('does not send a queued later edit from before a conflict merge', async () => {
+    const save = await mountProject();
+    let finishFirst: ((value: Awaited<ReturnType<typeof api.saveDraft>>) => void) | null = null;
+    save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = resolve;
+        }),
+    );
+    const first = { ...edit(2), components: [resistor('local', 10)] };
+    act(() => state().setDocument(first));
+    await act(async () => {
+      void state().saveNow();
+    });
+    expect(save).toHaveBeenCalledWith(projectId, first, 1);
+
+    const later = edit(3);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    const remote = {
+      ...initialDocument,
+      components: [resistor('remote', 50)],
+    };
+    vi.mocked(api.openProject).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+        versions: [],
+        result: null,
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await act(async () =>
+      finishFirst!({
+        ok: false,
+        status: 409,
+        error: { code: 'project_revision_conflict', message: 'Conflict' },
+      } as Awaited<ReturnType<typeof api.saveDraft>>),
+    );
+    await advance(0);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(state().document?.viewport.zoom).toBe(later.viewport.zoom);
+    expect(state().document?.components.map((item) => item.id)).toEqual(['remote', 'local']);
+    expect(state().saveStatus).toBe('dirty');
+    const merged = state().document;
+    await advance(59_999);
+    expect(save).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(projectId, merged, 2);
+    expect(state().saveStatus).toBe('saved');
+  });
+
+  it('starts a fresh minute when an edit supersedes a due save before its queued send', async () => {
+    const save = await mountProject();
+    edit(2);
+    act(() => vi.advanceTimersByTime(60_000));
+    const latest = edit(3);
+    await advance(0);
+    expect(save).not.toHaveBeenCalled();
+    await advance(59_999);
+    expect(save).not.toHaveBeenCalled();
+    await advance(1);
+    expect(save).toHaveBeenCalledExactlyOnceWith(projectId, latest, 1);
+  });
+
+  it('keeps a later queued edit local after an in-flight save fails, then recovers on a new edit', async () => {
+    const save = await mountProject();
+    let finishFirst: ((value: Awaited<ReturnType<typeof api.saveDraft>>) => void) | null = null;
+    save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finishFirst = resolve;
+        }),
+    );
+    edit(2);
+    await act(async () => {
+      void state().saveNow();
+    });
+    edit(3);
+    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    await act(async () =>
+      finishFirst!({
+        ok: false,
+        status: 0,
+        error: { code: 'offline', message: 'Offline' },
+      } as Awaited<ReturnType<typeof api.saveDraft>>),
+    );
+    await advance(0);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(state().saveStatus).toBe('error');
+    expect(window.localStorage.length).toBeGreaterThan(0);
+
+    const recovered = edit(4);
+    await advance(59_999);
+    expect(save).toHaveBeenCalledTimes(1);
+    await advance(1);
+    expect(save).toHaveBeenLastCalledWith(projectId, recovered, 1);
+    expect(state().saveStatus).toBe('saved');
   });
 
   it('does not loop after a failed save and gives the next edit a fresh minute', async () => {

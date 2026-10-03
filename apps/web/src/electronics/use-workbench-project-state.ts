@@ -410,6 +410,7 @@ export function useWorkbenchProjectState(projectId: string) {
       const sentForProject = projectId;
       const baseRevision = serverRevisionRef.current;
       if (baseRevision === null) {
+        saveFailedRef.current = true;
         setSaveFailed(true);
         setSaveError('Не удалось определить сохранённую версию проекта.');
         setSaveIssue('server');
@@ -547,7 +548,19 @@ export function useWorkbenchProjectState(projectId: string) {
   const persist = useCallback(
     (nextDocument: SchematicDocument, quiet = false): Promise<SolveResult | null> => {
       autosaveSchedulerRef.current?.markSaveRequested(nextDocument);
-      const queued = saveQueueRef.current.then(() => sendDraft(nextDocument, quiet));
+      const queued = saveQueueRef.current.then(() => {
+        // A preceding 409 may have replaced the live document with a merge.
+        // Sending this older snapshot with the newly loaded revision would erase
+        // the remote edit. The same check also drops superseded queued edits.
+        if (documentRef.current !== nextDocument) return null;
+        // Paired visibilitychange/pagehide events can queue the same safety
+        // write before savingDocumentRef moves. A failed or completed first
+        // request must not cause another automatic write of that snapshot.
+        if (quiet && (saveFailedRef.current || savedDocumentRef.current === nextDocument)) {
+          return null;
+        }
+        return sendDraft(nextDocument, quiet);
+      });
       saveQueueRef.current = queued.then(
         () => undefined,
         () => undefined,
