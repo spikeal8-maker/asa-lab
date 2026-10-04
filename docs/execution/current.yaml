@@ -156,26 +156,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-005
-      issue: 490
+      id: TASK-ELECTRONICS-BREADBOARD-PERFORMANCE-001
+      issue: 465
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: post_462_463_464_hygiene_evidence_candidate_ready_for_review
+      checkpoint: measured_breadboard_hotspot_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1c714a9131387ef6d26d52586ed5e2c247899f08
+      convergence_baseline_sha: 34fe2c5c7442e7db11b22e569d1fee95eb35725c
       head_sha: null
-      observed_at: '2026-10-04T00:13:52Z'
+      observed_at: '2026-10-04T00:55:00Z'
       main:
         branch: main
-        sha: 1c714a9131387ef6d26d52586ed5e2c247899f08
-      observation_note: Dated main observation after the existing-controls slice of 464 was independently approved and exact-main CI passed. Fetch main before writes; mandatory hygiene checkpoint 490 is selected after three production-changing slices. Issue 464 remains open for new resistor and battery controls pending the owner's separate product decision.
+        sha: 34fe2c5c7442e7db11b22e569d1fee95eb35725c
+      observation_note: Dated main observation after mandatory hygiene checkpoint 490 was independently approved and exact-main CI passed. Fetch main before writes; the first bounded 465 slice measures and repairs one reproducible breadboard interaction hotspot. Issue 464 new controls and other 465 mechanical decisions remain open for separate owner decisions; school-device performance is not claimed.
     execution_lease:
-      executor_id: electronics-hygiene-controller-452
+      executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -333,6 +333,16 @@ parallel_lanes:
         exact_candidate_browser_run: 37162334426
         exact_main_general_run: 37163244860
         exact_main_browser_run: 37163297134
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-005
+        issue: 490
+        accepted_candidate_sha: 75867e22e5f9226499b78263a6b83404cd32ac3e
+        integrated_sha: 34fe2c5c7442e7db11b22e569d1fee95eb35725c
+        independent_review: approved
+        exact_candidate_general_run: 37165227482
+        exact_main_general_run: 37165778443
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
