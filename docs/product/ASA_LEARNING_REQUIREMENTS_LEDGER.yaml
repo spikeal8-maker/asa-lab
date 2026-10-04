@@ -947,13 +947,27 @@ requirements:
   - apps/web/src/components/AssignmentBrief.tsx
   - apps/web/src/components/assignment-brief.css
   - apps/web/src/components/AssignmentView.tsx
+  - apps/web/src/pages/AuthoredMaterialsPage.tsx
+  - apps/web/src/components/AuthoredTaskBlocksEditor.tsx
+  - apps/web/src/components/CoursesPanel.tsx
+  - apps/web/src/pages/AssignmentLibraryPage.tsx
   - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
   evidence:
   - staging school №374 owner review
+  - owner preview review 2026-10-04
   verification:
     source_sha: null
-    method: owner_visual_review
-    observed_result: Functional Learning paths exist, but student task surface and teacher authoring are not intuitive enough for product acceptance.
+    method: owner_visual_review_and_normative_ux_replan
+    observed_result: >-
+      Functional Learning paths exist, but the visible product is not yet acceptable.
+      Owner review on 2026-10-04 rejected the legacy-form teacher surface and also
+      rejected PR #495's permanent three-column dashboard experiment. The normative
+      direction is now modern editor-first and visible-first: assignment list is
+      separate from the document editor; settings use progressive disclosure; preview
+      is on demand; assigning and reviewing are separate flows; Course Builder uses a
+      compact outline plus lesson canvas; mobile has its own composition. No further
+      backend/media slice may outrank a visible UX slice unless it is a blocker for
+      that exact visible flow.
     product_fix_verified: false
     authenticated_live_journey: not_run
   planned_scenarios:
@@ -966,6 +980,11 @@ requirements:
   - UX0-MOBILE-320
   - UX1-IMMUTABLE-IMAGE-IN-PUBLISHED-TASK
   - UX1-PINNED-REFERENCE-IN-LAB
+  - V-UX2A-ASSIGNMENT-LIST
+  - V-UX2B-DOCUMENT-EDITOR
+  - V-UX2C-SETTINGS-PREVIEW-ASSIGN
+  - V-UX3A-COURSE-LIST-AND-BUILDER
+  - V-UX4A-TEACHER-ATTENTION-AND-REVIEW
   - UX2-TEACHER-ASSIGNMENT-EDITOR
   - UX3-VISUAL-COURSE-BUILDER
   - UX4-TEACHER-ATTENTION-AND-REVIEW
