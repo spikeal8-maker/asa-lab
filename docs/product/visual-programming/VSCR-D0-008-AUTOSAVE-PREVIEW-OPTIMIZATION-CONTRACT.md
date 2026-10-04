@@ -91,7 +91,7 @@ offline, conflict, recovery or fatal error.
 
 ### 3.2. Classroom load shaping
 
-A classroom and the P1500 platform target MUST NOT create a synchronized autosave
+A classroom and the platform capacity target from #477 MUST NOT create a synchronized autosave
 thundering herd.
 
 Load shaping may use a stable per-editor phase, bounded jitter, queue admission or equivalent
@@ -107,7 +107,7 @@ healthy-service durability target remains minute-scale
 reconnect does not replay historical generations
 ```
 
-Exact distribution is selected only from CLASS-30/P1500 evidence.
+Exact distribution is selected only from CLASS-30/platform-capacity evidence.
 
 Retry policy:
 
@@ -341,7 +341,7 @@ Durable checkpoint P95 typical  ≤ 1.5 s
 Save error rate                 < 0.1%
 Scratch remote durable cadence  minute-scale (owner target: ~60 s)
 Scratch local recovery            fast/local; independent of remote cadence
-Platform capacity target          P1500 = 1500 active concurrent users
+Platform capacity target          see CAPACITY_AND_SLO.md / issue #477
 ```
 
 These are system targets, not claims about an unmeasured developer machine.
@@ -441,7 +441,7 @@ M1-006 autosave/preview is not accepted until evidence proves:
 13. failed/unconfirmed generation cannot become the durable preview
 14. preview failure does not turn durable save into failure
 15. preview work is throttled/coalesced, not generated on every action
-16. CLASS-30 and P1500 evidence show bounded load shaping rather than synchronized save/retry spikes
+16. CLASS-30 and platform-capacity evidence show bounded load shaping rather than synchronized save/retry spikes
 17. P0/P1/P2/P3 evidence is recorded
 18. L1 is complete and Scratch hygiene counter is updated
 19. applicable SLO/load evidence is recorded without unsupported claims

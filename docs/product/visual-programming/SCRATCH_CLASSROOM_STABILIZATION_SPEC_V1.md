@@ -2,7 +2,7 @@
 
 **Status:** owner-approved architecture/program; implementation is not implied complete  
 **Program issue:** #468  
-**Capacity target:** #477 / P1500  
+**Capacity target:** #477 / `docs/architecture/CAPACITY_AND_SLO.md`  
 **Mixed classroom dependency:** #460  
 **Architecture:** `docs/architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`
 
@@ -20,7 +20,7 @@ open/auth/load
 → short network failure recovers without F5/logout
 → warm static reopen is cache-heavy, not tunnel-heavy
 → CLASS-30
-→ P1500
+→ platform capacity (#477)
 → mixed Scratch/Electronics acceptance
 ```
 
@@ -109,7 +109,7 @@ or asset-ownership boundaries.
 | 6 | #474 | VSCR-CLASSROOM-06-DB-PATH | measure/reduce asset DB amplification |
 | 7 | #475 | VSCR-CLASSROOM-07-OBSERVABILITY | privacy-safe incident correlation |
 | 8 | #476 | VSCR-CLASSROOM-08-CLASS30 | 30 independent Scratch users |
-| 9 | #477 | platform capacity | P1500 = 1500 active users |
+| 9 | #477 | platform capacity | canonical platform capacity acceptance |
 | 10 | #460 | mixed classroom | Scratch + Electronics shared acceptance |
 
 Presence here does not activate work. `docs/execution/current.yaml` remains execution authority.
@@ -122,14 +122,15 @@ the same product principle through its own storage/recovery path.
 Issue #460 owns mixed classroom/FRP/session/save evidence. Scratch first supplies its own
 bounded repairs and CLASS-30 evidence; it does not duplicate #460.
 
-## 6. P1500
+## 6. Platform capacity
 
-Owner target: **1 500 simultaneous active users**. Planning decomposition is 50 classes × 30,
-while tests may use an equivalent independent session mix.
+Scratch does not own or duplicate the platform CCU number. The current platform target,
+technical runtime contract and acceptance semantics are defined only by issue #477 and
+`docs/architecture/CAPACITY_AND_SLO.md`.
 
-Required profiles: steady active, lesson-start opens, class-local 30-user synchronized bursts,
-active editing, save/reconnect waves, lesson-end final sync, mixed modules and dependency
-failure injection.
+Scratch contributes bounded module evidence: CLASS-30 correctness, local-first execution,
+minute-scale durable save, cache-heavy warm reopen, transient-failure recovery and measured
+asset/API/DB amplification. It does not introduce a Scratch-specific server topology.
 
 Do not invent CPU/RAM/pool/RPS settings before benchmark.
 
@@ -138,9 +139,9 @@ Do not invent CPU/RAM/pool/RPS settings before benchmark.
 1. Focused correctness and security per package.
 2. CLASS-30: 30 independent StudentSeat contexts, cold/warm open, library use, minute save,
    new media, token rotation, controlled exit, forced-close recovery and fault injection.
-3. P1500: 1500 active users within applicable SLO; record RPS/latency, save rate, DB pool
-   wait/timeouts, object-store operations, transport pressure, bytes/user, retries, logout and
-   project loss.
+3. Platform capacity #477: run the current canonical capacity profile and record RPS/latency,
+   save rate, DB pool wait/timeouts, object-store operations, transport pressure, bytes/user,
+   retries, logout and project loss.
 4. Existing #460 mixed Scratch + Electronics acceptance.
 
 ## 8. Non-solutions

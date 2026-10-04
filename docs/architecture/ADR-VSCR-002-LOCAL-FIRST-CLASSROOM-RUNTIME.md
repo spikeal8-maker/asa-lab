@@ -3,7 +3,7 @@
 **Status:** accepted owner architecture, 2026-10-03  
 **Module:** `blocks`  
 **Program:** issue #468  
-**Capacity:** P1500 / issue #477
+**Capacity:** platform capacity / issue #477 (`docs/architecture/CAPACITY_AND_SLO.md`)
 
 ## Context
 
@@ -61,7 +61,7 @@ dirty generation
 → confirmed server revision
 ```
 
-Later edits must not cause debounce starvation. CLASS-30/P1500 load shaping may distribute
+Later edits must not cause debounce starvation. CLASS-30/platform-capacity load shaping may distribute
 client phases/retries, but may not lose newest work or silently extend dirty work indefinitely.
 
 ## Decision 5 — exit semantics
@@ -104,8 +104,9 @@ Optimization is measurement-led and remains fail-closed.
 
 ## Decision 10 — capacity
 
-Scratch correctness is first proven with 30 independent users. ASA Lab must then satisfy
-P1500 = 1 500 simultaneous active users. P1500 is real active work, not idle tabs.
+Scratch correctness is first proven with 30 independent users. Platform-wide capacity is
+defined only by issue #477 and `docs/architecture/CAPACITY_AND_SLO.md`. This Scratch ADR does
+not duplicate the platform CCU number or create a separate Scratch capacity tier.
 
 No production-school load test is authorized by this ADR.
 
@@ -126,7 +127,7 @@ controlled exit → immediate durable save
 temporary outage → reconnect/recover, not logout/F5
 warm reopen → browser cache
 classroom → CLASS-30 evidence
-platform → P1500 evidence
+platform → capacity evidence (#477)
 ```
 
 Implementation is split by
