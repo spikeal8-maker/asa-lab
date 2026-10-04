@@ -291,7 +291,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     403,
   );
   await page.reload();
-  await page.getByRole('button', { name: 'Оцениваемая практика автора', exact: true }).click();
+  await openExistingAssignmentEditor(page, 'Оцениваемая практика автора');
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Соберите проект и объясните соединение.');
