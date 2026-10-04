@@ -506,13 +506,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
   const segmentDragRef = useRef<SegmentDrag | null>(null);
-  const lastVertexPressRef = useRef<{
-    wireId: string;
-    vertexIndex: number;
-    x: number;
-    y: number;
-    at: number;
-  } | null>(null);
   const endpointDragRef = useRef<EndpointDrag | null>(null);
   const wireStartPressRef = useRef<{
     pointerId: number;
@@ -2385,27 +2378,6 @@ export function useElectronicsWorkbench(projectId: string) {
     vertexIndex: number,
   ): void {
     if (!structuralEditAllowed()) return;
-    const previous = lastVertexPressRef.current;
-    const repeated =
-      previous?.wireId === wireId &&
-      previous.vertexIndex === vertexIndex &&
-      Date.now() - previous.at <= 420 &&
-      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8;
-    if (event.detail >= 2 || repeated) {
-      lastVertexPressRef.current = null;
-      vertexDragRef.current = null;
-      removeWireVertexAt(wireId, vertexIndex);
-      event.stopPropagation();
-      event.preventDefault();
-      return;
-    }
-    lastVertexPressRef.current = {
-      wireId,
-      vertexIndex,
-      x: event.clientX,
-      y: event.clientY,
-      at: Date.now(),
-    };
     if (!document) return;
     vertexAssistTargetRef.current = null;
     setWireGuide(null);

@@ -367,6 +367,18 @@ export function WorkbenchStage({
     x: number;
     y: number;
     at: number;
+    mutationEpoch: number;
+    pointerSequence: number;
+  } | null>(null);
+  const vertexPress = useRef<{
+    pointerId: number;
+    wireId: string;
+    vertexIndex: number;
+    x: number;
+    y: number;
+    mutationEpoch: number;
+    pointerSequence: number;
+    moved: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -391,6 +403,39 @@ export function WorkbenchStage({
       Date.now() - previous.at <= 420 &&
       Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8
     );
+  }
+
+  function handleStagePointerMove(event: ReactPointerEvent<SVGSVGElement>): void {
+    const press = vertexPress.current;
+    if (
+      press?.pointerId === event.pointerId &&
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) > 8
+    ) {
+      press.moved = true;
+      lastVertexClick.current = null;
+    }
+    c.handlePointerMove(event);
+  }
+
+  function handleStagePointerUp(event: ReactPointerEvent<SVGSVGElement>): void {
+    const press = vertexPress.current;
+    c.finishPointer(event);
+    if (press?.pointerId !== event.pointerId) return;
+    vertexPress.current = null;
+    lastVertexClick.current =
+      !press.moved &&
+      Math.hypot(event.clientX - press.x, event.clientY - press.y) <= 8 &&
+      c.documentMutationEpoch() === press.mutationEpoch
+        ? { ...press, at: Date.now() }
+        : null;
+  }
+
+  function handleStagePointerCancel(event: ReactPointerEvent<SVGSVGElement>): void {
+    if (vertexPress.current?.pointerId === event.pointerId) {
+      vertexPress.current = null;
+      lastVertexClick.current = null;
+    }
+    c.cancelPointer(event);
   }
 
   function handleWirePointerDown(
@@ -1201,9 +1246,9 @@ export function WorkbenchStage({
         preserveAspectRatio="xMidYMid slice"
         onPointerDownCapture={c.beginStagePointer}
         onPointerDown={handleStagePointerDown}
-        onPointerMove={c.handlePointerMove}
-        onPointerUp={c.finishPointer}
-        onPointerCancel={c.cancelPointer}
+        onPointerMove={handleStagePointerMove}
+        onPointerUp={handleStagePointerUp}
+        onPointerCancel={handleStagePointerCancel}
         onWheel={c.handleWheel}
       >
         <defs>
@@ -1338,18 +1383,23 @@ export function WorkbenchStage({
                         const repeated =
                           previous?.wireId === wire.id &&
                           previous.vertexIndex === index &&
+                          previous.mutationEpoch === c.documentMutationEpoch() &&
+                          previous.pointerSequence + 1 === pointerSequenceRef.current &&
                           isRepeatedClick(previous, event);
-                        if (event.detail >= 2 || repeated) {
-                          lastVertexClick.current = null;
+                        lastVertexClick.current = null;
+                        if (repeated) {
                           c.removeWireVertexAt(wire.id, index);
                           return;
                         }
-                        lastVertexClick.current = {
+                        vertexPress.current = {
+                          pointerId: event.pointerId,
                           wireId: wire.id,
                           vertexIndex: index,
                           x: event.clientX,
                           y: event.clientY,
-                          at: Date.now(),
+                          mutationEpoch: c.documentMutationEpoch(),
+                          pointerSequence: pointerSequenceRef.current,
+                          moved: false,
                         };
                         c.startVertexDrag(event, wire.id, index);
                       }}
