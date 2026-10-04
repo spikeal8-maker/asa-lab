@@ -20,8 +20,8 @@ open/auth/load
 → short network failure recovers without F5/logout
 → warm static reopen is cache-heavy, not tunnel-heavy
 → CLASS-30
-→ platform capacity (#477)
-→ mixed Scratch/Electronics acceptance
+  ├─→ platform capacity (#477)
+  └─→ mixed Scratch/Electronics acceptance (#460)
 ```
 
 ## 2. Evidence baseline
@@ -109,8 +109,10 @@ or asset-ownership boundaries.
 | 6 | #474 | VSCR-CLASSROOM-06-DB-PATH | measure/reduce asset DB amplification |
 | 7 | #475 | VSCR-CLASSROOM-07-OBSERVABILITY | privacy-safe incident correlation |
 | 8 | #476 | VSCR-CLASSROOM-08-CLASS30 | 30 independent Scratch users |
-| 9 | #477 | platform capacity | canonical platform capacity acceptance |
-| 10 | #460 | mixed classroom | Scratch + Electronics shared acceptance |
+| 9a | #477 | platform capacity | canonical platform capacity acceptance |
+| 9b | #460 | mixed classroom | Scratch + Electronics shared acceptance |
+
+After CLASS-30, #477 and #460 are independent follow-up evidence streams. Neither is a prerequisite for the other.
 
 Presence here does not activate work. `docs/execution/current.yaml` remains execution authority.
 
@@ -134,15 +136,18 @@ asset/API/DB amplification. It does not introduce a Scratch-specific server topo
 
 Do not invent CPU/RAM/pool/RPS settings before benchmark.
 
-## 7. Acceptance hierarchy
+## 7. Acceptance flow
 
 1. Focused correctness and security per package.
 2. CLASS-30: 30 independent StudentSeat contexts, cold/warm open, library use, minute save,
    new media, token rotation, controlled exit, forced-close recovery and fault injection.
-3. Platform capacity #477: run the current canonical capacity profile and record RPS/latency,
-   save rate, DB pool wait/timeouts, object-store operations, transport pressure, bytes/user,
-   retries, logout and project loss.
-4. Existing #460 mixed Scratch + Electronics acceptance.
+3. After CLASS-30, two independent follow-up evidence streams are available:
+   - Platform capacity #477: run the current canonical capacity profile and record RPS/latency,
+     save rate, DB pool wait/timeouts, object-store operations, transport pressure, bytes/user,
+     retries, logout and project loss.
+   - Existing #460 mixed Scratch + Electronics acceptance.
+
+#460 does not wait for full C3000 evidence, and #477 does not require #460 to finish first.
 
 ## 8. Non-solutions
 
