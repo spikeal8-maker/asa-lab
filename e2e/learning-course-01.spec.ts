@@ -5,7 +5,10 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
-import { openNewAssignmentEditor } from './learning-authoring-navigation';
+import {
+  openExistingAssignmentEditor,
+  openNewAssignmentEditor,
+} from './learning-authoring-navigation';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
 const ux0EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
