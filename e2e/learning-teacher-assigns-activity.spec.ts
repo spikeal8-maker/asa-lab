@@ -5,7 +5,10 @@ import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { openPortalSection } from './portal-navigation';
-import { openExistingAssignmentEditor, openNewAssignmentEditor } from './learning-authoring-navigation';
+import {
+  openExistingAssignmentEditor,
+  openNewAssignmentEditor,
+} from './learning-authoring-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-001';

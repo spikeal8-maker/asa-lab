@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
-import { openExistingAssignmentEditor, openNewAssignmentEditor } from './learning-authoring-navigation';
+import {
+  openExistingAssignmentEditor,
+  openNewAssignmentEditor,
+} from './learning-authoring-navigation';
 
 test('exact saved and published learner preview ignores late responses and creates no commands', async ({
   page,
