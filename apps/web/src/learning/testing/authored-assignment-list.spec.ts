@@ -125,15 +125,14 @@ describe('V-UX2A authored assignment list', () => {
     expect(container.textContent).toContain('Опубликовано');
     expect(listModules).not.toHaveBeenCalled();
 
-    const status = container.querySelector<HTMLSelectElement>(
-      'select[aria-label="Фильтр по статусу"]',
-    );
-    expect(status).not.toBeNull();
+    const publishedFilter = findButton('Опубликованные');
+    expect(publishedFilter).toBeDefined();
+    expect(publishedFilter?.getAttribute('aria-pressed')).toBe('false');
     await act(async () => {
-      status!.value = 'published';
-      status!.dispatchEvent(new Event('change', { bubbles: true }));
+      publishedFilter?.click();
     });
 
+    expect(publishedFilter?.getAttribute('aria-pressed')).toBe('true');
     expect(container.textContent).not.toContain('Автоматический ночник');
     expect(container.textContent).toContain('Светофор');
 
@@ -203,9 +202,11 @@ describe('V-UX2A authored assignment list', () => {
     expect(
       container.querySelector('.course-editor-grid')?.classList.contains('authored-editor-single'),
     ).toBe(true);
-    expect(
-      container.querySelector<HTMLElement>('aside[aria-label="Библиотека материалов"]')?.hidden,
-    ).toBe(true);
+    expect(container.querySelector('aside[aria-label="Библиотека материалов"]')).toBeNull();
+    expect(container.querySelector('input[aria-label="Поиск материалов"]')).toBeNull();
+    expect(findButton('Новый материал')).toBeUndefined();
+    expect(container.textContent).toContain('Редактирование задания');
+    expect(container.textContent).toContain('Название задания');
     expect(findButton('← Задания')).toBeDefined();
 
     await act(async () => {

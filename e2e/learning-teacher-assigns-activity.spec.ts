@@ -340,7 +340,7 @@ test('learner exact published task image stays pinned across v1 and v2', async (
 
   await loginWithOrganization(page, teacher);
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по точному образцу.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
   await fileInput.setInputFiles({
@@ -546,7 +546,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
 
   await loginWithOrganization(page, teacher);
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Скачайте точный PDF задания.');
   const fileUpload = page.waitForResponse(
     (response) =>

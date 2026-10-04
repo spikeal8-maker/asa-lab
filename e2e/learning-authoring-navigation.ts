@@ -17,7 +17,7 @@ async function openAssignmentList(page: Page): Promise<void> {
     await back.click();
   }
 
-  await expect(page.getByRole('heading', { name: 'Задания', exact: true })).toBeVisible();
+  await expect(page.locator('.authored-assignment-list')).toBeVisible();
 }
 
 export async function openNewAssignmentEditor(page: Page): Promise<void> {

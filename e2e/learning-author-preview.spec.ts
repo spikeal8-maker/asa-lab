@@ -28,11 +28,11 @@ test('exact saved and published learner preview ignores late responses and creat
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill('Published V1');
+  await page.getByLabel('Название задания', { exact: true }).fill('Published V1');
   await page.getByLabel('Содержание', { exact: true }).fill('Published instructions V1');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
-  await page.getByLabel('Название материала', { exact: true }).fill('Saved draft r2');
+  await page.getByLabel('Название задания', { exact: true }).fill('Saved draft r2');
   await page.getByLabel('Содержание', { exact: true }).fill('Saved instructions r2');
   const draftButton = page.getByRole('button', { name: 'Как ученик: сохранённый черновик' });
   const publishedButton = page.getByRole('button', { name: 'Как ученик: опубликованная версия' });
@@ -94,7 +94,7 @@ test('exact saved and published learner preview ignores late responses and creat
   await preview.screenshot({ path: 'e2e/artifacts/learning/author-preview/saved-draft-r2.png' });
 
   await page.getByRole('button', { name: '← Задания', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Задания', exact: true })).toBeVisible();
+  await expect(page.locator('.authored-assignment-list')).toBeVisible();
   await expect(page.locator('.authored-assignment-row')).toHaveCount(1);
   await expect(page.getByText('Опубликовано', { exact: true })).toBeVisible();
 
@@ -138,7 +138,7 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill('Task blocks v1');
+  await page.getByLabel('Название задания', { exact: true }).fill('Task blocks v1');
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Read the legacy task instructions first.');
@@ -208,7 +208,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await openNewAssignmentEditor(page);
 
   for (const n of [1, 2, 3]) {
-    await page.getByLabel('Название материала', { exact: true }).fill('Material V' + n);
+    await page.getByLabel('Название задания', { exact: true }).fill('Material V' + n);
     await page.getByLabel('Содержание', { exact: true }).fill('Material content V' + n);
     await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
     await expect(
@@ -236,11 +236,11 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   });
   await history.getByRole('button', { name: 'Создать черновик из этой версии' }).click();
   await restoreStarted;
-  await expect(page.getByLabel('Название материала', { exact: true })).toBeDisabled();
+  await expect(page.getByLabel('Название задания', { exact: true })).toBeDisabled();
   await expect(page.getByLabel('Содержание', { exact: true })).toBeDisabled();
   releaseRestore();
 
-  await expect(page.getByLabel('Название материала', { exact: true })).toHaveValue('Material V1');
+  await expect(page.getByLabel('Название задания', { exact: true })).toHaveValue('Material V1');
   await expect(page.getByLabel('Содержание', { exact: true })).toHaveValue('Material content V1');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Опубликована версия 4. Материал остаётся закрытым.')).toBeVisible();
@@ -384,9 +384,9 @@ test('first-class image block survives draft reload and pins exact published byt
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Сначала прочитайте инструкцию.');
-  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByLabel('Файл блока изображения').setInputFiles({
     name: 'task-a.png',
@@ -537,13 +537,13 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по изображению.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
   await fileInput.setInputFiles({ name: 'image-a.png', mimeType: 'image/png', buffer: imageA });
   await expect(page.getByRole('img', { name: 'Схема / изображение задания' })).toBeVisible();
 
-  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
 
   await page.reload();
@@ -614,7 +614,7 @@ test('published task image stays immutable across versions', async ({ page }) =>
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Опубликованная схема A/B.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
   await fileInput.setInputFiles({

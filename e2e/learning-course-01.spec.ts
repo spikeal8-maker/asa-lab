@@ -282,11 +282,11 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill('Оцениваемая практика автора');
+  await page.getByLabel('Название задания', { exact: true }).fill('Оцениваемая практика автора');
   await page.getByLabel('Содержание', { exact: true }).fill('Первая редакция.');
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption('graded');
   await page.getByLabel('Максимум баллов', { exact: true }).fill('10');
-  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   const before = await (await page.request.get('/api/learning/activities')).json();
   const id = before.items[0].id;
@@ -451,12 +451,12 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
   const titles = Array.from({ length: 10 }, (_, i) => `Практика ${String(i + 1).padStart(2, '0')}`);
   await createPublishedProjectActivity(page, titles[0]!);
   for (const title of titles.slice(1)) {
-    await page.getByRole('button', { name: 'Новый материал', exact: true }).click();
-    await page.getByLabel('Название материала', { exact: true }).fill(title);
+    await openNewAssignmentEditor(page);
+    await page.getByLabel('Название задания', { exact: true }).fill(title);
     await page
       .getByLabel('Содержание', { exact: true })
       .fill('Соберите и сохраните собственный проект.');
-    await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+    await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
     await expect(
       page.getByText('Черновик сохранён. Публикация — отдельное действие.'),
     ).toBeVisible();
@@ -576,7 +576,7 @@ async function createPublishedProjectActivityAfterLogin(
   goal?: string,
 ): Promise<void> {
   await openNewAssignmentEditor(page);
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   if (goal) await page.getByLabel('Цель задания', { exact: true }).fill(goal);
   await page
     .getByLabel('Содержание', { exact: true })
@@ -590,7 +590,7 @@ async function createPublishedProjectActivityAfterLogin(
       buffer: sampleImage,
     });
   }
-  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   if (goal) {
     await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();

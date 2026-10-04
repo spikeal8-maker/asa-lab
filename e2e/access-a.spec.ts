@@ -160,11 +160,11 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
   await openPortalSection(page, 'Курсы и задания');
   await page.getByRole('button', { name: /Новое задание/ }).click();
-  await page.getByLabel('Название материала').fill('Личный материал автора');
+  await page.getByLabel('Название задания').fill('Личный материал автора');
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Самостоятельный текст без доступа к ученикам.');
-  await page.getByRole('button', { name: 'Создать материал' }).click();
+  await page.getByRole('button', { name: 'Создать задание' }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
   await expect(page.getByTestId('learner-preview')).toContainText('Самостоятельный текст');
