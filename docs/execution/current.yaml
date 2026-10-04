@@ -16,18 +16,21 @@ task:
   pr: null
   pr_draft: false
   status: in_progress
-  checkpoint: exit_safety_owner_authorized_selected
+  checkpoint: exit_safety_candidate_focused_browser_blocked
   owner_acceptance: pending
+  normative_refs:
+    - document: VSCR-CLASSROOM-02-EXIT-SAFETY
+      revision: '1.0'
 
 revisions:
   kind: observed_snapshot
   convergence_baseline_sha: 7b57cf6d7e86cbafb34c94975cf54dd25e25ea3c
   head_sha: null
-  observed_at: '2026-10-04T20:16:00+00:00'
+  observed_at: '2026-10-04T20:30:29Z'
   main:
     branch: main
-    sha: d2449414f72beb8f98911a7878f892aac9d54795
-  observation_note: Dated main observation before documentation reconciliation; it is not a current remote HEAD claim or acceptance evidence. Fetch main before writes.
+    sha: 76a2864b7efd68d3443b94fcb02a41f9b0f55b96
+  observation_note: Dated main observation after documentation reconciliation. Scratch #470 implementation candidate cae213266b2ed039b91411310ec6626321951540 exists, but focused browser acceptance is still blocked; fetch main before writes and do not infer PASS from this snapshot.
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
@@ -705,6 +708,21 @@ blocking:
       - focused_verification
     reason: Integrated first 465 hotspot slice has candidate approval and exact-main general PASS, but main Electronics browser run 37171786707 failed twice in the independent pre-existing wire-vertex double-click/drag path. Issue 493 must be repaired and exact-main browser rerun before technical closeout of that slice.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-VERTEX-DRAG-001.md
+  - id: VSCR-470-FOCUSED-BROWSER
+    kind: acceptance_blocker
+    lane: visual-programming
+    task_id: TASK-VSCR-CLASSROOM-002
+    blocks:
+      - owner_acceptance
+      - release_claim
+      - close_issue
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - documentation_update
+      - focused_verification
+    reason: Scratch #470 implementation candidate cae213266b2ed039b91411310ec6626321951540 is on main. Exact-candidate repository CI passed, but Scratch Focused run 37160566624 failed one pagehide recovery browser test with clock.pauseAt "Cannot fast-forward to the past" after 52 browser tests passed. Classify/repair that focused failure and rerun required exact-head Scratch evidence before technical acceptance.
+    evidence: docs/product/visual-programming/tasks/VSCR-CLASSROOM-02-EXIT-SAFETY.md
   - id: LRN-E1-CORRECTIONS
     kind: acceptance_blocker
     lane: learning

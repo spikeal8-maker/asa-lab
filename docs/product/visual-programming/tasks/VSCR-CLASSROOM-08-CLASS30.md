@@ -16,7 +16,7 @@ Canonical rationale:
 
 - `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`;
 - `../../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`;
-- capacity target P1500 / #477.
+- capacity target C3000 / #477 / `docs/architecture/CAPACITY_AND_SLO.md`.
 
 ## Components
 
@@ -42,7 +42,7 @@ Load/browser harness and CI artifacts only. Any reproduced product defect become
 
 ## Evidence
 
-Isolated environment only. Record exact revision/environment and request/byte/latency/DB/transport metrics. After PASS: P1500 #477, then mixed #460.
+Isolated environment only. Record exact revision/environment and request/byte/latency/DB/transport metrics. After PASS: C3000 #477, then mixed #460.
 
 ## Independent review
 

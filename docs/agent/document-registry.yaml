@@ -563,6 +563,17 @@ documents:
     context_role: target
     read_when: [visual_programming_task_start]
 
+  - id: VSCR-CLASSROOM-02-EXIT-SAFETY
+    path: docs/product/visual-programming/tasks/VSCR-CLASSROOM-02-EXIT-SAFETY.md
+    scope: visual_programming
+    lanes: [visual-programming]
+    kind: task_package
+    status: canonical
+    authority: visual_programming_exit_safety_execution
+    revision: '1.0'
+    context_role: target
+    read_when: [issue_470, controlled_exit, pagehide_recovery]
+
   - id: AGENT-REVIEW-PROTOCOL
     path: docs/agent/review-protocol.md
     scope: global

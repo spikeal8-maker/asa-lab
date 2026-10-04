@@ -16,7 +16,7 @@ Canonical rationale:
 
 - `../SCRATCH_CLASSROOM_STABILIZATION_SPEC_V1.md`;
 - `../../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`;
-- capacity target P1500 / #477.
+- capacity target C3000 / #477 / `docs/architecture/CAPACITY_AND_SLO.md`.
 
 ## Components
 
