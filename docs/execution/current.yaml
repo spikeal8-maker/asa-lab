@@ -156,24 +156,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BREADBOARD-PERFORMANCE-001
-      issue: 465
+      id: TASK-ELECTRONICS-WIRE-VERTEX-DRAG-001
+      issue: 493
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: measured_breadboard_hotspot_selected_preflight_pending
+      checkpoint: wire_vertex_baseline_repair_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 34fe2c5c7442e7db11b22e569d1fee95eb35725c
+      convergence_baseline_sha: 557110e1a36b486a748f87e4efc31b008667539d
       head_sha: null
-      observed_at: '2026-10-04T00:55:00Z'
+      observed_at: '2026-10-04T03:14:23Z'
       main:
         branch: main
-        sha: 34fe2c5c7442e7db11b22e569d1fee95eb35725c
-      observation_note: Dated main observation after mandatory hygiene checkpoint 490 was independently approved and exact-main CI passed. Fetch main before writes; the first bounded 465 slice measures and repairs one reproducible breadboard interaction hotspot. Issue 464 new controls and other 465 mechanical decisions remain open for separate owner decisions; school-device performance is not claimed.
+        sha: 557110e1a36b486a748f87e4efc31b008667539d
+      observation_note: Dated main observation after first 465 hotspot candidate approval and integration. Fetch main before writes. Exact-main general CI passed, but Electronics browser run 37171786707 failed twice in the unchanged wire-vertex double-click handler. Separate category C baseline repair 493 is selected. Issue 465 partial acceptance and release claim remain blocked until exact-main browser succeeds after repair; extraction mechanics and school-device performance remain open.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -344,6 +344,21 @@ parallel_lanes:
         exact_candidate_general_run: 37165227482
         exact_main_general_run: 37165778443
         status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-BREADBOARD-PERFORMANCE-001
+        issue: 465
+        issue_scope: first_measured_overlay_hotspot_only
+        candidate_sha: a3ad85b5cedb316095e11f548b086c6dd852f1ae
+        integrated_sha: 557110e1a36b486a748f87e4efc31b008667539d
+        independent_review: approved_candidate_only
+        exact_candidate_general_run: 37170647216
+        exact_candidate_browser_run: 37170647221
+        exact_main_general_run: 37171738516
+        exact_main_browser_failure_run: 37171786707
+        exact_main_browser_failed_attempts: 2
+        baseline_repair_issue: 493
+        status: integrated_acceptance_blocked
         owner_acceptance: pending
         deployment: not_run
   - id: chess
@@ -667,6 +682,21 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-465-MAIN-BROWSER-BASELINE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-BREADBOARD-PERFORMANCE-001
+    blocks:
+      - owner_acceptance
+      - release_claim
+      - close_issue
+    allows:
+      - bounded_repair
+      - regression_authoring
+      - documentation_update
+      - focused_verification
+    reason: Integrated first 465 hotspot slice has candidate approval and exact-main general PASS, but main Electronics browser run 37171786707 failed twice in the independent pre-existing wire-vertex double-click/drag path. Issue 493 must be repaired and exact-main browser rerun before technical closeout of that slice.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-VERTEX-DRAG-001.md
   - id: LRN-E1-CORRECTIONS
     kind: acceptance_blocker
     lane: learning
