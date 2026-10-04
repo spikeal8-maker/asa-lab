@@ -74,7 +74,7 @@ invariants:
     statement: Additional API replicas, PgBouncer, Redis, realtime gateways and worker pools are optional scaling steps introduced only by a concrete feature need, owner task or measured bottleneck; the capacity target alone does not mandate them.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
-        section: "## 9. C3000 single-host reference topology"
+        section: "## 9. Возможная mature C3000 topology — не план немедленной миграции"
     applies_to: [api, ingress, pgbouncer, redis, postgres, realtime, workers]
     forbid: [per_process_shared_rate_limit_assumption, api_memory_as_system_source_of_truth, premature_topology_expansion]
 
