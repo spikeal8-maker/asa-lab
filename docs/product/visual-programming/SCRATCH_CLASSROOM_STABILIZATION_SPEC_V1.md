@@ -2,7 +2,7 @@
 
 **Status:** owner-approved architecture/program; implementation is not implied complete  
 **Program issue:** #468  
-**Capacity target:** #477 / P1500  
+**Capacity target:** #477 / C3000 (S4500 surge, T5000 stress)  
 **Mixed classroom dependency:** #460  
 **Architecture:** `docs/architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`
 
@@ -20,7 +20,7 @@ open/auth/load
 → short network failure recovers without F5/logout
 → warm static reopen is cache-heavy, not tunnel-heavy
 → CLASS-30
-→ P1500
+→ C3000
 → mixed Scratch/Electronics acceptance
 ```
 
@@ -109,7 +109,7 @@ or asset-ownership boundaries.
 | 6 | #474 | VSCR-CLASSROOM-06-DB-PATH | measure/reduce asset DB amplification |
 | 7 | #475 | VSCR-CLASSROOM-07-OBSERVABILITY | privacy-safe incident correlation |
 | 8 | #476 | VSCR-CLASSROOM-08-CLASS30 | 30 independent Scratch users |
-| 9 | #477 | platform capacity | P1500 = 1500 active users |
+| 9 | #477 | platform capacity | C3000 = 3000 active users; S4500 surge; T5000 stress |
 | 10 | #460 | mixed classroom | Scratch + Electronics shared acceptance |
 
 Presence here does not activate work. `docs/execution/current.yaml` remains execution authority.
@@ -122,10 +122,9 @@ the same product principle through its own storage/recovery path.
 Issue #460 owns mixed classroom/FRP/session/save evidence. Scratch first supplies its own
 bounded repairs and CLASS-30 evidence; it does not duplicate #460.
 
-## 6. P1500
+## 6. C3000 / S4500 / T5000
 
-Owner target: **1 500 simultaneous active users**. Planning decomposition is 50 classes × 30,
-while tests may use an equivalent independent session mix.
+Owner target: **C3000 = 3 000 simultaneous active users** as the normal design/production profile (100 classes × 30). **S4500** is the short surge profile and **T5000** is the stress ceiling for the current single-core-host topology. Tests may use an equivalent independent session mix only when behavior and amplification remain representative.
 
 Required profiles: steady active, lesson-start opens, class-local 30-user synchronized bursts,
 active editing, save/reconnect waves, lesson-end final sync, mixed modules and dependency
@@ -138,7 +137,7 @@ Do not invent CPU/RAM/pool/RPS settings before benchmark.
 1. Focused correctness and security per package.
 2. CLASS-30: 30 independent StudentSeat contexts, cold/warm open, library use, minute save,
    new media, token rotation, controlled exit, forced-close recovery and fault injection.
-3. P1500: 1500 active users within applicable SLO; record RPS/latency, save rate, DB pool
+3. C3000: 3000 active users within applicable SLO; then S4500 surge and T5000 stress; record RPS/latency, save rate, DB pool
    wait/timeouts, object-store operations, transport pressure, bytes/user, retries, logout and
    project loss.
 4. Existing #460 mixed Scratch + Electronics acceptance.

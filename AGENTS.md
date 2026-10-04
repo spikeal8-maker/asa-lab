@@ -420,3 +420,20 @@ MAP_NODES_CHANGED, WORKING_TREE, NEXT_ALLOWED_TASK
 Подключение авторства и преподавания остаётся раздельным и не заменяет Account/личные данные.
 TARGET пользователей не разрешает сам по себе tenant/RLS redesign, destructive migration или
 deployment. Остальная семантика не дублируется в root policy: её обязан выдать Registry.
+
+## 10. Capacity-first проектирование
+
+Канонический capacity-контракт:
+- `docs/architecture/CAPACITY_AND_SLO.md`;
+- `docs/agent/contracts/capacity.yaml`.
+
+Обязательная нормальная цель — **C3000 = 3 000 одновременно активных пользователей**.
+Дополнительно: **S4500 = surge**, **T5000 = stress ceiling** текущей single-core-host topology.
+
+Перед изменением polling/autosave/retry/assets/session refresh/realtime/background jobs/AI
+агент обязан посчитать amplification при C3000. Тяжёлый periodic full-resource read,
+синхронный CPU/GPU job внутри generic API, повторная передача immutable bytes и
+неограниченный retry считаются архитектурным finding независимо от того, проходит ли CLASS-30.
+
+Browser-local редакторы/симуляции/игры/3D остаются local-first. AI и другие тяжёлые
+вычисления изолируются в compute plane и не имеют права ухудшать core C3000 SLO.

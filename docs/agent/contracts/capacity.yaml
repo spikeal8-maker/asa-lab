@@ -1,0 +1,148 @@
+schema_version: 1
+contract_id: ASA-CAPACITY-C3000
+status: canonical
+owner_decision_date: '2026-10-04'
+human_source: docs/architecture/CAPACITY_AND_SLO.md
+issue: 477
+
+profiles:
+  class_30:
+    active_ccu: 30
+    purpose: classroom_functional_load_gate
+  c500:
+    active_ccu: 500
+    purpose: intermediate_regression_gate
+  c3000:
+    active_ccu: 3000
+    class_size: 30
+    simultaneous_classes: 100
+    purpose: normal_design_and_production_target
+    normative: true
+  s4500:
+    active_ccu: 4500
+    purpose: short_surge_without_data_loss_or_mass_logout
+  t5000:
+    active_ccu: 5000
+    purpose: stress_ceiling_for_current_single_core_host_topology
+  distributed_next:
+    active_ccu_min: 10000
+    purpose: multi_host_stateful_and_compute_topology
+
+core_slo:
+  api_read_p95_ms_max: 400
+  api_write_p95_ms_max: 700
+  api_p99_ms_max: 1500
+  login_p95_ms_max: 2000
+  durable_save_p95_ms_max: 1500
+  save_error_rate_max: 0.001
+  http_5xx_rate_max: 0.001
+  unexpected_logout_accepted: 0
+  project_loss_after_ack_accepted: 0
+  db_pool_timeout_accepted: 0
+  db_pool_wait_p95_ms_max: 50
+  db_pool_wait_p99_ms_max: 250
+  queue_admission_p95_ms_max: 300
+  realtime_delivery_p95_ms_max: 1000
+  event_loop_lag_p99_ms_max: 100
+  core_cpu_steady_percent_max: 70
+  core_cpu_short_burst_percent_max: 85
+  host_ram_steady_percent_max: 75
+  nic_steady_percent_max: 60
+  nic_short_burst_percent_max: 80
+
+load_profile:
+  lesson_start_login_users: 3000
+  lesson_start_window_seconds: 120
+  class_local_burst_users: 30
+  reconnect_users: 600
+  reconnect_window_seconds: 60
+  remote_save_average_per_second: 50
+  remote_save_short_burst_per_second: 150
+  background_api_target_requests_per_user_per_second: 0.10
+
+architecture_rules:
+  local_first_editors: true
+  heavy_full_project_polling: forbidden
+  immutable_static_revalidation_on_warm_reopen: forbidden
+  retry_requires_backoff_and_jitter: true
+  generic_api_must_not_run_heavy_ai_or_render_jobs: true
+  ai_compute_plane_isolated_from_core: true
+  realtime_is_not_source_of_truth: true
+  redis_is_not_source_of_truth: true
+  postgres_is_core_source_of_truth: true
+  every_periodic_operation_must_evaluate_c3000_amplification: true
+
+reference_hardware:
+  production_minimum:
+    cpu_cores: 16
+    cpu_threads: 32
+    ram_gb: 64
+    system_nvme_gb: 1000
+    postgres_nvme_gb_min: 1000
+    object_storage_gb_min: 2000
+    public_symmetric_gbps_min: 1
+  c3000_recommended:
+    cpu_cores: 24
+    cpu_threads: 48
+    ram_gb: 128
+    system_nvme_gb: 1000
+    postgres_nvme_gb: 2000
+    object_storage_usable_gb_min: 4000
+    public_symmetric_gbps_min: 1
+    public_symmetric_gbps_preferred: 2.5
+    lan_gbe_min: 2.5
+    lan_gbe_preferred_for_external_storage_ai: 10
+  t5000_reference:
+    cpu_cores: 32
+    cpu_threads: 64
+    ram_gb_min: 192
+    ram_gb_preferred: 256
+    public_symmetric_gbps_min: 2.5
+
+c3000_topology:
+  api_replicas_recommended: 3
+  pgbouncer_required_before_multi_api: true
+  redis_shared_control_recommended: true
+  postgres_primary_count: 1
+  object_store: minio_or_equivalent
+  realtime_replicas_preferred: 2
+  worker_pool_required_for_heavy_async_jobs: true
+
+future_planes:
+  games:
+    browser_local_single_player: true
+    multiplayer_generic_api_tick_loop: forbidden
+    room_partition_required: true
+  three_d:
+    browser_interaction_local: true
+    heavy_server_compute_async: true
+  ai:
+    separate_compute_plane: true
+    synchronous_inference_in_generic_api: forbidden
+    core_c3000_must_survive_ai_saturation: true
+    first_local_worker:
+      cpu_cores: 16
+      ram_gb: 64
+      nvme_gb: 2000
+      gpu_vram_gb_min: 24
+      larger_model_gpu_vram_gb_range: '48-80'
+      lan_gbe_min: 2.5
+      lan_gbe_preferred: 10
+
+evidence_required:
+  - exact_git_sha
+  - hardware_and_os
+  - ccu_and_module_mix
+  - api_rps_and_latency
+  - cpu_ram_event_loop
+  - db_pool_wait_and_timeouts
+  - query_count_and_slow_queries
+  - save_rate_and_bytes
+  - object_store_latency_and_throughput
+  - ingress_transport_pressure
+  - cold_warm_static_bytes
+  - cache_behavior
+  - retry_reconnect_rate
+  - queue_depth_and_oldest_age
+  - unexpected_logout
+  - project_loss
