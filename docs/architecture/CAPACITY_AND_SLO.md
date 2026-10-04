@@ -328,15 +328,17 @@ ASA_DB_POOL_MAX = 10
 login throughput floor >= 60 successful logins/s
 ```
 
-Measured evidence от 2026-08-16: 159 logins/s на 16-core Windows host, client on same host.
+Историческое benchmark evidence от 2026-08-16: 159 logins/s на 16-core Windows host, client on same host. Это полезная предыдущая точка измерения, **не доказательство throughput текущего SHA** и не C3000 PASS. На capacity acceptance login path измеряется заново на exact release/profile.
 
-Для lesson-start модели:
+Если конкретный versioned workload profile задаёт lesson-start ramp 120 s, арифметика будет:
 
 ```text
 3000 users / 120 s = 25 successful logins/s
 ```
 
-Следовательно CPU/hash throughput текущего measured path имеет запас относительно 25/s, но C3000 acceptance обязана отдельно проверить school-NAT limiter semantics и реальный mix Account/StudentSeat/existing-session/refresh.
+Но 120 s не является глобальным архитектурным законом: фактический arrival/login ramp хранится в `C3000-PROFILE-V*`.
+
+C3000 acceptance отдельно проверяет school-NAT limiter semantics и реальный mix Account/StudentSeat/existing-session/refresh.
 
 Новый API endpoint не должен вводить постоянный тяжёлый O(CCU) background path.
 
@@ -368,16 +370,18 @@ Caddy уже разделяет cache semantics:
 - runtime config → no-store;
 - private API/project data → никогда public immutable.
 
-Existing Web performance evidence показывает built SPA transfer около 98 KB.
+Историческое Web benchmark evidence от 2026-08-16 показывает built SPA transfer около 98 KB. Это **не утверждение размера текущего SHA**; C3000 acceptance измеряет transfer bytes заново.
 
-Для 3 000 cold portal shells:
+Если exact benchmark снова даст 98 KB и workload profile задаёт 120 s cold ramp, примерная арифметика:
 
 ```text
 98 KB × 3000 ≈ 294 MB
 294 MB / 120 s ≈ 20 Mbit/s
 ```
 
-Это не включает тяжёлые Scratch/3D/vendor/library assets. Для них C3000 требует:
+Это planning example, а не сетевой SLO. Текущий профиль должен использовать фактически измеренные bytes и ramp.
+
+Расчёт не включает тяжёлые Scratch/3D/vendor/library assets. Для них C3000 требует:
 
 - versioned immutable delivery;
 - browser cache reuse на warm reopen;
@@ -464,23 +468,41 @@ Browser-local compute не переносится на API только ради
 ---
 
 
-## 17. Existing product SLO targets to prove at C3000
+## 17. Product targets: что доказывает C3000, а что — эксплуатация
 
-Ниже — существующие product targets. Они **не являются утверждением, что текущий SHA уже измеренно прошёл C3000**.
+Существующие targets делятся на разные классы. Один load test не может доказать месячную доступность.
+
+### 17.1. Capacity/performance targets
+
+Эти targets проверяются на конкретном `C3000-PROFILE-V*`, exact SHA и measured environment:
 
 | Indicator | Target |
 |---|---:|
-| Availability during agreed lesson hours | ≥ 99.9% |
-| Monthly overall availability | ≥ 99.5% |
 | API read P95 | ≤ 400 ms |
 | API write P95 | ≤ 700 ms |
 | Login P95 | ≤ 2 s |
 | Project metadata save P95 | ≤ 700 ms |
 | Durable checkpoint P95, typical project | ≤ 1.5 s |
 | Save error rate | < 0.1% |
-| Cross-tenant authorization incidents | 0 accepted |
 
-Capacity acceptance должна отдельно показать, какие из этих targets выполнены на конкретном `C3000-PROFILE-V*`, exact SHA и environment. Hardware specifications сами по себе ничего из этой таблицы не доказывают.
+### 17.2. Operations/availability targets
+
+Эти targets доказываются эксплуатационной статистикой за соответствующий период, а не C3000 load test:
+
+| Indicator | Target |
+|---|---:|
+| Availability during agreed lesson hours | ≥ 99.9% |
+| Monthly overall availability | ≥ 99.5% |
+
+### 17.3. Security invariant
+
+| Indicator | Target |
+|---|---:|
+| Cross-tenant authorization incidents | **0 accepted** |
+
+C3000 test обязан сохранять security invariant, но отсутствие incident в одном load run не заменяет security review/controls.
+
+Hardware specifications сами по себе не доказывают ни performance, ни availability.
 
 ## 18. Observability для C3000
 
