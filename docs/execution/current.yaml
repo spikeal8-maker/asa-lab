@@ -30,7 +30,10 @@ revisions:
   main:
     branch: main
     sha: 76a2864b7efd68d3443b94fcb02a41f9b0f55b96
-  observation_note: Dated main observation after documentation reconciliation. Scratch #470 implementation candidate cae213266b2ed039b91411310ec6626321951540 exists, but focused browser acceptance is still blocked; fetch main before writes and do not infer PASS from this snapshot.
+  observation_note: >-
+    Dated main observation after documentation reconciliation. Scratch issue 470 implementation candidate
+    cae213266b2ed039b91411310ec6626321951540 exists, but focused browser acceptance is still blocked;
+    fetch main before writes and do not infer PASS from this snapshot.
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
