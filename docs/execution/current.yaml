@@ -163,7 +163,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: post_462_463_464_hygiene_selected_preflight_pending
+      checkpoint: post_462_463_464_hygiene_evidence_candidate_ready_for_review
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
