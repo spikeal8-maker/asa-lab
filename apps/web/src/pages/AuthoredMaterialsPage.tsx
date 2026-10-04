@@ -178,6 +178,8 @@ export function AuthoredMaterialsPage({
     | null
   >(null);
   const [search, setSearch] = useState('');
+  const [screen, setScreen] = useState<'list' | 'editor'>(embedded ? 'list' : 'editor');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
   const request = useRef<{ payload: string; id: string } | null>(null);
   const savedPayload = useRef<string | null>(null);
   const previewRequest = useRef(0);
@@ -216,11 +218,12 @@ export function AuthoredMaterialsPage({
     }
   }, []);
   useEffect(() => {
+    if (embedded && screen === 'list') return;
     void refreshModules();
     return () => {
       modulesRequest.current += 1;
     };
-  }, [refreshModules]);
+  }, [embedded, refreshModules, screen]);
   async function open(id: string) {
     previewRequest.current += 1;
     setPreview(null);
@@ -253,9 +256,25 @@ export function AuthoredMaterialsPage({
       setDraft(loaded);
       savedPayload.current = JSON.stringify(loaded);
       setPreview(null);
+      setScreen('editor');
     } else setError(result.error.message || 'Материал недоступен.');
     setBusy(false);
   }
+  function startNew(): void {
+    previewRequest.current += 1;
+    setPreview(null);
+    setOpened(null);
+    setPublishedVersionId(null);
+    savedPayload.current = null;
+    setDraftSampleImage(null);
+    setPendingDraftSample(null);
+    setDraft({ ...initial, moduleKey: defaultAssignableModuleKey(modules) });
+    setInheritedGoal(null);
+    setNotice(null);
+    setError(null);
+    setScreen('editor');
+  }
+
   async function save(event?: FormEvent) {
     event?.preventDefault();
     if (busy || !draft.title.trim() || draft.moduleKey === '' || (!opened && !canAssignDraftModule))
@@ -566,11 +585,177 @@ export function AuthoredMaterialsPage({
     assignableModules.some((module) => module.moduleKey === draft.moduleKey);
   const canPublish = draft.moduleKey === null ? opened !== null : canAssignDraftModule;
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
+  const normalizedSearch = search.trim().toLocaleLowerCase('ru-RU');
+  const publishedCount = items.filter((item) => item.currentPublishedVersionId !== null).length;
+  const visibleItems = items.filter((item) => {
+    const matchesSearch =
+      normalizedSearch.length === 0 ||
+      item.title.toLocaleLowerCase('ru-RU').includes(normalizedSearch);
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'published' && item.currentPublishedVersionId !== null) ||
+      (statusFilter === 'draft' && item.currentPublishedVersionId === null);
+    return matchesSearch && matchesStatus;
+  });
+  const newDraftDirty =
+    opened === null &&
+    (draft.title.trim().length > 0 ||
+      String(draft.goal ?? '').trim().length > 0 ||
+      (draft.instructions ?? '').trim().length > 0 ||
+      (draft.blocks?.length ?? 0) > 0 ||
+      pendingDraftSample !== null);
+  const hasUnsavedEditorChanges = opened === null ? newDraftDirty : draftDirty;
+
+  function returnToList(): void {
+    if (
+      hasUnsavedEditorChanges &&
+      !window.confirm('Есть несохранённые изменения. Вернуться к списку и оставить их?')
+    ) {
+      return;
+    }
+    previewRequest.current += 1;
+    setPreview(null);
+    setError(null);
+    setNotice(null);
+    setScreen('list');
+  }
+
   const Root = embedded ? 'section' : 'main';
+
+  if (embedded && screen === 'list') {
+    return (
+      <Root className="authored-materials authored-assignment-list" aria-labelledby="assignment-list-title">
+        <div className="authored-assignment-list-head">
+          <div>
+            <h2 id="assignment-list-title">Задания</h2>
+            <p>Создавайте задания, находите нужное и открывайте его для редактирования.</p>
+          </div>
+          <button
+            type="button"
+            className="portal-create-button"
+            disabled={busy}
+            onClick={startNew}
+          >
+            + Новое задание
+          </button>
+        </div>
+
+        <div className="authored-assignment-toolbar" aria-label="Поиск и фильтры заданий">
+          <label className="authored-assignment-search">
+            <span className="sr-only">Поиск заданий</span>
+            <input
+              type="search"
+              placeholder="Поиск заданий"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <label className="authored-assignment-status-filter">
+            <span>Статус</span>
+            <select
+              aria-label="Фильтр по статусу"
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as 'all' | 'draft' | 'published')
+              }
+            >
+              <option value="all">Все ({items.length})</option>
+              <option value="draft">Черновики ({items.length - publishedCount})</option>
+              <option value="published">Опубликованные ({publishedCount})</option>
+            </select>
+          </label>
+        </div>
+
+        {error ? (
+          <div className="authored-assignment-state is-error" role="alert">
+            <strong>Не удалось загрузить задания.</strong>
+            <span>{error}</span>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setError(null);
+                void refresh();
+              }}
+            >
+              Повторить
+            </button>
+          </div>
+        ) : loading ? (
+          <div className="authored-assignment-state" role="status">
+            Загружаем задания…
+          </div>
+        ) : items.length === 0 ? (
+          <div className="authored-assignment-state">
+            <strong>Заданий пока нет.</strong>
+            <span>Создайте первое задание — оно появится в этом списке.</span>
+            <button type="button" className="btn-secondary" onClick={startNew}>
+              Создать задание
+            </button>
+          </div>
+        ) : visibleItems.length === 0 ? (
+          <div className="authored-assignment-state">
+            <strong>Ничего не найдено.</strong>
+            <span>Измените поиск или фильтр статуса.</span>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => {
+                setSearch('');
+                setStatusFilter('all');
+              }}
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        ) : (
+          <ul className="authored-assignment-rows">
+            {visibleItems.map((item) => {
+              const published = item.currentPublishedVersionId !== null;
+              return (
+                <li key={item.id}>
+                  <button
+                    type="button"
+                    className="authored-assignment-row"
+                    disabled={busy}
+                    aria-label={`Открыть задание «${item.title}»`}
+                    onClick={() => void open(item.id)}
+                  >
+                    <span className="authored-assignment-row-title">{item.title}</span>
+                    <span
+                      className={`authored-assignment-status ${published ? 'is-published' : 'is-draft'}`}
+                    >
+                      {published ? 'Опубликовано' : 'Черновик'}
+                    </span>
+                    <span className="authored-assignment-open-label">
+                      Открыть <span aria-hidden="true">→</span>
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Root>
+    );
+  }
+
   return (
     <Root className={embedded ? 'authored-materials' : 'portal-content'} aria-label="Мои материалы">
       {!embedded ? <h1>Курсы и задания</h1> : null}
-      <div className="library-filters">
+      {embedded ? (
+        <div className="authored-editor-nav">
+          <button
+            type="button"
+            className="authored-editor-back"
+            disabled={busy}
+            onClick={returnToList}
+          >
+            ← Задания
+          </button>
+        </div>
+      ) : null}
+      <div className="library-filters" hidden={embedded}>
         <input
           type="search"
           aria-label="Поиск материалов"
@@ -617,8 +802,8 @@ export function AuthoredMaterialsPage({
           {notice}
         </p>
       ) : null}
-      <div className="course-editor-grid">
-        <aside aria-label="Библиотека материалов">
+      <div className={`course-editor-grid${embedded ? ' authored-editor-single' : ''}`}>
+        <aside aria-label="Библиотека материалов" hidden={embedded}>
           {loading ? (
             <p role="status">Загружаем материалы…</p>
           ) : !items.length && !error ? (
