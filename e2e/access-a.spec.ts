@@ -159,6 +159,7 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await expect(portalSection(page, 'Курсы и задания')).toBeVisible();
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
   await openPortalSection(page, 'Курсы и задания');
+  await page.getByRole('button', { name: /Новое задание/ }).click();
   await page.getByLabel('Название материала').fill('Личный материал автора');
   await page
     .getByLabel('Содержание', { exact: true })
