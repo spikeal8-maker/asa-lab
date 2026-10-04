@@ -355,6 +355,22 @@ documents:
     snapshot_sha256: cb4eb424c0dfb497eba2440be35d5119542443dd563ed1c2359592fab6f81ee5
     do_not_read_for: [new_implementation]
 
+  - id: LEARNING-UX-REDESIGN
+    path: docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+    scope: learning
+    lanes: [learning]
+    kind: ui_contract
+    status: canonical
+    authority: learning_visible_ux
+    revision: '1.0'
+    context_role: target
+    read_when:
+      - learning_visible_ux
+      - assignment_authoring
+      - course_builder
+      - teacher_review
+      - owner_visible_delivery
+
   - id: LEARNING-E1-TASK-PACKAGE
     path: docs/execution/LRN_COURSE_01.md
     scope: learning

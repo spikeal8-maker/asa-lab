@@ -20,8 +20,14 @@ task:
   owner_acceptance: pending
 
 revisions:
+  kind: observed_snapshot
   convergence_baseline_sha: 7b57cf6d7e86cbafb34c94975cf54dd25e25ea3c
-  head_sha: 7b57cf6d7e86cbafb34c94975cf54dd25e25ea3c
+  head_sha: null
+  observed_at: '2026-10-04T20:16:00+00:00'
+  main:
+    branch: main
+    sha: d2449414f72beb8f98911a7878f892aac9d54795
+  observation_note: Dated main observation before documentation reconciliation; it is not a current remote HEAD claim or acceptance evidence. Fetch main before writes.
 
 execution_lease:
   executor_id: codex-scratch-real-storage-005b
@@ -622,7 +628,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: a6_1_image_zoom_pin_closed_a6_media_a7_a8_open
+      checkpoint: visible_first_v_ux2a_assignment_list_selected
       owner_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
@@ -631,6 +637,8 @@ parallel_lanes:
         revision: '2.2'
       - document: IDENTITY-ACCESS-V22
         revision: '2.2'
+      - document: LEARNING-UX-REDESIGN
+        revision: '1.0'
     revisions:
       kind: observed_snapshot
       convergence_baseline_sha: 0a4b50742b6e127320c01ed81060ae8e51c6eabe
@@ -710,6 +718,6 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: E1-FIX-01 through E1-FIX-17 retain outstanding correction/verification; A5/V4 and A6.1 immutable image zoom/pin evidence is merged, while A6 video/file work and full link/V6 browser evidence, A7 personal copy, A8 teacher review and owner acceptance remain open
+    reason: E1 corrections remain open, but owner review 2026-10-04 changed implementation priority to visible-first. V-UX2A Assignment list is the selected next visible slice; A6/A7/A8 backend/media work may proceed only when it blocks that exact visible flow. Owner acceptance and release/deployment claims remain blocked.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
 next_task: null

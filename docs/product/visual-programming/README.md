@@ -57,7 +57,7 @@ fast local recovery is separate from remote save
 remote Scratch save is minute-scale, not every 5–8 seconds
 controlled exit saves immediately
 temporary network failure must recover without logout/F5
-capacity target is P1500 = 1500 simultaneous active users
+platform capacity is defined by issue #477 and `docs/architecture/CAPACITY_AND_SLO.md`; this router does not duplicate the CCU number
 ```
 
 Canonical program:
@@ -66,8 +66,8 @@ Canonical program:
 Architecture:
 [`ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md`](../../architecture/ADR-VSCR-002-LOCAL-FIRST-CLASSROOM-RUNTIME.md).
 
-Program issue: #468. Capacity target: #477. Existing mixed Scratch/Electronics load dependency:
-#460.
+Program issue: #468. Capacity target: #477; canonical capacity contract:
+`../../architecture/CAPACITY_AND_SLO.md`. Existing mixed Scratch/Electronics load dependency: #460.
 
 These documents do not select an implementation task. `docs/execution/current.yaml` remains
 the execution authority.
