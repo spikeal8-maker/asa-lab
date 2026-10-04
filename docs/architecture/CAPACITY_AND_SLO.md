@@ -7,6 +7,51 @@
 
 Этот документ задаёт проектную ёмкость и правила архитектуры. Числа C3000/S4500/T5000 — не результат линейной экстраполяции старого теста и не утверждение, что текущая установленная версия уже прошла нагрузочную приёмку. Они являются обязательными целями проектирования; фактический PASS подтверждается только нагрузочным evidence на указанном exact SHA и указанном reference hardware/profile.
 
+## 0. Как читать этот документ — обязательно для агентов
+
+Capacity target и minimum development requirements — разные вещи.
+
+1. **C3000 — design target, а не minimum hardware.** Обычную разработку, review, unit/integration tests, Docker preview и небольшие стенды разрешено выполнять на существенно более слабых машинах.
+2. **Недостаток ресурсов для физического C3000 load test не является coding blocker.** Агент продолжает bounded product-задачу и проверяет C3000 прежде всего расчётом amplification и архитектурными инвариантами.
+3. **Текущая topology не обязана немедленно соответствовать mature C3000 topology.** Один API + PostgreSQL + MinIO и текущий Compose остаются допустимой стартовой реализацией.
+4. **Не создавать инфраструктуру заранее.** Redis, PgBouncer, дополнительные API replicas, realtime gateway, worker pool, CDN, отдельный storage host, game-runtime или AI/GPU workers добавляются только отдельной задачей, owner-поручением либо после измеренного bottleneck/функциональной необходимости.
+5. **Future sections are conditional.** Разделы Games/3D/AI задают границы для момента, когда соответствующая тяжёлая функциональность действительно реализуется; они не являются списком контейнеров, которые надо создать сейчас.
+6. **Hardware profiles не являются gate обычной разработки.** Они применяются только к явно названному виду стенда/acceptance run.
+
+### 0.1. Минимальные требования для обычной разработки
+
+Это практический **DEV-MIN**, а не C3000 certification host.
+
+| Ресурс | DEV-MIN | DEV-REC | Что означает |
+|---|---:|---:|---|
+| CPU | 4 современных ядра | 6–8 ядер | код, Compose, focused tests |
+| RAM | 8 GB | 16 GB | при 8 GB тяжёлые browser/full-repo gates лучше оставлять CI |
+| Свободный SSD | 30 GB | 60+ GB | repo, dependencies, Docker images/volumes |
+| Сеть | 10 Mbit/s | 50+ Mbit/s | Git/registry; не capacity test |
+| GPU | не требуется | не требуется | обычная разработка Core/Scratch/Electronics/3D UI |
+| Отдельный Redis/PgBouncer | не требуется | не требуется | появляются отдельной задачей |
+| Несколько API replicas | не требуется | не требуется | один API допустим для dev/preview |
+| 1 Gbit/s uplink | не требуется | не требуется | нужен только для соответствующего load profile |
+
+Если конкретный dev-стенд слабее DEV-MIN, это **не автоматический STOP**: агент выполняет доступный focused scope, не запускает заведомо неподходящий тяжёлый benchmark и оставляет полный gate CI/выделенному стенду.
+
+### 0.2. Минимальный функциональный self-host / demo
+
+Для функционального запуска без заявления C3000 capacity:
+
+| Ресурс | RUN-MIN |
+|---|---:|
+| CPU | 4 ядра |
+| RAM | 8 GB |
+| Свободный SSD | 40 GB + место под пользовательские данные |
+| Сеть | обычный LAN/Internet; фиксированный throughput не является условием запуска |
+| API replicas | 1 |
+| PostgreSQL | 1 |
+| Object storage | текущий поддерживаемый вариант |
+| Redis/PgBouncer/realtime/workers | не обязательны, пока конкретная функция их не требует |
+
+RUN-MIN означает «система запускается и функционально используется в малом масштабе», а не «сертифицировано N CCU».
+
 ## 1. Термины
 
 - **Registered users** — все созданные Account и StudentSeat. Число зарегистрированных пользователей не равно CCU и не ограничивается C3000.
@@ -153,47 +198,46 @@ S4500 может временно превышать latency C3000, но не д
 3. conditional GET/ETag;
 4. bounded low-frequency fallback с jitter.
 
-## 7. Reference hardware
+## 7. Hardware profiles: development ≠ capacity certification
 
-Hardware — reference provisioning baseline. Если более слабая машина доказанно проходит C3000, это допустимо; если более мощная не проходит — она не получает PASS только из-за характеристик.
+Железо ниже относится **только к физическому нагрузочному прогону соответствующего профиля**. Оно не является требованием для написания кода, review, preview, unit tests или обычного self-host.
 
-### 7.1. Minimum production host before C3000 certification
+### 7.1. C3000 reference load host
 
-| Component | Minimum |
+Это отправная точка для полного C3000 benchmark, а не «минимальный компьютер ASA Lab».
+
+| Component | Reference for C3000 load run |
 |---|---|
-| CPU | 16 modern high-performance x86-64 cores / 32 threads |
-| RAM | 64 GB |
-| System/container storage | 1 TB NVMe |
-| PostgreSQL storage | 1 TB+ high-endurance NVMe, отдельный filesystem/volume |
-| Object storage | 2 TB+ SSD/NVMe usable, отдельный volume |
-| Public network | guaranteed 1 Gbit/s symmetric |
-| Host NIC | 2.5 GbE preferred |
-| OS | current supported Linux LTS + Docker Engine/Compose |
-| Backup | отдельный физический/remote target, не тот же failure domain |
+| CPU | 24 modern high-performance cores / 48 threads |
+| RAM | 128 GB, ECC preferred |
+| System/container storage | fast SSD/NVMe with sufficient free space |
+| PostgreSQL storage | dedicated high-endurance NVMe preferred |
+| Object storage capacity | определяется retention/user data; не фиксируется CCU-цифрой |
+| Public/traffic generator network | 1 Gbit/s symmetric reference |
+| Faster cold-start test | 2.5 Gbit/s optional |
+| Backup | required for production deployment, not for an isolated synthetic load bench |
 
-### 7.2. Recommended C3000 reference host
+Более слабый стенд можно использовать для C500/частичных прогонов и для поиска bottleneck. Если более слабый стенд фактически проходит полный C3000 profile и evidence корректно фиксирует hardware — такой результат допустим.
 
-| Component | Recommended |
-|---|---|
-| CPU | **24 cores / 48 threads** modern server/workstation class |
-| RAM | **128 GB**, ECC preferred |
-| System/container NVMe | **1 TB** |
-| PostgreSQL NVMe | **2 TB** high-endurance, dedicated |
-| Object storage | **4 TB usable** SSD/NVMe minimum, expandable |
-| Public uplink | **1 Gbit/s guaranteed minimum; 2.5 Gbit/s preferred** |
-| LAN/storage NIC | **2.5 GbE minimum; 10 GbE preferred if storage/AI nodes are external** |
-| Backup capacity | ≥1.5× current live durable data plus retention policy |
-| Power | UPS required for on-prem production |
-
-### 7.3. T5000 laboratory/reference host
+### 7.2. T5000 stress reference
 
 | Component | Stress reference |
 |---|---|
 | CPU | 32 cores / 64 threads |
 | RAM | 192–256 GB |
-| DB/object disks | separate high-endurance NVMe devices |
-| Network | 2.5 Gbit/s+ public/edge capacity |
-| Purpose | stress measurement only; not a reason to hide architectural amplification |
+| DB/object disks | fast NVMe; separation preferred |
+| Network | 2.5 Gbit/s+ where traffic generation needs it |
+| Purpose | laboratory stress measurement only |
+
+### 7.3. Hardware is never a generic coding gate
+
+Агент MUST NOT:
+- проверять DEV/preview machine на соответствие C3000 reference hardware перед обычной правкой;
+- отказываться писать код из-за отсутствия 64/128 GB RAM, 1/2.5 Gbit/s или нескольких NVMe;
+- требовать Redis/PgBouncer/несколько API instances до отдельной задачи;
+- переписывать Compose «под C3000» без измеренного bottleneck или owner instruction.
+
+Hardware validation выполняется только когда task явно имеет тип capacity acceptance, production provisioning или load benchmark.
 
 ## 8. Public/static network contract
 
@@ -216,9 +260,9 @@ Network modes:
 
 FRP/tunnel/proxy is part of the capacity envelope. A transport pool that saturates before C3000 is a failed C3000 topology even if API/DB are healthy.
 
-## 9. C3000 single-host reference topology
+## 9. Возможная mature C3000 topology — не план немедленной миграции
 
-C3000 does **not** require Kubernetes.
+C3000 does **not** require Kubernetes. Схема ниже — возможное состояние после измеренных шагов масштабирования. **Она не требует сейчас добавлять перечисленные сервисы.** Текущий более простой Compose остаётся допустимым, пока проходит нужный текущий gate и не показан bottleneck, который требует следующего компонента.
 
 ```text
 Internet / LAN
@@ -242,9 +286,9 @@ Internet / LAN
 
 Это всё ещё одна установка и может находиться на одном physical host. Несколько API process/container — не отдельная распределённая платформа.
 
-## 10. Container/service contract
+## 10. Каталог возможных services — вводятся по необходимости
 
-Начальные ресурсы — стартовая точка для benchmark, не жёсткие вечные лимиты.
+Таблица ниже описывает роли, которые могут появляться по мере роста. Это **не required container list для текущей реализации** и не разрешение агенту заранее перестраивать Compose. Начальные ресурсы — только ориентир для отдельного benchmark/provisioning task.
 
 | Service | Role | C3000 topology | Initial budget/reference |
 |---|---|---|---|
@@ -377,9 +421,11 @@ Rules:
 - AI concurrency is benchmark-derived per model/GPU, not hard-coded from a guessed global number;
 - 3 000 users may use the platform while only a bounded subset has AI jobs running concurrently.
 
-### 16.1. First local AI worker class
+### 16.1. Optional example AI worker class
 
-Recommended starting worker node, separate from the C3000 core host:
+Этот профиль применяется **только если отдельная задача вводит локальный AI worker**. Он не является minimum requirement ASA Lab, DEV-MIN или C3000 Core и не требует сейчас покупать/поднимать GPU-инфраструктуру.
+
+Possible starting worker node, separate from the C3000 core host:
 - 16 CPU cores;
 - 64 GB RAM;
 - ≥2 TB NVMe model/cache/workspace;
