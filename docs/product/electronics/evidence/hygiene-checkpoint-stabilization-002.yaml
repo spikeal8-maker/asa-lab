@@ -1,0 +1,138 @@
+schema: asa-lab.electronics-hygiene-stabilization-002.v1
+task_id: TASK-ELECTRONICS-GOVERNANCE-005
+issue: 490
+program_issue: 452
+checkpoint_reason: Three accepted production-changing Electronics slices since #480 (#462, #463, and the existing-controls slice of #464).
+reviewed_main_sha: 11616af174f5cff637ccfcf1cb5df92ffdc8ceb8
+previous_checkpoint_main_sha: 5a68b957fdde77eaaff9e3e0d9fec3f946ef3b6a
+reviewed_main_general_run: 37164449532
+reviewed_main_general_conclusion: success
+
+large_sources:
+  source_roots:
+    - contexts/electronics/domain
+    - apps/web/src/electronics
+  threshold_bytes: 50000
+  growth_review_percent: 20
+  tracked_production_sources_above_threshold: 8
+  newly_unreviewed_sources: []
+  over_twenty_percent_growth: []
+  reviewed:
+    - path: contexts/electronics/domain/solver.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 179752
+      current_bytes: 184413
+      growth_percent: 2.59
+      disposition: Retain active solver orchestration; responsibility extraction needs a separately selected parity-backed slice.
+    - path: apps/web/src/electronics/workbench.css
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 120669
+      current_bytes: 133259
+      growth_percent: 10.43
+      disposition: Retain active workbench styles pending bounded visual and cascade ownership review.
+    - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103985
+      current_bytes: 113843
+      growth_percent: 9.48
+      disposition: Retain active library and inspector responsibilities pending bounded boundary review.
+    - path: apps/web/src/electronics/use-electronics-workbench.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103385
+      current_bytes: 106018
+      growth_percent: 2.55
+      disposition: Retain active workbench coordination; extraction needs interaction and simulation parity.
+    - path: contexts/electronics/domain/arduino-program-runtime.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 84928
+      current_bytes: 84880
+      growth_percent: -0.06
+      disposition: Retain active Arduino runtime and legacy clock path pending separately selected clock convergence.
+    - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 60089
+      current_bytes: 71754
+      growth_percent: 19.41
+      disposition: Retain active owner-asset renderer; near the 20 percent growth trigger, so further growth needs responsibility and browser review before baseline renewal.
+    - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 63884
+      current_bytes: 61409
+      growth_percent: -3.87
+      disposition: Retain active code editor behavior; smaller size is not deletion proof.
+    - path: apps/web/src/electronics/WorkbenchStage.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 54879
+      current_bytes: 58399
+      growth_percent: 6.41
+      disposition: Retain active stage gestures and rendering pending browser-backed responsibility review.
+  baseline_changed: false
+  baseline_reason: All eight active large sources remain classified and none exceeds 20 percent growth from reviewed bytes; production tests are excluded.
+
+legacy_bridges:
+  - path: apps/web/src/electronics/live-simulation.ts
+    class: compatibility-shim
+    concern: No production runtime caller of advanceLiveSimulation was found, but 13 active test calls and three calls in two benchmark tools remain; live preflight helpers in this file are still active.
+    retirement_condition: A separately selected maintenance slice migrates or explicitly retires every active test and benchmark caller, preserves historical benchmark evidence, and proves production, public, test and tool dependencies are zero before deletion is considered.
+    retirement_ready: false
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: active-legacy-bridge
+    concern: advanceArduinoRuntime still selects legacy-ms-v1; production callers remain in arduino-model.ts and solver.ts, while instruction-us-v1 is the canonical clocked path.
+    retirement_condition: A separately selected Arduino runtime convergence slice establishes the canonical clock profile for stateless and snapshot callers, migrates the production dependencies, and proves public, test, persisted-schema and normative-evidence compatibility before deletion is considered.
+    retirement_ready: false
+
+routing:
+  canonical_map: docs/product/electronics/COMPONENT_MAP.yaml
+  map_changed_since_previous_checkpoint: false
+  new_component_route_files: []
+  deleted_component_route_files: []
+  updated_component_route_files: []
+  orphaned_routes: []
+  orphan_evidence: pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-GOVERNANCE-005; four tracked component route files and 29 component entries validated.
+
+generated:
+  new_artifacts: []
+  deleted_artifacts: []
+  reviewed:
+    - path: docs/product/electronics/generated/component-coverage.json
+      class: generated
+      generator: tools/generate-electronics-component-coverage.mjs
+      stale_output_validator: tools/validate-electronics-component-information.mjs
+      changed_since_previous_checkpoint: true
+      byte_exact_in_memory_regeneration: true
+      generated_bytes: 31454
+      fatal_contradictions: 0
+  hand_edited: false
+
+historical_and_protected:
+  historical_evidence_preserved: true
+  historical_paths:
+    - docs/product/electronics/tasks/**
+    - docs/product/electronics/evidence/**
+    - docs/delivery/evidence/electronics-opt0/**
+  historical_deletions_since_previous_checkpoint: []
+  protected_owner_assets_preserved: true
+  owner_supplied_tree_sha: 1314b45c0c38f9d3bfaa905526e34a0840e67d86
+  owner_audit_tree_sha: 87b2a4ba91a1bdfbeea0997d5df3a321757f03fe
+  protected_asset_changes_since_previous_checkpoint: []
+
+actual_removals: []
+removal_evidence: Git name-status comparison from the previous checkpoint SHA to reviewed main found no deleted or renamed paths in the Electronics production, route, generated, task, evidence or protected owner-asset roots; this task removes nothing.
+
+residual_debt:
+  - concern: ProductionComponentVisual.tsx has grown 19.41 percent from its reviewed baseline, near the mandatory re-review threshold.
+    owner_selectable_followup: A separately selected visual-responsibility review with browser parity evidence if further growth is needed.
+  - concern: Other active large sources remain decomposition candidates; size alone does not justify extraction.
+    owner_selectable_followup: Separately selected bounded Electronics maintenance or roadmap slices at stable responsibility boundaries.
+  - concern: advanceLiveSimulation compatibility callers remain in active tests and benchmark tools.
+    owner_selectable_followup: Issue #304 or a separately selected bounded retirement task with dependency and deletion proof.
+  - concern: Arduino legacy-ms-v1 remains in production stateless and snapshot paths.
+    owner_selectable_followup: A separately selected Arduino runtime convergence task.
+  - concern: New resistor and installed battery count live controls in #464 still need the owner's product decision.
+    owner_selectable_followup: Continue #464 only after that decision; this hygiene checkpoint does not implement or approve either control.
+
+production_source_changed: false
+test_source_changed: false
+generated_output_changed: false
+protected_asset_changed: false
+task_selection_authorized_by_this_evidence: false
