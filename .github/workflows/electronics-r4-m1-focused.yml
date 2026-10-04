@@ -279,6 +279,9 @@ jobs:
           cp candidate/e2e/electronics-interactions.spec.ts baseline/e2e/electronics-interactions.spec.ts
           cmp baseline/e2e/electronics-interactions.spec.ts candidate/e2e/electronics-interactions.spec.ts
           sha256sum baseline/e2e/electronics-interactions.spec.ts candidate/e2e/electronics-interactions.spec.ts
+          mkdir -p baseline/e2e/artifacts/electronics-simulation baseline/reports \
+            candidate/e2e/artifacts/electronics-simulation candidate/reports
+          chmod -R 0777 baseline/e2e/artifacts baseline/reports candidate/e2e/artifacts candidate/reports
           printf 'baseline=%s candidate=%s\n' \
             "$(git -C baseline rev-parse HEAD)" "$(git -C candidate rev-parse HEAD)"
 
