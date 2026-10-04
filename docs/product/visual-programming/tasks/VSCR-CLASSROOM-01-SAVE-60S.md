@@ -34,7 +34,7 @@ Primary production paths: `infra/scratch-editor/host/editor.js`, `recovery.js`, 
 4. Fast IndexedDB recovery remains independent of remote cadence.
 5. Unchanged fingerprint/assets stay no-op.
 6. Failure/backoff/conflict cannot create a request storm or silent overwrite.
-7. C3000 load shaping preserves minute-scale durability and newest-state semantics.
+7. Load shaping remains bounded while preserving minute-scale durability and newest-state semantics.
 
 ## Evidence
 

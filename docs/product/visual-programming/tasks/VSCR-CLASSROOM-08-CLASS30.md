@@ -42,7 +42,7 @@ Load/browser harness and CI artifacts only. Any reproduced product defect become
 
 ## Evidence
 
-Isolated environment only. Record exact revision/environment and request/byte/latency/DB/transport metrics. After PASS: C3000 #477, then mixed #460.
+Isolated environment only. Record exact revision/environment and request/byte/latency/DB/transport metrics. After PASS, CLASS-30 evidence may feed both platform C3000 #477 and mixed classroom #460; #460 is an independent follow-up and does not wait for full C3000 evidence.
 
 ## Independent review
 
