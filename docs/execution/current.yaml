@@ -156,26 +156,26 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-RUNTIME-CONTINUITY-001
-      issue: 464
+      id: TASK-ELECTRONICS-GOVERNANCE-005
+      issue: 490
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: existing_live_controls_selected_preflight_pending
+      checkpoint: post_462_463_464_hygiene_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f5c6ab788370f1f0accf4648572dbd4cc7a89b1e
+      convergence_baseline_sha: 1c714a9131387ef6d26d52586ed5e2c247899f08
       head_sha: null
-      observed_at: '2026-10-03T20:07:04Z'
+      observed_at: '2026-10-04T00:13:52Z'
       main:
         branch: main
-        sha: f5c6ab788370f1f0accf4648572dbd4cc7a89b1e
-      observation_note: Dated main observation after simulation fault semantics 463 was integrated and independently verified. Fetch main before writes; existing live-control continuity 464 is selected as one bounded production repair. New resistor and battery-count persistence behavior awaits the owner's separate answer.
+        sha: 1c714a9131387ef6d26d52586ed5e2c247899f08
+      observation_note: Dated main observation after the existing-controls slice of 464 was independently approved and exact-main CI passed. Fetch main before writes; mandatory hygiene checkpoint 490 is selected after three production-changing slices. Issue 464 remains open for new resistor and battery controls pending the owner's separate product decision.
     execution_lease:
-      executor_id: electronics-runtime-continuity-controller-452
+      executor_id: electronics-hygiene-controller-452
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -320,6 +320,19 @@ parallel_lanes:
         exact_candidate_browser_run: 37148204428
         exact_main_general_run: 37149235024
         exact_main_browser_run: 37149340971
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-RUNTIME-CONTINUITY-001
+        issue: 464
+        issue_scope: existing_live_controls_only
+        accepted_candidate_sha: d79bdcf6b3212f6777192581b3c9936535272557
+        integrated_sha: 1c714a9131387ef6d26d52586ed5e2c247899f08
+        independent_review: approved
+        exact_candidate_general_run: 37162334545
+        exact_candidate_browser_run: 37162334426
+        exact_main_general_run: 37163244860
+        exact_main_browser_run: 37163297134
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
