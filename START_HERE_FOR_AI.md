@@ -251,8 +251,13 @@ NX_SKIP_NX_CACHE=true pnpm gate:repository
 Для любой работы, способной влиять на runtime/load, перед проектированием прочитать:
 
 - `docs/architecture/CAPACITY_AND_SLO.md`
-- `docs/agent/contracts/capacity.yaml` (`ASA-CAPACITY-C3000`)
+- `docs/agent/contracts/capacity.yaml` (`CAPACITY-DOMAIN`)
 
-Главная цифра: **C3000 = 3 000 одновременно активных пользователей**.
-S4500 — кратковременный surge, T5000 — stress ceiling. CLASS-30 не является доказательством
-общей ёмкости платформы.
+Главная design target: **C3000 = 3 000 одновременно активных пользователей**.
+S4500 — кратковременный surge, T5000 — stress ceiling.
+
+Это **не** minimum hardware и **не** приказ разворачивать целевую topology. Обычная задача
+не блокируется из-за слабого локального/тестового стенда. C3000 используется для расчёта
+amplification; физический C3000 load test выполняется только отдельной capacity-задачей.
+Новые Redis/PgBouncer/API replicas/realtime/workers/AI nodes не создаются без конкретной
+задачи, измеренного bottleneck или owner-поручения.
