@@ -739,6 +739,7 @@
   opacity: 0.95;
 }
 .workbench-breadboard-terminal:hover .workbench-breadboard-hole,
+.workbench-breadboard-terminal:focus-within .workbench-breadboard-hole,
 .workbench-breadboard-terminal.pending .workbench-breadboard-hole {
   opacity: 1;
 }
@@ -828,6 +829,7 @@
 .workbench-breadboard-terminal:hover .workbench-terminal-tooltip,
 .workbench-breadboard-terminal.pending .workbench-terminal-tooltip,
 .workbench-breadboard-terminal:hover .workbench-contact-square,
+.workbench-breadboard-terminal:focus-within .workbench-contact-square,
 .workbench-breadboard-terminal.pending .workbench-contact-square {
   opacity: 1;
 }
@@ -2935,6 +2937,7 @@
 .workbench-canvas.wiring .workbench-terminal:hover .workbench-terminal-dot,
 .workbench-terminal.pending .workbench-terminal-dot,
 .workbench-breadboard-terminal:hover .workbench-breadboard-hole,
+.workbench-breadboard-terminal:focus-within .workbench-breadboard-hole,
 .workbench-breadboard-terminal.pending .workbench-breadboard-hole {
   opacity: 1;
 }
