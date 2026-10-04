@@ -86,6 +86,100 @@ test.afterEach(async ({ page }, info) => {
   });
 });
 
+for (const [variant, holeCount] of [
+  ['breadboard-small', 170],
+  ['breadboard-medium', 420],
+  ['breadboard-large', 882],
+] as const) {
+  test(`BREADBOARD_PROFILE ${variant} built-editor interaction phases`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(() => {
+      const longTasks: number[] = [];
+      (window as unknown as { breadboardLongTasks: number[] }).breadboardLongTasks = longTasks;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) longTasks.push(entry.duration);
+      }).observe({ entryTypes: ['longtask'] });
+    });
+    const document = addComponentToDocument(
+      {
+        schemaVersion: 4,
+        components: [],
+        connections: [],
+        viewport: { x: 0, y: 0, zoom: 1 },
+        simulation: { running: false, maxIterations: 24 },
+      },
+      variant,
+      { x: 450, y: 410 },
+      'board',
+    ).document;
+    let snapFixture = addComponentToDocument(
+      document,
+      'resistor-axial',
+      { x: 250, y: 300 },
+      'resistor',
+    ).document;
+    const board = snapFixture.components.find((component) => component.id === 'board')!;
+    const resistor = snapFixture.components.find((component) => component.id === 'resistor')!;
+    const origin = productionBreadboard(variant)!.holes.find((hole) => hole.id === 'J1')!;
+    const target = componentPointPosition(board, board.position, origin)!;
+    const pin = terminalPosition(resistor, resistor.position, 'lead-1')!;
+    snapFixture = moveComponentInDocument(snapFixture, 'resistor', {
+      x: resistor.position.x + target.x - pin.x,
+      y: resistor.position.y + target.y - pin.y,
+    });
+    for (let iteration = 0; iteration < 5; iteration += 1)
+      snapComponentToBreadboard(snapFixture, 'resistor');
+    const snapMs: number[] = [];
+    for (let iteration = 0; iteration < 50; iteration += 1) {
+      const snapAt = performance.now();
+      const result = snapComponentToBreadboard(snapFixture, 'resistor');
+      snapMs.push(performance.now() - snapAt);
+      expect(
+        Object.keys(result.components.find((item) => item.id === 'resistor')?.holeBindings ?? {}),
+      ).toHaveLength(2);
+    }
+    const mountedAt = performance.now();
+    await openEditor(page, document);
+    const mountMs = performance.now() - mountedAt;
+    const idleDom = await page.locator('.workbench-canvas *').count();
+    await expect(page.locator('.workbench-breadboard-hole-hit')).toHaveCount(holeCount);
+    const samples: { startMs: number; moveMs: number; dropMs: number; dragDom: number }[] = [];
+    for (let iteration = 0; iteration < 5; iteration += 1) {
+      const grab = await part(page, 'board')
+        .locator('.workbench-part')
+        .evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return { x: box.x + box.width * 0.7, y: box.y + 2 };
+        });
+      await page.mouse.move(grab.x, grab.y);
+      const startAt = performance.now();
+      await page.mouse.down();
+      await page.mouse.move(grab.x + 7, grab.y + 5);
+      await frames(page);
+      const startMs = performance.now() - startAt;
+      const dragDom = await page.locator('.workbench-canvas *').count();
+      const moveAt = performance.now();
+      await page.mouse.move(grab.x + 77, grab.y + 45, { steps: 12 });
+      await frames(page);
+      const moveMs = performance.now() - moveAt;
+      const dropAt = performance.now();
+      await page.mouse.up();
+      await frames(page);
+      const dropMs = performance.now() - dropAt;
+      samples.push({ startMs, moveMs, dropMs, dragDom });
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await frames(page);
+    }
+    const longTasks = await page.evaluate(
+      () => (window as unknown as { breadboardLongTasks: number[] }).breadboardLongTasks,
+    );
+    console.log(
+      'BREADBOARD_PROFILE ' +
+        JSON.stringify({ variant, holeCount, mountMs, idleDom, samples, snapMs, longTasks }),
+    );
+  });
+}
+
 test.describe('interaction: document integrity', () => {
   test('board carries mounted parts in one undoable move', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
