@@ -89,6 +89,28 @@ test('exact saved and published learner preview ignores late responses and creat
   await expect(preview.getByRole('heading', { name: 'Saved draft r2' })).toBeVisible();
   expect(mutations).toEqual([]);
   await preview.screenshot({ path: 'e2e/artifacts/learning/author-preview/saved-draft-r2.png' });
+
+  await page.getByRole('button', { name: '← Задания', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Задания', exact: true })).toBeVisible();
+  await expect(page.locator('.authored-assignment-row')).toHaveCount(1);
+  await expect(page.getByText('Опубликовано', { exact: true })).toBeVisible();
+
+  mkdirSync('e2e/artifacts/learning/v-ux2a', { recursive: true });
+  for (const [width, height, file] of [
+    [1440, 900, 'desktop-1440.png'],
+    [390, 844, 'mobile-390.png'],
+    [320, 720, 'mobile-320.png'],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `e2e/artifacts/learning/v-ux2a/${file}`,
+      fullPage: true,
+    });
+  }
 });
 
 test('ordered safe task blocks remain pinned in v1 preview at four widths after a future draft edit', async ({
