@@ -87,7 +87,7 @@ invariants:
     applies_to: [games, multiplayer, realtime]
     forbid: [global_game_tick_in_generic_api, unpartitioned_global_room_runtime]
 
-  - id: CAP-3D-001
+  - id: CAP-THREED-001
     level: MUST
     statement: Interactive 3D work remains browser-local while heavy server rendering, conversion, slicing, repair or compute-expensive geometry is asynchronous worker work.
     master_refs:
