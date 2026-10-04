@@ -69,40 +69,6 @@ documents:
     authority: agent_documentation_architecture
     context_role: escalation
     read_when: [documentation_system_change, agent_context_change]
-  - id: CAPACITY-SLO-STANDARD
-    path: docs/architecture/CAPACITY_AND_SLO.md
-    scope: global
-    lanes: ['*']
-    kind: architecture_contract
-    status: canonical
-    authority: capacity_slo_standard
-    revision: '2.0'
-    context_role: target
-    read_when:
-      - capacity_change
-      - performance_optimization
-      - runtime_load_change
-      - infrastructure_change
-      - new_module_runtime
-      - ai_compute_change
-
-  - id: CAPACITY-DOMAIN-CONTRACT
-    path: docs/agent/contracts/capacity.yaml
-    scope: capacity
-    lanes: ['*']
-    kind: domain_contract
-    status: canonical
-    authority: capacity_domain_contract
-    revision: '1.0.0'
-    context_role: compact
-    read_when:
-      - capacity_change
-      - performance_optimization
-      - runtime_load_change
-      - infrastructure_change
-      - new_module_runtime
-      - ai_compute_change
-
   - id: PORTABLE-DEPLOYMENT-STANDARD
     path: docs/architecture/PORTABLE_SELF_HOSTED_DEPLOYMENT_STANDARD.md
     scope: global

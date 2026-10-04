@@ -245,19 +245,3 @@ NX_SKIP_NX_CACHE=true pnpm gate:repository
 Останавливайся на условиях из `AGENTS.md` и из `blocking` в `current.yaml`.
 В режиме `direct_main` execution lease, product branch, PR и lane ownership не
 являются условиями остановки.
-
-## Capacity contract
-
-Для любой работы, способной влиять на runtime/load, перед проектированием прочитать:
-
-- `docs/architecture/CAPACITY_AND_SLO.md`
-- `docs/agent/contracts/capacity.yaml` (`CAPACITY-DOMAIN`)
-
-Главная design target: **C3000 = 3 000 одновременно активных пользователей**.
-S4500 — кратковременный surge, T5000 — stress ceiling.
-
-Это **не** minimum hardware и **не** приказ разворачивать целевую topology. Обычная задача
-не блокируется из-за слабого локального/тестового стенда. C3000 используется для расчёта
-amplification; физический C3000 load test выполняется только отдельной capacity-задачей.
-Новые Redis/PgBouncer/API replicas/realtime/workers/AI nodes не создаются без конкретной
-задачи, измеренного bottleneck или owner-поручения.

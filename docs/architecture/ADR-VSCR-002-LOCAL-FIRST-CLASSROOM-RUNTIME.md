@@ -3,7 +3,7 @@
 **Status:** accepted owner architecture, 2026-10-03  
 **Module:** `blocks`  
 **Program:** issue #468  
-**Capacity:** C3000 / S4500 / T5000, issue #477
+**Capacity:** P1500 / issue #477
 
 ## Context
 
@@ -61,7 +61,7 @@ dirty generation
 → confirmed server revision
 ```
 
-Later edits must not cause debounce starvation. CLASS-30/C3000 load shaping may distribute
+Later edits must not cause debounce starvation. CLASS-30/P1500 load shaping may distribute
 client phases/retries, but may not lose newest work or silently extend dirty work indefinitely.
 
 ## Decision 5 — exit semantics
@@ -105,7 +105,7 @@ Optimization is measurement-led and remains fail-closed.
 ## Decision 10 — capacity
 
 Scratch correctness is first proven with 30 independent users. ASA Lab must then satisfy
-C3000 = 3 000 simultaneous active users as the normal design/production target. S4500 is surge and T5000 is the stress ceiling; none of these profiles count idle tabs as active work.
+P1500 = 1 500 simultaneous active users. P1500 is real active work, not idle tabs.
 
 No production-school load test is authorized by this ADR.
 
@@ -126,7 +126,7 @@ controlled exit → immediate durable save
 temporary outage → reconnect/recover, not logout/F5
 warm reopen → browser cache
 classroom → CLASS-30 evidence
-platform → C3000/S4500/T5000 evidence
+platform → P1500 evidence
 ```
 
 Implementation is split by
