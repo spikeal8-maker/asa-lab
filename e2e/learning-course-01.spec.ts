@@ -5,6 +5,7 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
+import { openNewAssignmentEditor } from './learning-authoring-navigation';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
 const ux0EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
@@ -277,7 +278,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('button', { name: 'Возможности', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill('Оцениваемая практика автора');
   await page.getByLabel('Содержание', { exact: true }).fill('Первая редакция.');
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption('graded');
@@ -571,9 +572,7 @@ async function createPublishedProjectActivityAfterLogin(
   sampleImage?: Buffer,
   goal?: string,
 ): Promise<void> {
-  await page.goto('/#/challenges');
-  const newMaterial = page.getByRole('button', { name: 'Новый материал', exact: true });
-  if (await newMaterial.isVisible()) await newMaterial.click();
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   if (goal) await page.getByLabel('Цель задания', { exact: true }).fill(goal);
   await page

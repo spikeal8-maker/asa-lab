@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
+import { openExistingAssignmentEditor, openNewAssignmentEditor } from './learning-authoring-navigation';
 
 test('exact saved and published learner preview ignores late responses and creates no commands', async ({
   page,
@@ -23,7 +24,7 @@ test('exact saved and published learner preview ignores late responses and creat
     .getByRole('button', { name: 'Возможности', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill('Published V1');
   await page.getByLabel('Содержание', { exact: true }).fill('Published instructions V1');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -111,7 +112,7 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
     .getByRole('button', { name: 'Возможности', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill('Task blocks v1');
   await page
     .getByLabel('Содержание', { exact: true })
@@ -179,7 +180,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
     .getByRole('button', { name: 'Возможности', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
 
   for (const n of [1, 2, 3]) {
     await page.getByLabel('Название материала', { exact: true }).fill('Material V' + n);
@@ -357,7 +358,7 @@ test('first-class image block survives draft reload and pins exact published byt
     .getByRole('button', { name: 'Возможности', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Сначала прочитайте инструкцию.');
   await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
@@ -371,7 +372,7 @@ test('first-class image block survives draft reload and pins exact published byt
   await page.getByLabel('Описание блока 1').fill('Первая схема');
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   await page.reload();
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   await expect(page.getByLabel('Описание блока 1')).toHaveValue('Первая схема');
   const preview = page.getByTestId('learner-preview');
   await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
@@ -466,7 +467,7 @@ test('first-class image block survives draft reload and pins exact published byt
     route.fulfill({ status: 404, body: 'unavailable' }),
   );
   await page.reload();
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
   const unavailableAlert = preview.getByRole('alert');
   await expect(unavailableAlert).toContainText('Изображение задания недоступно');
@@ -510,7 +511,7 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по изображению.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
@@ -521,7 +522,7 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   const savedImageA = page.getByRole('img', { name: 'Схема / изображение задания' });
   await expect(savedImageA).toBeVisible();
   const sourceA = await savedImageA.getAttribute('src');
@@ -542,7 +543,7 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   const savedImageB = page.getByRole('img', { name: 'Схема / изображение задания' });
   await expect(savedImageB).toBeVisible();
   const sourceB = await savedImageB.getAttribute('src');
@@ -556,7 +557,7 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await expect(page.getByText('Изображение удалено.', { exact: true })).toBeVisible();
 
   await page.reload();
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   await expect(page.getByRole('img', { name: 'Схема / изображение задания' })).toHaveCount(0);
   await expect(page.getByText('Выбрать файл', { exact: true })).toBeVisible();
   expect(legacyMutations).toEqual([]);
@@ -587,7 +588,7 @@ test('published task image stays immutable across versions', async ({ page }) =>
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Опубликованная схема A/B.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });

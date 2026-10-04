@@ -5,6 +5,7 @@ import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { openPortalSection } from './portal-navigation';
+import { openExistingAssignmentEditor, openNewAssignmentEditor } from './learning-authoring-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-001';
@@ -335,7 +336,7 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const taskImage = solidPng(60, 130, 180, 240, 120);
 
   await loginWithOrganization(page, teacher);
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по точному образцу.');
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
@@ -455,8 +456,7 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   }
   await orderedReference.getByRole('button', { name: 'Закрыть окно: Материал' }).click();
 
-  await page.goto('/#/challenges');
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   const replaceInput = page.getByLabel('Файл схемы или изображения', { exact: true });
   await replaceInput.setInputFiles({
     name: 'learner-exact-b.png',
@@ -542,7 +542,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const pdfB = Buffer.from('%PDF-1.4\nA6 learner file B\n%%EOF');
 
   await loginWithOrganization(page, teacher);
-  await page.goto('/#/challenges');
+  await openNewAssignmentEditor(page);
   await page.getByLabel('Название материала', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Скачайте точный PDF задания.');
   const fileUpload = page.waitForResponse(
@@ -633,8 +633,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     await learnerA.page.screenshot({ path: `${evidenceDir}/a6-file-learner-${width}.png` });
   }
 
-  await page.goto('/#/challenges');
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   const replacement = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
