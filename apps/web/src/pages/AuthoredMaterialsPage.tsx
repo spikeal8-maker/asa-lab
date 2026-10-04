@@ -8,6 +8,7 @@ import {
 } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
 import { AuthoredTaskBlocksEditor } from '../components/AuthoredTaskBlocksEditor';
+import './authored-materials.css';
 
 async function readDraftImage(file: File): Promise<string> {
   const reader = new FileReader();
@@ -143,6 +144,97 @@ function LearnerPreviewPanel({
       <p className="account-hint">
         Здесь можно прочитать задание. Запуск и сдача доступны только при прохождении.
       </p>
+    </article>
+  );
+}
+
+
+function DraftVisualPreview({
+  draft,
+  modules,
+}: {
+  readonly draft: AuthoredActivityDraft;
+  readonly modules: readonly ModuleSummary[];
+}): JSX.Element {
+  const moduleLabel =
+    draft.moduleKey === null
+      ? 'Без редактора'
+      : modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
+        draft.moduleKey ??
+        'Среда не выбрана';
+  const attempts = Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1);
+  const resultLabel =
+    draft.resultMode === 'graded'
+      ? `Баллы · до ${draft.maxPoints ?? '—'}`
+      : draft.resultMode === 'completion'
+        ? 'Выполнение'
+        : 'Без оценки';
+
+  return (
+    <article className="learning-author-live-preview" data-testid="learning-author-live-preview">
+      <div className="learning-author-preview-kicker">Как увидит ученик</div>
+      <h3>{draft.title.trim() || 'Название задания'}</h3>
+      {draft.goal?.trim() ? (
+        <section className="learning-author-preview-goal">
+          <strong>Цель</strong>
+          <p>{draft.goal}</p>
+        </section>
+      ) : null}
+      {draft.instructions?.trim() ? (
+        <p className="learning-author-preview-copy">{draft.instructions}</p>
+      ) : (
+        <p className="learning-author-preview-empty">Добавьте понятное описание задания.</p>
+      )}
+      {(draft.blocks ?? []).length ? (
+        <div className="learning-author-preview-blocks">
+          {(draft.blocks ?? []).map((block, index) => {
+            if (block.type === 'heading') return <h4 key={index}>{block.text || 'Заголовок'}</h4>;
+            if (block.type === 'paragraph')
+              return <p key={index}>{block.text || 'Текстовый блок'}</p>;
+            if (block.type === 'callout')
+              return (
+                <aside key={index} className="learning-author-preview-callout">
+                  {block.text || 'Примечание'}
+                </aside>
+              );
+            if (block.type === 'list')
+              return (
+                <ul key={index}>
+                  {(block.items.length ? block.items : ['Пункт списка']).map((item, itemIndex) => (
+                    <li key={itemIndex}>{item || 'Пункт списка'}</li>
+                  ))}
+                </ul>
+              );
+            if (block.type === 'link')
+              return (
+                <div key={index} className="learning-author-preview-asset">
+                  <span>Ссылка</span>
+                  <strong>{block.text || block.href || 'Материал по ссылке'}</strong>
+                </div>
+              );
+            if (block.type === 'image')
+              return (
+                <div key={index} className="learning-author-preview-asset">
+                  <span>Изображение</span>
+                  <strong>{block.alt || 'Изображение задания'}</strong>
+                </div>
+              );
+            if (block.type === 'file')
+              return (
+                <div key={index} className="learning-author-preview-asset">
+                  <span>PDF</span>
+                  <strong>{block.name}</strong>
+                </div>
+              );
+            return null;
+          })}
+        </div>
+      ) : null}
+      <footer className="learning-author-preview-meta">
+        <span>{moduleLabel}</span>
+        <span>{resultLabel}</span>
+        <span>{Number.isFinite(attempts) ? `${attempts} попыт.` : 'Попытки по правилам'}</span>
+      </footer>
     </article>
   );
 }
@@ -568,19 +660,19 @@ export function AuthoredMaterialsPage({
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
   const Root = embedded ? 'section' : 'main';
   return (
-    <Root className={embedded ? 'authored-materials' : 'portal-content'} aria-label="Мои материалы">
-      {!embedded ? <h1>Курсы и задания</h1> : null}
-      <div className="library-filters">
-        <input
-          type="search"
-          aria-label="Поиск материалов"
-          placeholder="Найти материал"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+    <Root
+      className={`${embedded ? 'authored-materials' : 'portal-content'} learning-author-page`}
+      aria-label="Мои материалы"
+    >
+      <header className="learning-author-page-head">
+        <div>
+          <span className="learning-author-eyebrow">Визуальный конструктор</span>
+          <h2>{opened ? 'Редактор задания' : 'Новое задание'}</h2>
+          <p>Соберите материал слева, сразу проверяйте результат глазами ученика справа.</p>
+        </div>
         <button
           type="button"
-          className="btn-secondary"
+          className="btn-primary learning-author-new"
           disabled={busy}
           onClick={() => {
             setOpened(null);
@@ -595,11 +687,12 @@ export function AuthoredMaterialsPage({
             setError(null);
           }}
         >
-          Новый материал
+          + Новое задание
         </button>
-      </div>
+      </header>
+
       {error ? (
-        <p className="form-error" role="alert">
+        <p className="form-error learning-author-message" role="alert">
           {error}{' '}
           <button
             type="button"
@@ -613,285 +706,382 @@ export function AuthoredMaterialsPage({
         </p>
       ) : null}
       {notice ? (
-        <p className="notice-success" role="status">
+        <p className="notice-success learning-author-message" role="status">
           {notice}
         </p>
       ) : null}
-      <div className="course-editor-grid">
-        <aside aria-label="Библиотека материалов">
+
+      <div className="learning-author-layout">
+        <aside className="learning-author-library-panel" aria-label="Библиотека материалов">
+          <div className="learning-author-library-head">
+            <div>
+              <strong>Мои задания</strong>
+              <span>{items.length} материалов</span>
+            </div>
+          </div>
+          <label className="learning-author-search">
+            <span className="sr-only">Поиск материалов</span>
+            <input
+              type="search"
+              aria-label="Поиск материалов"
+              placeholder="Поиск по заданиям"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
           {loading ? (
-            <p role="status">Загружаем материалы…</p>
+            <p className="learning-author-empty" role="status">
+              Загружаем материалы…
+            </p>
           ) : !items.length && !error ? (
-            <p>Пока нет личных материалов.</p>
+            <div className="learning-author-empty">
+              <strong>Пока пусто</strong>
+              <span>Создайте первое задание — оно появится здесь.</span>
+            </div>
           ) : null}
-          <ul className="library-list">
+          <ul className="learning-author-material-list">
             {items
               .filter((item) => item.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
               .map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="account-inline-action"
-                    disabled={busy}
-                    onClick={() => void open(item.id)}
-                  >
-                    {item.title}
+                <li key={item.id} className={opened?.id === item.id ? 'is-active' : undefined}>
+                  <button type="button" disabled={busy} onClick={() => void open(item.id)}>
+                    <strong>{item.title}</strong>
+                    <span>
+                      {item.currentPublishedVersionId ? 'Опубликовано' : 'Черновик'} · r
+                      {item.draftRevision}
+                    </span>
                   </button>
-                  <small>
-                    {item.currentPublishedVersionId ? 'Есть опубликованная версия' : 'Черновик'}
-                  </small>
                 </li>
               ))}
           </ul>
         </aside>
-        <form className="account-profile-form" onSubmit={(event) => void save(event)}>
-          <h2>{opened ? 'Редактирование материала' : 'Новый материал'}</h2>
-          <label>
-            Название материала
-            <input
-              required
-              maxLength={255}
-              value={draft.title}
+
+        <form className="learning-author-editor-panel" onSubmit={(event) => void save(event)}>
+          <header className="learning-author-editor-head">
+            <div>
+              <span>{opened ? 'Редактирование' : 'Создание'}</span>
+              <h2>{draft.title.trim() || 'Новое задание'}</h2>
+            </div>
+            <span className={publishedVersionId ? 'is-published' : 'is-draft'}>
+              {publishedVersionId ? 'Опубликовано' : opened ? 'Черновик' : 'Новое'}
+            </span>
+          </header>
+
+          <section className="learning-author-section">
+            <div className="learning-author-section-head">
+              <span>01</span>
+              <div>
+                <h3>Основное</h3>
+                <p>Название и цель — то, что ученик понимает первым.</p>
+              </div>
+            </div>
+            <label>
+              Название задания
+              <input
+                required
+                maxLength={255}
+                value={draft.title}
+                disabled={busy}
+                placeholder="Например: Соберите автоматический ночник"
+                onChange={(event) => {
+                  const title = event.target.value;
+                  setDraft((current) => ({ ...current, title }));
+                }}
+              />
+            </label>
+            <label>
+              Цель задания
+              <input
+                aria-label="Цель задания"
+                maxLength={160}
+                value={draft.goal === undefined ? (inheritedGoal ?? '') : (draft.goal ?? '')}
+                disabled={busy}
+                placeholder="Что ученик должен получить в результате"
+                onChange={(event) => {
+                  const goal = event.target.value;
+                  setDraft((current) => ({ ...current, goal }));
+                }}
+              />
+            </label>
+            {(draft.goal === undefined ? inheritedGoal !== null : draft.goal !== null) && (
+              <button
+                type="button"
+                className="learning-author-text-action"
+                disabled={busy}
+                onClick={() => setDraft((current) => ({ ...current, goal: null }))}
+              >
+                Очистить цель
+              </button>
+            )}
+          </section>
+
+          <section className="learning-author-section learning-author-content-section">
+            <div className="learning-author-section-head">
+              <span>02</span>
+              <div>
+                <h3>Содержание</h3>
+                <p>Добавляйте текст, списки, изображения, ссылки и PDF в нужном порядке.</p>
+              </div>
+            </div>
+            <label>
+              Краткое описание
+              <textarea
+                aria-label="Содержание"
+                maxLength={12000}
+                rows={5}
+                value={draft.instructions ?? ''}
+                disabled={busy}
+                placeholder="Что нужно сделать, на что обратить внимание, какой результат получить…"
+                onChange={(event) => {
+                  const instructions = event.target.value;
+                  setDraft((current) => ({ ...current, instructions }));
+                }}
+              />
+            </label>
+            <AuthoredTaskBlocksEditor
+              blocks={draft.blocks}
+              instructions={draft.instructions}
               disabled={busy}
-              onChange={(event) => {
-                const title = event.target.value;
-                setDraft((current) => ({ ...current, title }));
-              }}
-            />
-          </label>
-          <label>
-            Цель задания
-            <input
-              aria-label="Цель задания"
-              maxLength={160}
-              value={draft.goal === undefined ? (inheritedGoal ?? '') : (draft.goal ?? '')}
-              disabled={busy}
-              onChange={(event) => {
-                const goal = event.target.value;
-                setDraft((current) => ({ ...current, goal }));
-              }}
-            />
-          </label>
-          {(draft.goal === undefined ? inheritedGoal !== null : draft.goal !== null) && (
-            <button
-              type="button"
-              className="account-inline-action"
-              disabled={busy}
-              onClick={() => setDraft((current) => ({ ...current, goal: null }))}
-            >
-              Очистить цель задания
-            </button>
-          )}
-          <label>
-            Содержание
-            <textarea
-              aria-label="Содержание"
-              maxLength={12000}
-              rows={5}
-              value={draft.instructions ?? ''}
-              disabled={busy}
-              onChange={(event) => {
-                const instructions = event.target.value;
-                setDraft((current) => ({ ...current, instructions }));
-              }}
-            />
-          </label>
-          <AuthoredTaskBlocksEditor
-            blocks={draft.blocks}
-            instructions={draft.instructions}
-            disabled={busy}
-            onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
-            onImageUpload={(file) => void uploadTaskImage(file)}
-            onFileUpload={(file) => void uploadTaskFile(file)}
-            imageUrl={(contentHash) =>
-              opened
-                ? `/api/learning/activities/${encodeURIComponent(opened.id)}/draft-task-image?v=${encodeURIComponent(contentHash)}`
-                : ''
-            }
-          />
-          <label>
-            Среда проекта
-            <select
-              value={draft.moduleKey ?? ''}
-              disabled={
-                busy || draft.moduleKey === null || modulesLoading || assignableModules.length === 0
+              onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
+              onImageUpload={(file) => void uploadTaskImage(file)}
+              onFileUpload={(file) => void uploadTaskFile(file)}
+              imageUrl={(contentHash) =>
+                opened
+                  ? `/api/learning/activities/${encodeURIComponent(opened.id)}/draft-task-image?v=${encodeURIComponent(contentHash)}`
+                  : ''
               }
-              onChange={(event) => {
-                const moduleKey = event.target.value;
-                setDraft((current) => ({ ...current, moduleKey }));
-              }}
-            >
-              {draft.moduleKey === '' ? (
-                <option value="" disabled>
-                  Выберите среду
-                </option>
-              ) : null}
-              {draft.moduleKey === null ? <option value="">Материал без редактора</option> : null}
-              {draft.moduleKey &&
-              !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
-                <option value={draft.moduleKey}>
-                  {draft.moduleKey} · недоступно для назначения
-                </option>
-              ) : null}
-              {assignableModules.map((module) => (
-                <option key={module.moduleKey} value={module.moduleKey}>
-                  {module.displayName}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Результат
-            <select
-              value={draft.resultMode}
-              disabled={busy}
-              onChange={(event) => {
-                const resultMode = event.target.value as AuthoredActivityDraft['resultMode'];
-                setDraft((current) => ({
-                  ...current,
-                  resultMode,
-                  maxPoints: null,
-                }));
-              }}
-            >
-              <option value="ungraded">Без оценки</option>
-              <option value="completion">Выполнение</option>
-              <option value="graded">Баллы</option>
-            </select>
-          </label>
-          {draft.resultMode === 'graded' ? (
-            <>
+            />
+          </section>
+
+          <section className="learning-author-section">
+            <div className="learning-author-section-head">
+              <span>03</span>
+              <div>
+                <h3>Условия выполнения</h3>
+                <p>Среда, оценивание, число попыток и поведение после срока.</p>
+              </div>
+            </div>
+            <div className="learning-author-settings-grid">
               <label>
-                Максимум баллов
-                <input
-                  required
-                  type="number"
-                  min={1}
-                  max={100000}
-                  value={draft.maxPoints ?? ''}
-                  onChange={(event) => {
-                    const maxPoints = Number(event.target.value) || null;
-                    setDraft((current) => ({
-                      ...current,
-                      maxPoints,
-                    }));
-                  }}
-                />
-              </label>
-              <label>
-                Как выбирать результат
+                Среда проекта
                 <select
-                  value={String(
-                    draft.policies.resultSelectionPolicy?.['mode'] ?? 'latest_accepted',
-                  )}
-                  onChange={(event) =>
-                    policy('resultSelectionPolicy', { mode: event.target.value })
+                  value={draft.moduleKey ?? ''}
+                  disabled={
+                    busy || draft.moduleKey === null || modulesLoading || assignableModules.length === 0
                   }
+                  onChange={(event) => {
+                    const moduleKey = event.target.value;
+                    setDraft((current) => ({ ...current, moduleKey }));
+                  }}
                 >
-                  <option value="first">Первая попытка</option>
-                  <option value="latest">Последняя попытка</option>
-                  <option value="best">Лучший результат</option>
-                  <option value="latest_accepted">Последняя принятая</option>
-                  <option value="teacher_selected">Выбор преподавателя</option>
+                  {draft.moduleKey === '' ? (
+                    <option value="" disabled>
+                      Выберите среду
+                    </option>
+                  ) : null}
+                  {draft.moduleKey === null ? <option value="">Материал без редактора</option> : null}
+                  {draft.moduleKey &&
+                  !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
+                    <option value={draft.moduleKey}>
+                      {draft.moduleKey} · недоступно для назначения
+                    </option>
+                  ) : null}
+                  {assignableModules.map((module) => (
+                    <option key={module.moduleKey} value={module.moduleKey}>
+                      {module.displayName}
+                    </option>
+                  ))}
                 </select>
               </label>
-            </>
-          ) : null}
-          <label>
-            Число попыток
-            <input
-              type="number"
-              min={1}
-              max={100}
-              value={Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1)}
-              onChange={(event) =>
-                policy('attemptPolicy', { maxAttempts: Number(event.target.value) })
-              }
-            />
-          </label>
-          <label>
-            После срока
-            <select
-              value={String(draft.policies.latePolicy?.['mode'] ?? 'allow_until_close')}
-              onChange={(event) => policy('latePolicy', { mode: event.target.value })}
-            >
-              <option value="allow_until_close">Разрешать до закрытия</option>
-              <option value="allow_mark_late">Разрешать с отметкой опоздания</option>
-              <option value="block_at_due">Запретить после срока</option>
-            </select>
-          </label>
-          <fieldset className="authored-draft-image">
-            <legend>Схема / изображение</legend>
-            {displayedDraftSample ? (
-              <img src={displayedDraftSample} alt="Схема / изображение задания" />
-            ) : null}
-            <div className="authored-draft-image-actions">
-              <label className="btn-secondary">
-                {displayedDraftSample ? 'Заменить' : 'Выбрать файл'}
-                <input
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp"
-                  aria-label="Файл схемы или изображения"
+              <label>
+                Результат
+                <select
+                  value={draft.resultMode}
                   disabled={busy}
                   onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    event.target.value = '';
-                    if (file) void pickDraftSample(file);
+                    const resultMode = event.target.value as AuthoredActivityDraft['resultMode'];
+                    setDraft((current) => ({ ...current, resultMode, maxPoints: null }));
                   }}
+                >
+                  <option value="ungraded">Без оценки</option>
+                  <option value="completion">Выполнение</option>
+                  <option value="graded">Баллы</option>
+                </select>
+              </label>
+              {draft.resultMode === 'graded' ? (
+                <label>
+                  Максимум баллов
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    max={100000}
+                    value={draft.maxPoints ?? ''}
+                    onChange={(event) => {
+                      const maxPoints = Number(event.target.value) || null;
+                      setDraft((current) => ({ ...current, maxPoints }));
+                    }}
+                  />
+                </label>
+              ) : null}
+              <label>
+                Число попыток
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1)}
+                  onChange={(event) =>
+                    policy('attemptPolicy', { maxAttempts: Number(event.target.value) })
+                  }
                 />
               </label>
-              {displayedDraftSample ? (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={busy}
-                  onClick={() => void deleteDraftSample()}
+              <label>
+                После срока
+                <select
+                  value={String(draft.policies.latePolicy?.['mode'] ?? 'allow_until_close')}
+                  onChange={(event) => policy('latePolicy', { mode: event.target.value })}
                 >
-                  Удалить
-                </button>
+                  <option value="allow_until_close">Разрешать до закрытия</option>
+                  <option value="allow_mark_late">Разрешать с отметкой опоздания</option>
+                  <option value="block_at_due">Запретить после срока</option>
+                </select>
+              </label>
+              {draft.resultMode === 'graded' ? (
+                <label>
+                  Как выбирать результат
+                  <select
+                    value={String(draft.policies.resultSelectionPolicy?.['mode'] ?? 'latest_accepted')}
+                    onChange={(event) =>
+                      policy('resultSelectionPolicy', { mode: event.target.value })
+                    }
+                  >
+                    <option value="first">Первая попытка</option>
+                    <option value="latest">Последняя попытка</option>
+                    <option value="best">Лучший результат</option>
+                    <option value="latest_accepted">Последняя принятая</option>
+                    <option value="teacher_selected">Выбор преподавателя</option>
+                  </select>
+                </label>
               ) : null}
             </div>
-            <p className="account-hint">PNG, JPEG или WebP, до 400 КБ.</p>
-          </fieldset>
-          <p className="account-hint">
-            Закрытый материал. Публикация закрепляет версию для назначения и не открывает публичный
-            доступ.
-          </p>
-          <div className="modal-actions">
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={
-                busy ||
-                !draft.title.trim() ||
-                draft.moduleKey === '' ||
-                (!opened && !canAssignDraftModule) ||
-                (draft.resultMode === 'graded' && !draft.maxPoints)
-              }
-            >
-              {busy ? 'Сохраняем…' : opened ? 'Сохранить' : 'Создать материал'}
-            </button>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={
-                busy ||
-                !draft.title.trim() ||
-                draft.moduleKey === '' ||
-                !canPublish ||
-                (draft.resultMode === 'graded' && !draft.maxPoints)
-              }
-              onClick={() => void publish()}
-            >
-              Опубликовать
-            </button>
+          </section>
+
+          <section className="learning-author-section">
+            <div className="learning-author-section-head">
+              <span>04</span>
+              <div>
+                <h3>Обложка задания</h3>
+                <p>Дополнительная схема или изображение для карточки материала.</p>
+              </div>
+            </div>
+            <fieldset className="authored-draft-image learning-author-cover">
+              <legend className="sr-only">Схема / изображение</legend>
+              {displayedDraftSample ? (
+                <img src={displayedDraftSample} alt="Схема / изображение задания" />
+              ) : (
+                <div className="learning-author-cover-empty">Изображение не выбрано</div>
+              )}
+              <div className="authored-draft-image-actions">
+                <label className="btn-secondary">
+                  {displayedDraftSample ? 'Заменить' : 'Выбрать изображение'}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    aria-label="Файл схемы или изображения"
+                    disabled={busy}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file) void pickDraftSample(file);
+                    }}
+                  />
+                </label>
+                {displayedDraftSample ? (
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={() => void deleteDraftSample()}
+                  >
+                    Удалить
+                  </button>
+                ) : null}
+              </div>
+              <p className="account-hint">PNG, JPEG или WebP, до 400 КБ.</p>
+            </fieldset>
+          </section>
+
+          <div className="learning-author-actionbar">
+            <div>
+              <strong>{draftDirty ? 'Есть несохранённые изменения' : opened ? 'Черновик сохранён' : 'Новое задание'}</strong>
+              <span>Публикация закрепляет отдельную версию для назначения.</span>
+            </div>
+            <div>
+              <button
+                type="submit"
+                className="btn-secondary"
+                disabled={
+                  busy ||
+                  !draft.title.trim() ||
+                  draft.moduleKey === '' ||
+                  (!opened && !canAssignDraftModule) ||
+                  (draft.resultMode === 'graded' && !draft.maxPoints)
+                }
+              >
+                {busy ? 'Сохраняем…' : opened ? 'Сохранить черновик' : 'Создать черновик'}
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={
+                  busy ||
+                  !draft.title.trim() ||
+                  draft.moduleKey === '' ||
+                  !canPublish ||
+                  (draft.resultMode === 'graded' && !draft.maxPoints)
+                }
+                onClick={() => void publish()}
+              >
+                Опубликовать
+              </button>
+            </div>
+          </div>
+
+          {opened ? (
+            <details className="learning-author-history">
+              <summary>История версий</summary>
+              <AuthorVersionHistory
+                key={opened.id + '-' + publishedVersionId}
+                kind="activity"
+                onBusyChange={setBusy}
+                rootId={opened.id}
+                revision={opened.revision}
+                dirty={draftDirty}
+                onOpenDraft={async (sourceVersionNumber) => {
+                  await open(opened.id);
+                  if (sourceVersionNumber)
+                    setNotice('Черновик создан на основе версии ' + sourceVersionNumber);
+                }}
+              />
+            </details>
+          ) : null}
+        </form>
+
+        <aside className="learning-author-preview-panel" aria-label="Предпросмотр ученика">
+          <header>
+            <span>Предпросмотр</span>
+            <strong>Как это увидит ученик</strong>
+          </header>
+          <DraftVisualPreview draft={draft} modules={modules} />
+          <div className="learning-author-preview-actions">
             <button
               type="button"
               className="btn-secondary"
               disabled={busy || !opened || draftDirty}
               onClick={() => void previewAsLearner('draft')}
             >
-              Как ученик: сохранённый черновик
+              Точный черновик
             </button>
             <button
               type="button"
@@ -899,39 +1089,30 @@ export function AuthoredMaterialsPage({
               disabled={busy || !opened || !publishedVersionId}
               onClick={() => void previewAsLearner('published')}
             >
-              Как ученик: опубликованная версия
+              Опубликованная версия
             </button>
           </div>
           {opened && draftDirty ? (
-            <p className="account-hint">
-              Сохраните изменения, чтобы предпросмотр черновика был точным.
+            <p className="learning-author-preview-note">
+              Сохраните изменения, чтобы точный предпросмотр совпал с черновиком.
             </p>
           ) : null}
-          {opened ? (
-            <AuthorVersionHistory
-              key={opened.id + '-' + publishedVersionId}
-              kind="activity"
-              onBusyChange={setBusy}
-              rootId={opened.id}
-              revision={opened.revision}
-              dirty={draftDirty}
-              onOpenDraft={async (sourceVersionNumber) => {
-                await open(opened.id);
-                if (sourceVersionNumber)
-                  setNotice('Черновик создан на основе версии ' + sourceVersionNumber);
-              }}
-            />
+          {preview?.kind === 'loading' ? (
+            <p className="learning-author-preview-note" role="status">
+              Загружаем точный предпросмотр…
+            </p>
           ) : null}
-          {preview?.kind === 'loading' ? <p role="status">Загружаем точный предпросмотр…</p> : null}
           {preview?.kind === 'error' ? (
             <p className="form-error" role="alert">
               {preview.message}
             </p>
           ) : null}
           {preview?.kind === 'ready' ? (
-            <LearnerPreviewPanel preview={preview.data} modules={modules} />
+            <div className="learning-author-exact-preview">
+              <LearnerPreviewPanel preview={preview.data} modules={modules} />
+            </div>
           ) : null}
-        </form>
+        </aside>
       </div>
     </Root>
   );
