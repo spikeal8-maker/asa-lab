@@ -624,50 +624,57 @@ export function AuthoredMaterialsPage({
 
   if (embedded && screen === 'list') {
     return (
-      <Root
-        className="authored-materials authored-assignment-list"
-        aria-labelledby="assignment-list-title"
-      >
-        <div className="authored-assignment-list-head">
-          <div>
-            <h2 id="assignment-list-title">Задания</h2>
-            <p>Создавайте задания, находите нужное и открывайте его для редактирования.</p>
-          </div>
-          <button type="button" className="portal-create-button" disabled={busy} onClick={startNew}>
-            + Новое задание
-          </button>
-        </div>
-
+      <Root className="authored-materials authored-assignment-list" aria-label="Задания">
         <div className="authored-assignment-toolbar" aria-label="Поиск и фильтры заданий">
           <label className="authored-assignment-search">
             <span className="sr-only">Поиск заданий</span>
             <input
               type="search"
-              placeholder="Поиск заданий"
+              placeholder="Найти задание"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
           </label>
-          <label className="authored-assignment-status-filter">
-            <span>Статус</span>
-            <select
-              aria-label="Фильтр по статусу"
-              value={statusFilter}
-              onChange={(event) =>
-                setStatusFilter(event.target.value as 'all' | 'draft' | 'published')
-              }
+
+          <div
+            className="authored-assignment-filter-group"
+            role="group"
+            aria-label="Фильтр по статусу"
+          >
+            <button
+              type="button"
+              className={`authored-assignment-filter${statusFilter === 'all' ? ' is-active' : ''}`}
+              aria-pressed={statusFilter === 'all'}
+              onClick={() => setStatusFilter('all')}
             >
-              <option value="all">Все ({items.length})</option>
-              <option value="draft">Черновики ({items.length - publishedCount})</option>
-              <option value="published">Опубликованные ({publishedCount})</option>
-            </select>
-          </label>
+              Все <span>{items.length}</span>
+            </button>
+            <button
+              type="button"
+              className={`authored-assignment-filter${statusFilter === 'draft' ? ' is-active' : ''}`}
+              aria-pressed={statusFilter === 'draft'}
+              onClick={() => setStatusFilter('draft')}
+            >
+              Черновики <span>{items.length - publishedCount}</span>
+            </button>
+            <button
+              type="button"
+              className={`authored-assignment-filter${statusFilter === 'published' ? ' is-active' : ''}`}
+              aria-pressed={statusFilter === 'published'}
+              onClick={() => setStatusFilter('published')}
+            >
+              Опубликованные <span>{publishedCount}</span>
+            </button>
+          </div>
+
+          <button type="button" className="portal-create-button" disabled={busy} onClick={startNew}>
+            + Новое задание
+          </button>
         </div>
 
         {error ? (
           <div className="authored-assignment-state is-error" role="alert">
             <strong>Не удалось загрузить задания.</strong>
-            <span>{error}</span>
             <button
               type="button"
               className="btn-secondary"
@@ -686,15 +693,12 @@ export function AuthoredMaterialsPage({
         ) : items.length === 0 ? (
           <div className="authored-assignment-state">
             <strong>Заданий пока нет.</strong>
-            <span>Создайте первое задание — оно появится в этом списке.</span>
-            <button type="button" className="btn-secondary" onClick={startNew}>
-              Создать задание
-            </button>
+            <span>Создайте первое задание.</span>
           </div>
         ) : visibleItems.length === 0 ? (
           <div className="authored-assignment-state">
             <strong>Ничего не найдено.</strong>
-            <span>Измените поиск или фильтр статуса.</span>
+            <span>Измените запрос или фильтр.</span>
             <button
               type="button"
               className="btn-secondary"
@@ -703,7 +707,7 @@ export function AuthoredMaterialsPage({
                 setStatusFilter('all');
               }}
             >
-              Сбросить фильтры
+              Сбросить
             </button>
           </div>
         ) : (
@@ -725,8 +729,8 @@ export function AuthoredMaterialsPage({
                     >
                       {published ? 'Опубликовано' : 'Черновик'}
                     </span>
-                    <span className="authored-assignment-open-label">
-                      Открыть <span aria-hidden="true">→</span>
+                    <span className="authored-assignment-chevron" aria-hidden="true">
+                      ›
                     </span>
                   </button>
                 </li>
@@ -753,34 +757,36 @@ export function AuthoredMaterialsPage({
           </button>
         </div>
       ) : null}
-      <div className="library-filters" hidden={embedded}>
-        <input
-          type="search"
-          aria-label="Поиск материалов"
-          placeholder="Найти материал"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={busy}
-          onClick={() => {
-            setOpened(null);
-            setPublishedVersionId(null);
-            setPreview(null);
-            savedPayload.current = null;
-            setDraftSampleImage(null);
-            setPendingDraftSample(null);
-            setDraft({ ...initial, moduleKey: defaultAssignableModuleKey(modules) });
-            setInheritedGoal(null);
-            setNotice(null);
-            setError(null);
-          }}
-        >
-          Новый материал
-        </button>
-      </div>
+      {!embedded ? (
+        <div className="library-filters">
+          <input
+            type="search"
+            aria-label="Поиск материалов"
+            placeholder="Найти материал"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy}
+            onClick={() => {
+              setOpened(null);
+              setPublishedVersionId(null);
+              setPreview(null);
+              savedPayload.current = null;
+              setDraftSampleImage(null);
+              setPendingDraftSample(null);
+              setDraft({ ...initial, moduleKey: defaultAssignableModuleKey(modules) });
+              setInheritedGoal(null);
+              setNotice(null);
+              setError(null);
+            }}
+          >
+            Новый материал
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <p className="form-error" role="alert">
           {error}{' '}
@@ -801,37 +807,50 @@ export function AuthoredMaterialsPage({
         </p>
       ) : null}
       <div className={`course-editor-grid${embedded ? ' authored-editor-single' : ''}`}>
-        <aside aria-label="Библиотека материалов" hidden={embedded}>
-          {loading ? (
-            <p role="status">Загружаем материалы…</p>
-          ) : !items.length && !error ? (
-            <p>Пока нет личных материалов.</p>
-          ) : null}
-          <ul className="library-list">
-            {items
-              .filter((item) => item.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
-              .map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="account-inline-action"
-                    disabled={busy}
-                    onClick={() => void open(item.id)}
-                  >
-                    {item.title}
-                  </button>
-                  <small>
-                    {item.currentPublishedVersionId ? 'Есть опубликованная версия' : 'Черновик'}
-                  </small>
-                </li>
-              ))}
-          </ul>
-        </aside>
+        {!embedded ? (
+          <aside aria-label="Библиотека материалов">
+            {loading ? (
+              <p role="status">Загружаем материалы…</p>
+            ) : !items.length && !error ? (
+              <p>Пока нет личных материалов.</p>
+            ) : null}
+            <ul className="library-list">
+              {items
+                .filter((item) =>
+                  item.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+                )
+                .map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="account-inline-action"
+                      disabled={busy}
+                      onClick={() => void open(item.id)}
+                    >
+                      {item.title}
+                    </button>
+                    <small>
+                      {item.currentPublishedVersionId ? 'Есть опубликованная версия' : 'Черновик'}
+                    </small>
+                  </li>
+                ))}
+            </ul>
+          </aside>
+        ) : null}
         <form className="account-profile-form" onSubmit={(event) => void save(event)}>
-          <h2>{opened ? 'Редактирование материала' : 'Новый материал'}</h2>
+          <h2>
+            {embedded
+              ? opened
+                ? 'Редактирование задания'
+                : 'Новое задание'
+              : opened
+                ? 'Редактирование материала'
+                : 'Новый материал'}
+          </h2>
           <label>
-            Название материала
+            {embedded ? 'Название задания' : 'Название материала'}
             <input
+              aria-label={embedded ? 'Название задания' : 'Название материала'}
               required
               maxLength={255}
               value={draft.title}
@@ -1052,7 +1071,13 @@ export function AuthoredMaterialsPage({
                 (draft.resultMode === 'graded' && !draft.maxPoints)
               }
             >
-              {busy ? 'Сохраняем…' : opened ? 'Сохранить' : 'Создать материал'}
+              {busy
+                ? 'Сохраняем…'
+                : opened
+                  ? 'Сохранить'
+                  : embedded
+                    ? 'Создать задание'
+                    : 'Создать материал'}
             </button>
             <button
               type="button"
