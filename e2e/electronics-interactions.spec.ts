@@ -180,6 +180,149 @@ for (const [variant, holeCount] of [
   });
 }
 
+test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  let document = addComponentToDocument(
+    {
+      schemaVersion: 4,
+      components: [],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    },
+    'breadboard-large',
+    { x: 450, y: 410 },
+    'board',
+  ).document;
+  document = addComponentToDocument(
+    document,
+    'resistor-axial',
+    { x: 250, y: 300 },
+    'resistor',
+  ).document;
+  const board = document.components.find((component) => component.id === 'board')!;
+  const resistor = document.components.find((component) => component.id === 'resistor')!;
+  const origin = productionBreadboard('breadboard-large')!.holes.find((hole) => hole.id === 'J1')!;
+  const target = componentPointPosition(board, board.position, origin)!;
+  const pin = terminalPosition(resistor, resistor.position, 'lead-1')!;
+  document = snapComponentToBreadboard(
+    moveComponentInDocument(document, 'resistor', {
+      x: resistor.position.x + target.x - pin.x,
+      y: resistor.position.y + target.y - pin.y,
+    }),
+    'resistor',
+  );
+  expect(
+    Object.keys(document.components.find((item) => item.id === 'resistor')?.holeBindings ?? {}),
+  ).toHaveLength(2);
+  const mountedAt = performance.now();
+  await openEditor(page, document);
+  const mountMs = performance.now() - mountedAt;
+  await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+  const idleDom = await page.locator('.workbench-canvas *').count();
+  const samples: { startMs: number; moveMs: number; dropMs: number; dragDom: number }[] = [];
+  for (let iteration = 0; iteration < 5; iteration += 1) {
+    const grab = await part(page, 'board')
+      .locator('.workbench-part')
+      .evaluate((element) => {
+        const box = element.getBoundingClientRect();
+        return { x: box.x + box.width * 0.7, y: box.y + 2 };
+      });
+    await page.mouse.move(grab.x, grab.y);
+    const startAt = performance.now();
+    await page.mouse.down();
+    await page.mouse.move(grab.x + 7, grab.y + 5);
+    await frames(page);
+    const startMs = performance.now() - startAt;
+    const dragDom = await page.locator('.workbench-canvas *').count();
+    const moveAt = performance.now();
+    await page.mouse.move(grab.x + 77, grab.y + 45, { steps: 12 });
+    await frames(page);
+    const moveMs = performance.now() - moveAt;
+    const dropAt = performance.now();
+    await page.mouse.up();
+    await frames(page);
+    const dropMs = performance.now() - dropAt;
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+    samples.push({ startMs, moveMs, dropMs, dragDom });
+    await page.getByRole('button', { name: /Отменить/ }).click();
+    await frames(page);
+  }
+  console.log(
+    'BREADBOARD_PROFILE ' +
+      JSON.stringify({
+        variant: 'breadboard-large-rigid-2pin',
+        holeCount: 882,
+        mountMs,
+        idleDom,
+        samples,
+      }),
+  );
+});
+
+test('large breadboard keeps hole controls mounted and usable across board drag', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const document = addComponentToDocument(
+    {
+      schemaVersion: 4,
+      components: [],
+      connections: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+    },
+    'breadboard-large',
+    { x: 450, y: 410 },
+    'board',
+  ).document;
+  await openEditor(page, document);
+  const hole = wireTerminal(page, 'board', 'J1');
+  await page.evaluate(() => {
+    (window as unknown as { firstBreadboardHole: Element | null }).firstBreadboardHole =
+      document.querySelector(
+        '[data-component-id="board"] [data-hole-id="J1"] .workbench-breadboard-hole-hit',
+      );
+  });
+  const grab = await part(page, 'board')
+    .locator('.workbench-part')
+    .evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      return { x: box.x + box.width * 0.7, y: box.y + 2 };
+    });
+  await page.mouse.move(grab.x, grab.y);
+  await page.mouse.down();
+  await page.mouse.move(grab.x + 7, grab.y + 5);
+  await frames(page);
+  expect(
+    await hole.evaluate(
+      (element) =>
+        getComputedStyle(element.closest('[data-testid="component-terminal-overlay"]')!).display,
+    ),
+  ).toBe('none');
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { firstBreadboardHole: Element }).firstBreadboardHole.isConnected,
+    ),
+  ).toBe(true);
+  await page.mouse.move(grab.x + 77, grab.y + 45, { steps: 12 });
+  await page.mouse.up();
+  await frames(page);
+  await expect(hole).toBeVisible();
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { firstBreadboardHole: Element }).firstBreadboardHole ===
+        document.querySelector(
+          '[data-component-id="board"] [data-hole-id="J1"] .workbench-breadboard-hole-hit',
+        ),
+    ),
+  ).toBe(true);
+  await hole.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('[data-hole-id="J1"]')).toHaveClass(/pending/);
+});
+
 test.describe('interaction: document integrity', () => {
   test('board carries mounted parts in one undoable move', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });

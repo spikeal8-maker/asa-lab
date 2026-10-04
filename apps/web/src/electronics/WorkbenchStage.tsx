@@ -1,11 +1,16 @@
 import {
+  memo,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
+  type Dispatch,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MutableRefObject,
   type PointerEvent as ReactPointerEvent,
+  type SetStateAction,
 } from 'react';
 import type { SchematicComponent } from '../api';
 import { photoresistorIlluminanceLux, photoresistorResistanceOhm } from '@asa-lab/electronics';
@@ -48,6 +53,132 @@ import {
 } from './component-hit-testing';
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 import { formatIlluminanceLux, photoresistorLightCondition } from './photoresistor-presentation';
+
+type BreadboardHover = { boardId: string; groupId: string } | null;
+
+const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
+  component,
+  label,
+  selected,
+  hidden,
+  coarseInteraction,
+  pendingHoleId,
+  dropHoleId,
+  hoveredGroupId,
+  controllerRef,
+  setHoveredBreadboardNet,
+}: {
+  component: SchematicComponent;
+  label: string;
+  selected: boolean;
+  hidden: boolean;
+  coarseInteraction: boolean;
+  pendingHoleId: string | null;
+  dropHoleId: string | null;
+  hoveredGroupId: string | null;
+  controllerRef: MutableRefObject<ElectronicsWorkbenchController>;
+  setHoveredBreadboardNet: Dispatch<SetStateAction<BreadboardHover>>;
+}): JSX.Element {
+  // Keep the four-thousand-node large-board overlay mounted through a drag.
+  // The controller may supply a new board position on every preview frame;
+  // while hidden, reuse the last visible nodes rather than rebuilding them.
+  const mountedHolesRef = useRef<(JSX.Element | null)[]>([]);
+  const holes = useMemo(() => {
+    if (hidden) return mountedHolesRef.current;
+    const next = (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map(
+      (hole) => {
+        const point = componentPointPosition(
+          component,
+          component.position,
+          hole,
+          component.rotation ?? 0,
+        );
+        if (!point) return null;
+        const dropTarget = dropHoleId === hole.id;
+        const pending = pendingHoleId === hole.id || dropTarget;
+        const connected = hoveredGroupId === hole.groupId;
+        return (
+          <g
+            key={hole.id}
+            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${
+              dropTarget ? ' drop-target' : ''
+            }${connected ? ' connected' : ''}`}
+            data-hole-id={hole.id}
+            data-group-id={hole.groupId}
+            onPointerEnter={() =>
+              setHoveredBreadboardNet({ boardId: component.id, groupId: hole.groupId })
+            }
+            onPointerLeave={() => setHoveredBreadboardNet(null)}
+          >
+            <circle
+              className="workbench-breadboard-hole-hit"
+              cx={point.x}
+              cy={point.y}
+              r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+              data-terminal-component-id={component.id}
+              data-terminal-id={hole.id}
+              role="button"
+              tabIndex={0}
+              aria-label={`${label}: отверстие ${hole.id}`}
+              onPointerDown={(event) =>
+                controllerRef.current.startWireTerminalPointer(event, component.id, hole.id)
+              }
+              onClick={(event) => {
+                event.stopPropagation();
+                const controller = controllerRef.current;
+                if (!controller.consumeTerminalClick(event.detail)) {
+                  controller.clickTerminal(component.id, hole.id, event.shiftKey, {
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault();
+                  controllerRef.current.clickTerminal(component.id, hole.id);
+                }
+              }}
+            />
+            <rect
+              className="workbench-contact-square"
+              x={point.x - TERMINAL_MARKER_SIZE / 2}
+              y={point.y - TERMINAL_MARKER_SIZE / 2}
+              width={TERMINAL_MARKER_SIZE}
+              height={TERMINAL_MARKER_SIZE}
+              rx={1}
+            />
+            <circle className="workbench-breadboard-hole" cx={point.x} cy={point.y} r="2.3" />
+            <circle className="workbench-breadboard-net-ring" cx={point.x} cy={point.y} r="4.5" />
+          </g>
+        );
+      },
+    );
+    mountedHolesRef.current = next;
+    return next;
+  }, [
+    hidden,
+    hidden ? null : component,
+    hidden ? null : label,
+    hidden ? null : coarseInteraction,
+    hidden ? null : pendingHoleId,
+    hidden ? null : dropHoleId,
+    hidden ? null : hoveredGroupId,
+    controllerRef,
+    setHoveredBreadboardNet,
+  ]);
+  return (
+    <g
+      className={selected ? 'workbench-component-selected' : undefined}
+      data-testid="component-terminal-overlay"
+      data-component-id={component.id}
+      data-kind={component.kind}
+      style={hidden ? { display: 'none' } : undefined}
+    >
+      {holes}
+    </g>
+  );
+});
 
 /** A single owner-art preview across the shelf, canvas and viewport edges. */
 function PickedUpPart({
@@ -201,10 +332,9 @@ export function WorkbenchStage({
   const coarseInteraction =
     (globalThis.matchMedia?.('(pointer: coarse)').matches ?? false) ||
     (typeof window !== 'undefined' && window.innerWidth <= 760);
-  const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<{
-    boardId: string;
-    groupId: string;
-  } | null>(null);
+  const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
+  const controllerRef = useRef(c);
+  controllerRef.current = c;
   const [, setHitMaskRevision] = useState(0);
   const pointerSequenceRef = useRef(0);
   const lastWireClick = useRef<{
@@ -922,6 +1052,29 @@ export function WorkbenchStage({
     const entry = catalogEntry(component);
     if (!entry?.asset || !entry.terminals) return null;
     const selected = c.selection?.kind === 'component' && c.selection.ids.includes(component.id);
+    if (component.kind === 'breadboard') {
+      return (
+        <BreadboardTerminalOverlay
+          key={'terminals:' + component.id}
+          component={component}
+          label={entry.label}
+          selected={selected}
+          hidden={Boolean(c.draggingComponents)}
+          coarseInteraction={coarseInteraction}
+          pendingHoleId={
+            c.pendingTerminal?.componentId === component.id ? c.pendingTerminal.terminal : null
+          }
+          dropHoleId={
+            c.reconnectHover?.componentId === component.id ? c.reconnectHover.terminal : null
+          }
+          hoveredGroupId={
+            hoveredBreadboardNet?.boardId === component.id ? hoveredBreadboardNet.groupId : null
+          }
+          controllerRef={controllerRef}
+          setHoveredBreadboardNet={setHoveredBreadboardNet}
+        />
+      );
+    }
     return (
       <g
         key={'terminals:' + component.id}
@@ -930,96 +1083,7 @@ export function WorkbenchStage({
         data-component-id={component.id}
         data-kind={component.kind}
       >
-        {/* Several hundred invisible hover targets, each recomputing its
-            world position from the board's. While something is being
-            dragged they have nothing to respond to, and drawing them is
-            the difference between the board following the pointer and
-            crawling after it. */}
-        {component.kind === 'breadboard' && !c.draggingComponents
-          ? (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map((hole) => {
-              const point = componentPointPosition(
-                component,
-                component.position,
-                hole,
-                component.rotation ?? 0,
-              );
-              if (!point) return null;
-              const dropTarget =
-                c.reconnectHover?.componentId === component.id &&
-                c.reconnectHover.terminal === hole.id;
-              const pending =
-                (c.pendingTerminal?.componentId === component.id &&
-                  c.pendingTerminal.terminal === hole.id) ||
-                dropTarget;
-              const connected =
-                hoveredBreadboardNet?.boardId === component.id &&
-                hoveredBreadboardNet.groupId === hole.groupId;
-              return (
-                <g
-                  key={hole.id}
-                  className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${
-                    dropTarget ? ' drop-target' : ''
-                  }${connected ? ' connected' : ''}`}
-                  data-hole-id={hole.id}
-                  data-group-id={hole.groupId}
-                  onPointerEnter={() =>
-                    setHoveredBreadboardNet({
-                      boardId: component.id,
-                      groupId: hole.groupId,
-                    })
-                  }
-                  onPointerLeave={() => setHoveredBreadboardNet(null)}
-                >
-                  <circle
-                    className="workbench-breadboard-hole-hit"
-                    cx={point.x}
-                    cy={point.y}
-                    r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
-                    data-terminal-component-id={component.id}
-                    data-terminal-id={hole.id}
-                    role="button"
-                    tabIndex={0}
-                    aria-label={`${entry.label}: отверстие ${hole.id}`}
-                    onPointerDown={(event) =>
-                      c.startWireTerminalPointer(event, component.id, hole.id)
-                    }
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      if (!c.consumeTerminalClick(event.detail)) {
-                        c.clickTerminal(component.id, hole.id, event.shiftKey, {
-                          x: event.clientX,
-                          y: event.clientY,
-                        });
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        c.clickTerminal(component.id, hole.id);
-                      }
-                    }}
-                  />
-                  <rect
-                    className="workbench-contact-square"
-                    x={point.x - TERMINAL_MARKER_SIZE / 2}
-                    y={point.y - TERMINAL_MARKER_SIZE / 2}
-                    width={TERMINAL_MARKER_SIZE}
-                    height={TERMINAL_MARKER_SIZE}
-                    rx={1}
-                  />
-                  <circle className="workbench-breadboard-hole" cx={point.x} cy={point.y} r="2.3" />
-                  <circle
-                    className="workbench-breadboard-net-ring"
-                    cx={point.x}
-                    cy={point.y}
-                    r="4.5"
-                  />
-                </g>
-              );
-            })
-          : null}
         {Object.keys(entry.terminals).map((terminal) => {
-          if (component.kind === 'breadboard') return null;
           if (component.holeBindings?.[terminal]) return null;
           const terminalSpec = entry.terminals[terminal];
           if (!terminalSpec) return null;
