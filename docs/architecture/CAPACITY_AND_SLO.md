@@ -37,9 +37,10 @@ C3000 относится ко **всей платформе**, а не толь�
 
 ---
 
+
 ## 2. Текущая базовая topology
 
-Каноническая отправная точка — текущая простая установка, а не придуманная будущая распределённая система.
+Каноническая отправная точка — простая установка ASA Lab, а не заранее придуманная распределённая система.
 
 ```text
 Browser
@@ -50,35 +51,17 @@ Web / Caddy
    |--------------------> /internal/blocks/* -> Scratch static runtime
    |
    +---- /api/* --------> API
-                           |                            |  ----> MinIO / object storage
+                           | \
+                           |  +----> MinIO / object storage
                            |
                            +-------> PostgreSQL
 ```
 
-Текущий root Compose содержит:
+Текущий root Compose реализует Web/Caddy, API, PostgreSQL, MinIO, Scratch static runtime и one-shot init/migration services.
 
-| Service | Статус | Роль |
-|---|---|---|
-| `web` / Caddy | ACTIVE | ingress, static, compression, cache, proxy |
-| `api` | ACTIVE | identity, authorization, Project/Learning/Classroom API |
-| `postgres` | ACTIVE | canonical relational/source-of-truth state |
-| `minio` | ACTIVE | binary/user asset storage |
-| `scratch` | ACTIVE | статическая доставка embedded Scratch runtime |
-| `migration` | ONE-SHOT | миграции до обычного API runtime |
-| `minio-init` | ONE-SHOT | создание/проверка object bucket |
+Repository также может содержать foundation-компоненты для realtime, jobs, workers и eventing. Их наличие в source tree **не делает их production dependency**. Компонент становится частью C3000 runtime только после отдельного module/architecture decision и acceptance его readiness/failure semantics.
 
-В repository также существуют foundation surfaces:
-
-| Surface | Текущий статус |
-|---|---|
-| `realtime-gateway` | FOUNDATION, `ready: false` |
-| `job-dispatcher` | FOUNDATION, `ready: false` |
-| `worker-runtime` | FOUNDATION, `ready: false` |
-| `@asa-lab/eventing` | FOUNDATION, `stable: false` |
-
-**FOUNDATION не означает runtime dependency.** Эти компоненты не должны подключаться к текущему C3000 runtime только потому, что они существуют в monorepo.
-
----
+Текущий operational readiness конкретных foundation-компонентов не фиксируется в этом долгоживущем контракте: он проверяется по текущему code/project map/issue #477 на exact SHA.
 
 ## 3. Контракт ответственности контейнеров
 
@@ -125,11 +108,12 @@ Browser -> Web/Caddy -> API -> PostgreSQL/MinIO
 
 ---
 
+
 ## 5. Local-first execution
 
-Главный способ выдерживать C3000 — не переносить пользовательский compute loop на Core.
+Главный способ выдерживать C3000 — не переносить пользовательский интерактивный compute loop на Core без необходимости.
 
-Нормально выполняются в браузере, когда это безопасно и соответствует модулю:
+По умолчанию в браузере выполняются:
 
 - Scratch VM/runtime/rendering;
 - Electronics simulation/solver;
@@ -139,7 +123,7 @@ Browser -> Web/Caddy -> API -> PostgreSQL/MinIO
 - undo/redo;
 - fast local recovery.
 
-Core server обслуживает значимые редкие события:
+Core server обслуживает значимые события:
 
 - identity/session;
 - authorization;
@@ -159,7 +143,7 @@ Core server обслуживает значимые редкие события:
 -> PostgreSQL
 ```
 
----
+Это не запрещает server-authoritative multiplayer, тяжёлый 3D export/repair/render, compilation, AI или другую server-side функцию, если она действительно нужна продукту. Для такой функции требуется отдельный module contract: она не должна превращаться в многосекундный CPU/GPU loop внутри обычного synchronous generic API request. Когда работа превышает безопасный synchronous budget, API выполняет bounded admission/validation, а исполнение проектируется отдельно и асинхронно; наличие worker infrastructure заранее не требуется.
 
 ## 6. Центральное правило amplification
 
@@ -179,17 +163,18 @@ aggregate_rate = per_user_rate × 3000
 
 Перед принятием polling, autosave, refresh, retry, asset fetch, dashboard refresh или background work разработчик обязан сделать этот расчёт.
 
+
 ### 6.1. Full-resource polling
 
 Периодический full `openProject`, полный draft JSON или project history не используются как steady-state change detector.
 
-Текущий Electronics path `openProject()` каждые 3 секунды является известным C3000 blocker:
+Известный класс дефекта:
 
 ```text
-3000 / 3 s = 1000 full project loads/s
+full project request every N seconds × 3000 users
 ```
 
-Current Project load включает project-context lookup, tenant transaction, current draft и version list. Такой путь нельзя использовать как background heartbeat.
+Например, cadence 3 s математически даёт 1 000 full project loads/s. Это иллюстрация amplification, а не допустимый budget.
 
 Для change detection применяются, по возрастающей сложности:
 
@@ -198,9 +183,7 @@ Current Project load включает project-context lookup, tenant transaction
 3. conditional request;
 4. event-driven invalidation/realtime — только когда реальная функция этого требует.
 
-Для fallback metadata polling нормальная проектная граница — не чаще порядка **1 раза в 30 s на active editor**, то есть около **100 lightweight checks/s** при C3000. Более частая cadence требует измеренного обоснования и не может загружать полный Project/Draft/Versions.
-
----
+Для lightweight fallback sync **нет универсальной фиксированной cadence**. Частота принимается только после расчёта `per_user_rate × 3000` и измерения endpoint cost/payload/DB work. Например, 1 lightweight request / 30 s дал бы 100 RPS при C3000, но это planning example, а не обязательное число продукта.
 
 ## 7. Project / Draft / Version contract
 
@@ -405,6 +388,7 @@ Existing Web performance evidence показывает built SPA transfer око
 
 ---
 
+
 ## 14. Retry, reconnect и degraded operation
 
 Retryable transient failures используют bounded backoff и jitter. Hard auth/revoke/integrity/conflict errors не retry бесконечно.
@@ -420,29 +404,38 @@ Retryable transient failures используют bounded backoff и jitter. Har
 | transient session check | не превращает valid local state в массовый logout |
 | recovery | reconnect распределён, без thundering herd |
 
-Project loss после server-acknowledged save и cross-tenant authorization incident не являются допустимым capacity trade-off.
+В пределах **tested runtime failure domain** (например, restart/crash replaceable API/Web/Scratch process/container после успешного DB commit) acknowledged durable save не должен исчезать.
 
----
+Это не обещание нулевой потери данных при физической катастрофе host/storage. Disaster guarantees определяются backup/PITR/RPO/RTO и Portable Self-Hosted Deployment Standard.
 
-## 15. Health, readiness, restart
+Cross-tenant authorization incident никогда не является допустимым capacity trade-off.
 
-Container running state и HTTP 200 не равны product acceptance.
+
+## 15. Capacity, availability, health и restart
+
+**Capacity и High Availability — разные свойства.**
+
+- Capacity отвечает: выдерживает ли выбранная topology C3000 workload в заданных SLO.
+- Availability/HA отвечает: продолжает ли установка обслуживать пользователей при отказе process/host/dependency.
+
+Один API instance может успешно пройти C3000 throughput/latency test и при этом не обеспечивать бесшовную HA при своём падении. C3000 PASS не является автоматическим HA PASS.
+
+Container running state и HTTP 200 также не равны product acceptance.
 
 Семантика:
 
 - **live** — процесс существует и может обслуживать lifecycle;
-- **ready** — сервис способен выполнять обязательный пользовательский путь с необходимыми dependencies.
+- **ready** — сервис способен выполнять обязательный пользовательский путь с необходимыми dependencies;
+- **accepted** — реальные critical user journeys прошли на совместимой release/schema installation.
 
 Core runtime обязан:
 
-- переживать restart replaceable Web/API/Scratch containers без потери durable user data;
+- переживать restart replaceable Web/API/Scratch containers без потери уже committed durable user data;
 - хранить durable state только в declared persistent stores;
 - не считать one-shot Migration/MinIO-init постоянными сервисами;
 - не принимать mixed incompatible release/schema installation как нормальное состояние.
 
-Подробный lifecycle/update/backup contract остаётся в Portable Self-Hosted Deployment Standard и не дублируется здесь.
-
----
+Подробный lifecycle/update/backup/HA contract остаётся в Portable Self-Hosted Deployment Standard и не дублируется здесь.
 
 ## 16. Learning и mixed workload
 
@@ -470,9 +463,10 @@ Browser-local compute не переносится на API только ради
 
 ---
 
-## 17. Product SLO
 
-Сохраняются текущие школьные product targets:
+## 17. Existing product SLO targets to prove at C3000
+
+Ниже — существующие product targets. Они **не являются утверждением, что текущий SHA уже измеренно прошёл C3000**.
 
 | Indicator | Target |
 |---|---:|
@@ -486,9 +480,7 @@ Browser-local compute не переносится на API только ради
 | Save error rate | < 0.1% |
 | Cross-tenant authorization incidents | 0 accepted |
 
-Эти SLO не доказываются характеристиками hardware; они проверяются реальными journeys/measurements.
-
----
+Capacity acceptance должна отдельно показать, какие из этих targets выполнены на конкретном `C3000-PROFILE-V*`, exact SHA и environment. Hardware specifications сами по себе ничего из этой таблицы не доказывают.
 
 ## 18. Observability для C3000
 
@@ -519,11 +511,31 @@ Capacity evidence должно позволять ответить, где на�
 
 ---
 
-## 19. Acceptance — реальные product journeys
+
+## 19. Acceptance — versioned workload + реальные product journeys
 
 Обычная feature development не запускает C3000. Один пользователь/браузер и focused tests остаются нормальным dev workflow.
 
-Отдельная capacity acceptance может использовать synthetic session/API load плюс representative browser journeys. Для PASS недостаточно 3 000 idle tabs или одного `/health` endpoint.
+Фраза “C3000 PASS” допустима только для воспроизводимого **versioned workload profile**.
+
+Минимальный `C3000-PROFILE-V*` фиксирует:
+
+- total active sessions = 3 000;
+- identity mix: Account / StudentSeat / existing session / refresh;
+- module/workload mix;
+- school/class grouping и NAT grouping;
+- login/arrival ramp;
+- project/document size distribution;
+- asset/media size distribution;
+- cold vs warm static state;
+- edit/autosave cadence;
+- teacher/dashboard/submission bursts;
+- retry/reconnect/fault injection;
+- exact release/SHA, deployment mode и measured environment.
+
+Проценты module mix не объявляются вечным архитектурным законом. Они версионируются в workload profile и меняются вместе с реальным продуктом.
+
+Capacity acceptance может использовать synthetic session/API load плюс representative browser journeys. Для PASS недостаточно 3 000 idle tabs или одного `/health` endpoint.
 
 Обязательные product journeys:
 
@@ -556,13 +568,12 @@ open -> local edit/simulation -> save/revision -> reopen
 ```text
 temporary dependency/network fault
 -> no mass logout
--> no acknowledged-project loss
+-> no acknowledged-project loss inside tested runtime failure domain
 -> bounded recovery
 ```
 
 Load testing рабочего школьного сервиса без отдельного owner authorization запрещено.
 
----
 
 ## 20. Scaling decision table
 
@@ -576,73 +587,72 @@ C3000 не является разрешением заранее усложня
 | shared rate-limit state нужен между API | определить semantics | Redis/другое shared store |
 | static/asset origin saturation | immutable cache/lazy bytes | CDN/edge |
 | DB/MinIO I/O contention | query/media optimization | разделение storage/DB hosts |
-| тяжёлая async операция реально появилась | вынести из sync request | dispatcher/worker runtime |
+| тяжёлая server-side операция реально появилась | bounded synchronous admission | async execution/dispatcher/worker только при необходимости |
 | collaboration требует push | lightweight revision сначала | realtime gateway |
+| server-authoritative multiplayer нужен продукту | отдельный game/module contract | dedicated authoritative runtime при доказанной необходимости |
 
 Перед multi-API deployment нужно устранить assumption, что scale-critical limiter/shared state может жить только в памяти одного API процесса.
 
----
 
-## 21. Known C3000 audit items текущего продукта
+## 21. Operational findings live outside the architecture contract
 
-На момент owner decision известны как минимум:
+Этот документ не хранит быстро меняющийся список текущих bugs/readiness flags. Иначе architecture contract становится stale после каждого repair.
 
-1. **Electronics full `openProject()` каждые 3 s** — unacceptable steady C3000 amplification.
-2. **Account login per-address limiter 120/5 min** — проверить/исправить для корректных school-NAT массовых входов без ослабления brute-force защиты.
-3. **Generic per-address mutation limiter** — проверить classroom NAT semantics для поддерживаемых authenticated mutations.
-4. **Per-process rate-limit state** — не позволяет считать будущие API replicas drop-in scale-out.
-5. **Project open загружает current draft и full version list** — background sync не имеет права использовать этот тяжёлый path.
-6. **Transport/FRP saturation уже наблюдалась в школьном инциденте** — capacity измеряет весь ingress path, а не только CPU API.
-7. **Foundation realtime/worker/eventing surfaces не ready/stable** — не использовать их как будто production capacity уже на них основана.
+Current C3000 blockers, audit items, exact-code findings и readiness foundation-компонентов ведутся в issue #477 и связанных bounded issues.
 
-Этот список задаёт работу для отдельных bounded issues. Он не разрешает broad rewrite.
+Стабильные правила этого документа остаются такими независимо от конкретного bug:
 
----
+- steady full-resource polling запрещён;
+- normal school NAT не должен блокировать корректные независимые sessions;
+- scale-critical per-process state должен быть пересмотрен перед multi-instance scale-out;
+- heavy Project/Version data path не используется как heartbeat;
+- transport/ingress является частью end-to-end capacity;
+- foundation component не становится production dependency без отдельного readiness acceptance.
 
-## 22. Reference hardware и DEV floor
 
-Железо — последний слой, а не архитектура.
+## 22. Development coding profile и first C3000 benchmark configuration
 
-### 22.1. DEV
+Hardware — средство воспроизводимого benchmark, а не основа архитектуры.
 
-Обычная разработка/ручная проверка:
+### 22.1. DEV-CODING profile
 
-| Resource | DEV baseline |
+Обычная coding/review/manual feature verification:
+
+| Resource | DEV-CODING baseline |
 |---|---:|
 | CPU | **2 cores** |
 | RAM | **4 GB** |
 | User/browser | **1** |
 | GPU | не требуется для обычной Core-разработки |
 
-Более слабая машина не запрещает coding/review; тяжёлые build/browser/full-repo gates могут выполняться CI.
+Это **не официальный self-host supported-host minimum** и не обещание, что весь Docker stack + Playwright + full repository gates обязаны комфортно выполняться одновременно на 2C/4GB. Тяжёлые build/browser/full-repo gates могут выполняться CI.
 
-GitHub repository metadata на момент решения — около **220 MB**. Это не равно полному dev disk footprint: package cache, Docker images, Playwright browsers и volumes могут занимать существенно больше. Жёсткий disk minimum не объявляется без измерения install footprint.
+Официальный installation support matrix (минимальные disk/RAM/OS/browser requirements) определяется отдельно по Portable Self-Hosted Deployment Standard после измерения полного install footprint.
 
-### 22.2. First C3000 reference host
+### 22.2. FIRST-C3000-BENCHMARK configuration
 
-Цель — доказать C3000 сначала на разумном single-host baseline, а не скрывать amplification большим сервером:
+Первая разумная конфигурация, на которой ASA Lab должен попытаться доказать C3000 без сокрытия application amplification чрезмерным hardware:
 
-| Resource | Initial C3000 reference |
+| Resource | FIRST-C3000-BENCHMARK |
 |---|---:|
 | CPU | **8 modern performance cores / 16 threads** |
 | RAM | **32 GB** |
 | Storage | **NVMe/fast SSD** |
-| Network | **1 Gbit/s symmetric** для installation/origin path, если deployment публикуется через него |
+| Network | **1 Gbit/s symmetric** для measured origin/installation path |
 | API | **1 current API instance сначала** |
 | PostgreSQL | **1 current primary** |
-| DB pool | **10 starting default** |
+| DB pool | **10 current starting default** |
 | MinIO | **1 current instance** |
 | Redis/PgBouncer/realtime/workers | не обязательны без измеренной причины |
 
-Это **reference provisioning target**, а не утверждение, что текущий SHA уже прошёл C3000.
+Это **не minimum hardware**, не supported-host floor и не доказательство capacity.
 
 Правило принятия:
 
-> если C3000 не проходит на этом baseline, сначала находится и исправляется bottleneck/amplification. Hardware/topology увеличиваются только после доказательства, что проблема не является ошибкой application/data path.
+> если C3000 не проходит на FIRST-C3000-BENCHMARK, сначала находится и исправляется bottleneck/amplification. Hardware/topology увеличиваются только после evidence, что ограничение действительно инфраструктурное, а не application/data-path defect.
 
-Если более слабая машина доказанно проходит C3000 product journeys/SLO — это основание снизить reference hardware.
+Если более слабая конфигурация доказанно проходит тот же versioned C3000 profile и SLO — benchmark reference можно снижать.
 
----
 
 ## 23. Краткий owner contract
 
@@ -654,41 +664,58 @@ CURRENT CORE
 Web/Caddy + API + PostgreSQL + MinIO + Scratch static runtime
 
 DEVELOPMENT
-1 user; 2 CPU / 4 GB is a normal baseline
+1 user; DEV-CODING baseline 2 CPU / 4 GB
+(not a self-host minimum)
 
 COMPUTE
-interactive editor/simulation/game/3D work stays local-first
+interactive work local-first by default
+server-authoritative/heavy work requires a separate module contract
+no multi-second heavy compute loop inside generic synchronous API
 
 NETWORK
 one public ASA entry; internal services remain isolated
 
 PERSISTENCE
-Project/Draft/Version semantics; acknowledged save is durable
+Project/Draft/Version semantics
+acknowledged DB-committed save survives tested process/container runtime failures
+disaster loss is governed by backup/PITR/RPO, not capacity claims
 
 AUTOSAVE
-minute-scale; ~50 saves/s average at 3000 dirty editors
+minute-scale module policy; ~50 saves/s average is a C3000 planning example for 3000 dirty editors
 
 SYNC
-no steady full-project polling; lightweight revision/event invalidation
+no steady full-project polling
+lightweight sync cadence is measured, not globally hard-coded
 
 DATABASE
-tenant/RLS preserved; short transactions; pool 10 until benchmark proves otherwise
+tenant/RLS preserved
+short transactions
+pool 10 until benchmark proves otherwise
 
 STATIC
-versioned immutable cache; warm reopen must not redownload heavy vendor bytes
+versioned immutable cache
+warm reopen must not redownload heavy vendor bytes
 
 IDENTITY
-Account != StudentSeat; transient failure != logout; school NAT must work
+Account != StudentSeat
+transient failure != logout
+school NAT must work
 
 FAILURE
-bounded retry/backoff/jitter; no mass logout/project loss
+bounded retry/backoff/jitter
+Capacity != High Availability
 
 SCALING
-fix measured amplification first; add infrastructure only for a proven need
+fix measured amplification first
+add infrastructure only for a proven need
 
-REFERENCE C3000 HOST
+FIRST C3000 BENCHMARK
 8 modern cores / 32 GB / NVMe / 1 Gbit/s
+(not minimum hardware)
 
 PASS
-real product journeys + metrics on an identified release/profile, not idle tabs or hardware specs
+versioned C3000 workload profile
++ real product journeys
++ metrics on exact release/SHA/environment
 ```
+
