@@ -216,7 +216,7 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
     Object.keys(document.components.find((item) => item.id === 'resistor')?.holeBindings ?? {}),
   ).toHaveLength(2);
   const mountedAt = performance.now();
-  await openEditor(page, document);
+  const { readDocument, readEditorDocument } = await openEditor(page, document);
   const mountMs = performance.now() - mountedAt;
   await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
   const idleDom = await page.locator('.workbench-canvas *').count();
@@ -248,6 +248,14 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
     await page.getByRole('button', { name: /Отменить/ }).click();
     await frames(page);
   }
+  const beforeReopen = await readEditorDocument();
+  await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+  await expect
+    .poll(() => readDocument().components.find((item) => item.id === 'resistor')?.holeBindings)
+    .toEqual(beforeReopen.components.find((item) => item.id === 'resistor')?.holeBindings);
+  await page.reload();
+  await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+  await expect(page.locator('.workbench-breadboard-hole-hit')).toHaveCount(882);
   console.log(
     'BREADBOARD_PROFILE ' +
       JSON.stringify({
@@ -260,9 +268,7 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
   );
 });
 
-test('large breadboard keeps hole controls mounted and usable across board drag', async ({
-  page,
-}) => {
+test('large breadboard restores hole controls after board drag', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   const document = addComponentToDocument(
     {
@@ -278,12 +284,6 @@ test('large breadboard keeps hole controls mounted and usable across board drag'
   ).document;
   await openEditor(page, document);
   const hole = wireTerminal(page, 'board', 'J1');
-  await page.evaluate(() => {
-    (window as unknown as { firstBreadboardHole: Element | null }).firstBreadboardHole =
-      document.querySelector(
-        '[data-component-id="board"] [data-hole-id="J1"] .workbench-breadboard-hole-hit',
-      );
-  });
   const grab = await part(page, 'board')
     .locator('.workbench-part')
     .evaluate((element) => {
@@ -294,30 +294,11 @@ test('large breadboard keeps hole controls mounted and usable across board drag'
   await page.mouse.down();
   await page.mouse.move(grab.x + 7, grab.y + 5);
   await frames(page);
-  expect(
-    await hole.evaluate(
-      (element) =>
-        getComputedStyle(element.closest('[data-testid="component-terminal-overlay"]')!).display,
-    ),
-  ).toBe('none');
-  expect(
-    await page.evaluate(
-      () => (window as unknown as { firstBreadboardHole: Element }).firstBreadboardHole.isConnected,
-    ),
-  ).toBe(true);
+  await expect(hole).toHaveCount(0);
   await page.mouse.move(grab.x + 77, grab.y + 45, { steps: 12 });
   await page.mouse.up();
   await frames(page);
   await expect(hole).toBeVisible();
-  expect(
-    await page.evaluate(
-      () =>
-        (window as unknown as { firstBreadboardHole: Element }).firstBreadboardHole ===
-        document.querySelector(
-          '[data-component-id="board"] [data-hole-id="J1"] .workbench-breadboard-hole-hit',
-        ),
-    ),
-  ).toBe(true);
   await hole.focus();
   await page.keyboard.press('Enter');
   await expect(page.locator('[data-hole-id="J1"]')).toHaveClass(/pending/);
@@ -1988,7 +1969,9 @@ wireVideoTest.describe('interaction: natural precise wire routing', () => {
         const componentHit = wireTerminal(page, 'led', 'cathode');
         const componentDot = componentHit.locator('..').locator('.workbench-terminal-dot');
         const breadboardHit = wireTerminal(page, 'board', 'J20');
+        await breadboardHit.focus();
         const breadboardDot = breadboardHit.locator('..').locator('.workbench-contact-square');
+        await expect(breadboardDot).toHaveCount(1);
         const endpoint = page.getByTestId('wire-endpoint').first();
         const endpointVisible = page.getByTestId('wire-endpoint-visible').first();
         const [hitBox, dotBox, boardHitBox, boardDotBox, endpointBox, endpointVisibleBox] =

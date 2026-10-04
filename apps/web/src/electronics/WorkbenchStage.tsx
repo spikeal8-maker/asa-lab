@@ -54,7 +54,7 @@ import {
 import type { ElectronicsWorkbenchController } from './use-electronics-workbench';
 import { formatIlluminanceLux, photoresistorLightCondition } from './photoresistor-presentation';
 
-type BreadboardHover = { boardId: string; groupId: string } | null;
+type BreadboardHover = { boardId: string; groupId: string; holeId: string } | null;
 
 const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
   component,
@@ -65,6 +65,7 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
   pendingHoleId,
   dropHoleId,
   hoveredGroupId,
+  hoveredHoleId,
   controllerRef,
   setHoveredBreadboardNet,
 }: {
@@ -76,86 +77,101 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
   pendingHoleId: string | null;
   dropHoleId: string | null;
   hoveredGroupId: string | null;
+  hoveredHoleId: string | null;
   controllerRef: MutableRefObject<ElectronicsWorkbenchController>;
   setHoveredBreadboardNet: Dispatch<SetStateAction<BreadboardHover>>;
 }): JSX.Element {
-  // Keep the four-thousand-node large-board overlay mounted through a drag.
-  // The controller may supply a new board position on every preview frame;
-  // while hidden, reuse the last visible nodes rather than rebuilding them.
-  const mountedHolesRef = useRef<(JSX.Element | null)[]>([]);
+  // Idle holes need only their accessible hit targets. The decorative marker
+  // and net ring exist only while their hole or group is active, so the large
+  // board does not carry thousands of invisible SVG nodes through idle work.
   const holes = useMemo(() => {
-    if (hidden) return mountedHolesRef.current;
-    const next = (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map(
-      (hole) => {
-        const point = componentPointPosition(
-          component,
-          component.position,
-          hole,
-          component.rotation ?? 0,
-        );
-        if (!point) return null;
-        const dropTarget = dropHoleId === hole.id;
-        const pending = pendingHoleId === hole.id || dropTarget;
-        const connected = hoveredGroupId === hole.groupId;
-        return (
-          <g
-            key={hole.id}
-            className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${
-              dropTarget ? ' drop-target' : ''
-            }${connected ? ' connected' : ''}`}
-            data-hole-id={hole.id}
-            data-group-id={hole.groupId}
-            onPointerEnter={() =>
-              setHoveredBreadboardNet({ boardId: component.id, groupId: hole.groupId })
+    if (hidden) return [];
+    return (productionBreadboard(component.componentTypeId ?? '')?.holes ?? []).map((hole) => {
+      const point = componentPointPosition(
+        component,
+        component.position,
+        hole,
+        component.rotation ?? 0,
+      );
+      if (!point) return null;
+      const dropTarget = dropHoleId === hole.id;
+      const pending = pendingHoleId === hole.id || dropTarget;
+      const connected = hoveredGroupId === hole.groupId;
+      const active = pending || hoveredHoleId === hole.id;
+      return (
+        <g
+          key={hole.id}
+          className={`workbench-breadboard-terminal${pending ? ' pending' : ''}${
+            dropTarget ? ' drop-target' : ''
+          }${connected ? ' connected' : ''}`}
+          data-hole-id={hole.id}
+          data-group-id={hole.groupId}
+          onPointerEnter={() =>
+            setHoveredBreadboardNet({
+              boardId: component.id,
+              groupId: hole.groupId,
+              holeId: hole.id,
+            })
+          }
+          onPointerLeave={() => setHoveredBreadboardNet(null)}
+        >
+          <circle
+            className="workbench-breadboard-hole-hit"
+            cx={point.x}
+            cy={point.y}
+            r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
+            data-terminal-component-id={component.id}
+            data-terminal-id={hole.id}
+            role="button"
+            tabIndex={0}
+            aria-label={`${label}: отверстие ${hole.id}`}
+            onFocus={() =>
+              setHoveredBreadboardNet({
+                boardId: component.id,
+                groupId: hole.groupId,
+                holeId: hole.id,
+              })
             }
-            onPointerLeave={() => setHoveredBreadboardNet(null)}
-          >
-            <circle
-              className="workbench-breadboard-hole-hit"
-              cx={point.x}
-              cy={point.y}
-              r={coarseInteraction ? TERMINAL_TOUCH_HIT_RADIUS : TERMINAL_HIT_RADIUS}
-              data-terminal-component-id={component.id}
-              data-terminal-id={hole.id}
-              role="button"
-              tabIndex={0}
-              aria-label={`${label}: отверстие ${hole.id}`}
-              onPointerDown={(event) =>
-                controllerRef.current.startWireTerminalPointer(event, component.id, hole.id)
+            onBlur={() => setHoveredBreadboardNet(null)}
+            onPointerDown={(event) =>
+              controllerRef.current.startWireTerminalPointer(event, component.id, hole.id)
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              const controller = controllerRef.current;
+              if (!controller.consumeTerminalClick(event.detail)) {
+                controller.clickTerminal(component.id, hole.id, event.shiftKey, {
+                  x: event.clientX,
+                  y: event.clientY,
+                });
               }
-              onClick={(event) => {
-                event.stopPropagation();
-                const controller = controllerRef.current;
-                if (!controller.consumeTerminalClick(event.detail)) {
-                  controller.clickTerminal(component.id, hole.id, event.shiftKey, {
-                    x: event.clientX,
-                    y: event.clientY,
-                  });
-                }
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  controllerRef.current.clickTerminal(component.id, hole.id);
-                }
-              }}
-            />
-            <rect
-              className="workbench-contact-square"
-              x={point.x - TERMINAL_MARKER_SIZE / 2}
-              y={point.y - TERMINAL_MARKER_SIZE / 2}
-              width={TERMINAL_MARKER_SIZE}
-              height={TERMINAL_MARKER_SIZE}
-              rx={1}
-            />
-            <circle className="workbench-breadboard-hole" cx={point.x} cy={point.y} r="2.3" />
+            }}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                controllerRef.current.clickTerminal(component.id, hole.id);
+              }
+            }}
+          />
+          {active ? (
+            <>
+              <rect
+                className="workbench-contact-square"
+                x={point.x - TERMINAL_MARKER_SIZE / 2}
+                y={point.y - TERMINAL_MARKER_SIZE / 2}
+                width={TERMINAL_MARKER_SIZE}
+                height={TERMINAL_MARKER_SIZE}
+                rx={1}
+              />
+              <circle className="workbench-breadboard-hole" cx={point.x} cy={point.y} r="2.3" />
+            </>
+          ) : null}
+          {connected ? (
             <circle className="workbench-breadboard-net-ring" cx={point.x} cy={point.y} r="4.5" />
-          </g>
-        );
-      },
-    );
-    mountedHolesRef.current = next;
-    return next;
+          ) : null}
+        </g>
+      );
+    });
   }, [
     hidden,
     hidden ? null : component,
@@ -164,6 +180,7 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
     hidden ? null : pendingHoleId,
     hidden ? null : dropHoleId,
     hidden ? null : hoveredGroupId,
+    hidden ? null : hoveredHoleId,
     controllerRef,
     setHoveredBreadboardNet,
   ]);
@@ -173,7 +190,6 @@ const BreadboardTerminalOverlay = memo(function BreadboardTerminalOverlay({
       data-testid="component-terminal-overlay"
       data-component-id={component.id}
       data-kind={component.kind}
-      style={hidden ? { display: 'none' } : undefined}
     >
       {holes}
     </g>
@@ -1069,6 +1085,9 @@ export function WorkbenchStage({
           }
           hoveredGroupId={
             hoveredBreadboardNet?.boardId === component.id ? hoveredBreadboardNet.groupId : null
+          }
+          hoveredHoleId={
+            hoveredBreadboardNet?.boardId === component.id ? hoveredBreadboardNet.holeId : null
           }
           controllerRef={controllerRef}
           setHoveredBreadboardNet={setHoveredBreadboardNet}
