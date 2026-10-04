@@ -8,12 +8,12 @@ master_documents:
 invariants:
   - id: CAP-CORE-001
     level: MUST
-    statement: C3000 means 3000 simultaneously active authenticated users and is the normal design and production capacity target; S4500 is surge and T5000 is the stress ceiling for the current single-core-host topology.
+    statement: C3000 means 3000 simultaneously active authenticated users and is the platform design target; it does not define minimum developer hardware, require immediate topology expansion or block ordinary coding on a smaller stand.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
         section: "## 2. Обязательный owner capacity contract"
     applies_to: [platform, modules, infrastructure, performance]
-    forbid: [treat_idle_tabs_as_c3000, use_p1500_as_current_target, claim_c3000_without_load_evidence]
+    forbid: [treat_idle_tabs_as_c3000, use_p1500_as_current_target, claim_c3000_without_load_evidence, c3000_hardware_as_coding_gate, c3000_topology_as_immediate_migration]
 
   - id: CAP-AMP-001
     level: MUST
@@ -51,23 +51,32 @@ invariants:
     applies_to: [project_sync, electronics, scratch, three_d, games]
     forbid: [periodic_full_open_project_for_change_detection, periodic_full_history_reload]
 
-  - id: CAP-HW-001
-    level: SHOULD
-    statement: C3000 certification uses the published reference hardware and network envelope or records a benchmark-proven equivalent; hardware specifications alone never constitute a capacity PASS.
+  - id: CAP-DEV-001
+    level: MUST
+    statement: Ordinary coding, review, preview and focused tests must not be refused because the available stand is below C3000 load-test hardware; physical C3000 execution is a separate explicit capacity task.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
-        section: "## 7. Reference hardware"
-    applies_to: [production_host, benchmark_host, provisioning]
-    forbid: [capacity_claim_from_hardware_specs_only]
+        section: "## 0. Как читать этот документ — обязательно для агентов"
+    applies_to: [development, review, preview, focused_test, ci]
+    forbid: [refuse_code_for_c3000_hardware, require_load_host_for_unit_test, require_target_topology_for_preview]
+
+  - id: CAP-HW-001
+    level: SHOULD
+    statement: Hardware profiles apply only to an explicitly selected development, functional-run, load-benchmark or production-provisioning profile; C3000 reference hardware is not a generic product minimum.
+    master_refs:
+      - document: CAPACITY-SLO-STANDARD
+        section: "## 7. Hardware profiles: development ≠ capacity certification"
+    applies_to: [capacity_acceptance, load_benchmark, production_provisioning]
+    forbid: [capacity_claim_from_hardware_specs_only, apply_c3000_hardware_to_dev_minimum]
 
   - id: CAP-TOPO-001
     level: SHOULD
-    statement: The C3000 single-host reference topology may use multiple stateless API containers behind one edge while PostgreSQL remains the source of truth and shared control state is external to an API process.
+    statement: Additional API replicas, PgBouncer, Redis, realtime gateways and worker pools are optional scaling steps introduced only by a concrete feature need, owner task or measured bottleneck; the capacity target alone does not mandate them.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
         section: "## 9. C3000 single-host reference topology"
     applies_to: [api, ingress, pgbouncer, redis, postgres, realtime, workers]
-    forbid: [per_process_shared_rate_limit_assumption, api_memory_as_system_source_of_truth]
+    forbid: [per_process_shared_rate_limit_assumption, api_memory_as_system_source_of_truth, premature_topology_expansion]
 
   - id: CAP-DB-001
     level: MUST
@@ -80,7 +89,7 @@ invariants:
 
   - id: CAP-GAME-001
     level: MUST
-    statement: Multiplayer authoritative game loops run in a dedicated room-partitioned game runtime rather than the generic API; unrelated rooms must remain failure-isolated.
+    statement: If authoritative multiplayer runtime is implemented, its game loop must not become an unbounded generic-API loop; dedicated room partitioning is introduced when that feature requires server authority.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
         section: "## 14. Games architecture"
@@ -89,7 +98,7 @@ invariants:
 
   - id: CAP-THREED-001
     level: MUST
-    statement: Interactive 3D work remains browser-local while heavy server rendering, conversion, slicing, repair or compute-expensive geometry is asynchronous worker work.
+    statement: Interactive 3D work remains browser-local; if a future 3D operation is too heavy for the synchronous API budget, that operation moves to an asynchronous worker rather than forcing worker infrastructure into unrelated tasks.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
         section: "## 15. 3D architecture"
@@ -98,7 +107,7 @@ invariants:
 
   - id: CAP-AI-001
     level: MUST
-    statement: AI inference is an isolated compute plane with fast queue admission and bounded GPU workers; AI saturation or provider failure must not break core C3000 authentication, project saving or classroom operation.
+    statement: If AI inference is introduced, it must be isolated from core authentication and project persistence; this invariant does not require an AI gateway, queue or GPU worker before an AI feature is implemented.
     master_refs:
       - document: CAPACITY-SLO-STANDARD
         section: "## 16. AI architecture"
@@ -146,19 +155,41 @@ core_slo:
   db_pool_wait_p99_ms_max: 250
   event_loop_lag_p99_ms_max: 100
 
+development_profiles:
+  dev_min:
+    cpu_cores: 4
+    ram_gb: 8
+    free_ssd_gb: 30
+    network_mbps: 10
+    c3000_hardware_gate: false
+  dev_recommended:
+    cpu_cores_min: 6
+    cpu_cores_max: 8
+    ram_gb: 16
+    free_ssd_gb: 60
+  run_min:
+    cpu_cores: 4
+    ram_gb: 8
+    free_ssd_gb: 40
+    api_replicas: 1
+    redis_required: false
+    pgbouncer_required: false
+
 reference_hardware:
-  production_minimum:
-    cpu_cores: 16
-    ram_gb: 64
-    public_symmetric_gbps_min: 1
-  c3000_recommended:
+  applies_only_to_explicit_capacity_or_provisioning_task: true
+  c3000_load_reference:
     cpu_cores: 24
     ram_gb: 128
-    postgres_nvme_gb: 2000
-    object_storage_usable_gb_min: 4000
-    public_symmetric_gbps_min: 1
-    public_symmetric_gbps_preferred: 2.5
-  t5000_reference:
+    public_symmetric_gbps: 1
+    fixed_object_storage_size_required: false
+  t5000_stress_reference:
     cpu_cores: 32
     ram_gb_min: 192
-    public_symmetric_gbps_min: 2.5
+    ram_gb_preferred: 256
+    public_symmetric_gbps: 2.5
+
+implementation_policy:
+  current_simple_compose_is_allowed: true
+  capacity_target_does_not_authorize_infrastructure_migration: true
+  new_service_requires_feature_need_owner_task_or_measured_bottleneck: true
+  ordinary_development_must_not_stop_for_c3000_hardware: true
