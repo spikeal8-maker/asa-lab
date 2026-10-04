@@ -200,9 +200,9 @@ describe('V-UX2A authored assignment list', () => {
     });
 
     expect(container.querySelector('form')).not.toBeNull();
-    expect(container.querySelector('.course-editor-grid')?.classList.contains('authored-editor-single')).toBe(
-      true,
-    );
+    expect(
+      container.querySelector('.course-editor-grid')?.classList.contains('authored-editor-single'),
+    ).toBe(true);
     expect(
       container.querySelector<HTMLElement>('aside[aria-label="Библиотека материалов"]')?.hidden,
     ).toBe(true);

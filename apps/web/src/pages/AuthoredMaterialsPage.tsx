@@ -624,18 +624,16 @@ export function AuthoredMaterialsPage({
 
   if (embedded && screen === 'list') {
     return (
-      <Root className="authored-materials authored-assignment-list" aria-labelledby="assignment-list-title">
+      <Root
+        className="authored-materials authored-assignment-list"
+        aria-labelledby="assignment-list-title"
+      >
         <div className="authored-assignment-list-head">
           <div>
             <h2 id="assignment-list-title">Задания</h2>
             <p>Создавайте задания, находите нужное и открывайте его для редактирования.</p>
           </div>
-          <button
-            type="button"
-            className="portal-create-button"
-            disabled={busy}
-            onClick={startNew}
-          >
+          <button type="button" className="portal-create-button" disabled={busy} onClick={startNew}>
             + Новое задание
           </button>
         </div>

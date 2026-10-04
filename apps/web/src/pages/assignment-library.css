@@ -622,7 +622,6 @@
   pointer-events: none;
 }
 
-
 /* V-UX2A: canonical authored assignments are a list first, not a dashboard. */
 .authored-assignment-list {
   min-width: 0;
