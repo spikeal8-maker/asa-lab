@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page } from '@playwright/test';
+import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
 import {
   configureProductionLibrary,
@@ -267,6 +268,148 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
       }),
   );
 });
+
+for (const zoom of [0.8, 1.35]) {
+  test(`rigid two-pin part detaches from one breadboard at ${zoom} zoom`, async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    let document = addComponentToDocument(
+      {
+        schemaVersion: 4,
+        components: [],
+        connections: [],
+        viewport: { x: 0, y: 0, zoom },
+        simulation: { running: false, maxIterations: 24 },
+      },
+      'breadboard-medium',
+      { x: 450, y: 410 },
+      'board',
+    ).document;
+    document = addComponentToDocument(
+      document,
+      'resistor-axial',
+      { x: 250, y: 300 },
+      'resistor',
+    ).document;
+    const board = document.components.find((item) => item.id === 'board')!;
+    const resistor = document.components.find((item) => item.id === 'resistor')!;
+    const hole = productionBreadboard('breadboard-medium')!.holes.find((item) => item.id === 'J1')!;
+    const holePosition = componentPointPosition(board, board.position, hole)!;
+    const pinPosition = terminalPosition(resistor, resistor.position, 'lead-1')!;
+    document = snapComponentToBreadboard(
+      moveComponentInDocument(document, 'resistor', {
+        x: resistor.position.x + holePosition.x - pinPosition.x,
+        y: resistor.position.y + holePosition.y - pinPosition.y,
+      }),
+      'resistor',
+    );
+    document.connections = [
+      {
+        id: 'wire',
+        from: { componentId: 'resistor', terminal: 'lead-2' },
+        to: { componentId: 'board', terminal: 'A1' },
+        vertices: [],
+      },
+    ];
+    const initialPart = document.components.find((item) => item.id === 'resistor')!;
+    expect(Object.keys(initialPart.holeBindings ?? {})).toHaveLength(2);
+    const initialBindings = structuredClone(initialPart.holeBindings);
+    const initialWire = structuredClone(document.connections[0]);
+    const boardHole = terminalKey('board', initialBindings!['lead-1']!.holeId);
+    const resistorLead = terminalKey('resistor', 'lead-1');
+    const wireEnd = terminalKey('resistor', 'lead-2');
+    const boardEnd = terminalKey('board', 'A1');
+    expect(buildNetlist(document).nodeOf.get(resistorLead)).toBe(
+      buildNetlist(document).nodeOf.get(boardHole),
+    );
+
+    const { readDocument, readEditorDocument } = await openEditor(page, document);
+    const editorPart = async () =>
+      (await readEditorDocument()).components.find((item) => item.id === 'resistor')!;
+    const originalBox = (await part(page, 'resistor').boundingBox())!;
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+
+    // Cancellation changes the visual preview, but leaves the document and bindings intact.
+    const cancelGrab = await pointOnBody(page, 'resistor');
+    await page.mouse.move(cancelGrab.x, cancelGrab.y);
+    await page.mouse.down();
+    await page.mouse.move(cancelGrab.x, cancelGrab.y - 80, { steps: 8 });
+    await frames(page);
+    expect((await part(page, 'resistor').boundingBox())!.y).toBeLessThan(originalBox.y - 30);
+    expect((await editorPart()).holeBindings).toEqual(initialBindings);
+    await page.keyboard.press('Escape');
+    await page.mouse.up();
+    await frames(page);
+    expect((await editorPart()).holeBindings).toEqual(initialBindings);
+
+    const grab = await pointOnBody(page, 'resistor');
+    const boardBox = (await part(page, 'board').boundingBox())!;
+    const dropY = boardBox.y - 70;
+    expect(dropY).toBeGreaterThan(0);
+    await page.mouse.move(grab.x, grab.y);
+    await page.mouse.down();
+    await page.mouse.move(grab.x, dropY, { steps: 15 });
+    await frames(page);
+    expect((await part(page, 'resistor').boundingBox())!.y).toBeLessThan(originalBox.y - 30);
+    expect((await editorPart()).holeBindings).toEqual(initialBindings);
+    await page.mouse.up();
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '0');
+    const detached = structuredClone(await readEditorDocument());
+    expect(detached.components.find((item) => item.id === 'resistor')?.holeBindings).toEqual({});
+    expect(detached.components.map((item) => item.id)).toEqual(
+      document.components.map((item) => item.id),
+    );
+    expect(detached.connections).toEqual([initialWire]);
+    const detachedNets = buildNetlist(detached);
+    expect(detachedNets.nodeOf.get(resistorLead)).not.toBe(detachedNets.nodeOf.get(boardHole));
+    expect(detachedNets.nodeOf.get(wireEnd)).toBe(detachedNets.nodeOf.get(boardEnd));
+
+    await page.getByRole('button', { name: /Отменить/ }).click();
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+    expect((await editorPart()).holeBindings).toEqual(initialBindings);
+    await page.getByRole('button', { name: /Повторить/ }).click();
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '0');
+    expect((await editorPart()).position).toEqual(
+      detached.components.find((item) => item.id === 'resistor')?.position,
+    );
+
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'resistor')?.holeBindings)
+      .toEqual({});
+    await page.reload();
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '0');
+    expect((await editorPart()).holeBindings).toEqual({});
+    const detachedBox = (await part(page, 'resistor').boundingBox())!;
+    const remountGrab = await pointOnBody(page, 'resistor');
+    await page.mouse.move(remountGrab.x, remountGrab.y);
+    await page.mouse.down();
+    await page.mouse.move(
+      remountGrab.x + originalBox.x - detachedBox.x,
+      remountGrab.y + originalBox.y - detachedBox.y,
+      { steps: 15 },
+    );
+    await page.mouse.up();
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+    expect((await editorPart()).holeBindings).toEqual(initialBindings);
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await expect
+      .poll(() => readDocument().components.find((item) => item.id === 'resistor')?.holeBindings)
+      .toEqual(initialBindings);
+    await page.reload();
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
+    const reopened = await readEditorDocument();
+    expect(reopened.connections).toEqual([initialWire]);
+    expect(reopened.components.map((item) => item.id)).toEqual(
+      document.components.map((item) => item.id),
+    );
+    expect(reopened.components.find((item) => item.id === 'resistor')?.holeBindings).toEqual(
+      initialBindings,
+    );
+    const reopenedNets = buildNetlist(reopened);
+    expect(reopenedNets.nodeOf.get(resistorLead)).toBe(reopenedNets.nodeOf.get(boardHole));
+    expect(reopenedNets.nodeOf.get(wireEnd)).toBe(reopenedNets.nodeOf.get(boardEnd));
+  });
+}
 
 test('large breadboard restores hole controls after board drag', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
