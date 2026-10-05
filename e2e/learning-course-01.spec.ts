@@ -6,8 +6,13 @@ import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
 import {
+  addAssignmentBlock,
+  closeAssignmentPreview,
+  closeAssignmentSettings,
+  openAssignmentSettings,
   openExistingAssignmentEditor,
   openNewAssignmentEditor,
+  previewAssignmentAs,
 } from './learning-authoring-navigation';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
@@ -284,8 +289,10 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await openNewAssignmentEditor(page);
   await page.getByLabel('Название задания', { exact: true }).fill('Оцениваемая практика автора');
   await page.getByLabel('Содержание', { exact: true }).fill('Первая редакция.');
+  await openAssignmentSettings(page);
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption('graded');
   await page.getByLabel('Максимум баллов', { exact: true }).fill('10');
+  await closeAssignmentSettings(page);
   await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   const before = await (await page.request.get('/api/learning/activities')).json();
@@ -581,8 +588,10 @@ async function createPublishedProjectActivityAfterLogin(
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  await openAssignmentSettings(page);
   await page.getByLabel('Среда проекта').selectOption(module);
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption(resultMode);
+  await closeAssignmentSettings(page);
   if (sampleImage) {
     await page.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles({
       name: 'course-activity-sample.png',
@@ -593,14 +602,20 @@ async function createPublishedProjectActivityAfterLogin(
   await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   if (goal) {
-    await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
-    await expect(page.getByTestId('learner-preview')).toContainText(goal);
+    await previewAssignmentAs(page, 'draft');
+    await expect(
+      page.getByRole('dialog', { name: 'Как увидит ученик' }).getByTestId('learner-preview'),
+    ).toContainText(goal);
+    await closeAssignmentPreview(page);
   }
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
   if (goal) {
-    await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
-    await expect(page.getByTestId('learner-preview')).toContainText(goal);
+    await previewAssignmentAs(page, 'published');
+    await expect(
+      page.getByRole('dialog', { name: 'Как увидит ученик' }).getByTestId('learner-preview'),
+    ).toContainText(goal);
+    await closeAssignmentPreview(page);
   }
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
 }

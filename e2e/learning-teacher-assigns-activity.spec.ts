@@ -6,8 +6,10 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { openPortalSection } from './portal-navigation';
 import {
+  closeAssignmentPreview,
   openExistingAssignmentEditor,
   openNewAssignmentEditor,
+  previewAssignmentAs,
 } from './learning-authoring-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
@@ -553,6 +555,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
       response.request().method() === 'PUT' &&
       /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
   );
+  await page.getByRole('button', { name: '+ Добавить блок', exact: true }).click();
   await page.getByLabel('PDF файл задания').setInputFiles({
     name: 'guide-a.pdf',
     mimeType: 'application/pdf',
@@ -562,12 +565,15 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   expect(uploadedA.ok()).toBe(true);
   const hashA = ((await uploadedA.json()) as { contentHash: string }).contentHash;
   await expect(page.getByText('PDF добавлен в содержание задания.')).toBeVisible();
-  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
-  const draftPreview = page.getByTestId('learner-preview');
+  await previewAssignmentAs(page, 'draft');
+  const draftPreview = page
+    .getByRole('dialog', { name: 'Как увидит ученик' })
+    .getByTestId('learner-preview');
   await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
   const draftDownload = page.waitForEvent('download');
   await draftPreview.getByRole('button', { name: 'Скачать PDF: guide-a.pdf' }).click();
   expect((await draftDownload).suggestedFilename()).toBe('guide-a.pdf');
+  await closeAssignmentPreview(page);
 
   const publishV1 = page.waitForResponse(
     (response) =>
@@ -579,7 +585,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   expect(publishedA.ok()).toBe(true);
   const v1 = (await publishedA.json()) as { id: string; versionNumber: number };
   expect(v1.versionNumber).toBe(1);
-  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  await previewAssignmentAs(page, 'published');
   await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
   await expect(draftPreview.getByText('Опубликованная версия 1', { exact: false })).toBeVisible();
   await draftPreview
@@ -595,6 +601,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     .scrollIntoViewIfNeeded();
   await draftPreview.screenshot({ path: `${evidenceDir}/a6-file-author-published-390.png` });
   await page.setViewportSize({ width: 1280, height: 720 });
+  await closeAssignmentPreview(page);
 
   const joinCodeV1 = await createClassWithStudents(
     page,

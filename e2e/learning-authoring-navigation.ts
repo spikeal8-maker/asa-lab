@@ -36,3 +36,51 @@ export async function openExistingAssignmentEditor(page: Page, title: string): P
   await expect(button).toBeVisible();
   await button.click();
 }
+
+export async function addAssignmentBlock(page: Page, label: string): Promise<void> {
+  const trigger = page.getByRole('button', { name: '+ Добавить блок', exact: true });
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+  const menu = page.getByRole('menu', { name: 'Добавить блок' });
+  await expect(menu).toBeVisible();
+  await menu.getByRole('menuitem', { name: label, exact: true }).click();
+}
+
+export async function previewAssignmentAs(
+  page: Page,
+  source: 'draft' | 'published',
+): Promise<void> {
+  const drawer = page.getByRole('dialog', { name: 'Как увидит ученик' });
+  if (!(await drawer.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
+    await expect(drawer).toBeVisible();
+  }
+  await drawer
+    .getByRole('button', {
+      name: source === 'draft' ? 'Черновик' : 'Опубликованная версия',
+      exact: true,
+    })
+    .click();
+}
+
+export async function closeAssignmentPreview(page: Page): Promise<void> {
+  const drawer = page.getByRole('dialog', { name: 'Как увидит ученик' });
+  if (await drawer.isVisible().catch(() => false)) {
+    await drawer.getByRole('button', { name: 'Закрыть предпросмотр', exact: true }).click();
+  }
+}
+
+export async function openAssignmentSettings(page: Page): Promise<void> {
+  const drawer = page.getByRole('dialog', { name: 'Настройки' });
+  if (!(await drawer.isVisible().catch(() => false))) {
+    await page.getByRole('button', { name: 'Настройки', exact: true }).first().click();
+    await expect(drawer).toBeVisible();
+  }
+}
+
+export async function closeAssignmentSettings(page: Page): Promise<void> {
+  const drawer = page.getByRole('dialog', { name: 'Настройки' });
+  if (await drawer.isVisible().catch(() => false)) {
+    await drawer.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
+  }
+}
