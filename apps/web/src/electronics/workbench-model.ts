@@ -94,6 +94,7 @@ export interface VertexDrag {
   wireId: string;
   vertexIndex: number;
   startedDocument: SchematicDocument;
+  startClient: Point;
 }
 
 export interface SegmentDrag {
