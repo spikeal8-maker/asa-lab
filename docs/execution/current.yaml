@@ -168,24 +168,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-WIRE-VERTEX-DRAG-001
-      issue: 493
+      id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
+      issue: 500
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: wire_vertex_repair_integrated_exact_main_verified
+      status: in_progress
+      checkpoint: breadboard_extraction_selected_preflight_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1b6a534c0179bc8899b5cda8456153496ff6f520
+      convergence_baseline_sha: 290a7a2a72e34992002ef9aca119c8a1c4031aea
       head_sha: null
-      observed_at: '2026-10-05T22:19:50Z'
+      observed_at: '2026-10-05T22:36:36Z'
       main:
         branch: main
-        sha: 1b6a534c0179bc8899b5cda8456153496ff6f520
-      observation_note: Dated main observation after wire-vertex baseline repair 493 merged as PR 494. Fetch main before writes. Exact integrated-main general run 37379809991 and Electronics browser run 37379843236 passed, including 113 browser scenarios. First 465 overlay-hotspot slice can be technically accepted; extraction mechanics and school-device performance remain open.
+        sha: 290a7a2a72e34992002ef9aca119c8a1c4031aea
+      observation_note: Dated main observation after technical acceptance of wire-vertex repair 493 and first 465 overlay hotspot slice. Fetch main before writes. Bounded rigid component extraction on one breadboard is selected as Issue 500; flexible leads, multiple boards and school-device measurements remain open in Issue 465.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
