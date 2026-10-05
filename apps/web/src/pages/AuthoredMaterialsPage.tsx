@@ -625,119 +625,134 @@ export function AuthoredMaterialsPage({
   if (embedded && screen === 'list') {
     return (
       <Root className="authored-materials authored-assignment-list" aria-label="Задания">
-        <div className="authored-assignment-toolbar" aria-label="Поиск и фильтры заданий">
-          <label className="authored-assignment-search">
-            <span className="sr-only">Поиск заданий</span>
-            <input
-              type="search"
-              placeholder="Найти задание"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </label>
+        <section className="authored-assignment-workspace" aria-label="Список заданий">
+          <div className="authored-assignment-toolbar" aria-label="Поиск и фильтры заданий">
+            <label className="authored-assignment-search">
+              <span className="sr-only">Поиск заданий</span>
+              <input
+                type="search"
+                placeholder="Найти задание"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
 
-          <div
-            className="authored-assignment-filter-group"
-            role="group"
-            aria-label="Фильтр по статусу"
-          >
+            <div
+              className="authored-assignment-filter-group"
+              role="group"
+              aria-label="Фильтр по статусу"
+            >
+              <button
+                type="button"
+                className={`authored-assignment-filter${statusFilter === 'all' ? ' is-active' : ''}`}
+                aria-pressed={statusFilter === 'all'}
+                onClick={() => setStatusFilter('all')}
+              >
+                Все <span>{items.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`authored-assignment-filter${statusFilter === 'draft' ? ' is-active' : ''}`}
+                aria-pressed={statusFilter === 'draft'}
+                onClick={() => setStatusFilter('draft')}
+              >
+                Черновики <span>{items.length - publishedCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`authored-assignment-filter${statusFilter === 'published' ? ' is-active' : ''}`}
+                aria-pressed={statusFilter === 'published'}
+                onClick={() => setStatusFilter('published')}
+              >
+                Опубликованные <span>{publishedCount}</span>
+              </button>
+            </div>
+
             <button
               type="button"
-              className={`authored-assignment-filter${statusFilter === 'all' ? ' is-active' : ''}`}
-              aria-pressed={statusFilter === 'all'}
-              onClick={() => setStatusFilter('all')}
+              className="portal-create-button authored-assignment-create"
+              disabled={busy}
+              onClick={startNew}
             >
-              Все <span>{items.length}</span>
-            </button>
-            <button
-              type="button"
-              className={`authored-assignment-filter${statusFilter === 'draft' ? ' is-active' : ''}`}
-              aria-pressed={statusFilter === 'draft'}
-              onClick={() => setStatusFilter('draft')}
-            >
-              Черновики <span>{items.length - publishedCount}</span>
-            </button>
-            <button
-              type="button"
-              className={`authored-assignment-filter${statusFilter === 'published' ? ' is-active' : ''}`}
-              aria-pressed={statusFilter === 'published'}
-              onClick={() => setStatusFilter('published')}
-            >
-              Опубликованные <span>{publishedCount}</span>
+              + Новое задание
             </button>
           </div>
 
-          <button type="button" className="portal-create-button" disabled={busy} onClick={startNew}>
-            + Новое задание
-          </button>
-        </div>
-
-        {error ? (
-          <div className="authored-assignment-state is-error" role="alert">
-            <strong>Не удалось загрузить задания.</strong>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setError(null);
-                void refresh();
-              }}
-            >
-              Повторить
-            </button>
-          </div>
-        ) : loading ? (
-          <div className="authored-assignment-state" role="status">
-            Загружаем задания…
-          </div>
-        ) : items.length === 0 ? (
-          <div className="authored-assignment-state">
-            <strong>Заданий пока нет.</strong>
-            <span>Создайте первое задание.</span>
-          </div>
-        ) : visibleItems.length === 0 ? (
-          <div className="authored-assignment-state">
-            <strong>Ничего не найдено.</strong>
-            <span>Измените запрос или фильтр.</span>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => {
-                setSearch('');
-                setStatusFilter('all');
-              }}
-            >
-              Сбросить
-            </button>
-          </div>
-        ) : (
-          <ul className="authored-assignment-rows">
-            {visibleItems.map((item) => {
-              const published = item.currentPublishedVersionId !== null;
-              return (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="authored-assignment-row"
-                    disabled={busy}
-                    aria-label={`Открыть задание «${item.title}»`}
-                    onClick={() => void open(item.id)}
-                  >
-                    <span className="authored-assignment-row-title">{item.title}</span>
-                    <span
-                      className={`authored-assignment-status ${published ? 'is-published' : 'is-draft'}`}
-                    >
-                      {published ? 'Опубликовано' : 'Черновик'}
-                    </span>
-                    <span className="authored-assignment-chevron" aria-hidden="true">
-                      ›
-                    </span>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        )}
+          {error ? (
+            <div className="authored-assignment-state is-error" role="alert">
+              <strong>Не удалось загрузить задания.</strong>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setError(null);
+                  void refresh();
+                }}
+              >
+                Повторить
+              </button>
+            </div>
+          ) : loading ? (
+            <div className="authored-assignment-state" role="status">
+              Загружаем задания…
+            </div>
+          ) : items.length === 0 ? (
+            <div className="authored-assignment-state">
+              <strong>Заданий пока нет.</strong>
+              <span>Создайте первое задание.</span>
+            </div>
+          ) : visibleItems.length === 0 ? (
+            <div className="authored-assignment-state">
+              <strong>Ничего не найдено.</strong>
+              <span>Измените запрос или фильтр.</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('all');
+                }}
+              >
+                Сбросить
+              </button>
+            </div>
+          ) : (
+            <div className="authored-assignment-table">
+              <div className="authored-assignment-columns" aria-hidden="true">
+                <span>Задание</span>
+                <span>Статус</span>
+                <span />
+              </div>
+              <ul className="authored-assignment-rows">
+                {visibleItems.map((item) => {
+                  const published = item.currentPublishedVersionId !== null;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="authored-assignment-row"
+                        disabled={busy}
+                        aria-label={`Открыть задание «${item.title}»`}
+                        onClick={() => void open(item.id)}
+                      >
+                        <span className="authored-assignment-row-title">{item.title}</span>
+                        <span
+                          className={`authored-assignment-status ${published ? 'is-published' : 'is-draft'}`}
+                        >
+                          <span className="authored-assignment-status-dot" aria-hidden="true" />
+                          <span>{published ? 'Опубликовано' : 'Черновик'}</span>
+                        </span>
+                        <span className="authored-assignment-chevron" aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </section>
       </Root>
     );
   }
