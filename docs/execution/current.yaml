@@ -174,18 +174,18 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: wire_vertex_baseline_repair_selected_preflight_pending
+      status: done
+      checkpoint: wire_vertex_repair_integrated_exact_main_verified
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 557110e1a36b486a748f87e4efc31b008667539d
+      convergence_baseline_sha: 1b6a534c0179bc8899b5cda8456153496ff6f520
       head_sha: null
-      observed_at: '2026-10-04T03:14:23Z'
+      observed_at: '2026-10-05T22:19:50Z'
       main:
         branch: main
-        sha: 557110e1a36b486a748f87e4efc31b008667539d
-      observation_note: Dated main observation after first 465 hotspot candidate approval and integration. Fetch main before writes. Exact-main general CI passed, but Electronics browser run 37171786707 failed twice in the unchanged wire-vertex double-click handler. Separate category C baseline repair 493 is selected. Issue 465 partial acceptance and release claim remain blocked until exact-main browser succeeds after repair; extraction mechanics and school-device performance remain open.
+        sha: 1b6a534c0179bc8899b5cda8456153496ff6f520
+      observation_note: Dated main observation after wire-vertex baseline repair 493 merged as PR 494. Fetch main before writes. Exact integrated-main general run 37379809991 and Electronics browser run 37379843236 passed, including 113 browser scenarios. First 465 overlay-hotspot slice can be technically accepted; extraction mechanics and school-device performance remain open.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -363,14 +363,29 @@ parallel_lanes:
         issue_scope: first_measured_overlay_hotspot_only
         candidate_sha: a3ad85b5cedb316095e11f548b086c6dd852f1ae
         integrated_sha: 557110e1a36b486a748f87e4efc31b008667539d
-        independent_review: approved_candidate_only
+        independent_review: approved
         exact_candidate_general_run: 37170647216
         exact_candidate_browser_run: 37170647221
-        exact_main_general_run: 37171738516
+        initial_main_general_run: 37171738516
         exact_main_browser_failure_run: 37171786707
         exact_main_browser_failed_attempts: 2
         baseline_repair_issue: 493
-        status: integrated_acceptance_blocked
+        acceptance_exact_main_sha: 1b6a534c0179bc8899b5cda8456153496ff6f520
+        exact_main_general_run: 37379809991
+        exact_main_browser_run: 37379843236
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-WIRE-VERTEX-DRAG-001
+        issue: 493
+        accepted_candidate_sha: b8f14e92fb4a13b79a5a59c1147a0320d58feb2e
+        integrated_sha: 1b6a534c0179bc8899b5cda8456153496ff6f520
+        independent_review: approved
+        exact_candidate_general_run: 37374354540
+        exact_candidate_browser_run: 37374354491
+        exact_main_general_run: 37379809991
+        exact_main_browser_run: 37379843236
+        status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
   - id: chess
@@ -696,21 +711,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: ELECTRONICS-465-MAIN-BROWSER-BASELINE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-BREADBOARD-PERFORMANCE-001
-    blocks:
-      - owner_acceptance
-      - release_claim
-      - close_issue
-    allows:
-      - bounded_repair
-      - regression_authoring
-      - documentation_update
-      - focused_verification
-    reason: Integrated first 465 hotspot slice has candidate approval and exact-main general PASS, but main Electronics browser run 37171786707 failed twice in the independent pre-existing wire-vertex double-click/drag path. Issue 493 must be repaired and exact-main browser rerun before technical closeout of that slice.
-    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-VERTEX-DRAG-001.md
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
