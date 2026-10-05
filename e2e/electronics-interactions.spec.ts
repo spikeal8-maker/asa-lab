@@ -400,6 +400,114 @@ test.describe('interaction: document integrity', () => {
     await expect(wire).toHaveAttribute('d', original!);
   });
 
+  test('a dragged wire vertex can be grabbed again promptly after Undo', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const doc = documentFixture();
+    const originalVertex = { x: 820, y: 280 };
+    doc.connections = [
+      {
+        id: 'repeated-vertex-drag-wire',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: [originalVertex],
+      },
+    ];
+    const { readEditorDocument } = await openEditor(page, doc);
+    const hit = page.getByTestId('wire-hit');
+    const selectPoint = await hit.evaluate((element) => {
+      const path = element as SVGPathElement;
+      const point = path
+        .getPointAtLength(path.getTotalLength() * 0.25)
+        .matrixTransform(path.getScreenCTM()!);
+      return { x: point.x, y: point.y };
+    });
+    await page.mouse.click(selectPoint.x, selectPoint.y);
+    const vertex = page.getByTestId('wire-vertex');
+    await expect(vertex).toHaveCount(1);
+    const vertexCenter = async () => {
+      const box = await vertex.boundingBox();
+      if (!box) throw new Error('wire vertex is not visible');
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const start = await vertexCenter();
+
+    // Keep the production 420 ms comparison inside its window regardless of
+    // CI scheduling between Playwright commands. Pointer events still run in
+    // the real built editor and commit/Undo the actual document.
+    await page.evaluate(() => {
+      const clock = Date.now;
+      const fixed = clock();
+      (window as unknown as { restoreVertexClock: () => void }).restoreVertexClock = () => {
+        Date.now = clock;
+      };
+      Date.now = () => fixed;
+    });
+    await page.keyboard.down('Alt');
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + 65, start.y + 35, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up('Alt');
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
+      .not.toEqual(originalVertex);
+    await page.getByRole('button', { name: /Отменить/ }).click();
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices)
+      .toEqual([originalVertex]);
+    await expect(vertex).toHaveCount(1);
+
+    const restored = await vertexCenter();
+    await page.keyboard.down('Alt');
+    await page.mouse.move(restored.x, restored.y);
+    await page.mouse.down();
+    await expect(vertex).toHaveCount(1);
+    await page.mouse.move(restored.x - 55, restored.y + 30, { steps: 5 });
+    await page.mouse.up();
+    await page.keyboard.up('Alt');
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices?.[0])
+      .not.toEqual(originalVertex);
+    await page.evaluate(() =>
+      (window as unknown as { restoreVertexClock: () => void }).restoreVertexClock(),
+    );
+  });
+
+  test('stationary double-click still removes a wire vertex', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const doc = documentFixture();
+    doc.connections = [
+      {
+        id: 'stationary-double-click-wire',
+        from: { componentId: 'led', terminal: 'cathode' },
+        to: { componentId: 'battery', terminal: 'BAT+' },
+        vertices: [{ x: 820, y: 280 }],
+      },
+    ];
+    const { readEditorDocument } = await openEditor(page, doc);
+    const hit = page.getByTestId('wire-hit');
+    const selectPoint = await hit.evaluate((element) => {
+      const path = element as SVGPathElement;
+      const point = path
+        .getPointAtLength(path.getTotalLength() * 0.25)
+        .matrixTransform(path.getScreenCTM()!);
+      return { x: point.x, y: point.y };
+    });
+    await page.mouse.click(selectPoint.x, selectPoint.y);
+    const vertex = page.getByTestId('wire-vertex');
+    await expect(vertex).toHaveCount(1);
+    await vertex.dblclick();
+    await expect(vertex).toHaveCount(0);
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices ?? [])
+      .toEqual([]);
+    await page.getByRole('button', { name: /Отменить/ }).click();
+    await expect(vertex).toHaveCount(1);
+    await expect
+      .poll(async () => (await readEditorDocument()).connections[0]?.vertices)
+      .toEqual([{ x: 820, y: 280 }]);
+  });
+
   test('wire double-click is consecutive: intervening straighten and Undo break the click pair', async ({
     page,
   }) => {

@@ -506,13 +506,6 @@ export function useElectronicsWorkbench(projectId: string) {
   const panViewportRef = useRef<Viewport | null>(null);
   const vertexDragRef = useRef<VertexDrag | null>(null);
   const segmentDragRef = useRef<SegmentDrag | null>(null);
-  const lastVertexPressRef = useRef<{
-    wireId: string;
-    vertexIndex: number;
-    x: number;
-    y: number;
-    at: number;
-  } | null>(null);
   const endpointDragRef = useRef<EndpointDrag | null>(null);
   const wireStartPressRef = useRef<{
     pointerId: number;
@@ -2247,27 +2240,34 @@ export function useElectronicsWorkbench(projectId: string) {
     const vertexDrag = vertexDragRef.current;
     if (vertexDrag?.pointerId === event.pointerId) {
       vertexDragRef.current = null;
-      const point = wireVertexDragPoint(
-        vertexDrag.wireId,
-        vertexDrag.vertexIndex,
-        toWorld(event),
-        { x: event.clientX, y: event.clientY },
-        event.shiftKey,
-        event.altKey,
-      );
+      const moved =
+        Math.hypot(
+          event.clientX - vertexDrag.startClient.x,
+          event.clientY - vertexDrag.startClient.y,
+        ) > 0.5;
+      if (moved) {
+        const point = wireVertexDragPoint(
+          vertexDrag.wireId,
+          vertexDrag.vertexIndex,
+          toWorld(event),
+          { x: event.clientX, y: event.clientY },
+          event.shiftKey,
+          event.altKey,
+        );
+        const source = vertexDrag.startedDocument;
+        const old = source.connections.find((wire) => wire.id === vertexDrag.wireId)?.vertices?.[
+          vertexDrag.vertexIndex
+        ];
+        if (getCurrentDocument() === source && old && (point.x !== old.x || point.y !== old.y)) {
+          commitDocument(
+            moveWireVertex(source, vertexDrag.wireId, vertexDrag.vertexIndex, point),
+            'Изгиб провода перемещён.',
+          );
+        }
+      }
       vertexAssistTargetRef.current = null;
       setWireGuide(null);
-      const source = vertexDrag.startedDocument;
-      const old = source.connections.find((wire) => wire.id === vertexDrag.wireId)?.vertices?.[
-        vertexDrag.vertexIndex
-      ];
       clearDragPreview();
-      if (getCurrentDocument() === source && old && (point.x !== old.x || point.y !== old.y)) {
-        commitDocument(
-          moveWireVertex(source, vertexDrag.wireId, vertexDrag.vertexIndex, point),
-          'Изгиб провода перемещён.',
-        );
-      }
     }
     const segmentDrag = segmentDragRef.current;
     if (segmentDrag?.pointerId === event.pointerId) {
@@ -2385,27 +2385,6 @@ export function useElectronicsWorkbench(projectId: string) {
     vertexIndex: number,
   ): void {
     if (!structuralEditAllowed()) return;
-    const previous = lastVertexPressRef.current;
-    const repeated =
-      previous?.wireId === wireId &&
-      previous.vertexIndex === vertexIndex &&
-      Date.now() - previous.at <= 420 &&
-      Math.hypot(event.clientX - previous.x, event.clientY - previous.y) <= 8;
-    if (event.detail >= 2 || repeated) {
-      lastVertexPressRef.current = null;
-      vertexDragRef.current = null;
-      removeWireVertexAt(wireId, vertexIndex);
-      event.stopPropagation();
-      event.preventDefault();
-      return;
-    }
-    lastVertexPressRef.current = {
-      wireId,
-      vertexIndex,
-      x: event.clientX,
-      y: event.clientY,
-      at: Date.now(),
-    };
     if (!document) return;
     vertexAssistTargetRef.current = null;
     setWireGuide(null);
@@ -2414,6 +2393,7 @@ export function useElectronicsWorkbench(projectId: string) {
       wireId,
       vertexIndex,
       startedDocument: document,
+      startClient: { x: event.clientX, y: event.clientY },
     };
     setSelection({ kind: 'wire', id: wireId, vertexIndex });
     stageRef.current?.setPointerCapture(event.pointerId);

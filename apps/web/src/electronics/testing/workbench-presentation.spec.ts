@@ -359,9 +359,7 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(stageSource).toContain('pointerSequenceRef');
     expect(stageSource).toContain('previous.pointerSequence + 1 === pointerSequenceRef.current');
     expect(stageSource).toContain('previous.mutationEpoch === c.documentMutationEpoch()');
-    expect(controllerModuleSource).toContain('lastVertexPressRef');
     expect(controllerModuleSource).toContain('insertWireVertex(document, wireId, toWorld(event))');
-    expect(controllerModuleSource).toContain('removeWireVertexAt(wireId, vertexIndex)');
     expect(stageSource).toContain('workbench-wire-endpoint');
     expect(stageSource).toContain('data-testid="wire-endpoint-visible"');
     expect(stageSource).toContain('className="workbench-wire-endpoint-hit"');
@@ -401,7 +399,6 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(dragPreviewSource).toContain('.workbench-wire-editor-layer > g[data-wire-id=');
     expect(dragPreviewSource).toContain('circle[data-wire-vertex-index]');
     expect(stageSource).toContain('c.removeWireVertexAt(wire.id, index)');
-    expect(stageSource).toContain('event.detail >= 2');
     expect(stageSource).toContain('c.wirePreviewVertices');
     const layerMarkers = [
       'data-testid="breadboard-body-layer"',
