@@ -350,6 +350,7 @@ test('learner exact published task image stays pinned across v1 and v2', async (
     mimeType: 'image/png',
     buffer: imageA,
   });
+  await page.getByRole('button', { name: '+ Добавить блок', exact: true }).click();
   await page.getByLabel('Файл блока изображения').setInputFiles({
     name: 'ordered-task.png',
     mimeType: 'image/png',
