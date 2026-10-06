@@ -168,24 +168,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-DEPENDENCY-BASELINE-001
-      issue: 502
+      id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
+      issue: 500
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: dependency_security_baseline_selected_500_candidate_pending
+      checkpoint: extraction_candidate_approved_baseline_accepted_final_convergence_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 57a794ea3a82870e32237f5c7e415e3ab9bb9769
+      convergence_baseline_sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
       head_sha: null
-      observed_at: '2026-10-06T06:05:00Z'
+      observed_at: '2026-10-06T15:20:32Z'
       main:
         branch: main
-        sha: 57a794ea3a82870e32237f5c7e415e3ab9bb9769
-      observation_note: Dated main observation before shared dependency baseline repair. Fetch main before writes. Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c remains in PR 501 and passed Electronics browser run 37419320179 attempt 2 (115 tests); its independent review and general gate after baseline repair remain pending. Issue 502 repairs the separately reproduced security dependency failure without expanding PR 501. Issue 465 remains open for other mechanics and school-device measurements.
+        sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
+      observation_note: Dated main observation after technical acceptance of shared dependency baseline Issue 502. Fetch main before writes. Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c remains in PR 501 with independent code APPROVE and Electronics browser run 37419320179 attempt 2 (115 tests); final convergence with current main and fresh exact-head general verification remain pending. Issue 465 remains open for other mechanics and school-device measurements.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -385,6 +385,19 @@ parallel_lanes:
         exact_candidate_browser_run: 37374354491
         exact_main_general_run: 37379809991
         exact_main_browser_run: 37379843236
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-DEPENDENCY-BASELINE-001
+        issue: 502
+        accepted_candidate_sha: 498ec037474e40a5949870e764497155f82842ca
+        integrated_sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
+        independent_review: approved
+        exact_candidate_general_run: 37480548074
+        exact_candidate_electronics_run: 37480548485
+        exact_main_general_run: 37484701229
+        unrelated_scratch_baseline_failure_run: 37480548129
+        unrelated_scratch_baseline_issue: 470
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
@@ -711,20 +724,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: ELECTRONICS-500-SHARED-DEPENDENCY-BASELINE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
-    blocks:
-      - technical_acceptance
-      - close_issue
-      - release_claim
-    allows:
-      - bounded_dependency_baseline_repair
-      - focused_verification
-      - independent_review
-    reason: Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c passed 115 built-browser tests on exact HEAD, but general gate fails five newly published dependency advisories independently reproduced on clean main. Issue 502 must restore the shared security baseline and #500 must repeat exact-head general verification before closeout.
-    evidence: https://github.com/spikeal8-maker/asa-lab/issues/502
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
