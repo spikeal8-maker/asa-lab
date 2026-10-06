@@ -1342,6 +1342,13 @@ export function WorkbenchStage({
             />
           ) : null}
         </g>
+        {/* A mounted rigid body must receive pointer input over the board hole
+            targets beneath it. Exposed holes remain available around the body. */}
+        <g data-testid="breadboard-terminal-overlay-layer">
+          {orderedComponents
+            .filter((component) => component.kind === 'breadboard')
+            .map((component) => renderComponentTerminalOverlay(component))}
+        </g>
         <g data-testid="component-body-layer">
           {orderedComponents
             .filter((component) => component.kind !== 'wire' && component.kind !== 'breadboard')
@@ -1349,7 +1356,7 @@ export function WorkbenchStage({
         </g>
         <g data-testid="terminal-overlay-layer">
           {orderedComponents
-            .filter((component) => component.kind !== 'wire')
+            .filter((component) => component.kind !== 'wire' && component.kind !== 'breadboard')
             .map((component) => renderComponentTerminalOverlay(component))}
         </g>
         <g

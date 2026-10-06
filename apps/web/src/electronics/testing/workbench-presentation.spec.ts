@@ -404,6 +404,7 @@ describe('owner-reference Electronics presentation contract', () => {
       'data-testid="breadboard-body-layer"',
       'className="workbench-wire-layer workbench-wire-hit-layer"',
       'data-testid="wire-layer"',
+      'data-testid="breadboard-terminal-overlay-layer"',
       'data-testid="component-body-layer"',
       'data-testid="terminal-overlay-layer"',
       'data-testid="wire-editor-layer"',
