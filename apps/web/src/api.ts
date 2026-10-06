@@ -374,7 +374,14 @@ export type LessonBlock = { id: string; hidden?: boolean } & (
   | { type: 'table'; rows: string[][] }
   | { type: 'divider' }
   | { type: 'activity'; learningActivityVersionId: string }
+  | { type: 'manual-material'; learningActivityVersionId: string }
 );
+
+export interface CourseManualMaterial {
+  source: { kind: 'published'; id: string; versionNumber: number; contentDigest: string };
+  title: string;
+  blocks: SafeTaskBlock[];
+}
 
 export interface CourseLesson {
   id: string;
@@ -2772,6 +2779,10 @@ export const api = {
     }),
   seatCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/me/course-runs'),
   accountCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/account/course-runs'),
+  courseManualMaterial: (runId: string, lessonId: string, blockId: string) =>
+    call<CourseManualMaterial>(
+      `/api/class-join/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(lessonId)}/materials/${encodeURIComponent(blockId)}`,
+    ),
   setSeatCourseLessonProgress: (runId: string, lessonId: string, completed: boolean) =>
     call<{ completedAt: string | null }>(
       `/api/class-join/me/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(

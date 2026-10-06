@@ -1499,13 +1499,15 @@
   }
 }
 
-.course-practice-picker {
+.course-practice-picker,
+.course-manual-material-picker {
   min-width: 0;
   padding: 12px;
   border: 1px solid var(--line, #dbe4ec);
   border-radius: 12px;
 }
-.course-pinned-practice {
+.course-pinned-practice,
+.course-pinned-material {
   overflow-wrap: anywhere;
 }
 .course-practice-options {

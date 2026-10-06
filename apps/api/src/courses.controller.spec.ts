@@ -17,19 +17,25 @@ function request(): FastifyRequest {
   return { cookies: { asa_session: 'session' } } as unknown as FastifyRequest;
 }
 
-function controller(rows: unknown[] = [], activityBlocksAuthorized = true) {
+function controller(
+  rows: unknown[] = [],
+  activityBlocksAuthorized = true,
+  manualBlocksAuthorized = true,
+) {
   const query = vi.fn(async (sql: string) => ({
     rows: sql.includes('learning_canonical_evidence')
       ? []
       : sql.includes('course_activity_blocks_authorized')
         ? [{ ok: activityBlocksAuthorized }]
-        : sql.includes('course_draft_lock')
-          ? [{ ok: true }]
-          : sql.includes('course_draft_revision($1,$2)')
-            ? [{ draft_revision: '3' }]
-            : sql.includes('course_library_list_v3($1) WHERE id=$2')
-              ? [{ archived_at: null }]
-              : rows,
+        : sql.includes('course_manual_material_blocks_authorized')
+          ? [{ ok: manualBlocksAuthorized }]
+          : sql.includes('course_draft_lock')
+            ? [{ ok: true }]
+            : sql.includes('course_draft_revision($1,$2)')
+              ? [{ draft_revision: '3' }]
+              : sql.includes('course_library_list_v3($1) WHERE id=$2')
+                ? [{ archived_at: null }]
+                : rows,
   }));
   const activeContext = {
     resolve: vi.fn(async () => ({
@@ -763,6 +769,39 @@ describe('course outline API', () => {
       'SELECT course_activity_blocks_authorized($1,$2,$3::jsonb) AS ok',
       ['principal-id', 'tenant-id', expect.any(String)],
     );
+    expect(denied.query).not.toHaveBeenCalledWith(
+      expect.stringContaining('course_lesson_save_v3'),
+      expect.anything(),
+    );
+  });
+
+  it('checks exact published manual pins before persisting a lesson', async () => {
+    const blocks = [
+      { id: 'manual', type: 'manual-material', learningActivityVersionId: VERSION_ID },
+    ];
+    const payload = {
+      sectionId: SECTION_ID,
+      title: 'Материал',
+      summary: null,
+      content: null,
+      blocks,
+      kind: 'material' as const,
+      assignmentId: null,
+      estimatedMinutes: null,
+      expectedRevision: 1,
+    };
+    const allowed = controller([{ id: LESSON_ID }]);
+    await expect(allowed.value.createLesson(request(), COURSE_ID, payload)).resolves.toMatchObject({
+      id: LESSON_ID,
+    });
+    expect(allowed.query).toHaveBeenCalledWith(
+      'SELECT course_manual_material_blocks_authorized($1,$2,$3::jsonb) AS ok',
+      ['principal-id', 'tenant-id', JSON.stringify(blocks)],
+    );
+    const denied = controller([], true, false);
+    await expect(denied.value.createLesson(request(), COURSE_ID, payload)).rejects.toMatchObject({
+      status: 400,
+    });
     expect(denied.query).not.toHaveBeenCalledWith(
       expect.stringContaining('course_lesson_save_v3'),
       expect.anything(),

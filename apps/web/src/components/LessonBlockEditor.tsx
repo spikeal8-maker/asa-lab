@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { LessonBlock } from '../api';
 import { CanonicalPracticePicker } from './CanonicalPracticePicker';
+import { CanonicalManualMaterialPicker } from './CanonicalManualMaterialPicker';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 const CODE_TEXT_LIMIT = 20_000;
@@ -55,6 +56,7 @@ export function createLessonBlock(type: LessonBlock['type']): LessonBlock {
   if (type === 'formula') return { id, type, text: '', hidden: false };
   if (type === 'table') return { id, type, rows: [['']], hidden: false };
   if (type === 'activity') return { id, type, learningActivityVersionId: '', hidden: false };
+  if (type === 'manual-material') return { id, type, learningActivityVersionId: '', hidden: false };
   return { id, type: 'divider', hidden: false };
 }
 
@@ -97,7 +99,7 @@ export function setLessonActivityVersion(
   learningActivityVersionId: string,
 ): LessonBlock[] {
   return blocks.map((block) =>
-    block.id === sourceId && block.type === 'activity'
+    block.id === sourceId && (block.type === 'activity' || block.type === 'manual-material')
       ? { ...block, learningActivityVersionId }
       : block,
   );
@@ -167,7 +169,7 @@ export function lessonBlocksValid(blocks: readonly LessonBlock[]): boolean {
         return block.text.trim().length > 0 && block.text.length <= FORMULA_TEXT_LIMIT;
       }
       if (block.type === 'table') return tableRowsValid(block.rows);
-      if (block.type === 'activity') {
+      if (block.type === 'activity' || block.type === 'manual-material') {
         return ACTIVITY_VERSION_ID.test(block.learningActivityVersionId);
       }
       return block.type === 'divider';
@@ -188,6 +190,7 @@ const ADD_OPTIONS: Array<{ type: LessonBlock['type']; label: string }> = [
   { type: 'audio', label: 'Аудио' },
   { type: 'file', label: 'Файл' },
   { type: 'activity', label: 'Практика' },
+  { type: 'manual-material', label: 'Материал из библиотеки' },
 ];
 
 function blockLabel(block: LessonBlock): string {
@@ -516,6 +519,15 @@ export function LessonBlockEditor({
 
             {block.type === 'activity' ? (
               <CanonicalPracticePicker
+                value={block.learningActivityVersionId}
+                onChange={(versionId) =>
+                  onChange(setLessonActivityVersion(blocks, block.id, versionId))
+                }
+              />
+            ) : null}
+
+            {block.type === 'manual-material' ? (
+              <CanonicalManualMaterialPicker
                 value={block.learningActivityVersionId}
                 onChange={(versionId) =>
                   onChange(setLessonActivityVersion(blocks, block.id, versionId))

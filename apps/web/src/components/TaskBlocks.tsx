@@ -22,7 +22,8 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const src =
-    block.src?.startsWith('/api/learning/activities/') === true
+    block.src?.startsWith('/api/learning/activities/') === true ||
+    block.src?.startsWith('/api/class-join/course-runs/') === true
       ? block.src
       : `/api/assignments/task-files/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => setUnavailable(false), [src]);
@@ -80,7 +81,8 @@ function TaskImage({
   const zoomTrigger = useRef<HTMLButtonElement>(null);
   const zoomClose = useRef<HTMLButtonElement>(null);
   const src =
-    block.src?.startsWith('/api/learning/activities/') === true
+    block.src?.startsWith('/api/learning/activities/') === true ||
+    block.src?.startsWith('/api/class-join/course-runs/') === true
       ? block.src
       : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => {

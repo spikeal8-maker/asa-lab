@@ -1601,6 +1601,114 @@ export class ClassroomJoinController {
     reply.type(row.content_type).send(row.sample_bytes);
   }
 
+  private async courseMaterialViewer(request: FastifyRequest): Promise<{
+    seatId: string | null;
+    accountId: string | null;
+  }> {
+    if (request.cookies[STUDENT_SESSION_COOKIE])
+      return { seatId: (await this.currentSeat(request)).seat_id, accountId: null };
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    return { seatId: null, accountId: context.accountId };
+  }
+
+  /** Exact published manual content for an authorized course lesson and block. */
+  @Get('course-runs/:runId/lessons/:lessonId/materials/:blockId')
+  async courseManualMaterial(
+    @Req() request: FastifyRequest,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('blockId') blockId: string,
+  ) {
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(blockId)
+    )
+      throw new HttpException(error('validation_error', 'course material is invalid'), 400);
+    const viewer = await this.courseMaterialViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT version_id,version_number,content_digest,title,blocks
+         FROM learning_course_manual_material_for_viewer($1,$2,$3,$4,$5)`,
+      [runId, lessonId, blockId, viewer.accountId, viewer.seatId],
+    );
+    const row = result.rows[0] as
+      | {
+          version_id: string;
+          version_number: number;
+          content_digest: string;
+          title: string;
+          blocks: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    if (!row || !Array.isArray(row.blocks))
+      throw new HttpException(error('material_not_found', 'Материал недоступен.'), 404);
+    const base = `/api/class-join/course-runs/${runId}/lessons/${lessonId}/materials/${blockId}`;
+    return {
+      source: {
+        kind: 'published' as const,
+        id: row.version_id,
+        versionNumber: Number(row.version_number),
+        contentDigest: row.content_digest,
+      },
+      title: row.title,
+      blocks: row.blocks.map((block) => {
+        if (block['type'] !== 'image' && block['type'] !== 'file') return block;
+        const hash = block['contentHash'];
+        if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash))
+          throw new HttpException(error('material_unavailable', 'Медиа недоступно.'), 409);
+        return { ...block, src: `${base}/${block['type']}/${hash}` };
+      }),
+    };
+  }
+
+  @Get('course-runs/:runId/lessons/:lessonId/materials/:blockId/:role/:contentHash')
+  async courseManualMedia(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: false }) reply: FastifyReply,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('blockId') blockId: string,
+    @Param('role') role: string,
+    @Param('contentHash') contentHash: string,
+  ): Promise<void> {
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(blockId) ||
+      !['image', 'file'].includes(role) ||
+      !/^[0-9a-f]{64}$/.test(contentHash)
+    )
+      throw new HttpException(error('validation_error', 'course media is invalid'), 400);
+    const viewer = await this.courseMaterialViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT media_bytes,content_type,content_hash
+         FROM learning_course_manual_media_for_viewer($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        runId,
+        lessonId,
+        blockId,
+        viewer.accountId,
+        viewer.seatId,
+        role === 'image' ? 'task-image' : 'task-file',
+        contentHash,
+      ],
+    );
+    const row = result.rows[0] as
+      { media_bytes: Buffer; content_type: string; content_hash: string } | undefined;
+    if (!row || !row.media_bytes || row.content_hash !== contentHash)
+      throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
+    reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
+    if (role === 'file') {
+      if (row.content_type !== 'application/pdf')
+        throw new HttpException(error('media_not_found', 'Файл недоступен.'), 404);
+      reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    } else if (!['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type)) {
+      throw new HttpException(error('media_not_found', 'Изображение недоступно.'), 404);
+    }
+    reply.type(row.content_type).send(row.media_bytes);
+  }
+
   /** Exact immutable sample of a visible Course Activity block occurrence. */
   @Get('course-activities/:activityRunId/sample')
   async courseActivitySample(

@@ -54,6 +54,7 @@ const BLOCK_TYPES = new Set([
   'table',
   'divider',
   'activity',
+  'manual-material',
 ]);
 const ASSET_URL_PATTERN = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 const CODE_TEXT_LIMIT = 20_000;
@@ -75,6 +76,7 @@ const BLOCK_FIELDS: Record<string, ReadonlySet<string>> = {
   table: new Set(['id', 'type', 'rows', 'hidden']),
   divider: new Set(['id', 'type', 'hidden']),
   activity: new Set(['id', 'type', 'learningActivityVersionId', 'hidden']),
+  'manual-material': new Set(['id', 'type', 'learningActivityVersionId', 'hidden']),
 };
 
 type LessonBlock = Record<string, unknown> & { id: string; type: string };
@@ -162,7 +164,7 @@ function lessonBlocks(raw: unknown, legacyContent: string | null): LessonBlock[]
       return null;
     if (block['type'] === 'table' && !tableRowsValid(block['rows'])) return null;
     if (
-      block['type'] === 'activity' &&
+      (block['type'] === 'activity' || block['type'] === 'manual-material') &&
       (typeof block['learningActivityVersionId'] !== 'string' ||
         !UUID_PATTERN.test(block['learningActivityVersionId']))
     )
@@ -511,7 +513,8 @@ export class CoursesController {
     context: ActiveContext,
     blocks: LessonBlock[],
   ): Promise<void> {
-    if (!blocks.some((block) => block.type === 'activity')) return;
+    if (!blocks.some((block) => block.type === 'activity' || block.type === 'manual-material'))
+      return;
     const result = await this.requirePool().query(
       'SELECT course_activity_blocks_authorized($1,$2,$3::jsonb) AS ok',
       [context.principalId, context.tenantId, JSON.stringify(blocks)],
@@ -519,6 +522,16 @@ export class CoursesController {
     if (result.rows[0]?.ok !== true) {
       throw new HttpException(
         error('validation_error', 'Проверьте опубликованную версию практической работы.'),
+        400,
+      );
+    }
+    const manual = await this.requirePool().query(
+      'SELECT course_manual_material_blocks_authorized($1,$2,$3::jsonb) AS ok',
+      [context.principalId, context.tenantId, JSON.stringify(blocks)],
+    );
+    if (manual.rows[0]?.ok !== true) {
+      throw new HttpException(
+        error('validation_error', 'Проверьте опубликованную версию материала.'),
         400,
       );
     }

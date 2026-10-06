@@ -12,6 +12,7 @@ import {
 } from '../api';
 import { AuthorVersionHistory } from './AuthorVersionHistory';
 import { CanonicalPracticePicker, PinnedPracticePreview } from './CanonicalPracticePicker';
+import { PinnedManualMaterialPreview } from './CanonicalManualMaterialPicker';
 import { CourseAssignDialog, type CourseAssignAttempt } from './CourseAssignDialog';
 import { Dropdown } from './Dropdown';
 import { LessonBlockEditor, lessonBlocksValid } from './LessonBlockEditor';
@@ -439,6 +440,9 @@ function CoursePreview({
                       compact
                       renderActivity={(block) => (
                         <PinnedPracticePreview versionId={block.learningActivityVersionId} />
+                      )}
+                      renderMaterial={(block) => (
+                        <PinnedManualMaterialPreview versionId={block.learningActivityVersionId} />
                       )}
                     />
                     {lesson.learningActivityVersionId ? (

@@ -9,6 +9,7 @@ import {
 } from '../../components/CanonicalPracticePicker';
 import { CourseAssignDialog, type CourseAssignAttempt } from '../../components/CourseAssignDialog';
 import { LessonBlockEditor } from '../../components/LessonBlockEditor';
+import { CanonicalManualMaterialPicker } from '../../components/CanonicalManualMaterialPicker';
 import { publishedCourseSections } from '../../components/CoursesPanel';
 
 const versionId = '11111111-1111-4111-8111-111111111111';
@@ -88,6 +89,53 @@ function button(label: string) {
   if (!result) throw new Error('Missing button ' + label);
   return result;
 }
+
+it('pins an exact published manual version and keeps historical preview after republish', async () => {
+  const manualPreview = {
+    ...preview(),
+    moduleKey: null,
+    assignment: {
+      ...preview().assignment,
+      title: 'Manual v1',
+      blocks: [{ type: 'paragraph' as const, text: 'Original material' }],
+    },
+  };
+  vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          id: 'manual-root',
+          title: 'Manual latest',
+          kind: 'manual',
+          draftRevision: 4,
+          currentPublishedVersionId: newerId,
+        },
+      ],
+    },
+  } as never);
+  vi.spyOn(api, 'previewAuthoredActivityVersion').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: manualPreview,
+  });
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [{ id: versionId }] },
+  } as never);
+  const change = vi.fn();
+  await mount(createElement(CanonicalManualMaterialPicker, { value: versionId, onChange: change }));
+  expect(container?.textContent).toContain('Original material');
+  expect(api.previewAuthoredActivityVersion).toHaveBeenCalledWith('manual-root', versionId);
+  await act(async () => {
+    button('Заменить материал').click();
+    await flush();
+  });
+  expect(container?.textContent).toContain('Manual latest');
+  expect(change).not.toHaveBeenCalled();
+});
 
 it('loads historical practice bytes and metadata from the saved pin after its source is republished', async () => {
   vi.spyOn(api, 'authoredActivities').mockResolvedValue({

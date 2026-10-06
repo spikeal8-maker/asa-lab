@@ -1770,6 +1770,48 @@ for (const module of ['electronics', 'three-d'])
     const material = 'Электроника курса ' + ++sequence,
       courseTitle = 'Первый курс ' + sequence;
     await createPublishedProjectActivity(page, material, module);
+    const manualTitle = `Account manual ${sequence}`;
+    const manualImage = readFileSync('apps/web/public/landing/electronics-simulation.png');
+    const manualPdf = Buffer.from('%PDF-1.4\nAccount exact material\n%%EOF');
+    if (module === 'electronics') {
+      await openNewAssignmentEditor(page);
+      await page.getByLabel('Название задания', { exact: true }).fill(manualTitle);
+      await page.getByLabel('Содержание', { exact: true }).fill('Account читает точную версию.');
+      await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
+      await expect(
+        page.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+      ).toBeVisible();
+      await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+      await page.getByLabel('Файл блока изображения').setInputFiles({
+        name: 'account-manual.png',
+        mimeType: 'image/png',
+        buffer: manualImage,
+      });
+      await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
+      await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+      await page.getByLabel('PDF файл задания').setInputFiles({
+        name: 'account-manual.pdf',
+        mimeType: 'application/pdf',
+        buffer: manualPdf,
+      });
+      await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+      await expect(
+        page.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+      ).toBeVisible();
+      await page.reload();
+      await openExistingAssignmentEditor(page, manualTitle);
+      await expect(page.getByLabel('Содержание', { exact: true })).toHaveValue(
+        'Account читает точную версию.',
+      );
+      await expect(page.getByText('account-manual.pdf')).toBeVisible();
+      await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+      await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
+      const authored = await page.request.get('/api/learning/activities');
+      expect(authored.ok()).toBe(true);
+      expect(
+        (await authored.json()).items.find((item: { title: string }) => item.title === manualTitle),
+      ).toMatchObject({ kind: 'manual', currentPublishedVersionId: expect.any(String) });
+    }
     await page.getByRole('button', { name: 'Курсы', exact: true }).click();
     await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
     const form = page.getByRole('dialog', { name: 'Новый курс' });
@@ -1785,6 +1827,14 @@ for (const module of ['electronics', 'three-d'])
     await editor
       .getByLabel('Текст блока', { exact: true })
       .fill('Резистор ограничивает ток. Затем соберите свою схему.');
+    if (module === 'electronics') {
+      await addCourseBlock(page, 'Материал из библиотеки');
+      await editor.getByRole('button', { name: 'Выбрать материал', exact: true }).click();
+      await editor.getByRole('button', { name: `Добавить материал «${manualTitle}»` }).click();
+      await expect(editor.getByTestId('course-pinned-material')).toContainText(
+        'Account читает точную версию.',
+      );
+    }
     await addCourseBlock(page, 'Код');
     await editor.getByLabel('Язык кода', { exact: true }).fill('javascript');
     await editor
@@ -1972,6 +2022,28 @@ for (const module of ['electronics', 'three-d'])
       .getByRole('button')
       .filter({ hasText: courseTitle })
       .click();
+    if (module === 'electronics') {
+      const manualCard = learner.getByTestId('seat-course-manual-material');
+      await expect(manualCard).toContainText('Account читает точную версию.');
+      await expect(manualCard.getByRole('button', { name: /Начать|Отправить/ })).toHaveCount(0);
+      const imageSrc = await manualCard
+        .getByRole('img', { name: 'Изображение задания' })
+        .getAttribute('src');
+      expect(imageSrc).toContain('/api/class-join/course-runs/');
+      const image = await learner.request.get(imageSrc!);
+      expect(image.ok()).toBe(true);
+      expect(Buffer.compare(await image.body(), manualImage)).toBe(0);
+      const base = imageSrc!.replace(/\/image\/[0-9a-f]{64}$/, '');
+      const projection = await learner.request.get(base);
+      expect(projection.ok()).toBe(true);
+      const payload = await projection.json();
+      expect(payload.source).toMatchObject({ kind: 'published', versionNumber: 1 });
+      const fileSrc = payload.blocks.find((block: { type: string }) => block.type === 'file')
+        .src as string;
+      const pdf = await learner.request.get(fileSrc);
+      expect(pdf.ok()).toBe(true);
+      expect(Buffer.compare(await pdf.body(), manualPdf)).toBe(0);
+    }
     await expect(
       learner.getByText('Резистор ограничивает ток. Затем соберите свою схему.', { exact: true }),
     ).toBeVisible();
@@ -2314,6 +2386,9 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   const electronicsTitle = `D5 Electronics Activity ${suffix}`;
   const threeDTitle = `D5 3D Activity ${suffix}`;
   const courseTitle = `D5 Activity blocks ${suffix}`;
+  const manualTitle = `D5 Manual material ${suffix}`;
+  const manualImage = readFileSync('apps/web/public/landing/electronics-simulation.png');
+  const manualPdf = Buffer.from('%PDF-1.4\nD5 exact manual PDF\n%%EOF');
   const electronicsSample = readFileSync('apps/web/public/landing/electronics-simulation.png');
   const threeDSample = readFileSync('apps/web/public/landing/assignment-progress.png');
   const electronicsGoal = 'Собрать и проверить цепь';
@@ -2349,6 +2424,42 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     threeDGoal,
   );
 
+  await openNewAssignmentEditor(page);
+  await page.getByLabel('Название задания', { exact: true }).fill(manualTitle);
+  await page.getByLabel('Содержание', { exact: true }).fill('Прочитайте материал перед 3D.');
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await page.getByLabel('Файл блока изображения').setInputFiles({
+    name: 'manual.png',
+    mimeType: 'image/png',
+    buffer: manualImage,
+  });
+  await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await page.getByLabel('PDF файл задания').setInputFiles({
+    name: 'manual.pdf',
+    mimeType: 'application/pdf',
+    buffer: manualPdf,
+  });
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  await page.reload();
+  await openExistingAssignmentEditor(page, manualTitle);
+  await expect(page.getByLabel('Содержание', { exact: true })).toHaveValue(
+    'Прочитайте материал перед 3D.',
+  );
+  await expect(page.getByText('manual.pdf')).toBeVisible();
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
+  const authoredManual = await page.request.get('/api/learning/activities');
+  expect(authoredManual.ok()).toBe(true);
+  expect(
+    (await authoredManual.json()).items.find(
+      (item: { title: string }) => item.title === manualTitle,
+    ),
+  ).toMatchObject({ kind: 'manual', currentPublishedVersionId: expect.any(String) });
+
   await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать курс', exact: true }).click();
   const form = page.getByRole('dialog', { name: 'Новый курс' });
@@ -2368,6 +2479,13 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   await addCourseBlock(page, 'Врезка');
   await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');
+
+  await addCourseBlock(page, 'Материал из библиотеки');
+  await editor.getByRole('button', { name: 'Выбрать материал', exact: true }).click();
+  await editor.getByRole('button', { name: `Добавить материал «${manualTitle}»` }).click();
+  await expect(editor.getByTestId('course-pinned-material')).toContainText(
+    'Прочитайте материал перед 3D.',
+  );
 
   await addCourseBlock(page, 'Практика');
   await selectCoursePractice(page, threeDTitle, 1);
@@ -2409,11 +2527,12 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
   const preview = page.getByTestId('course-preview-page');
   const previewBlocks = preview.locator('.lesson-blocks').first().locator(':scope > *');
-  await expect(previewBlocks).toHaveCount(4);
+  await expect(previewBlocks).toHaveCount(5);
   await expect(previewBlocks.nth(0)).toContainText('Перед Electronics');
   await expect(previewBlocks.nth(1)).toContainText(electronicsTitle);
   await expect(previewBlocks.nth(2)).toContainText('Между двумя практиками');
-  await expect(previewBlocks.nth(3)).toContainText(threeDTitle);
+  await expect(previewBlocks.nth(3)).toContainText(manualTitle);
+  await expect(previewBlocks.nth(4)).toContainText(threeDTitle);
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
 
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -2509,6 +2628,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     title: string;
     sections: Array<{
       lessons: Array<{
+        id: string;
         activityOccurrences: Array<{
           blockId: string;
           activityRunId: string;
@@ -2562,14 +2682,38 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     return run;
   }
 
-  await openCourse();
+  const initialRun = await openCourse();
   const player = learner.page.getByTestId('seat-course-player');
   const learnerBlocks = player.locator('.lesson-blocks').first().locator(':scope > *');
-  await expect(learnerBlocks).toHaveCount(4);
+  await expect(learnerBlocks).toHaveCount(5);
   await expect(learnerBlocks.nth(0)).toContainText('Перед Electronics');
   await expect(learnerBlocks.nth(1)).toContainText(electronicsTitle);
   await expect(learnerBlocks.nth(2)).toContainText('Между двумя практиками');
-  await expect(learnerBlocks.nth(3)).toContainText(threeDTitle);
+  await expect(learnerBlocks.nth(3)).toContainText(manualTitle);
+  await expect(learnerBlocks.nth(4)).toContainText(threeDTitle);
+  const manual = learnerBlocks.nth(3).getByTestId('seat-course-manual-material');
+  await expect(manual).toContainText('Прочитайте материал перед 3D.');
+  await expect(manual.getByRole('img', { name: 'Изображение задания' })).toBeVisible();
+  const imageSrc = await manual
+    .getByRole('img', { name: 'Изображение задания' })
+    .getAttribute('src');
+  expect(imageSrc).toContain('/api/class-join/course-runs/');
+  const imageResponse = await learner.page.request.get(imageSrc!);
+  expect(imageResponse.ok()).toBe(true);
+  expect(Buffer.compare(await imageResponse.body(), manualImage)).toBe(0);
+  const materialBlockId = await learnerBlocks.nth(3).getAttribute('data-block-id');
+  const materialResponse = await learner.page.request.get(
+    `/api/class-join/course-runs/${initialRun.id}/lessons/${initialRun.sections[0]!.lessons[0]!.id}/materials/${materialBlockId}`,
+  );
+  expect(materialResponse.ok()).toBe(true);
+  const materialPayload = await materialResponse.json();
+  expect(materialPayload.source).toMatchObject({ kind: 'published', versionNumber: 1 });
+  const fileSrc = materialPayload.blocks.find((block: { type: string }) => block.type === 'file')
+    .src as string;
+  const pdfResponse = await learner.page.request.get(fileSrc);
+  expect(pdfResponse.ok()).toBe(true);
+  expect(Buffer.compare(await pdfResponse.body(), manualPdf)).toBe(0);
+  await expect(manual.getByRole('button', { name: /Начать|Отправить/ })).toHaveCount(0);
 
   let electronicsCard = player
     .locator('.lesson-activity-block')
