@@ -186,10 +186,7 @@ jobs:
       MIGRATION_DATABASE_URL: postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
       MIGRATION_EXPECT_DATABASE: asa_access_a_test
       MIGRATION_CONFIRM: APPLY:asa_access_a_test
-      VITEST_MAX_THREADS: "2"
-      VITEST_MIN_THREADS: "1"
-      VITEST_MAX_FORKS: "2"
-      VITEST_MIN_FORKS: "1"
+      VITEST_MAX_WORKERS: "2"
     steps:
       - uses: actions/checkout@v4
         with:
