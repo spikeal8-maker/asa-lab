@@ -65,12 +65,8 @@ try {
   const env = {
     ...process.env,
     NX_SKIP_NX_CACHE: 'true',
-    // Vitest defaults to the forks pool. THREADS alone does not cap its DB
-    // concurrency, so explicitly bound both pools in this small test cluster.
-    VITEST_MAX_FORKS: '2',
-    VITEST_MIN_FORKS: '1',
-    VITEST_MAX_THREADS: '2',
-    VITEST_MIN_THREADS: '1',
+    // Vitest 4 uses a single worker limit for both forks and threads.
+    VITEST_MAX_WORKERS: '2',
     ASA_ACCESS_A_SANDBOX: 'true',
     DATABASE_URL: rootUrl,
     TEST_DATABASE_URL: testUrl,
