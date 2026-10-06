@@ -175,17 +175,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: breadboard_extraction_selected_preflight_pending
+      checkpoint: extraction_candidate_approved_baseline_accepted_final_convergence_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 290a7a2a72e34992002ef9aca119c8a1c4031aea
+      convergence_baseline_sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
       head_sha: null
-      observed_at: '2026-10-05T22:36:36Z'
+      observed_at: '2026-10-06T15:20:32Z'
       main:
         branch: main
-        sha: 290a7a2a72e34992002ef9aca119c8a1c4031aea
-      observation_note: Dated main observation after technical acceptance of wire-vertex repair 493 and first 465 overlay hotspot slice. Fetch main before writes. Bounded rigid component extraction on one breadboard is selected as Issue 500; flexible leads, multiple boards and school-device measurements remain open in Issue 465.
+        sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
+      observation_note: Dated main observation after technical acceptance of shared dependency baseline Issue 502. Fetch main before writes. Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c remains in PR 501 with independent code APPROVE and Electronics browser run 37419320179 attempt 2 (115 tests); final convergence with current main and fresh exact-head general verification remain pending. Issue 465 remains open for other mechanics and school-device measurements.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -385,6 +385,19 @@ parallel_lanes:
         exact_candidate_browser_run: 37374354491
         exact_main_general_run: 37379809991
         exact_main_browser_run: 37379843236
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-DEPENDENCY-BASELINE-001
+        issue: 502
+        accepted_candidate_sha: 498ec037474e40a5949870e764497155f82842ca
+        integrated_sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
+        independent_review: approved
+        exact_candidate_general_run: 37480548074
+        exact_candidate_electronics_run: 37480548485
+        exact_main_general_run: 37484701229
+        unrelated_scratch_baseline_failure_run: 37480548129
+        unrelated_scratch_baseline_issue: 470
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run

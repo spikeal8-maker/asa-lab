@@ -40,7 +40,8 @@ function spyOnPostMessage(iframe: HTMLIFrameElement) {
 
 function initCalls(postMessage: ReturnType<typeof vi.spyOn>) {
   return postMessage.mock.calls.filter(
-    ([message]) => (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_INIT',
+    ([message]: unknown[]) =>
+      (message as Record<string, unknown>)?.['messageType'] === 'ASA_BLOCKS_INIT',
   );
 }
 
