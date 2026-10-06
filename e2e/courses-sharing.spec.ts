@@ -1,3 +1,8 @@
+import {
+  addCourseBlock,
+  selectCoursePractice,
+  openNewAssignmentEditor,
+} from './learning-authoring-navigation';
 import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import pg from 'pg';
@@ -34,13 +39,17 @@ test.afterAll(async () => {
 
 /** Раздел портала слева и вкладка внутри банка называются одинаково. */
 function sidebar(page: import('@playwright/test').Page, name: string) {
-  return page.getByRole('button', { name, exact: true }).first();
+  return page
+    .locator('.portal-sidebar')
+    .getByRole('link', { name: name === 'Обучение' ? 'Моё обучение' : name, exact: true })
+    .first();
 }
 
 function bankTab(page: import('@playwright/test').Page, name: string) {
-  return page
-    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
-    .getByRole('button', { name });
+  return page.getByRole('navigation', { name: 'Разделы курсов и заданий' }).getByRole('button', {
+    name: name === 'Мои курсы' ? 'Курсы' : name === 'Каталог' ? 'Библиотека' : name,
+    exact: true,
+  });
 }
 
 test('a teacher adds one complete published demo course', async ({ page }) => {
@@ -117,19 +126,23 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   const courseTitle = `Электроника · ${runSuffix}`;
   const classTitle = `7А · ${runSuffix}`;
 
-  // Автор пишет два задания.
-  await sidebar(authorPage, 'Курсы и задания').click();
-  await bankTab(authorPage, 'Банк заданий').click();
+  // Автор пишет и публикует свои canonical project-практики.
   for (const [title, goal] of [
     ['Светодиод и резистор', 'Понять, зачем резистор'],
     ['Кнопка', 'Понять замыкание'],
   ]) {
-    await authorPage.getByRole('button', { name: 'Новое задание' }).click();
-    const dialog = authorPage.getByRole('dialog', { name: 'Новое задание' });
-    await dialog.getByLabel('Название').fill(title as string);
-    await dialog.getByLabel('Цель — одной строкой').fill(goal as string);
-    await dialog.getByRole('button', { name: 'Сохранить' }).click();
-    await expect(authorPage.getByText(`Задание «${title}» сохранено.`)).toBeVisible();
+    await openNewAssignmentEditor(authorPage);
+    await authorPage.getByLabel('Название задания', { exact: true }).fill(title!);
+    await authorPage.getByLabel('Цель задания', { exact: true }).fill(goal!);
+    await authorPage.getByRole('button', { name: 'Создать задание', exact: true }).click();
+    await expect(
+      authorPage.getByText('Черновик сохранён. Публикация — отдельное действие.'),
+    ).toBeVisible();
+    await authorPage.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+    await expect(
+      authorPage.getByText('Опубликована версия 1. Материал остаётся закрытым.', { exact: true }),
+    ).toBeVisible();
+    await authorPage.getByRole('button', { name: '← Задания', exact: true }).click();
   }
 
   // И собирает из них курс: курс — это разделы, материалы и практика в порядке.
@@ -147,7 +160,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
       .getByRole('button', { name: '+ Урок', exact: true })
       .click();
     await authorPage.getByLabel('Тип урока').selectOption('assignment');
-    await authorPage.getByLabel('Задание из банка', { exact: true }).selectOption({ label: title });
+    await selectCoursePractice(authorPage, title);
     await authorPage.getByRole('button', { name: 'Добавить урок' }).click();
     await expect(authorPage.getByText('Урок добавлен.')).toBeVisible();
   }
@@ -206,12 +219,12 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   await authorPage
     .getByLabel('Текст блока')
     .fill('Резистор ограничивает ток и защищает светодиод от перегрузки.');
-  await authorPage.getByRole('button', { name: '+ Заголовок', exact: true }).click();
+  await addCourseBlock(authorPage, 'Заголовок');
   await authorPage.getByLabel('Текст заголовка').fill('Проверьте себя');
-  await authorPage.getByRole('button', { name: '+ Врезка', exact: true }).click();
+  await addCourseBlock(authorPage, 'Врезка');
   await authorPage.getByLabel('Тип врезки').selectOption('tip');
   await authorPage.getByLabel('Текст врезки').fill('Сначала найдите плюс и минус светодиода.');
-  await authorPage.getByRole('button', { name: '+ Картинка', exact: true }).click();
+  await addCourseBlock(authorPage, 'Картинка');
   await authorPage.getByLabel('Ссылка на изображение').fill('/assets/assignments/demo-robot.jpg');
   await authorPage.getByLabel('Описание изображения').fill('Пример учебного проекта');
   await authorPage.getByLabel('Подпись изображения').fill('Так выглядит готовый результат');

@@ -315,8 +315,8 @@ export function AssignmentLibraryPage({
         <div>
           <h1>Курсы и задания</h1>
           <p>
-            Собирайте программу из разделов, материалов и практики. В классах назначайте её ученикам
-            и проверяйте работы.
+            Собирайте программу из разделов, материалов и практики. Назначайте готовые задания и
+            курсы классу из редактора и проверяйте работы.
           </p>
         </div>
         {tab === 'bank' ? (
@@ -376,7 +376,12 @@ export function AssignmentLibraryPage({
         />
       ) : null}
       {tab === 'courses' ? (
-        <CoursesPanel assignments={all} canTeach={canTeach} onChanged={() => void reload()} />
+        <CoursesPanel
+          assignments={all}
+          canTeach={canTeach}
+          onChanged={() => void reload()}
+          onRegisterLeaveGuard={registerLeaveGuard}
+        />
       ) : null}
       {tab === 'catalogue' ? (
         <CataloguePanel modules={modules} onTaken={() => void reload()} />

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { LessonBlock } from '../api';
+import { CanonicalPracticePicker } from './CanonicalPracticePicker';
 
 const ASSET_URL = /^\/assets\/[A-Za-z0-9][A-Za-z0-9/_.%-]*$/;
 const CODE_TEXT_LIMIT = 20_000;
@@ -195,13 +196,13 @@ function blockLabel(block: LessonBlock): string {
 
 export function LessonBlockEditor({
   blocks,
-  activities,
   onChange,
 }: {
   readonly blocks: readonly LessonBlock[];
   readonly activities: readonly LessonActivityOption[];
   readonly onChange: (blocks: LessonBlock[]) => void;
 }): JSX.Element {
+  const [addOpen, setAddOpen] = useState(false);
   const [insertTarget, setInsertTarget] = useState<{
     blockId: string;
     placement: 'before' | 'after';
@@ -514,34 +515,12 @@ export function LessonBlockEditor({
             ) : null}
 
             {block.type === 'activity' ? (
-              <label className="lesson-block-fields">
-                <span>Опубликованная активность</span>
-                <select
-                  aria-label="Опубликованная активность"
-                  value={block.learningActivityVersionId}
-                  onChange={(event) =>
-                    onChange(setLessonActivityVersion(blocks, block.id, event.target.value))
-                  }
-                >
-                  <option value="">Выберите опубликованную активность…</option>
-                  {activities.map((entry) => (
-                    <option
-                      key={entry.id}
-                      value={entry.currentPublishedVersionId ?? `draft:${entry.id}`}
-                      disabled={!entry.currentPublishedVersionId}
-                    >
-                      {entry.title}
-                      {entry.currentPublishedVersionId ? '' : ' · черновик — сначала опубликуйте'}
-                    </option>
-                  ))}
-                  {block.learningActivityVersionId &&
-                  !activities.some(
-                    (entry) => entry.currentPublishedVersionId === block.learningActivityVersionId,
-                  ) ? (
-                    <option value={block.learningActivityVersionId}>Закреплённая версия</option>
-                  ) : null}
-                </select>
-              </label>
+              <CanonicalPracticePicker
+                value={block.learningActivityVersionId}
+                onChange={(versionId) =>
+                  onChange(setLessonActivityVersion(blocks, block.id, versionId))
+                }
+              />
             ) : null}
 
             {block.type === 'image' ? (
@@ -618,21 +597,58 @@ export function LessonBlockEditor({
         ))}
       </div>
 
-      <div className="lesson-block-add" aria-label="Добавить блок">
-        {ADD_OPTIONS.map((option) => (
-          <button
-            key={option.type}
-            type="button"
-            disabled={blocks.length >= MAX_LESSON_BLOCKS}
-            onClick={() => onChange([...blocks, createLessonBlock(option.type)])}
-          >
-            + {option.label}
-          </button>
-        ))}
+      <div className="lesson-block-add">
+        <button
+          type="button"
+          aria-expanded={addOpen}
+          disabled={blocks.length >= MAX_LESSON_BLOCKS}
+          onClick={() => setAddOpen(!addOpen)}
+        >
+          + Добавить содержимое
+        </button>
+        {addOpen ? (
+          <div role="menu" aria-label="Добавить содержимое урока">
+            {ADD_OPTIONS.filter((option) => option.type !== 'video' && option.type !== 'audio').map(
+              (option) => (
+                <button
+                  key={option.type}
+                  type="button"
+                  role="menuitem"
+                  disabled={blocks.length >= MAX_LESSON_BLOCKS}
+                  onClick={() => {
+                    onChange([...blocks, createLessonBlock(option.type)]);
+                    setAddOpen(false);
+                  }}
+                >
+                  + {option.label}
+                </button>
+              ),
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              disabled={blocks.length >= MAX_LESSON_BLOCKS}
+              onClick={() => {
+                onChange([
+                  ...blocks,
+                  {
+                    ...createLessonBlock('file'),
+                    type: 'file',
+                    url: '',
+                    label: 'Видео · внешняя ссылка',
+                  },
+                ]);
+                setAddOpen(false);
+              }}
+            >
+              + Видео по ссылке
+            </button>
+          </div>
+        ) : null}
       </div>
       <small className="lesson-block-url-hint">
-        Картинки, видео и аудио загружаются только с этой платформы: укажите путь /assets/… . Для
-        файла можно оставить защищённую https-ссылку — она откроется отдельно.
+        Файл и видео по HTTPS-ссылке открываются отдельно. Загрузка видео здесь недоступна.
+        Существующие медиа платформы сохраняются.
       </small>
     </section>
   );

@@ -92,3 +92,20 @@ export async function closeAssignmentSettings(page: Page): Promise<void> {
     await drawer.getByRole('button', { name: 'Закрыть настройки', exact: true }).click();
   }
 }
+
+export async function addCourseBlock(page: Page, label: string): Promise<void> {
+  const editor = page.getByTestId('course-editor');
+  await editor.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await editor
+    .getByRole('menu', { name: 'Добавить содержимое урока' })
+    .getByRole('menuitem', { name: '+ ' + label, exact: true })
+    .click();
+}
+
+export async function selectCoursePractice(page: Page, title: string, index = 0): Promise<void> {
+  const picker = page.getByTestId('course-editor').locator('.course-practice-picker').nth(index);
+  await picker.getByRole('button', { name: /Выбрать практику|Заменить практику/ }).click();
+  await picker.getByLabel('Найти практику', { exact: true }).fill(title);
+  await picker.getByRole('button', { name: `Добавить практику «${title}»`, exact: true }).click();
+  await expect(picker.locator('.course-pinned-practice')).toContainText(title);
+}

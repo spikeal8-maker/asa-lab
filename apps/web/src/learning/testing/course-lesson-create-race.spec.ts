@@ -556,6 +556,38 @@ it.each([
       ],
     },
   });
+  vi.spyOn(api, 'listModules').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          moduleKey: 'electronics',
+          creatable: true,
+          learningCapabilities: { assignable: true },
+        } as never,
+      ],
+    },
+  });
+  vi.spyOn(api, 'previewAuthoredActivityVersion').mockImplementation(async (_id, versionId) => ({
+    ok: true,
+    status: 200,
+    data: {
+      source: {
+        kind: 'published',
+        id: versionId,
+        draftRevision: null,
+        versionNumber: 1,
+        contentDigest: 'digest',
+      },
+      assignment: { title: 'Practice two', goal: null, blocks: [], brief: null, sampleImage: null },
+      moduleKey: 'electronics',
+      resultMode: 'completion',
+      maxPoints: null,
+      policies: {},
+      learnerRuntime: false,
+    },
+  }));
   const save = vi
     .spyOn(api, 'saveCourseLesson')
     .mockReturnValueOnce(pendingSave.promise)
@@ -596,6 +628,11 @@ it.each([
   expect(save).toHaveBeenCalledTimes(1);
   expect(save.mock.calls[0]?.[1]).toBe(mode === 'new' ? null : 'lesson-1');
 
+  if (field === 'assignment')
+    await act(async () => {
+      button(editor!, 'Заменить практику').click();
+      await flush();
+    });
   await act(async () => {
     if (field === 'summary') {
       setInput(editor!.querySelector<HTMLInputElement>('input[maxlength="600"]')!, 'Late summary');
@@ -606,10 +643,10 @@ it.each([
     } else if (field === 'kind') {
       setSelect(editor!.querySelectorAll<HTMLSelectElement>('select')[1]!, 'material');
     } else {
-      setSelect(
-        editor!.querySelector<HTMLSelectElement>('select[aria-label="Задание из банка"]')!,
-        'lav:version-2',
-      );
+      editor!
+        .querySelector<HTMLButtonElement>('[aria-label="Добавить практику «Practice two»"]')!
+        .click();
+      await flush();
     }
   });
   if (mode === 'new') {
@@ -963,3 +1000,55 @@ it.each(['failed', 'stale'] as const)(
     expect(publish).toHaveBeenCalledWith('course-1', 3, 'course-publish:course-1:3');
   },
 );
+
+it('protects dirty course lessons through the registered portal guard and beforeunload', async () => {
+  vi.spyOn(api, 'listCourses').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { items: [course] },
+  });
+  vi.spyOn(api, 'courseOutline').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      sections: [testSection('section-1', [testLesson('Saved lesson')])],
+      draftRevision: 1,
+    },
+  });
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({ ok: true, status: 200, data: { items: [] } });
+  let guard: (() => boolean) | null = null;
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(
+      createElement(CoursesPanel, {
+        assignments: [],
+        canTeach: true,
+        onChanged: vi.fn(),
+        onRegisterLeaveGuard: (value) => {
+          guard = value;
+        },
+      }),
+    );
+    await flush();
+  });
+  await act(async () => container!.querySelector<HTMLButtonElement>('.course-row-main')!.click());
+  expect(guard!()).toBe(true);
+  await act(async () =>
+    setInput(
+      container!.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')!,
+      'Unsaved lesson',
+    ),
+  );
+  const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+  expect(guard!()).toBe(false);
+  expect(confirm).toHaveBeenCalledTimes(1);
+  const unload = new Event('beforeunload', { cancelable: true });
+  window.dispatchEvent(unload);
+  expect(unload.defaultPrevented).toBe(true);
+  expect(
+    container!.querySelector<HTMLInputElement>('.course-lesson-editor input[maxlength="160"]')!
+      .value,
+  ).toBe('Unsaved lesson');
+});

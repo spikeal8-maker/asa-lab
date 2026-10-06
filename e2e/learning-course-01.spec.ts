@@ -1,3 +1,4 @@
+import { addCourseBlock, selectCoursePractice } from './learning-authoring-navigation';
 import { expect, test, type Browser, type Page, type Route } from '@playwright/test';
 import { mkdirSync, readFileSync } from 'node:fs';
 import type pg from 'pg';
@@ -1427,9 +1428,7 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
     .getByRole('button', { name: '+ Урок', exact: true })
     .click();
   await editor.getByLabel('Тип урока').selectOption('assignment');
-  await editor
-    .getByLabel('Задание из банка', { exact: true })
-    .selectOption({ label: material + ' · опубликованная версия' });
+  await selectCoursePractice(page, material);
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
   await expect(editor.locator('.course-outline-section').first().locator('li')).toHaveCount(2);
 
@@ -1589,9 +1588,9 @@ test('Course Builder persists informational block structural controls into futur
     .click();
   await editor.getByLabel('Название урока').fill('Блочная теория');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Исходный A');
-  await editor.getByRole('button', { name: '+ Текст', exact: true }).click();
+  await addCourseBlock(page, 'Текст');
   await editor.getByLabel('Текст блока', { exact: true }).nth(1).fill('Исходный B');
-  await editor.getByRole('button', { name: '+ Текст', exact: true }).click();
+  await addCourseBlock(page, 'Текст');
   await editor.getByLabel('Текст блока', { exact: true }).nth(2).fill('Исходный C');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
   await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
@@ -1776,23 +1775,23 @@ for (const module of ['electronics', 'three-d'])
     await editor
       .getByLabel('Текст блока', { exact: true })
       .fill('Резистор ограничивает ток. Затем соберите свою схему.');
-    await editor.getByRole('button', { name: '+ Код', exact: true }).click();
+    await addCourseBlock(page, 'Код');
     await editor.getByLabel('Язык кода', { exact: true }).fill('javascript');
     await editor
       .getByLabel('Код', { exact: true })
       .fill(
         '<script>window.__courseInformationalBlockExecuted = true</script>\n  const current = voltage / resistance;',
       );
-    await editor.getByRole('button', { name: '+ Формула', exact: true }).click();
+    await addCourseBlock(page, 'Формула');
     await editor.getByLabel('Формула', { exact: true }).fill('I = U / R');
-    await editor.getByRole('button', { name: '+ Таблица', exact: true }).click();
+    await addCourseBlock(page, 'Таблица');
     await editor.getByLabel('Ячейка 1:1', { exact: true }).fill('Элемент');
     await editor.getByRole('button', { name: '+ Столбец', exact: true }).click();
     await editor.getByLabel('Ячейка 1:2', { exact: true }).fill('Значение');
     await editor.getByRole('button', { name: '+ Строка', exact: true }).click();
     await editor.getByLabel('Ячейка 2:1', { exact: true }).fill('R1');
     await editor.getByLabel('Ячейка 2:2', { exact: true }).fill('220 Ω');
-    await editor.getByRole('button', { name: '+ Разделитель', exact: true }).click();
+    await addCourseBlock(page, 'Разделитель');
     await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
     await expect(
       editor.getByText(
@@ -1846,9 +1845,7 @@ for (const module of ['electronics', 'three-d'])
       .getByRole('button', { name: '+ Урок', exact: true })
       .click();
     await editor.getByLabel('Тип урока').selectOption('assignment');
-    await editor
-      .getByLabel('Задание из банка', { exact: true })
-      .selectOption({ label: material + ' · опубликованная версия' });
+    await selectCoursePractice(page, material);
     await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
     await expect(editor.locator('.course-outline li')).toHaveCount(2);
     await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -2314,6 +2311,12 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
 
   const d5Teacher = await seedTeacher(admin, 'learning-course01-d5');
   await loginWithOrganization(page, d5Teacher);
+  const classTitle = 'D5 Activity class ' + suffix;
+  const joinCode = await createClassWithStudents(page, classTitle, [
+    { label: 'D5 learner', handle: 'd5-activity-' + suffix },
+  ]);
+  const classroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
+
   await createPublishedProjectActivityAfterLogin(
     page,
     electronicsTitle,
@@ -2345,47 +2348,115 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByLabel('Название урока').fill('Смешанная практика');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Перед Electronics');
 
-  await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
-  await editor
-    .getByLabel('Опубликованная активность')
-    .nth(0)
-    .selectOption({ label: electronicsTitle });
+  await addCourseBlock(page, 'Практика');
+  await selectCoursePractice(page, electronicsTitle);
 
-  await editor.getByRole('button', { name: '+ Врезка', exact: true }).click();
+  await addCourseBlock(page, 'Врезка');
   await editor.getByLabel('Текст врезки', { exact: true }).fill('Между двумя практиками');
 
-  await editor.getByRole('button', { name: '+ Практика', exact: true }).click();
-  await editor.getByLabel('Опубликованная активность').nth(1).selectOption({ label: threeDTitle });
+  await addCourseBlock(page, 'Практика');
+  await selectCoursePractice(page, threeDTitle, 1);
 
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
   await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
 
+  await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await page
+    .getByTestId('courses-list')
+    .locator('.course-row-main')
+    .filter({ hasText: courseTitle })
+    .click();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
+  await expect(editor.locator('.course-pinned-practice').nth(0)).toContainText(electronicsTitle);
+  await expect(editor.locator('.course-pinned-practice').nth(1)).toContainText(threeDTitle);
+  await editor.getByLabel('Название урока').fill('Несохранённый курс');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page
+    .getByRole('navigation', { name: 'Разделы ASA Lab' })
+    .getByRole('link', { name: 'Знания', exact: true })
+    .click();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
+  await expect(editor.getByRole('button', { name: 'Назначить курс', exact: true })).toBeDisabled();
+  await editor.getByLabel('Название урока').fill('Смешанная практика');
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `${evidenceDir}/course-authoring-editor-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
   await editor.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
   const preview = page.getByTestId('course-preview-page');
   const previewBlocks = preview.locator('.lesson-blocks').first().locator(':scope > *');
   await expect(previewBlocks).toHaveCount(4);
   await expect(previewBlocks.nth(0)).toContainText('Перед Electronics');
-  await expect(previewBlocks.nth(1)).toContainText('Практика');
+  await expect(previewBlocks.nth(1)).toContainText(electronicsTitle);
   await expect(previewBlocks.nth(2)).toContainText('Между двумя практиками');
-  await expect(previewBlocks.nth(3)).toContainText('Практика');
+  await expect(previewBlocks.nth(3)).toContainText(threeDTitle);
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
 
   await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
 
-  const joinCode = await createClassWithStudents(page, 'D5 Activity class ' + suffix, [
-    { label: 'D5 learner', handle: 'd5-activity-' + suffix },
-  ]);
-  await page
-    .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Обучение', exact: true })
-    .click();
-  await page
-    .getByRole('navigation', { name: 'Материалы класса' })
-    .getByRole('button', { name: 'Курсы', exact: true })
-    .click();
-  await page.getByLabel('Опубликованный курс').selectOption({ label: courseTitle + ' · v1' });
-  await page.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  await editor.getByRole('button', { name: 'Опубликованная версия', exact: true }).click();
+  await expect(preview).toContainText('Опубликованная версия 1');
+  await expect(preview.locator('.course-pinned-practice').nth(0)).toContainText(electronicsGoal);
+  await expect(preview.locator('.course-pinned-practice').nth(1)).toContainText(threeDGoal);
+  await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  let assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
+  await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
+  await assignDialog.getByLabel('Срок, если нужен').fill('2027-09-30');
+  for (const width of [1440, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `${evidenceDir}/course-authoring-assign-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const assignRequests: unknown[] = [];
+  let lostResponse = false;
+  const assignPath = `**/api/classrooms/${classroomId}/course-runs`;
+  await page.route(assignPath, async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    assignRequests.push(route.request().postDataJSON());
+    if (!lostResponse) {
+      lostResponse = true;
+      const result = await route.fetch();
+      expect(result.ok()).toBe(true);
+      await route.abort('failed');
+    } else await route.continue();
+  });
+  await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
+  await expect(assignDialog.getByRole('alert')).toBeVisible();
+  await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
+  await expect(assignDialog.getByLabel('Класс для курса')).toBeDisabled();
+  const receipt = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === `/api/classrooms/${classroomId}/course-runs`,
+  );
+  await assignDialog.getByRole('button', { name: 'Повторить назначение', exact: true }).click();
+  expect((await (await receipt).json()).reused).toBe(true);
+  await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
+  expect(assignRequests).toHaveLength(2);
+  expect(assignRequests[1]).toEqual(assignRequests[0]);
+  await page.unroute(assignPath);
+  await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
 
   const learner = await learnerAssignments(browser, joinCode, 'd5-activity-' + suffix);
   const learnerFailures = collectBrowserFailures(learner.page, {

@@ -1,3 +1,4 @@
+import { addCourseBlock } from './learning-authoring-navigation';
 import { expect, test } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { PNG } from 'pngjs';
@@ -350,7 +351,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
     history.getByRole('button', { name: 'Создать черновик из этой версии' }),
   ).toBeDisabled();
   await expect(editor.getByRole('button', { name: 'Опубликовать v2', exact: true })).toBeDisabled();
-  await editor.getByRole('button', { name: '+ Текст', exact: true }).click();
+  await addCourseBlock(page, 'Текст');
   for (const n of [2, 3]) {
     await editor.getByLabel('Название урока').fill('Lesson V' + n);
     await editor.getByLabel('Текст блока', { exact: true }).fill('Lesson content V' + n);
