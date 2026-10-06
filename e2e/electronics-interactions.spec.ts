@@ -343,11 +343,15 @@ for (const zoom of [0.8, 1.35]) {
 
     const grab = await pointOnBody(page, 'resistor');
     const boardBox = (await part(page, 'board').boundingBox())!;
+    // At low zoom, dropping directly above the first hole puts this narrow
+    // resistor beneath the canvas zoom controls after reload. Keep the drop
+    // beyond the board in an exposed area so remount uses a real pointer grab.
+    const dropX = zoom < 1 ? boardBox.x + boardBox.width + 80 : grab.x;
     const dropY = boardBox.y - 70;
     expect(dropY).toBeGreaterThan(0);
     await page.mouse.move(grab.x, grab.y);
     await page.mouse.down();
-    await page.mouse.move(grab.x, dropY, { steps: 15 });
+    await page.mouse.move(dropX, dropY, { steps: 15 });
     await frames(page);
     expect((await part(page, 'resistor').boundingBox())!.y).toBeLessThan(originalBox.y - 30);
     expect((await editorPart()).holeBindings).toEqual(initialBindings);
