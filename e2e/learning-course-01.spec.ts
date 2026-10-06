@@ -1510,7 +1510,17 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await expect(preview.getByText('Материал исходной версии.', { exact: true })).toHaveCount(1);
   await expect(preview.locator(':scope > section')).toHaveCount(2);
   await expect(preview.locator(':scope > section > ol > li')).toHaveCount(3);
-  await expect(preview.locator('.course-preview-assignment')).toHaveCount(2);
+  const pinnedPractices = preview.locator('.course-pinned-practice');
+  await expect(pinnedPractices).toHaveCount(2);
+  const visibleLessons = preview.locator(':scope > section > ol > li');
+  await expect(visibleLessons.nth(0).locator('.course-pinned-practice')).toHaveCount(0);
+  await expect(visibleLessons.nth(1).locator('.course-pinned-practice')).toHaveCount(1);
+  await expect(visibleLessons.nth(2).locator('.course-pinned-practice')).toHaveCount(1);
+  for (const practice of [pinnedPractices.nth(0), pinnedPractices.nth(1)]) {
+    await expect(practice).toContainText(material);
+    await expect(practice).toContainText('опубликованная версия 1');
+    await expect(practice).toContainText('Электроника');
+  }
   await editor.getByRole('button', { name: 'Редактировать', exact: true }).click();
 
   await editor.getByRole('button', { name: /Опубликовать v2/ }).click();
