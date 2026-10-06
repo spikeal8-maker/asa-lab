@@ -168,24 +168,34 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
-      issue: 505
+      id: TASK-ELECTRONICS-BROWSER-BASELINE-001
+      issue: 507
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: rigid_move_candidate_browser_baseline_and_review_blocked
+      checkpoint: two_browser_failures_evidence_first_diagnosis_selected
       owner_acceptance: pending
+    suspended_slices:
+      - task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
+        issue: 505
+        status: blocked
+        pr: 506
+        candidate_sha: 350d2442d044d8992374ca4deef2758b6c95c61f
+        independent_review: approved
+        exact_candidate_general_run: 37506449481
+        exact_candidate_browser_run: 37506449432
+        resume_after: Issue 507 resolves the two unrelated browser gate failures; obtain full exact-head Electronics browser PASS before technical acceptance or merge.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 427e014012acd4925b580194232f16e02588d498
+      convergence_baseline_sha: 315e5a47d9526aeb8af11e51f707d23ae67a0d20
       head_sha: null
-      observed_at: '2026-10-06T19:03:18Z'
+      observed_at: '2026-10-06T19:24:18Z'
       main:
         branch: main
-        sha: 427e014012acd4925b580194232f16e02588d498
-      observation_note: Dated main observation with Issue 505 candidate PR 506 HEAD 350d2442d044d8992374ca4deef2758b6c95c61f. The new rigid-move browser test passed twice and exact-head general CI passed, but Electronics browser workflow 37506449432 failed on two different unchanged scenarios across two attempts. Baseline classification is tracked in Issue 507. Final independent review could not complete because of agent usage limit. Technical acceptance, integration, closeout, owner acceptance and deployment have not occurred. Fetch main before writes.
+        sha: 315e5a47d9526aeb8af11e51f707d23ae67a0d20
+      observation_note: Dated main observation selecting Issue 507 as evidence-first diagnosis after repaired Issue 505 PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f received independent APPROVE and exact-head general CI PASS. Its new browser test passed twice, but full browser workflow 37506449432 failed two unchanged scenarios in separate attempts. Issue 505 remains suspended and blocked for technical acceptance, merge and closeout. Fetch main before writes. No deployment or owner acceptance occurred.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -752,7 +762,7 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: Issue 505 candidate PR 506 HEAD 350d2442d044d8992374ca4deef2758b6c95c61f passed its new browser scenario, but exact-head Electronics workflow 37506449432 failed different unchanged Arduino Reset and E2 running-style tests on attempts 1 and 2. General CI passed. Issue 507 tracks separate baseline classification; a final independent review is also pending after an agent usage-limit failure. Do not accept, merge or close Issue 505 until required evidence and review are complete.
+    reason: Issue 505 candidate PR 506 HEAD 350d2442d044d8992374ca4deef2758b6c95c61f passed its new browser scenario and independent review, but exact-head Electronics workflow 37506449432 failed different unchanged Arduino Reset and E2 running-style tests on attempts 1 and 2. General CI passed. Issue 507 is the selected separate baseline diagnosis. Do not accept, merge or close Issue 505 until required full browser evidence is green.
     evidence: https://github.com/spikeal8-maker/asa-lab/issues/507
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
