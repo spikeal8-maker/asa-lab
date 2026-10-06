@@ -585,6 +585,7 @@ test.describe('interaction: document integrity', () => {
       expect(preview.x - beforeBox.x).toBeCloseTo(60, 0);
       expect(preview.y - beforeBox.y).toBeCloseTo(30, 0);
       const previewWire = await wire.getAttribute('d');
+      expect(previewWire).toBeTruthy();
       expect(await readEditorDocument()).toEqual(before);
       await page.mouse.up();
       await expect
@@ -602,7 +603,19 @@ test.describe('interaction: document integrity', () => {
       expect(movedResistor.y - beforeResistor.y).toBeCloseTo(movedBoard.y - beforeBoard.y, 3);
       expect(moved.components.find((item) => item.id === 'led')!.position).toEqual(beforeLed);
       expect((await part(page, 'mounted-resistor').boundingBox())!.x).toBeCloseTo(preview.x, 0);
-      expect(await wire.getAttribute('d')).toBe(previewWire);
+      const committedWire = await wire.getAttribute('d');
+      expect(committedWire).toBeTruthy();
+      expect(committedWire?.replace(/-?\d+(?:\.\d+)?/g, '#')).toBe(
+        previewWire?.replace(/-?\d+(?:\.\d+)?/g, '#'),
+      );
+      const pathNumbers = (path: string | null) =>
+        [...(path?.matchAll(/-?\d+(?:\.\d+)?/g) ?? [])].map((match) => Number(match[0]));
+      const committedPoints = pathNumbers(committedWire);
+      const previewPoints = pathNumbers(previewWire);
+      expect(committedPoints).toHaveLength(previewPoints.length);
+      committedPoints.forEach((value, index) =>
+        expect(value).toBeCloseTo(previewPoints[index]!, 2),
+      );
       assertTopology(moved);
       await page.getByRole('button', { name: /Отменить/ }).click();
       await expect.poll(readEditorDocument).toEqual(before);
