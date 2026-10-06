@@ -73,7 +73,6 @@ jobs:
 
   benchmark:
     name: Electronics E-OPT benchmark integrity
-    if: false # Temporary #509 directed browser diagnostic; restored before final candidate.
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -170,12 +169,11 @@ jobs:
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
-      - name: Directed E2 browser diagnostic
+      - name: Electronics M1 browser gate
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm exec playwright test e2e/electronics-interactions.spec.ts
-          --grep 'E2 running simulation locks existing structure'
+          pnpm gate:electronics-m1:browser
 
       - name: Show isolated stack state
         if: always()
@@ -200,7 +198,6 @@ jobs:
 
   review-images:
     name: Package exact-head review images
-    if: false # Temporary #509 directed browser diagnostic; restored before final candidate.
     needs: [focused, benchmark, browser]
     runs-on: ubuntu-24.04
     timeout-minutes: 35
