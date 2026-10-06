@@ -168,24 +168,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
-      issue: 500
+      id: TASK-ELECTRONICS-DEPENDENCY-BASELINE-001
+      issue: 502
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: breadboard_extraction_selected_preflight_pending
+      checkpoint: dependency_security_baseline_selected_500_candidate_pending
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 290a7a2a72e34992002ef9aca119c8a1c4031aea
+      convergence_baseline_sha: 57a794ea3a82870e32237f5c7e415e3ab9bb9769
       head_sha: null
-      observed_at: '2026-10-05T22:36:36Z'
+      observed_at: '2026-10-06T06:05:00Z'
       main:
         branch: main
-        sha: 290a7a2a72e34992002ef9aca119c8a1c4031aea
-      observation_note: Dated main observation after technical acceptance of wire-vertex repair 493 and first 465 overlay hotspot slice. Fetch main before writes. Bounded rigid component extraction on one breadboard is selected as Issue 500; flexible leads, multiple boards and school-device measurements remain open in Issue 465.
+        sha: 57a794ea3a82870e32237f5c7e415e3ab9bb9769
+      observation_note: Dated main observation before shared dependency baseline repair. Fetch main before writes. Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c remains in PR 501 and passed Electronics browser run 37419320179 attempt 2 (115 tests); its independent review and general gate after baseline repair remain pending. Issue 502 repairs the separately reproduced security dependency failure without expanding PR 501. Issue 465 remains open for other mechanics and school-device measurements.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -711,6 +711,20 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-500-SHARED-DEPENDENCY-BASELINE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
+    blocks:
+      - technical_acceptance
+      - close_issue
+      - release_claim
+    allows:
+      - bounded_dependency_baseline_repair
+      - focused_verification
+      - independent_review
+    reason: Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c passed 115 built-browser tests on exact HEAD, but general gate fails five newly published dependency advisories independently reproduced on clean main. Issue 502 must restore the shared security baseline and #500 must repeat exact-head general verification before closeout.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/502
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
