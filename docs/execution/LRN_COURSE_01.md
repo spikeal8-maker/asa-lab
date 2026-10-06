@@ -40,6 +40,8 @@ Course Builder FUNCTIONAL_ACCEPTANCE определяется Integrated §4.2.1
 
 ## Порядок ограниченных срезов
 
+Owner decision 2026-10-06: видимый маршрут выполняется как связанные bounded transitions «Задания → редактор → содержимое → параметры → точный preview → назначение», затем «Курсы → структура/разные практики» и «Библиотека → поиск/использование». Существующий Draft PR #499 служит источником пригодного кода и проверок; новые изменения идут отдельной веткой от актуального `main`. Обычный материал не требует среды, конкретная проектная практика выбирает среду; direct class assignment сохраняет существующий exact-version контракт. Это не меняет старые E1 требования или `current.yaml`.
+
 1. E1-FIX-01…03 и E1-FIX-12: массовый StudentSeat-вход с одного IP, непредсказуемые короткие коды и защищённый repeated readback, правильный class-only QR/публичный host.
 2. E1-FIX-04…05: защита всей навигации и inflight editor input, idempotent publish после lost response.
 3. E1-FIX-06…08 и E1-FIX-11: concrete structural/policy diff, точные prepublish errors и корректный legacy-picker, atomic archive/assign.

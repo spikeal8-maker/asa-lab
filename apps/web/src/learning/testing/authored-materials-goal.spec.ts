@@ -130,7 +130,11 @@ describe('authored material legacy goal', () => {
       status: 200,
       data: { id: activityId, draftRevision: 2 },
     });
-    const create = vi.spyOn(api, 'createActivityDraft');
+    const create = vi.spyOn(api, 'createActivityDraft').mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: { id: activityId, draftRevision: 1 },
+    });
     const publish = vi.spyOn(api, 'publishAuthoredActivity');
     container = document.createElement('div');
     document.body.append(container);
@@ -143,7 +147,7 @@ describe('authored material legacy goal', () => {
       [...container!.querySelectorAll('button')].find((button) => button.textContent === label);
     const title = container.querySelector<HTMLInputElement>('input[maxlength="255"]');
     await act(async () => setInput(title!, 'New material'));
-    expect(findButton('Создать материал')?.disabled).toBe(true);
+    expect(findButton('Создать материал')?.disabled).toBe(false);
     expect(findButton('Опубликовать')?.disabled).toBe(true);
     await act(async () => {
       container
@@ -151,7 +155,10 @@ describe('authored material legacy goal', () => {
         ?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
       await flush();
     });
-    expect(create).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'New material', moduleKey: null }),
+      expect.any(String),
+    );
 
     await act(async () => {
       findButton(legacyDraft.title)?.click();
@@ -300,7 +307,7 @@ describe('authored material legacy goal', () => {
     const createButton = [...container.querySelectorAll('button')].find(
       (button) => button.textContent === 'Создать материал',
     );
-    expect(chooser?.value).toBe('electronics');
+    expect(chooser?.value).toBe('');
     expect(createButton?.disabled).toBe(false);
     await act(async () => {
       createButton?.click();
@@ -310,7 +317,7 @@ describe('authored material legacy goal', () => {
       expect.objectContaining({
         title: 'Circuit lesson',
         instructions: 'Build and explain the circuit',
-        moduleKey: 'electronics',
+        moduleKey: null,
       }),
       expect.any(String),
     );
@@ -344,7 +351,7 @@ describe('authored material legacy goal', () => {
     const chooser = [...container.querySelectorAll('label')]
       .find((label) => label.textContent?.includes('Среда проекта'))
       ?.querySelector('select');
-    expect(chooser?.disabled).toBe(true);
+    expect(chooser?.disabled).toBe(false);
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Список учебных сред недоступен.',
     );
@@ -356,11 +363,11 @@ describe('authored material legacy goal', () => {
     });
     expect(listModules).toHaveBeenCalledTimes(2);
     expect(chooser?.disabled).toBe(false);
-    expect(chooser?.value).toBe('electronics');
+    expect(chooser?.value).toBe('');
     expect(container.querySelector('[role="alert"]')).toBeNull();
   });
 
-  it('starts new material in Electronics even when another assignable module comes first', async () => {
+  it('starts ordinary material without a practice environment', async () => {
     vi.spyOn(api, 'listModules').mockResolvedValue({
       ok: true,
       status: 200,
@@ -381,8 +388,12 @@ describe('authored material legacy goal', () => {
     const chooser = [...container.querySelectorAll('label')]
       .find((label) => label.textContent?.includes('Среда проекта'))
       ?.querySelector('select');
-    expect(chooser?.value).toBe('electronics');
-    expect([...chooser!.options].map((option) => option.value)).toEqual(['three-d', 'electronics']);
+    expect(chooser?.value).toBe('');
+    expect([...chooser!.options].map((option) => option.value)).toEqual([
+      '',
+      'three-d',
+      'electronics',
+    ]);
     await act(async () => {
       chooser!.value = 'three-d';
       chooser!.dispatchEvent(new Event('change', { bubbles: true }));
@@ -393,7 +404,7 @@ describe('authored material legacy goal', () => {
         .find((button) => button.textContent === 'Новый материал')
         ?.click();
     });
-    expect(chooser?.value).toBe('electronics');
+    expect(chooser?.value).toBe('');
   });
 
   it('keeps an omitted teacher goal absent during unrelated edits and sends an explicit clear after goal editing', async () => {
@@ -566,8 +577,9 @@ describe('authored material legacy goal', () => {
     const chooser = [...container.querySelectorAll('label')]
       .find((label) => label.textContent?.includes('Среда проекта'))
       ?.querySelector('select');
-    expect(chooser?.value).toBe('new-lab');
+    expect(chooser?.value).toBe('');
     expect([...chooser!.options].map((option) => option.textContent)).toEqual([
+      'Материал без среды',
       'Новая лаборатория',
       'other-lab',
     ]);

@@ -5,6 +5,12 @@ import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { openPortalSection } from './portal-navigation';
+import {
+  closeAssignmentPreview,
+  openExistingAssignmentEditor,
+  openNewAssignmentEditor,
+  previewAssignmentAs,
+} from './learning-authoring-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const evidenceDir = 'e2e/artifacts/learning/vs-001';
@@ -335,15 +341,17 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   const taskImage = solidPng(60, 130, 180, 240, 120);
 
   await loginWithOrganization(page, teacher);
-  await page.goto('/#/challenges');
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await openNewAssignmentEditor(page);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Соберите схему по точному образцу.');
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   const fileInput = page.getByLabel('Файл схемы или изображения', { exact: true });
   await fileInput.setInputFiles({
     name: 'learner-exact-a.png',
     mimeType: 'image/png',
     buffer: imageA,
   });
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   await page.getByLabel('Файл блока изображения').setInputFiles({
     name: 'ordered-task.png',
     mimeType: 'image/png',
@@ -455,8 +463,8 @@ test('learner exact published task image stays pinned across v1 and v2', async (
   }
   await orderedReference.getByRole('button', { name: 'Закрыть окно: Материал' }).click();
 
-  await page.goto('/#/challenges');
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   const replaceInput = page.getByLabel('Файл схемы или изображения', { exact: true });
   await replaceInput.setInputFiles({
     name: 'learner-exact-b.png',
@@ -542,14 +550,15 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   const pdfB = Buffer.from('%PDF-1.4\nA6 learner file B\n%%EOF');
 
   await loginWithOrganization(page, teacher);
-  await page.goto('/#/challenges');
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await openNewAssignmentEditor(page);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   await page.getByLabel('Содержание', { exact: true }).fill('Скачайте точный PDF задания.');
   const fileUpload = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&
       /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
   );
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
   await page.getByLabel('PDF файл задания').setInputFiles({
     name: 'guide-a.pdf',
     mimeType: 'application/pdf',
@@ -559,12 +568,15 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   expect(uploadedA.ok()).toBe(true);
   const hashA = ((await uploadedA.json()) as { contentHash: string }).contentHash;
   await expect(page.getByText('PDF добавлен в содержание задания.')).toBeVisible();
-  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
-  const draftPreview = page.getByTestId('learner-preview');
+  await previewAssignmentAs(page, 'draft');
+  const draftPreview = page
+    .getByRole('dialog', { name: 'Как увидит ученик' })
+    .getByTestId('learner-preview');
   await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
   const draftDownload = page.waitForEvent('download');
   await draftPreview.getByRole('button', { name: 'Скачать PDF: guide-a.pdf' }).click();
   expect((await draftDownload).suggestedFilename()).toBe('guide-a.pdf');
+  await closeAssignmentPreview(page);
 
   const publishV1 = page.waitForResponse(
     (response) =>
@@ -576,7 +588,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
   expect(publishedA.ok()).toBe(true);
   const v1 = (await publishedA.json()) as { id: string; versionNumber: number };
   expect(v1.versionNumber).toBe(1);
-  await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
+  await previewAssignmentAs(page, 'published');
   await expect(draftPreview.getByText('guide-a.pdf')).toBeVisible();
   await expect(draftPreview.getByText('Опубликованная версия 1', { exact: false })).toBeVisible();
   await draftPreview
@@ -592,6 +604,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     .scrollIntoViewIfNeeded();
   await draftPreview.screenshot({ path: `${evidenceDir}/a6-file-author-published-390.png` });
   await page.setViewportSize({ width: 1280, height: 720 });
+  await closeAssignmentPreview(page);
 
   const joinCodeV1 = await createClassWithStudents(
     page,
@@ -633,8 +646,7 @@ test('A6 PDF material stays readable through exact direct assignment versions', 
     await learnerA.page.screenshot({ path: `${evidenceDir}/a6-file-learner-${width}.png` });
   }
 
-  await page.goto('/#/challenges');
-  await page.getByRole('button', { name: title, exact: true }).click();
+  await openExistingAssignmentEditor(page, title);
   const replacement = page.waitForResponse(
     (response) =>
       response.request().method() === 'PUT' &&

@@ -4,6 +4,7 @@ import {
   api,
   type AuthoredActivityDraft,
   type AuthoredActivityLearnerPreview,
+  type Classroom,
   type ModuleSummary,
 } from '../api';
 import { AssignmentView } from '../components/AssignmentView';
@@ -46,7 +47,7 @@ const initial: AuthoredActivityDraft = {
   title: '',
   goal: null,
   instructions: '',
-  moduleKey: '',
+  moduleKey: null,
   resultMode: 'completion',
   maxPoints: null,
   policies: {
@@ -59,19 +60,8 @@ const initial: AuthoredActivityDraft = {
   },
 };
 
-const PREFERRED_AUTHOR_MODULE_KEY = 'electronics';
-
 function isAssignableModule(module: ModuleSummary): boolean {
   return module.creatable && module.learningCapabilities?.assignable === true;
-}
-
-function defaultAssignableModuleKey(modules: readonly ModuleSummary[]): string {
-  const assignable = modules.filter(isAssignableModule);
-  return (
-    assignable.find((module) => module.moduleKey === PREFERRED_AUTHOR_MODULE_KEY)?.moduleKey ??
-    assignable[0]?.moduleKey ??
-    ''
-  );
 }
 
 function LearnerPreviewPanel({
@@ -147,6 +137,189 @@ function LearnerPreviewPanel({
   );
 }
 
+function AssignmentAssignDialog({
+  title,
+  versionId,
+  onClose,
+  onAssigned,
+}: {
+  readonly title: string;
+  readonly versionId: string;
+  readonly onClose: () => void;
+  readonly onAssigned: (message: string) => void;
+}): JSX.Element {
+  const [classrooms, setClassrooms] = useState<Classroom[] | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [dueDate, setDueDate] = useState('');
+  const [submittedDueAt, setSubmittedDueAt] = useState<string | null | undefined>(undefined);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const completed = useRef(new Map<string, number>());
+  const requestIds = useRef(new Map<string, string>());
+
+  useEffect(() => {
+    let active = true;
+    void api.listClassrooms().then((result) => {
+      if (!active) return;
+      if (result.ok) setClassrooms(result.data.items.filter((item) => item.archivedAt === null));
+      else {
+        setClassrooms([]);
+        setError(result.error.message || 'Классы временно недоступны.');
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function assign(): Promise<void> {
+    if (busy || selected.size === 0) return;
+    setBusy(true);
+    setError(null);
+    // An idempotent retry must repeat the same dueAt for every classroom.
+    const dueAt =
+      submittedDueAt === undefined
+        ? dueDate
+          ? new Date(`${dueDate}T23:59:59`).toISOString()
+          : null
+        : submittedDueAt;
+    if (submittedDueAt === undefined) setSubmittedDueAt(dueAt);
+    const targets = [...selected].filter((id) => !completed.current.has(id));
+    for (const classroomId of targets) {
+      let requestId = requestIds.current.get(classroomId);
+      if (!requestId) {
+        requestId = crypto.randomUUID();
+        requestIds.current.set(classroomId, requestId);
+      }
+      const result = await api.assignLearningActivity(classroomId, {
+        activityVersionId: versionId,
+        audienceType: 'whole_class',
+        seatIds: [],
+        dueAt,
+        requestId,
+      });
+      if (!result.ok) {
+        const done = completed.current.size;
+        setError(
+          done > 0
+            ? `Назначено в ${done} из ${selected.size} классов. Для остальных повторите назначение. ${result.error.message || ''}`
+            : result.error.message || 'Не удалось назначить задание. Повторите попытку.',
+        );
+        setBusy(false);
+        return;
+      }
+      completed.current.set(classroomId, result.data.assignedCount);
+    }
+    setBusy(false);
+    const assigned = [...completed.current.values()].reduce((sum, value) => sum + value, 0);
+    onAssigned(
+      completed.current.size === 1
+        ? `Задание назначено. Учеников: ${assigned}.`
+        : `Задание назначено в классы: ${completed.current.size}. Учеников: ${assigned}.`,
+    );
+  }
+
+  return (
+    <div className="teacher-overlay-backdrop" role="presentation">
+      <section
+        className="teacher-assign-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="assign-dialog-title"
+      >
+        <header>
+          <div>
+            <span>Назначение</span>
+            <h2 id="assign-dialog-title">{title || 'Задание'}</h2>
+          </div>
+          <button
+            type="button"
+            className="teacher-icon-button"
+            aria-label="Закрыть"
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </header>
+
+        <div className="teacher-assign-body">
+          <fieldset>
+            <legend>Кому</legend>
+            {classrooms === null ? (
+              <p role="status">Загружаем классы…</p>
+            ) : classrooms.length === 0 ? (
+              <p className="teacher-muted">Нет активных классов.</p>
+            ) : (
+              <div className="teacher-class-picker">
+                {classrooms.map((classroom) => (
+                  <label key={classroom.id}>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(classroom.id)}
+                      disabled={completed.current.has(classroom.id)}
+                      onChange={(event) =>
+                        setSelected((current) => {
+                          const next = new Set(current);
+                          if (event.target.checked) next.add(classroom.id);
+                          else next.delete(classroom.id);
+                          return next;
+                        })
+                      }
+                    />
+                    <span>
+                      <strong>{classroom.title}</strong>
+                      <small>
+                        {completed.current.has(classroom.id)
+                          ? 'Назначено'
+                          : `${classroom.studentCount} учеников`}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </fieldset>
+
+          <label className="teacher-field">
+            <span>Срок</span>
+            <input
+              type="date"
+              value={dueDate}
+              disabled={busy || submittedDueAt !== undefined}
+              onChange={(event) => setDueDate(event.target.value)}
+            />
+            <small>
+              {submittedDueAt === undefined
+                ? 'Можно оставить пустым.'
+                : 'Срок закреплён для повторной попытки.'}
+            </small>
+          </label>
+
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
+
+        <footer>
+          <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+            Отмена
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy || selected.size === 0}
+            onClick={() => void assign()}
+          >
+            {busy ? 'Назначаем…' : 'Назначить'}
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 /** One authoring surface for authors and educators; it never reads a roster. */
 export function AuthoredMaterialsPage({
   embedded = false,
@@ -168,6 +341,7 @@ export function AuthoredMaterialsPage({
   const [draft, setDraft] = useState<AuthoredActivityDraft>(initial);
   const [inheritedGoal, setInheritedGoal] = useState<string | null>(null);
   const [opened, setOpened] = useState<{ id: string; revision: number } | null>(null);
+  const [openedKind, setOpenedKind] = useState<string | null>(null);
   const [publishedVersionId, setPublishedVersionId] = useState<string | null>(null);
   const [draftSampleImage, setDraftSampleImage] = useState<string | null>(null);
   const [pendingDraftSample, setPendingDraftSample] = useState<string | null>(null);
@@ -178,6 +352,10 @@ export function AuthoredMaterialsPage({
     | null
   >(null);
   const [search, setSearch] = useState('');
+  const [screen, setScreen] = useState<'list' | 'editor'>(embedded ? 'list' : 'editor');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
+  const [panel, setPanel] = useState<'settings' | 'preview' | 'history' | null>(null);
+  const [assignVersionId, setAssignVersionId] = useState<string | null>(null);
   const request = useRef<{ payload: string; id: string } | null>(null);
   const savedPayload = useRef<string | null>(null);
   const previewRequest = useRef(0);
@@ -203,11 +381,6 @@ export function AuthoredMaterialsPage({
     if (requestId === modulesRequest.current) {
       if (result.ok) {
         setModules(result.data.items);
-        setDraft((current) =>
-          current.moduleKey === ''
-            ? { ...current, moduleKey: defaultAssignableModuleKey(result.data.items) }
-            : current,
-        );
       } else {
         setModules([]);
         setError(result.error.message || 'Список учебных сред недоступен.');
@@ -216,14 +389,17 @@ export function AuthoredMaterialsPage({
     }
   }, []);
   useEffect(() => {
+    if (embedded && screen === 'list') return;
     void refreshModules();
     return () => {
       modulesRequest.current += 1;
     };
-  }, [refreshModules]);
+  }, [embedded, refreshModules, screen]);
   async function open(id: string) {
     previewRequest.current += 1;
     setPreview(null);
+    setPanel(null);
+    setAssignVersionId(null);
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -231,6 +407,7 @@ export function AuthoredMaterialsPage({
     if (result.ok) {
       const value = result.data.draft;
       setOpened({ id, revision: result.data.draftRevision });
+      setOpenedKind(result.data.kind ?? (value.moduleKey === null ? 'manual' : 'project'));
       setPublishedVersionId(result.data.currentPublishedVersionId);
       setDraftSampleImage(result.data.draftSampleImage);
       setInheritedGoal(result.data.inheritedGoal);
@@ -253,13 +430,31 @@ export function AuthoredMaterialsPage({
       setDraft(loaded);
       savedPayload.current = JSON.stringify(loaded);
       setPreview(null);
+      setScreen('editor');
     } else setError(result.error.message || 'Материал недоступен.');
     setBusy(false);
   }
+  function startNew(): void {
+    previewRequest.current += 1;
+    setPreview(null);
+    setPanel(null);
+    setAssignVersionId(null);
+    setOpened(null);
+    setOpenedKind(null);
+    setPublishedVersionId(null);
+    savedPayload.current = null;
+    setDraftSampleImage(null);
+    setPendingDraftSample(null);
+    setDraft(initial);
+    setInheritedGoal(null);
+    setNotice(null);
+    setError(null);
+    setScreen('editor');
+  }
+
   async function save(event?: FormEvent) {
     event?.preventDefault();
-    if (busy || !draft.title.trim() || draft.moduleKey === '' || (!opened && !canAssignDraftModule))
-      return null;
+    if (busy || !draft.title.trim() || (!opened && !canSaveDraftModule)) return null;
     const payload = JSON.stringify(draft);
     const textDirty = !opened || savedPayload.current !== payload;
     if (!textDirty && pendingDraftSample === null) return opened;
@@ -287,6 +482,7 @@ export function AuthoredMaterialsPage({
       }
       saved = { id: result.data.id, revision: result.data.draftRevision };
       setOpened(saved);
+      if (!opened) setOpenedKind(draft.moduleKey === null ? 'manual' : 'project');
       savedPayload.current = payload;
       request.current = null;
     }
@@ -485,10 +681,10 @@ export function AuthoredMaterialsPage({
     onChanged?.();
     setBusy(false);
   }
-  async function publish() {
-    if (!canPublish) return;
+  async function publish(): Promise<string | null> {
+    if (!canPublish) return null;
     const saved = await save();
-    if (!saved) return;
+    if (!saved) return null;
     setBusy(true);
     const result = await api.publishAuthoredActivity(
       saved.id,
@@ -507,8 +703,12 @@ export function AuthoredMaterialsPage({
       );
       await refresh();
       onChanged?.();
-    } else setError(result.error.message);
+      setBusy(false);
+      return result.data.id;
+    }
+    setError(result.error.message);
     setBusy(false);
+    return null;
   }
   async function previewAsLearner(source: 'draft' | 'published') {
     if (!opened) {
@@ -551,6 +751,54 @@ export function AuthoredMaterialsPage({
     });
   }
 
+  async function openPreviewFlow(): Promise<void> {
+    setPanel('preview');
+    if (!opened) {
+      setPreview({ kind: 'error', message: 'Сначала сохраните задание.' });
+      return;
+    }
+    if (draftDirty) {
+      setPreview({
+        kind: 'error',
+        message: 'Сохраните текущие изменения, чтобы предпросмотр был точным.',
+      });
+      return;
+    }
+    await previewAsLearner('draft');
+  }
+
+  async function openAssignFlow(): Promise<void> {
+    const needsPublish =
+      !publishedVersionId ||
+      opened === null ||
+      savedPayload.current !== JSON.stringify(draft) ||
+      pendingDraftSample !== null;
+    const saved = await save();
+    if (!saved) return;
+
+    let versionId = publishedVersionId;
+    if (needsPublish) {
+      setBusy(true);
+      const result = await api.publishAuthoredActivity(
+        saved.id,
+        saved.revision,
+        'assign-publish:' + saved.id + ':' + saved.revision,
+      );
+      setBusy(false);
+      if (!result.ok) {
+        setError(result.error.message || 'Не удалось подготовить версию для назначения.');
+        return;
+      }
+      versionId = result.data.id;
+      setPublishedVersionId(result.data.id);
+      setNotice('Для назначения создана опубликованная версия ' + result.data.versionNumber + '.');
+      await refresh();
+      onChanged?.();
+    }
+
+    if (versionId) setAssignVersionId(versionId);
+  }
+
   function policy(key: keyof AuthoredActivityDraft['policies'], value: Record<string, unknown>) {
     setDraft((current) => ({
       ...current,
@@ -562,42 +810,695 @@ export function AuthoredMaterialsPage({
     pendingDraftSample !== null;
   const canAssignDraftModule =
     !modulesLoading &&
+    (openedKind === null || openedKind === 'project') &&
     draft.moduleKey !== null &&
     assignableModules.some((module) => module.moduleKey === draft.moduleKey);
+  const canSaveDraftModule = draft.moduleKey === null || canAssignDraftModule;
   const canPublish = draft.moduleKey === null ? opened !== null : canAssignDraftModule;
   const displayedDraftSample = pendingDraftSample ?? draftSampleImage;
+  const normalizedSearch = search.trim().toLocaleLowerCase('ru-RU');
+  const publishedCount = items.filter((item) => item.currentPublishedVersionId !== null).length;
+  const visibleItems = items.filter((item) => {
+    const matchesSearch =
+      normalizedSearch.length === 0 ||
+      item.title.toLocaleLowerCase('ru-RU').includes(normalizedSearch);
+    const matchesStatus =
+      statusFilter === 'all' ||
+      (statusFilter === 'published' && item.currentPublishedVersionId !== null) ||
+      (statusFilter === 'draft' && item.currentPublishedVersionId === null);
+    return matchesSearch && matchesStatus;
+  });
+  const newDraftDirty =
+    opened === null &&
+    (draft.title.trim().length > 0 ||
+      String(draft.goal ?? '').trim().length > 0 ||
+      (draft.instructions ?? '').trim().length > 0 ||
+      (draft.blocks?.length ?? 0) > 0 ||
+      pendingDraftSample !== null);
+  const hasUnsavedEditorChanges = opened === null ? newDraftDirty : draftDirty;
+
+  function returnToList(): void {
+    if (
+      hasUnsavedEditorChanges &&
+      !window.confirm('Есть несохранённые изменения. Вернуться к списку и оставить их?')
+    ) {
+      return;
+    }
+    previewRequest.current += 1;
+    setPreview(null);
+    setPanel(null);
+    setAssignVersionId(null);
+    setError(null);
+    setNotice(null);
+    setScreen('list');
+  }
+
   const Root = embedded ? 'section' : 'main';
+
+  if (embedded && screen === 'list') {
+    return (
+      <Root className="authored-materials authored-assignment-list" aria-label="Задания">
+        <section className="authored-assignment-workspace" aria-label="Список заданий">
+          <div className="authored-assignment-toolbar" aria-label="Поиск и фильтры заданий">
+            <label className="authored-assignment-search">
+              <span className="sr-only">Поиск заданий</span>
+              <input
+                type="search"
+                placeholder="Найти задание"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </label>
+
+            <div
+              className="authored-assignment-filter-group"
+              role="group"
+              aria-label="Фильтр по статусу"
+            >
+              <button
+                type="button"
+                className={`authored-assignment-filter${statusFilter === 'all' ? ' is-active' : ''}`}
+                aria-pressed={statusFilter === 'all'}
+                onClick={() => setStatusFilter('all')}
+              >
+                Все <span>{items.length}</span>
+              </button>
+              <button
+                type="button"
+                className={`authored-assignment-filter${statusFilter === 'draft' ? ' is-active' : ''}`}
+                aria-pressed={statusFilter === 'draft'}
+                onClick={() => setStatusFilter('draft')}
+              >
+                Черновики <span>{items.length - publishedCount}</span>
+              </button>
+              <button
+                type="button"
+                className={`authored-assignment-filter${statusFilter === 'published' ? ' is-active' : ''}`}
+                aria-pressed={statusFilter === 'published'}
+                onClick={() => setStatusFilter('published')}
+              >
+                Опубликованные <span>{publishedCount}</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              className="portal-create-button authored-assignment-create"
+              disabled={busy}
+              onClick={startNew}
+            >
+              + Новое задание
+            </button>
+          </div>
+
+          {error ? (
+            <div className="authored-assignment-state is-error" role="alert">
+              <strong>Не удалось загрузить задания.</strong>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setError(null);
+                  void refresh();
+                }}
+              >
+                Повторить
+              </button>
+            </div>
+          ) : loading ? (
+            <div className="authored-assignment-state" role="status">
+              Загружаем задания…
+            </div>
+          ) : items.length === 0 ? (
+            <div className="authored-assignment-state">
+              <strong>Заданий пока нет.</strong>
+              <span>Создайте первое задание.</span>
+            </div>
+          ) : visibleItems.length === 0 ? (
+            <div className="authored-assignment-state">
+              <strong>Ничего не найдено.</strong>
+              <span>Измените запрос или фильтр.</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => {
+                  setSearch('');
+                  setStatusFilter('all');
+                }}
+              >
+                Сбросить
+              </button>
+            </div>
+          ) : (
+            <div className="authored-assignment-table">
+              <div className="authored-assignment-columns" aria-hidden="true">
+                <span>Задание</span>
+                <span>Статус</span>
+                <span />
+              </div>
+              <ul className="authored-assignment-rows">
+                {visibleItems.map((item) => {
+                  const published = item.currentPublishedVersionId !== null;
+                  return (
+                    <li key={item.id}>
+                      <button
+                        type="button"
+                        className="authored-assignment-row"
+                        disabled={busy}
+                        aria-label={`Открыть задание «${item.title}»`}
+                        onClick={() => void open(item.id)}
+                      >
+                        <span className="authored-assignment-row-title">{item.title}</span>
+                        <span
+                          className={`authored-assignment-status ${published ? 'is-published' : 'is-draft'}`}
+                        >
+                          <span className="authored-assignment-status-dot" aria-hidden="true" />
+                          <span>{published ? 'Опубликовано' : 'Черновик'}</span>
+                        </span>
+                        <span className="authored-assignment-chevron" aria-hidden="true">
+                          ›
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+        </section>
+      </Root>
+    );
+  }
+
+  if (embedded && screen === 'editor') {
+    const moduleTitle =
+      draft.moduleKey === null
+        ? 'Материал без среды'
+        : (modules.find((module) => module.moduleKey === draft.moduleKey)?.displayName ??
+          draft.moduleKey);
+    const attemptCount = Number(draft.policies.attemptPolicy?.['maxAttempts'] ?? 1);
+    const resultTitle =
+      draft.resultMode === 'graded'
+        ? `Баллы · ${draft.maxPoints ?? '—'}`
+        : draft.resultMode === 'completion'
+          ? 'Выполнение'
+          : 'Без оценки';
+    const saveState = busy
+      ? 'Сохраняем…'
+      : error
+        ? 'Проверьте ошибку'
+        : hasUnsavedEditorChanges
+          ? 'Есть несохранённые изменения'
+          : opened
+            ? 'Сохранено'
+            : 'Новый черновик';
+
+    return (
+      <Root className="authored-materials assignment-document-shell" aria-label="Редактор задания">
+        <form className="assignment-document-form" onSubmit={(event) => void save(event)}>
+          <header className="assignment-document-topbar">
+            <button
+              type="button"
+              className="assignment-document-back"
+              disabled={busy}
+              onClick={returnToList}
+            >
+              ← Задания
+            </button>
+
+            <div className="assignment-document-save-state" aria-live="polite">
+              <span
+                className={hasUnsavedEditorChanges ? 'is-dirty' : 'is-saved'}
+                aria-hidden="true"
+              />
+              {saveState}
+            </div>
+
+            <div className="assignment-document-actions">
+              <button
+                type="submit"
+                className="btn-secondary"
+                disabled={
+                  busy ||
+                  !draft.title.trim() ||
+                  (!opened && !canSaveDraftModule) ||
+                  (draft.resultMode === 'graded' && !draft.maxPoints)
+                }
+              >
+                {opened ? 'Сохранить' : 'Создать задание'}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={busy || !opened || draftDirty}
+                onClick={() => void openPreviewFlow()}
+              >
+                Предпросмотр
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={
+                  busy ||
+                  !draft.title.trim() ||
+                  !canAssignDraftModule ||
+                  (draft.resultMode === 'graded' && !draft.maxPoints)
+                }
+                onClick={() => void openAssignFlow()}
+              >
+                Назначить
+              </button>
+            </div>
+          </header>
+
+          {error ? (
+            <div className="assignment-document-message is-error" role="alert">
+              {error}
+            </div>
+          ) : null}
+          {notice ? (
+            <div className="assignment-document-message is-success" role="status">
+              {notice}
+            </div>
+          ) : null}
+
+          <main className="assignment-document-canvas">
+            <label className="assignment-document-title-field">
+              <span className="sr-only">Название задания</span>
+              <textarea
+                aria-label="Название задания"
+                required
+                maxLength={255}
+                rows={1}
+                placeholder="Название задания"
+                value={draft.title}
+                disabled={busy}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, title: event.target.value }))
+                }
+              />
+            </label>
+
+            <label className="assignment-document-goal-field">
+              <span className="sr-only">Цель задания</span>
+              <input
+                aria-label="Цель задания"
+                maxLength={160}
+                placeholder="Добавьте цель задания…"
+                value={draft.goal === undefined ? (inheritedGoal ?? '') : (draft.goal ?? '')}
+                disabled={busy}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, goal: event.target.value }))
+                }
+              />
+            </label>
+
+            <label className="assignment-document-body-field">
+              <span className="sr-only">Содержание</span>
+              <textarea
+                aria-label="Содержание"
+                maxLength={12000}
+                rows={6}
+                placeholder="Опишите, что должен сделать ученик…"
+                value={draft.instructions ?? ''}
+                disabled={busy}
+                onChange={(event) =>
+                  setDraft((current) => ({ ...current, instructions: event.target.value }))
+                }
+              />
+            </label>
+
+            <AuthoredTaskBlocksEditor
+              blocks={draft.blocks}
+              instructions={draft.instructions}
+              disabled={busy}
+              onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
+              onImageUpload={(file) => void uploadTaskImage(file)}
+              onFileUpload={(file) => void uploadTaskFile(file)}
+              {...(draft.moduleKey === null
+                ? {}
+                : { onSampleUpload: (file: File) => void pickDraftSample(file) })}
+              imageUrl={(contentHash) =>
+                opened
+                  ? `/api/learning/activities/${encodeURIComponent(opened.id)}/draft-task-image?v=${encodeURIComponent(contentHash)}`
+                  : ''
+              }
+            />
+
+            {displayedDraftSample ? (
+              <div className="assignment-document-legacy-sample">
+                <img src={displayedDraftSample} alt="Схема / изображение задания" />
+                <button type="button" onClick={() => void deleteDraftSample()} disabled={busy}>
+                  Удалить образец
+                </button>
+              </div>
+            ) : null}
+
+            <footer className="assignment-document-meta">
+              <span>{moduleTitle}</span>
+              <span>
+                {attemptCount} попыт{attemptCount === 1 ? 'ка' : 'ки'}
+              </span>
+              <span>{resultTitle}</span>
+              <button type="button" onClick={() => setPanel('settings')}>
+                Настройки
+              </button>
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  !canPublish ||
+                  !draft.title.trim() ||
+                  (draft.resultMode === 'graded' && !draft.maxPoints)
+                }
+                onClick={() => void publish()}
+              >
+                Опубликовать
+              </button>
+              {opened ? (
+                <button type="button" onClick={() => setPanel('history')}>
+                  История версий
+                </button>
+              ) : null}
+            </footer>
+            {draft.moduleKey === null ? (
+              <p className="assignment-document-hint">
+                {openedKind === 'manual'
+                  ? 'Материал можно добавить в курс. Для отдельной практики создайте новое задание и выберите среду.'
+                  : 'Материал можно добавить в курс; для отдельной практики выберите среду в параметрах.'}
+              </p>
+            ) : null}
+          </main>
+
+          {panel === 'settings' ? (
+            <div className="teacher-drawer-backdrop teacher-settings-backdrop" role="presentation">
+              <aside
+                className="teacher-drawer teacher-settings-dialog"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="assignment-settings-title"
+              >
+                <header>
+                  <div>
+                    <span>Задание</span>
+                    <h2 id="assignment-settings-title">Настройки</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="teacher-icon-button"
+                    aria-label="Закрыть настройки"
+                    onClick={() => setPanel(null)}
+                  >
+                    ×
+                  </button>
+                </header>
+
+                <div className="teacher-drawer-body">
+                  <label className="teacher-field">
+                    <span>Среда</span>
+                    <select
+                      aria-label="Среда проекта"
+                      value={draft.moduleKey ?? ''}
+                      disabled={busy || modulesLoading || openedKind === 'manual'}
+                      onChange={(event) =>
+                        setDraft((current) => ({
+                          ...current,
+                          moduleKey: event.target.value || null,
+                        }))
+                      }
+                    >
+                      <option value="" disabled={openedKind === 'project'}>
+                        Материал без среды
+                      </option>
+                      {draft.moduleKey &&
+                      !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
+                        <option value={draft.moduleKey}>{draft.moduleKey}</option>
+                      ) : null}
+                      {assignableModules.map((module) => (
+                        <option key={module.moduleKey} value={module.moduleKey}>
+                          {module.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="teacher-field">
+                    <span>Результат</span>
+                    <select
+                      aria-label="Результат"
+                      value={draft.resultMode}
+                      onChange={(event) => {
+                        const resultMode = event.target
+                          .value as AuthoredActivityDraft['resultMode'];
+                        setDraft((current) => ({
+                          ...current,
+                          resultMode,
+                          maxPoints: resultMode === 'graded' ? current.maxPoints : null,
+                        }));
+                      }}
+                    >
+                      <option value="completion">Выполнение</option>
+                      <option value="graded">Баллы</option>
+                      <option value="ungraded">Без оценки</option>
+                    </select>
+                  </label>
+
+                  {draft.resultMode === 'graded' ? (
+                    <label className="teacher-field">
+                      <span>Максимум баллов</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100000}
+                        value={draft.maxPoints ?? ''}
+                        onChange={(event) =>
+                          setDraft((current) => ({
+                            ...current,
+                            maxPoints: Number(event.target.value) || null,
+                          }))
+                        }
+                      />
+                    </label>
+                  ) : null}
+
+                  <label className="teacher-field">
+                    <span>Попытки</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={100}
+                      value={attemptCount}
+                      onChange={(event) =>
+                        policy('attemptPolicy', { maxAttempts: Number(event.target.value) })
+                      }
+                    />
+                  </label>
+
+                  <label className="teacher-field">
+                    <span>После срока</span>
+                    <select
+                      value={String(draft.policies.latePolicy?.['mode'] ?? 'allow_until_close')}
+                      onChange={(event) => policy('latePolicy', { mode: event.target.value })}
+                    >
+                      <option value="allow_until_close">Разрешать до закрытия</option>
+                      <option value="allow_mark_late">Разрешать с отметкой</option>
+                      <option value="block_at_due">Запретить после срока</option>
+                    </select>
+                  </label>
+
+                  <details className="teacher-advanced-settings">
+                    <summary>Дополнительные настройки</summary>
+                    {draft.resultMode === 'graded' ? (
+                      <label className="teacher-field">
+                        <span>Как выбирать результат</span>
+                        <select
+                          value={String(
+                            draft.policies.resultSelectionPolicy?.['mode'] ?? 'latest_accepted',
+                          )}
+                          onChange={(event) =>
+                            policy('resultSelectionPolicy', { mode: event.target.value })
+                          }
+                        >
+                          <option value="first">Первая попытка</option>
+                          <option value="latest">Последняя попытка</option>
+                          <option value="best">Лучший результат</option>
+                          <option value="latest_accepted">Последняя принятая</option>
+                          <option value="teacher_selected">Выбор преподавателя</option>
+                        </select>
+                      </label>
+                    ) : null}
+                  </details>
+                </div>
+
+                <footer>
+                  <button type="button" className="btn-primary" onClick={() => setPanel(null)}>
+                    Готово
+                  </button>
+                </footer>
+              </aside>
+            </div>
+          ) : null}
+
+          {panel === 'preview' ? (
+            <div className="teacher-drawer-backdrop" role="presentation">
+              <aside
+                className="teacher-drawer teacher-preview-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="assignment-preview-title"
+              >
+                <header>
+                  <div>
+                    <span>Предпросмотр</span>
+                    <h2 id="assignment-preview-title">Как увидит ученик</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="teacher-icon-button"
+                    aria-label="Закрыть предпросмотр"
+                    onClick={() => setPanel(null)}
+                  >
+                    ×
+                  </button>
+                </header>
+                <div className="teacher-preview-switch">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy || !opened || draftDirty}
+                    onClick={() => void previewAsLearner('draft')}
+                  >
+                    Черновик
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy || !opened || !publishedVersionId}
+                    onClick={() => void previewAsLearner('published')}
+                  >
+                    Опубликованная версия
+                  </button>
+                </div>
+                <div className="teacher-drawer-body">
+                  {preview?.kind === 'loading' ? (
+                    <p role="status">Загружаем точный предпросмотр…</p>
+                  ) : null}
+                  {preview?.kind === 'error' ? (
+                    <p className="form-error" role="alert">
+                      {preview.message}
+                    </p>
+                  ) : null}
+                  {preview?.kind === 'ready' ? (
+                    <LearnerPreviewPanel preview={preview.data} modules={modules} />
+                  ) : null}
+                </div>
+              </aside>
+            </div>
+          ) : null}
+
+          {panel === 'history' && opened ? (
+            <div className="teacher-drawer-backdrop" role="presentation">
+              <aside
+                className="teacher-drawer"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="assignment-history-title"
+              >
+                <header>
+                  <div>
+                    <span>Задание</span>
+                    <h2 id="assignment-history-title">История версий</h2>
+                  </div>
+                  <button
+                    type="button"
+                    className="teacher-icon-button"
+                    aria-label="Закрыть историю версий"
+                    onClick={() => setPanel(null)}
+                  >
+                    ×
+                  </button>
+                </header>
+                <div className="teacher-drawer-body">
+                  <AuthorVersionHistory
+                    key={opened.id + '-' + publishedVersionId}
+                    kind="activity"
+                    onBusyChange={setBusy}
+                    rootId={opened.id}
+                    revision={opened.revision}
+                    dirty={draftDirty}
+                    onOpenDraft={async (sourceVersionNumber) => {
+                      await open(opened.id);
+                      if (sourceVersionNumber)
+                        setNotice('Черновик создан на основе версии ' + sourceVersionNumber);
+                    }}
+                  />
+                </div>
+              </aside>
+            </div>
+          ) : null}
+        </form>
+
+        {assignVersionId ? (
+          <AssignmentAssignDialog
+            title={draft.title}
+            versionId={assignVersionId}
+            onClose={() => setAssignVersionId(null)}
+            onAssigned={(message) => {
+              setAssignVersionId(null);
+              setNotice(message);
+            }}
+          />
+        ) : null}
+      </Root>
+    );
+  }
+
   return (
     <Root className={embedded ? 'authored-materials' : 'portal-content'} aria-label="Мои материалы">
       {!embedded ? <h1>Курсы и задания</h1> : null}
-      <div className="library-filters">
-        <input
-          type="search"
-          aria-label="Поиск материалов"
-          placeholder="Найти материал"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={busy}
-          onClick={() => {
-            setOpened(null);
-            setPublishedVersionId(null);
-            setPreview(null);
-            savedPayload.current = null;
-            setDraftSampleImage(null);
-            setPendingDraftSample(null);
-            setDraft({ ...initial, moduleKey: defaultAssignableModuleKey(modules) });
-            setInheritedGoal(null);
-            setNotice(null);
-            setError(null);
-          }}
-        >
-          Новый материал
-        </button>
-      </div>
+      {embedded ? (
+        <div className="authored-editor-nav">
+          <button
+            type="button"
+            className="authored-editor-back"
+            disabled={busy}
+            onClick={returnToList}
+          >
+            ← Задания
+          </button>
+        </div>
+      ) : null}
+      {!embedded ? (
+        <div className="library-filters">
+          <input
+            type="search"
+            aria-label="Поиск материалов"
+            placeholder="Найти материал"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={busy}
+            onClick={() => {
+              setOpened(null);
+              setOpenedKind(null);
+              setPublishedVersionId(null);
+              setPreview(null);
+              savedPayload.current = null;
+              setDraftSampleImage(null);
+              setPendingDraftSample(null);
+              setDraft(initial);
+              setInheritedGoal(null);
+              setNotice(null);
+              setError(null);
+            }}
+          >
+            Новый материал
+          </button>
+        </div>
+      ) : null}
       {error ? (
         <p className="form-error" role="alert">
           {error}{' '}
@@ -617,38 +1518,51 @@ export function AuthoredMaterialsPage({
           {notice}
         </p>
       ) : null}
-      <div className="course-editor-grid">
-        <aside aria-label="Библиотека материалов">
-          {loading ? (
-            <p role="status">Загружаем материалы…</p>
-          ) : !items.length && !error ? (
-            <p>Пока нет личных материалов.</p>
-          ) : null}
-          <ul className="library-list">
-            {items
-              .filter((item) => item.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()))
-              .map((item) => (
-                <li key={item.id}>
-                  <button
-                    type="button"
-                    className="account-inline-action"
-                    disabled={busy}
-                    onClick={() => void open(item.id)}
-                  >
-                    {item.title}
-                  </button>
-                  <small>
-                    {item.currentPublishedVersionId ? 'Есть опубликованная версия' : 'Черновик'}
-                  </small>
-                </li>
-              ))}
-          </ul>
-        </aside>
+      <div className={`course-editor-grid${embedded ? ' authored-editor-single' : ''}`}>
+        {!embedded ? (
+          <aside aria-label="Библиотека материалов">
+            {loading ? (
+              <p role="status">Загружаем материалы…</p>
+            ) : !items.length && !error ? (
+              <p>Пока нет личных материалов.</p>
+            ) : null}
+            <ul className="library-list">
+              {items
+                .filter((item) =>
+                  item.title.toLocaleLowerCase().includes(search.toLocaleLowerCase()),
+                )
+                .map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      className="account-inline-action"
+                      disabled={busy}
+                      onClick={() => void open(item.id)}
+                    >
+                      {item.title}
+                    </button>
+                    <small>
+                      {item.currentPublishedVersionId ? 'Есть опубликованная версия' : 'Черновик'}
+                    </small>
+                  </li>
+                ))}
+            </ul>
+          </aside>
+        ) : null}
         <form className="account-profile-form" onSubmit={(event) => void save(event)}>
-          <h2>{opened ? 'Редактирование материала' : 'Новый материал'}</h2>
+          <h2>
+            {embedded
+              ? opened
+                ? 'Редактирование задания'
+                : 'Новое задание'
+              : opened
+                ? 'Редактирование материала'
+                : 'Новый материал'}
+          </h2>
           <label>
-            Название материала
+            {embedded ? 'Название задания' : 'Название материала'}
             <input
+              aria-label={embedded ? 'Название задания' : 'Название материала'}
               required
               maxLength={255}
               value={draft.title}
@@ -713,20 +1627,15 @@ export function AuthoredMaterialsPage({
             Среда проекта
             <select
               value={draft.moduleKey ?? ''}
-              disabled={
-                busy || draft.moduleKey === null || modulesLoading || assignableModules.length === 0
-              }
+              disabled={busy || modulesLoading || openedKind === 'manual'}
               onChange={(event) => {
-                const moduleKey = event.target.value;
+                const moduleKey = event.target.value || null;
                 setDraft((current) => ({ ...current, moduleKey }));
               }}
             >
-              {draft.moduleKey === '' ? (
-                <option value="" disabled>
-                  Выберите среду
-                </option>
-              ) : null}
-              {draft.moduleKey === null ? <option value="">Материал без редактора</option> : null}
+              <option value="" disabled={openedKind === 'project'}>
+                Материал без среды
+              </option>
               {draft.moduleKey &&
               !assignableModules.some((module) => module.moduleKey === draft.moduleKey) ? (
                 <option value={draft.moduleKey}>
@@ -864,12 +1773,17 @@ export function AuthoredMaterialsPage({
               disabled={
                 busy ||
                 !draft.title.trim() ||
-                draft.moduleKey === '' ||
-                (!opened && !canAssignDraftModule) ||
+                (!opened && !canSaveDraftModule) ||
                 (draft.resultMode === 'graded' && !draft.maxPoints)
               }
             >
-              {busy ? 'Сохраняем…' : opened ? 'Сохранить' : 'Создать материал'}
+              {busy
+                ? 'Сохраняем…'
+                : opened
+                  ? 'Сохранить'
+                  : embedded
+                    ? 'Создать задание'
+                    : 'Создать материал'}
             </button>
             <button
               type="button"
@@ -877,7 +1791,6 @@ export function AuthoredMaterialsPage({
               disabled={
                 busy ||
                 !draft.title.trim() ||
-                draft.moduleKey === '' ||
                 !canPublish ||
                 (draft.resultMode === 'graded' && !draft.maxPoints)
               }

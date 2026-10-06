@@ -1872,6 +1872,7 @@ export const api = {
     call<{
       id: string;
       title: string;
+      kind?: string;
       draftRevision: number;
       draftSampleImage: string | null;
       currentPublishedVersionId: string | null;
@@ -1936,7 +1937,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         ...draft,
-        kind: 'project',
+        kind: draft.moduleKey === null ? 'manual' : 'project',
         scope: 'personal',
         visibility: 'private',
         requestId,
