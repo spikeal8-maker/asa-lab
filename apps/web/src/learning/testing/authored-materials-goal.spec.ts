@@ -2,7 +2,7 @@
 
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type AuthoredActivityDraft, type ModuleSummary } from '../../api';
 import { AuthoredMaterialsPage } from '../../pages/AuthoredMaterialsPage';
 
@@ -73,6 +73,10 @@ beforeAll(() => {
 
 afterAll(() => {
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+});
+
+beforeEach(() => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
 afterEach(async () => {

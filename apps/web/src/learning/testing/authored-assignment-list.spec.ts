@@ -2,7 +2,7 @@
 
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type AuthoredActivityDraft, type Classroom, type ModuleSummary } from '../../api';
 import { AuthoredMaterialsPage } from '../../pages/AuthoredMaterialsPage';
 
@@ -93,6 +93,10 @@ beforeAll(() => {
 
 afterAll(() => {
   reactTestGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+});
+
+beforeEach(() => {
+  vi.spyOn(window, 'confirm').mockReturnValue(true);
 });
 
 afterEach(async () => {
@@ -439,6 +443,169 @@ describe('V-UX2A authored assignment list', () => {
     expect(container.textContent).toContain('Автоматический ночник');
   });
 
+  it('guards dirty authoring when the parent route or a local tab would unmount it', async () => {
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [electronicsModule()] },
+    });
+    let leaveGuard: (() => boolean) | null = null;
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(
+        createElement(AuthoredMaterialsPage, {
+          embedded: true,
+          onRegisterLeaveGuard: (guard) => {
+            leaveGuard = guard;
+          },
+        }),
+      );
+      await flush();
+    });
+    await act(async () => findButton('Новое задание')?.click());
+    const title = container.querySelector<HTMLTextAreaElement>('[aria-label="Название задания"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
+        title,
+        'Несохранённый урок',
+      );
+      title?.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.textContent).toContain('Есть несохранённые изменения');
+    const confirm = vi.mocked(window.confirm).mockReturnValue(false);
+    expect((leaveGuard as unknown as () => boolean)()).toBe(false);
+    await act(async () => findButton('← Задания')?.click());
+    expect(title?.value).toBe('Несохранённый урок');
+    expect(container.querySelector('form.assignment-document-form')).not.toBeNull();
+    expect(confirm).toHaveBeenCalled();
+    confirm.mockReturnValue(true);
+    await act(async () => findButton('← Задания')?.click());
+    expect(container.querySelector('form.assignment-document-form')).toBeNull();
+  });
+
+  it('queues image and PDF before medium choice and creates one project with both media', async () => {
+    vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [] },
+    });
+    vi.spyOn(api, 'listModules').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [electronicsModule()] },
+    });
+    const create = vi.spyOn(api, 'createActivityDraft').mockResolvedValue({
+      ok: true,
+      status: 201,
+      data: { id: draftId, draftRevision: 1 },
+    });
+    const image = vi.spyOn(api, 'saveAuthoredActivityTaskImage').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { draftRevision: 2, contentHash: 'a'.repeat(64), url: '/image.png' },
+    });
+    const pdf = vi.spyOn(api, 'saveAuthoredActivityTaskFile').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { draftRevision: 3, contentHash: 'b'.repeat(64), url: '/file.pdf' },
+    });
+    const publish = vi.spyOn(api, 'publishAuthoredActivity').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { id: publishedId, versionNumber: 1, contentDigest: 'c'.repeat(64), reused: false },
+    });
+    vi.spyOn(api, 'listClassrooms').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { items: [], meta: { total: 0 } },
+    });
+
+    container = document.createElement('div');
+    document.body.append(container);
+    root = createRoot(container);
+    await act(async () => {
+      root?.render(createElement(AuthoredMaterialsPage, { embedded: true }));
+      await flush();
+    });
+    await act(async () => findButton('Новое задание')?.click());
+    const title = container.querySelector<HTMLTextAreaElement>('[aria-label="Название задания"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
+        title,
+        'Практика с файлами',
+      );
+      title?.dispatchEvent(new Event('input', { bubbles: true }));
+      findButton('+ Добавить содержимое')?.click();
+    });
+    const setFile = async (label: string, file: File) => {
+      const input = container?.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`);
+      await act(async () => {
+        Object.defineProperty(input, 'files', { configurable: true, value: [file] });
+        input?.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        await flush();
+      });
+    };
+    await setFile(
+      'Файл блока изображения',
+      new File(['image'], 'scheme.png', { type: 'image/png' }),
+    );
+    await act(async () => findButton('+ Добавить содержимое')?.click());
+    await setFile(
+      'PDF файл задания',
+      new File(['%PDF-1.4 test'], 'task.pdf', { type: 'application/pdf' }),
+    );
+    expect(create).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('scheme.png · ожидает сохранения');
+    expect(container.textContent).toContain('task.pdf · ожидает сохранения');
+    expect(findButton('Назначить')?.disabled).toBe(true);
+
+    vi.mocked(window.confirm).mockReturnValueOnce(false);
+    await act(async () => {
+      findButton('Создать задание')?.click();
+      await flush();
+    });
+    expect(create).not.toHaveBeenCalled();
+    expect(container.textContent).toContain('task.pdf · ожидает сохранения');
+
+    await act(async () => findButton('Настройки')?.click());
+    const medium = container.querySelector<HTMLSelectElement>('[aria-label="Среда проекта"]');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value')?.set?.call(
+        medium,
+        'electronics',
+      );
+      medium?.dispatchEvent(new Event('change', { bubbles: true }));
+      findButton('Закрыть настройки')?.click();
+    });
+    await act(async () => {
+      findButton('Назначить')?.click();
+      await flush();
+    });
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(create.mock.calls[0]?.[0].moduleKey).toBe('electronics');
+    expect(image).toHaveBeenCalledWith(
+      draftId,
+      1,
+      expect.stringMatching(/^data:image\/png;base64,/),
+    );
+    expect(pdf).toHaveBeenCalledWith(
+      draftId,
+      2,
+      'task.pdf',
+      expect.stringMatching(/^data:application\/pdf;base64,/),
+    );
+    expect(publish).toHaveBeenCalledWith(draftId, 3, expect.any(String));
+    expect(container.querySelector('.teacher-assign-dialog')).not.toBeNull();
+  });
+
   it('retries only the failed classroom after partial assignment', async () => {
     const activityVersionId = '33333333-3333-4333-8333-333333333333';
     vi.spyOn(api, 'authoredActivities').mockResolvedValue({
@@ -576,7 +743,20 @@ describe('V-UX2A authored assignment list', () => {
     expect(classroomCheckboxes?.[0]?.disabled).toBe(true);
     expect(modal?.querySelector<HTMLInputElement>('input[type="date"]')?.disabled).toBe(true);
     await act(async () => {
-      modalAssign?.click();
+      modal?.querySelector<HTMLButtonElement>('[aria-label="Закрыть"]')?.click();
+      findButton('Назначить')?.click();
+      await flush();
+    });
+    const reopened = container.querySelector<HTMLElement>('.teacher-assign-dialog');
+    expect(reopened?.textContent).toContain('Назначено');
+    expect(
+      reopened?.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')[0]?.disabled,
+    ).toBe(true);
+    expect(reopened?.querySelector<HTMLInputElement>('input[type="date"]')?.disabled).toBe(true);
+    await act(async () => {
+      [...(reopened?.querySelectorAll('button') ?? [])]
+        .find((button) => button.textContent?.trim() === 'Назначить')
+        ?.click();
       await flush();
       await flush();
     });

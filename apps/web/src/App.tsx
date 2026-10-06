@@ -147,6 +147,16 @@ export function App(): JSX.Element {
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
   );
+  const viewRef = useRef(view);
+  viewRef.current = view;
+  const learningLeaveGuard = useRef<(() => boolean) | null>(null);
+  const registerLearningLeaveGuard = useCallback((guard: (() => boolean) | null) => {
+    learningLeaveGuard.current = guard;
+  }, []);
+  const mayLeaveLearning = useCallback(
+    () => viewRef.current.kind !== 'challenges' || (learningLeaveGuard.current?.() ?? true),
+    [],
+  );
   const [pendingTeacherInvite, setPendingTeacherInvite] = useState<string | null>(() => {
     const initial = creatorViewFromLocation(window.location);
     return initial.kind === 'teacher-invite' ? initial.token : null;
@@ -170,13 +180,21 @@ export function App(): JSX.Element {
       : null,
   );
 
-  const setView = useCallback((next: CreatorPortalView) => {
+  const applyView = useCallback((next: CreatorPortalView) => {
     setAdminSection(null);
+    viewRef.current = next;
     setViewState(next);
     const href = creatorViewToHref(next);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     if (current !== href) window.history.pushState(null, '', href);
   }, []);
+  const setView = useCallback(
+    (next: CreatorPortalView) => {
+      if (next.kind !== 'challenges' && !mayLeaveLearning()) return;
+      applyView(next);
+    },
+    [applyView, mayLeaveLearning],
+  );
 
   const handleModuleResolved = useCallback((projectId: string, moduleKey: string): void => {
     setViewState((current) => {
@@ -210,6 +228,11 @@ export function App(): JSX.Element {
   useEffect(() => {
     const sync = (): void => {
       const nextView = creatorViewFromLocation(window.location);
+      if (nextView.kind !== viewRef.current.kind && !mayLeaveLearning()) {
+        window.history.pushState(null, '', creatorViewToHref(viewRef.current));
+        return;
+      }
+      viewRef.current = nextView;
       setViewState(nextView);
       setAdminSection(adminSectionFromLocation(window.location));
       if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
@@ -221,7 +244,7 @@ export function App(): JSX.Element {
       window.removeEventListener('popstate', sync);
       window.removeEventListener('hashchange', sync);
     };
-  }, []);
+  }, [mayLeaveLearning]);
 
   /**
    * A class seat is a way of being signed in, not a state of the join page.
@@ -362,12 +385,16 @@ export function App(): JSX.Element {
     };
   }, [loadAdminAccess]);
 
-  const openAdminSection = useCallback((section: AdminSection): void => {
-    setAdminSection(section);
-    const href = adminHref(section);
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (current !== href) window.history.pushState(null, '', href);
-  }, []);
+  const openAdminSection = useCallback(
+    (section: AdminSection): void => {
+      if (!mayLeaveLearning()) return;
+      setAdminSection(section);
+      const href = adminHref(section);
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (current !== href) window.history.pushState(null, '', href);
+    },
+    [mayLeaveLearning],
+  );
 
   /**
    * Where this teacher keeps time, asked once.
@@ -745,7 +772,9 @@ export function App(): JSX.Element {
                 }
               : {})}
             onNavigate={navigate}
+            onBeforeExit={mayLeaveLearning}
             onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
+            onWorkspaceChanged={() => applyView({ kind: 'home' })}
             onLoggedOut={() => {
               setSession({ kind: 'anonymous' });
               setPublicView({ kind: 'entry' });
@@ -818,7 +847,10 @@ export function App(): JSX.Element {
             learner has no library — the tasks they were given live in their
             class — so they still get the informational page. */}
               {view.kind === 'challenges' && canAuthor ? (
-                <AssignmentLibraryPage canTeach={canManageClasses} />
+                <AssignmentLibraryPage
+                  canTeach={canManageClasses}
+                  onRegisterLeaveGuard={registerLearningLeaveGuard}
+                />
               ) : null}
               {/* The gallery is the one place people see each other's work, and that
             is the whole point of it: inside a class nobody sees a classmate's

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   api,
   type AssignmentClassroom,
@@ -155,8 +155,10 @@ function descendantsOf(folders: readonly AssignmentFolder[], id: string): Set<st
 
 export function AssignmentLibraryPage({
   canTeach = true,
+  onRegisterLeaveGuard,
 }: {
   readonly canTeach?: boolean;
+  readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
 }): JSX.Element {
   const [items, setItems] = useState<LibraryAssignment[] | null>(null);
   const [folders, setFolders] = useState<AssignmentFolder[]>([]);
@@ -175,6 +177,14 @@ export function AssignmentLibraryPage({
   /** Курсы — основной рабочий экран; банк заданий остаётся строительным материалом. */
   const [tab, setTab] = useState<'materials' | 'bank' | 'courses' | 'catalogue'>('materials');
   const [sharing, setSharing] = useState<LibraryAssignment | null>(null);
+  const leaveGuard = useRef<(() => boolean) | null>(null);
+  const registerLeaveGuard = useCallback(
+    (guard: (() => boolean) | null) => {
+      leaveGuard.current = guard;
+      onRegisterLeaveGuard?.(guard);
+    },
+    [onRegisterLeaveGuard],
+  );
   const time = useSchoolTime();
 
   const reload = useCallback(async () => {
@@ -281,6 +291,7 @@ export function AssignmentLibraryPage({
   }
 
   function selectTab(next: 'materials' | 'bank' | 'courses' | 'catalogue'): void {
+    if (next !== tab && !(leaveGuard.current?.() ?? true)) return;
     setTab(next);
     setNotice(null);
     setError(null);
@@ -358,7 +369,11 @@ export function AssignmentLibraryPage({
       ) : null}
 
       {tab === 'materials' ? (
-        <AuthoredMaterialsPage embedded onChanged={() => void reload()} />
+        <AuthoredMaterialsPage
+          embedded
+          onChanged={() => void reload()}
+          onRegisterLeaveGuard={registerLeaveGuard}
+        />
       ) : null}
       {tab === 'courses' ? (
         <CoursesPanel assignments={all} canTeach={canTeach} onChanged={() => void reload()} />

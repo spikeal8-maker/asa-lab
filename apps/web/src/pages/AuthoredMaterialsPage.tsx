@@ -137,25 +137,51 @@ function LearnerPreviewPanel({
   );
 }
 
+interface AssignmentAttempt {
+  selected: Set<string>;
+  dueDate: string;
+  submittedDueAt: string | null | undefined;
+  completed: Map<string, number>;
+  requestIds: Map<string, string>;
+}
+
+interface PendingTaskMedia {
+  role: 'image' | 'file';
+  name: string;
+  dataUrl: string;
+}
+
+function newAssignmentAttempt(): AssignmentAttempt {
+  return {
+    selected: new Set(),
+    dueDate: '',
+    submittedDueAt: undefined,
+    completed: new Map(),
+    requestIds: new Map(),
+  };
+}
+
 function AssignmentAssignDialog({
   title,
   versionId,
+  attempt,
   onClose,
   onAssigned,
 }: {
   readonly title: string;
   readonly versionId: string;
+  readonly attempt: AssignmentAttempt;
   readonly onClose: () => void;
   readonly onAssigned: (message: string) => void;
 }): JSX.Element {
   const [classrooms, setClassrooms] = useState<Classroom[] | null>(null);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [dueDate, setDueDate] = useState('');
-  const [submittedDueAt, setSubmittedDueAt] = useState<string | null | undefined>(undefined);
+  const [selected, setSelected] = useState<Set<string>>(attempt.selected);
+  const [dueDate, setDueDate] = useState(attempt.dueDate);
+  const [submittedDueAt, setSubmittedDueAt] = useState<string | null | undefined>(
+    attempt.submittedDueAt,
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const completed = useRef(new Map<string, number>());
-  const requestIds = useRef(new Map<string, string>());
 
   useEffect(() => {
     let active = true;
@@ -183,13 +209,16 @@ function AssignmentAssignDialog({
           ? new Date(`${dueDate}T23:59:59`).toISOString()
           : null
         : submittedDueAt;
-    if (submittedDueAt === undefined) setSubmittedDueAt(dueAt);
-    const targets = [...selected].filter((id) => !completed.current.has(id));
+    if (submittedDueAt === undefined) {
+      attempt.submittedDueAt = dueAt;
+      setSubmittedDueAt(dueAt);
+    }
+    const targets = [...selected].filter((id) => !attempt.completed.has(id));
     for (const classroomId of targets) {
-      let requestId = requestIds.current.get(classroomId);
+      let requestId = attempt.requestIds.get(classroomId);
       if (!requestId) {
         requestId = crypto.randomUUID();
-        requestIds.current.set(classroomId, requestId);
+        attempt.requestIds.set(classroomId, requestId);
       }
       const result = await api.assignLearningActivity(classroomId, {
         activityVersionId: versionId,
@@ -199,7 +228,7 @@ function AssignmentAssignDialog({
         requestId,
       });
       if (!result.ok) {
-        const done = completed.current.size;
+        const done = attempt.completed.size;
         setError(
           done > 0
             ? `Назначено в ${done} из ${selected.size} классов. Для остальных повторите назначение. ${result.error.message || ''}`
@@ -208,14 +237,14 @@ function AssignmentAssignDialog({
         setBusy(false);
         return;
       }
-      completed.current.set(classroomId, result.data.assignedCount);
+      attempt.completed.set(classroomId, result.data.assignedCount);
     }
     setBusy(false);
-    const assigned = [...completed.current.values()].reduce((sum, value) => sum + value, 0);
+    const assigned = [...attempt.completed.values()].reduce((sum, value) => sum + value, 0);
     onAssigned(
-      completed.current.size === 1
+      attempt.completed.size === 1
         ? `Задание назначено. Учеников: ${assigned}.`
-        : `Задание назначено в классы: ${completed.current.size}. Учеников: ${assigned}.`,
+        : `Задание назначено в классы: ${attempt.completed.size}. Учеников: ${assigned}.`,
     );
   }
 
@@ -256,12 +285,13 @@ function AssignmentAssignDialog({
                     <input
                       type="checkbox"
                       checked={selected.has(classroom.id)}
-                      disabled={completed.current.has(classroom.id)}
+                      disabled={attempt.completed.has(classroom.id)}
                       onChange={(event) =>
                         setSelected((current) => {
                           const next = new Set(current);
                           if (event.target.checked) next.add(classroom.id);
                           else next.delete(classroom.id);
+                          attempt.selected = next;
                           return next;
                         })
                       }
@@ -269,7 +299,7 @@ function AssignmentAssignDialog({
                     <span>
                       <strong>{classroom.title}</strong>
                       <small>
-                        {completed.current.has(classroom.id)
+                        {attempt.completed.has(classroom.id)
                           ? 'Назначено'
                           : `${classroom.studentCount} учеников`}
                       </small>
@@ -286,7 +316,10 @@ function AssignmentAssignDialog({
               type="date"
               value={dueDate}
               disabled={busy || submittedDueAt !== undefined}
-              onChange={(event) => setDueDate(event.target.value)}
+              onChange={(event) => {
+                attempt.dueDate = event.target.value;
+                setDueDate(event.target.value);
+              }}
             />
             <small>
               {submittedDueAt === undefined
@@ -324,9 +357,11 @@ function AssignmentAssignDialog({
 export function AuthoredMaterialsPage({
   embedded = false,
   onChanged,
+  onRegisterLeaveGuard,
 }: {
   readonly embedded?: boolean;
   readonly onChanged?: () => void;
+  readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
 }): JSX.Element {
   const [items, setItems] = useState<
     { id: string; title: string; draftRevision: number; currentPublishedVersionId: string | null }[]
@@ -345,6 +380,7 @@ export function AuthoredMaterialsPage({
   const [publishedVersionId, setPublishedVersionId] = useState<string | null>(null);
   const [draftSampleImage, setDraftSampleImage] = useState<string | null>(null);
   const [pendingDraftSample, setPendingDraftSample] = useState<string | null>(null);
+  const [pendingTaskMedia, setPendingTaskMedia] = useState<PendingTaskMedia[]>([]);
   const [preview, setPreview] = useState<
     | { kind: 'loading' }
     | { kind: 'ready'; data: AuthoredActivityLearnerPreview }
@@ -356,6 +392,7 @@ export function AuthoredMaterialsPage({
   const [statusFilter, setStatusFilter] = useState<'all' | 'draft' | 'published'>('all');
   const [panel, setPanel] = useState<'settings' | 'preview' | 'history' | null>(null);
   const [assignVersionId, setAssignVersionId] = useState<string | null>(null);
+  const assignmentAttempt = useRef<{ versionId: string; value: AssignmentAttempt } | null>(null);
   const request = useRef<{ payload: string; id: string } | null>(null);
   const savedPayload = useRef<string | null>(null);
   const previewRequest = useRef(0);
@@ -400,6 +437,7 @@ export function AuthoredMaterialsPage({
     setPreview(null);
     setPanel(null);
     setAssignVersionId(null);
+    assignmentAttempt.current = null;
     setBusy(true);
     setError(null);
     setNotice(null);
@@ -412,6 +450,7 @@ export function AuthoredMaterialsPage({
       setDraftSampleImage(result.data.draftSampleImage);
       setInheritedGoal(result.data.inheritedGoal);
       setPendingDraftSample(null);
+      setPendingTaskMedia([]);
       const loaded: AuthoredActivityDraft = {
         title: value.title,
         // A legacy teacher-source draft may have no goal key. Keep that
@@ -439,12 +478,14 @@ export function AuthoredMaterialsPage({
     setPreview(null);
     setPanel(null);
     setAssignVersionId(null);
+    assignmentAttempt.current = null;
     setOpened(null);
     setOpenedKind(null);
     setPublishedVersionId(null);
     savedPayload.current = null;
     setDraftSampleImage(null);
     setPendingDraftSample(null);
+    setPendingTaskMedia([]);
     setDraft(initial);
     setInheritedGoal(null);
     setNotice(null);
@@ -455,9 +496,17 @@ export function AuthoredMaterialsPage({
   async function save(event?: FormEvent) {
     event?.preventDefault();
     if (busy || !draft.title.trim() || (!opened && !canSaveDraftModule)) return null;
+    if (
+      !opened &&
+      draft.moduleKey === null &&
+      !window.confirm(
+        'Сохранить как материал для курса без проектной среды? Для назначаемой практики сначала выберите среду в настройках.',
+      )
+    )
+      return null;
     const payload = JSON.stringify(draft);
     const textDirty = !opened || savedPayload.current !== payload;
-    if (!textDirty && pendingDraftSample === null) return opened;
+    if (!textDirty && pendingDraftSample === null && pendingTaskMedia.length === 0) return opened;
 
     setBusy(true);
     setError(null);
@@ -513,6 +562,52 @@ export function AuthoredMaterialsPage({
       setPendingDraftSample(null);
     }
 
+    let savedDraft = draft;
+    for (const media of pendingTaskMedia) {
+      const mediaResult: Awaited<ReturnType<typeof api.saveAuthoredActivityTaskImage>> =
+        media.role === 'image'
+          ? await api.saveAuthoredActivityTaskImage(saved.id, saved.revision, media.dataUrl)
+          : await api.saveAuthoredActivityTaskFile(
+              saved.id,
+              saved.revision,
+              media.name,
+              media.dataUrl,
+            );
+      if (!mediaResult.ok) {
+        setError(
+          mediaResult.error.code === 'revision_conflict'
+            ? 'Материал изменён в другом окне. Откройте актуальную редакцию из списка.'
+            : mediaResult.error.message,
+        );
+        setBusy(false);
+        return null;
+      }
+      const block =
+        media.role === 'image'
+          ? ({
+              type: 'image',
+              alt: 'Изображение задания',
+              contentHash: mediaResult.data.contentHash,
+            } as const)
+          : ({
+              type: 'file',
+              name: media.name,
+              contentHash: mediaResult.data.contentHash,
+            } as const);
+      const blocks = savedDraft.blocks ?? [];
+      savedDraft = {
+        ...savedDraft,
+        blocks: blocks.some((item) => item.type === media.role)
+          ? blocks.map((item) => (item.type === media.role ? block : item))
+          : [...blocks, block],
+      };
+      saved = { id: saved.id, revision: mediaResult.data.draftRevision };
+      setOpened(saved);
+      setDraft(savedDraft);
+      savedPayload.current = JSON.stringify(savedDraft);
+      setPendingTaskMedia((current) => current.filter((item) => item.role !== media.role));
+    }
+
     setPreview(null);
     setNotice('Черновик сохранён. Публикация — отдельное действие.');
     await refresh();
@@ -544,6 +639,22 @@ export function AuthoredMaterialsPage({
     const problem = checkDraftImage(file);
     if (problem) {
       setError(problem);
+      return;
+    }
+    if (!opened) {
+      try {
+        const dataUrl = await readDraftImage(file);
+        setPendingTaskMedia((current) => [
+          ...current.filter((item) => item.role !== 'image'),
+          { role: 'image', name: file.name, dataUrl },
+        ]);
+        setError(null);
+        setNotice(null);
+      } catch (readError) {
+        setError(
+          readError instanceof Error ? readError.message : 'Не удалось прочитать изображение.',
+        );
+      }
       return;
     }
     const saved = await save();
@@ -600,6 +711,20 @@ export function AuthoredMaterialsPage({
     const problem = checkTaskPdf(file);
     if (problem) {
       setError(problem);
+      return;
+    }
+    if (!opened) {
+      try {
+        const dataUrl = await readDraftImage(file);
+        setPendingTaskMedia((current) => [
+          ...current.filter((item) => item.role !== 'file'),
+          { role: 'file', name: file.name, dataUrl },
+        ]);
+        setError(null);
+        setNotice(null);
+      } catch (readError) {
+        setError(readError instanceof Error ? readError.message : 'Не удалось прочитать PDF.');
+      }
       return;
     }
     const saved = await save();
@@ -772,7 +897,8 @@ export function AuthoredMaterialsPage({
       !publishedVersionId ||
       opened === null ||
       savedPayload.current !== JSON.stringify(draft) ||
-      pendingDraftSample !== null;
+      pendingDraftSample !== null ||
+      pendingTaskMedia.length > 0;
     const saved = await save();
     if (!saved) return;
 
@@ -796,7 +922,12 @@ export function AuthoredMaterialsPage({
       onChanged?.();
     }
 
-    if (versionId) setAssignVersionId(versionId);
+    if (versionId) {
+      if (assignmentAttempt.current?.versionId !== versionId) {
+        assignmentAttempt.current = { versionId, value: newAssignmentAttempt() };
+      }
+      setAssignVersionId(versionId);
+    }
   }
 
   function policy(key: keyof AuthoredActivityDraft['policies'], value: Record<string, unknown>) {
@@ -807,7 +938,8 @@ export function AuthoredMaterialsPage({
   }
   const draftDirty =
     (opened !== null && savedPayload.current !== JSON.stringify(draft)) ||
-    pendingDraftSample !== null;
+    pendingDraftSample !== null ||
+    pendingTaskMedia.length > 0;
   const canAssignDraftModule =
     !modulesLoading &&
     (openedKind === null || openedKind === 'project') &&
@@ -830,20 +962,49 @@ export function AuthoredMaterialsPage({
   });
   const newDraftDirty =
     opened === null &&
-    (draft.title.trim().length > 0 ||
-      String(draft.goal ?? '').trim().length > 0 ||
-      (draft.instructions ?? '').trim().length > 0 ||
-      (draft.blocks?.length ?? 0) > 0 ||
-      pendingDraftSample !== null);
+    (JSON.stringify(draft) !== JSON.stringify(initial) ||
+      pendingDraftSample !== null ||
+      pendingTaskMedia.length > 0);
   const hasUnsavedEditorChanges = opened === null ? newDraftDirty : draftDirty;
 
-  function returnToList(): void {
-    if (
-      hasUnsavedEditorChanges &&
-      !window.confirm('Есть несохранённые изменения. Вернуться к списку и оставить их?')
-    ) {
-      return;
+  function canLeaveEditor(): boolean {
+    if (screen !== 'editor') return true;
+    if (busy) return false;
+    if (hasUnsavedEditorChanges) {
+      return window.confirm('Есть несохранённые изменения. Покинуть редактор без сохранения?');
     }
+    if (assignmentAttempt.current?.value.submittedDueAt !== undefined) {
+      return window.confirm(
+        'Назначение не завершено. Вернитесь к нему и повторите попытку, чтобы не создать дубликат. Всё равно покинуть редактор?',
+      );
+    }
+    return true;
+  }
+
+  useEffect(() => {
+    if (!onRegisterLeaveGuard) return;
+    onRegisterLeaveGuard(canLeaveEditor);
+    return () => onRegisterLeaveGuard(null);
+  });
+
+  useEffect(() => {
+    if (
+      screen !== 'editor' ||
+      (!hasUnsavedEditorChanges &&
+        !busy &&
+        assignmentAttempt.current?.value.submittedDueAt === undefined)
+    )
+      return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [screen, hasUnsavedEditorChanges, busy, assignVersionId]);
+
+  function returnToList(): void {
+    if (!canLeaveEditor()) return;
     previewRequest.current += 1;
     setPreview(null);
     setPanel(null);
@@ -1135,6 +1296,10 @@ export function AuthoredMaterialsPage({
               onChange={(blocks) => setDraft((current) => ({ ...current, blocks }))}
               onImageUpload={(file) => void uploadTaskImage(file)}
               onFileUpload={(file) => void uploadTaskFile(file)}
+              pendingMedia={pendingTaskMedia}
+              onRemovePendingMedia={(role) =>
+                setPendingTaskMedia((current) => current.filter((item) => item.role !== role))
+              }
               {...(draft.moduleKey === null
                 ? {}
                 : { onSampleUpload: (file: File) => void pickDraftSample(file) })}
@@ -1442,9 +1607,11 @@ export function AuthoredMaterialsPage({
           <AssignmentAssignDialog
             title={draft.title}
             versionId={assignVersionId}
+            attempt={assignmentAttempt.current?.value ?? newAssignmentAttempt()}
             onClose={() => setAssignVersionId(null)}
             onAssigned={(message) => {
               setAssignVersionId(null);
+              assignmentAttempt.current = null;
               setNotice(message);
             }}
           />

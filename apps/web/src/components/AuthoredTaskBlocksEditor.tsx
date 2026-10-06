@@ -25,6 +25,8 @@ export function AuthoredTaskBlocksEditor({
   onImageUpload,
   onFileUpload,
   onSampleUpload,
+  pendingMedia = [],
+  onRemovePendingMedia,
   imageUrl,
 }: {
   readonly blocks: SafeTaskBlock[] | undefined;
@@ -34,6 +36,8 @@ export function AuthoredTaskBlocksEditor({
   readonly onImageUpload: (file: File) => void;
   readonly onFileUpload: (file: File) => void;
   readonly onSampleUpload?: (file: File) => void;
+  readonly pendingMedia?: readonly { role: 'image' | 'file'; name: string }[];
+  readonly onRemovePendingMedia?: (role: 'image' | 'file') => void;
   readonly imageUrl: (contentHash: string) => string;
 }): JSX.Element {
   const items = blocks ?? [];
@@ -61,6 +65,22 @@ export function AuthoredTaskBlocksEditor({
       <legend className="sr-only">Блоки задания</legend>
 
       <div className="task-document-stack">
+        {pendingMedia.map((media) => (
+          <section className="task-document-file" key={media.role} role="status">
+            <span className="task-document-file-icon" aria-hidden="true">
+              {media.role === 'file' ? 'PDF' : 'IMG'}
+            </span>
+            <span className="task-document-file-name">{media.name} · ожидает сохранения</span>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={disabled}
+              onClick={() => onRemovePendingMedia?.(media.role)}
+            >
+              Убрать
+            </button>
+          </section>
+        ))}
         {items.map((block, index) => (
           <section
             className={`task-document-block is-${block.type}`}

@@ -4,8 +4,10 @@ import { PNG } from 'pngjs';
 import {
   addAssignmentBlock,
   closeAssignmentPreview,
+  closeAssignmentSettings,
   openExistingAssignmentEditor,
   openNewAssignmentEditor,
+  openAssignmentSettings,
   previewAssignmentAs,
 } from './learning-authoring-navigation';
 
@@ -121,6 +123,7 @@ test('exact saved and published learner preview ignores late responses and creat
       fullPage: true,
     });
   }
+  await page.setViewportSize({ width: 1440, height: 900 });
 
   await page.getByRole('button', { name: '← Задания', exact: true }).click();
   await expect(page.locator('.authored-assignment-list')).toBeVisible();
@@ -143,6 +146,38 @@ test('exact saved and published learner preview ignores late responses and creat
       fullPage: true,
     });
   }
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openExistingAssignmentEditor(page, 'Saved draft r2');
+  await page.getByLabel('Название задания', { exact: true }).fill('Unsaved navigation guard');
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await expect(page.getByLabel('Название задания', { exact: true })).toHaveValue(
+    'Unsaved navigation guard',
+  );
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await page
+    .getByRole('navigation', { name: 'Разделы ASA Lab' })
+    .getByRole('link', { name: 'Знания', exact: true })
+    .click();
+  await expect(page).toHaveURL(/#\/challenges$/);
+  await expect(page.getByLabel('Название задания', { exact: true })).toHaveValue(
+    'Unsaved navigation guard',
+  );
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  await page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Разделы курсов и заданий' })
+      .getByRole('button', { name: 'Курсы', exact: true }),
+  ).toHaveAttribute('aria-current', 'page');
 });
 
 test('ordered safe task blocks remain pinned in v1 preview at four widths after a future draft edit', async ({
@@ -179,7 +214,7 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.getByLabel('Пункты блока 3').fill('Connect the lamp\nCheck polarity');
   await addAssignmentBlock(page, 'Примечание');
   await page.getByLabel('Текст блока 4').fill('Disconnect power before changing wires.');
-  await addAssignmentBlock(page, 'Ссылка');
+  await addAssignmentBlock(page, 'Ссылка на сайт или видео');
   await page.getByLabel('Текст блока 5').fill('Read reference');
   await page.getByLabel('Адрес блока 5').fill('https://example.org/reference');
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
@@ -396,6 +431,72 @@ function solidPng(red: number, green: number, blue: number, width = 3, height = 
   }
   return PNG.sync.write(image);
 }
+
+test('content-first image and PDF keep the new draft selectable as a project practice', async ({
+  page,
+}) => {
+  test.setTimeout(120000);
+  const unique = crypto.randomUUID().replaceAll('-', '').slice(0, 18);
+  const title = 'Content first ' + unique;
+  await page.goto('/#/');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+  await page.getByLabel('Email', { exact: true }).fill(`${unique}@content-first.test`);
+  await page.getByLabel('Имя пользователя', { exact: true }).fill('c' + unique);
+  await page.getByLabel('Отображаемое имя', { exact: true }).fill('Автор практики');
+  await page.getByLabel('Дата рождения').fill('1990-04-12');
+  await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
+  await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+  await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await page.goto('/#/account');
+  await page
+    .getByLabel('Разделы настроек')
+    .getByRole('button', { name: 'Возможности', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
+  await page.goto('/#/challenges');
+  await page.getByRole('button', { name: /Новое задание/ }).click();
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
+  const activityCreates: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname === '/api/learning/activities'
+    )
+      activityCreates.push(request.url());
+  });
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await page.getByLabel('Файл блока изображения').setInputFiles({
+    name: 'content-first.png',
+    mimeType: 'image/png',
+    buffer: solidPng(30, 120, 180),
+  });
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await page.getByLabel('PDF файл задания').setInputFiles({
+    name: 'content-first.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\nContent first practice\n%%EOF'),
+  });
+  await expect(page.getByText('content-first.png · ожидает сохранения')).toBeVisible();
+  await expect(page.getByText('content-first.pdf · ожидает сохранения')).toBeVisible();
+  expect(activityCreates).toHaveLength(0);
+  await expect(page.getByRole('button', { name: 'Назначить', exact: true })).toBeDisabled();
+  await openAssignmentSettings(page);
+  await page
+    .getByRole('dialog', { name: 'Настройки' })
+    .getByLabel('Среда проекта')
+    .selectOption('electronics');
+  await closeAssignmentSettings(page);
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+  expect(activityCreates).toHaveLength(1);
+  await expect(page.getByRole('button', { name: 'Назначить', exact: true })).toBeEnabled();
+  await page.reload();
+  await openExistingAssignmentEditor(page, title);
+  await previewAssignmentAs(page, 'draft');
+  const preview = page.getByRole('dialog', { name: 'Как увидит ученик' });
+  await expect(preview.getByText('content-first.pdf')).toBeVisible();
+  await expect(preview.getByRole('img', { name: 'Изображение задания' })).toBeVisible();
+});
 
 test('first-class image block survives draft reload and pins exact published bytes', async ({
   page,
