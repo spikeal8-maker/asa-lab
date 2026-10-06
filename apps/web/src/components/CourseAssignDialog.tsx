@@ -81,6 +81,19 @@ export function CourseAssignDialog({
       onBusyChange(false);
     }
   }
+  function startNewAssignment(): void {
+    if (busy || !attempt.completed) return;
+    // A confirmed receipt closes the old attempt. An ambiguous attempt is
+    // never reset, including when this dialog is closed and reopened.
+    delete attempt.submitted;
+    delete attempt.completed;
+    attempt.classroomId = '';
+    attempt.dueDate = '';
+    setClassroomId('');
+    setDueDate('');
+    setCompleted(undefined);
+    setError(null);
+  }
   return (
     <div className="modal-backdrop" role="presentation">
       <section
@@ -139,6 +152,16 @@ export function CourseAssignDialog({
           />
         </label>
         <div className="modal-actions">
+          {completed ? (
+            <button
+              type="button"
+              className="btn-primary"
+              disabled={busy}
+              onClick={startNewAssignment}
+            >
+              Новое назначение
+            </button>
+          ) : null}
           <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
             Закрыть назначение
           </button>

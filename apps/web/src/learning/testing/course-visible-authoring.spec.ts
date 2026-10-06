@@ -257,6 +257,11 @@ it('reuses frozen class, deadline and request ID after a lost response and close
     await flush();
   });
   expect(container!.textContent).toContain('Lost response');
+  expect(
+    [...container!.querySelectorAll('button')].some((item) =>
+      item.textContent?.includes('Новое назначение'),
+    ),
+  ).toBe(false);
   expect(container!.querySelector('select')!.disabled).toBe(true);
   expect(container!.querySelector<HTMLInputElement>('input[type="date"]')!.disabled).toBe(true);
   const frozen = structuredClone(assign.mock.calls[0]);
@@ -455,4 +460,79 @@ it('uses the current editor callback when a practice selection resolves after an
   });
   expect(stale).not.toHaveBeenCalled();
   expect(current).toHaveBeenCalledWith(versionId, 'Exact Electronics');
+});
+
+it('starts an explicit second assignment of the same version only after a confirmed success with a fresh request ID', async () => {
+  vi.spyOn(api, 'listClassrooms').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        { id: 'class-1', title: 'First class', archivedAt: null } as never,
+        { id: 'class-2', title: 'Second class', archivedAt: null } as never,
+      ],
+      meta: { total: 2 },
+    },
+  });
+  const assign = vi
+    .spyOn(api, 'assignCourseToClassroom')
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { runId: 'run-1', versionNumber: 1, reused: false },
+    })
+    .mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { runId: 'run-2', versionNumber: 1, reused: false },
+    });
+  const attempt: CourseAssignAttempt = { classroomId: 'class-1', dueDate: '2027-04-01' };
+  await mount(
+    createElement(CourseAssignDialog, {
+      courseId: 'course',
+      version,
+      attempt,
+      onClose: vi.fn(),
+      onBusyChange: vi.fn(),
+    }),
+  );
+  expect(
+    [...container!.querySelectorAll('button')].some((item) =>
+      item.textContent?.includes('Новое назначение'),
+    ),
+  ).toBe(false);
+  await act(async () => {
+    button('Назначить').click();
+    await flush();
+  });
+  expect(attempt.completed?.runId).toBe('run-1');
+  await act(async () => button('Новое назначение').click());
+  const select = container!.querySelector<HTMLSelectElement>('[aria-label="Класс для курса"]')!;
+  const date = container!.querySelector<HTMLInputElement>('input[type="date"]')!;
+  expect(select.disabled).toBe(false);
+  expect(select.value).toBe('');
+  expect(date.disabled).toBe(false);
+  expect(date.value).toBe('');
+  await act(async () => {
+    select.value = 'class-2';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+      date,
+      '2027-05-02',
+    );
+    date.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    button('Назначить').click();
+    await flush();
+  });
+  expect(assign).toHaveBeenCalledTimes(2);
+  expect(assign.mock.calls[0]?.[0]).toBe('class-1');
+  expect(assign.mock.calls[1]?.[0]).toBe('class-2');
+  expect(assign.mock.calls[1]?.[3]?.versionNumber).toBe(1);
+  expect(assign.mock.calls[1]?.[3]?.requestId).not.toBe(assign.mock.calls[0]?.[3]?.requestId);
+  expect(assign.mock.calls[1]?.[2]).not.toBe(assign.mock.calls[0]?.[2]);
+  expect(attempt.completed?.runId).toBe('run-2');
 });

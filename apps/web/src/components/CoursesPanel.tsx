@@ -850,7 +850,11 @@ function CourseEditor({
           <button
             type="button"
             className="course-back-button"
-            onClick={() => withSavedDraft(onBack)}
+            onClick={() =>
+              withSavedDraft(() => {
+                if (canLeave()) onBack();
+              })
+            }
           >
             <span aria-hidden="true">←</span>
             <span>Курсы</span>

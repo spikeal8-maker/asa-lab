@@ -2316,6 +2316,11 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     { label: 'D5 learner', handle: 'd5-activity-' + suffix },
   ]);
   const classroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
+  const secondClassTitle = classTitle + ' · второй';
+  await createClassWithStudents(page, secondClassTitle, [
+    { label: 'D5 second class learner', handle: 'd5-second-class-' + suffix },
+  ]);
+  const secondClassroomId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
 
   await createPublishedProjectActivityAfterLogin(
     page,
@@ -2441,7 +2446,14 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   });
   await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
   await expect(assignDialog.getByRole('alert')).toBeVisible();
+  await expect(
+    assignDialog.getByRole('button', { name: 'Новое назначение', exact: true }),
+  ).toHaveCount(0);
   await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  page.once('dialog', (dialog) => dialog.dismiss());
+  await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
+  await expect(editor).toBeVisible();
+  await expect(page.getByTestId('courses-list')).toHaveCount(0);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await expect(assignDialog.getByLabel('Класс для курса')).toBeDisabled();
@@ -2456,6 +2468,24 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   expect(assignRequests).toHaveLength(2);
   expect(assignRequests[1]).toEqual(assignRequests[0]);
   await page.unroute(assignPath);
+  await assignDialog.getByRole('button', { name: 'Новое назначение', exact: true }).click();
+  await expect(assignDialog.getByLabel('Класс для курса')).toBeEnabled();
+  await expect(assignDialog.getByLabel('Класс для курса')).toHaveValue('');
+  await assignDialog.getByLabel('Класс для курса').selectOption({ label: secondClassTitle });
+  await assignDialog.getByLabel('Срок, если нужен').fill('2027-10-15');
+  const secondReceipt = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === `/api/classrooms/${secondClassroomId}/course-runs`,
+  );
+  await assignDialog.getByRole('button', { name: 'Назначить', exact: true }).click();
+  const secondResponse = await secondReceipt;
+  expect(secondResponse.ok()).toBe(true);
+  const secondPayload = secondResponse.request().postDataJSON();
+  expect(secondPayload.versionNumber).toBe(1);
+  expect(secondPayload.requestId).not.toBe((assignRequests[0] as { requestId: string }).requestId);
+  expect(await secondResponse.json()).toMatchObject({ versionNumber: 1, reused: false });
+  await expect(assignDialog.getByRole('status')).toContainText('Сервер подтвердил версию 1');
   await assignDialog.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
 
   const learner = await learnerAssignments(browser, joinCode, 'd5-activity-' + suffix);
