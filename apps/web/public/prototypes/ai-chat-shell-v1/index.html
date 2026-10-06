@@ -3,10 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta
-      name="description"
-      content="Изолированный прототип полноэкранного ИИ-чата ASA Lab."
-    />
+    <meta name="description" content="Изолированный прототип полноэкранного ИИ-чата ASA Lab." />
     <title>ASA Lab — ИИ</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
@@ -21,7 +18,12 @@
               <small>ИИ-помощник</small>
             </span>
           </a>
-          <button class="icon-button" id="collapseSidebar" type="button" aria-label="Свернуть панель">
+          <button
+            class="icon-button"
+            id="collapseSidebar"
+            type="button"
+            aria-label="Свернуть панель"
+          >
             <span aria-hidden="true">‹</span>
           </button>
         </div>
@@ -34,7 +36,12 @@
           <label class="search-box">
             <span class="sr-only">Поиск по чатам</span>
             <span aria-hidden="true">⌕</span>
-            <input id="historySearch" type="search" placeholder="Поиск по чатам" autocomplete="off" />
+            <input
+              id="historySearch"
+              type="search"
+              placeholder="Поиск по чатам"
+              autocomplete="off"
+            />
           </label>
         </div>
 
@@ -54,11 +61,21 @@
         </div>
       </aside>
 
-      <button class="drawer-backdrop" id="drawerBackdrop" type="button" aria-label="Закрыть меню"></button>
+      <button
+        class="drawer-backdrop"
+        id="drawerBackdrop"
+        type="button"
+        aria-label="Закрыть меню"
+      ></button>
 
       <section class="ai-main" aria-label="Чат">
         <header class="chat-toolbar">
-          <button class="icon-button open-sidebar" id="openSidebar" type="button" aria-label="Открыть панель">
+          <button
+            class="icon-button open-sidebar"
+            id="openSidebar"
+            type="button"
+            aria-label="Открыть панель"
+          >
             <span aria-hidden="true">☰</span>
           </button>
           <div class="toolbar-title">
@@ -77,8 +94,8 @@
               <div>
                 <h1>Чем я могу помочь?</h1>
                 <p>
-                  Спроси про проект, электронику, программирование или учебную тему.
-                  На первом срезе это только интерфейс — реальная ИИ-модель ещё не подключена.
+                  Спроси про проект, электронику, программирование или учебную тему. На первом срезе
+                  это только интерфейс — реальная ИИ-модель ещё не подключена.
                 </p>
               </div>
               <div class="prompt-grid" aria-label="Примеры вопросов">
@@ -94,7 +111,10 @@
                   <strong>Программирование</strong>
                   <span>Разобрать цикл for</span>
                 </button>
-                <button type="button" data-prompt="Составь план изучения 3D-моделирования на неделю.">
+                <button
+                  type="button"
+                  data-prompt="Составь план изучения 3D-моделирования на неделю."
+                >
                   <strong>Обучение</strong>
                   <span>План по 3D-моделированию</span>
                 </button>
@@ -107,7 +127,12 @@
 
         <div class="composer-dock">
           <form class="composer" id="composer">
-            <button class="round-button" type="button" aria-label="Прикрепить файл" title="Будет подключено позже">
+            <button
+              class="round-button"
+              type="button"
+              aria-label="Прикрепить файл"
+              title="Будет подключено позже"
+            >
               <span aria-hidden="true">＋</span>
             </button>
             <textarea
@@ -120,7 +145,9 @@
               <span aria-hidden="true">↑</span>
             </button>
           </form>
-          <p class="composer-note">Сейчас работает только UI-прототип. Ответы модели появятся в следующем срезе.</p>
+          <p class="composer-note">
+            Сейчас работает только UI-прототип. Ответы модели появятся в следующем срезе.
+          </p>
         </div>
       </section>
     </main>

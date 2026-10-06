@@ -147,8 +147,7 @@ function sendMessage(text) {
   chat.messages.push({ role: 'user', text: clean });
   chat.messages.push({
     role: 'assistant',
-    text:
-      'Это первый UI-срез ASA Lab AI. Реальная модель ещё не подключена. Следующий срез заменит этот демонстрационный ответ потоковым ответом серверного LLM.',
+    text: 'Это первый UI-срез ASA Lab AI. Реальная модель ещё не подключена. Следующий срез заменит этот демонстрационный ответ потоковым ответом серверного LLM.',
   });
 
   promptInput.value = '';
