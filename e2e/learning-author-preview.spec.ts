@@ -447,6 +447,9 @@ test('content-first image and PDF keep the new draft selectable as a project pra
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  const session = await page.request.get('/api/auth/me');
+  expect(session.ok()).toBeTruthy();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
