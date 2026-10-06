@@ -561,12 +561,15 @@ test.describe('interaction: document integrity', () => {
         document.components.find((item) => item.id === 'mounted-resistor')?.holeBindings,
       ).toEqual(bindings);
       const nets = buildNetlist(document);
-      expect(nets.nodeOf.get(terminalKey('mounted-resistor', 'lead-1'))).toBe(
-        nets.nodeOf.get(terminalKey('board', bindings!['lead-1']!.holeId)),
-      );
-      expect(nets.nodeOf.get(terminalKey('mounted-resistor', 'lead-2'))).toBe(
-        nets.nodeOf.get(terminalKey('led', 'anode')),
-      );
+      const mountedLead1 = terminalKey('mounted-resistor', 'lead-1');
+      const mountedHole = terminalKey('board', bindings!['lead-1']!.holeId);
+      const mountedLead2 = terminalKey('mounted-resistor', 'lead-2');
+      const externalLed = terminalKey('led', 'anode');
+      for (const key of [mountedLead1, mountedHole, mountedLead2, externalLed]) {
+        expect(nets.nodeOf.has(key), `missing netlist terminal ${key}`).toBe(true);
+      }
+      expect(nets.nodeOf.get(mountedLead1)).toBe(nets.nodeOf.get(mountedHole));
+      expect(nets.nodeOf.get(mountedLead2)).toBe(nets.nodeOf.get(externalLed));
     };
     const dragBoard = async () => {
       const before = structuredClone(await readEditorDocument());
