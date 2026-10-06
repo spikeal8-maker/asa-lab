@@ -165,7 +165,29 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Самостоятельный текст без доступа к ученикам.');
-  await page.getByRole('button', { name: 'Создать задание' }).click();
+  const createAssignment = page.getByRole('button', { name: 'Создать задание' });
+  const cancelledChoice = page.waitForEvent('dialog');
+  await Promise.all([
+    createAssignment.click(),
+    cancelledChoice.then(async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      expect(dialog.message()).toContain('материал для курса без проектной среды');
+      await dialog.dismiss();
+    }),
+  ]);
+  await expect(createAssignment).toBeEnabled();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toHaveCount(
+    0,
+  );
+  const acceptedChoice = page.waitForEvent('dialog');
+  await Promise.all([
+    createAssignment.click(),
+    acceptedChoice.then(async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      expect(dialog.message()).toContain('материал для курса без проектной среды');
+      await dialog.accept();
+    }),
+  ]);
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   await previewAssignmentAs(page, 'draft');
   await expect(
