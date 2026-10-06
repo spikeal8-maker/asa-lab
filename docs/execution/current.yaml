@@ -168,24 +168,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
-      issue: 500
+      id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
+      issue: 505
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: rigid_extraction_technical_accepted_exact_main_browser_passed
+      status: in_progress
+      checkpoint: one_board_rigid_move_selected_diagnostic_first
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6285778cd448c15ec1b3ba621664b415cad4bedc
+      convergence_baseline_sha: 1720f3ff46076542b748d4ecfa26143e5224b2fe
       head_sha: null
-      observed_at: '2026-10-06T16:44:42Z'
+      observed_at: '2026-10-06T17:02:22Z'
       main:
         branch: main
-        sha: 6285778cd448c15ec1b3ba621664b415cad4bedc
-      observation_note: Dated main observation after technical acceptance of bounded rigid extraction Issue 500. Fetch main before writes. Final PR 501 candidate 1f9d60d68c2d344933f7ed971ceb0e2dac656bd4 received independent APPROVE and exact-head general, Electronics browser and Learning CI; integrated main 6285778cd448c15ec1b3ba621664b415cad4bedc passed general and 115 Electronics browser tests. Issue 465 remains open for flexible leads, multiple boards, board movement and school-device performance proof. No deployment or owner acceptance occurred.
+        sha: 1720f3ff46076542b748d4ecfa26143e5224b2fe
+      observation_note: Dated clean main observation after Issue 500 technical closeout and exact-main general CI success. Issue 505 selects diagnostic-first movement of one board with rigid mounted parts. Fetch main before writes. No deployment or owner acceptance occurred.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned

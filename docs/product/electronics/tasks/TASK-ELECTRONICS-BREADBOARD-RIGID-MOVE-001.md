@@ -1,0 +1,40 @@
+---
+task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
+kind: repair
+risk: high
+semantic_change: 'no'
+roadmap_slice: null
+prerequisites:
+  - Technical acceptance of TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
+acceptance_boundary: slice
+review: independent
+---
+
+# Move one breadboard with mounted rigid parts
+
+Program: [#452](https://github.com/spikeal8-maker/asa-lab/issues/452). Fifth milestone: [#465](https://github.com/spikeal8-maker/asa-lab/issues/465). Bounded task: [#505](https://github.com/spikeal8-maker/asa-lab/issues/505). This card covers the existing single-board rigid mounting behavior after accepted extraction [#500](https://github.com/spikeal8-maker/asa-lab/issues/500).
+
+## One user result
+
+A pupil can move one breadboard with already mounted rigid parts. Each part follows exactly once. After drop, Undo/Redo and save/reopen, its terminal-to-hole bindings, component/terminal/wire IDs, netlist and schematic remain correct. The drag preview agrees with the committed document. Selecting a mounted part along with the board does not double-translate it.
+
+## Entry and diagnosis
+
+Recover fresh `origin/main`, the Electronics lane, Issue #505, exact-head CI and other agents' unfinished edits. Run `pnpm agent:preflight --scope electronics --check` and `pnpm validate:electronics-agent-docs --task TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001` before product edits. Read the Electronics route and stabilization spec fifth milestone, the existing `holeBindings` contract, board drag/preview and mapped tests.
+
+In the built browser editor, reproduce a single board with a rigid mounted two-pin part and a wire to an external part. Check board-only selection and board-plus-mounted-part selection; pointer preview, drop, bindings, visible terminal/wire positions, netlist, Undo/Redo and save/reopen. Identify the exact production path of any defect. If this bounded behavior already works, report evidence and STOP without speculative code changes.
+
+## Bounded repair
+
+- Correct only a demonstrated fault in this one-board rigid-part movement path and its direct regressions. Preserve stable IDs, bindings, existing student projects and electrical topology. No new persistence schema or solver/physical-model change.
+- Keep flexible-lead bodies, multiple boards, shared rotation/reflection, school-device performance, owner artwork, Scratch, deployment, database, network and unrelated cleanup outside this slice. Those new mechanics require the separate owner decision in spec §7.
+
+## Acceptance
+
+- Production-code explanation and built-browser evidence show the board and rigid mounted part move once, with preview/commit parity and correct topology after Undo/Redo and save/reopen.
+- Focused mapped tests, `pnpm gate:electronics-m1`, `pnpm gate:electronics-m1:browser`, `pnpm gate:repository` and `git diff --check` have exact-head evidence. A new independent reviewer checks the final SHA, diff, evidence and GitHub state.
+- After integration repeat the exact-main Electronics browser gate. Issue #505 closes only after its evidence and control-plane closeout. Issue #465 remains open for remaining mechanics and school-device proof.
+
+## Stop
+
+The implementer handles this one slice, self-reviews, reports an exact candidate SHA and STOP. The controller checks independently, assigns a new reviewer, integrates an accepted result and continues the authorized program under `AGENTS.md` §2.1.
