@@ -3447,6 +3447,53 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
           },
         ],
       };
+      await page.addInitScript({
+        content: `(() => {
+          const events = [];
+          window.__e2StartupProbe = events;
+          const record = (kind, data = {}) => events.push({ t: performance.now(), kind, ...data });
+          const NativeWorker = window.Worker;
+          window.Worker = class extends NativeWorker {
+            constructor(...args) {
+              super(...args);
+              record('worker-created', { url: String(args[0]) });
+              this.addEventListener('message', (event) => {
+                const response = event.data || {};
+                record('worker-response', {
+                  requestId: response.requestId,
+                  generationId: response.generationId,
+                  responseKind: response.kind,
+                  ok: response.ok,
+                  code: response.code,
+                  metrics: response.metrics,
+                  executionStatus: response.advance?.executionStatus,
+                  committedHorizonMicroseconds: response.advance?.committedHorizonMicroseconds,
+                });
+              });
+              this.addEventListener('error', (event) => record('worker-error', { message: event.message }));
+            }
+            postMessage(message, ...args) {
+              record('worker-request', {
+                requestId: message.requestId,
+                generationId: message.generationId,
+                requestKind: message.kind,
+                requestedHorizonMicroseconds: message.requestedHorizonMicroseconds,
+              });
+              return super.postMessage(message, ...args);
+            }
+          };
+          let prior = '';
+          setInterval(() => {
+            const button = document.querySelector('button[data-simulation-status]');
+            const status = button?.getAttribute('data-simulation-status') || 'absent';
+            const display = document.querySelector('.workbench-simulation-time')?.textContent || '';
+            if (status !== prior) {
+              record('ui-status', { status, display });
+              prior = status;
+            }
+          }, 25);
+        })();`,
+      });
       const { readEditorDocument } = await openEditor(page, fixture);
       await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
 
@@ -3463,7 +3510,18 @@ test.describe('owner follow-up: edit mode, multi-select, clipboard and physical 
       const runningSimulation = page.getByRole('button', { name: 'Остановить моделирование' });
       await expect(runningSimulation).toBeVisible();
       await expect(runningSimulation).toHaveAttribute('aria-pressed', 'true');
-      await expect(runningSimulation).toHaveAttribute('data-simulation-status', 'running');
+      try {
+        await expect(runningSimulation).toHaveAttribute('data-simulation-status', 'running');
+      } finally {
+        console.log(
+          'E2_STARTUP_PROBE ' +
+            JSON.stringify(
+              await page.evaluate(
+                () => (window as unknown as { __e2StartupProbe: unknown[] }).__e2StartupProbe,
+              ),
+            ),
+        );
+      }
       await page.mouse.move(0, 0);
       await frames(page);
       const runningStyle = await runningSimulation.evaluate((element) => {
