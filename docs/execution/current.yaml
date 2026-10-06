@@ -174,18 +174,18 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: extraction_candidate_approved_baseline_accepted_final_convergence_pending
+      status: done
+      checkpoint: rigid_extraction_technical_accepted_exact_main_browser_passed
       owner_acceptance: pending
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
+      convergence_baseline_sha: 6285778cd448c15ec1b3ba621664b415cad4bedc
       head_sha: null
-      observed_at: '2026-10-06T15:20:32Z'
+      observed_at: '2026-10-06T16:44:42Z'
       main:
         branch: main
-        sha: 66a31e28462c20348adbe23c476ff89a5e332fd0
-      observation_note: Dated main observation after technical acceptance of shared dependency baseline Issue 502. Fetch main before writes. Issue 500 candidate ba41a64bf5a593cca69aa3d45605569707abd44c remains in PR 501 with independent code APPROVE and Electronics browser run 37419320179 attempt 2 (115 tests); final convergence with current main and fresh exact-head general verification remain pending. Issue 465 remains open for other mechanics and school-device measurements.
+        sha: 6285778cd448c15ec1b3ba621664b415cad4bedc
+      observation_note: Dated main observation after technical acceptance of bounded rigid extraction Issue 500. Fetch main before writes. Final PR 501 candidate 1f9d60d68c2d344933f7ed971ceb0e2dac656bd4 received independent APPROVE and exact-head general, Electronics browser and Learning CI; integrated main 6285778cd448c15ec1b3ba621664b415cad4bedc passed general and 115 Electronics browser tests. Issue 465 remains open for flexible leads, multiple boards, board movement and school-device performance proof. No deployment or owner acceptance occurred.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -398,6 +398,19 @@ parallel_lanes:
         exact_main_general_run: 37484701229
         unrelated_scratch_baseline_failure_run: 37480548129
         unrelated_scratch_baseline_issue: 470
+        status: technical_accepted
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-BREADBOARD-EXTRACTION-001
+        issue: 500
+        accepted_candidate_sha: 1f9d60d68c2d344933f7ed971ceb0e2dac656bd4
+        integrated_sha: 6285778cd448c15ec1b3ba621664b415cad4bedc
+        independent_review: approved
+        exact_candidate_general_run: 37487117696
+        exact_candidate_electronics_run: 37487117745
+        exact_candidate_learning_run: 37487117678
+        exact_main_general_run: 37489815341
+        exact_main_browser_run: 37489928095
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
