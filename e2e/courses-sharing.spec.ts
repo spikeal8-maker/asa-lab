@@ -684,7 +684,9 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       return learner.getByTestId('seat-course-player');
     };
     let player = await openCourse();
-    await expect(player.getByTestId('course-manual-material')).toContainText('Library material v1');
+    await expect(player.getByTestId('seat-course-manual-material')).toContainText(
+      'Library material v1',
+    );
     const materialResponse = await learner.request.get(
       `/api/class-join/course-runs/${copiedRun}/lessons/${copiedLesson}/materials/${ownBlocks[1]!.id}`,
     );
