@@ -2692,6 +2692,46 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
+    for (const [index, title, expectedGoal] of [
+      [0, electronicsTitle, electronicsGoal],
+      [1, threeDTitle, threeDGoal],
+    ] as const) {
+      const picker = editor.locator('.course-practice-picker').nth(index);
+      const practice = picker.locator('.course-pinned-practice');
+      const goal = practice.locator('.assignment-goal > span:last-child');
+      const instructions = practice.getByText(
+        'Соберите цепь, сохраните проект и сдайте точную редакцию.',
+        { exact: true },
+      );
+      const sample = practice.getByRole('img', { name: `Образец: ${title}`, exact: true });
+      const replace = picker.getByRole('button', { name: 'Заменить практику', exact: true });
+      await expect(goal).toHaveText(expectedGoal);
+      await expect(practice.locator('small')).toContainText('опубликованная версия 1');
+      for (const [text, maxLines] of [
+        [goal, 3],
+        [instructions, 5],
+      ] as const) {
+        await expect(text).toBeVisible();
+        const lines = await text.evaluate((element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return new Set(Array.from(range.getClientRects(), (rect) => Math.round(rect.top))).size;
+        });
+        expect(lines, `Readable ${title} at ${width}px`).toBeGreaterThan(0);
+        expect(lines, `Readable ${title} at ${width}px`).toBeLessThanOrEqual(maxLines);
+      }
+      const pickerBounds = await picker.boundingBox();
+      expect(pickerBounds).not.toBeNull();
+      for (const content of [goal, instructions, sample, replace]) {
+        await expect(content).toBeVisible();
+        const bounds = await content.boundingBox();
+        expect(bounds).not.toBeNull();
+        expect(bounds!.x).toBeGreaterThanOrEqual(pickerBounds!.x);
+        expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(
+          pickerBounds!.x + pickerBounds!.width,
+        );
+      }
+    }
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
     ).toBeLessThanOrEqual(0);

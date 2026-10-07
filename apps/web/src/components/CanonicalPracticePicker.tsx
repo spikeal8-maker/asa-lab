@@ -60,7 +60,7 @@ export function PinnedPracticePreview({ versionId }: { readonly versionId: strin
               : 'Практика'}{' '}
         · опубликованная версия {preview.source.versionNumber}
       </small>
-      <AssignmentView assignment={preview.assignment} />
+      <AssignmentView assignment={preview.assignment} compact />
     </div>
   );
 }

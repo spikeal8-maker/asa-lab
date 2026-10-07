@@ -164,6 +164,24 @@ test('exact saved and published learner preview ignores late responses and creat
     [320, 720, 'mobile-320.png'],
   ] as const) {
     await page.setViewportSize({ width, height });
+    const workspace = page.locator('.authored-assignment-workspace');
+    const search = workspace.getByRole('searchbox');
+    const filters = workspace.getByRole('group', { name: 'Фильтр по статусу' }).getByRole('button');
+    const create = workspace.getByRole('button', { name: '+ Новое задание', exact: true });
+    await expect(filters).toHaveCount(3);
+    const workspaceBounds = await workspace.boundingBox();
+    expect(workspaceBounds).not.toBeNull();
+    for (const control of [search, ...(await filters.all()), create]) {
+      await expect(control).toBeVisible();
+      const bounds = await control.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x, `Toolbar control left at ${width}px`).toBeGreaterThanOrEqual(
+        workspaceBounds!.x,
+      );
+      expect(bounds!.x + bounds!.width, `Toolbar control right at ${width}px`).toBeLessThanOrEqual(
+        workspaceBounds!.x + workspaceBounds!.width,
+      );
+    }
     const overflow = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     );
