@@ -69,6 +69,28 @@ def recovery_configuration(install, runtime):
             "installedRelease": json.loads(installed.read_text(encoding="utf-8")) if installed.exists() else None}
 
 
+def attest_backup_mounts(root, config):
+    known_data = {("postgres", "/var/lib/postgresql/data"), ("minio", "/data")}
+    external_diagnostics = False
+    expected_store = (Path(root) / ".asa" / "diagnostics" / "store").resolve()
+    for name, service in config["services"].items():
+        for mount in service.get("volumes", []):
+            if (name == "api" and mount.get("type") == "bind"
+                    and mount.get("target") == "/var/lib/asa-logs"
+                    and mount.get("read_only") is True
+                    and isinstance(mount.get("source"), str)
+                    and Path(mount["source"]).resolve() == expected_store
+                    and service.get("environment", {}).get("ASA_LOG_STORE") == "/var/lib/asa-logs"):
+                # Host-owned diagnostics are independent of application recovery.
+                # This exact read-only mount is preserved in place, never restored.
+                external_diagnostics = True
+                continue
+            require(mount.get("type") == "volume" and (name, mount.get("target")) in known_data,
+                    "BACKUP_MOUNTS", "Additional persistent mounts need an explicit export adapter.",
+                    "Inventory custom volumes and transport config files before claiming a complete export.")
+    return external_diagnostics
+
+
 def export_backup(install, destination=None):
     records = install.identity()
     require("minio" in records and records["postgres"]["running"], "BACKUP_SERVICES", "PostgreSQL and local MinIO are required for a complete export.")
@@ -76,12 +98,7 @@ def export_backup(install, destination=None):
             "BACKUP_STORAGE", "External object storage needs an explicit export adapter; refusing an incomplete backup.")
     require(not (install.state / "maintenance.json").exists(), "MAINTENANCE", "An unfinished maintenance operation needs review first.")
     config = json.loads(install.compose("config", "--format", "json", capture=True))
-    known_data = {("postgres", "/var/lib/postgresql/data"), ("minio", "/data")}
-    for name, service in config["services"].items():
-        for mount in service.get("volumes", []):
-            require(mount.get("type") == "volume" and (name, mount.get("target")) in known_data,
-                    "BACKUP_MOUNTS", "Additional persistent mounts need an explicit export adapter.",
-                    "Inventory custom volumes and transport config files before claiming a complete export.")
+    external_diagnostics = attest_backup_mounts(install.root, config)
     runtime = install.readiness()
     recovery = recovery_configuration(install, runtime)
     stamp = dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
@@ -133,6 +150,9 @@ def export_backup(install, destination=None):
                     "runtime": runtime, "project": install.project, "profile": install.profile,
                     "postgresImage": records["postgres"]["image"], "images": images,
                     "applicationPrivileges": acl, "files": inventory_files(partial)}
+        if external_diagnostics:
+            manifest["externalDiagnostics"] = {"included": False, "preservedInPlace": True,
+                                               "export": "Admin > Logs > Download ZIP"}
         atomic_json(partial / "manifest.json", manifest)
         verify_backup(partial)
         partial.rename(final)

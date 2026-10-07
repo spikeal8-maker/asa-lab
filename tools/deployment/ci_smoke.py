@@ -23,6 +23,9 @@ release = json.loads(Path(sys.argv[1]).read_text())
 source = Path.cwd()
 with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
     root = Path(directory)
+    # Own the host diagnostic path before Docker mounts it; otherwise Docker
+    # creates root-owned parents that the runner cannot clean up afterwards.
+    (root / ".asa" / "diagnostics" / "store").mkdir(parents=True)
     for file in ("compose.yaml", "compose.dev.yaml"):
         shutil.copyfile(source / file, root / file)
     first_environment(root, "dev")

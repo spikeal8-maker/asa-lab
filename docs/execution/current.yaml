@@ -258,7 +258,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: ordinary_image_independent_findings_bounded_repair_selected
+      checkpoint: ordinary_image_test_findings_repair_resumed_after_518
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -285,24 +285,29 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
+      convergence_baseline_sha: 095a09498ad4c2338f53f0ffcb555dbfc6a496e0
       head_sha: null
-      observed_at: '2026-10-07T19:11:52Z'
+      observed_at: '2026-10-07T19:47:09Z'
       main:
         branch: main
-        sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
+        sha: 095a09498ad4c2338f53f0ffcb555dbfc6a496e0
       observation_note: >-
-        Dated remote main with Settings-owned 320 px repair 6e17a64e and independently
-        verified exact-head general workflow 37670104301 SUCCESS. Issue 510 remains
-        accepted. Issue 517 independent review of d6a78196 REQUEST_CHANGES: new React
-        fixture type errors, self-blocking browser navigation and directly caused
-        large-source growth threshold failure. Published test-only successor
-        21f2da70 is preserved and unaccepted. Select a separate bounded test repair
-        and factual responsibility re-review of the single ProductionComponentVisual
-        baseline entry, as explicitly scoped in the card. Native historical image
-        event ordering and school frequency are unproved. Preserve suspended Issue
-        516 and Issue 505 PR 506; no integrated acceptance, owner acceptance, release
-        or deployment is claimed. Fetch main and exact-head CI before writes.
+        Dated remote main 095a0949 before this closeout. Separately selected
+        documentation-only maintenance Issue 518 candidate eca543478669e84ad80f3b43c612084f03ad3d42
+        received NEW independent APPROVE, exact local governance/routing/control-plane
+        and exact remote governance job 112979830082 SUCCESS in run 37676083221.
+        Its two reviewed documents are integrated by this closeout; no product source
+        changed and no full hygiene checkpoint is claimed. Resume Issue 517 in a
+        separate bounded test repair after independent REQUEST_CHANGES on d6a78196.
+        Preserve published successor 21f2da70 and clean local merge 6c19c659;
+        product blob ab292c4a remains unaccepted. Correct actual typed fixture and
+        prove actual React early-error delivery before lifecycle setup in the built
+        editor, with valid before/after badge assertions and unchanged timeouts.
+        Historical native failure ordering and school frequency remain unproved.
+        Settings-owned 6e17a64e has exact general 37670104301 SUCCESS; unrelated main
+        da4e3746 general 37673222807 was cancelled, not PASS or product FAIL.
+        Preserve suspended Issue 516 and Issue 505 PR 506; no integrated product
+        acceptance, owner acceptance, release or deployment is claimed. Fetch main and read exact-head CI before writes.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -589,6 +594,19 @@ parallel_lanes:
         followups:
           - 516
         school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-VISUAL-SOURCE-REVIEW-001
+        issue: 518
+        accepted_candidate_sha: eca543478669e84ad80f3b43c612084f03ad3d42
+        integrated_sha: eca543478669e84ad80f3b43c612084f03ad3d42
+        independent_review: approved
+        exact_candidate_governance_run: 37676083221
+        exact_candidate_governance_job: 112979830082
+        evidence: docs/product/electronics/evidence/visual-source-responsibility-518-20261007.md
+        status: maintenance_accepted
+        production_change: false
+        full_hygiene_checkpoint: false
         owner_acceptance: pending
         deployment: not_run
 
