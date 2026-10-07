@@ -31,6 +31,8 @@ export function portalSection(page: Page, label: string) {
 }
 
 export async function openPortalSection(page: Page, label: string): Promise<void> {
+  // Header and sidebar mount together; the closed mobile sidebar is still attached.
+  await expect(portalSidebar(page)).toBeAttached();
   const menu = page.getByRole('button', { name: 'Открыть меню', exact: true });
   if ((await menu.isVisible()) && !(await portalSection(page, label).isVisible()))
     await menu.click();

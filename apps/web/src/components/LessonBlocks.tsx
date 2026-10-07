@@ -37,11 +37,13 @@ export function LessonBlocks({
   legacyContent = null,
   compact = false,
   renderActivity,
+  renderMaterial,
 }: {
   readonly blocks: readonly LessonBlock[];
   readonly legacyContent?: string | null;
   readonly compact?: boolean;
   readonly renderActivity?: (block: Extract<LessonBlock, { type: 'activity' }>) => ReactNode;
+  readonly renderMaterial?: (block: Extract<LessonBlock, { type: 'manual-material' }>) => ReactNode;
 }): JSX.Element | null {
   const content = visibleBlocks(blocks, legacyContent);
   if (content.length === 0) return null;
@@ -150,6 +152,18 @@ export function LessonBlocks({
               ) : (
                 <strong className="lesson-activity-placeholder">Практика</strong>
               )}
+            </section>
+          );
+        }
+        if (block.type === 'manual-material') {
+          return (
+            <section
+              key={block.id}
+              className="lesson-material-block"
+              data-testid="lesson-material-block"
+              data-block-id={block.id}
+            >
+              {renderMaterial ? renderMaterial(block) : <strong>Материал</strong>}
             </section>
           );
         }

@@ -205,7 +205,8 @@
 .lesson-divider-editor-note {
   margin: 0;
 }
-.lesson-activity-block {
+.lesson-activity-block,
+.lesson-material-block {
   display: grid;
   gap: 10px;
   padding: 14px;
@@ -217,4 +218,11 @@
 .lesson-activity-placeholder {
   color: #334852;
   font-size: 0.95rem;
+}
+
+.seat-course-manual-material {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

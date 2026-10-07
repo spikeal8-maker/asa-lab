@@ -1,7 +1,15 @@
-import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
-import { api, type CatalogueCoursePreview, type CatalogueEntry, type ModuleSummary } from '../api';
+import { useCallback, useEffect, useMemo, useRef, useState, type JSX } from 'react';
+import {
+  api,
+  type CatalogueCoursePreview,
+  type CatalogueCopyRequest,
+  type CatalogueCopyReceipt,
+  type CatalogueEntry,
+  type ModuleSummary,
+} from '../api';
 import { CLASSROOM_AGE_OPTIONS } from './ClassroomFields';
 import { LessonBlocks } from './LessonBlocks';
+import { AssignmentView } from './AssignmentView';
 import './courses-panel.css';
 
 /**
@@ -19,9 +27,11 @@ import './courses-panel.css';
 export function CataloguePanel({
   modules,
   onTaken,
+  onRegisterLeaveGuard,
 }: {
   readonly modules: readonly ModuleSummary[];
-  readonly onTaken: () => void;
+  readonly onTaken: (kind: 'course' | 'assignment', receipt: CatalogueCopyReceipt) => void;
+  readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
 }): JSX.Element {
   const [items, setItems] = useState<CatalogueEntry[] | null>(null);
   const [preview, setPreview] = useState<CatalogueEntry | null>(null);
@@ -32,6 +42,45 @@ export function CataloguePanel({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const attempt = useRef<{
+    entry: CatalogueEntry;
+    preview: CatalogueCoursePreview;
+    payload: CatalogueCopyRequest;
+  } | null>(null);
+  const busyRef = useRef(false);
+  const canLeave = useCallback(() => {
+    if (busyRef.current || attempt.current) {
+      setError(
+        'Сначала подтвердите результат копирования: откройте тот же курс и повторите действие.',
+      );
+      return false;
+    }
+    return true;
+  }, []);
+  useEffect(() => {
+    onRegisterLeaveGuard?.(canLeave);
+    const warn = (event: BeforeUnloadEvent) => {
+      if (busyRef.current || attempt.current) {
+        event.preventDefault();
+        event.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => {
+      onRegisterLeaveGuard?.(null);
+      window.removeEventListener('beforeunload', warn);
+    };
+  }, [canLeave, onRegisterLeaveGuard]);
+  function openPreview(entry: CatalogueEntry): void {
+    if (attempt.current) {
+      if (entry.id !== attempt.current.entry.id) {
+        canLeave();
+        return;
+      }
+      setContents(attempt.current.preview);
+    } else setContents(undefined);
+    setPreview(entry);
+  }
 
   const reload = useCallback(async () => {
     const result = await api.catalogue();
@@ -47,10 +96,18 @@ export function CataloguePanel({
       setContents(undefined);
       return;
     }
+    if (attempt.current?.entry.id === preview.id) {
+      setContents(attempt.current.preview);
+      return;
+    }
+    let active = true;
     setContents(undefined);
     void api.catalogueCourse(preview.id).then((result) => {
-      setContents(result.ok ? result.data : null);
+      if (active) setContents(result.ok ? result.data : null);
     });
+    return () => {
+      active = false;
+    };
   }, [preview]);
 
   const moduleName = (key: string | null): string =>
@@ -73,21 +130,79 @@ export function CataloguePanel({
   );
 
   async function take(entry: CatalogueEntry): Promise<void> {
+    if (busyRef.current) return;
+    if (attempt.current && (entry.kind !== 'course' || attempt.current.entry.id !== entry.id)) {
+      canLeave();
+      return;
+    }
+    if (entry.kind === 'course') {
+      if (attempt.current && attempt.current.entry.id !== entry.id) {
+        canLeave();
+        return;
+      }
+      if (!attempt.current) {
+        if (
+          !contents?.versionId ||
+          !contents.contentHash ||
+          !contents.destinationTenantId ||
+          preview?.id !== entry.id
+        )
+          return;
+        attempt.current = {
+          entry,
+          preview: contents,
+          payload: {
+            versionId: contents.versionId,
+            contentHash: contents.contentHash,
+            destinationTenantId: contents.destinationTenantId,
+            requestId: crypto.randomUUID(),
+          },
+        };
+      }
+    }
+    busyRef.current = true;
     setBusy(true);
-    const result = await api.takeFromCatalogue(entry.kind, entry.id);
+    const result = await api.takeFromCatalogue(entry.kind, entry.id, attempt.current?.payload);
+    busyRef.current = false;
     setBusy(false);
     if (!result.ok) {
       setError(result.error.message || 'Не удалось забрать.');
+      if (['copy_unavailable', 'not_available'].includes(result.error.code)) attempt.current = null;
+      return;
+    }
+    if (
+      entry.kind === 'course' &&
+      (result.data?.sourceVersionId !== attempt.current?.payload.versionId ||
+        result.data.sourceContentHash !== attempt.current?.payload.contentHash ||
+        !result.data.id)
+    ) {
+      setError('Сервер не подтвердил точную копию. Повторите то же действие.');
       return;
     }
     setError(null);
     setNotice(
       entry.kind === 'course'
-        ? `Курс «${entry.title}» у вас. Задания легли в свою папку — правьте как свои.`
+        ? `Курс «${entry.title}» у вас. Скопирована опубликованная версия ${result.data.sourceVersionNumber}.`
         : `Задание «${entry.title}» у вас. Правки автора ваш урок больше не тронут.`,
     );
     setPreview(null);
-    onTaken();
+    attempt.current = null;
+    onTaken(entry.kind, result.data);
+  }
+
+  function pinned(versionId: string): JSX.Element {
+    const item = contents?.pinnedItems?.[versionId];
+    if (!item) return <p role="alert">Закреплённый материал недоступен.</p>;
+    return (
+      <section className="course-pinned-practice">
+        <strong>{item.title}</strong>
+        <small>
+          {item.moduleKey ? moduleName(item.moduleKey) : 'Материал'} · опубликованная версия{' '}
+          {item.versionNumber}
+        </small>
+        <AssignmentView assignment={item} />
+      </section>
+    );
   }
 
   return (
@@ -141,6 +256,15 @@ export function CataloguePanel({
           {error}
         </p>
       ) : null}
+      {attempt.current && !preview ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          onClick={() => openPreview(attempt.current!.entry)}
+        >
+          Подтвердить копирование
+        </button>
+      ) : null}
 
       {items === null ? (
         <p role="status">Загружаем каталог…</p>
@@ -184,7 +308,12 @@ export function CataloguePanel({
               </div>
               <div className="catalogue-actions">
                 {entry.kind === 'course' ? (
-                  <button type="button" className="btn-secondary" onClick={() => setPreview(entry)}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={() => openPreview(entry)}
+                  >
                     Посмотреть
                   </button>
                 ) : null}
@@ -192,7 +321,7 @@ export function CataloguePanel({
                   type="button"
                   className="portal-create-button"
                   disabled={busy}
-                  onClick={() => void take(entry)}
+                  onClick={() => (entry.kind === 'course' ? openPreview(entry) : void take(entry))}
                 >
                   Забрать себе
                 </button>
@@ -210,14 +339,14 @@ export function CataloguePanel({
             aria-modal="true"
             aria-label={preview.title}
           >
-            <h2>{preview.title}</h2>
+            <h2>{contents?.title ?? preview.title}</h2>
             <p>
               {preview.authorName}
               {preview.authorSchool && preview.authorSchool !== preview.authorName
                 ? ` · ${preview.authorSchool}`
                 : ''}
             </p>
-            {preview.summary ? <p>{preview.summary}</p> : null}
+            {contents?.summary ? <p>{contents.summary}</p> : null}
             {contents === undefined ? (
               <p role="status">Загружаем состав…</p>
             ) : contents === null ? (
@@ -247,7 +376,12 @@ export function CataloguePanel({
                               blocks={lesson.blocks}
                               legacyContent={lesson.content}
                               compact
+                              renderActivity={(block) => pinned(block.learningActivityVersionId)}
+                              renderMaterial={(block) => pinned(block.learningActivityVersionId)}
                             />
+                            {lesson.learningActivityVersionId
+                              ? pinned(lesson.learningActivityVersionId)
+                              : null}
                           </details>
                         </li>
                       ))}
@@ -263,7 +397,7 @@ export function CataloguePanel({
               <button
                 type="button"
                 className="btn-primary"
-                disabled={busy}
+                disabled={busy || !contents?.versionId || !contents.contentHash}
                 onClick={() => void take(preview)}
               >
                 Забрать себе

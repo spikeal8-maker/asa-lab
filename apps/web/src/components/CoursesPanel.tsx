@@ -8,8 +8,12 @@ import {
   type CourseSection,
   type LessonBlock,
   type LibraryAssignment,
+  type PublishedAuthorVersion,
 } from '../api';
 import { AuthorVersionHistory } from './AuthorVersionHistory';
+import { CanonicalPracticePicker, PinnedPracticePreview } from './CanonicalPracticePicker';
+import { PinnedManualMaterialPreview } from './CanonicalManualMaterialPicker';
+import { CourseAssignDialog, type CourseAssignAttempt } from './CourseAssignDialog';
 import { Dropdown } from './Dropdown';
 import { LessonBlockEditor, lessonBlocksValid } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
@@ -41,14 +45,24 @@ function CourseFormDialog({
   course,
   onClose,
   onSave,
+  onWorkChange,
 }: {
   readonly course: Course | null;
   readonly onClose: () => void;
   readonly onSave: (value: CourseFormValue) => Promise<void>;
+  readonly onWorkChange?: (value: boolean) => void;
 }): JSX.Element {
   const [title, setTitle] = useState(course?.title ?? '');
   const [summary, setSummary] = useState(course?.summary ?? '');
   const [saving, setSaving] = useState(false);
+  const dirty = title !== (course?.title ?? '') || summary !== (course?.summary ?? '');
+  useEffect(() => {
+    onWorkChange?.(dirty || saving);
+    return () => onWorkChange?.(false);
+  }, [dirty, saving, onWorkChange]);
+  function close(): void {
+    if (!saving && (!dirty || window.confirm('Отменить несохранённые настройки курса?'))) onClose();
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -92,7 +106,7 @@ function CourseFormDialog({
           />
         </label>
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" disabled={saving} onClick={close}>
             Отмена
           </button>
           <button type="submit" className="btn-primary" disabled={!title.trim() || saving}>
@@ -108,14 +122,24 @@ function SectionFormDialog({
   section,
   onClose,
   onSave,
+  onWorkChange,
 }: {
   readonly section: CourseSection | null;
   readonly onClose: () => void;
   readonly onSave: (value: { title: string; summary: string | null }) => Promise<void>;
+  readonly onWorkChange?: (value: boolean) => void;
 }): JSX.Element {
   const [title, setTitle] = useState(section?.title ?? '');
   const [summary, setSummary] = useState(section?.summary ?? '');
   const [saving, setSaving] = useState(false);
+  const dirty = title !== (section?.title ?? '') || summary !== (section?.summary ?? '');
+  useEffect(() => {
+    onWorkChange?.(dirty || saving);
+    return () => onWorkChange?.(false);
+  }, [dirty, saving, onWorkChange]);
+  function close(): void {
+    if (!saving && (!dirty || window.confirm('Отменить несохранённый раздел?'))) onClose();
+  }
 
   async function submit(event: FormEvent): Promise<void> {
     event.preventDefault();
@@ -158,7 +182,7 @@ function SectionFormDialog({
           />
         </label>
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={onClose}>
+          <button type="button" className="btn-secondary" disabled={saving} onClick={close}>
             Отмена
           </button>
           <button type="submit" className="btn-primary" disabled={!title.trim() || saving}>
@@ -174,7 +198,6 @@ function LessonEditor({
   sections,
   sectionId,
   lesson,
-  assignments,
   onSave,
   onDirty,
   onDelete,
@@ -201,28 +224,12 @@ function LessonEditor({
       ? 'lav:' + lesson.learningActivityVersionId
       : (lesson?.assignmentId ?? ''),
   );
-  const [materials, setMaterials] = useState<
-    { id: string; title: string; currentPublishedVersionId: string | null }[]
-  >([]);
-  const [materialError, setMaterialError] = useState<string | null>(null);
-  useEffect(() => {
-    let disposed = false;
-    void api.authoredActivities().then((result) => {
-      if (disposed) return;
-      if (result.ok) setMaterials(result.data.items);
-      else setMaterialError(result.error.message);
-    });
-    return () => {
-      disposed = true;
-    };
-  }, []);
   const [minutes, setMinutes] = useState(
     lesson?.estimatedMinutes === null || lesson?.estimatedMinutes === undefined
       ? ''
       : String(lesson.estimatedMinutes),
   );
   const [saving, setSaving] = useState(false);
-  const activeAssignments = assignments.filter((entry) => entry.archivedAt === null);
   const valid =
     title.trim().length > 0 &&
     (kind === 'material' || assignmentId.length > 0) &&
@@ -325,63 +332,28 @@ function LessonEditor({
       </label>
 
       {kind === 'assignment' ? (
-        <label className="course-field">
-          <span>Опубликованный материал</span>
-          <select
-            aria-label="Задание из банка"
-            value={assignmentId}
-            onChange={(event) => {
-              setAssignmentId(event.target.value);
-              if (!title.trim()) {
-                setTitle(
-                  materials.find(
-                    (entry) => 'lav:' + entry.currentPublishedVersionId === event.target.value,
-                  )?.title ??
-                    activeAssignments.find((entry) => entry.id === event.target.value)?.title ??
-                    '',
-                );
-              }
+        <div className="course-field">
+          <span>Практика</span>
+          {assignmentId && !assignmentId.startsWith('lav:') ? (
+            <p>
+              Сохранённое задание: {lesson?.assignmentTitle || 'название недоступно'}. Исходная
+              ссылка сохранена.
+            </p>
+          ) : null}
+          <CanonicalPracticePicker
+            value={assignmentId.startsWith('lav:') ? assignmentId.slice(4) : ''}
+            onChange={(versionId, practiceTitle) => {
+              if (!title.trim()) setTitle(practiceTitle);
+              setAssignmentId('lav:' + versionId);
               onDirty();
             }}
-          >
-            <option value="">Выберите задание…</option>
-            {materials.map((entry) => (
-              <option
-                key={entry.id}
-                value={
-                  entry.currentPublishedVersionId
-                    ? 'lav:' + entry.currentPublishedVersionId
-                    : 'draft:' + entry.id
-                }
-                disabled={!entry.currentPublishedVersionId}
-              >
-                {entry.title} ·{' '}
-                {entry.currentPublishedVersionId
-                  ? 'опубликованная версия'
-                  : 'черновик — сначала опубликуйте материал'}
-              </option>
-            ))}
-            {lesson?.learningActivityVersionId &&
-            !materials.some(
-              (entry) => entry.currentPublishedVersionId === lesson.learningActivityVersionId,
-            ) ? (
-              <option value={'lav:' + lesson.learningActivityVersionId}>
-                {lesson.assignmentTitle} · закреплённая версия
-              </option>
-            ) : null}
-            {activeAssignments.map((entry) => (
-              <option key={entry.id} value={entry.id}>
-                {entry.title}
-              </option>
-            ))}
-          </select>
-          {materialError ? <span role="alert">{materialError}</span> : null}
-        </label>
+          />
+        </div>
       ) : null}
 
       <LessonBlockEditor
         blocks={blocks}
-        activities={materials}
+        activities={[]}
         onChange={(value) => {
           setBlocks(value);
           onDirty();
@@ -416,9 +388,11 @@ function LessonEditor({
 function CoursePreview({
   course,
   sections,
+  version,
 }: {
   readonly course: Course;
   readonly sections: readonly CourseSection[];
+  readonly version?: PublishedAuthorVersion;
 }): JSX.Element {
   let number = 0;
   const visibleSections = sections
@@ -430,9 +404,15 @@ function CoursePreview({
   return (
     <article className="course-preview-page" data-testid="course-preview-page">
       <header>
-        <span className="course-eyebrow">Предпросмотр ученика</span>
-        <h2>{course.title}</h2>
-        {course.summary ? <p>{course.summary}</p> : null}
+        <span className="course-eyebrow">
+          {version
+            ? `Опубликованная версия ${version.versionNumber} · только чтение`
+            : 'Предпросмотр сохранённого черновика'}
+        </span>
+        <h2>{version ? version.outline?.course.title : course.title}</h2>
+        {(version ? version.outline?.course.summary : course.summary) ? (
+          <p>{version ? version.outline?.course.summary : course.summary}</p>
+        ) : null}
       </header>
       {visibleSections.map((section) => (
         <section key={section.id}>
@@ -454,8 +434,20 @@ function CoursePreview({
                       {lesson.estimatedMinutes ? ' · ' + lesson.estimatedMinutes + ' мин' : ''}
                     </small>
                     {lesson.summary ? <p>{lesson.summary}</p> : null}
-                    <LessonBlocks blocks={lesson.blocks} legacyContent={lesson.content} compact />
-                    {lesson.assignmentTitle ? (
+                    <LessonBlocks
+                      blocks={lesson.blocks}
+                      legacyContent={lesson.content}
+                      compact
+                      renderActivity={(block) => (
+                        <PinnedPracticePreview versionId={block.learningActivityVersionId} />
+                      )}
+                      renderMaterial={(block) => (
+                        <PinnedManualMaterialPreview versionId={block.learningActivityVersionId} />
+                      )}
+                    />
+                    {lesson.learningActivityVersionId ? (
+                      <PinnedPracticePreview versionId={lesson.learningActivityVersionId} />
+                    ) : lesson.assignmentTitle ? (
                       <div className="course-preview-assignment">
                         <span>Задание</span>
                         <strong>{lesson.assignmentTitle}</strong>
@@ -472,6 +464,33 @@ function CoursePreview({
   );
 }
 
+export function publishedCourseSections(version: PublishedAuthorVersion): CourseSection[] {
+  if (!version.outline) throw new Error('Содержание опубликованной версии недоступно.');
+  return version.outline.sections.map((section, position) => ({
+    id: section.sourceSectionId,
+    title: section.title,
+    summary: section.summary,
+    position,
+    hidden: false,
+    lessons: section.lessons.map((lesson, lessonPosition) => ({
+      id: lesson.sourceLessonId,
+      title: lesson.title,
+      summary: lesson.summary ?? null,
+      content: lesson.content,
+      blocks: lesson.blocks,
+      kind: lesson.kind ?? 'material',
+      estimatedMinutes: lesson.estimatedMinutes ?? null,
+      position: lessonPosition,
+      hidden: false,
+      assignmentId: lesson.assignment?.sourceAssignmentId ?? null,
+      learningActivityVersionId:
+        lesson.learningActivityVersionId ?? lesson.assignment?.learningActivityVersionId ?? null,
+      assignmentTitle: lesson.assignment?.title ?? null,
+      moduleKey: lesson.assignment?.moduleKey ?? null,
+    })),
+  }));
+}
+
 function CourseEditor({
   course,
   assignments,
@@ -480,6 +499,7 @@ function CourseEditor({
   onShare,
   onChanged,
   canTeach,
+  onRegisterLeaveGuard,
 }: {
   readonly course: Course;
   readonly assignments: readonly LibraryAssignment[];
@@ -488,6 +508,7 @@ function CourseEditor({
   readonly onShare: () => void;
   readonly onChanged: () => void;
   readonly canTeach: boolean;
+  readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
 }): JSX.Element {
   const [localDirty, setLocalDirty] = useState(false);
   const localDirtyRef = useRef(false);
@@ -508,9 +529,55 @@ function CourseEditor({
   const createdLessonIdRef = useRef<string | null>(null);
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
   const [preview, setPreview] = useState(false);
+  const [publishedPreview, setPublishedPreview] = useState<PublishedAuthorVersion | null>(null);
+  const publicationReceipt = useRef<{ id: string; versionNumber: number } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const [sectionWork, setSectionWork] = useState(false);
+  const [assignVersion, setAssignVersion] = useState<PublishedAuthorVersion | null>(null);
+  const assignmentAttempt = useRef<{
+    versionId: string;
+    version: PublishedAuthorVersion;
+    value: CourseAssignAttempt;
+  } | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const hasWork = localDirty || sectionWork || writing || previewBusy || restoreBusy;
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const setSectionWorkState = useCallback((value: boolean) => setSectionWork(value), []);
+  function canLeave(): boolean {
+    if (writing || publishing || previewBusy || assignBusy || restoreBusy) return false;
+    if (localDirtyRef.current || sectionWork)
+      return window.confirm(
+        'Есть несохранённые изменения курса. Покинуть редактор без сохранения?',
+      );
+    if (assignmentAttempt.current?.value.submitted && !assignmentAttempt.current.value.completed)
+      return window.confirm(
+        'Назначение курса не подтверждено. Вернитесь и повторите попытку, чтобы избежать дубликата. Всё равно покинуть редактор?',
+      );
+    return true;
+  }
+  useEffect(() => {
+    onRegisterLeaveGuard?.(canLeave);
+    return () => onRegisterLeaveGuard?.(null);
+  });
+  useEffect(() => {
+    if (
+      !hasWork &&
+      !publishing &&
+      !assignBusy &&
+      !(assignmentAttempt.current?.value.submitted && !assignmentAttempt.current.value.completed)
+    )
+      return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasWork, publishing, assignBusy, assignVersion]);
 
   const loadOutline = useCallback(
     async (force = false) => {
@@ -580,7 +647,7 @@ function CourseEditor({
     return null;
   }, [sections, selectedLessonId]);
   function withSavedDraft(action: () => void): void {
-    if (localDirtyRef.current) {
+    if (localDirtyRef.current || sectionWork || writing || publishing || assignBusy) {
       setNotice(null);
       setError('Сначала сохраните изменения урока. Переход не выполнен, данные не потеряны.');
       return;
@@ -589,7 +656,7 @@ function CourseEditor({
   }
 
   async function act(run: () => MutationResult, done: string): Promise<boolean> {
-    if (localDirtyRef.current) {
+    if (localDirtyRef.current || writing || publishing || assignBusy) {
       setNotice(null);
       setError('Сначала сохраните изменения урока. Структура курса не изменена.');
       return false;
@@ -598,75 +665,86 @@ function CourseEditor({
       setError('Дождитесь обновления содержания курса и повторите действие.');
       return false;
     }
-    const result = await run();
-    if (!result.ok) {
-      setError(result.error?.message ?? 'Не получилось.');
-      return false;
+    setWriting(true);
+    try {
+      const result = await run();
+      if (!result.ok) {
+        setError(result.error?.message ?? 'Не получилось.');
+        return false;
+      }
+      setError(null);
+      setNotice(done);
+      await loadOutline();
+      onChanged();
+      return true;
+    } finally {
+      setWriting(false);
     }
-    setError(null);
-    setNotice(done);
-    await loadOutline();
-    onChanged();
-    return true;
   }
 
   async function saveLesson(lessonId: string | null, input: CourseLessonInput): Promise<void> {
-    const savingGeneration = editGeneration.current;
-    const pendingRefresh = revisionRefreshRef.current;
-    if (pendingRefresh) {
-      try {
-        await pendingRefresh;
-      } finally {
-        if (revisionRefreshRef.current === pendingRefresh) revisionRefreshRef.current = null;
-      }
-    }
-    const expectedRevision = draftRevisionRef.current;
-    const result = await api.saveCourseLesson(course.id, lessonId, {
-      ...input,
-      expectedRevision,
-    });
-    if (!result.ok) {
-      setError(result.error.message);
-      return;
-    }
-    if (
-      !Number.isSafeInteger(result.data.draftRevision) ||
-      result.data.draftRevision <= expectedRevision
-    ) {
-      if (!lessonId) createdLessonIdRef.current = result.data.id;
-      setError(
-        'Не удалось подтвердить версию курса. Обновите страницу перед повторным сохранением.',
-      );
-      return;
-    }
-    draftRevisionRef.current = result.data.draftRevision;
-    setDraftRevision(result.data.draftRevision);
-    const editedSinceSave = editGeneration.current !== savingGeneration;
-    setError(null);
-    setNotice(
-      editedSinceSave
-        ? 'Урок сохранён. Последние изменения ещё не сохранены.'
-        : lessonId
-          ? 'Урок сохранён.'
-          : 'Урок добавлен.',
-    );
-    if (editedSinceSave) {
-      if (!lessonId) createdLessonIdRef.current = result.data.id;
-    } else {
-      localDirtyRef.current = false;
-      setLocalDirty(false);
-      createdLessonIdRef.current = null;
-      setNewLessonSectionId(null);
-      setSelectedLessonId(result.data.id);
-    }
-    const refresh = loadOutline(true);
-    revisionRefreshRef.current = refresh;
+    setWriting(true);
     try {
-      await refresh;
+      const savingGeneration = editGeneration.current;
+      const pendingRefresh = revisionRefreshRef.current;
+      if (pendingRefresh) {
+        try {
+          await pendingRefresh;
+        } finally {
+          if (revisionRefreshRef.current === pendingRefresh) revisionRefreshRef.current = null;
+        }
+      }
+      const expectedRevision = draftRevisionRef.current;
+      const result = await api.saveCourseLesson(course.id, lessonId, {
+        ...input,
+        expectedRevision,
+      });
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      if (
+        !Number.isSafeInteger(result.data.draftRevision) ||
+        result.data.draftRevision <= expectedRevision
+      ) {
+        if (!lessonId) createdLessonIdRef.current = result.data.id;
+        setError(
+          'Не удалось подтвердить версию курса. Обновите страницу перед повторным сохранением.',
+        );
+        return;
+      }
+      draftRevisionRef.current = result.data.draftRevision;
+      setDraftRevision(result.data.draftRevision);
+      const editedSinceSave = editGeneration.current !== savingGeneration;
+      setError(null);
+      setNotice(
+        editedSinceSave
+          ? 'Урок сохранён. Последние изменения ещё не сохранены.'
+          : lessonId
+            ? 'Урок сохранён.'
+            : 'Урок добавлен.',
+      );
+      if (editedSinceSave) {
+        if (!lessonId) createdLessonIdRef.current = result.data.id;
+      } else {
+        localDirtyRef.current = false;
+        setLocalDirty(false);
+        createdLessonIdRef.current = null;
+        setNewLessonSectionId(null);
+        setSelectedLessonId(result.data.id);
+      }
+      setWriting(false);
+      const refresh = loadOutline(true);
+      revisionRefreshRef.current = refresh;
+      try {
+        await refresh;
+      } finally {
+        if (revisionRefreshRef.current === refresh) revisionRefreshRef.current = null;
+      }
+      onChanged();
     } finally {
-      if (revisionRefreshRef.current === refresh) revisionRefreshRef.current = null;
+      setWriting(false);
     }
-    onChanged();
   }
 
   async function deleteLesson(): Promise<void> {
@@ -682,7 +760,7 @@ function CourseEditor({
   const lessonCount = (sections ?? []).reduce((sum, section) => sum + section.lessons.length, 0);
 
   async function publishCourse(): Promise<void> {
-    if (publishing || localDirtyRef.current || lessonCount === 0) return;
+    if (publishing || localDirtyRef.current || sectionWork || writing || lessonCount === 0) return;
     if (revisionRefreshRef.current) {
       setError('Дождитесь обновления содержания курса и повторите публикацию.');
       return;
@@ -699,6 +777,11 @@ function CourseEditor({
       setError(result.error.message);
       return;
     }
+    publicationReceipt.current = {
+      id: result.data.versionId,
+      versionNumber: result.data.versionNumber,
+    };
+    setPublishedPreview(null);
     setError(null);
     setNotice(
       result.data.reused
@@ -709,6 +792,61 @@ function CourseEditor({
     onChanged();
   }
 
+  async function exactPublished(): Promise<PublishedAuthorVersion | null> {
+    const versionNumber = publicationReceipt.current?.versionNumber ?? course.publishedVersion;
+    if (!versionNumber) {
+      setError('Сначала опубликуйте курс, чтобы показать или назначить точную версию.');
+      return null;
+    }
+    setPreviewBusy(true);
+    try {
+      const versions = await api.authorVersions('course', course.id);
+      if (!versions.ok) {
+        setError(versions.error.message);
+        return null;
+      }
+      const version = versions.data.items.find(
+        (item) =>
+          item.versionNumber === versionNumber &&
+          (!publicationReceipt.current || item.id === publicationReceipt.current.id),
+      );
+      if (!version?.outline) {
+        setError('Точная опубликованная версия недоступна. Черновик не подставлен.');
+        return null;
+      }
+      setError(null);
+      setPublishedPreview(version);
+      return version;
+    } finally {
+      setPreviewBusy(false);
+    }
+  }
+  async function showPublished(assign = false): Promise<void> {
+    if (hasWork || publishing || assignBusy) {
+      setError('Сначала сохраните изменения курса.');
+      return;
+    }
+    const pending =
+      assign &&
+      assignmentAttempt.current?.value.submitted &&
+      !assignmentAttempt.current.value.completed
+        ? assignmentAttempt.current
+        : null;
+    const version = pending ? pending.version : await exactPublished();
+    if (!version) return;
+    setPublishedPreview(version);
+    setPreview(true);
+    if (assign) {
+      if (assignmentAttempt.current?.versionId !== version.id)
+        assignmentAttempt.current = {
+          versionId: version.id,
+          version,
+          value: { classroomId: '', dueDate: '' },
+        };
+      setAssignVersion(version);
+    }
+  }
+
   return (
     <fieldset disabled={restoreBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
       <section className="course-system" data-testid="course-editor">
@@ -716,7 +854,11 @@ function CourseEditor({
           <button
             type="button"
             className="course-back-button"
-            onClick={() => withSavedDraft(onBack)}
+            onClick={() =>
+              withSavedDraft(() => {
+                if (canLeave()) onBack();
+              })
+            }
           >
             <span aria-hidden="true">←</span>
             <span>Курсы</span>
@@ -753,7 +895,7 @@ function CourseEditor({
               <button
                 type="button"
                 className="btn-primary course-publish-button"
-                disabled={publishing || localDirty || lessonCount === 0}
+                disabled={publishing || hasWork || sectionWork || lessonCount === 0}
                 title={lessonCount === 0 ? 'Сначала добавьте хотя бы один урок' : undefined}
                 onClick={() => void publishCourse()}
               >
@@ -767,10 +909,35 @@ function CourseEditor({
             <button
               type="button"
               className={preview ? 'btn-primary' : 'btn-secondary'}
-              onClick={() => withSavedDraft(() => setPreview((value) => !value))}
+              onClick={() =>
+                withSavedDraft(() => {
+                  setPublishedPreview(null);
+                  setPreview((value) => !value);
+                })
+              }
             >
               {preview ? 'Редактировать' : 'Предпросмотр'}
             </button>
+            {course.publishedVersion || publicationReceipt.current ? (
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={hasWork || publishing}
+                onClick={() => void showPublished()}
+              >
+                Опубликованная версия
+              </button>
+            ) : null}
+            {canTeach ? (
+              <button
+                type="button"
+                className="btn-primary"
+                disabled={hasWork || publishing || lessonCount === 0}
+                onClick={() => void showPublished(true)}
+              >
+                Назначить курс
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -818,7 +985,11 @@ function CourseEditor({
         {sections === null ? (
           <p role="status">Загружаем содержание…</p>
         ) : preview ? (
-          <CoursePreview course={course} sections={sections} />
+          <CoursePreview
+            course={course}
+            sections={publishedPreview ? publishedCourseSections(publishedPreview) : sections}
+            {...(publishedPreview ? { version: publishedPreview } : {})}
+          />
         ) : (
           <div className="course-builder" onChange={markDirty}>
             <aside className="course-outline" aria-label="Содержание курса">
@@ -1125,6 +1296,7 @@ function CourseEditor({
         {sectionForm ? (
           <SectionFormDialog
             section={sectionForm === 'new' ? null : sectionForm}
+            onWorkChange={setSectionWorkState}
             onClose={() => setSectionForm(null)}
             onSave={async (value) => {
               const id = sectionForm === 'new' ? null : sectionForm.id;
@@ -1138,6 +1310,15 @@ function CourseEditor({
               );
               if (saved) setSectionForm(null);
             }}
+          />
+        ) : null}
+        {assignVersion && assignmentAttempt.current ? (
+          <CourseAssignDialog
+            courseId={course.id}
+            version={assignVersion}
+            attempt={assignmentAttempt.current.value}
+            onBusyChange={setAssignBusy}
+            onClose={() => setAssignVersion(null)}
           />
         ) : null}
       </section>
@@ -1156,13 +1337,17 @@ export function CoursesPanel({
   assignments,
   canTeach,
   onChanged,
+  onRegisterLeaveGuard,
+  initialCourseId,
 }: {
   readonly assignments: readonly LibraryAssignment[];
   readonly canTeach: boolean;
   readonly onChanged: () => void;
+  readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
+  readonly initialCourseId?: string | null;
 }): JSX.Element {
   const [courses, setCourses] = useState<Course[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialCourseId ?? null);
   const [courseForm, setCourseForm] = useState<Course | null | 'new'>(null);
   const [sharing, setSharing] = useState<Course | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -1170,6 +1355,32 @@ export function CoursesPanel({
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const creationRequest = useRef<{ payload: string; id: string } | null>(null);
+
+  const editorGuard = useRef<(() => boolean) | null>(null);
+  const [formWork, setFormWork] = useState(false);
+  const setFormWorkState = useCallback((value: boolean) => setFormWork(value), []);
+  const registerEditorGuard = useCallback((guard: (() => boolean) | null) => {
+    editorGuard.current = guard;
+  }, []);
+  useEffect(() => {
+    onRegisterLeaveGuard?.(() => {
+      if (formWork) {
+        setError('Сохраните настройки курса или явно отмените изменения.');
+        return false;
+      }
+      return editorGuard.current?.() ?? true;
+    });
+    return () => onRegisterLeaveGuard?.(null);
+  }, [formWork, onRegisterLeaveGuard]);
+  useEffect(() => {
+    if (!formWork) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [formWork]);
 
   const reload = useCallback(async () => {
     const result = await api.listCourses();
@@ -1228,6 +1439,7 @@ export function CoursesPanel({
   if (open) {
     return (
       <>
+        {error ? <p role="alert">{error}</p> : null}
         <CourseEditor
           course={open}
           assignments={assignments}
@@ -1236,9 +1448,11 @@ export function CoursesPanel({
           onShare={() => setSharing(open)}
           onChanged={() => void reload()}
           canTeach={canTeach}
+          onRegisterLeaveGuard={registerEditorGuard}
         />
         {courseForm ? (
           <CourseFormDialog
+            onWorkChange={setFormWorkState}
             course={courseForm === 'new' ? null : courseForm}
             onClose={() => setCourseForm(null)}
             onSave={async (value) => {
@@ -1274,7 +1488,9 @@ export function CoursesPanel({
       <div className="courses-toolbar">
         <div className="courses-toolbar-copy">
           <strong>Ваши курсы</strong>
-          <span>Собирайте уроки и материалы, а назначайте их уже внутри класса.</span>
+          <span>
+            Собирайте уроки и материалы, затем назначайте опубликованный курс классу из редактора.
+          </span>
         </div>
         <div className="courses-toolbar-actions">
           <button
@@ -1468,6 +1684,7 @@ export function CoursesPanel({
 
       {courseForm ? (
         <CourseFormDialog
+          onWorkChange={setFormWorkState}
           course={courseForm === 'new' ? null : courseForm}
           onClose={() => setCourseForm(null)}
           onSave={async (value) => {

@@ -1,5 +1,6 @@
 import { expect, test, type Page, type APIRequestContext } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { closeAssignmentPreview, previewAssignmentAs } from './learning-authoring-navigation';
 import { e2eAdminPool } from './seed';
 import {
   openPortalSection,
@@ -159,14 +160,40 @@ test('F: author without teaching creates and opens own material, no roster', asy
   await expect(portalSection(page, 'Курсы и задания')).toBeVisible();
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
   await openPortalSection(page, 'Курсы и задания');
-  await page.getByLabel('Название материала').fill('Личный материал автора');
+  await page.getByRole('button', { name: /Новое задание/ }).click();
+  await page.getByLabel('Название задания').fill('Личный материал автора');
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Самостоятельный текст без доступа к ученикам.');
-  await page.getByRole('button', { name: 'Создать материал' }).click();
+  const createAssignment = page.getByRole('button', { name: 'Создать задание' });
+  const cancelledChoice = page.waitForEvent('dialog');
+  await Promise.all([
+    createAssignment.click(),
+    cancelledChoice.then(async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      expect(dialog.message()).toContain('материал для курса без проектной среды');
+      await dialog.dismiss();
+    }),
+  ]);
+  await expect(createAssignment).toBeEnabled();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toHaveCount(
+    0,
+  );
+  const acceptedChoice = page.waitForEvent('dialog');
+  await Promise.all([
+    createAssignment.click(),
+    acceptedChoice.then(async (dialog) => {
+      expect(dialog.type()).toBe('confirm');
+      expect(dialog.message()).toContain('материал для курса без проектной среды');
+      await dialog.accept();
+    }),
+  ]);
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
-  await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
-  await expect(page.getByTestId('learner-preview')).toContainText('Самостоятельный текст');
+  await previewAssignmentAs(page, 'draft');
+  await expect(
+    page.getByRole('dialog', { name: 'Как увидит ученик' }).getByTestId('learner-preview'),
+  ).toContainText('Самостоятельный текст');
+  await closeAssignmentPreview(page);
   await page.getByRole('button', { name: 'Курсы', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Добавить демо-курс', exact: true })).toHaveCount(
     0,

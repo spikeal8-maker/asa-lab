@@ -13,6 +13,15 @@ function safeHref(value: string): string | null {
   }
 }
 
+function catalogueMedia(value: string | undefined): value is string {
+  return (
+    typeof value === 'string' &&
+    /^\/api\/catalogue\/courses\/[0-9a-f-]{36}\/versions\/[0-9a-f-]{36}\/pins\/[0-9a-f-]{36}\/(?:image|file|sample)\/[0-9a-f]{64}$/.test(
+      value,
+    )
+  );
+}
+
 export interface TaskImageSelection {
   readonly src: string;
   readonly alt: string;
@@ -22,7 +31,9 @@ function TaskFile({ block }: { readonly block: Extract<SafeTaskBlock, { type: 'f
   const [unavailable, setUnavailable] = useState(false);
   const [loading, setLoading] = useState(false);
   const src =
-    block.src?.startsWith('/api/learning/activities/') === true
+    block.src?.startsWith('/api/learning/activities/') === true ||
+    block.src?.startsWith('/api/class-join/course-runs/') === true ||
+    catalogueMedia(block.src)
       ? block.src
       : `/api/assignments/task-files/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => setUnavailable(false), [src]);
@@ -80,7 +91,9 @@ function TaskImage({
   const zoomTrigger = useRef<HTMLButtonElement>(null);
   const zoomClose = useRef<HTMLButtonElement>(null);
   const src =
-    block.src?.startsWith('/api/learning/activities/') === true
+    block.src?.startsWith('/api/learning/activities/') === true ||
+    block.src?.startsWith('/api/class-join/course-runs/') === true ||
+    catalogueMedia(block.src)
       ? block.src
       : `/api/assignments/task-images/${encodeURIComponent(block.contentHash)}`;
   useEffect(() => {
