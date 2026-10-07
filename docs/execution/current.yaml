@@ -258,7 +258,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: ordinary_image_early_event_causal_repair_selected
+      checkpoint: ordinary_image_independent_findings_bounded_repair_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -285,25 +285,23 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6b93059e8a199c4c96ba47da271c6e8e14f1eb73
+      convergence_baseline_sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
       head_sha: null
-      observed_at: '2026-10-07T18:17:48Z'
+      observed_at: '2026-10-07T19:11:52Z'
       main:
         branch: main
-        sha: 6b93059e8a199c4c96ba47da271c6e8e14f1eb73
+        sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
       observation_note: >-
-        Dated remote main after independently accepted report-only Issue 510 and
-        integrated Issue 516 candidate ba05381af8e95ad26ee04f9d501625b7a3154681.
-        New exact-integration reviewer REQUEST_CHANGES on 4bad8a7f for two
-        category C gate blockers, with no Issue 516 product finding. The Settings
-        executor separately published its three renamed Access A test selectors
-        at 6b93059e; its exact-head general workflow 37664842435 is still in progress
-        at this observation. Electronics full browser run 37662037546 passed
-        114 of 115 and Arduino Reset but missed the ordinary-image catalog failure
-        badge. Separate Issue 517 selects causal investigation and bounded repair,
-        using saved trace before directed browser evidence. Early onError loss is
-        a concrete hypothesis, not proven causality. Preserve suspended Issue 516
-        and Issue 505 PR 506; no integrated acceptance, owner acceptance, release
+        Dated remote main with Settings-owned 320 px repair 6e17a64e and independently
+        verified exact-head general workflow 37670104301 SUCCESS. Issue 510 remains
+        accepted. Issue 517 independent review of d6a78196 REQUEST_CHANGES: new React
+        fixture type errors, self-blocking browser navigation and directly caused
+        large-source growth threshold failure. Published test-only successor
+        21f2da70 is preserved and unaccepted. Select a separate bounded test repair
+        and factual responsibility re-review of the single ProductionComponentVisual
+        baseline entry, as explicitly scoped in the card. Native historical image
+        event ordering and school frequency are unproved. Preserve suspended Issue
+        516 and Issue 505 PR 506; no integrated acceptance, owner acceptance, release
         or deployment is claimed. Fetch main and exact-head CI before writes.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
