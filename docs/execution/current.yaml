@@ -288,14 +288,14 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-CONFORMANCE-CI-DIAGNOSIS-001
-      issue: 522
+      id: TASK-ELECTRONICS-CONFORMANCE-WORKER-ALLOCATION-001
+      issue: 523
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: matching_ci_conformance_diagnosis_selected
+      checkpoint: bounded_worker_allocation_control_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-CONFORMANCE-RUNTIME-001
@@ -305,8 +305,8 @@ parallel_lanes:
         report_independent_review: approve_for_evidence_only
         report_evidence: docs/product/electronics/evidence/conformance-runtime-521-20261007.md
         repair_acceptance: not_achieved
-        dependency_issue: 522
-        resume_after: Matching CI diagnosis Issue 522 and separately justified repair; local Vitest 3.2.7 differs from locked CI 4.1.11, executed temporary instrumentation was not archived and no historical runtime cause or harness repair is proved. Accept only the report evidence, keep Issue 521 open.
+        dependency_issue: 523
+        resume_after: Accept separately selected worker-allocation maintenance Issue 523 if its matched controls justify a preserved-coverage repair. Issue 522 report d2b2b142 is independently accepted evidence of current scheduling contention, not a unique historical cause or repair. Keep Issue 521 open until its required runtime evidence and independent repair acceptance exist.
       - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
         issue: 517
         status: blocked
@@ -341,29 +341,31 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: bb0a514ac3c4ff52da915b4e65b8b171161e1808
+      convergence_baseline_sha: d8d1c6e44a3af82a0a9f785fb7660a822d3c17b8
       head_sha: null
-      observed_at: '2026-10-07T21:03:14Z'
+      observed_at: '2026-10-07T21:47:16Z'
       main:
         branch: main
-        sha: bb0a514ac3c4ff52da915b4e65b8b171161e1808
+        sha: d8d1c6e44a3af82a0a9f785fb7660a822d3c17b8
       observation_note: >-
-        Dated main bb0a514a before this selection; fetch main and read exact-head
-        CI before writes. Fresh preflight SAFE_TO_START, no overlaps. Preserve
-        unrelated Portal implementation and all other lanes. Main general
-        37685120935 failed its independently changed Portal shell geometry at
-        821 px in Access UI; Category C for this Electronics diagnostic, no
-        permission to repair Portal here. Prior 4e219d10 general
-        37684431603 was cancelled by main movement, not PASS or product FAIL.
-        Issue 521 report 38ca0bcb received NEW independent APPROVE_FOR_EVIDENCE_ONLY;
-        original raw digest/JSON/source facts independently verified. Integrate
-        only that exact report. No harness repair or historical CI cause is proved:
-        local Vitest 3.2.7 versus locked CI 4.1.11 and missing executed probe source
-        limit the local measurement. Keep 521 unresolved and select separate
-        matching-runner diagnosis Issue 522, preserving every timeout, full-state
-        assertion, fixture, horizon and physical invariant. Preserve suspended
-        517 candidate 2d4654f207f41e5d3712b3071af05e6d3830fa31 and 516/505.
-        T3 is pending real owner classroom-device evidence; CI cannot substitute.
+        Dated main d8d1c6e4 before this closeout/selection; fetch main and read
+        exact-head CI before writes. Fresh preflight SAFE_TO_START, zero dirty
+        paths and overlaps; preserve the Portal S2 selection and other lanes.
+        Independently APPROVED diagnostic report Issue 522 exact d2b2b142 has
+        general 37690274396 SUCCESS, all four jobs and 166 fresh Nx tasks.
+        Integrate its byte-identical report only at 0d345e0f; no product/test/
+        workflow/config/dependency change. Current scheduling contention was
+        directly measured, but the historical 5234 ms cause, GC and worker-cap
+        effect remain unproved. Issue 521 stays unresolved; select separate
+        Issue 523 matched default/one-worker controls in one CI job, with only
+        a justified test:electronics allocation change allowed afterward.
+        All fixtures, 5000 ms guards, horizons, budgets and physics are preserved.
+        Preserve suspended 517 exact candidate 2d4654f2 and 516/505/PR 506.
+        T3 stays pending real classroom device evidence; first measurement
+        records exact CPU/RAM/OS/browser versions, resolution and power state
+        with the same production large-board scenario and established metrics.
+        First measured student computer becomes the reference until owner change.
+        No dev-PC/runner substitution or independent-task blocker from T3.
         No product acceptance, full hygiene checkpoint, release or deployment.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
@@ -385,6 +387,29 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-CONFORMANCE-CI-DIAGNOSIS-001
+        issue: 522
+        accepted_candidate_sha: d2b2b14271f27ddcaa194141d8aadafa0db12eae
+        integrated_sha: 0d345e0f7684267c33ce13ccc652b70a4ff1276d
+        integrated_report_blob: 5cffaa7711f29f9ae28817c75712057ea8c0a5e8
+        independent_review: approved
+        exact_candidate_general_run: 37690274396
+        exact_candidate_general_conclusion: success
+        matching_diagnostic_sha: b98000b66fadd30237ab07b5090af8d1b0a9be7e
+        matching_diagnostic_run: 37688305656
+        matching_diagnostic_artifact: 11511064962
+        evidence: docs/product/electronics/evidence/conformance-ci-diagnosis-522-20261008.md
+        status: diagnostic_accepted
+        historical_cause: unresolved
+        product_repair: not_created
+        nx_fresh_executions:
+          general_code: 96
+          isolated_build: 43
+          browser_build: 27
+        followups:
+          - 523
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
         issue: 453
         accepted_candidate_sha: a17026f6906854a3b433e99e1e510d7ca6c48750
