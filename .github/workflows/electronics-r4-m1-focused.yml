@@ -181,7 +181,7 @@ jobs:
       - name: Directed Arduino cadence probe
         run: |
           docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner \
-            sh -lc 'echo "CADENCE_CPU_PROBE mode=${{ inputs.cadence_probe_mode }} nproc=$(nproc) cpu_max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown) epoch=$(date +%s)"; if [ "${{ inputs.cadence_probe_mode }}" = loaded ]; then pids=""; for i in 1 2 3; do node tools/arduino-cadence-cpu-probe.mjs & pids="$pids $!"; done; echo "CADENCE_CPU_PROBE started=3 epoch=$(date +%s)"; trap "kill $pids 2>/dev/null || true" EXIT; fi; pnpm exec playwright test e2e/electronics-simulation.spec.ts --grep "^E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run$" --trace on --workers=1'
+            sh -lc 'echo "CADENCE_CPU_PROBE mode=${{ inputs.cadence_probe_mode }} nproc=$(nproc) cpu_max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown) epoch=$(date +%s)"; if [ "${{ inputs.cadence_probe_mode }}" = loaded ]; then pids=""; for i in 1 2 3; do node tools/arduino-cadence-cpu-probe.mjs & pids="$pids $!"; done; echo "CADENCE_CPU_PROBE started=3 epoch=$(date +%s)"; trap "kill $pids 2>/dev/null || true" EXIT; fi; pnpm exec playwright test e2e/electronics-simulation.spec.ts --grep "E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run" --trace on --workers=1'
 
       - name: Show isolated stack state
         if: always()
