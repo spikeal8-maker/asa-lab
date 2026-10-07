@@ -1,3 +1,4 @@
+import type { CreatorPortalView } from './navigation';
 import {
   hasSettingsDraft,
   historyEntryIndex,
@@ -18,12 +19,12 @@ interface AcceptedHistory {
 
 export function createPortalHistoryGuard({
   accepted,
-  needsLearningDecision,
+  currentView,
   mayLeaveLearning,
   applyLocation,
 }: {
   readonly accepted: AcceptedHistory;
-  readonly needsLearningDecision: (destination: string) => boolean;
+  readonly currentView: { readonly current: Pick<CreatorPortalView, 'kind'> };
   readonly mayLeaveLearning: () => boolean;
   readonly applyLocation: () => void;
 }) {
@@ -105,7 +106,9 @@ export function createPortalHistoryGuard({
       apply();
       return;
     }
-    if (!hasSettingsDraft() && !needsLearningDecision(destination)) {
+    // Every different history entry leaves the accepted Learning entry, even
+    // when its URL repeats. Only the href+index check above is a native no-op.
+    if (!hasSettingsDraft() && currentView.current.kind !== 'challenges') {
       apply();
       return;
     }

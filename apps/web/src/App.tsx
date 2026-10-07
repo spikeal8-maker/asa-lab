@@ -239,9 +239,7 @@ export function App(): JSX.Element {
   useEffect(() => {
     const { sync, accept } = createPortalHistoryGuard({
       accepted: { location: acceptedLocation, index: acceptedHistoryIndex },
-      needsLearningDecision: (destination) =>
-        viewRef.current.kind === 'challenges' &&
-        creatorViewFromLocation(new URL(destination)).kind !== 'challenges',
+      currentView: viewRef,
       mayLeaveLearning,
       applyLocation: () => {
         const nextView = creatorViewFromLocation(window.location);

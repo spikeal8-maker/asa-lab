@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPortalHistoryGuard, requestPortalNavigation } from './portal-navigation-guard';
+import type { CreatorPortalView } from './navigation';
 
 const settings = vi.hoisted(() => ({
   dirty: false,
@@ -25,8 +26,11 @@ beforeEach(() => {
   settings.requests = 0;
 });
 
-function historyFixture(route = 'challenges') {
-  const entries = ['help', route, 'account'].map((hash, index) => ({
+function historyFixture(
+  route: 'challenges' | 'account' = 'challenges',
+  routes = ['help', route, 'account'],
+) {
+  const entries = routes.map((hash, index) => ({
     href: 'http://asa.test/#/' + hash,
     state: { asaRouteIndex: index },
   }));
@@ -69,17 +73,19 @@ function historyFixture(route = 'challenges') {
   });
   const accepted = { location: { current: entries[1]!.href }, index: { current: 1 } };
   const editor = {
-    route,
+    route: route as string,
     draft: 'unsaved text',
     frozen: { requestId: 'same-request', version: 1 },
   };
+  const currentView = { current: { kind: route as CreatorPortalView['kind'] } };
   const apply = vi.fn(() => {
     editor.route = window.location.href.split('/#/')[1]!;
+    currentView.current.kind = editor.route as CreatorPortalView['kind'];
   });
   const mayLeave = vi.fn(() => true);
   const guard = createPortalHistoryGuard({
     accepted,
-    needsLearningDecision: () => editor.route === 'challenges',
+    currentView,
     mayLeaveLearning: mayLeave,
     applyLocation: apply,
   });
@@ -90,7 +96,7 @@ function historyFixture(route = 'challenges') {
       traversals.shift()!();
     }
   };
-  return { accepted, editor, entries, apply, mayLeave, pushes, go, flush };
+  return { accepted, editor, entries, apply, mayLeave, pushes, go, flush, sync: guard.sync };
 }
 
 describe('combined portal navigation approval', () => {
@@ -157,6 +163,42 @@ describe('combined portal navigation approval', () => {
       f.flush();
       expect(f.editor.route).toBe('challenges');
       expect(f.entries).toHaveLength(3);
+    },
+  );
+
+  it.each([-1, 1])(
+    'protects the App view ref for distinct same-URL entry %i but not a true no-op',
+    (direction) => {
+      const f = historyFixture('challenges', ['challenges', 'challenges', 'challenges']);
+      const state = structuredClone(f.editor);
+      f.mayLeave.mockImplementation(() => {
+        expect(window.location.href).toBe(f.accepted.location.current);
+        expect(window.history.state.asaRouteIndex).toBe(1);
+        expect(f.apply).not.toHaveBeenCalled();
+        return false;
+      });
+      f.sync();
+      expect(f.mayLeave).not.toHaveBeenCalled();
+      f.go(direction);
+      f.flush();
+      expect(f.mayLeave).toHaveBeenCalledOnce();
+      expect(f.accepted.index.current).toBe(1);
+      expect(window.history.state.asaRouteIndex).toBe(1);
+      expect(f.editor).toEqual(state);
+      expect(f.apply).not.toHaveBeenCalled();
+      expect(f.pushes).not.toHaveBeenCalled();
+      expect(settings.requests).toBe(0);
+      f.mayLeave.mockReturnValue(true);
+      f.go(direction);
+      f.flush();
+      expect(f.accepted.index.current).toBe(1 + direction);
+      expect(f.apply).toHaveBeenCalledOnce();
+      expect(f.mayLeave).toHaveBeenCalledTimes(2);
+      expect(f.editor).toEqual(state);
+      expect(f.entries).toHaveLength(3);
+      expect(f.pushes).not.toHaveBeenCalled();
+      f.sync();
+      expect(f.mayLeave).toHaveBeenCalledTimes(2);
     },
   );
 

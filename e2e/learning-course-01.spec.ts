@@ -2697,9 +2697,47 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
   await expect(editor.getByRole('button', { name: 'Назначить курс', exact: true })).toBeDisabled();
   const portalHistory = () =>
-    page.evaluate(() => ({ href: location.href, state: history.state, length: history.length }));
-  const denyPortalExit = async (action: () => Promise<unknown>) => {
+    page.evaluate(() => {
+      type Entry = { key: string; index: number; url: string };
+      const browser = window as Window & {
+        navigation?: { currentEntry?: Entry; entries: () => Entry[] };
+      };
+      const current = browser.navigation?.currentEntry;
+      const index: number | null = current?.index ?? history.state?.asaRouteIndex ?? null;
+      const adjacent = (direction: -1 | 1) => {
+        const target = browser.navigation
+          ?.entries()
+          .find((item) => item.index === index! + direction);
+        return {
+          key: target?.key ?? null,
+          index: target?.index ?? (index === null ? null : index + direction),
+          href: target?.url ?? null,
+        };
+      };
+      return {
+        href: location.href,
+        state: history.state,
+        length: history.length,
+        entry: { key: current?.key ?? null, index },
+        previous: adjacent(-1),
+        next: adjacent(1),
+      };
+    });
+  const denyPortalExit = async (action: () => Promise<unknown>, direction?: -1 | 1) => {
     const entry = await portalHistory();
+    if (direction !== undefined) {
+      expect(
+        entry.entry.index,
+        'The accepted entry has an authoritative history index',
+      ).not.toBeNull();
+      const target = direction === -1 ? entry.previous : entry.next;
+      expect(target.index).toBe(entry.entry.index! + direction);
+      if (entry.entry.key !== null) {
+        expect(target.key).not.toBeNull();
+        expect(target.key).not.toBe(entry.entry.key);
+        expect(target.href).not.toBeNull();
+      }
+    }
     let prompts = 0;
     const dismiss = async (dialog: import('@playwright/test').Dialog) => {
       prompts++;
@@ -2718,17 +2756,30 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
       page.off('dialog', dismiss);
     }
   };
+  const sameRouteEntry = await portalHistory();
+  let sameRoutePrompts = 0;
+  const dismissUnexpected = async (dialog: import('@playwright/test').Dialog) => {
+    sameRoutePrompts++;
+    await dialog.dismiss();
+  };
+  page.on('dialog', dismissUnexpected);
+  try {
+    await openPortalSection(page, 'Курсы и задания');
+    expect(sameRoutePrompts).toBe(0);
+    expect(await portalHistory()).toEqual(sameRouteEntry);
+    await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
+  } finally {
+    page.off('dialog', dismissUnexpected);
+  }
   await denyPortalExit(() => openAccountSettings(page));
-  await denyPortalExit(() => page.evaluate(() => window.history.back()));
-  await denyPortalExit(() => page.evaluate(() => window.history.forward()));
+  await denyPortalExit(() => page.evaluate(() => window.history.back()), -1);
+  await denyPortalExit(() => page.evaluate(() => window.history.forward()), 1);
   await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
   const acceptedCourseEntry = await portalHistory();
   page.once('dialog', (dialog) => dialog.accept());
   await openAccountSettings(page);
   await expect(page.locator('.account-settings-page')).toBeVisible();
-  expect((await portalHistory()).state.asaRouteIndex).toBe(
-    acceptedCourseEntry.state.asaRouteIndex + 1,
-  );
+  expect((await portalHistory()).entry.index).toBe(acceptedCourseEntry.entry.index! + 1);
   await page.evaluate(() => window.history.back());
   await page
     .getByRole('navigation', { name: 'Разделы курсов и заданий', exact: true })
@@ -2851,7 +2902,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(editor).toBeVisible();
   await expect(page.getByTestId('courses-list')).toHaveCount(0);
   await denyPortalExit(() => openAccountSettings(page));
-  await denyPortalExit(() => page.evaluate(() => window.history.back()));
+  await denyPortalExit(() => page.evaluate(() => window.history.back()), -1);
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await expect(assignDialog.getByLabel('Класс для курса')).toBeDisabled();
