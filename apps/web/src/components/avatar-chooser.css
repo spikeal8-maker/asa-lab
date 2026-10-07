@@ -192,6 +192,15 @@
   .avatar-chooser-heading h2 {
     font-size: 20px;
   }
+  .avatar-chooser-dialog .avatar-chooser-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    align-items: stretch;
+  }
+  .avatar-chooser-dialog .avatar-chooser-actions button {
+    width: 100%;
+    padding-inline: 8px;
+  }
 }
 @media (max-height: 650px) and (max-width: 600px) {
   .avatar-chooser-dialog .avatar-selection-grid {

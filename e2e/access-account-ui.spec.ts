@@ -2041,6 +2041,142 @@ for (const width of [1440, 1024, 390, 320]) {
 
 const avatarEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-20261008';
 const avatarRepairEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-repair-20261008';
+const avatarFontEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-font-repair-20261008';
+for (const width of [320, 600, 601])
+  for (const seat of [false, true])
+    test(`S2 avatar action row tolerates wider 16px font ${seat ? 'seat' : 'account'} ${width}`, async ({
+      page,
+    }) => {
+      mkdirSync(avatarFontEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      await fixture(page, { seat, presentationLongContent: true });
+      let releaseSave!: () => void;
+      const saveGate = new Promise<void>((resolve) => (releaseSave = resolve));
+      await page.route(
+        seat ? '**/api/class-join/me/avatar' : '**/api/account/avatar',
+        async (route) => {
+          if (route.request().method() === 'GET')
+            return route.fulfill({ json: { avatarDataUrl: null } });
+          await saveGate;
+          return route.fulfill({
+            status: 503,
+            json: {
+              error: {
+                code: 'unavailable',
+                message: 'Не удалось сохранить выбранный аватар. Повторите попытку позднее.',
+              },
+            },
+          });
+        },
+      );
+      await page.goto('/#/account');
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      // Reproduce the wider Cyrillic fallback metrics that exposed wrapping in
+      // Linux CI. Keep the readable 16px text and the original Russian labels.
+      await page.addStyleTag({
+        content: `.avatar-chooser-dialog .avatar-chooser-actions button {
+          font-family: monospace;
+          font-size: 16px;
+          letter-spacing: 1px;
+        }`,
+      });
+      const samples: unknown[] = [];
+      const assertActions = async (state: string) => {
+        const metrics = await dialog.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const preview = element
+            .querySelector('img[alt="Предпросмотр аватара"]')!
+            .getBoundingClientRect();
+          const actions = [...element.querySelectorAll('.avatar-chooser-actions button')].map(
+            (button) => {
+              const r = button.getBoundingClientRect();
+              const style = getComputedStyle(button);
+              const text = document.createRange();
+              text.selectNodeContents(button);
+              const textBounds = text.getBoundingClientRect();
+              return {
+                top: r.top,
+                bottom: r.bottom,
+                width: r.width,
+                height: r.height,
+                left: r.left,
+                right: r.right,
+                text: button.textContent,
+                textFits:
+                  textBounds.left >= r.left &&
+                  textBounds.right <= r.right &&
+                  button.scrollWidth <= button.clientWidth,
+                fontSize: style.fontSize,
+                fontFamily: style.fontFamily,
+                padding: style.padding,
+              };
+            },
+          );
+          return {
+            actions,
+            previewWidth: preview.width,
+            dialogWidth: bounds.width,
+            dialogOverflow: element.scrollWidth > element.clientWidth,
+            pageOverflow: document.documentElement.scrollWidth > innerWidth,
+          };
+        });
+        samples.push({ state, ...metrics });
+        writeFileSync(
+          `${avatarFontEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
+          JSON.stringify(samples, null, 2),
+        );
+        await page.screenshot({
+          path: `${avatarFontEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}.png`,
+        });
+        expect(metrics.actions).toHaveLength(2);
+        expect(Math.abs(metrics.actions[0]!.top - metrics.actions[1]!.top)).toBeLessThan(1);
+        expect(Math.abs(metrics.actions[0]!.bottom - metrics.actions[1]!.bottom)).toBeLessThan(1);
+        expect(metrics.actions[0]!.right).toBeLessThanOrEqual(metrics.actions[1]!.left);
+        for (const action of metrics.actions) {
+          expect(action.textFits).toBe(true);
+          expect(action.fontSize).toBe('16px');
+          expect(action.fontFamily).toContain('monospace');
+          expect(action.width).toBeGreaterThanOrEqual(44);
+          expect(action.height).toBeGreaterThanOrEqual(44);
+          expect(action.top).toBeGreaterThanOrEqual(0);
+          expect(action.bottom).toBeLessThanOrEqual(568);
+        }
+        expect(metrics.previewWidth).toBeGreaterThanOrEqual(240);
+        expect(metrics.dialogOverflow).toBe(false);
+        expect(metrics.pageOverflow).toBe(false);
+      };
+      try {
+        const use = dialog.getByRole('button', { name: 'Использовать', exact: true });
+        await expect(use).toBeDisabled();
+        await assertActions('current');
+        await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+        await expect(use).toBeEnabled();
+        await assertActions('selected');
+        await use.click();
+        await expect(dialog.getByRole('status')).toContainText('Подготавливаем и сохраняем');
+        await expect(use).toBeDisabled();
+        await assertActions('busy');
+        releaseSave();
+        await expect(dialog.getByRole('alert')).toContainText(
+          'Не удалось сохранить выбранный аватар',
+        );
+        await expect(use).toBeEnabled();
+        await assertActions('error');
+        await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+          'src',
+          /avatar-07.webp$/,
+        );
+        await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+      } finally {
+        releaseSave();
+      }
+    });
 for (const width of [1440, 1024, 390, 320])
   for (const seat of [false, true])
     test(`S2 repair avatar action row ${seat ? 'seat' : 'account'} ${width} short screen`, async ({
