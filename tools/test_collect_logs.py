@@ -12,7 +12,8 @@ class CollectorTests(unittest.TestCase):
     def test_replaced_container_collects_current_errors_without_history_delay(self):
         with tempfile.TemporaryDirectory() as temp:
             collector = Collector(Path(temp), {})
-            created = datetime.now(timezone.utc) - timedelta(minutes=1)
+            created = datetime.now(timezone.utc) - timedelta(days=2)
+            collector.set_state('docker:new-container:recent', (created - timedelta(days=8)).isoformat())
             calls = []
             def command(args, **kwargs):
                 if args[1] == 'ps': return b'new-container\npostgres-container'
@@ -25,6 +26,7 @@ class CollectorTests(unittest.TestCase):
             collector.docker()
             api_calls = [c for c in calls if c[-1] == 'new-container']
             self.assertEqual(len(api_calls), 2)
+            self.assertGreater(datetime.fromisoformat(api_calls[0][api_calls[0].index('--since') + 1]), datetime.now(timezone.utc) - timedelta(minutes=6))
             self.assertTrue(all(datetime.fromisoformat(c[c.index('--since') + 1]) >= created for c in api_calls))
             self.assertGreater(collector.db.execute("SELECT count(*) FROM events WHERE source='api'").fetchone()[0], 0)
             collector.db.close()

@@ -164,6 +164,7 @@ class Collector:
                     default = datetime.now(UTC) - (timedelta(minutes=5) if recent else timedelta(days=7))
                     saved = self.state(key, default.isoformat())
                     start = max(created, datetime.fromisoformat(saved.replace("Z", "+00:00")))
+                    if recent: start = max(start, datetime.now(UTC) - timedelta(minutes=5))
                     span = self.state(key + ":span", 300 if recent else 6 * 3600)
                     until = min(datetime.now(UTC) - timedelta(seconds=2), start + timedelta(seconds=span))
                     if until <= start: continue
