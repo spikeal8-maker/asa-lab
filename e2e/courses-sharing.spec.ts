@@ -632,6 +632,16 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   for (const width of [1440, 1024, 390, 320]) {
     await matePage.setViewportSize({ width, height: 900 });
     await expect(copiedCourseCard).toBeVisible();
+    for (const name of ['Активные', 'Архив', 'Добавить демо-курс', 'Создать курс']) {
+      const action = matePage
+        .locator('.courses-toolbar-actions')
+        .getByRole('button', { name, exact: true });
+      await expect(action).toBeVisible();
+      const bounds = await action.boundingBox();
+      expect(bounds, `${name} at ${width}px`).not.toBeNull();
+      expect(bounds!.x, `${name} left at ${width}px`).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width, `${name} right at ${width}px`).toBeLessThanOrEqual(width);
+    }
     expect(
       await matePage.evaluate(() => document.documentElement.scrollWidth - innerWidth),
     ).toBeLessThanOrEqual(0);
