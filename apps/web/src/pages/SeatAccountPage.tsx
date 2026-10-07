@@ -8,10 +8,12 @@ import {
   type SettingsDraft,
 } from '../components/settings-navigation';
 import { api, type ClassroomStudentSession, type SeatAward } from '../api';
-import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
+import { requestAvatarChooser } from '../components/avatar-chooser-events';
+import { seatAvatar } from '../creator-portal/default-avatars';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { awardOf } from '../components/SeatAwards';
 import '../components/seat-awards.css';
+import '../components/seat-avatar.css';
 
 /**
  * A learner's own settings.
@@ -24,16 +26,7 @@ import '../components/seat-awards.css';
  * somebody else's idea of you, and choosing one is the first thing anybody does
  * in a product like this.
  */
-export function SeatAccountPage({
-  seat,
-  onSeatChanged,
-}: {
-  readonly seat: ClassroomStudentSession;
-  readonly onSeatChanged: (seat: ClassroomStudentSession) => void;
-}): JSX.Element {
-  const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSession }): JSX.Element {
   const [awards, setAwards] = useState<SeatAward[] | null>(null);
   const [awardsError, setAwardsError] = useState(false);
   const [panel, setPanel] = useState(() => settingsPanelFromLocation());
@@ -85,20 +78,6 @@ export function SeatAccountPage({
       window.removeEventListener('settings-route', sync);
     };
   }, [loadAwards]);
-
-  async function choose(avatarKey: string | null): Promise<void> {
-    setBusy(true);
-    setError(null);
-    setNotice(null);
-    const result = await api.setClassroomSeatAvatar(avatarKey);
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось сохранить аватар.');
-      return;
-    }
-    onSeatChanged(result.data);
-    setNotice(avatarKey ? 'Аватар сохранён.' : 'Вернули аватар по умолчанию.');
-  }
 
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
@@ -158,17 +137,6 @@ export function SeatAccountPage({
               </a>
             </section>
           ) : null}
-          {error ? (
-            <p className="account-message error" role="alert">
-              {error}
-            </p>
-          ) : null}
-          {notice ? (
-            <p className="account-message success" role="status">
-              {notice}
-            </p>
-          ) : null}
-
           <div hidden={selectedPanel !== 'profile'}>
             <section className="account-settings-section" aria-labelledby="seat-profile-title">
               <div className="account-section-heading">
@@ -176,12 +144,28 @@ export function SeatAccountPage({
                 <p>Аватар появится в списке класса и рядом с вашими работами.</p>
               </div>
 
-              <SeatAvatarPicker
-                seatId={seat.student.seatId}
-                value={seat.student.avatarKey}
-                busy={busy}
-                onChange={(key) => void choose(key)}
-              />
+              <div className="seat-avatar-current">
+                <button
+                  type="button"
+                  className="account-avatar-preview-button"
+                  aria-label="Увеличить и выбрать аватар"
+                  onClick={() => requestAvatarChooser({ kind: 'seat', id: seat.student.seatId })}
+                >
+                  <img
+                    src={seatAvatar(seat.student.seatId, seat.student.avatarKey).src}
+                    alt="Текущий аватар"
+                    width={72}
+                    height={72}
+                  />
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => requestAvatarChooser({ kind: 'seat', id: seat.student.seatId })}
+                >
+                  Выбрать аватар
+                </button>
+              </div>
 
               <dl className="seat-account-facts">
                 <div>

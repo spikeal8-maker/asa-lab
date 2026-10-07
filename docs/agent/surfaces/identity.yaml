@@ -13,6 +13,13 @@ surfaces:
   implementation:
     files:
     - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/components/AvatarDialog.tsx
+    - apps/web/src/components/use-avatar-module.ts
+    - apps/web/public/vite-preload-recovery.js
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/avatar-chooser-events.ts
+    - apps/web/src/components/avatar-chooser.css
     - apps/web/src/components/PortalLink.tsx
     - apps/web/src/components/settings-navigation.tsx
     - apps/web/src/creator-portal/navigation.ts
@@ -85,6 +92,13 @@ surfaces:
   implementation:
     files:
     - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/components/AvatarDialog.tsx
+    - apps/web/src/components/use-avatar-module.ts
+    - apps/web/public/vite-preload-recovery.js
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/avatar-chooser-events.ts
+    - apps/web/src/components/avatar-chooser.css
     - apps/web/src/api.ts
     - apps/api/src/account-c1.controller.ts
     - contexts/identity/application/effective-actions.ts
@@ -106,6 +120,23 @@ surfaces:
   - TST-ASA-ACCESS-A-CORE-001
   - TST-ASA-ACCESS-A-E2E-001
   controls:
+  - id: CTRL-ACCOUNT-AVATAR
+    label: Preview and explicitly save Account avatar independently of profile drafts
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/creator-portal/avatar-file.ts
+    commands:
+    - account_avatar_update
+    invariants:
+    - IDA-PROFILE-001
+    - IDA-CTX-001
+    - IDA-AUTH-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ACCOUNT-SETTINGS-UI-001
   - id: CTRL-ACCOUNT-SAVE-PRESENTATION
     label: Preview and save supported Account presentation; Seat motion is temporary session-only
     change_class: L2_DOMAIN_MUTATION
@@ -372,6 +403,17 @@ surfaces:
   implementation:
     files:
     - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/web/src/components/AvatarDialog.tsx
+    - apps/web/src/components/use-avatar-module.ts
+    - apps/web/public/vite-preload-recovery.js
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/avatar-chooser-events.ts
+    - apps/web/src/components/avatar-chooser.css
+    - apps/web/src/components/SeatAvatarPicker.tsx
+    - apps/web/src/components/seat-avatar.css
+    - apps/web/src/pages/ClassroomPage.tsx
+    - apps/web/src/App.tsx
     - apps/web/src/api.ts
     - apps/api/src/classroom-join.controller.ts
   invariants:

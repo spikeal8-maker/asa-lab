@@ -92,3 +92,24 @@
     max-height: 190px;
   }
 }
+
+/* The teacher picker lives in a narrow parent modal even on wide desktops. */
+.seat-avatar-staged-selection .avatar-selection {
+  grid-template-columns: minmax(0, 1fr);
+}
+.seat-avatar-staged-selection .avatar-selection-grid {
+  max-height: 190px;
+}
+.account-avatar-preview-button {
+  flex: 0 0 auto;
+  display: block;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+.account-avatar-preview-button:focus-visible {
+  outline: 3px solid #0089c3;
+  outline-offset: 3px;
+}

@@ -13,6 +13,7 @@ import {
 import { AccountPage } from '../../apps/web/src/pages/AccountPage';
 import { SeatAccountPage } from '../../apps/web/src/pages/SeatAccountPage';
 import { requestSettingsNavigation } from '../../apps/web/src/components/settings-navigation';
+import { OPEN_AVATAR_CHOOSER_EVENT } from '../../apps/web/src/components/avatar-chooser-events';
 import { creatorViewFromHash } from '../../apps/web/src/creator-portal/navigation';
 
 const reactGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
@@ -238,29 +239,22 @@ describe('account settings composition', () => {
     expect(navigate).toHaveBeenCalledOnce();
     expect(input('Отображаемое имя').value).toBe(profile.displayName);
   });
-  it('traps avatar focus, supports Escape and restores the opener', async () => {
+  it('requests the scoped shared chooser without saving or discarding a profile draft', async () => {
     await renderAccount();
-    button('Выбрать аватар').focus();
-    await click('Выбрать аватар');
-    const dialog = container.querySelector<HTMLElement>('[role="dialog"]')!;
-    const buttons = [...dialog.querySelectorAll('button')];
-    expect(document.activeElement).toBe(buttons[0]);
-    await act(async () =>
-      dialog.dispatchEvent(
-        new KeyboardEvent('keydown', {
-          key: 'Tab',
-          shiftKey: true,
-          bubbles: true,
-          cancelable: true,
-        }),
-      ),
-    );
-    expect(document.activeElement).toBe(buttons.at(-1));
-    await act(async () =>
-      dialog.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
-    );
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
-    expect(document.activeElement).toBe(button('Выбрать аватар'));
+    await fill(input('Отображаемое имя'), 'Несохранённое имя');
+    const opened = vi.fn();
+    window.addEventListener(OPEN_AVATAR_CHOOSER_EVENT, opened);
+    try {
+      await click('Выбрать аватар');
+      expect(opened).toHaveBeenCalledOnce();
+      expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({
+        kind: 'account',
+        id: session.user.id,
+      });
+      expect(input('Отображаемое имя').value).toBe('Несохранённое имя');
+    } finally {
+      window.removeEventListener(OPEN_AVATAR_CHOOSER_EVENT, opened);
+    }
   });
   it('filters staff notifications from the server projection without deleting hidden stored categories', async () => {
     const save = vi
@@ -318,7 +312,7 @@ describe('account settings composition', () => {
       classroom: { id: 'class-1', title: 'Класс', teacherDisplayName: 'Преподаватель' },
       expiresAt: '2030-01-01T00:00:00Z',
     };
-    await act(async () => root.render(createElement(SeatView, { seat, onSeatChanged: vi.fn() })));
+    await act(async () => root.render(createElement(SeatView, { seat })));
     expect(container.textContent).toContain('Не удалось загрузить значки');
     expect(container.textContent).not.toContain('Пока ни одного');
     await click('Повторить загрузку значков');

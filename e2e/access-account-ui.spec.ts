@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
@@ -48,6 +48,8 @@ async function fixture(
   let presentationFailure = options.presentationFailure ?? false;
   let presentationSaveFailure = options.presentationSaveFailure ?? false;
   let presentationActorChanged = false;
+  let avatarDataUrl: string | null = null;
+  let seatAvatarKey: string | null = null;
   let timeZone = 'Europe/Moscow';
   let presentation = { motion: 'system', sidebar: 'expanded', revision: 0 };
   let preferences = {
@@ -167,7 +169,7 @@ async function fixture(
                 seatId: 'seat-1',
                 displayName: 'Ученик с длинным именем',
                 safeMode: true,
-                avatarKey: null,
+                avatarKey: seatAvatarKey,
               },
               classroom: {
                 id: 'class-1',
@@ -178,6 +180,20 @@ async function fixture(
             }
           : { authenticated: false },
       );
+    if (path === '/api/class-join/me/avatar') {
+      seatAvatarKey = request.postDataJSON().avatarKey;
+      return reply({
+        authenticated: true,
+        student: {
+          seatId: 'seat-1',
+          displayName: 'Ученик с длинным именем',
+          safeMode: true,
+          avatarKey: seatAvatarKey,
+        },
+        classroom: { id: 'class-1', title: 'Учебный класс', teacherDisplayName: 'Преподаватель' },
+        expiresAt: '2030-01-01T00:00:00Z',
+      });
+    }
     if (path === '/api/class-join/me/awards')
       return awardsFailure
         ? reply({ error: { code: 'unavailable', message: 'Unavailable' } }, 503)
@@ -270,10 +286,12 @@ async function fixture(
       if (method === 'PATCH') profile = { ...profile, ...request.postDataJSON() };
       return reply({ ...profile, capabilities: capabilities(), workspaces });
     }
-    if (path === '/api/account/avatar')
-      return secondaryFailure
-        ? reply({ error: { code: 'unavailable', message: 'avatar unavailable' } }, 503)
-        : reply({ avatarDataUrl: null });
+    if (path === '/api/account/avatar') {
+      if (secondaryFailure)
+        return reply({ error: { code: 'unavailable', message: 'avatar unavailable' } }, 503);
+      if (method === 'PATCH') avatarDataUrl = request.postDataJSON().avatarDataUrl;
+      return reply({ avatarDataUrl });
+    }
     if (path === '/api/account/sessions')
       return secondaryFailure
         ? reply({ error: { code: 'unavailable', message: 'sessions unavailable' } }, 503)
@@ -777,8 +795,9 @@ test('avatar dialog contains keyboard focus and restores the opener on Escape', 
   await opener.click();
   const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
   await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Загрузить своё изображение' })).toBeEnabled();
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.getByRole('button', { name: 'Загрузить своё изображение' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -1106,7 +1125,7 @@ async function assertCompactSettings(page: Page, width: number) {
   );
 }
 
-const shellEvidence = 'reports/playwright/portal-shell-s1-geometry-20261008';
+const shellEvidence = 'reports/playwright/settings-ui/portal-shell-s1';
 
 async function assertShellGeometry(page: Page, width: number) {
   const metrics = await page.locator('.portal-header').evaluate((header) => {
@@ -2019,3 +2038,456 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(1);
   });
 }
+
+const avatarEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-20261008';
+async function assertAvatarGeometry(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  const metrics = await dialog.evaluate((element) => {
+    const preview = element
+      .querySelector('img[alt="Предпросмотр аватара"]')!
+      .getBoundingClientRect();
+    const bounds = element.getBoundingClientRect();
+    const tiles = [...element.querySelectorAll('.avatar-selection-grid button')].map((tile) => {
+      const r = tile.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    });
+    return {
+      preview: { width: preview.width, height: preview.height },
+      bounds: { x: bounds.x, right: bounds.right, top: bounds.top, bottom: bounds.bottom },
+      tiles,
+      pageOverflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(metrics.preview.width).toBeGreaterThanOrEqual(240);
+  expect(metrics.preview.width).toBeLessThanOrEqual(320);
+  expect(metrics.preview.height).toBe(metrics.preview.width);
+  expect(metrics.pageOverflow).toBe(false);
+  expect(metrics.bounds.x).toBeGreaterThanOrEqual(0);
+  expect(metrics.bounds.right).toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(metrics.bounds.top).toBeGreaterThanOrEqual(0);
+  expect(metrics.bounds.bottom).toBeLessThanOrEqual(page.viewportSize()!.height);
+  for (const tile of metrics.tiles) expect(Math.abs(tile.width - tile.height)).toBeLessThan(1);
+  for (let i = 0; i < metrics.tiles.length; i++)
+    for (let j = i + 1; j < metrics.tiles.length; j++) {
+      const a = metrics.tiles[i]!,
+        b = metrics.tiles[j]!;
+      expect(
+        Math.min(a.right, b.right) - Math.max(a.x, b.x) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) > 1,
+      ).toBe(false);
+    }
+  await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeInViewport();
+  await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeInViewport();
+}
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true]) {
+    test(`S2 avatar chooser geometry ${seat ? 'seat' : 'account'} ${width} short screen`, async ({
+      page,
+    }) => {
+      mkdirSync(avatarEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      const state = await fixture(page, { seat, presentationLongContent: true });
+      await page.goto('/#/account');
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      await assertAvatarGeometry(page);
+      if (seat) await expect(dialog.locator('input[type="file"]')).toHaveCount(0);
+      await page.screenshot({
+        path: `${avatarEvidence}/${seat ? 'seat' : 'account'}-${width}-short.png`,
+      });
+      const firstTile = dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true });
+      await firstTile.scrollIntoViewIfNeeded();
+      const reachability = await dialog.locator('.avatar-selection-grid').evaluate((grid) => {
+        const r = grid.getBoundingClientRect(),
+          parent = grid.closest('.avatar-selection')!.getBoundingClientRect();
+        return {
+          height: grid.clientHeight,
+          visibleHeight: Math.min(r.bottom, parent.bottom) - Math.max(r.top, parent.top),
+          contentHeight: grid.scrollHeight,
+        };
+      });
+      expect(reachability.height).toBeGreaterThanOrEqual(80);
+      expect(reachability.visibleHeight).toBeGreaterThanOrEqual(60);
+      await dialog
+        .getByRole('button', { name: 'Выбрать: Аватар 67', exact: true })
+        .scrollIntoViewIfNeeded();
+      await expect(
+        dialog.getByRole('button', { name: 'Выбрать: Аватар 67', exact: true }),
+      ).toBeInViewport();
+      await firstTile.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: `${avatarEvidence}/${seat ? 'seat' : 'account'}-${width}-catalogue.png`,
+      });
+      writeFileSync(
+        `${avatarEvidence}/${seat ? 'seat' : 'account'}-${width}-reachability.json`,
+        JSON.stringify(reachability),
+      );
+
+      await dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true }).click();
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+        'src',
+        /avatar-01.webp$/,
+      );
+      expect(state.mutations).not.toContain(
+        seat ? '/api/class-join/me/avatar' : '/api/account/avatar',
+      );
+      await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(
+        state.mutations.filter(
+          (path) => path === (seat ? '/api/class-join/me/avatar' : '/api/account/avatar'),
+        ),
+      ).toHaveLength(1);
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+        'src',
+        seat ? /avatar-01.webp$/ : /^data:image\/webp;base64,/,
+      );
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+    });
+  }
+test('S2 quick avatar access keeps routes and dirty drafts, returns focus to live account control', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  await page.getByLabel('Отображаемое имя').fill('Черновик имени');
+  const menu = page.locator('.portal-account > summary');
+  await menu.click();
+  await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/#\/account$/);
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 3', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeFocused();
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик имени');
+  expect(state.mutations).not.toContain('/api/account/avatar');
+  expect(state.mutations).not.toContain('/api/account/profile');
+  await page.locator('.portal-sidebar-avatar').click();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 4', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик имени');
+  expect(state.mutations).not.toContain('/api/account/profile');
+  await page.getByRole('button', { name: 'Интерфейс', exact: true }).click();
+  const guard = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+  await guard.getByRole('button', { name: 'Отменить изменения и перейти' }).click();
+  await page.getByLabel('Анимации').selectOption('reduce');
+  await page.locator('.portal-sidebar-avatar').click();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 5', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(page.getByLabel('Анимации')).toHaveValue('reduce');
+  expect(state.mutations).not.toContain('/api/account/presentation');
+  await expect(page).toHaveURL(/#\/account\/interface$/);
+});
+test('S2 mobile drawer avatar opens above the current page and cancels without mutation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const state = await fixture(page, { seat: true });
+  await page.goto('/#/home');
+  await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+  await page.locator('.portal-sidebar-avatar').click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/mobile-open/);
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Открыть меню', exact: true })).toBeFocused();
+  expect(state.mutations).not.toContain('/api/class-join/me/avatar');
+});
+test('S2 upload is transformed for preview, explicit save and reopen retain current data URL', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await dialog
+    .getByLabel('Загрузить свой аватар')
+    .setInputFiles('apps/web/public/assets/avatars/default/avatar-02.webp');
+  const preview = dialog.getByRole('img', { name: 'Предпросмотр аватара' });
+  await expect(preview).toHaveAttribute('src', /^data:image\/webp;base64,/);
+  expect(
+    await preview.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]),
+  ).toEqual([320, 320]);
+  expect(state.mutations).not.toContain('/api/account/avatar');
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page
+    .locator('main')
+    .getByRole('button', { name: 'Увеличить и выбрать аватар', exact: true })
+    .click();
+  await expect(preview).toHaveAttribute('src', /^data:image\/webp;base64,/);
+  await page.keyboard.press('Escape');
+});
+test('S2 save error stays visible, retry retains selected preview and Escape works after busy', async ({
+  page,
+}) => {
+  await fixture(page);
+  let failure = true;
+  let saves = 0;
+  await page.route('**/api/account/avatar', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { avatarDataUrl: null } });
+    saves++;
+    return failure
+      ? route.fulfill({
+          status: 503,
+          json: { error: { code: 'unavailable', message: 'Проверочная ошибка сохранения' } },
+        })
+      : route.fulfill({ json: route.request().postDataJSON() });
+  });
+  await page.goto('/#/account');
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Проверочная ошибка сохранения');
+  await page.screenshot({ path: `${avatarEvidence}/account-error-retry.png` });
+  await expect(
+    dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  expect(saves).toBe(1);
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  failure = false;
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(saves).toBe(3);
+});
+for (const width of [1440, 1024, 390, 320])
+  test(`S2 teacher avatar preview stages in narrow parent modal ${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 568 });
+    await fixture(page, { educator: true });
+    const student = {
+      id: 'seat-1',
+      displayLabel: 'Ученица с длинным именем',
+      studentCode: 'AbC123',
+      loginHandle: 'AbC123',
+      safeMode: true,
+      status: 'issued',
+      avatarKey: null,
+      lastActiveAt: null,
+      createdAt: '2026-01-01T00:00:00Z',
+    };
+    const writes: unknown[] = [];
+    await page.route('**/api/classrooms/class-1/roster', (route) =>
+      route.fulfill({ json: { items: [student] } }),
+    );
+    await page.route('**/api/classrooms/class-1/seats/seat-1', (route) => {
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: { student: { ...student, ...route.request().postDataJSON() } },
+      });
+    });
+    await page.goto('/#/classrooms/class-1');
+    await expect(
+      page.getByRole('button', { name: 'Действия: Ученица с длинным именем', exact: true }),
+    ).toBeVisible();
+    const baselineLayout = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: innerWidth,
+    }));
+    const baselineOverflow = baselineLayout.scrollWidth > baselineLayout.clientWidth;
+    await page
+      .getByRole('button', { name: 'Действия: Ученица с длинным именем', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Изменить данные', exact: true }).click();
+    const parent = page.locator('.classroom-student-dialog');
+    await parent
+      .getByRole('textbox', { name: 'Имя в списке класса' })
+      .fill('Изменённое имя ученика');
+    await parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
+    await parent.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+    expect(writes).toHaveLength(0);
+    const geometry = await parent.evaluate((element) => {
+      const r = element.getBoundingClientRect();
+      const content = element.querySelector('.avatar-selection')!.getBoundingClientRect();
+      return {
+        parentWidth: r.width,
+        contentWidth: content.width,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    expect(geometry.contentWidth).toBeLessThan(geometry.parentWidth);
+    expect(geometry.overflow).toBe(baselineOverflow);
+    writeFileSync(
+      `${avatarEvidence}/teacher-${width}-layout.json`,
+      JSON.stringify({ baseline: baselineLayout, chooser: geometry }),
+    );
+    await parent.getByRole('img', { name: 'Предпросмотр аватара' }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${avatarEvidence}/teacher-${width}-short.png` });
+    await parent.getByRole('button', { name: 'Использовать аватар', exact: true }).click();
+    expect(writes).toHaveLength(0);
+    await parent.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(parent).toHaveCount(0);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({
+      avatarKey: 'asa-avatar-07',
+      displayLabel: 'Изменённое имя ученика',
+    });
+  });
+
+test('S2 late initial avatar GET cannot overwrite a confirmed save', async ({ page }) => {
+  await fixture(page);
+  let reads = 0;
+  let release!: () => void;
+  let staleDone!: () => void;
+  const staleComplete = new Promise<void>((resolve) => {
+    staleDone = resolve;
+  });
+  await page.route('**/api/account/avatar', async (route) => {
+    if (route.request().method() !== 'GET')
+      return route.fulfill({ json: route.request().postDataJSON() });
+    reads++;
+    if (reads === 1) {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await route.fulfill({ json: { avatarDataUrl: null } });
+      staleDone();
+      return;
+    }
+    return route.fulfill({ json: { avatarDataUrl: null } });
+  });
+  await page.goto('/#/account');
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(
+    dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
+  ).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.portal-sidebar-avatar img')).toHaveAttribute(
+    'src',
+    /^data:image\/webp;base64,/,
+  );
+  release();
+  await staleComplete;
+  await expect(page.locator('.portal-sidebar-avatar img')).toHaveAttribute(
+    'src',
+    /^data:image\/webp;base64,/,
+  );
+  await expect(page.getByRole('img', { name: 'Текущий аватар', exact: true })).toHaveAttribute(
+    'src',
+    /^data:image\/webp;base64,/,
+  );
+});
+test('S2 lazy chooser failure keeps drafts, retries locally and leaves unrelated recovery alone', async ({
+  page,
+}) => {
+  await fixture(page);
+  let fail = true;
+  await page.route('**/AvatarChooser-*.js', (route) => (fail ? route.abort() : route.fallback()));
+  await page.goto('/#/account');
+  await page.getByLabel('Отображаемое имя').fill('Черновик пережил загрузку');
+  await page.locator('.portal-account > summary').click();
+  await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog.getByRole('alert')).toContainText('Не удалось открыть выбор аватара');
+  await expect(page).toHaveURL(/#\/account$/);
+  expect(await page.evaluate(() => sessionStorage.getItem('asa-vite-preload-recovery'))).toBeNull();
+  fail = false;
+  await dialog.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  const unrelated = await page.evaluate(() => {
+    sessionStorage.setItem('asa-vite-preload-recovery', String(Date.now()));
+    let delivered = false;
+    const listener = () => {
+      delivered = true;
+    };
+    window.addEventListener('vite:preloadError', listener);
+    const event = new Event('vite:preloadError', { cancelable: true }) as Event & {
+      payload: Error;
+    };
+    event.payload = new Error('Failed to fetch OtherChunk-test.js');
+    window.dispatchEvent(event);
+    window.removeEventListener('vite:preloadError', listener);
+    return { delivered, handledByGlobal: event.defaultPrevented };
+  });
+  expect(unrelated).toEqual({ delivered: true, handledByGlobal: true });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.portal-account > summary')).toBeFocused();
+  const afterUnmount = await page.evaluate(() => {
+    const event = new Event('vite:preloadError', { cancelable: true }) as Event & {
+      payload: Error;
+    };
+    event.payload = new Error(
+      `Failed to fetch dynamically imported module: ${location.origin}/assets/AvatarChooser-test.js`,
+    );
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(afterUnmount).toBe(true);
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик пережил загрузку');
+});
+
+test('S2 teacher optional catalogue failure preserves parent draft and retries locally', async ({
+  page,
+}) => {
+  await fixture(page, { educator: true });
+  let fail = true;
+  const student = {
+    id: 'seat-1',
+    displayLabel: 'Ученица',
+    studentCode: 'AbC123',
+    loginHandle: 'AbC123',
+    safeMode: true,
+    status: 'issued',
+    avatarKey: null,
+    lastActiveAt: null,
+    createdAt: '2026-01-01T00:00:00Z',
+  };
+  await page.route('**/api/classrooms/class-1/roster', (route) =>
+    route.fulfill({ json: { items: [student] } }),
+  );
+  await page.route('**/AvatarChooser-*.js*', (route) => (fail ? route.abort() : route.fallback()));
+  await page.goto('/#/classrooms/class-1');
+  await page.getByRole('button', { name: 'Действия: Ученица', exact: true }).click();
+  await page.getByRole('button', { name: 'Изменить данные', exact: true }).click();
+  const parent = page.locator('.classroom-student-dialog');
+  await parent.getByRole('textbox', { name: 'Имя в списке класса' }).fill('Черновик преподавателя');
+  await parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
+  await expect(parent.getByRole('alert')).toContainText('Не удалось открыть выбор аватара');
+  expect(await page.evaluate(() => sessionStorage.getItem('asa-vite-preload-recovery'))).toBeNull();
+  fail = false;
+  await parent.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(parent.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
+    'Черновик преподавателя',
+  );
+  await parent.getByRole('button', { name: 'Отменить выбор аватара', exact: true }).click();
+  await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
+    'Черновик преподавателя',
+  );
+  await parent.getByRole('button', { name: 'Отмена', exact: true }).click();
+});
+test('S2 avatar library code is requested only when opening the chooser', async ({ page }) => {
+  await fixture(page);
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (/AvatarChooser-/.test(request.url())) requests.push(request.url());
+  });
+  await page.goto('/#/home');
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await page.locator('.portal-account > summary').click();
+  await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  expect(requests.length).toBeGreaterThan(0);
+});

@@ -1,0 +1,199 @@
+.avatar-chooser-dialog {
+  box-sizing: border-box;
+  width: min(880px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  margin: auto;
+  padding: 20px;
+  border: 1px solid #c9dce7;
+  border-radius: 16px;
+  color: var(--ink, #18364a);
+  background: white;
+  overflow-y: auto;
+}
+.avatar-chooser-dialog::backdrop {
+  background: rgb(12 31 45 / 55%);
+}
+.avatar-chooser-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.avatar-chooser-dialog > .avatar-selection {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+.avatar-chooser-dialog > :not(.avatar-selection) {
+  flex-shrink: 0;
+}
+.avatar-chooser-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.avatar-chooser-heading h2 {
+  margin: 0;
+  font-size: 22px;
+}
+.avatar-chooser-heading button {
+  flex: 0 0 44px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  border: 1px solid #c9dce7;
+  border-radius: 50%;
+  background: white;
+  cursor: pointer;
+}
+.avatar-selection {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 20px;
+  min-width: 0;
+}
+.avatar-selection-preview {
+  margin: 0;
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 8px;
+}
+.avatar-selection-preview img {
+  display: block;
+  width: 240px;
+  height: 240px;
+  border-radius: 16px;
+  object-fit: cover;
+  background: #e6eef3;
+}
+.avatar-selection-preview figcaption {
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.avatar-selection-library {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto auto;
+  gap: 10px;
+}
+.avatar-selection-menu {
+  display: none;
+}
+.avatar-selection-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.avatar-selection-options button {
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid #c9dce7;
+  border-radius: 8px;
+  background: white;
+  color: inherit;
+  cursor: pointer;
+}
+.avatar-selection-options button[aria-pressed='true'] {
+  border-color: #0089c3;
+  background: #e7f6fc;
+}
+.avatar-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 10px;
+  max-height: 300px;
+  min-height: 80px;
+  overflow-y: auto;
+  padding: 6px;
+  border: 1px solid #dce4e9;
+  border-radius: 10px;
+  background: #f7f9fa;
+}
+.avatar-selection-grid button {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1;
+  width: 100%;
+  padding: 3px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+}
+.avatar-selection-grid button[aria-pressed='true'] {
+  border-color: #0089c3;
+  background: #e7f6fc;
+}
+.avatar-selection-grid img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  object-fit: cover;
+}
+.avatar-chooser-feedback p {
+  margin: 10px 0;
+  overflow-wrap: anywhere;
+}
+.avatar-chooser-feedback [role='alert'] {
+  color: #ad263d;
+}
+.avatar-chooser-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.avatar-chooser-actions button {
+  min-height: 44px;
+}
+.avatar-chooser-actions .btn-primary {
+  width: auto;
+  flex: 0 0 auto;
+}
+.avatar-chooser-file-hint {
+  margin: 8px 0 0;
+  color: var(--ink-muted, #506877);
+  font-size: 13px;
+}
+@media (max-width: 600px) {
+  .avatar-chooser-dialog {
+    padding: 12px;
+  }
+  .avatar-selection {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+  }
+  .avatar-selection-grid {
+    max-height: 150px;
+  }
+  .avatar-selection-options {
+    display: none;
+  }
+  .avatar-selection-menu {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    border: 1px solid #c9dce7;
+    border-radius: 8px;
+    padding: 8px;
+    background: white;
+    color: inherit;
+  }
+  .avatar-chooser-heading h2 {
+    font-size: 20px;
+  }
+}
+@media (max-height: 650px) and (max-width: 600px) {
+  .avatar-chooser-dialog .avatar-selection-grid {
+    max-height: 90px;
+  }
+}

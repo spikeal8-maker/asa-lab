@@ -1,14 +1,6 @@
 import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type FormEvent,
-} from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   api,
   type AccountProfile,
@@ -19,21 +11,18 @@ import {
   type SessionPayload,
   type WorkspaceRef,
 } from '../api';
-import { createAvatarDataUrl } from '../creator-portal/avatar-file';
+import { requestAvatarChooser } from '../components/avatar-chooser-events';
 import {
-  DEFAULT_AVATARS,
-  defaultAvatarFile,
   defaultAvatarForAccount,
-  notifyProfileAvatarChanged,
-  type DefaultAvatar,
+  PROFILE_AVATAR_CHANGED_EVENT,
 } from '../creator-portal/default-avatars';
-import { ClassesIcon, CloseIcon } from '../electronics/workbench-icons';
+import '../components/seat-avatar.css';
+import { ClassesIcon } from '../electronics/workbench-icons';
 import { deviceTimeZone, timeZoneLabel } from '../components/school-time';
 import {
   requestSettingsNavigation,
   pushSettingsAwareLocation,
   settingsPanelFromLocation,
-  useDialogFocus,
   useSettingsDraftGuard,
   type SettingsPanel,
   type SettingsDraft,
@@ -104,7 +93,7 @@ export function AccountPage({
   const [passwordStatus, setPasswordStatus] = useState<AccountPasswordStatus | null>(null);
   const [sessions, setSessions] = useState<AccountSession[]>([]);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
-  const [avatarPickerOpen, setAvatarPickerOpen] = useState(false);
+  const avatarVersion = useRef(0);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
@@ -123,11 +112,8 @@ export function AccountPage({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [maxPairingToken, setMaxPairingToken] = useState<string | null>(null);
   const [maxPairingUrl, setMaxPairingUrl] = useState<string | null>(null);
-  const avatarInput = useRef<HTMLInputElement>(null);
-  const avatarDialog = useRef<HTMLElement>(null);
   const notificationControl = useRef<SettingsDraft | null>(null);
   const [notificationsDirty, setNotificationsDirty] = useState(false);
-  useDialogFocus(avatarPickerOpen, avatarDialog);
   const deviceZone = useMemo(() => deviceTimeZone(), []);
   const [timeZone, setTimeZone] = useState(session.timeZone ?? deviceZone);
   /**
@@ -162,6 +148,15 @@ export function AccountPage({
     };
     window.addEventListener('settings-route', sync);
     return () => window.removeEventListener('settings-route', sync);
+  }, []);
+
+  useEffect(() => {
+    const sync = (event: Event) => {
+      avatarVersion.current += 1;
+      setAvatarDataUrl((event as CustomEvent<string | null>).detail);
+    };
+    window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, sync);
   }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
@@ -206,8 +201,9 @@ export function AccountPage({
       })(),
       (async () => {
         try {
+          const version = avatarVersion.current;
           const result = await api.accountAvatar();
-          if (!current()) return;
+          if (!current() || version !== avatarVersion.current) return;
           if (!result.ok) throw new Error('avatar_unavailable');
           setAvatarDataUrl(result.data.avatarDataUrl);
         } catch {
@@ -424,59 +420,6 @@ export function AccountPage({
     } finally {
       setBusyAction(null);
     }
-  }
-
-  async function saveAvatarFile(file: File): Promise<void> {
-    if (busyAction) return;
-    setBusyAction('avatar');
-    setError(null);
-    setNotice(null);
-    try {
-      const dataUrl = await createAvatarDataUrl(file);
-      const result = await api.updateAccountAvatar(dataUrl);
-      if (!result.ok) {
-        setError('Не удалось сохранить аватар.');
-        return;
-      }
-      setAvatarDataUrl(result.data.avatarDataUrl);
-      notifyProfileAvatarChanged(result.data.avatarDataUrl);
-      setAvatarPickerOpen(false);
-      setNotice('Аватар обновлён.');
-    } catch (avatarError) {
-      setError(avatarError instanceof Error ? avatarError.message : 'Не удалось обработать файл.');
-    } finally {
-      setBusyAction(null);
-    }
-  }
-
-  async function uploadAvatar(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const file = event.currentTarget.files?.[0];
-    event.currentTarget.value = '';
-    if (file) await saveAvatarFile(file);
-  }
-
-  async function chooseDefaultAvatar(avatar: DefaultAvatar): Promise<void> {
-    try {
-      await saveAvatarFile(await defaultAvatarFile(avatar));
-    } catch (avatarError) {
-      setError(avatarError instanceof Error ? avatarError.message : 'Не удалось выбрать аватар.');
-    }
-  }
-
-  async function restoreDefaultAvatar(): Promise<void> {
-    if (busyAction) return;
-    setBusyAction('avatar');
-    setError(null);
-    setNotice(null);
-    const result = await api.updateAccountAvatar(null);
-    setBusyAction(null);
-    if (!result.ok) {
-      setError('Не удалось вернуть стандартный аватар.');
-      return;
-    }
-    setAvatarDataUrl(null);
-    notifyProfileAvatarChanged(null);
-    setNotice('Установлен стандартный аватар ASA Lab.');
   }
 
   async function switchSchool(workspace: WorkspaceRef): Promise<boolean> {
@@ -774,49 +717,29 @@ export function AccountPage({
               </div>
 
               <div className="account-avatar-editor">
-                <img src={effectiveAvatarUrl} alt="Текущий аватар" />
+                <button
+                  type="button"
+                  className="account-avatar-preview-button"
+                  aria-label="Увеличить и выбрать аватар"
+                  onClick={() => requestAvatarChooser({ kind: 'account', id: session.user.id })}
+                >
+                  <img src={effectiveAvatarUrl} alt="Текущий аватар" />
+                </button>
                 <div>
                   <strong>Аватар</strong>
                   <span>Выберите готовый аватар ASA Lab или загрузите своё изображение.</span>
-                  <span>Аватар сохраняется сразу, отдельно от полей профиля.</span>
+                  <span>Выбор сохраняется кнопкой «Использовать», отдельно от полей профиля.</span>
                   <div className="account-avatar-buttons">
                     <button
                       type="button"
                       className="btn-secondary"
-                      disabled={busyAction !== null}
-                      onClick={() => setAvatarPickerOpen(true)}
+                      onClick={() => requestAvatarChooser({ kind: 'account', id: session.user.id })}
                     >
                       Выбрать аватар
                     </button>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      disabled={busyAction !== null}
-                      onClick={() => avatarInput.current?.click()}
-                    >
-                      Загрузить свой
-                    </button>
-                    {avatarDataUrl ? (
-                      <button
-                        type="button"
-                        className="account-inline-action"
-                        disabled={busyAction !== null}
-                        onClick={() => void restoreDefaultAvatar()}
-                      >
-                        Вернуть стандартный
-                      </button>
-                    ) : null}
                   </div>
                 </div>
               </div>
-              <input
-                ref={avatarInput}
-                className="portal-avatar-file-input"
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                aria-label="Загрузить свой аватар"
-                onChange={(event) => void uploadAvatar(event)}
-              />
 
               <form className="account-profile-form" onSubmit={(event) => void saveProfile(event)}>
                 <label>
@@ -1385,62 +1308,6 @@ export function AccountPage({
         </div>
       </div>
 
-      {avatarPickerOpen ? (
-        <div className="account-avatar-backdrop" role="presentation">
-          <section
-            ref={avatarDialog}
-            className="account-avatar-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="avatar-dialog-title"
-            onKeyDown={(event) => {
-              if (event.key === 'Escape') setAvatarPickerOpen(false);
-            }}
-          >
-            <header>
-              <div>
-                <p className="account-card-kicker">Библиотека ASA Lab</p>
-                <h2 id="avatar-dialog-title">Выберите аватар</h2>
-                <p>Готовые изображения или собственная фотография.</p>
-              </div>
-              <button
-                type="button"
-                aria-label="Закрыть выбор аватара"
-                onClick={() => setAvatarPickerOpen(false)}
-              >
-                <CloseIcon />
-              </button>
-            </header>
-            <div className="account-avatar-grid" aria-label="Стандартные аватары">
-              {DEFAULT_AVATARS.map((avatar) => (
-                <button
-                  type="button"
-                  key={avatar.id}
-                  className={
-                    !avatarDataUrl && avatar.id === defaultAvatar.id ? 'selected' : undefined
-                  }
-                  aria-label={`Выбрать: ${avatar.label}`}
-                  disabled={busyAction !== null}
-                  onClick={() => void chooseDefaultAvatar(avatar)}
-                >
-                  <img src={avatar.src} alt="" loading="lazy" />
-                </button>
-              ))}
-            </div>
-            <footer>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busyAction !== null}
-                onClick={() => avatarInput.current?.click()}
-              >
-                Загрузить своё изображение
-              </button>
-              <span>PNG, JPEG или WebP · до 8 МБ</span>
-            </footer>
-          </section>
-        </div>
-      ) : null}
       {draftDialog}
     </main>
   );
