@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: presentation_fixture_corrected_final_verification
+      checkpoint: presentation_migration_catalog_repair_verification
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -135,28 +135,26 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 114138ef5c8b4ddead0f7ace4e2411ee16263ccd
+      convergence_baseline_sha: 12e8b0150c278978bc03832d735eab87e15e80e0
       head_sha: null
-      observed_at: '2026-10-07T07:04:33Z'
+      observed_at: '2026-10-07T07:23:53Z'
       main:
         branch: main
-        sha: 114138ef5c8b4ddead0f7ace4e2411ee16263ccd
+        sha: 12e8b0150c278978bc03832d735eab87e15e80e0
       observation_note: >-
-        Dated main baseline 114138ef5c8b4ddead0f7ace4e2411ee16263ccd has successful
-        general workflow 37578816729. Supported Account motion/sidebar and temporary
-        Seat motion implementation received bounded independent review corrections
-        for expired Seat snapshots and cross-tab Account cookie changes. Repaired
-        source edfccc73448fa3f9aed7def6a4c25baf63829a40 clears terminal snapshots,
-        fences captured callbacks and requires a server-checked original Account
-        precondition on presentation reads and writes. It passes 67 focused tests,
-        66 synthetic browser scenarios and 21 fresh Nx tasks. Independent review
-        verified the product boundaries but found missing Account hints in the
-        PostgreSQL fixtures; the six authenticated request sites are corrected,
-        with 13 controller tests passing and 12 integration tests collected only.
-        Real database verification is not claimed. The unpublished
-        result is being composed into one final candidate;
-        its independent review and exact-head general/API/PostgreSQL/browser CI
-        remain pending. MAX, authority and live data operations are unchanged.
+        Published main 12e8b0150c278978bc03832d735eab87e15e80e0 received approved
+        independent review. General workflow 37585368461 passed governance, code
+        and Access A browser jobs: 584 focused tests, 10 real browser scenarios,
+        66 synthetic UI scenarios, 96 fresh code Nx tasks and 27 fresh browser
+        build Nx tasks. Data passed 3059 of 3060 tests. Its only failure was the
+        explicit forward-upgrade migration catalog omitting new migration 0200;
+        classified B because the selected preferences migration caused it.
+        Bounded repair source f4c926ae364d8ab6a8102ebe23d4eb3c381e9313 adds only
+        that expected version, preserving data and idempotency assertions.
+        Migration catalog, exact offline upgrade plan, format and lint pass;
+        PostgreSQL execution remains pending in exact-head isolated CI.
+        Final repair review and general CI remain pending. MAX, authority and
+        live data operations are unchanged.
         Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max
