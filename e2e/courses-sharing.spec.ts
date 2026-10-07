@@ -124,16 +124,50 @@ async function authored(page: Page, title: string, module: 'electronics' | 'thre
   await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
 }
-async function uploadMaterial(page: Page, image: Buffer, pdf: Buffer, text: string) {
-  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
-  await page
-    .getByLabel('Файл блока изображения')
-    .setInputFiles({ name: 'library.png', mimeType: 'image/png', buffer: image });
+async function uploadMaterial(
+  page: Page,
+  image: Buffer,
+  pdf: Buffer,
+  text: string,
+  action: 'add' | 'replace' = 'add',
+) {
+  await expect(page.getByLabel('Содержание', { exact: true })).toBeVisible();
+  const blocks = page.getByRole('group', { name: 'Блоки задания', exact: true });
+  if (action === 'add')
+    await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  const imageInput =
+    action === 'replace'
+      ? blocks.getByLabel(/^Заменить файл блока \d+$/)
+      : blocks.getByLabel('Файл блока изображения', { exact: true });
+  await expect(imageInput).toHaveCount(1);
+  const imageUpload = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-task-image$/.test(
+        new URL(response.url()).pathname,
+      ),
+  );
+  await imageInput.setInputFiles({ name: 'library.png', mimeType: 'image/png', buffer: image });
+  const imageReceipt = await imageUpload;
+  expect(imageReceipt.ok()).toBe(true);
+  const imageHash = ((await imageReceipt.json()) as { contentHash: string }).contentHash;
   await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
-  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
-  await page
-    .getByLabel('PDF файл задания')
-    .setInputFiles({ name: 'library.pdf', mimeType: 'application/pdf', buffer: pdf });
+  if (action === 'add')
+    await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  const fileInput =
+    action === 'replace'
+      ? blocks.getByLabel(/^Заменить PDF блока \d+$/)
+      : blocks.getByLabel('PDF файл задания', { exact: true });
+  await expect(fileInput).toHaveCount(1);
+  const fileUpload = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft-task-file$/.test(new URL(response.url()).pathname),
+  );
+  await fileInput.setInputFiles({ name: 'library.pdf', mimeType: 'application/pdf', buffer: pdf });
+  const fileReceipt = await fileUpload;
+  expect(fileReceipt.ok()).toBe(true);
+  const fileHash = ((await fileReceipt.json()) as { contentHash: string }).contentHash;
   await expect(page.getByText('PDF добавлен в содержание задания.')).toBeVisible();
   await page.getByLabel('Содержание', { exact: true }).fill(text);
   const ack = page.waitForResponse(
@@ -146,6 +180,7 @@ async function uploadMaterial(page: Page, image: Buffer, pdf: Buffer, text: stri
   await expect(
     page.getByText('Черновик сохранён. Публикация — отдельное действие.', { exact: true }),
   ).toBeVisible();
+  return { imageHash, fileHash };
 }
 async function publishActivity(page: Page) {
   const ack = page.waitForResponse(
@@ -251,7 +286,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await authored(authorPage, threeTitle, 'three-d');
   const three = await publishActivity(authorPage);
   await authored(authorPage, manualTitle, null);
-  await uploadMaterial(authorPage, image, pdf, 'Library material v1');
+  const mediaV1 = await uploadMaterial(authorPage, image, pdf, 'Library material v1');
   await authorPage.reload();
   await openExistingAssignmentEditor(authorPage, manualTitle);
   await expect(authorPage.getByLabel('Содержание', { exact: true })).toHaveValue(
@@ -344,7 +379,15 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await matePage.setViewportSize({ width: 1440, height: 900 });
   // Author publishes different media, then course v2 while colleague's v1 dialog stays open.
   await openExistingAssignmentEditor(authorPage, manualTitle);
-  await uploadMaterial(authorPage, imageV2, pdfV2, 'Library material v2');
+  const mediaV2 = await uploadMaterial(
+    authorPage,
+    imageV2,
+    pdfV2,
+    'Library material v2',
+    'replace',
+  );
+  expect(mediaV2.imageHash).not.toBe(mediaV1.imageHash);
+  expect(mediaV2.fileHash).not.toBe(mediaV1.fileHash);
   expect((await publishActivity(authorPage)).versionNumber).toBe(2);
   await bankTab(authorPage, 'Мои курсы').click();
   await authorPage
