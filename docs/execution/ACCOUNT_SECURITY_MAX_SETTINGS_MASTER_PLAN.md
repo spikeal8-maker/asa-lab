@@ -27,6 +27,18 @@ The controller integrates one bounded executor result at a time:
    or editor documents. New themes and languages may only be offered after their
    complete implementation is verified; an unimplemented selector is not a result.
 
+   The bounded supported subset is motion (`system` / `reduce`) and Account
+   sidebar (`expanded` / `collapsed`). Account choices persist server-side across
+   devices, independently of profile, timezone, access and editor documents. Seat
+   motion is explicitly temporary for its authenticated browser session, isolated
+   by actor and cleared on exit/expiry/change of actor. Do not offer unimplemented
+   theme, language or font-scale choices. Preserve the existing timezone operation.
+   Apply preview without concealing warnings; Cancel restores saved presentation,
+   Reset prepares only presentation defaults, and Save confirms actual persistence.
+   Reject stale writes and conflicting retries, keep failed drafts, and ignore late
+   responses from a previous actor. The sidebar header control and Settings must
+   share the same canonical preference, with no browser-global cross-user storage.
+
 Each result needs focused tests and bounded self-review; changes to persistence
 or canonical resolution also need independent challenge review. Browser evidence
 must cover 1440/1024/390/320, long content, failures, keyboard focus, reload/back,

@@ -104,14 +104,14 @@ parallel_lanes:
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
-      id: TASK-ACCOUNT-SETTINGS-UX-001
+      id: TASK-ACCOUNT-SETTINGS-PREF-001
       issue: 173
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: settings_ui_owner_reconciled_final_verification
+      checkpoint: supported_motion_sidebar_preferences_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -135,23 +135,23 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 0841f33a050827d47b675acb7e279890a39c1293
+      convergence_baseline_sha: 50693c743169c2472faee6a2b8f21e015c03b651
       head_sha: null
-      observed_at: '2026-10-07T05:39:09Z'
+      observed_at: '2026-10-07T05:55:12Z'
       main:
         branch: main
-        sha: 0841f33a050827d47b675acb7e279890a39c1293
+        sha: 50693c743169c2472faee6a2b8f21e015c03b651
       observation_note: >-
-        Local Settings UI candidate 26a17cae39ccae8b5b9e35819d090e7eabcdee0c received
-        independent APPROVE after bounded navigation repairs, with 51 local synthetic
-        browser scenarios and four viewport layouts verified. MAX is unchanged.
-        Remote main 0841f33a050827d47b675acb7e279890a39c1293 has successful general
-        workflow 37536214557 and independent Electronics changes, including its lane
-        in this shared state file. The owner approved reconciliation, and the local
-        candidate now preserves every non-admin execution record from remote main.
-        Final candidate CI, real auth/data journeys, owner acceptance and deployment
-        are not claimed;
-        fetch main and inspect exact-SHA conclusions before integration.
+        Settings UI convergence was independently approved and integrated on main
+        50693c743169c2472faee6a2b8f21e015c03b651. Exact-head general workflow
+        37577683245 succeeded, including PostgreSQL/RLS, 535 focused tests, eight
+        real Access A browser journeys and 51 synthetic UI scenarios. The owner
+        authorized continuation of the Settings programme and disjoint execution
+        record reconciliation. The next bounded slice implements only supported
+        motion and sidebar presentation preferences, with Account persistence and
+        an explicitly temporary safe Seat subset. MAX, authority and live data
+        operations remain outside scope. Fetch main before writes; no installed
+        revision, deployment or owner acceptance is inferred from this snapshot.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -172,6 +172,20 @@ parallel_lanes:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm gate:repository
+
+    accepted_slices:
+      - task_id: TASK-ACCOUNT-SETTINGS-UX-001
+        integrated_sha: 50693c743169c2472faee6a2b8f21e015c03b651
+        independent_review: approved
+        exact_head_general_run: 37577683245
+        exact_head_general_conclusion: success
+        focused_tests_passed: 535
+        real_access_browser_passed: 8
+        synthetic_ui_browser_passed: 51
+        code_nx_tasks_executed_uncached: 96
+        browser_build_nx_tasks_executed_uncached: 27
+        owner_acceptance: pending
+        deployment: not_requested
 
   - id: electronics
     worktree_id: electronics-main
