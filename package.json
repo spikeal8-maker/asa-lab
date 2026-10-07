@@ -68,7 +68,7 @@
     "db:test:provision": "node tools/provision-test-db.mjs",
     "test:a11y": "playwright test e2e/accessibility.spec.ts e2e/ui-states.spec.ts",
     "portal:m4:check": "node tools/validate-portal-evidence.mjs",
-    "test:electronics": "vitest run contexts/electronics/testing",
+    "test:electronics": "vitest run contexts/electronics/testing --maxWorkers=1",
     "test:project-slice": "vitest run contexts/projects/testing tests/portal/projects-api.spec.ts tests/portal/project-transactions.spec.ts",
     "e2e:electronics": "playwright test e2e/electronics-simulation.spec.ts e2e/electronics-interactions.spec.ts",
     "chess:contract": "node tools/validate-chess-candidate.mjs",
