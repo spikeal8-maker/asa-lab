@@ -7,6 +7,7 @@ import {
   closeAssignmentSettings,
 } from './learning-authoring-navigation';
 import { expect, test, type Page } from '@playwright/test';
+import type { LearningNotification } from '../apps/web/src/api';
 import { mkdirSync, readFileSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
@@ -661,9 +662,11 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       allowAdminAccessProbe: true,
     }),
   ];
-  const copiedRun = (
-    await admin.query('SELECT id FROM classroom_course_runs WHERE course_id=$1', [ownCourse])
-  ).rows[0].id as string;
+  const { id: copiedRun, classroom_id: copiedClassroom } = (
+    await admin.query('SELECT id,classroom_id FROM classroom_course_runs WHERE course_id=$1', [
+      ownCourse,
+    ])
+  ).rows[0] as { id: string; classroom_id: string };
   const copiedLesson = (
     await admin.query(
       'SELECT l.id FROM classroom_course_run_lessons l WHERE l.run_id=$1 ORDER BY l.lesson_position',
@@ -721,19 +724,58 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     );
     learner.once('dialog', (d) => void d.accept());
     await activity.getByRole('button', { name: 'Сдать', exact: true }).click();
-    expect((await submit).ok()).toBe(true);
+    const submitResponse = await submit;
+    expect(submitResponse.ok()).toBe(true);
+    const submitted = (await submitResponse.json()) as {
+      projectId: string;
+      attemptId: string;
+      submissionId: string;
+      projectVersionId: string;
+    };
+    expect(submitted.projectId).toBe(started);
+    for (const id of [submitted.attemptId, submitted.submissionId, submitted.projectVersionId]) {
+      expect(typeof id).toBe('string');
+      expect(id).not.toBe('');
+    }
     await expect(activity).toContainText('Сдано');
     await matePage.goto(classUrl);
     await matePage.getByRole('button', { name: /^Оповещения/ }).click();
     const inbox = matePage.getByRole('dialog', { name: 'Учебные оповещения' });
-    const event = inbox
-      .locator('li')
-      .filter({ hasText: 'Работа сдана' })
-      .filter({ hasText: practice });
+    const notificationsResponse = await matePage.request.get('/api/learning/notifications');
+    expect(notificationsResponse.ok()).toBe(true);
+    const notifications = (await notificationsResponse.json()) as { items: LearningNotification[] };
+    const submittedEvents = notifications.items.filter(
+      (item) =>
+        item.kind === 'NF02' &&
+        item.recipientKind === 'teacher' &&
+        item.attemptId === submitted.attemptId &&
+        item.classroomId === copiedClassroom,
+    );
+    expect(submittedEvents).toHaveLength(1);
+    const notification = submittedEvents[0]!;
+    // Match LearningInbox's exact destination, never the optional display title.
+    const eventQuery = new URLSearchParams();
+    if (notification.assignmentId) eventQuery.set('assignment', notification.assignmentId);
+    if (notification.seatId) eventQuery.set('learner', notification.seatId);
+    eventQuery.set('attempt', submitted.attemptId);
+    if (notification.courseRunId) eventQuery.set('courseRun', notification.courseRunId);
+    const eventHref = `#/classrooms/${copiedClassroom}?${eventQuery.toString()}`;
+    const event = inbox.locator(`li:has(a[href="${eventHref}"])`);
     await expect(event).toBeVisible({ timeout: 30_000 });
-    await event.getByRole('link', { name: 'Открыть', exact: true }).click();
+    await expect(event).toHaveCount(1);
+    await expect(event).toContainText('Работа сдана');
+    const eventLink = event.getByRole('link', { name: 'Открыть', exact: true });
+    await expect(eventLink).toHaveCount(1);
+    await expect(eventLink).toHaveAttribute('href', eventHref);
+    await eventLink.click();
     const detail = matePage.getByRole('region', { name: 'Проверка сдачи' });
     await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+    const openedHash = new URL(matePage.url()).hash;
+    expect(openedHash.split('?')[0]).toBe(`#/classrooms/${copiedClassroom}`);
+    expect(new URLSearchParams(openedHash.split('?')[1]).get('attempt')).toBe(submitted.attemptId);
+    await expect(detail.getByTestId('submission-version-id')).toHaveText(
+      submitted.projectVersionId,
+    );
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
     await expect(detail.getByText('Ревизия 1 · Принято', { exact: true })).toBeVisible();
     player = await openCourse();
