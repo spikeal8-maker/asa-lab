@@ -39,6 +39,7 @@ async function refreshSession(): Promise<boolean> {
       response = await attempt();
     }
     if (response?.ok) return true;
+    reportClientDiagnostic('session_refresh_failed', 'auth');
     if (response?.status === 401) notifySessionLoggedOut();
     return false;
   })().finally(() => {
@@ -101,3 +102,4 @@ function clearProtectedSessionCache(): void {
     /* Disabled storage must not prevent logout. */
   }
 }
+import { reportClientDiagnostic } from './client-diagnostics';

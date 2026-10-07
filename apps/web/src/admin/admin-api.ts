@@ -358,7 +358,7 @@ export type AdminApiResult<T> =
   | { readonly ok: true; readonly status: number; readonly data: T }
   | { readonly ok: false; readonly status: number; readonly error: AdminApiError };
 
-async function call<T>(path: string, init: RequestInit = {}): Promise<AdminApiResult<T>> {
+export async function call<T>(path: string, init: RequestInit = {}): Promise<AdminApiResult<T>> {
   let response: Response;
   try {
     response = await fetchWithSessionRefresh(path, {

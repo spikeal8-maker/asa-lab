@@ -3,6 +3,7 @@ import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
+import { reportClientDiagnostic } from '../client-diagnostics';
 
 interface BlocksEditorProps {
   projectId: string;
@@ -57,8 +58,10 @@ export function BlocksEditor({
       .requestSaveBeforeExit()
       .then((result) => {
         if (result.ok && bridgeRef.current === activeBridge) onHomeClickRef.current();
+        else if (!result.ok && bridgeRef.current === activeBridge)
+          reportClientDiagnostic('autosave_failed', 'scratch');
       })
-      .catch(() => undefined)
+      .catch(() => reportClientDiagnostic('autosave_failed', 'scratch'))
       .finally(() => {
         homeSavePendingRef.current = false;
       });
@@ -70,13 +73,17 @@ export function BlocksEditor({
     if (!frame) return undefined;
     let bridge: BlocksRuntimeBridge | null = null;
     let disposed = false;
+    let editorReady = false;
     let loadGeneration = 0;
     let requestController: AbortController | null = null;
     let refreshTimer: number | null = null;
     let refreshController: AbortController | null = null;
     let refreshPromise: Promise<boolean> | null = null;
     const startupTimer = window.setTimeout(() => {
-      if (!disposed) setStartupState('error');
+      if (!disposed) {
+        reportClientDiagnostic('editor_start_timeout', 'scratch');
+        setStartupState('error');
+      }
     }, 45000);
 
     const clearRefreshTimer = (): void => {
@@ -116,7 +123,10 @@ export function BlocksEditor({
         ) {
           return false;
         }
-        if (!session || session.runtimeOrigin !== runtimeOrigin) return false;
+        if (!session || session.runtimeOrigin !== runtimeOrigin) {
+          reportClientDiagnostic('session_refresh_failed', 'scratch');
+          return false;
+        }
         try {
           activeBridge.updateToken(session.runtimeToken);
         } catch {
@@ -134,8 +144,12 @@ export function BlocksEditor({
       return activePromise;
     }
 
-    const failStartup = (): void => {
+    const failStartup = (runtimeFailure = false): void => {
       if (disposed) return;
+      reportClientDiagnostic(
+        runtimeFailure ? 'editor_runtime_error' : 'editor_start_failed',
+        'scratch',
+      );
       window.clearTimeout(startupTimer);
       setStartupState('error');
     };
@@ -144,6 +158,7 @@ export function BlocksEditor({
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
       if (payload['messageType'] === 'ASA_BLOCKS_STATUS' && payload['status'] === 'editor-ready') {
+        editorReady = true;
         window.clearTimeout(startupTimer);
         setStartupState('ready');
       }
@@ -158,7 +173,6 @@ export function BlocksEditor({
         );
       }
       if (payload['messageType'] === 'ASA_BLOCKS_HOME_REQUEST') requestHomeExit();
-      if (payload['messageType'] === 'ASA_BLOCKS_FATAL') failStartup();
     };
 
     const connect = async (generation: number, controller: AbortController): Promise<void> => {
@@ -190,7 +204,11 @@ export function BlocksEditor({
           assets: session.assets,
           recoveryPrincipalKey,
           onMessage: () => undefined,
-          onFatal: failStartup,
+          onFatal: (message) =>
+            failStartup(
+              editorReady ||
+                ['runtime_error', 'runtime_unhandled_rejection'].includes(String(message['code'])),
+            ),
         });
         bridgeRef.current = bridge;
         bridge.sendInit();

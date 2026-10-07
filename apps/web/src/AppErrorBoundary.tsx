@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { reportClientDiagnostic } from './client-diagnostics';
 
 interface AppErrorBoundaryState {
   readonly failed: boolean;
@@ -15,6 +16,7 @@ export class AppErrorBoundary extends Component<
   }
 
   override componentDidCatch(error: unknown, info: ErrorInfo): void {
+    reportClientDiagnostic('render_failed', 'portal');
     // Technical diagnostics only: never include the current account, project
     // document, URL query or browser storage.
     console.error('application render failed', {

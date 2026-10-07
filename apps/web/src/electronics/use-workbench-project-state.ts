@@ -508,6 +508,7 @@ export function useWorkbenchProjectState(projectId: string) {
           setSaveIssue(
             response.status === 0 ? 'offline' : response.status === 401 ? 'auth' : 'server',
           );
+          reportClientDiagnostic('autosave_failed', 'electronics');
           setNotice(null);
           return null;
         }
@@ -537,6 +538,7 @@ export function useWorkbenchProjectState(projectId: string) {
         if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
         return response.data.result;
       } catch {
+        reportClientDiagnostic('autosave_failed', 'electronics');
         // A transport or request-construction exception must stop automatic
         // retries just like an unsuccessful response. The local draft remains
         // available, and the next edit starts a fresh minute.
@@ -769,3 +771,4 @@ export function useWorkbenchProjectState(projectId: string) {
     renameProject,
   };
 }
+import { reportClientDiagnostic } from '../client-diagnostics';

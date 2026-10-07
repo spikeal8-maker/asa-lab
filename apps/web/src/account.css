@@ -1767,3 +1767,19 @@ button.portal-account-identity:hover:not(:disabled) {
     padding-left: 12px;
   }
 }
+
+@media (max-width: 560px) {
+  /* Keep the operation's primary/cancel pair together even when a fallback
+   * font has wider metrics than the development machine's font. */
+  .account-time-zone .account-form-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .account-time-zone .account-form-actions > button {
+    min-width: 0;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+}
