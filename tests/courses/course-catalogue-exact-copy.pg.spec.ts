@@ -506,7 +506,7 @@ it('rejects an exact historical starter pin after supported media pins without c
   // Scoped legacy INSERT follows the existing historicalUnsupportedVersion fixture.
   // No immutable row, trigger, capability or grant is changed. This maximal UUID
   // places the unsupported pin after all supported v4 UUID pins in the copy loop.
-  const historical = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  const historical = 'ffffffff-ffff-4fff-bfff-fffffffffffe';
   await admin.query(
     `INSERT INTO learning_activity_versions SELECT (jsonb_populate_record(
       NULL::learning_activity_versions,to_jsonb(version)||jsonb_build_object(
