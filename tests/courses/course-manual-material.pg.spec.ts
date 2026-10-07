@@ -317,6 +317,12 @@ describe('Course manual material exact pin and learner proof', () => {
         [teacher.tenantId, teacher.schoolId, allowed],
       )
     ).rows[0].learner_identity_id as string;
+    const linkedSeat = await admin.query(
+      `UPDATE classroom_student_seats SET account_id=$1
+        WHERE id=$2 AND tenant_id=$3 AND classroom_id=$4 RETURNING account_id`,
+      [learnerAccount, allowed, teacher.tenantId, classId],
+    );
+    expect(linkedSeat.rows).toEqual([{ account_id: learnerAccount }]);
     await admin.query(
       `INSERT INTO learner_identity_links
          (id,tenant_id,school_id,learner_identity_id,link_kind,account_id)
