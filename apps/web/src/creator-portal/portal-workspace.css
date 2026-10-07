@@ -41,7 +41,7 @@
 .portal-shell .portal-header {
   /* Slots follow the DOM: brand | public navigation | create | inbox | account.
      The public area keeps its content width, including a future third link. */
-  grid-template-columns: minmax(120px, 220px) minmax(max-content, 1fr) auto auto 44px;
+  grid-template-columns: minmax(max-content, 220px) minmax(max-content, 1fr) auto auto 44px;
   min-height: var(--portal-header-height);
 }
 .portal-shell .portal-sidebar {
