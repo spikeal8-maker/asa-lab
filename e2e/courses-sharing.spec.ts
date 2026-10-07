@@ -247,6 +247,7 @@ async function saveProject(page: Page, module: 'electronics' | 'three-d') {
   if (module === 'three-d')
     await expect(page.locator('.asa3d-object-count')).toContainText(new RegExp(`^${count} `));
   else await expect(page.getByTestId('schematic-component')).toHaveCount(count);
+  return count;
 }
 function projectId(page: Page, module: 'electronics' | 'three-d') {
   const url = new URL(page.url());
@@ -351,6 +352,18 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await bankTab(matePage, 'Каталог').click();
   await matePage.getByRole('searchbox').fill(title);
   const card = matePage.getByTestId('catalogue-list').locator('li').filter({ hasText: title });
+  for (const width of [1440, 1024, 390, 320]) {
+    await matePage.setViewportSize({ width, height: 900 });
+    await expect(card.getByRole('button', { name: 'Посмотреть', exact: true })).toBeVisible();
+    expect(
+      await matePage.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await matePage.screenshot({
+      path: `${evidenceDir}/library-list-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await matePage.setViewportSize({ width: 1440, height: 900 });
   await card.getByRole('button', { name: 'Посмотреть', exact: true }).click();
   let preview = matePage.getByRole('dialog', { name: title });
   await expect(preview.getByText('Опубликованная версия 1', { exact: true })).toBeVisible();
@@ -453,6 +466,19 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await expect(ownEditor.getByTestId('course-pinned-material')).toContainText(
     'Library material v1',
   );
+  for (const width of [1440, 1024, 390, 320]) {
+    await matePage.setViewportSize({ width, height: 900 });
+    await expect(ownEditor.getByLabel('Название урока')).toBeVisible();
+    await expect(ownEditor.getByTestId('course-pinned-material')).toBeVisible();
+    expect(
+      await matePage.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await matePage.screenshot({
+      path: `${evidenceDir}/library-owned-course-editor-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await matePage.setViewportSize({ width: 1440, height: 900 });
   const identity = (
     await admin.query(
       'SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
@@ -599,7 +625,23 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   ).trim();
   await sidebar(matePage, 'Курсы и задания').click();
   await bankTab(matePage, 'Мои курсы').click();
-  await matePage.getByTestId('courses-list').getByRole('button').filter({ hasText: title }).click();
+  const copiedCourseCard = matePage
+    .getByTestId('courses-list')
+    .getByRole('button')
+    .filter({ hasText: title });
+  for (const width of [1440, 1024, 390, 320]) {
+    await matePage.setViewportSize({ width, height: 900 });
+    await expect(copiedCourseCard).toBeVisible();
+    expect(
+      await matePage.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await matePage.screenshot({
+      path: `${evidenceDir}/library-owned-course-list-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await matePage.setViewportSize({ width: 1440, height: 900 });
+  await copiedCourseCard.click();
   await ownEditor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   const assign = matePage.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assign.getByLabel('Класс для курса').selectOption({ label: 'Library class ' + suffix });
@@ -711,14 +753,47 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       expect(await response.body()).toEqual(bytes);
     }
     let activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
+    for (const width of [1440, 1024, 390, 320]) {
+      await learner.setViewportSize({ width, height: 900 });
+      await expect(player.getByTestId('seat-course-manual-material')).toBeVisible();
+      await expect(activity.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
+      expect(
+        await learner.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+      ).toBeLessThanOrEqual(0);
+      await learner.screenshot({
+        path: `${evidenceDir}/library-${module}-course-material-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await learner.setViewportSize({ width: 1440, height: 900 });
     await activity.getByRole('button', { name: 'Начать', exact: true }).click();
-    await saveProject(learner, module);
+    const expectedObjectCount = await saveProject(learner, module);
     const started = projectId(learner, module);
     player = await openCourse();
     activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
     await activity.getByRole('button', { name: 'Открыть работу', exact: true }).click();
     expect(projectId(learner, module)).toBe(started);
     await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible({ timeout: 60_000 });
+    if (module === 'three-d') {
+      const viewport = learner.getByTestId('asa3d-viewport');
+      const objectCount = learner.locator('.asa3d-object-count');
+      await expect(viewport).toHaveAttribute('data-runtime-ready', 'true', { timeout: 60_000 });
+      await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
+      for (const width of [1440, 1024, 390, 320]) {
+        await learner.setViewportSize({ width, height: 900 });
+        await expect(viewport).toBeVisible();
+        await expect(objectCount).toBeVisible();
+        await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible();
+        expect(
+          await learner.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+        ).toBeLessThanOrEqual(0);
+        await learner.screenshot({
+          path: `${evidenceDir}/library-three-d-continued-editor-${width}.png`,
+          fullPage: true,
+        });
+      }
+      await learner.setViewportSize({ width: 1440, height: 900 });
+    }
     player = await openCourse();
     activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
     const submit = learner.waitForResponse(
@@ -782,6 +857,21 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     );
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
     await expect(detail.getByText('Ревизия 1 · Принято', { exact: true })).toBeVisible();
+    for (const width of [1440, 1024, 390, 320]) {
+      await matePage.setViewportSize({ width, height: 900 });
+      await expect(detail.getByTestId('submission-version-id')).toHaveText(
+        submitted.projectVersionId,
+      );
+      await expect(detail.getByText('Ревизия 1 · Принято', { exact: true })).toBeVisible();
+      expect(
+        await matePage.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+      ).toBeLessThanOrEqual(0);
+      await matePage.screenshot({
+        path: `${evidenceDir}/library-${module}-accepted-page-${width}.png`,
+        fullPage: true,
+      });
+    }
+    await matePage.setViewportSize({ width: 1440, height: 900 });
     player = await openCourse();
     await expect(
       player.locator('.lesson-activity-block').filter({ hasText: practice }),

@@ -110,6 +110,7 @@ test('exact saved and published learner preview ignores late responses and creat
   mkdirSync('e2e/artifacts/learning/teacher-authoring', { recursive: true });
   for (const [width, height, file] of [
     [1440, 900, 'editor-desktop.png'],
+    [1024, 768, 'editor-1024.png'],
     [390, 844, 'editor-390.png'],
     [320, 720, 'editor-320.png'],
   ] as const) {
@@ -126,6 +127,30 @@ test('exact saved and published learner preview ignores late responses and creat
   }
   await page.setViewportSize({ width: 1440, height: 900 });
 
+  await openAssignmentSettings(page);
+  const settings = page.getByRole('dialog', { name: 'Настройки' });
+  for (const [width, height] of [
+    [1440, 900],
+    [1024, 768],
+    [390, 844],
+    [320, 720],
+  ] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(settings.getByLabel('Среда проекта')).toBeVisible();
+    await expect(settings.getByLabel('Результат')).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `e2e/artifacts/learning/teacher-authoring/settings-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await closeAssignmentSettings(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
   await page.getByRole('button', { name: '← Задания', exact: true }).click();
   await expect(page.locator('.authored-assignment-list')).toBeVisible();
   await expect(page.locator('.authored-assignment-row')).toHaveCount(1);
@@ -134,6 +159,7 @@ test('exact saved and published learner preview ignores late responses and creat
   mkdirSync('e2e/artifacts/learning/v-ux2a', { recursive: true });
   for (const [width, height, file] of [
     [1440, 900, 'desktop-1440.png'],
+    [1024, 768, 'tablet-1024.png'],
     [390, 844, 'mobile-390.png'],
     [320, 720, 'mobile-320.png'],
   ] as const) {

@@ -2197,17 +2197,24 @@ for (const module of ['electronics', 'three-d'])
     const startLesson = learner.getByRole('button', { name: 'Начать задание', exact: true });
     await expect(learner.getByTestId('seat-course-player')).toContainText(courseTitle);
     await expect(startLesson).toBeEnabled();
-    await learner.setViewportSize({ width: 1440, height: 900 });
-    await learner.screenshot({
-      path: `${evidenceDir}/account-course-${module}-start-desktop.png`,
-      fullPage: true,
-    });
-    await learner.setViewportSize({ width: 390, height: 844 });
-    await expect(startLesson).toBeVisible();
-    await learner.screenshot({
-      path: `${evidenceDir}/account-course-${module}-start-mobile.png`,
-      fullPage: true,
-    });
+    for (const viewport of [
+      { width: 1440, height: 900, label: 'desktop' },
+      { width: 1024, height: 768, label: '1024' },
+      { width: 390, height: 844, label: 'mobile' },
+      { width: 320, height: 720, label: '320' },
+    ]) {
+      await learner.setViewportSize(viewport);
+      await expect(startLesson).toBeVisible();
+      expect(
+        await learner.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+      await learner.screenshot({
+        path: `${evidenceDir}/account-course-${module}-start-${viewport.label}.png`,
+        fullPage: true,
+      });
+    }
     await learner.setViewportSize({ width: 1440, height: 900 });
     await startLesson.click();
     await expect(learner).toHaveURL(
@@ -2642,11 +2649,23 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(page.getByText('Урок добавлен.', { exact: true })).toBeVisible();
 
   await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
-  await page
+  const courseRow = page
     .getByTestId('courses-list')
     .locator('.course-row-main')
-    .filter({ hasText: courseTitle })
-    .click();
+    .filter({ hasText: courseTitle });
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(courseRow).toBeVisible();
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await page.screenshot({
+      path: `${evidenceDir}/course-authoring-list-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await courseRow.click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
   await expect(editor.locator('.course-pinned-practice').nth(0)).toContainText(electronicsTitle);
   await expect(editor.locator('.course-pinned-practice').nth(1)).toContainText(threeDTitle);
@@ -2661,7 +2680,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByLabel('Название урока').fill('Смешанная практика');
   await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
   await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),
@@ -2694,7 +2713,7 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   let assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await assignDialog.getByLabel('Класс для курса').selectOption({ label: classTitle });
   await assignDialog.getByLabel('Срок, если нужен').fill('2027-09-30');
-  for (const width of [1440, 390, 320]) {
+  for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth - innerWidth),

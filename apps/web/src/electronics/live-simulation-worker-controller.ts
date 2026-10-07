@@ -202,6 +202,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private lastRuntimeDocument: SchematicDocument | null = null;
   private timedState: ElectronicsTimedState = resetElectronicsTimedState();
   private latestTarget: SimulationTarget | null = null;
+  private startupTarget: SimulationTarget | null = null;
   private continuationTarget: SimulationTarget | null = null;
   private inputTarget: SimulationTarget | null = null;
   private pendingInputEvents: ElectronicsTimedInputEvent[] = [];
@@ -337,6 +338,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = { requestedHorizonMicroseconds: canonicalHorizonMicroseconds };
+    this.startupTarget = { requestedHorizonMicroseconds: 0 };
     this.continuationTarget = null;
     this.inputTarget = null;
     this.pendingInputEvents = [];
@@ -361,6 +363,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = null;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = null;
+    this.startupTarget = null;
     this.continuationTarget = null;
     this.inputTarget = null;
     this.pendingInputEvents = [];
@@ -413,13 +416,18 @@ export class ElectronicsLiveSimulationWorkerController {
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
-    const target = this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
+    const target =
+      this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
     if (generationId === null || !document || this.inFlight || !target) return;
-    if (this.inputTarget) this.inputTarget = null;
-    else if (this.continuationTarget) this.continuationTarget = null;
-    else this.latestTarget = null;
-    const inputEvents = this.pendingInputEvents;
-    this.pendingInputEvents = [];
+    const isStartup = target === this.startupTarget;
+    // Complete time zero before pursuing host ticks or inputs queued after Start.
+    if (!isStartup) {
+      if (this.inputTarget) this.inputTarget = null;
+      else if (this.continuationTarget) this.continuationTarget = null;
+      else this.latestTarget = null;
+    }
+    const inputEvents = isStartup ? [] : this.pendingInputEvents;
+    if (!isStartup) this.pendingInputEvents = [];
     this.inFlight = true;
     this.inFlightKind = 'advance';
     void this.executor
@@ -465,7 +473,7 @@ export class ElectronicsLiveSimulationWorkerController {
       target.requestedHorizonMicroseconds,
     );
     if (advance.executionStatus === 'yielded') {
-      this.continuationTarget = target;
+      if (target !== this.startupTarget) this.continuationTarget = target;
       this.pump();
       return;
     }
@@ -485,7 +493,9 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));
       return;
     }
-    if (this.pendingInputEvents.length === 0) {
+    const isStartup = target === this.startupTarget;
+    if (isStartup) this.startupTarget = null;
+    if (isStartup || this.pendingInputEvents.length === 0) {
       this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
       this.callbacks?.onResult(advance.result);
     }
