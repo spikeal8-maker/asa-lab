@@ -364,11 +364,21 @@ function useOwnerImageHref(asset: string): {
   readonly onError: () => void;
   readonly onLoad: () => void;
 } {
+  const probeId = useRef<object>({});
+  const probe = (kind: string): void => {
+    if (!asset.endsWith('/aa-2.svg')) return;
+    const target = window as unknown as { ordinaryImageProbe?: { kind: string; identity?: object; id?: number; at?: number; asset?: string }[] };
+    const events = target.ordinaryImageProbe;
+    if (!events) return;
+    let id = events.findIndex((event) => event.identity === probeId.current);
+    if (id < 0) { id = events.length; events.push({ kind: 'identity', identity: probeId.current }); }
+    events.push({ kind, id, at: performance.now(), asset });
+  };
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
   const current = useRef(loaded);
   current.current = loaded;
-  const handlers = useRef<{ asset: string; error: () => void; load: () => void } | null>(null);
-  const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
+  const recoverRef = useRef<() => void>(() => undefined);
+  const loadedRef = useRef<() => void>(() => undefined);
   useEffect(() => {
     let active = true;
     let pending: Promise<boolean> | null = null;
@@ -438,21 +448,11 @@ function useOwnerImageHref(asset: string): {
       }
       start();
     };
-    const mountedHandlers = {
-      asset,
-      error: recover,
-      load: () => {
-        if (active && current.current.asset === asset) recovery.recovered();
-      },
+    probe('callbacks-setup');
+    recoverRef.current = recover;
+    loadedRef.current = () => {
+      if (active && current.current.asset === asset) recovery.recovered();
     };
-    handlers.current = mountedHandlers;
-    // The native SVG image can notify before passive lifecycle setup. Replay
-    // only this resource's latest event; a newer resource owns its own event.
-    if (earlyEvent.current?.asset === asset) {
-      const kind = earlyEvent.current.kind;
-      earlyEvent.current = null;
-      mountedHandlers[kind]();
-    }
     const retry = (): void => {
       if (failedOwnerImages.has(asset)) start();
     };
@@ -465,22 +465,18 @@ function useOwnerImageHref(asset: string): {
     return () => {
       active = false;
       recovery.cancel();
-      if (handlers.current === mountedHandlers) handlers.current = null;
-      if (earlyEvent.current?.asset === asset) earlyEvent.current = null;
+      recoverRef.current = () => undefined;
+      loadedRef.current = () => undefined;
       window.removeEventListener('online', retry);
       window.removeEventListener('focus', retry);
       document.removeEventListener('visibilitychange', retryWhenVisible);
     };
   }, [asset]);
-  const notify = (kind: 'error' | 'load'): void => {
-    if (handlers.current?.asset === asset) handlers.current[kind]();
-    else earlyEvent.current = { asset, kind };
-  };
   return {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
-    onError: () => notify('error'),
-    onLoad: () => notify('load'),
+    onError: () => { probe('react-error'); recoverRef.current(); },
+    onLoad: () => { probe('react-load'); loadedRef.current(); },
   };
 }
 
