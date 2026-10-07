@@ -364,13 +364,18 @@ function useOwnerImageHref(asset: string): {
   readonly onError: () => void;
   readonly onLoad: () => void;
 } {
-  const probeId = useRef(Math.random());
+  const probeId = useRef<object>({});
   const probe = (kind: string, detail?: unknown): void => {
     if (!asset.endsWith('/aa-2.svg')) return;
     const target = window as unknown as { ordinaryImageProbe?: unknown[] };
+    const ids = target.ordinaryImageProbe ?? [];
+    const id = ids.findIndex(
+      (event) => (event as { identity?: object }).identity === probeId.current,
+    );
+    if (id < 0) ids.push({ kind: 'identity', identity: probeId.current });
     target.ordinaryImageProbe?.push({
       kind,
-      id: probeId.current,
+      id: id < 0 ? ids.length - 1 : id,
       at: performance.now(),
       asset,
       detail,

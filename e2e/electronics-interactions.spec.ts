@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
@@ -64,6 +64,7 @@ test.afterEach(async ({ page }, info) => {
   const events = await page.evaluate(
     () => (window as unknown as { ordinaryImageProbe?: unknown[] }).ordinaryImageProbe ?? [],
   );
+  writeFileSync('reports/ordinary-image-probe.json', JSON.stringify(events, null, 2));
   await info.attach('ordinary-image-probe.json', {
     body: JSON.stringify(events, null, 2),
     contentType: 'application/json',

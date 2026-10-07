@@ -173,7 +173,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm exec playwright test --config playwright.config.ts e2e/electronics-interactions.spec.ts --grep "a permanently missing ordinary image shows an accessible failure on stage and catalog"
+          pnpm exec playwright test --trace on --config playwright.config.ts e2e/electronics-interactions.spec.ts --grep "a permanently missing ordinary image shows an accessible failure on stage and catalog"
 
       - name: Show isolated stack state
         if: always()
