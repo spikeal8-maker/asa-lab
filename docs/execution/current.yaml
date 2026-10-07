@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_shell_s1_selected
+      checkpoint: portal_avatar_s2_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -121,11 +121,26 @@ parallel_lanes:
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
-      selected_slice: S1
+      selected_slice: S2
       dependency_order: [S1, S2, S3, S4]
-      remaining_slices: [S1, S2, S3, S4]
+      remaining_slices: [S2, S3, S4]
       deployment_authorized: false
       working_database_actions_authorized: false
+      completed_slices:
+        - id: S1
+          status: technical_accepted
+          integrated_sha: 9f93d884a32ec7399a3ff6d475b5bef9bff364c3
+          independent_review: approved
+          exact_head_general_run: 37689682628
+          exact_head_general_conclusion: success
+          focused_tests_passed: 591
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 127
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          visual_evidence: reports/playwright/portal-shell-s1-geometry-20261008
+          owner_acceptance: pending
+          deployment: not_requested
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
