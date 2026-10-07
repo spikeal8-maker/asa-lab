@@ -38,8 +38,8 @@ large_sources:
     rationale: Active code-editor surface is above the review threshold; future extraction must preserve command/editor behavior and tests.
   - path: apps/web/src/electronics/ProductionComponentVisual.tsx
     class: decomposition-candidate
-    reviewed_bytes: 60089
-    rationale: Active visual renderer spans many component families; split by stable visual responsibility, never by arbitrary line count.
+    reviewed_bytes: 72432
+    rationale: Lifecycle and family-render boundaries reviewed in evidence/visual-source-responsibility-518-20261007.md; retain the ordinary-image repair inside its private hook. Shared loading, instrument controls and selection/family dispatch remain decomposition debt; the reviewed candidate ceiling is not product acceptance.
   - path: apps/web/src/electronics/WorkbenchStage.tsx
     class: decomposition-candidate
     reviewed_bytes: 54879
