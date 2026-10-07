@@ -4,10 +4,30 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
 from collect_logs import Collector, normalize, now
 
 
 class CollectorTests(unittest.TestCase):
+    def test_replaced_container_collects_current_errors_without_history_delay(self):
+        with tempfile.TemporaryDirectory() as temp:
+            collector = Collector(Path(temp), {})
+            created = datetime.now(timezone.utc) - timedelta(minutes=1)
+            calls = []
+            def command(args, **kwargs):
+                if args[1] == 'ps': return b'new-container\npostgres-container'
+                if args[1] == 'inspect':
+                    records = [dict(Id=cid, Created=created.isoformat(), Config=dict(Labels={'com.docker.compose.service': service, 'com.docker.compose.project.working_dir': str(collector.root)})) for cid, service in [('new-container', 'api'), ('postgres-container', 'postgres')]]
+                    return '\n'.join(json.dumps(c) for c in records).encode()
+                calls.append(args)
+                return (now() + ' ERROR startup failure\n').encode()
+            collector.command = command
+            collector.docker()
+            api_calls = [c for c in calls if c[-1] == 'new-container']
+            self.assertEqual(len(api_calls), 2)
+            self.assertTrue(all(datetime.fromisoformat(c[c.index('--since') + 1]) >= created for c in api_calls))
+            self.assertGreater(collector.db.execute("SELECT count(*) FROM events WHERE source='api'").fetchone()[0], 0)
+            collector.db.close()
     @unittest.skipUnless(os.name == 'nt', 'Windows Event Log adapter is host-specific')
     def test_windows_paging_and_channel_recovery(self):
         with tempfile.TemporaryDirectory() as temp:

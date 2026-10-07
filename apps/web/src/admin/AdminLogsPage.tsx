@@ -85,7 +85,9 @@ const LEVEL: Record<string, string> = {
 const dateLabel = (value: string | null): string =>
   value && Number.isFinite(Date.parse(value)) ? TIME.format(new Date(value)) : 'Нет записей';
 const sourceLabel = (source: string): string =>
-  SOURCE[source] ?? source.replace(/^windows:/, 'Windows · ');
+  source.endsWith(':recent')
+    ? `${SOURCE[source.slice(0, -7)] ?? source.slice(0, -7)} · свежие записи`
+    : (SOURCE[source] ?? source.replace(/^windows:/, 'Windows · '));
 
 export function AdminLogsPage({
   onAccessDenied,

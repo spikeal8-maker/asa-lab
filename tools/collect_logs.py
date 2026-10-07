@@ -142,7 +142,7 @@ class Collector:
             ids = self.command(["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}"]).decode().split()
             if not ids:
                 raise RuntimeError("No containers for the configured installation")
-            template = '{"Id":{{json .Id}},"Config":{"Labels":{{json .Config.Labels}}}}'
+            template = '{"Id":{{json .Id}},"Created":{{json .Created}},"Config":{"Labels":{{json .Config.Labels}}}}'
             inspected = [json.loads(line) for line in self.command(["docker", "inspect", "--format", template, *ids]).decode().splitlines()]
             canonical = next((c for c in inspected if c["Config"]["Labels"].get("com.docker.compose.service") == "postgres"), None)
             if not canonical:
@@ -157,23 +157,27 @@ class Collector:
                     raise RuntimeError("Mixed installation roots; collection stopped")
                 service = labels.get("com.docker.compose.service", "unknown")
                 cid = container["Id"]
-                key = "docker:" + cid
-                since = self.state(key, (datetime.now(UTC) - timedelta(days=7)).isoformat())
-                start = datetime.fromisoformat(since.replace("Z", "+00:00"))
-                span = self.state(key + ":span", 6 * 3600)
-                until = min(datetime.now(UTC) - timedelta(seconds=2), start + timedelta(seconds=span))
-                if until <= start: continue
-                try:
-                    result = self.command(["docker", "logs", "--timestamps", "--since", since, "--until", until.isoformat(), cid], timeout=90, merge_errors=True)
-                except Exception as exc:
-                    self.set_state(key + ":span", max(1, span // 2))
-                    self.status(service, "error", str(exc))
-                    continue
-                for line in result.decode(errors="replace").splitlines():
-                    token, _, raw = line.partition(" ")
-                    self.add(normalize(service, raw, timestamp(token, until.isoformat()), cid + ":" + line))
-                self.set_state(key, until.isoformat())
-                self.status(service, "ok", "History starts at container creation; removed containers cannot be recovered", until.isoformat())
+                created = datetime.fromisoformat(container["Created"].replace("Z", "+00:00"))
+                for recent in (True, False):
+                    key = "docker:" + cid + (":recent" if recent else "")
+                    status_source = service + (":recent" if recent else "")
+                    default = datetime.now(UTC) - (timedelta(minutes=5) if recent else timedelta(days=7))
+                    saved = self.state(key, default.isoformat())
+                    start = max(created, datetime.fromisoformat(saved.replace("Z", "+00:00")))
+                    span = self.state(key + ":span", 300 if recent else 6 * 3600)
+                    until = min(datetime.now(UTC) - timedelta(seconds=2), start + timedelta(seconds=span))
+                    if until <= start: continue
+                    try:
+                        result = self.command(["docker", "logs", "--timestamps", "--since", start.isoformat(), "--until", until.isoformat(), cid], timeout=90, merge_errors=True)
+                    except Exception as exc:
+                        self.set_state(key + ":span", max(1, span // 2))
+                        self.status(status_source, "error", str(exc))
+                        continue
+                    for line in result.decode(errors="replace").splitlines():
+                        token, _, raw = line.partition(" ")
+                        self.add(normalize(service, raw, timestamp(token, until.isoformat()), cid + ":" + line))
+                    self.set_state(key, until.isoformat())
+                    self.status(status_source, "ok", "Fresh events" if recent else "History starts at container creation; removed containers cannot be recovered", until.isoformat())
             self.status("docker", "ok")
         except Exception as exc:
             self.status("docker", "error", str(exc))
