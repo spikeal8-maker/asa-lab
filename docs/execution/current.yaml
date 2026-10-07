@@ -110,8 +110,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: presentation_migration_catalog_repair_verification
+      status: done
+      checkpoint: settings_programme_technically_complete_owner_review_pending
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -135,26 +135,28 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 12e8b0150c278978bc03832d735eab87e15e80e0
+      convergence_baseline_sha: c42a8f3fde35652a4cf7db65f44e042bbbbb9181
       head_sha: null
-      observed_at: '2026-10-07T07:23:53Z'
+      observed_at: '2026-10-07T07:41:12Z'
       main:
         branch: main
-        sha: 12e8b0150c278978bc03832d735eab87e15e80e0
+        sha: c42a8f3fde35652a4cf7db65f44e042bbbbb9181
       observation_note: >-
-        Published main 12e8b0150c278978bc03832d735eab87e15e80e0 received approved
-        independent review. General workflow 37585368461 passed governance, code
-        and Access A browser jobs: 584 focused tests, 10 real browser scenarios,
-        66 synthetic UI scenarios, 96 fresh code Nx tasks and 27 fresh browser
-        build Nx tasks. Data passed 3059 of 3060 tests. Its only failure was the
-        explicit forward-upgrade migration catalog omitting new migration 0200;
-        classified B because the selected preferences migration caused it.
-        Bounded repair source f4c926ae364d8ab6a8102ebe23d4eb3c381e9313 adds only
-        that expected version, preserving data and idempotency assertions.
-        Migration catalog, exact offline upgrade plan, format and lint pass;
-        PostgreSQL execution remains pending in exact-head isolated CI.
-        Final repair review and general CI remain pending. MAX, authority and
-        live data operations are unchanged.
+        Dated published main c42a8f3fde35652a4cf7db65f44e042bbbbb9181 has successful
+        general workflow 37587525421 on that exact SHA: governance, code, isolated
+        PostgreSQL/RLS and real Access A browser jobs all passed. Evidence is
+        3060 full tests, 16 separate RLS tests, 584 focused tests, 10 real browser
+        scenarios, 66 synthetic UI scenarios, 96 fresh code Nx tasks and 27 fresh
+        browser build Nx tasks. Independent reviews approved product source
+        12e8b0150c278978bc03832d735eab87e15e80e0 and final migration catalog repair
+        c42a8f3fde35652a4cf7db65f44e042bbbbb9181. The initial category B data failure
+        in run 37585368461 is resolved without weakening preservation assertions.
+        Both owner-directed Settings slices are technically complete. Account
+        presentation persists server-side with stale-write and actor preconditions;
+        Seat motion is isolated to its authenticated session and cleared at exit,
+        expiry or actor change. MAX and authorization boundaries are preserved.
+        Owner acceptance remains pending; deployment and live database operations
+        were not requested or performed. No next programme slice is selected.
         Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max
@@ -190,6 +192,26 @@ parallel_lanes:
         browser_build_nx_tasks_executed_uncached: 27
         owner_acceptance: pending
         deployment: not_requested
+
+      - task_id: TASK-ACCOUNT-SETTINGS-PREF-001
+        status: technical_accepted
+        product_sha: 12e8b0150c278978bc03832d735eab87e15e80e0
+        integrated_sha: c42a8f3fde35652a4cf7db65f44e042bbbbb9181
+        independent_review: approved
+        exact_head_general_run: 37587525421
+        exact_head_general_conclusion: success
+        initial_data_failure_run: 37585368461
+        initial_failure_category: B
+        full_tests_passed: 3060
+        separate_rls_tests_passed: 16
+        focused_tests_passed: 584
+        real_access_browser_passed: 10
+        synthetic_ui_browser_passed: 66
+        code_nx_tasks_executed_uncached: 96
+        browser_build_nx_tasks_executed_uncached: 27
+        owner_acceptance: pending
+        deployment: not_requested
+        live_database_operations: not_performed
 
   - id: electronics
     worktree_id: electronics-main
