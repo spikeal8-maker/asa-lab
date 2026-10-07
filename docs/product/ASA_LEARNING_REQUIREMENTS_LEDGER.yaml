@@ -1703,3 +1703,93 @@ requirements:
   summary: Knowledge discovery reuses published content roots including assignments, quizzes and programming tasks
   evidence: []
   tests: []
+
+- id: LRN-UX-01
+  milestone: E1
+  status: target
+  summary: Раздельные обзор/урок, видимые практики и доступный следующий шаг
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 35.2; planned scenarios U01, UI01 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-UX-02
+  milestone: E1
+  status: target
+  summary: Прочтение материала не завершает обязательные практики; прогресс согласован с сервером и pinned policy
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 35.3; planned scenarios U02, U03, U04, U05, U06 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-UX-03
+  milestone: E1
+  status: target
+  summary: Компактный document editor, авторазмер текста и доступное единое добавление содержимого
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 36; planned scenarios UI01, UI02, M04 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-UX-04
+  milestone: E1
+  status: target
+  summary: Реальные учебные имена и осмысленные материалы; один ученик проходит обе практики
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 38.2; planned scenarios U01, U05 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-UX-05
+  milestone: E1
+  status: target
+  summary: Owner usability review отдельно от CI; planned scenarios не являются исполненными тестами
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 38.3; planned scenarios U01, UI01, UI02 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-MEDIA-01
+  milestone: E1
+  status: target
+  summary: Целевые входные лимиты — изображение 20 MB, PDF 25 MB, учебное вложение 50 MB
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 37.1; planned scenarios M01, M02, M06 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-MEDIA-02
+  milestone: E1
+  status: target
+  summary: Автоматическая подготовка изображения без ручного сжатия и потери читаемости схемы
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 37.2; planned scenarios M01, M03, M04 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-MEDIA-03
+  milestone: E1
+  status: target
+  summary: Авторизованные оригиналы/производные и неизменяемые старые версии; безопасные загрузка и copy
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 37.3; planned scenarios M03, M04, M05, M06 are not execution receipts; product and owner acceptance NOT_RUN."
+
+- id: LRN-MEDIA-04
+  milestone: E1
+  status: target
+  summary: Фактическое видео отличается от внешней ссылки; недоступный provider не блокирует урок
+  evidence: []
+  tests: []
+  normative_refs:
+  - docs/product/learning/ASA_LEARNING_UX_REDESIGN_SPEC.md
+  verification_scope: "TARGET only; UX spec section 37.4; planned scenarios V01 are not execution receipts; product and owner acceptance NOT_RUN."
