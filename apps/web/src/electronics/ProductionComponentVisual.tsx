@@ -367,8 +367,8 @@ function useOwnerImageHref(asset: string): {
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
   const current = useRef(loaded);
   current.current = loaded;
-  const recoverRef = useRef<() => void>(() => undefined);
-  const loadedRef = useRef<() => void>(() => undefined);
+  const handlers = useRef<{ asset: string; error: () => void; load: () => void } | null>(null);
+  const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
   useEffect(() => {
     let active = true;
     let pending: Promise<boolean> | null = null;
@@ -438,10 +438,21 @@ function useOwnerImageHref(asset: string): {
       }
       start();
     };
-    recoverRef.current = recover;
-    loadedRef.current = () => {
-      if (active && current.current.asset === asset) recovery.recovered();
+    const mountedHandlers = {
+      asset,
+      error: recover,
+      load: () => {
+        if (active && current.current.asset === asset) recovery.recovered();
+      },
     };
+    handlers.current = mountedHandlers;
+    // The native SVG image can notify before passive lifecycle setup. Replay
+    // only this resource's latest event; a newer resource owns its own event.
+    if (earlyEvent.current?.asset === asset) {
+      const kind = earlyEvent.current.kind;
+      earlyEvent.current = null;
+      mountedHandlers[kind]();
+    }
     const retry = (): void => {
       if (failedOwnerImages.has(asset)) start();
     };
@@ -454,18 +465,22 @@ function useOwnerImageHref(asset: string): {
     return () => {
       active = false;
       recovery.cancel();
-      recoverRef.current = () => undefined;
-      loadedRef.current = () => undefined;
+      if (handlers.current === mountedHandlers) handlers.current = null;
+      if (earlyEvent.current?.asset === asset) earlyEvent.current = null;
       window.removeEventListener('online', retry);
       window.removeEventListener('focus', retry);
       document.removeEventListener('visibilitychange', retryWhenVisible);
     };
   }, [asset]);
+  const notify = (kind: 'error' | 'load'): void => {
+    if (handlers.current?.asset === asset) handlers.current[kind]();
+    else earlyEvent.current = { asset, kind };
+  };
   return {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
-    onError: () => recoverRef.current(),
-    onLoad: () => loadedRef.current(),
+    onError: () => notify('error'),
+    onLoad: () => notify('load'),
   };
 }
 
