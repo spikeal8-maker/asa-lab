@@ -182,6 +182,7 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
   let count = 0;
   let uncompressed = 0;
   let batch = '';
+  let batchBytes = 0;
   let part = 0;
   const write = async (data: Buffer): Promise<void> => {
     if (offset + data.length > 64 * 1024 * 1024) throw new Error('LOG_EXPORT_TOO_LARGE');
@@ -230,12 +231,15 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
         seen.add(event.id);
         const line = `${JSON.stringify(event)}\n`;
         batch += line;
+        const lineBytes = Buffer.byteLength(line);
+        batchBytes += lineBytes;
         count += 1;
-        uncompressed += Buffer.byteLength(line);
+        uncompressed += lineBytes;
         if (uncompressed > 256 * 1024 * 1024) throw new Error('LOG_EXPORT_TOO_LARGE');
-        if (Buffer.byteLength(batch) >= 1024 * 1024) {
+        if (batchBytes >= 1024 * 1024) {
           await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, batch);
           batch = '';
+          batchBytes = 0;
         }
       }
     }
