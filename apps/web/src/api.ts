@@ -1,5 +1,5 @@
-/** Thin same-origin API client. The session lives in an HttpOnly cookie; the
- * client never sends or stores tenant identifiers. */
+/** Thin same-origin API client. The session lives in an HttpOnly cookie and
+ * determines access; frozen copy destinations are independently server-validated. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type { ArduinoControllerState } from '@asa-lab/electronics/simulation';
@@ -544,6 +544,10 @@ export interface PublicKnowledgeItem {
 }
 
 export interface CatalogueCoursePreview {
+  versionId?: string;
+  contentHash?: string;
+  destinationTenantId?: string;
+  pinnedItems?: Record<string, CataloguePinnedItem>;
   versionNumber: number;
   title: string;
   summary: string | null;
@@ -562,8 +566,33 @@ export interface CatalogueCoursePreview {
       kind: 'material' | 'assignment';
       estimatedMinutes: number | null;
       position: number;
+      learningActivityVersionId?: string;
     }>;
   }>;
+}
+
+export interface CataloguePinnedItem {
+  versionId: string;
+  versionNumber: number;
+  title: string;
+  moduleKey: string | null;
+  goal: string | null;
+  brief: string | null;
+  blocks: SafeTaskBlock[];
+  sampleImage: string | null;
+}
+export interface CatalogueCopyRequest {
+  versionId: string;
+  contentHash: string;
+  requestId: string;
+  destinationTenantId: string;
+}
+export interface CatalogueCopyReceipt {
+  id: string;
+  sourceVersionId?: string;
+  sourceVersionNumber?: number;
+  sourceContentHash?: string;
+  reused?: boolean;
 }
 
 export interface ContentShare {
@@ -2616,10 +2645,14 @@ export const api = {
   catalogueCourse: (courseId: string) =>
     call<CatalogueCoursePreview>(`/api/catalogue/courses/${encodeURIComponent(courseId)}`),
   /** Забрать себе копией: автор правит своё, вы — своё. */
-  takeFromCatalogue: (kind: 'course' | 'assignment', subjectId: string) =>
-    call<{ id: string }>(`/api/catalogue/${kind}/${encodeURIComponent(subjectId)}/take`, {
+  takeFromCatalogue: (
+    kind: 'course' | 'assignment',
+    subjectId: string,
+    exact?: CatalogueCopyRequest,
+  ) =>
+    call<CatalogueCopyReceipt>(`/api/catalogue/${kind}/${encodeURIComponent(subjectId)}/take`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(exact ?? {}),
     }),
   deleteLibraryAssignment: (assignmentId: string) =>
     call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {

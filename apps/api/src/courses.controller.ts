@@ -10,8 +10,9 @@ import {
   Post,
   Put,
   Req,
+  Res,
 } from '@nestjs/common';
-import type { FastifyRequest } from 'fastify';
+import type { FastifyRequest, FastifyReply } from 'fastify';
 import type pg from 'pg';
 import type { AccountDirectoryPort, ActiveContext, ActiveContextUseCase } from '@asa-lab/identity';
 import { effectiveAccountActions } from '@asa-lab/identity';
@@ -1878,15 +1879,57 @@ export class CoursesController {
     const context = await this.requireEducator(request);
     this.requireUuid(courseId, 'course');
     const result = await this.requirePool().query(
-      `SELECT version_number, title, summary, outline, published_at
-         FROM course_catalogue_preview($1, $2, $3, $4)`,
+      `SELECT version_id, version_number, title, summary, outline, published_at, content_hash, pins
+         FROM course_catalogue_preview_v2($1, $2, $3, $4)`,
       [courseId, context.principalId, context.accountId, context.tenantId],
     );
     const row = result.rows[0] as CataloguePreviewRow | undefined;
     if (!row) {
       throw new HttpException(error('not_available', 'Опубликованный курс недоступен.'), 404);
     }
-    return cataloguePreview(row);
+    return { ...cataloguePreview(row, courseId), destinationTenantId: context.tenantId };
+  }
+
+  @Get('catalogue/courses/:courseId/versions/:versionId/pins/:pinId/:role/:contentHash')
+  async catalogueMedia(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: false }) reply: FastifyReply,
+    @Param('courseId') courseId: string,
+    @Param('versionId') versionId: string,
+    @Param('pinId') pinId: string,
+    @Param('role') role: string,
+    @Param('contentHash') contentHash: string,
+  ): Promise<void> {
+    const context = await this.requireEducator(request);
+    for (const id of [courseId, versionId, pinId]) this.requireUuid(id, 'media source');
+    if (!['image', 'file', 'sample'].includes(role) || !/^[0-9a-f]{64}$/.test(contentHash))
+      throw new HttpException(error('validation_error', 'Медиа недоступно.'), 400);
+    const result = await this.requirePool().query(
+      'SELECT media_bytes,content_type,content_hash FROM course_catalogue_media_v2($1,$2,$3,$4,$5,$6,$7,$8)',
+      [
+        courseId,
+        versionId,
+        pinId,
+        role === 'image' ? 'task-image' : role === 'file' ? 'task-file' : 'sample',
+        contentHash,
+        context.principalId,
+        context.accountId,
+        context.tenantId,
+      ],
+    );
+    const row = result.rows[0] as
+      { media_bytes: Buffer; content_type: string; content_hash: string } | undefined;
+    if (
+      !row ||
+      row.content_hash !== contentHash ||
+      (role === 'file'
+        ? row.content_type !== 'application/pdf'
+        : !['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type))
+    )
+      throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
+    reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
+    if (role === 'file') reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    reply.type(row.content_type).send(row.media_bytes);
   }
 
   /**
@@ -1900,15 +1943,74 @@ export class CoursesController {
     @Req() request: FastifyRequest,
     @Param('kind') kind: string,
     @Param('subjectId') subjectId: string,
+    @Body() rawBody?: unknown,
   ) {
     const context = await this.requireEducator(request);
     this.requireUuid(subjectId, 'subject');
     const pool = this.requirePool();
-    const sql =
-      kind === 'course'
-        ? `SELECT course_take_with_outline($1, $2, $3, $4) AS id`
-        : `SELECT assignment_take($1, $2, $3, $4) AS id`;
-    if (kind !== 'course' && kind !== 'assignment') {
+    if (kind === 'course') {
+      const shape = checkBodyShape(rawBody, [
+        'versionId',
+        'contentHash',
+        'requestId',
+        'destinationTenantId',
+      ]);
+      if (
+        !shape.ok ||
+        typeof shape.body['versionId'] !== 'string' ||
+        !UUID_PATTERN.test(shape.body['versionId']) ||
+        typeof shape.body['destinationTenantId'] !== 'string' ||
+        !UUID_PATTERN.test(shape.body['destinationTenantId']) ||
+        typeof shape.body['contentHash'] !== 'string' ||
+        !/^[0-9a-f]{32}$/.test(shape.body['contentHash']) ||
+        typeof shape.body['requestId'] !== 'string' ||
+        !/^[A-Za-z0-9._:-]{8,128}$/.test(shape.body['requestId'])
+      )
+        throw new HttpException(
+          error('validation_error', 'Откройте точную опубликованную версию курса.'),
+          400,
+        );
+      const result = await pool.query(
+        'SELECT * FROM course_catalogue_take_v2($1,$2,$3,$4,$5,$6,$7,$8)',
+        [
+          context.principalId,
+          context.accountId,
+          context.tenantId,
+          subjectId,
+          shape.body['versionId'],
+          shape.body['contentHash'],
+          shape.body['requestId'],
+          shape.body['destinationTenantId'],
+        ],
+      );
+      const row = result.rows[0] as
+        | {
+            result_code: string;
+            id: string;
+            source_version_id: string;
+            source_version_number: number;
+            source_content_hash: string;
+            reused: boolean;
+          }
+        | undefined;
+      if (!row || row.result_code !== 'ok')
+        throw new HttpException(
+          error(
+            row?.result_code ?? 'copy_unavailable',
+            'Курс не скопирован. Повторите то же действие или обновите опубликованную версию.',
+          ),
+          row?.result_code === 'not_available' ? 404 : 409,
+        );
+      return {
+        id: row.id,
+        sourceVersionId: row.source_version_id,
+        sourceVersionNumber: Number(row.source_version_number),
+        sourceContentHash: row.source_content_hash,
+        reused: row.reused,
+      };
+    }
+    const sql = `SELECT assignment_take($1, $2, $3, $4) AS id`;
+    if (kind !== 'assignment') {
       throw new HttpException(error('validation_error', 'Неизвестный вид содержимого.'), 400);
     }
     const result = await pool.query(sql, [

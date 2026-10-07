@@ -2,9 +2,12 @@ import {
   addCourseBlock,
   selectCoursePractice,
   openNewAssignmentEditor,
+  openExistingAssignmentEditor,
+  openAssignmentSettings,
+  closeAssignmentSettings,
 } from './learning-authoring-navigation';
-import { expect, test } from '@playwright/test';
-import { mkdirSync } from 'node:fs';
+import { expect, test, type Page } from '@playwright/test';
+import { mkdirSync, readFileSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
@@ -102,335 +105,592 @@ test('a teacher adds one complete published demo course', async ({ page }) => {
   failures.assertEmpty();
 });
 
-test('a teacher builds a course, shares it by name, and a colleague takes a copy', async ({
+async function authored(page: Page, title: string, module: 'electronics' | 'three-d' | null) {
+  await openNewAssignmentEditor(page);
+  await openAssignmentSettings(page);
+  await page
+    .getByRole('dialog', { name: 'Настройки' })
+    .getByLabel('Среда проекта')
+    .selectOption(module ?? '');
+  if (module)
+    await page
+      .getByRole('dialog', { name: 'Настройки' })
+      .getByLabel('Результат', { exact: true })
+      .selectOption('completion');
+  await closeAssignmentSettings(page);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
+  await page.getByLabel('Содержание', { exact: true }).fill('Exact v1 instructions');
+  if (!module) page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
+  await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
+}
+async function uploadMaterial(page: Page, image: Buffer, pdf: Buffer, text: string) {
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await page
+    .getByLabel('Файл блока изображения')
+    .setInputFiles({ name: 'library.png', mimeType: 'image/png', buffer: image });
+  await expect(page.getByText('Изображение добавлено в содержание задания.')).toBeVisible();
+  await page.getByRole('button', { name: '+ Добавить содержимое', exact: true }).click();
+  await page
+    .getByLabel('PDF файл задания')
+    .setInputFiles({ name: 'library.pdf', mimeType: 'application/pdf', buffer: pdf });
+  await expect(page.getByText('PDF добавлен в содержание задания.')).toBeVisible();
+  await page.getByLabel('Содержание', { exact: true }).fill(text);
+  const ack = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'PUT' &&
+      /\/api\/learning\/activities\/[^/]+\/draft$/.test(new URL(r.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
+  expect((await ack).ok()).toBe(true);
+  await expect(page.getByText('Черновик сохранён на сервере.', { exact: true })).toBeVisible();
+}
+async function publishActivity(page: Page) {
+  const ack = page.waitForResponse(
+    (r) =>
+      r.request().method() === 'POST' &&
+      /\/api\/learning\/activities\/[^/]+\/publish$/.test(new URL(r.url()).pathname),
+  );
+  await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  const result = await ack;
+  expect(result.ok()).toBe(true);
+  await expect(page.getByText(/Опубликована версия \d/)).toBeVisible();
+  return (await result.json()) as { id: string; activityId: string; versionNumber: number };
+}
+async function saveProject(page: Page, module: 'electronics' | 'three-d') {
+  const anchor = page.getByTestId('assignment-brief-anchor');
+  await expect(anchor).toBeVisible({ timeout: 60_000 });
+  if ((await anchor.getAttribute('aria-expanded')) !== 'true') await anchor.click();
+  let count: number;
+  if (module === 'three-d') {
+    await expect(page.getByTestId('asa3d-viewport')).toHaveAttribute('data-runtime-ready', 'true', {
+      timeout: 60_000,
+    });
+    count = Number.parseInt(await page.locator('.asa3d-object-count').innerText(), 10) + 1;
+    await page.getByRole('button', { name: 'Параллелепипед', exact: true }).click();
+    await expect(page.locator('.asa3d-object-count')).toContainText(new RegExp(`^${count} `));
+    await expect(page.locator('.asa3d-save-state')).toHaveClass(/save-saved/);
+  } else {
+    const resistor = page.getByRole('button', { name: 'Резистор', exact: true });
+    await expect(resistor).toBeVisible({ timeout: 60_000 });
+    count = (await page.getByTestId('schematic-component').count()) + 1;
+    const ack = page.waitForResponse(
+      (r) =>
+        r.request().method() === 'PUT' &&
+        /\/api\/projects\/[^/]+\/draft$/.test(new URL(r.url()).pathname) &&
+        (r.request().postDataJSON() as { document: { components: unknown[] } }).document.components
+          .length === count,
+    );
+    const card = (await resistor.boundingBox())!,
+      canvas = (await page.locator('.workbench-canvas').boundingBox())!;
+    await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(canvas.x + canvas.width / 2, canvas.y + canvas.height * 0.65, {
+      steps: 20,
+    });
+    await page.mouse.up();
+    await expect(page.getByTestId('schematic-component')).toHaveCount(count);
+    await page
+      .locator('.workbench-toolbar')
+      .getByRole('button', { name: 'Сохранить проект', exact: true })
+      .click();
+    expect((await ack).ok()).toBe(true);
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+  }
+  const context = await page.request.get(
+    '/api/learning/projects/' + projectId(page, module) + '/context',
+  );
+  expect(context.ok()).toBe(true);
+  expect((await context.json()).origin.immutable).toBe(true);
+  await page.reload();
+  if (module === 'three-d')
+    await expect(page.locator('.asa3d-object-count')).toContainText(new RegExp(`^${count} `));
+  else await expect(page.getByTestId('schematic-component')).toHaveCount(count);
+}
+function projectId(page: Page, module: 'electronics' | 'three-d') {
+  const url = new URL(page.url());
+  return module === 'electronics'
+    ? url.pathname.split('/projects/')[1]!.split('/')[0]!
+    : url.hash.split('/3d/')[1]!.split('?')[0]!;
+}
+
+test('named Library exact mixed v1 copy survives source v2 and lost response then delivers owned media and real work', async ({
   browser,
 }) => {
-  test.setTimeout(180_000);
-
-  const authorContext = await browser.newContext();
-  const authorPage = await authorContext.newPage();
+  test.setTimeout(300_000);
+  const suffix = Date.now().toString(36),
+    title = 'Library ' + suffix;
+  const electronicsTitle = 'Electronics ' + suffix,
+    threeTitle = '3D ' + suffix,
+    manualTitle = 'Material ' + suffix;
+  const image = readFileSync('apps/web/public/landing/electronics-simulation.png');
+  const imageV2 = readFileSync('apps/web/public/landing/three-d-house.png');
+  const pdf = Buffer.from('%PDF-1.4\nLibrary v1\n%%EOF'),
+    pdfV2 = Buffer.from('%PDF-1.4\nLibrary changed v2\n%%EOF');
+  expect(imageV2.equals(image)).toBe(false);
+  expect(pdfV2.equals(pdf)).toBe(false);
+  const authorContext = await browser.newContext(),
+    authorPage = await authorContext.newPage();
+  const mateContext = await browser.newContext(),
+    matePage = await mateContext.newPage();
+  const pageErrors: string[] = [];
+  matePage.on('pageerror', (problem) => pageErrors.push(problem.message));
   const authorFailures = collectBrowserFailures(authorPage, {
     allowAnonymousSessionProbe: true,
     allowAdminAccessProbe: true,
   });
   await loginWithOrganization(authorPage, author);
-
-  const mateContext = await browser.newContext();
-  const matePage = await mateContext.newPage();
-  const mateFailures = collectBrowserFailures(matePage, {
-    allowAnonymousSessionProbe: true,
-    allowAdminAccessProbe: true,
-  });
   await loginWithOrganization(matePage, colleague);
-  const runSuffix = Date.now().toString(36).slice(-7);
-  const courseTitle = `Электроника · ${runSuffix}`;
-  const classTitle = `7А · ${runSuffix}`;
-
-  // Автор пишет и публикует свои canonical project-практики.
-  for (const [title, goal] of [
-    ['Светодиод и резистор', 'Понять, зачем резистор'],
-    ['Кнопка', 'Понять замыкание'],
-  ]) {
-    await openNewAssignmentEditor(authorPage);
-    await authorPage.getByLabel('Название задания', { exact: true }).fill(title!);
-    await authorPage.getByLabel('Цель задания', { exact: true }).fill(goal!);
-    await authorPage.getByRole('button', { name: 'Создать задание', exact: true }).click();
-    await expect(
-      authorPage.getByText('Черновик сохранён. Публикация — отдельное действие.'),
-    ).toBeVisible();
-    await authorPage.getByRole('button', { name: 'Опубликовать', exact: true }).click();
-    await expect(
-      authorPage.getByText('Опубликована версия 1. Материал остаётся закрытым.', { exact: true }),
-    ).toBeVisible();
-    await authorPage.getByRole('button', { name: '← Задания', exact: true }).click();
-  }
-
-  // И собирает из них курс: курс — это разделы, материалы и практика в порядке.
+  await authored(authorPage, electronicsTitle, 'electronics');
+  const electronics = await publishActivity(authorPage);
+  await authored(authorPage, threeTitle, 'three-d');
+  const three = await publishActivity(authorPage);
+  await authored(authorPage, manualTitle, null);
+  await uploadMaterial(authorPage, image, pdf, 'Library material v1');
+  await authorPage.reload();
+  await openExistingAssignmentEditor(authorPage, manualTitle);
+  await expect(authorPage.getByLabel('Содержание', { exact: true })).toHaveValue(
+    'Library material v1',
+  );
+  const manual = await publishActivity(authorPage);
   await bankTab(authorPage, 'Мои курсы').click();
-  await authorPage.getByRole('button', { name: 'Создать курс' }).first().click();
-  const courseDialog = authorPage.getByRole('dialog', { name: 'Новый курс' });
-  await courseDialog.getByLabel('Название').fill(courseTitle);
-  await courseDialog.getByLabel('Короткое описание').fill('Первый маршрут от детали к схеме');
-  await courseDialog.getByRole('button', { name: 'Создать курс' }).click();
-  await expect(authorPage.getByTestId('course-editor')).toBeVisible();
-
-  for (const title of ['Светодиод и резистор', 'Кнопка']) {
-    await authorPage
-      .locator('.course-outline')
-      .getByRole('button', { name: '+ Урок', exact: true })
-      .click();
-    await authorPage.getByLabel('Тип урока').selectOption('assignment');
-    await selectCoursePractice(authorPage, title);
-    await authorPage.getByRole('button', { name: 'Добавить урок' }).click();
-    await expect(authorPage.getByText('Урок добавлен.')).toBeVisible();
-  }
-  const steps = authorPage.locator('.course-outline .course-lesson-link');
-  await expect(steps).toHaveCount(2);
-  await expect(steps.first()).toContainText('Светодиод и резистор');
-  const evidenceStyle = await authorPage.addStyleTag({
-    content: '.portal-header, .portal-sidebar, .skip-link { visibility: hidden !important; }',
-  });
-  await authorPage
-    .getByTestId('course-editor')
-    .screenshot({ path: `${evidenceDir}/course-editor-desktop.png` });
-
-  // The same authoring surface is two-column on a computer and becomes one
-  // column on a phone without creating horizontal page scroll.
-  await expect
-    .poll(() =>
-      authorPage.locator('.course-builder').evaluate((element) => {
-        return getComputedStyle(element).gridTemplateColumns.split(' ').length;
-      }),
-    )
-    .toBe(2);
-  await authorPage.setViewportSize({ width: 390, height: 844 });
-  await expect(authorPage.getByRole('button', { name: 'Предпросмотр' })).toBeVisible();
-  await expect
-    .poll(() =>
-      authorPage.locator('.course-builder').evaluate((element) => {
-        return getComputedStyle(element).gridTemplateColumns.split(' ').length;
-      }),
-    )
-    .toBe(1);
-  expect(
-    await authorPage.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
-  ).toBe(true);
-  await authorPage
-    .getByTestId('course-editor')
-    .screenshot({ path: `${evidenceDir}/course-editor-mobile.png` });
-  await evidenceStyle.evaluate((element) => element.remove());
-  await authorPage.setViewportSize({ width: 1280, height: 720 });
-
-  // Порядок меняется здесь же: курс без порядка — просто список.
-  await steps.first().click();
-  await authorPage.getByRole('button', { name: 'Ниже: Светодиод и резистор' }).click();
-  await expect(authorPage.getByText('Урок перемещён.')).toBeVisible();
-  await expect(steps.first()).toContainText('Кнопка');
-
-  // A real course also contains readable material, not only a row of tasks.
-  await authorPage
+  await authorPage.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const form = authorPage.getByRole('dialog', { name: 'Новый курс' });
+  await form.getByLabel('Название', { exact: true }).fill(title);
+  await form.getByRole('button', { name: 'Создать курс', exact: true }).click();
+  const editor = authorPage.getByTestId('course-editor');
+  await editor
     .locator('.course-outline')
     .getByRole('button', { name: '+ Урок', exact: true })
     .click();
-  await authorPage.getByLabel('Название урока').fill('Почему нужен резистор');
-  await authorPage
-    .getByLabel('Что будет в уроке')
-    .fill('Короткое объяснение перед первой практикой');
-  await authorPage
-    .getByLabel('Текст блока')
-    .fill('Резистор ограничивает ток и защищает светодиод от перегрузки.');
-  await addCourseBlock(authorPage, 'Заголовок');
-  await authorPage.getByLabel('Текст заголовка').fill('Проверьте себя');
-  await addCourseBlock(authorPage, 'Врезка');
-  await authorPage.getByLabel('Тип врезки').selectOption('tip');
-  await authorPage.getByLabel('Текст врезки').fill('Сначала найдите плюс и минус светодиода.');
-  await addCourseBlock(authorPage, 'Картинка');
-  await authorPage.getByLabel('Ссылка на изображение').fill('/assets/assignments/demo-robot.jpg');
-  await authorPage.getByLabel('Описание изображения').fill('Пример учебного проекта');
-  await authorPage.getByLabel('Подпись изображения').fill('Так выглядит готовый результат');
-  await authorPage.getByLabel('Примерное время, минут').fill('5');
-  await authorPage.getByRole('button', { name: 'Добавить урок' }).click();
-  await expect(authorPage.getByText('Урок добавлен.')).toBeVisible();
-  await expect(steps).toHaveCount(3);
-
-  // A learner-facing course is an immutable release, not the editable draft.
-  await authorPage.getByRole('button', { name: 'Опубликовать', exact: true }).click();
-  await expect(authorPage.getByText('Курс опубликован: версия 1.')).toBeVisible();
-  await expect(authorPage.getByText('Опубликован · v1', { exact: true })).toBeVisible();
-  const publishedEvidenceStyle = await authorPage.addStyleTag({
-    content: '.portal-header, .portal-sidebar, .skip-link { visibility: hidden !important; }',
-  });
-  await authorPage
-    .getByTestId('course-editor')
-    .screenshot({ path: `${evidenceDir}/course-published-desktop.png` });
-  await publishedEvidenceStyle.evaluate((element) => element.remove());
-
-  await authorPage.getByRole('button', { name: 'Предпросмотр', exact: true }).click();
-  const studentPreview = authorPage.getByTestId('course-preview-page');
-  await expect(studentPreview).toContainText(courseTitle);
-  await expect(studentPreview.locator('li')).toHaveCount(3);
-  await expect(studentPreview).toContainText('Проверьте себя');
-  await expect(studentPreview).toContainText('Сначала найдите плюс и минус');
-  await expect(studentPreview.getByAltText('Пример учебного проекта')).toBeVisible();
-  const previewEvidenceStyle = await authorPage.addStyleTag({
-    content: '.portal-header, .portal-sidebar, .skip-link { visibility: hidden !important; }',
-  });
-  await authorPage.screenshot({ path: `${evidenceDir}/course-preview-desktop.png` });
-  await previewEvidenceStyle.evaluate((element) => element.remove());
-  await authorPage.getByRole('button', { name: 'Редактировать', exact: true }).click();
-  await expect(authorPage.getByTestId('course-editor')).toBeVisible();
-
-  // The published version is assigned from inside a class. Course delivery and
-  // the separate assignment bank share the existing work/review pipeline.
-  await sidebar(authorPage, 'Классы').click();
-  await authorPage.getByRole('button', { name: 'Создать класс' }).first().click();
-  const classDialog = authorPage.getByRole('dialog', { name: 'Создать класс' });
-  await classDialog.getByLabel('Название класса').fill(classTitle);
-  await classDialog.getByLabel('Возраст учеников').selectOption('11-12');
-  await classDialog.getByLabel('Электроника').check();
-  await classDialog.getByRole('button', { name: 'Создать', exact: true }).click();
-  const classCard = authorPage.getByTestId('classroom-card').filter({ hasText: classTitle });
-  await classCard.locator('.classroom-row-title').click();
-  const joinCode = (await authorPage.locator('.classroom-code-chip').innerText()).trim();
-
-  await authorPage.getByRole('button', { name: 'Добавить ученика' }).click();
-  const studentDialog = authorPage.getByRole('dialog');
-  await studentDialog.getByLabel('Имя в списке класса').fill('Алина');
-  await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
-  const studentCode = (
-    await authorPage
-      .getByRole('row')
-      .filter({ hasText: 'Алина' })
-      .locator('.classroom-login-handle')
-      .innerText()
-  ).trim();
-  expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
-
-  await authorPage
-    .locator('.classroom-workspace-tabs')
-    .getByRole('button', { name: 'Обучение', exact: true })
+  await editor.getByLabel('Название урока').fill('Mixed v1');
+  await editor.getByLabel('Текст блока', { exact: true }).fill('Before v1');
+  await addCourseBlock(authorPage, 'Материал из библиотеки');
+  await editor.getByRole('button', { name: 'Выбрать материал', exact: true }).click();
+  await editor
+    .getByRole('button', { name: `Добавить материал «${manualTitle}»`, exact: true })
     .click();
-  await expect(authorPage.getByTestId('classroom-courses')).toBeVisible();
-  await authorPage.getByLabel('Опубликованный курс').selectOption({ label: `${courseTitle} · v1` });
-  await authorPage.getByRole('button', { name: 'Назначить курс' }).click();
-  await expect(authorPage.getByText(`Курс «${courseTitle}» · v1 назначен классу.`)).toBeVisible();
-  const teacherRun = authorPage.getByTestId('classroom-course-run');
-  await expect(teacherRun).toContainText(courseTitle);
-  await expect(teacherRun).toContainText('Проверить работы');
-  await teacherRun.screenshot({ path: `${evidenceDir}/classroom-course-desktop.png` });
-
-  // A learner enters with the ordinary class code and receives the same fixed
-  // version as a course player, not as two unrelated cards.
-  const studentContext = await browser.newContext();
-  const studentPage = await studentContext.newPage();
-  const studentFailures = collectBrowserFailures(studentPage, {
-    allowAnonymousSessionProbe: true,
-    allowAdminAccessProbe: true,
-  });
-  await studentPage.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
-  await expect(studentPage.getByLabel('Код ученика', { exact: true })).toBeVisible();
-  await expect(studentPage.getByRole('button', { name: 'Продолжить', exact: true })).toHaveCount(0);
-  await studentPage.getByLabel('Код ученика', { exact: true }).fill(studentCode);
-  await expect(studentPage.getByRole('button', { name: 'Войти', exact: true })).toBeEnabled();
-  await studentPage.getByRole('button', { name: 'Войти', exact: true }).click();
-  await sidebar(studentPage, 'Обучение').click();
-  await expect(studentPage.getByRole('heading', { name: 'Обучение', exact: true })).toBeVisible();
-  const studentCourses = studentPage.getByTestId('seat-courses');
-  await expect(studentCourses).toContainText(courseTitle);
-  await studentCourses.getByRole('button', { name: new RegExp(courseTitle) }).click();
-  const player = studentPage.getByTestId('seat-course-player');
-  await expect(player).toContainText('Курс · v1');
-  await expect(player).toContainText('Светодиод и резистор');
-  await player.screenshot({ path: `${evidenceDir}/student-course-desktop.png` });
-  await player.getByRole('button', { name: /Почему нужен резистор/ }).click();
-  await expect(player).toContainText('Резистор ограничивает ток');
-  await expect(player).toContainText('Проверьте себя');
-  await expect(player).toContainText('Сначала найдите плюс и минус');
-  await expect(player.getByAltText('Пример учебного проекта')).toBeVisible();
-  await player.getByRole('button', { name: 'Отметить пройденным' }).click();
-  await expect(player).toContainText('Пройдено 1 из 3');
-  await studentPage.setViewportSize({ width: 390, height: 844 });
-  await expect
-    .poll(() => studentPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
-    .toBe(true);
-  await player.screenshot({ path: `${evidenceDir}/student-course-mobile.png` });
-  studentFailures.assertEmpty();
-  await studentContext.close();
-
-  // Return to the author's draft for the sharing scenario below.
-  await sidebar(authorPage, 'Курсы и задания').click();
-  await bankTab(authorPage, 'Мои курсы').click();
-  await authorPage
-    .getByTestId('courses-list')
-    .locator('li')
-    .filter({ hasText: courseTitle })
-    .locator('.course-row-main')
-    .click();
-  await expect(authorPage.getByTestId('course-editor')).toBeVisible();
-
-  /**
-   * Кому видно. Пока «только мне» — курса нет ни у кого, даже у коллеги из
-   * соседней школы, которому его собираются открыть.
-   */
+  await addCourseBlock(authorPage, 'Практика');
+  await selectCoursePractice(authorPage, electronicsTitle);
+  await addCourseBlock(authorPage, 'Практика');
+  await selectCoursePractice(authorPage, threeTitle, 1);
+  await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(authorPage.getByText('Урок добавлен.', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(authorPage.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  const source = (
+    await admin.query('SELECT id FROM courses WHERE title=$1 AND tenant_id=$2', [
+      title,
+      author.tenantId,
+    ])
+  ).rows[0].id as string;
   await sidebar(matePage, 'Курсы и задания').click();
   await bankTab(matePage, 'Каталог').click();
-  await expect(matePage.getByText(courseTitle, { exact: true })).toHaveCount(0);
-
-  await authorPage.getByRole('button', { name: 'Доступ', exact: true }).click();
+  await expect(matePage.getByText(title, { exact: true })).toHaveCount(0);
+  await editor.getByRole('button', { name: 'Доступ', exact: true }).click();
   const share = authorPage.getByRole('dialog', { name: 'Кому видно' });
   await share.getByRole('radio', { name: /Названным преподавателям/ }).click();
   await share.getByLabel('Почта преподавателя').fill(colleague.email);
   await share.getByRole('button', { name: 'Открыть доступ' }).click();
   await expect(share.getByTestId('share-list')).toContainText(colleague.email);
   await share.getByRole('button', { name: 'Готово' }).click();
-
-  // Теперь курс виден названному коллеге — и виден целиком, до того как он его
-  // возьмёт: брать вслепую никто не должен.
   await matePage.reload();
-  await sidebar(matePage, 'Курсы и задания').click();
   await bankTab(matePage, 'Каталог').click();
-  const card = matePage
-    .getByTestId('catalogue-list')
-    .locator('li')
-    .filter({ hasText: courseTitle });
-  await expect(card).toHaveCount(1);
-  // Кто автор — написано: преподаватель решает, брать ли работу незнакомца.
-  await expect(card.locator('.catalogue-author')).toContainText('Педагог course-author');
-  await card.getByRole('button', { name: 'Посмотреть' }).click();
-  const preview = matePage.getByRole('dialog', { name: courseTitle });
-  await expect(preview.getByTestId('catalogue-course-lesson')).toHaveCount(3);
-  await expect(preview).toContainText('Почему нужен резистор');
-  await preview.getByText('Почему нужен резистор', { exact: true }).click();
-  await expect(preview).toContainText('Резистор ограничивает ток');
-  await preview.screenshot({ path: `${evidenceDir}/catalogue-preview-desktop.png` });
-  await matePage.setViewportSize({ width: 390, height: 844 });
-  await expect
-    .poll(() => matePage.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
-    .toBe(true);
-  await preview.screenshot({ path: `${evidenceDir}/catalogue-preview-mobile.png` });
-  await matePage.setViewportSize({ width: 1280, height: 720 });
-
-  await preview.getByRole('button', { name: 'Забрать себе' }).click();
-  await expect(matePage.getByText(`Курс «${courseTitle}» у вас.`, { exact: false })).toBeVisible();
-
-  /**
-   * Забранное — копия. Она своя: лежит в своей папке, закрыта от всех и не
-   * меняется, когда автор правит оригинал.
-   */
-  await bankTab(matePage, 'Мои курсы').click();
-  const mine = matePage.getByTestId('courses-list').locator('li').first();
-  await expect(mine).toContainText('из каталога');
-  await expect(mine).toContainText('Только мне');
-
-  await authorPage.getByRole('button', { name: 'Курсы', exact: true }).click();
-  await bankTab(authorPage, 'Банк заданий').click();
-  const authorRow = authorPage
-    .getByTestId('assignment-library')
-    .locator('li')
-    .filter({ hasText: 'Кнопка' });
-  await authorRow.getByRole('button', { name: 'Изменить' }).click();
-  const editing = authorPage.getByRole('dialog', { name: 'Задание' });
-  await editing.getByLabel('Название').fill('Кнопка (исправлено автором)');
-  await editing.getByRole('button', { name: 'Сохранить' }).click();
-  await expect(authorPage.getByText(/сохранено/)).toBeVisible();
-
-  await matePage.reload();
-  await sidebar(matePage, 'Курсы и задания').click();
-  await bankTab(matePage, 'Банк заданий').click();
-  await expect(matePage.getByTestId('assignment-library')).toContainText('Кнопка');
-  await expect(matePage.getByTestId('assignment-library')).not.toContainText('исправлено автором');
-
-  // The published version remains intact, while the author gets an explicit
-  // signal that the draft now differs and can deliberately publish v2.
+  await matePage.getByRole('searchbox').fill(title);
+  const card = matePage.getByTestId('catalogue-list').locator('li').filter({ hasText: title });
+  await card.getByRole('button', { name: 'Посмотреть', exact: true }).click();
+  let preview = matePage.getByRole('dialog', { name: title });
+  await expect(preview.getByText('Опубликованная версия 1', { exact: true })).toBeVisible();
+  await preview.getByText('Mixed v1', { exact: true }).click();
+  await expect(preview).toContainText('Library material v1');
+  await expect(preview).toContainText(electronicsTitle);
+  await expect(preview).toContainText(threeTitle);
+  const frozenResponse = await matePage.request.get(`/api/catalogue/courses/${source}`);
+  expect(frozenResponse.ok()).toBe(true);
+  const frozen = (await frozenResponse.json()) as {
+    versionId: string;
+    versionNumber: number;
+    contentHash: string;
+    pinnedItems: Record<string, { blocks: Array<{ type: string; src?: string }> }>;
+  };
+  expect(JSON.stringify(frozen)).not.toMatch(
+    /policy_snapshot|starterProject|draft_payload|projectDocument/,
+  );
+  const sourceMedia = frozen.pinnedItems[manual.id]!.blocks;
+  for (const [type, bytes] of [
+    ['image', image],
+    ['file', pdf],
+  ] as const) {
+    const src = sourceMedia.find((b) => b.type === type)!.src!;
+    const response = await matePage.request.get(src);
+    expect(response.ok()).toBe(true);
+    expect(await response.body()).toEqual(bytes);
+  }
+  for (const width of [1440, 1024, 390, 320]) {
+    await matePage.setViewportSize({ width, height: 900 });
+    expect(
+      await matePage.evaluate(() => document.documentElement.scrollWidth - innerWidth),
+    ).toBeLessThanOrEqual(0);
+    await matePage.screenshot({
+      path: `${evidenceDir}/library-preview-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await matePage.setViewportSize({ width: 1440, height: 900 });
+  // Author publishes different media, then course v2 while colleague's v1 dialog stays open.
+  await openExistingAssignmentEditor(authorPage, manualTitle);
+  await uploadMaterial(authorPage, imageV2, pdfV2, 'Library material v2');
+  expect((await publishActivity(authorPage)).versionNumber).toBe(2);
   await bankTab(authorPage, 'Мои курсы').click();
-  const changedCourse = authorPage
+  await authorPage
     .getByTestId('courses-list')
-    .locator('li')
-    .filter({ hasText: courseTitle });
-  await expect(changedCourse).toContainText('Есть изменения · v1');
-
+    .getByRole('button')
+    .filter({ hasText: title })
+    .click();
+  await editor.getByLabel('Название урока').fill('Source v2');
+  await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
+  await expect(authorPage.getByText('Урок сохранён.', { exact: true })).toBeVisible();
+  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(authorPage.getByText('Курс опубликован: версия 2.', { exact: true })).toBeVisible();
+  expect(
+    (await (await matePage.request.get(`/api/catalogue/courses/${source}`)).json()).versionNumber,
+  ).toBe(2);
+  const copyRequests: unknown[] = [];
+  let lost = false;
+  await matePage.route(`**/api/catalogue/course/${source}/take`, async (route) => {
+    copyRequests.push(route.request().postDataJSON());
+    const response = await route.fetch();
+    expect(response.ok()).toBe(true);
+    if (!lost) {
+      lost = true;
+      await route.abort('failed');
+    } else {
+      expect((await response.json()).reused).toBe(true);
+      await route.fulfill({ response });
+    }
+  });
+  await preview.getByRole('button', { name: 'Забрать себе', exact: true }).click();
+  await expect(matePage.getByRole('alert')).toBeVisible();
+  await preview.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await bankTab(matePage, 'Мои курсы').click();
+  await expect(matePage.getByTestId('catalogue-list')).toBeVisible();
+  await expect(matePage.getByTestId('course-editor')).toHaveCount(0);
+  await matePage.getByRole('button', { name: 'Подтвердить копирование', exact: true }).click();
+  preview = matePage.getByRole('dialog', { name: title });
+  await expect(preview).toContainText('Опубликованная версия 1');
+  await preview.getByRole('button', { name: 'Забрать себе', exact: true }).click();
+  const ownEditor = matePage.getByTestId('course-editor');
+  await expect(ownEditor).toBeVisible();
+  expect(copyRequests).toHaveLength(2);
+  expect(copyRequests[1]).toEqual(copyRequests[0]);
+  expect(copyRequests[0]).toMatchObject({
+    versionId: frozen.versionId,
+    contentHash: frozen.contentHash,
+    requestId: expect.any(String),
+  });
+  await expect(ownEditor.getByLabel('Название урока')).toHaveValue('Mixed v1');
+  await expect(ownEditor.getByTestId('course-pinned-material')).toContainText(
+    'Library material v1',
+  );
+  const identity = (
+    await admin.query(
+      'SELECT principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [colleague.tenantId, colleague.teacherId],
+    )
+  ).rows[0];
+  const copies = (
+    await admin.query(
+      'SELECT id FROM courses WHERE copied_from_course_id=$1 AND owner_principal_id=$2',
+      [source, identity.principal_id],
+    )
+  ).rows;
+  expect(copies).toHaveLength(1);
+  const ownCourse = copies[0].id as string;
+  const ownBlocks = (
+    await admin.query('SELECT blocks FROM course_lessons WHERE course_id=$1', [ownCourse])
+  ).rows[0].blocks as Array<{ id: string; type: string; learningActivityVersionId?: string }>;
+  expect(ownBlocks.map((b) => b.type)).toEqual([
+    'paragraph',
+    'manual-material',
+    'activity',
+    'activity',
+  ]);
+  const ownPins = ownBlocks.slice(1).map((b) => b.learningActivityVersionId!);
+  expect(ownPins).not.toEqual([manual.id, electronics.id, three.id]);
+  const ownerRows = (
+    await admin.query(
+      'SELECT a.owner_principal_id,v.tenant_id FROM learning_activity_versions v JOIN learning_activities a ON a.id=v.activity_id WHERE v.id=ANY($1::uuid[])',
+      [ownPins],
+    )
+  ).rows;
+  expect(ownerRows).toHaveLength(3);
+  expect(
+    ownerRows.every(
+      (r) => r.owner_principal_id === identity.principal_id && r.tenant_id === colleague.tenantId,
+    ),
+  ).toBe(true);
+  const ownMaterial = (
+    await admin.query('SELECT activity_id FROM learning_activity_versions WHERE id=$1', [
+      ownPins[0],
+    ])
+  ).rows[0].activity_id;
+  const ownPreview = await matePage.request.get(
+    `/api/learning/activities/${ownMaterial}/preview?source=published&versionId=${ownPins[0]}`,
+  );
+  expect(ownPreview.ok()).toBe(true);
+  const ownMedia = (await ownPreview.json()).assignment.blocks as Array<{
+    type: string;
+    src?: string;
+  }>;
+  for (const [type, bytes] of [
+    ['image', image],
+    ['file', pdf],
+  ] as const) {
+    const response = await matePage.request.get(ownMedia.find((b) => b.type === type)!.src!);
+    expect(response.ok()).toBe(true);
+    expect(await response.body()).toEqual(bytes);
+  }
+  expect(
+    (
+      await matePage.request.get(
+        `/api/learning/activities/${manual.activityId}/preview?source=published&versionId=${manual.id}`,
+      )
+    ).status(),
+  ).toBe(404);
+  const authorIdentity = (
+    await admin.query(
+      'SELECT account_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [author.tenantId, author.teacherId],
+    )
+  ).rows[0];
+  const authorPersonal = (
+    await admin.query(
+      "INSERT INTO tenants(workspace_slug,title) VALUES($1,'Private Library author') RETURNING id",
+      ['lib-author-personal-' + suffix],
+    )
+  ).rows[0].id;
+  await admin.query("INSERT INTO tenant_placements(tenant_id,mode) VALUES($1,'SHARED_CLUSTER')", [
+    authorPersonal,
+  ]);
+  const authorWorkspace = (
+    await admin.query(
+      "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'personal','Private Library author') RETURNING id",
+      [authorPersonal],
+    )
+  ).rows[0].id;
+  await admin.query(
+    "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
+    [authorIdentity.account_id, authorWorkspace],
+  );
+  expect(
+    (
+      await authorPage.request.post('/api/session/context', {
+        headers: { origin: new URL(authorPage.url()).origin },
+        data: { workspaceId: authorWorkspace },
+      })
+    ).ok(),
+  ).toBe(true);
+  const authorProjects = await authorPage.request.post('/api/projects', {
+    headers: {
+      origin: new URL(authorPage.url()).origin,
+      'idempotency-key': 'private-library-' + suffix,
+    },
+    data: {
+      scope: 'personal',
+      classroomId: null,
+      module: 'electronics',
+      title: 'Private source ' + suffix,
+    },
+  });
+  expect(authorProjects.ok()).toBe(true);
+  const privateProject = (await authorProjects.json()).project.id as string;
+  expect((await authorPage.request.get(`/api/projects/${privateProject}`)).ok()).toBe(true);
+  expect((await matePage.request.get(`/api/projects/${privateProject}`)).status()).toBe(404);
+  await ownEditor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await expect(matePage.getByText('Курс опубликован: версия 1.', { exact: true })).toBeVisible();
+  // Recipient's own class and both login paths receive this copied version.
+  await sidebar(matePage, 'Классы').click();
+  await matePage
+    .getByRole('button', { name: /^Создать(?: новый)? класс$/ })
+    .first()
+    .click();
+  const create = matePage.getByRole('dialog', { name: 'Создать класс' });
+  await create.getByLabel('Название класса').fill('Library class ' + suffix);
+  await create.getByRole('button', { name: 'Создать', exact: true }).click();
+  await matePage
+    .getByTestId('classroom-card')
+    .filter({ hasText: 'Library class ' + suffix })
+    .locator('.classroom-row-title')
+    .click();
+  const classUrl = matePage.url(),
+    joinCode = (await matePage.locator('.classroom-code-chip').innerText()).trim();
+  await matePage.getByRole('button', { name: 'Добавить ученика', exact: true }).click();
+  const seatForm = matePage.getByRole('dialog');
+  await seatForm.getByLabel('Имя в списке класса').fill('Library Seat');
+  await seatForm.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await expect(seatForm).toBeHidden();
+  const seatCode = (
+    await matePage
+      .getByRole('row')
+      .filter({ hasText: 'Library Seat' })
+      .locator('.classroom-login-handle')
+      .innerText()
+  ).trim();
+  await sidebar(matePage, 'Курсы и задания').click();
+  await bankTab(matePage, 'Мои курсы').click();
+  await matePage.getByTestId('courses-list').getByRole('button').filter({ hasText: title }).click();
+  await ownEditor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
+  const assign = matePage.getByRole('dialog', { name: 'Назначить курс', exact: true });
+  await assign.getByLabel('Класс для курса').selectOption({ label: 'Library class ' + suffix });
+  await assign.getByRole('button', { name: 'Назначить', exact: true }).click();
+  await expect(assign.getByRole('status')).toContainText('Курс назначен');
+  await assign.getByRole('button', { name: 'Закрыть назначение', exact: true }).click();
+  const seatContext = await browser.newContext(),
+    seatPage = await seatContext.newPage();
+  await seatPage.goto(`/#/join-class?code=${joinCode}`);
+  await seatPage.getByLabel('Код ученика', { exact: true }).fill(seatCode);
+  await seatPage.getByRole('button', { name: 'Войти', exact: true }).click();
+  const account = await seedTeacher(admin, 'library-approved-' + suffix);
+  const accountIdentity = (
+    await admin.query(
+      'SELECT account_id,principal_id FROM legacy_user_account_links WHERE tenant_id=$1 AND user_id=$2',
+      [account.tenantId, account.teacherId],
+    )
+  ).rows[0];
+  const personal = (
+    await admin.query(
+      "INSERT INTO tenants(workspace_slug,title) VALUES($1,'Library personal') RETURNING id",
+      ['lib-personal-' + suffix],
+    )
+  ).rows[0].id;
+  await admin.query("INSERT INTO tenant_placements(tenant_id,mode) VALUES($1,'SHARED_CLUSTER')", [
+    personal,
+  ]);
+  const personalWorkspace = (
+    await admin.query(
+      "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'personal','Library personal') RETURNING id",
+      [personal],
+    )
+  ).rows[0].id;
+  await admin.query(
+    "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
+    [accountIdentity.account_id, personalWorkspace],
+  );
+  const accountContext = await browser.newContext(),
+    accountPage = await accountContext.newPage();
+  await loginWithOrganization(accountPage, account);
+  await accountPage.goto('/#/attending');
+  await accountPage.getByLabel('Код класса', { exact: true }).fill(joinCode);
+  await accountPage.getByRole('button', { name: 'Войти в класс', exact: true }).click();
+  await expect(accountPage.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
+  await matePage.goto(classUrl);
+  await matePage
+    .getByRole('navigation', { name: 'Разделы класса' })
+    .getByRole('button', { name: 'Учащиеся', exact: true })
+    .click();
+  await matePage.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
+  await matePage.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+  await expect(matePage.locator('.learning-join-requests')).toContainText('Принята');
+  const learnerFailures = [
+    collectBrowserFailures(seatPage, {
+      allowAnonymousSessionProbe: true,
+      allowAdminAccessProbe: true,
+    }),
+    collectBrowserFailures(accountPage, {
+      allowAnonymousSessionProbe: true,
+      allowAdminAccessProbe: true,
+    }),
+  ];
+  const copiedRun = (
+    await admin.query('SELECT id FROM classroom_course_runs WHERE course_id=$1', [ownCourse])
+  ).rows[0].id as string;
+  const copiedLesson = (
+    await admin.query(
+      'SELECT l.id FROM classroom_course_run_lessons l WHERE l.run_id=$1 ORDER BY l.lesson_position',
+      [copiedRun],
+    )
+  ).rows[0].id as string;
+  for (const [learner, module, practice] of [
+    [seatPage, 'electronics', electronicsTitle],
+    [accountPage, 'three-d', threeTitle],
+  ] as const) {
+    const openCourse = async () => {
+      await learner.goto('/#/learning');
+      await learner
+        .getByTestId('seat-courses')
+        .getByRole('button')
+        .filter({ hasText: title })
+        .click();
+      return learner.getByTestId('seat-course-player');
+    };
+    let player = await openCourse();
+    await expect(player.getByTestId('course-manual-material')).toContainText('Library material v1');
+    const materialResponse = await learner.request.get(
+      `/api/class-join/course-runs/${copiedRun}/lessons/${copiedLesson}/materials/${ownBlocks[1]!.id}`,
+    );
+    expect(materialResponse.ok()).toBe(true);
+    const material = (await materialResponse.json()).blocks as Array<{
+      type: string;
+      src?: string;
+    }>;
+    for (const [type, bytes] of [
+      ['image', image],
+      ['file', pdf],
+    ] as const) {
+      const response = await learner.request.get(material.find((b) => b.type === type)!.src!);
+      expect(response.ok()).toBe(true);
+      expect(await response.body()).toEqual(bytes);
+    }
+    let activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
+    await activity.getByRole('button', { name: 'Начать', exact: true }).click();
+    await saveProject(learner, module);
+    const started = projectId(learner, module);
+    player = await openCourse();
+    activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
+    await activity.getByRole('button', { name: 'Открыть работу', exact: true }).click();
+    expect(projectId(learner, module)).toBe(started);
+    await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible({ timeout: 60_000 });
+    player = await openCourse();
+    activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
+    const submit = learner.waitForResponse(
+      (r) =>
+        r.request().method() === 'POST' &&
+        new URL(r.url()).pathname === `/api/learning/projects/${started}/submit`,
+    );
+    learner.once('dialog', (d) => void d.accept());
+    await activity.getByRole('button', { name: 'Сдать', exact: true }).click();
+    expect((await submit).ok()).toBe(true);
+    await expect(activity).toContainText('Сдано');
+    await matePage.goto(classUrl);
+    await matePage.getByRole('button', { name: /^Оповещения/ }).click();
+    const inbox = matePage.getByRole('dialog', { name: 'Учебные оповещения' });
+    const event = inbox
+      .locator('li')
+      .filter({ hasText: 'Работа сдана' })
+      .filter({ hasText: practice });
+    await expect(event).toBeVisible({ timeout: 30_000 });
+    await event.getByRole('link', { name: 'Открыть', exact: true }).click();
+    const detail = matePage.getByRole('region', { name: 'Проверка сдачи' });
+    await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+    await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
+    await expect(detail.getByText('Ревизия 1 · Принято', { exact: true })).toBeVisible();
+    player = await openCourse();
+    await expect(
+      player.locator('.lesson-activity-block').filter({ hasText: practice }),
+    ).toContainText('Выполнено');
+    await learner.screenshot({ path: `${evidenceDir}/library-${module}-submitted.png` });
+    await detail.screenshot({ path: `${evidenceDir}/library-${module}-accepted.png` });
+  }
+  expect(pageErrors).toEqual([]);
   authorFailures.assertEmpty();
-  mateFailures.assertEmpty();
-  await authorContext.close();
-  await mateContext.close();
+  for (const failures of learnerFailures) failures.assertEmpty();
+  await Promise.all([
+    authorContext.close(),
+    mateContext.close(),
+    seatContext.close(),
+    accountContext.close(),
+  ]);
 });

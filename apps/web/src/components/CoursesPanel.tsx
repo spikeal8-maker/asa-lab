@@ -1338,14 +1338,16 @@ export function CoursesPanel({
   canTeach,
   onChanged,
   onRegisterLeaveGuard,
+  initialCourseId,
 }: {
   readonly assignments: readonly LibraryAssignment[];
   readonly canTeach: boolean;
   readonly onChanged: () => void;
   readonly onRegisterLeaveGuard?: (guard: (() => boolean) | null) => void;
+  readonly initialCourseId?: string | null;
 }): JSX.Element {
   const [courses, setCourses] = useState<Course[] | null>(null);
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(initialCourseId ?? null);
   const [courseForm, setCourseForm] = useState<Course | null | 'new'>(null);
   const [sharing, setSharing] = useState<Course | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

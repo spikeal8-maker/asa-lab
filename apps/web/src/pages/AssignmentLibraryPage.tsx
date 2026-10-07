@@ -176,6 +176,7 @@ export function AssignmentLibraryPage({
   const [error, setError] = useState<string | null>(null);
   /** Курсы — основной рабочий экран; банк заданий остаётся строительным материалом. */
   const [tab, setTab] = useState<'materials' | 'bank' | 'courses' | 'catalogue'>('materials');
+  const [copiedCourseId, setCopiedCourseId] = useState<string | null>(null);
   const [sharing, setSharing] = useState<LibraryAssignment | null>(null);
   const leaveGuard = useRef<(() => boolean) | null>(null);
   const registerLeaveGuard = useCallback(
@@ -292,6 +293,7 @@ export function AssignmentLibraryPage({
 
   function selectTab(next: 'materials' | 'bank' | 'courses' | 'catalogue'): void {
     if (next !== tab && !(leaveGuard.current?.() ?? true)) return;
+    if (next !== 'courses') setCopiedCourseId(null);
     setTab(next);
     setNotice(null);
     setError(null);
@@ -377,6 +379,7 @@ export function AssignmentLibraryPage({
       ) : null}
       {tab === 'courses' ? (
         <CoursesPanel
+          initialCourseId={copiedCourseId}
           assignments={all}
           canTeach={canTeach}
           onChanged={() => void reload()}
@@ -384,7 +387,20 @@ export function AssignmentLibraryPage({
         />
       ) : null}
       {tab === 'catalogue' ? (
-        <CataloguePanel modules={modules} onTaken={() => void reload()} />
+        <CataloguePanel
+          modules={modules}
+          onRegisterLeaveGuard={registerLeaveGuard}
+          onTaken={(kind, receipt) => {
+            void reload();
+            if (kind === 'course') {
+              setCopiedCourseId(receipt.id);
+              setNotice(
+                `Скопирована опубликованная версия ${receipt.sourceVersionNumber}. Курс открыт для редактирования.`,
+              );
+              setTab('courses');
+            }
+          }}
+        />
       ) : null}
 
       <div className="library-layout" hidden={tab !== 'bank'}>

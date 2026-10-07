@@ -60,6 +60,60 @@ function controller(
 }
 
 describe('course outline API', () => {
+  it('copies only an explicitly viewed release and returns its durable replay receipt', async () => {
+    const target = controller([
+      {
+        result_code: 'ok',
+        id: COURSE_ID,
+        source_version_id: VERSION_ID,
+        source_version_number: 1,
+        source_content_hash: 'a'.repeat(32),
+        reused: true,
+      },
+    ]);
+    const exact = {
+      versionId: VERSION_ID,
+      contentHash: 'a'.repeat(32),
+      requestId: 'copy-request-1',
+      destinationTenantId: SECTION_ID,
+    };
+    await expect(target.value.take(request(), 'course', COURSE_ID, exact)).resolves.toEqual({
+      id: COURSE_ID,
+      sourceVersionId: VERSION_ID,
+      sourceVersionNumber: 1,
+      sourceContentHash: 'a'.repeat(32),
+      reused: true,
+    });
+    expect(target.query).toHaveBeenCalledWith(expect.stringContaining('course_catalogue_take_v2'), [
+      'principal-id',
+      'account-id',
+      'tenant-id',
+      COURSE_ID,
+      VERSION_ID,
+      'a'.repeat(32),
+      'copy-request-1',
+      SECTION_ID,
+    ]);
+    await expect(target.value.take(request(), 'course', COURSE_ID, {})).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+  });
+  it('reports a frozen-request mismatch without retrying latest or issuing a legacy copy', async () => {
+    const target = controller([{ result_code: 'idempotency_conflict' }]);
+    await expect(
+      target.value.take(request(), 'course', COURSE_ID, {
+        versionId: VERSION_ID,
+        contentHash: 'a'.repeat(32),
+        requestId: 'copy-request-1',
+        destinationTenantId: SECTION_ID,
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      response: { error: { code: 'idempotency_conflict' } },
+    });
+    expect(target.query).toHaveBeenCalledTimes(1);
+  });
   it('returns a distinct safe legacy refusal message for the existing author history UI', async () => {
     const target = controller([{ result_code: 'source_not_restorable', draft_revision: 7 }]);
     await expect(
