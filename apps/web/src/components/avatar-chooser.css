@@ -194,7 +194,8 @@
   }
   .avatar-chooser-dialog .avatar-chooser-actions {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    /* The sent-save label is longer than Cancel; reserve its actual text width. */
+    grid-template-columns: minmax(max-content, 1fr) minmax(0, 2fr);
     align-items: stretch;
   }
   .avatar-chooser-dialog .avatar-chooser-actions button {

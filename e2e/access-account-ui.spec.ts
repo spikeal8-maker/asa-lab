@@ -2044,6 +2044,8 @@ const avatarRepairEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-re
 const avatarFontEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-font-repair-20261008';
 const avatarLifecycleEvidence =
   'reports/playwright/settings-ui/portal-avatar-s2-lifecycle-repair-20261008';
+const avatarPendingFontEvidence =
+  'reports/playwright/settings-ui/portal-avatar-s2-pending-font-repair-20261008';
 
 async function delayedAvatarWrite(page: Page, seat: boolean) {
   let release!: () => void;
@@ -2211,20 +2213,26 @@ for (const seat of [false, true])
   });
 
 for (const width of [320, 600, 601])
-  for (const seat of [false, true])
-    test(`S2 avatar action row tolerates wider 16px font ${seat ? 'seat' : 'account'} ${width}`, async ({
+  for (const { seat, letterSpacing } of [
+    ...[false, true].map((seat) => ({ seat, letterSpacing: 1 })),
+    ...(width === 320 ? [false, true].map((seat) => ({ seat, letterSpacing: 2 })) : []),
+  ])
+    test(`S2 avatar action row tolerates ${letterSpacing === 2 ? 'pending-label wider' : 'wider'} 16px font ${seat ? 'seat' : 'account'} ${width}`, async ({
       page,
     }) => {
-      mkdirSync(avatarFontEvidence, { recursive: true });
+      const fontEvidence = letterSpacing === 2 ? avatarPendingFontEvidence : avatarFontEvidence;
+      mkdirSync(fontEvidence, { recursive: true });
       await page.setViewportSize({ width, height: 568 });
       await fixture(page, { seat, presentationLongContent: true });
       let releaseSave!: () => void;
+      let sentWrites = 0;
       const saveGate = new Promise<void>((resolve) => (releaseSave = resolve));
       await page.route(
         seat ? '**/api/class-join/me/avatar' : '**/api/account/avatar',
         async (route) => {
           if (route.request().method() === 'GET')
             return route.fulfill({ json: { avatarDataUrl: null } });
+          sentWrites += 1;
           await saveGate;
           return route.fulfill({
             status: 503,
@@ -2244,13 +2252,16 @@ for (const width of [320, 600, 601])
         .click();
       const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
       await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
-      // Reproduce the wider Cyrillic fallback metrics that exposed wrapping in
-      // Linux CI. Keep the readable 16px text and the original Russian labels.
+      // Keep the original six fallback-font cases. Two extra narrow cases widen
+      // glyph advance enough to expose the longer sent-save label on Windows too.
       await page.addStyleTag({
         content: `.avatar-chooser-dialog .avatar-chooser-actions button {
           font-family: monospace;
           font-size: 16px;
           letter-spacing: 1px;
+        }
+        .avatar-chooser-dialog .avatar-chooser-actions button:first-child {
+          letter-spacing: ${letterSpacing}px;
         }`,
       });
       const samples: unknown[] = [];
@@ -2275,6 +2286,13 @@ for (const width of [320, 600, 601])
                 left: r.left,
                 right: r.right,
                 text: button.textContent,
+                textWidth: textBounds.width,
+                contentWidth:
+                  r.width -
+                  parseFloat(style.paddingLeft) -
+                  parseFloat(style.paddingRight) -
+                  parseFloat(style.borderLeftWidth) -
+                  parseFloat(style.borderRightWidth),
                 textFits:
                   textBounds.left >= r.left &&
                   textBounds.right <= r.right &&
@@ -2295,11 +2313,11 @@ for (const width of [320, 600, 601])
         });
         samples.push({ state, ...metrics });
         writeFileSync(
-          `${avatarFontEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
+          `${fontEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
           JSON.stringify(samples, null, 2),
         );
         await page.screenshot({
-          path: `${avatarFontEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}.png`,
+          path: `${fontEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}.png`,
         });
         expect(metrics.actions).toHaveLength(2);
         expect(Math.abs(metrics.actions[0]!.top - metrics.actions[1]!.top)).toBeLessThan(1);
@@ -2326,7 +2344,9 @@ for (const width of [320, 600, 601])
         await expect(use).toBeEnabled();
         await assertActions('selected');
         await use.click();
+        await expect.poll(() => sentWrites).toBe(1);
         await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
+        await expect(dialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeEnabled();
         await expect(use).toBeDisabled();
         await assertActions('busy');
         releaseSave();
