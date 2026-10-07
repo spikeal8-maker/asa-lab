@@ -410,7 +410,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await editor.getByLabel('Название урока').fill('Source v2');
   await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
   await expect(authorPage.getByText('Урок сохранён.', { exact: true })).toBeVisible();
-  await editor.getByRole('button', { name: 'Опубликовать', exact: true }).click();
+  await editor.getByRole('button', { name: 'Опубликовать v2', exact: true }).click();
   await expect(authorPage.getByText('Курс опубликован: версия 2.', { exact: true })).toBeVisible();
   expect(
     (await (await matePage.request.get(`/api/catalogue/courses/${source}`)).json()).versionNumber,
