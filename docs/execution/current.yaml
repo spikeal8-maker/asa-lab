@@ -135,31 +135,37 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e9c9bab28b0870d3d98fa3097ba6d20299efdcbe
+      convergence_baseline_sha: ce51170f8d28cdec9f50eee5f43b5f86dc5c4a65
       head_sha: null
-      observed_at: '2026-10-07T16:32:36Z'
+      observed_at: '2026-10-07T17:43:21Z'
       main:
         branch: main
-        sha: e9c9bab28b0870d3d98fa3097ba6d20299efdcbe
+        sha: ce51170f8d28cdec9f50eee5f43b5f86dc5c4a65
       observation_note: >-
-        Dated published main e9c9bab28b0870d3d98fa3097ba6d20299efdcbe has successful
-        exact-head general workflow 37650918273. Owner-requested density revision
-        source 9fcaf435111aa01b136a4818f11562ef6b6de8bd removes the Account/Context
-        strip and redundant headings, uses one Settings H1 for Account and Seat,
-        shortens explanatory copy and scopes shared spacing to Settings consumers.
-        It passes 61 focused unit tests, 66 canonical synthetic browser scenarios,
-        final Web lint/type/build with 8 fresh Nx tasks and bounded self-review.
-        At 390/320 the section heading starts at 232px and first presentation
-        select spans 354-398px; desktop 1440/1024 spans 260-304px / 255-299px.
-        New settings-density screenshots cover Account/Seat at all four widths;
-        previous Account/Seat preview images are preserved. Avatar-menu identity
-        and workspace controls, draft guards and persistence remain intact.
-        MAX handlers/effects/JSX and PresentationProvider are unchanged; API, SQL,
-        authentication, live database and deployment operations are excluded.
+        Dated published main ce51170f8d28cdec9f50eee5f43b5f86dc5c4a65 has successful
+        exact-head general workflow 37655797364. The prior Settings density candidate
+        f8a0b026033d683711d1892f7203d4b8330d02e0 passed independent review and
+        exact-head general workflow 37653494501; owner visual acceptance remains pending.
+        After a read-only critical analysis the owner requested one bounded usability
+        repair of the same Settings task. The local repair has six actionable Account tabs with preserved
+        legacy links, compact privacy/invitation information inside related sections,
+        clearer independent presentation/time-zone actions, an explicit desktop
+        sidebar preference label and compact mobile headings/actions/status.
+        Final local checks pass 53 focused unit tests, 76 canonical synthetic browser
+        scenarios and Web lint/typecheck/build with 13 fresh Nx tasks in the final cycle
+        (45 across implementation iterations), with NX_SKIP_NX_CACHE=true.
+        Account/Seat were checked at 1440/1024/390/320 and the 900/901 breakpoint,
+        including fresh, dirty, partial-save, error, reentry and long-content states.
+        Primary/cancel targets remain at least 44px; presentation actions use 57px,
+        or 109px at 320 with a secondary reset row. Time-zone actions use 57px.
+        New settings-usability screenshots preserve previous owner previews.
+        Account and StudentSeat scopes, draft/history guards and presentation
+        persistence remain separate. Provider, handlers/effects, MAX JSX and
+        navigation resolver/guard logic are unchanged. API, SQL, authentication,
+        permissions, live database and deployment operations are excluded.
         This dated observation precedes final composition, independent challenge
-        review and exact-head general/API/PostgreSQL/browser CI. Those results
-        are verified on the published candidate, not inferred from baseline CI.
-        Owner visual acceptance remains pending; no next product slice is selected.
+        review and exact-head general/API/PostgreSQL/browser CI; those results
+        must be verified on the final candidate rather than inferred from baseline CI.
         Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max

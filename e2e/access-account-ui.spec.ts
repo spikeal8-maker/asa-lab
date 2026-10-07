@@ -750,14 +750,14 @@ test('mobile selection uses the same draft guard and saving navigates only after
   await guard.getByRole('button', { name: 'Сохранить и перейти', exact: true }).click();
   await expect(page).toHaveURL(/#\/account\/interface$/);
   expect(state.mutations.filter((path) => path === '/api/account/profile')).toHaveLength(1);
-  await page.getByLabel('Часовой пояс').selectOption('UTC');
+  await page.getByRole('combobox', { name: /^Часовой пояс/ }).selectOption('UTC');
   await page.getByLabel('Выбрать раздел настроек').selectOption('profile');
   await expect(guard).toBeVisible();
   await guard.getByRole('button', { name: 'Остаться', exact: true }).click();
-  await expect(page.getByLabel('Часовой пояс')).toHaveValue('UTC');
+  await expect(page.getByRole('combobox', { name: /^Часовой пояс/ })).toHaveValue('UTC');
   await page
-    .getByRole('form', { name: 'Время в классах', exact: true })
-    .getByRole('button', { name: 'Отменить', exact: true })
+    .getByRole('form', { name: 'Часовой пояс', exact: true })
+    .getByRole('button', { name: 'Отменить изменения часового пояса', exact: true })
     .click();
   await page.getByLabel('Выбрать раздел настроек').selectOption('profile');
   await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Сохранённый переход');
@@ -793,12 +793,12 @@ for (const persona of ['personal', 'author', 'teacher-learner', 'organization'] 
     if (persona === 'teacher-learner' || persona === 'organization')
       await expect(staff).toBeVisible();
     else await expect(staff).toHaveCount(0);
-    await panel(page, 'Возможности').click();
+    await panel(page, 'Материалы и преподавание').click();
     if (persona === 'author')
       await expect(page.getByRole('link', { name: 'Открыть материалы' })).toBeVisible();
     if (persona === 'teacher-learner' || persona === 'organization')
       await expect(page.getByRole('button', { name: 'Открыть классы', exact: true })).toBeVisible();
-    await panel(page, 'Мои доступы').click();
+    await panel(page, 'Рабочие пространства').click();
     await expect(page.getByText('Активна', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Полный', { exact: true })).toHaveCount(0);
     if (persona === 'organization')
@@ -920,7 +920,7 @@ test('unknown MAX is not disconnected; teaching is a separate explicit action', 
   await panel(page, 'Вход и безопасность').click();
   await expect(page.getByText('Статус недоступен', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Подключить MAX', exact: true })).toHaveCount(0);
-  await panel(page, 'Возможности').click();
+  await panel(page, 'Материалы и преподавание').click();
   await page.getByRole('button', { name: 'Подключить', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Открыть классы', exact: true })).toBeVisible();
   expect(
@@ -931,22 +931,20 @@ test('unknown MAX is not disconnected; teaching is a separate explicit action', 
 });
 
 for (const width of [1440, 1024, 390, 320])
-  test(`eight account panels fit ${width}px without horizontal overflow`, async ({ page }) => {
+  test(`six account panels fit ${width}px without horizontal overflow`, async ({ page }) => {
     await fixture(page);
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account');
     if (width <= 900)
-      await expect(page.getByLabel('Выбрать раздел настроек').locator('option')).toHaveCount(8);
-    else await expect(page.getByLabel('Разделы настроек').getByRole('button')).toHaveCount(8);
+      await expect(page.getByLabel('Выбрать раздел настроек').locator('option')).toHaveCount(6);
+    else await expect(page.getByLabel('Разделы настроек').getByRole('button')).toHaveCount(6);
     for (const name of [
       'Профиль',
       'Вход и безопасность',
       'Интерфейс',
-      'Возможности',
-      'Мои доступы',
+      'Материалы и преподавание',
+      'Рабочие пространства',
       'Уведомления',
-      'Приглашения и запросы',
-      'Данные и приватность',
     ]) {
       if (width <= 900)
         await page.getByLabel('Выбрать раздел настроек').selectOption({ label: name });
@@ -955,7 +953,7 @@ for (const width of [1440, 1024, 390, 320])
         () => document.documentElement.scrollWidth > innerWidth + 1,
       );
       expect(overflow, `${width}px ${name}`).toBe(false);
-      if (name === 'Возможности') {
+      if (name === 'Материалы и преподавание') {
         const textWidths = await page
           .locator('.account-capability-card > div')
           .evaluateAll((elements) =>
@@ -1058,23 +1056,186 @@ async function assertCompactSettings(page: Page, width: number) {
   await expect(main.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   await expect(main.locator('.portal-eyebrow')).toHaveCount(0);
   await expect(main.locator('.account-settings-navigation > strong')).toHaveCount(0);
-  await expect(main.getByRole('heading', { name: 'Оформление' })).toHaveCount(0);
+  await expect(main.getByRole('heading', { name: 'Оформление' })).toHaveCount(1);
   // The first actual setting fits near the top even on a narrow phone. This
   // catches the repeated headings and context strip shown in the owner report.
-  const firstControl = await main.getByLabel('Движение', { exact: false }).boundingBox();
+  const firstControl = await main.getByLabel('Анимации', { exact: false }).boundingBox();
   expect(firstControl).not.toBeNull();
-  expect(firstControl!.y).toBeLessThan(width <= 900 ? 370 : 300);
+  // Between the picker breakpoint and tablet width, the scope hint may wrap
+  // once inside the desktop settings column; it must still fit above 320px.
+  expect(firstControl!.y).toBeLessThan(width <= 900 ? 370 : width < 1024 ? 320 : 300);
   expect(firstControl!.y + firstControl!.height).toBeLessThan(width <= 900 ? 410 : 350);
   const sectionHeading = await main
     .getByRole('heading', { name: 'Интерфейс', level: 2 })
     .boundingBox();
+  if (width <= 900) expect(sectionHeading!.height).toBeLessThanOrEqual(1);
+  else expect(sectionHeading!.height).toBeGreaterThan(1);
   console.log(
     `Settings density ${width}px: H2 y=${sectionHeading!.y.toFixed(1)}, first control y=${firstControl!.y.toFixed(1)}, bottom=${(firstControl!.y + firstControl!.height).toFixed(1)}`,
   );
   const form = main.getByRole('form', { name: 'Оформление', exact: true });
-  for (const name of ['Сохранить', 'Отменить', 'По умолчанию'])
+  for (const name of [
+    'Сохранить оформление',
+    'Отменить изменения оформления',
+    'Сбросить оформление',
+  ])
     await expect(form.getByRole('button', { name, exact: true })).toBeVisible();
+  for (const control of await form.getByRole('button').all())
+    expect((await control.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  const primary = await form
+    .getByRole('button', { name: 'Сохранить оформление', exact: true })
+    .boundingBox();
+  const cancel = await form
+    .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
+    .boundingBox();
+  expect(primary!.y).toBe(cancel!.y);
+  const actions = await form.locator('.account-presentation-actions').boundingBox();
+  const zoneFooter = main.locator('.account-time-zone .account-form-actions');
+  const zoneActions = (await zoneFooter.count()) ? await zoneFooter.boundingBox() : null;
+  console.log(
+    `Settings actions ${width}px: presentation=${actions!.height.toFixed(1)}px, time-zone=${zoneActions?.height.toFixed(1) ?? 'n/a'}px`,
+  );
 }
+
+for (const width of [900, 901])
+  test(`settings heading and picker switch without layout drift at ${width}px boundary`, async ({
+    page,
+  }) => {
+    await fixture(page);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/account/interface');
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await assertCompactSettings(page, width);
+    await expect(page.getByLabel('Выбрать раздел настроек')).toBeVisible({
+      visible: width === 900,
+    });
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await capture(page, `${evidence}/settings-usability-boundary-${width}.png`);
+  });
+
+for (const navigationApi of [true, false])
+  for (const [alias, destination, label] of [
+    ['privacy', 'security', 'Данные и приватность'],
+    ['requests', 'school', 'Приглашения на обучение'],
+  ])
+    test(`legacy ${alias} remains guarded through Back and Forward ${navigationApi ? 'with' : 'without'} Navigation API`, async ({
+      page,
+    }) => {
+      if (!navigationApi)
+        await page.addInitScript(() =>
+          Object.defineProperty(window, 'navigation', { value: undefined, configurable: true }),
+        );
+      const state = await fixture(page);
+      await page.goto(`/#/account/${alias}`);
+      const info = page.locator('.account-settings-information');
+      await expect(info.locator('summary')).toHaveText(label);
+      await expect(info).toHaveAttribute('open', '');
+      await expect(page.getByLabel('Выбрать раздел настроек')).toHaveValue(destination);
+      await expect(page.getByLabel('Разделы настроек').locator('[aria-current="page"]')).toHaveText(
+        destination === 'security' ? 'Вход и безопасность' : 'Рабочие пространства',
+      );
+      await panel(page, 'Профиль').click();
+      await page.getByLabel('Отображаемое имя').fill('Черновик перед старым адресом');
+      await page.evaluate(() => window.history.back());
+      const guard = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+      await expect(guard).toBeVisible();
+      await expect(page).toHaveURL(/#\/account\/profile$/);
+      await guard.getByRole('button', { name: 'Остаться', exact: true }).click();
+      await expect(page.getByLabel('Отображаемое имя')).toHaveValue(
+        'Черновик перед старым адресом',
+      );
+      await page.evaluate(() => window.history.back());
+      await expect(guard).toBeVisible();
+      await guard
+        .getByRole('button', { name: 'Отменить изменения и перейти', exact: true })
+        .click();
+      await expect(page).toHaveURL(new RegExp(`#/account/${alias}$`));
+      await expect(info).toHaveAttribute('open', '');
+      await page.evaluate(() => window.history.forward());
+      await expect(page).toHaveURL(/#\/account\/profile$/);
+      await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Проверочный профиль');
+      expect(state.mutations).toHaveLength(0);
+    });
+
+for (const width of [1440, 1024, 390, 320])
+  test(`independent presentation and time-zone operations remain clear at ${width}px`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, { presentationSaveFailure: true });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/account/interface');
+    const form = page.getByRole('form', { name: 'Оформление', exact: true });
+    const zoneForm = page.getByRole('form', { name: 'Часовой пояс', exact: true });
+    const motion = form.getByLabel('Анимации', { exact: false });
+    const zone = zoneForm.getByRole('combobox', { name: /^Часовой пояс/ });
+    await expect(motion).toBeEnabled();
+    await expect(form.getByLabel('Боковая панель на компьютере')).toBeVisible();
+    const zonePrimary = await zoneForm
+      .getByRole('button', { name: 'Сохранить часовой пояс', exact: true })
+      .boundingBox();
+    const zoneCancel = await zoneForm
+      .getByRole('button', { name: 'Отменить изменения часового пояса', exact: true })
+      .boundingBox();
+    expect(zonePrimary!.y).toBe(zoneCancel!.y);
+    await expect(
+      form.getByRole('button', { name: 'Сохранить оформление', exact: true }),
+    ).toBeDisabled();
+    await capture(page, `${evidence}/settings-usability-fresh-${width}.png`);
+    await motion.selectOption('reduce');
+    await zone.selectOption('UTC');
+    await capture(page, `${evidence}/settings-usability-dirty-${width}.png`);
+    await form.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await expect(form.getByRole('alert')).toBeVisible();
+    await expect(zone).toHaveValue('UTC');
+    await zoneForm.getByRole('button', { name: 'Сохранить часовой пояс', exact: true }).click();
+    await expect(
+      zoneForm.getByRole('button', { name: 'Сохранить часовой пояс', exact: true }),
+    ).toBeDisabled();
+    await expect(page.locator('.account-interface-feedback .account-save-status')).toContainText(
+      'Часовой пояс',
+    );
+    await expect(zoneForm.locator('[role="status"]')).toHaveCount(0);
+    await expect(page.locator('.account-settings-content > .account-message.success')).toHaveCount(
+      0,
+    );
+    await expect(motion).toHaveValue('reduce');
+    await expect(
+      form.getByRole('button', { name: 'Сохранить оформление', exact: true }),
+    ).toBeEnabled();
+    await expect(form.getByRole('alert')).toBeVisible();
+    await capture(page, `${evidence}/settings-usability-partial-error-${width}.png`);
+    state.recoverPresentation();
+    await form.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await expect(form.locator('.account-save-status')).toBeVisible();
+    await expect(form.locator('.account-message.success')).toHaveCount(0);
+    await expect(zone).toHaveValue('UTC');
+    await zone.selectOption('Europe/Paris');
+    const mutationsBeforeReset = state.mutations.length;
+    await form.getByRole('button', { name: 'Сбросить оформление', exact: true }).click();
+    await expect(motion).toHaveValue('system');
+    await expect(zone).toHaveValue('Europe/Paris');
+    expect(state.mutations).toHaveLength(mutationsBeforeReset);
+    await form.getByRole('button', { name: 'Отменить изменения оформления', exact: true }).click();
+    await expect(motion).toHaveValue('reduce');
+    await expect(zone).toHaveValue('Europe/Paris');
+    await zoneForm
+      .getByRole('button', { name: 'Отменить изменения часового пояса', exact: true })
+      .click();
+    await expect(zone).toHaveValue('UTC');
+    if (width <= 900) await page.getByLabel('Выбрать раздел настроек').selectOption('profile');
+    else await panel(page, 'Профиль').click();
+    if (width <= 900) await page.getByLabel('Выбрать раздел настроек').selectOption('interface');
+    else await panel(page, 'Интерфейс').click();
+    await expect(motion).toHaveValue('reduce');
+    await expect(zone).toHaveValue('UTC');
+    await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+    await capture(page, `${evidence}/settings-usability-reentry-${width}.png`);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+  });
 
 for (const width of [1440, 1024, 390, 320]) {
   test(`Account presentation preview, guard and coherent persistence fit ${width}px`, async ({
@@ -1088,7 +1249,7 @@ for (const width of [1440, 1024, 390, 320]) {
     });
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    const motion = page.getByLabel('Движение', { exact: false }),
+    const motion = page.getByLabel('Анимации', { exact: false }),
       sidebar = page.getByLabel('Боковая панель', { exact: false });
     await expect(motion).toBeEnabled();
     await motion.selectOption('reduce');
@@ -1101,11 +1262,13 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.getByRole('button', { name: 'Остаться', exact: true }).click();
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
-      .getByRole('button', { name: 'Сохранить', exact: true })
+      .getByRole('button', { name: 'Сохранить оформление', exact: true })
       .click();
     await expect(page.getByText('Оформление сохранено в аккаунте.', { exact: true })).toBeVisible();
     await expect(page.locator('.portal-sidebar-collapse')).toBeEnabled();
-    await expect(page.getByLabel('Часовой пояс', { exact: false })).toHaveValue('Europe/Moscow');
+    await expect(page.getByRole('combobox', { name: /^Часовой пояс/ })).toHaveValue(
+      'Europe/Moscow',
+    );
     await expect(page.getByLabel('Текущий аккаунт и контекст')).toHaveCount(0);
     const accountMenu = page.locator('.portal-account > summary');
     await accountMenu.click();
@@ -1137,21 +1300,21 @@ for (const width of [1440, 1024, 390, 320]) {
       .toBeLessThan(1);
     await assertCompactSettings(page, width);
     await page.screenshot({
-      path: `${evidence}/settings-density-account-full-${width}.png`,
+      path: `${evidence}/settings-usability-account-full-${width}.png`,
       fullPage: true,
     });
-    await page.screenshot({ path: `${evidence}/settings-density-account-${width}.png` });
+    await page.screenshot({ path: `${evidence}/settings-usability-account-${width}.png` });
     await page.reload();
     await expect(motion).toHaveValue('reduce');
     await expect(sidebar).toHaveValue('collapsed');
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
-      .getByRole('button', { name: 'По умолчанию', exact: true })
+      .getByRole('button', { name: 'Сбросить оформление', exact: true })
       .click();
     await expect(motion).toHaveValue('system');
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
-      .getByRole('button', { name: 'Отменить', exact: true })
+      .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
       .click();
     await expect(motion).toHaveValue('reduce');
     if (width >= 1024) {
@@ -1186,7 +1349,7 @@ for (const width of [1440, 1024, 390, 320]) {
       .poll(async () => Math.abs((await page.locator('.portal-header').boundingBox())!.y))
       .toBeLessThan(1);
     await page.screenshot({
-      path: `${evidence}/settings-density-home-${width}.png`,
+      path: `${evidence}/settings-usability-home-${width}.png`,
       fullPage: true,
     });
   });
@@ -1194,10 +1357,10 @@ for (const width of [1440, 1024, 390, 320]) {
     const state = await fixture(page, { seat: true });
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
+    await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
-      .getByRole('button', { name: 'Сохранить', exact: true })
+      .getByRole('button', { name: 'Сохранить оформление', exact: true })
       .click();
     await expect(
       page.getByText('Сохранено до выхода из этого учебного сеанса.', { exact: true }),
@@ -1219,12 +1382,12 @@ for (const width of [1440, 1024, 390, 320]) {
     );
     await assertCompactSettings(page, width);
     await page.screenshot({
-      path: `${evidence}/settings-density-seat-full-${width}.png`,
+      path: `${evidence}/settings-usability-seat-full-${width}.png`,
       fullPage: true,
     });
-    await page.screenshot({ path: `${evidence}/settings-density-seat-${width}.png` });
+    await page.screenshot({ path: `${evidence}/settings-usability-seat-${width}.png` });
     await page.reload();
-    await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
+    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
     await page.evaluate(() => window.dispatchEvent(new Event('asa-session-logout')));
     await expect
       .poll(() => page.evaluate(() => sessionStorage.getItem('asa-seat-presentation-session')))
@@ -1238,39 +1401,39 @@ test('old backend leaves preferences unavailable but navigation and profile stil
   const state = await fixture(page, { presentationFailure: true });
   await page.goto('/#/account/interface');
   await expect(page.getByRole('alert')).toContainText('Не удалось загрузить оформление');
-  await expect(page.getByLabel('Движение', { exact: false })).toBeDisabled();
+  await expect(page.getByLabel('Анимации', { exact: false })).toBeDisabled();
   await panel(page, 'Профиль').click();
   await expect(page.getByLabel('Отображаемое имя')).toBeEnabled();
   state.recoverPresentation();
   await panel(page, 'Интерфейс').click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
-  await expect(page.getByLabel('Движение', { exact: false })).toBeEnabled();
+  await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
 });
 test('failed save preserves preview and conflict requires explicit cancellation and reload', async ({
   page,
 }) => {
   const state = await fixture(page, { presentationSaveFailure: true });
   await page.goto('/#/account/interface');
-  await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
+  await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
-    .getByRole('button', { name: 'Сохранить', exact: true })
+    .getByRole('button', { name: 'Сохранить оформление', exact: true })
     .click();
   await expect(page.getByRole('alert')).toContainText('не сохранено');
-  await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
   state.recoverPresentation();
   state.externalPresentation();
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
-    .getByRole('button', { name: 'Сохранить', exact: true })
+    .getByRole('button', { name: 'Сохранить оформление', exact: true })
     .click();
   await expect(page.getByRole('alert')).toContainText('другом окне');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
-    .getByRole('button', { name: 'Отменить', exact: true })
+    .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
     .click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
-  await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
   await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveValue('collapsed');
 });
 test('dirty independent profile blocks header preference writes without storing a cross-user browser preference', async ({
@@ -1297,11 +1460,11 @@ for (const width of [1440, 1024, 390, 320]) {
     const state = await fixture(page);
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
+    await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
     state.changePresentationActor();
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
-      .getByRole('button', { name: 'Сохранить', exact: true })
+      .getByRole('button', { name: 'Сохранить оформление', exact: true })
       .click();
     await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
       'Аккаунт изменился',
@@ -1312,12 +1475,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }),
     ).toHaveCount(0);
-    await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
-    await expect(page.getByLabel('Движение', { exact: false })).toBeDisabled();
+    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeDisabled();
     await expect(
       page
         .getByRole('form', { name: 'Оформление', exact: true })
-        .getByRole('button', { name: 'Отменить', exact: true }),
+        .getByRole('button', { name: 'Отменить изменения оформления', exact: true }),
     ).toBeDisabled();
     await expect(
       page.getByText('Предпросмотр только здесь; изменения ещё не сохранены.', { exact: true }),
@@ -1328,7 +1491,7 @@ for (const width of [1440, 1024, 390, 320]) {
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     await page.screenshot({
-      path: `${evidence}/settings-density-actor-changed-${width}.png`,
+      path: `${evidence}/settings-usability-actor-changed-${width}.png`,
       fullPage: true,
     });
     expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(1);

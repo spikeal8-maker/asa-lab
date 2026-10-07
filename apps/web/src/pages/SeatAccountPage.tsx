@@ -130,7 +130,6 @@ export function SeatAccountPage({
                 aria-current={selectedPanel === item.id ? 'page' : undefined}
                 onClick={() => changePanel(item.id)}
               >
-                <span aria-hidden="true">👤</span>
                 {item.label}
               </button>
             ))}
@@ -140,7 +139,7 @@ export function SeatAccountPage({
         <div className="account-settings-content">
           <div hidden={selectedPanel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
-              <h2>Уведомления</h2>
+              <h2 className="account-panel-title">Уведомления</h2>
               <LearningNotificationPreferences
                 seat
                 teaching={false}
@@ -151,7 +150,7 @@ export function SeatAccountPage({
           </div>
           {selectedPanel === 'interface' ? (
             <section className="account-settings-section" aria-label="Интерфейс">
-              <h2>Интерфейс</h2>
+              <h2 className="account-panel-title">Интерфейс</h2>
               <PresentationControls />
               <p>Дата и время показаны в часовом поясе класса. Его настраивает преподаватель.</p>
               <a className="btn-secondary" href="#/help">

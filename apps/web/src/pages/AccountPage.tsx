@@ -27,7 +27,7 @@ import {
   notifyProfileAvatarChanged,
   type DefaultAvatar,
 } from '../creator-portal/default-avatars';
-import { ClassesIcon, CloseIcon, InspectIcon, UserIcon } from '../electronics/workbench-icons';
+import { ClassesIcon, CloseIcon } from '../electronics/workbench-icons';
 import { deviceTimeZone, timeZoneLabel } from '../components/school-time';
 import {
   requestSettingsNavigation,
@@ -44,21 +44,18 @@ const USERNAME_PATTERN = String.raw`[a-zA-Z0-9][a-zA-Z0-9._\-]*[a-zA-Z0-9]`;
 const SETTINGS_PANELS: ReadonlyArray<{
   readonly id: SettingsPanel;
   readonly label: string;
-  readonly icon: JSX.Element;
 }> = [
-  { id: 'profile', label: 'Профиль', icon: <UserIcon /> },
-  { id: 'interface', label: 'Интерфейс', icon: <InspectIcon /> },
-  { id: 'notifications', label: 'Уведомления', icon: <InspectIcon /> },
-  { id: 'security', label: 'Вход и безопасность', icon: <InspectIcon /> },
-  { id: 'privacy', label: 'Данные и приватность', icon: <InspectIcon /> },
-  { id: 'capabilities', label: 'Возможности', icon: <ClassesIcon /> },
-  { id: 'school', label: 'Мои доступы', icon: <ClassesIcon /> },
-  { id: 'requests', label: 'Приглашения и запросы', icon: <ClassesIcon /> },
+  { id: 'profile', label: 'Профиль' },
+  { id: 'interface', label: 'Интерфейс' },
+  { id: 'notifications', label: 'Уведомления' },
+  { id: 'security', label: 'Вход и безопасность' },
+  { id: 'capabilities', label: 'Материалы и преподавание' },
+  { id: 'school', label: 'Рабочие пространства' },
 ];
 const SETTINGS_GROUPS = [
   { label: 'Личное', ids: ['profile', 'interface', 'notifications'] },
-  { label: 'Безопасность', ids: ['security', 'privacy'] },
-  { label: 'Работа и доступы', ids: ['capabilities', 'school', 'requests'] },
+  { label: 'Безопасность', ids: ['security'] },
+  { label: 'Работа и доступы', ids: ['capabilities', 'school'] },
 ];
 
 /** Sign-in history reads in the account's own zone, like everything else. */
@@ -693,6 +690,9 @@ export function AccountPage({
     );
 
   const maxManagedProfile = profile.email.endsWith('@users.asa.invalid');
+  // Preserve old deep links and their guarded history entries without keeping
+  // informational pages as separate navigation destinations.
+  const selectedPanel = panel === 'privacy' ? 'security' : panel === 'requests' ? 'school' : panel;
 
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
@@ -704,7 +704,7 @@ export function AccountPage({
         <label className="account-mobile-panel-picker">
           <select
             aria-label="Выбрать раздел настроек"
-            value={panel}
+            value={selectedPanel}
             onChange={(event) => changePanel(event.target.value as SettingsPanel)}
           >
             {SETTINGS_GROUPS.map((group) => (
@@ -727,11 +727,10 @@ export function AccountPage({
                   <button
                     key={item.id}
                     type="button"
-                    className={panel === item.id ? 'active' : undefined}
-                    aria-current={panel === item.id ? 'page' : undefined}
+                    className={selectedPanel === item.id ? 'active' : undefined}
+                    aria-current={selectedPanel === item.id ? 'page' : undefined}
                     onClick={() => changePanel(item.id)}
                   >
-                    <span aria-hidden="true">{item.icon}</span>
                     {item.label}
                   </button>
                 ))}
@@ -753,12 +752,12 @@ export function AccountPage({
               </button>
             </div>
           ) : null}
-          {error ? (
+          {error && panel !== 'interface' ? (
             <p className="account-message error" role="alert">
               {error}
             </p>
           ) : null}
-          {notice ? (
+          {notice && panel !== 'interface' ? (
             <p className="account-message success" role="status">
               {notice}
             </p>
@@ -911,11 +910,11 @@ export function AccountPage({
 
           {panel === 'interface' ? (
             <section className="account-settings-section" aria-label="Интерфейс">
-              <h2>Интерфейс</h2>
+              <h2 className="account-panel-title">Интерфейс</h2>
               <PresentationControls />
               <form
                 className="account-profile-form account-time-zone"
-                aria-label="Время в классах"
+                aria-label="Часовой пояс"
                 onSubmit={(event) => void saveTimeZone(event)}
               >
                 <label>
@@ -939,14 +938,16 @@ export function AccountPage({
                 <div className="account-form-actions">
                   <button
                     type="submit"
-                    className="btn-secondary account-action"
+                    className="btn-primary"
+                    aria-label="Сохранить часовой пояс"
                     disabled={busyAction !== null || timeZone === (session.timeZone ?? deviceZone)}
                   >
-                    {busyAction === 'time-zone' ? 'Сохраняем…' : 'Сохранить часовой пояс'}
+                    {busyAction === 'time-zone' ? 'Сохраняем…' : 'Сохранить'}
                   </button>
                   <button
                     type="button"
                     className="btn-secondary"
+                    aria-label="Отменить изменения часового пояса"
                     disabled={busyAction !== null || timeZone === (session.timeZone ?? deviceZone)}
                     onClick={() => setTimeZone(session.timeZone ?? deviceZone)}
                   >
@@ -954,12 +955,24 @@ export function AccountPage({
                   </button>
                 </div>
               </form>
+              <div className="account-interface-feedback">
+                {error ? (
+                  <p className="account-message error" role="alert">
+                    {error}
+                  </p>
+                ) : null}
+                {notice ? (
+                  <p className="account-save-status" role="status">
+                    {notice}
+                  </p>
+                ) : null}
+              </div>
             </section>
           ) : null}
 
           {panel === 'capabilities' ? (
-            <section className="account-settings-section" aria-label="Возможности">
-              <h2>Возможности</h2>
+            <section className="account-settings-section" aria-label="Материалы и преподавание">
+              <h2 className="account-panel-title">Материалы и преподавание</h2>
               <article className="account-capability-card">
                 <div>
                   <h3>Создавать материалы</h3>
@@ -1011,7 +1024,7 @@ export function AccountPage({
 
           <div hidden={panel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
-              <h2>Уведомления</h2>
+              <h2 className="account-panel-title">Уведомления</h2>
               <p>События доступны в меню «Оповещения». Здесь меняется только ваша доставка.</p>
               <p>Подключение MAX для входа само по себе не включает рассылку сообщений.</p>
               <LearningNotificationPreferences
@@ -1025,40 +1038,12 @@ export function AccountPage({
             </section>
           </div>
 
-          {panel === 'requests' ? (
-            <section className="account-settings-section" aria-label="Приглашения и запросы">
-              <h2>Приглашения и запросы</h2>
-              <p>
-                Откройте адрес приглашения, полученный от преподавателя. Общий список приглашений
-                пока недоступен.
-              </p>
-              <a className="btn-secondary" href="#/attending">
-                Моё обучение с преподавателем
-              </a>
-            </section>
-          ) : null}
-
-          {panel === 'privacy' ? (
-            <section className="account-settings-section" aria-label="Данные и приватность">
-              <h2>Данные и приватность</h2>
-              <p>
-                Email и дата рождения не показываются другим пользователям. Видимость проектов
-                задаётся отдельно в каждом проекте.
-              </p>
-              <p>
-                Самостоятельное удаление аккаунта и выгрузка архива пока недоступны. Для запроса
-                обратитесь через справку.
-              </p>
-              <a className="btn-secondary" href="#/help">
-                Справка
-              </a>
-            </section>
-          ) : null}
-
-          {panel === 'school' ? (
+          {selectedPanel === 'school' ? (
             <section className="account-settings-section" aria-labelledby="school-settings-title">
               <div className="account-section-heading">
-                <h2 id="school-settings-title">Мои доступы</h2>
+                <h2 id="school-settings-title" className="account-panel-title">
+                  Рабочие пространства
+                </h2>
                 <p>
                   Ваши рабочие пространства. Доступ к каждому классу и материалу проверяется
                   отдельно.
@@ -1173,13 +1158,28 @@ export function AccountPage({
                   </form>
                 </>
               )}
+              <details
+                className="account-settings-information"
+                open={panel === 'requests' || undefined}
+              >
+                <summary>Приглашения на обучение</summary>
+                <p>
+                  Откройте адрес приглашения, полученный от преподавателя. Общий список приглашений
+                  пока недоступен.
+                </p>
+                <a className="btn-secondary" href="#/attending">
+                  Моё обучение с преподавателем
+                </a>
+              </details>
             </section>
           ) : null}
 
-          {panel === 'security' ? (
+          {selectedPanel === 'security' ? (
             <section className="account-settings-section" aria-labelledby="security-settings-title">
               <div className="account-section-heading">
-                <h2 id="security-settings-title">Вход и безопасность</h2>
+                <h2 id="security-settings-title" className="account-panel-title">
+                  Вход и безопасность
+                </h2>
                 <p>Пароль, MAX, закрытые данные и устройства, на которых открыт ASA Lab.</p>
               </div>
 
@@ -1363,6 +1363,23 @@ export function AccountPage({
                   </li>
                 ))}
               </ul>
+              <details
+                className="account-settings-information"
+                open={panel === 'privacy' || undefined}
+              >
+                <summary>Данные и приватность</summary>
+                <p>
+                  Email и дата рождения не показываются другим пользователям. Видимость проектов
+                  задаётся отдельно в каждом проекте.
+                </p>
+                <p>
+                  Самостоятельное удаление аккаунта и выгрузка архива пока недоступны. Для запроса
+                  обратитесь через справку.
+                </p>
+                <a className="btn-secondary" href="#/help">
+                  Справка
+                </a>
+              </details>
             </section>
           ) : null}
         </div>

@@ -816,7 +816,7 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-settings-navigation button {
   display: grid;
-  grid-template-columns: 27px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 9px;
   min-height: 48px;
@@ -838,16 +838,6 @@ button.portal-account-identity:hover:not(:disabled) {
   border-color: #148fc3;
   background: #fff;
   color: #0877b3;
-}
-
-.account-settings-navigation button span {
-  display: grid;
-  place-items: center;
-}
-
-.account-settings-navigation button svg {
-  width: 21px;
-  height: 21px;
 }
 
 .account-settings-content {
@@ -1693,4 +1683,87 @@ button.portal-account-identity:hover:not(:disabled) {
 .account-presentation select {
   width: 100%;
   min-width: 0;
+}
+
+.account-operation-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.account-time-zone {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #d7e0e6;
+}
+
+.account-time-zone .account-form-actions > button {
+  min-height: 44px;
+}
+
+.account-presentation-footer {
+  display: grid;
+  gap: 6px;
+}
+
+.account-presentation-actions {
+  gap: 8px;
+}
+
+.account-presentation-actions > button {
+  min-height: 44px;
+}
+
+.account-presentation-actions > .account-presentation-reset {
+  min-width: 44px;
+  padding: 0 2px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.account-save-status {
+  margin: 0;
+  color: #267045;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.account-interface-feedback > p {
+  margin: 8px 0 0;
+}
+
+.account-settings-information {
+  margin-top: 20px;
+  border-top: 1px solid #e0e7eb;
+  overflow-wrap: anywhere;
+}
+
+.account-settings-information > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-settings-information > p {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 900px) {
+  /* The native section picker already names this panel; retain its heading
+   * for assistive navigation without repeating it in the visual flow. */
+  .account-settings-page .account-panel-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .account-presentation-actions > :is(.btn-primary, .btn-secondary) {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
 }

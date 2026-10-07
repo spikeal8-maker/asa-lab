@@ -6,8 +6,8 @@ export const settingsPanels = {
   notifications: 'Уведомления',
   security: 'Вход и безопасность',
   privacy: 'Данные и приватность',
-  capabilities: 'Возможности',
-  school: 'Мои доступы',
+  capabilities: 'Материалы и преподавание',
+  school: 'Рабочие пространства',
   requests: 'Приглашения и запросы',
 } as const;
 export type SettingsPanel = keyof typeof settingsPanels;

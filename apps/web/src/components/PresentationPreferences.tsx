@@ -325,6 +325,7 @@ export function PresentationControls() {
       }}
       aria-label="Оформление"
     >
+      <h3 className="account-operation-title">Оформление</h3>
       <p className="account-hint">
         {p.seat
           ? 'До выхода из этого учебного сеанса, только в этом браузере.'
@@ -332,7 +333,7 @@ export function PresentationControls() {
       </p>
       {!p.loaded && !p.error ? <p role="status">Загружаем оформление…</p> : null}
       <label>
-        Движение
+        Анимации
         <select
           value={p.draft.motion}
           disabled={!p.loaded || p.busy}
@@ -346,7 +347,7 @@ export function PresentationControls() {
       </label>
       {!p.seat ? (
         <label>
-          Боковая панель
+          Боковая панель на компьютере
           <select
             value={p.draft.sidebar}
             disabled={!p.loaded || p.busy}
@@ -359,7 +360,7 @@ export function PresentationControls() {
           </select>
         </label>
       ) : null}
-      {p.dirty ? (
+      {p.dirty && !p.error ? (
         <p role="status" className="account-hint">
           Предпросмотр только здесь; изменения ещё не сохранены.
         </p>
@@ -369,31 +370,40 @@ export function PresentationControls() {
           {p.error}
         </p>
       ) : null}
-      {p.notice ? (
-        <p role="status" className="account-message success">
-          {p.notice}
-        </p>
-      ) : null}
-      <div className="account-form-actions">
-        <button type="submit" className="btn-primary" disabled={!p.dirty || p.busy || !p.loaded}>
-          {p.busy ? 'Сохраняем…' : 'Сохранить'}
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={!p.dirty || p.busy}
-          onClick={p.discard}
-        >
-          Отменить
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={!p.loaded || p.busy}
-          onClick={p.reset}
-        >
-          По умолчанию
-        </button>
+      <div className="account-presentation-footer">
+        <div className="account-form-actions account-presentation-actions">
+          <button
+            type="submit"
+            className="btn-primary"
+            aria-label="Сохранить оформление"
+            disabled={!p.dirty || p.busy || !p.loaded}
+          >
+            {p.busy ? 'Сохраняем…' : 'Сохранить'}
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            aria-label="Отменить изменения оформления"
+            disabled={!p.dirty || p.busy}
+            onClick={p.discard}
+          >
+            Отменить
+          </button>
+          <button
+            type="button"
+            className="account-inline-action account-presentation-reset"
+            aria-label="Сбросить оформление"
+            disabled={!p.loaded || p.busy}
+            onClick={p.reset}
+          >
+            Сбросить
+          </button>
+        </div>
+        {p.notice ? (
+          <p role="status" className="account-save-status">
+            {p.notice}
+          </p>
+        ) : null}
       </div>
       {p.actorChanged ? (
         <button type="button" className="btn-secondary" onClick={() => window.location.reload()}>

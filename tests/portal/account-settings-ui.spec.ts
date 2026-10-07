@@ -167,6 +167,32 @@ async function fill(element: HTMLInputElement, value: string) {
 }
 
 describe('account settings composition', () => {
+  it.each([
+    ['privacy', 'security', 'Данные и приватность', '#/help'],
+    ['requests', 'school', 'Приглашения на обучение', '#/attending'],
+  ])(
+    'keeps the %s deep link as an expanded information block in %s',
+    async (alias, destination, label, href) => {
+      window.history.replaceState(null, '', `/#/account/${alias}`);
+      await renderAccount();
+      expect(container.querySelectorAll('[aria-label="Разделы настроек"] button')).toHaveLength(6);
+      expect(
+        container.querySelector<HTMLSelectElement>('[aria-label="Выбрать раздел настроек"]')?.value,
+      ).toBe(destination);
+      const disclosure = container.querySelector<HTMLDetailsElement>(
+        '.account-settings-information',
+      )!;
+      expect(disclosure.open).toBe(true);
+      expect(disclosure.querySelector('summary')?.textContent).toBe(label);
+      expect(disclosure.querySelector('a')?.getAttribute('href')).toBe(href);
+      expect(container.querySelector('[aria-current="page"]')?.textContent).toBe(
+        destination === 'security' ? 'Вход и безопасность' : 'Рабочие пространства',
+      );
+      expect(window.location.hash).toBe(`#/account/${alias}`);
+      // Opening an informational alias must not activate capabilities or mutate a profile.
+      expect(container.querySelectorAll('[aria-label="Разделы настроек"] svg')).toHaveLength(0);
+    },
+  );
   it('addresses every existing panel and keeps the historical account route', () => {
     for (const id of [
       'profile',

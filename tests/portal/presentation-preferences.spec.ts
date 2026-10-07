@@ -82,6 +82,29 @@ afterEach(async () => {
   ).IS_REACT_ACT_ENVIRONMENT = false;
 });
 describe('presentation canonical shell state', () => {
+  it('names operation-specific actions and keeps success next to them without a banner', async () => {
+    const call = vi.mocked(client.call);
+    await mount();
+    const form = container.querySelector('form[aria-label="Оформление"]')!;
+    expect(form.querySelector('label')?.textContent).toContain('Анимации');
+    expect(form.textContent).toContain('Боковая панель на компьютере');
+    expect(form.querySelector('[aria-label="Сохранить оформление"]')).not.toBeNull();
+    expect(form.querySelector('[aria-label="Отменить изменения оформления"]')).not.toBeNull();
+    const reset = form.querySelector<HTMLButtonElement>('[aria-label="Сбросить оформление"]')!;
+    await act(async () => state.preview({ motion: 'reduce', sidebar: 'collapsed' }));
+    call.mockResolvedValueOnce(success({ motion: 'reduce', sidebar: 'collapsed', revision: 1 }));
+    await act(async () => state.save());
+    expect(
+      form.querySelector('.account-presentation-footer [role="status"]')?.textContent,
+    ).toContain('Оформление сохранено');
+    expect(form.querySelector('.account-message.success')).toBeNull();
+    const calls = call.mock.calls.length;
+    await act(async () => reset.click());
+    expect(state.draft).toEqual({ motion: 'system', sidebar: 'expanded' });
+    expect(state.dirty).toBe(true);
+    expect(call).toHaveBeenCalledTimes(calls);
+    expect(form.querySelector('.account-save-status')).toBeNull();
+  });
   it('previews, cancels and resets only presentation; header saves same canonicalset', async () => {
     const call = vi.mocked(client.call);
     await mount();
