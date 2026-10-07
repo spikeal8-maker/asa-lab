@@ -239,16 +239,29 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
-      issue: 516
+      id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
+      issue: 517
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: canonical_horizon_chunking_repair_selected
+      checkpoint: ordinary_image_early_event_causal_repair_selected
       owner_acceptance: pending
     suspended_slices:
+      - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
+        issue: 516
+        status: blocked
+        candidate_sha: ba05381af8e95ad26ee04f9d501625b7a3154681
+        integrated_sha: 4bad8a7f1eb3543097c397f05df7805e9024e342
+        independent_candidate_review: approved
+        independent_integrated_review: request_changes
+        exact_candidate_general_run: 37657279859
+        exact_candidate_browser_run: 37658060110
+        exact_integrated_general_run: 37661992911
+        exact_integrated_browser_run: 37662037546
+        evidence: docs/product/electronics/evidence/observation-cadence-516-20261007.md
+        resume_after: Accept separate asset baseline Issue 517 and verify Settings-owned selector repair, then obtain required exact-main gates and new independent review; preserve the three approved Issue 516 product/test blobs.
       - task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
         issue: 505
         status: blocked
@@ -260,23 +273,26 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f909ac674a11e8864a8042e734b37d75fe9bb93d
+      convergence_baseline_sha: 6b93059e8a199c4c96ba47da271c6e8e14f1eb73
       head_sha: null
-      observed_at: '2026-10-07T16:49:41Z'
+      observed_at: '2026-10-07T18:17:48Z'
       main:
         branch: main
-        sha: f909ac674a11e8864a8042e734b37d75fe9bb93d
+        sha: 6b93059e8a199c4c96ba47da271c6e8e14f1eb73
       observation_note: >-
-        Dated main observation after report-only Issue 510 candidate
-        09924bf6ce1216ac16f89241f107fb14cf9570fa received independent APPROVE and
-        exact-head general workflow 37653153234 SUCCESS. Report was integrated
-        at f909ac674a11e8864a8042e734b37d75fe9bb93d, preserving disjoint Settings
-        changes. Normal and controlled-load measurements establish delayed complete
-        observation publication, not classroom frequency or repaired product.
-        Separate Issue 516 selects bounded/adaptive canonical horizon chunking,
-        preserving all physical/runtime state and ready-only frames. Issue 505
-        PR 506 remains suspended on its existing candidate. Fetch main before
-        writes; owner acceptance, live database operations and deployment are not claimed.
+        Dated remote main after independently accepted report-only Issue 510 and
+        integrated Issue 516 candidate ba05381af8e95ad26ee04f9d501625b7a3154681.
+        New exact-integration reviewer REQUEST_CHANGES on 4bad8a7f for two
+        category C gate blockers, with no Issue 516 product finding. The Settings
+        executor separately published its three renamed Access A test selectors
+        at 6b93059e; its exact-head general workflow 37664842435 is still in progress
+        at this observation. Electronics full browser run 37662037546 passed
+        114 of 115 and Arduino Reset but missed the ordinary-image catalog failure
+        badge. Separate Issue 517 selects causal investigation and bounded repair,
+        using saved trace before directed browser evidence. Early onError loss is
+        a concrete hypothesis, not proven causality. Preserve suspended Issue 516
+        and Issue 505 PR 506; no integrated acceptance, owner acceptance, release
+        or deployment is claimed. Fetch main and exact-head CI before writes.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -889,6 +905,21 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-516-INTEGRATION-BASELINE
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
+    blocks:
+      - technical_acceptance
+      - owner_acceptance
+      - release_claim
+      - close_issue
+    allows:
+      - bounded_repair
+      - documentation_update
+      - focused_verification
+    reason: Approved candidate ba05381a is integrated at 4bad8a7f, but new independent exact-main review REQUEST_CHANGES because general 37661992911 fails independent Settings test labels and Electronics 37662037546 passes 114 of 115 with an unrelated ordinary-image catalog error badge failure. Settings-owned repair 6b93059e and separately selected Issue 517 must receive required evidence before returning to Issue 516 acceptance. No Issue 516 product defect was identified; preserve its three approved blobs and Issue 505 PR 506.
+    evidence: docs/product/electronics/evidence/observation-cadence-516-20261007.md
   - id: ELECTRONICS-505-BROWSER-BASELINE
     kind: acceptance_blocker
     lane: electronics
