@@ -95,9 +95,13 @@ jobs:
               const stat = read(`/proc/${pid}/stat`);
               if (!stat) continue;
               const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+              const command = read(`/proc/${pid}/cmdline`) ?? '';
               all.push({ pid: Number(pid), ppid: Number(fields[1]), state: fields[0],
                 userTicks: Number(fields[11]), systemTicks: Number(fields[12]), threads: Number(fields[17]),
-                command: read(`/proc/${pid}/cmdline`)?.replaceAll('\0', ' '),
+                name: stat.slice(stat.indexOf('(') + 1, stat.lastIndexOf(')')),
+                vitestTagged: /vitest/.test(command),
+                workerEntrypoint: /vitest.*(?:forks|workers|entry)/.test(command),
+                rssPages: Number(fields[21]),
                 schedstat: read(`/proc/${pid}/schedstat`) });
             }
             const ids = new Set([child.pid]);
