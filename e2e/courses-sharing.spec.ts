@@ -679,12 +679,16 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   ] as const) {
     const openCourse = async () => {
       await learner.goto('/#/learning');
-      await learner
-        .getByTestId('seat-courses')
-        .getByRole('button')
-        .filter({ hasText: title })
-        .click();
-      return learner.getByTestId('seat-course-player');
+      // The same hash keeps the mounted player; refresh its lifecycle and server state.
+      await learner.reload();
+      const list = learner.getByTestId('seat-courses');
+      await expect(list).toBeVisible();
+      const copiedCourse = list.getByRole('button').filter({ hasText: title });
+      await expect(copiedCourse).toHaveCount(1);
+      await copiedCourse.click();
+      const player = learner.getByTestId('seat-course-player');
+      await expect(player).toBeVisible();
+      return player;
     };
     let player = await openCourse();
     await expect(player.getByTestId('seat-course-manual-material')).toContainText(
