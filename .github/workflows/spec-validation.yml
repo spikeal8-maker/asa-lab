@@ -200,6 +200,24 @@ jobs:
           node-version: "22"
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - name: Prepare Ubuntu mirror for browser dependencies
+        run: |
+          # Only this disposable Ubuntu runner; keep package signature checks.
+          sudo python3 - <<'PY'
+          from pathlib import Path
+          directory = Path('/etc/apt/sources.list.d')
+          sources = [Path('/etc/apt/sources.list'), *directory.glob('*.list'), *directory.glob('*.sources')]
+          for source in sources:
+              if not source.is_file():
+                  continue
+              original = source.read_text()
+              updated = original.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+              updated = updated.replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')
+              if updated != original:
+                  source.write_text(updated)
+          Path('/etc/apt/apt.conf.d/80-asa-browser-network').write_text(
+              'Acquire::http::Timeout "30";\nAcquire::https::Timeout "30";\nAcquire::Retries "1";\n')
+          PY
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - name: Migrate isolated database and provision restricted runtime
