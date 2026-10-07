@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
+import { flushSync } from 'react-dom';
 
 export const settingsPanels = {
   profile: 'Профиль',
@@ -129,7 +130,16 @@ export function useSettingsDraftGuard(drafts: readonly SettingsDraft[]) {
         return;
       const anchor =
         event.target instanceof Element ? event.target.closest<HTMLAnchorElement>('a[href]') : null;
-      if (!anchor || anchor.target || anchor.download) return;
+      // PortalLink callbacks enter the App's settings-aware navigation. Let
+      // that handler own the decision rather than replaying a native hash
+      // before React has committed discard, which could prompt a second time.
+      if (
+        !anchor ||
+        anchor.target ||
+        anchor.download ||
+        anchor.dataset.portalNavigation === 'managed'
+      )
+        return;
       const target = new URL(anchor.href);
       if (
         target.origin !== location.origin ||
@@ -167,7 +177,9 @@ export function useSettingsDraftGuard(drafts: readonly SettingsDraft[]) {
   const proceed = () => {
     const action = pending.current;
     pending.current = null;
-    setOpen(false);
+    // Commit the approved discard/save and refreshed draft refs before a
+    // native hash navigation can synchronously consult the router's guard.
+    flushSync(() => setOpen(false));
     action?.();
   };
   const modal = open ? (

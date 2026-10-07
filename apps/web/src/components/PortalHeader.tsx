@@ -198,7 +198,10 @@ export function PortalHeader({
     contentAuthoring: session.navigation.contentAuthoring === true,
     seat: seatLearner,
   });
-  const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
+  const primaryNavigation = navigationItems.filter(
+    (item) => item.section !== 'help' && item.section !== 'account',
+  );
+  const settingsNavigation = navigationItems.find((item) => item.section === 'account');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
   useEffect(() => {
@@ -326,11 +329,19 @@ export function PortalHeader({
           ) : null}
         </button>
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
-          <PortalLink href={sectionHref('gallery')} onNavigate={() => onNavigate('gallery')}>
+          <PortalLink
+            href={sectionHref('gallery')}
+            aria-current={active === 'gallery' ? 'page' : undefined}
+            onNavigate={() => onNavigate('gallery')}
+          >
             <GalleryGlyph />
             <span>Проекты</span>
           </PortalLink>
-          <PortalLink href={sectionHref('knowledge')} onNavigate={() => onNavigate('knowledge')}>
+          <PortalLink
+            href={sectionHref('knowledge')}
+            aria-current={active === 'knowledge' ? 'page' : undefined}
+            onNavigate={() => onNavigate('knowledge')}
+          >
             <LearningGlyph />
             <span>Знания</span>
           </PortalLink>
@@ -552,7 +563,7 @@ export function PortalHeader({
             <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
           </span>
         </div>
-        <nav className="portal-nav">
+        <nav className="portal-nav" aria-label="Личные и рабочие разделы">
           {primaryNavigation.map((item) => (
             <PortalLink
               href={sectionHref(item.section)}
@@ -622,34 +633,44 @@ export function PortalHeader({
             </div>
           ) : null}
         </nav>
-        <div className="portal-mobile-account">
-          <button type="button" className="portal-nav-item" onClick={() => go('account')}>
-            Настройки
-          </button>
-          <button
-            type="button"
-            className="portal-nav-item"
-            disabled={busy !== null}
-            onClick={() => requestSettingsNavigation(() => void logout())}
-          >
-            Выход
-          </button>
-        </div>
-        {helpNavigation ? (
-          <div className="portal-sidebar-footer">
-            <button
-              type="button"
+        <div className="portal-sidebar-footer">
+          {settingsNavigation ? (
+            <PortalLink
+              href={sectionHref('account')}
+              className={active === 'account' ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-label={settingsNavigation.label}
+              aria-current={active === 'account' ? 'page' : undefined}
+              onNavigate={() => go('account')}
+            >
+              <span className="portal-nav-glyph" aria-hidden="true">
+                {sectionIcon('account')}
+              </span>
+              <span className="portal-nav-label">{settingsNavigation.label}</span>
+            </PortalLink>
+          ) : null}
+          {helpNavigation ? (
+            <PortalLink
+              href={sectionHref('help')}
               className={active === 'help' ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-label={helpNavigation.label}
               aria-current={active === 'help' ? 'page' : undefined}
-              onClick={() => go('help')}
+              onNavigate={() => go('help')}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
                 {sectionIcon('help')}
               </span>
               <span className="portal-nav-label">{helpNavigation.label}</span>
-            </button>
-          </div>
-        ) : null}
+            </PortalLink>
+          ) : null}
+          <button
+            type="button"
+            className="portal-nav-item portal-mobile-logout"
+            disabled={busy !== null}
+            onClick={() => requestSettingsNavigation(() => void logout())}
+          >
+            <span className="portal-nav-label">Выход</span>
+          </button>
+        </div>
         {!seatLearner ? (
           <button
             type="button"

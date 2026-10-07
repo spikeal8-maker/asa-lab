@@ -37,9 +37,9 @@ describe('capability-aware Portal navigation', () => {
       const sections = portalNavigation(value).map((item) => item.section);
       expect(sections).not.toContain('classes');
       expect(sections).not.toContain('challenges');
-      expect(sections).toEqual(
-        expect.arrayContaining(['projects', 'learning', 'knowledge', 'account']),
-      );
+      expect(sections).toEqual(expect.arrayContaining(['projects', 'learning', 'account']));
+      expect(sections).not.toContain('knowledge');
+      expect(sections).not.toContain('gallery');
     }
   });
 
@@ -52,5 +52,17 @@ describe('capability-aware Portal navigation', () => {
         (item) => item.section,
       ),
     ).toEqual(['home', 'learning', 'projects', 'help', 'account']);
+  });
+
+  it('keeps personal work and one settings destination distinct from public top navigation', () => {
+    expect(portalNavigation(false).find((item) => item.section === 'projects')?.label).toBe(
+      'Мои проекты',
+    );
+    expect(portalNavigation(false).filter((item) => item.section === 'account')).toEqual([
+      { section: 'account', label: 'Настройки' },
+    ]);
+    expect(
+      portalNavigation(false, { seat: true }).filter((item) => item.section === 'account'),
+    ).toEqual([{ section: 'account', label: 'Настройки учебного профиля' }]);
   });
 });

@@ -446,7 +446,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     await page.getByRole('button', { name: 'Войти', exact: true }).click();
     await page.setViewportSize({ width: 1366, height: 900 });
     await expect(portalSection(page, 'Главная')).toBeVisible();
-    await expect(portalSection(page, 'Мой учебный профиль')).toBeVisible();
+    await expect(portalSection(page, 'Настройки учебного профиля')).toBeVisible();
   }
   await enter(first.student.studentCode, 390);
   await openPortalSection(page, 'Главная');
@@ -474,7 +474,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   });
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true }).first()).toBeVisible();
-  await openPortalSection(page, 'Мой учебный профиль');
+  await openPortalSection(page, 'Настройки учебного профиля');
   await expect(page.getByText(privateTeacherNote, { exact: true })).toBeVisible();
   await shot(page, 'H-first-seat-profile');
   await page.evaluate(() => {
@@ -506,7 +506,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   expect([403, 404]).toContain(
     (await page.request.get(`/api/projects/${work.project.id}`)).status(),
   );
-  await openPortalSection(page, 'Мой учебный профиль');
+  await openPortalSection(page, 'Настройки учебного профиля');
   await expect(page.getByText('Первый ученик', { exact: true })).toHaveCount(0);
   await expect(page.getByText(privateTeacherNote, { exact: true })).toHaveCount(0);
   const secondAwards = await page.request.get('/api/class-join/me/awards');

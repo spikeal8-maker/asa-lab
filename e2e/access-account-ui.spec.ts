@@ -1063,8 +1063,12 @@ async function assertCompactSettings(page: Page, width: number) {
   expect(firstControl).not.toBeNull();
   // Between the picker breakpoint and tablet width, the scope hint may wrap
   // once inside the desktop settings column; it must still fit above 320px.
-  expect(firstControl!.y).toBeLessThan(width <= 900 ? 370 : width < 1024 ? 320 : 300);
-  expect(firstControl!.y + firstControl!.height).toBeLessThan(width <= 900 ? 410 : 350);
+  // The approved mobile shell has a second 44px public-navigation row. Measure
+  // settings density below the shell so this still catches extra page banners.
+  const header = (await page.locator('.portal-header').boundingBox())!;
+  const belowHeader = firstControl!.y - (header.y + header.height);
+  expect(belowHeader).toBeLessThan(width <= 900 ? 314 : width < 1024 ? 264 : 244);
+  expect(belowHeader + firstControl!.height).toBeLessThan(width <= 900 ? 354 : 294);
   const sectionHeading = await main
     .getByRole('heading', { name: 'Интерфейс', level: 2 })
     .boundingBox();
@@ -1096,6 +1100,382 @@ async function assertCompactSettings(page: Page, width: number) {
     `Settings actions ${width}px: presentation=${actions!.height.toFixed(1)}px, time-zone=${zoneActions?.height.toFixed(1) ?? 'n/a'}px`,
   );
 }
+
+const shellEvidence = 'reports/playwright/portal-shell-s1-20261007';
+
+async function assertShellGeometry(page: Page, width: number) {
+  const metrics = await page.locator('.portal-header').evaluate((header) => {
+    const bounds = (element: Element) => {
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const selectors = [
+      '.portal-menu-toggle',
+      '.portal-brand',
+      '.portal-global-nav a',
+      '.portal-quick-create > summary',
+      '.learning-inbox-button',
+      '.portal-account > summary',
+    ];
+    return {
+      header: bounds(header),
+      controls: selectors.flatMap((selector) =>
+        [...header.querySelectorAll(selector)]
+          .filter((element) => element.checkVisibility())
+          .map((element) => ({
+            label: element.getAttribute('aria-label') ?? element.textContent,
+            ...bounds(element),
+          })),
+      ),
+      links: [...header.querySelectorAll('.portal-global-nav a')].map(bounds),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(metrics.overflow, `${width}px page overflow`).toBe(false);
+  for (const control of metrics.controls) {
+    expect(control.x, `${width}px ${control.label} left`).toBeGreaterThanOrEqual(0);
+    expect(control.right, `${width}px ${control.label} right`).toBeLessThanOrEqual(width);
+    expect(control.bottom, `${width}px ${control.label} below header`).toBeLessThanOrEqual(
+      metrics.header.bottom + 1,
+    );
+  }
+  for (let i = 0; i < metrics.controls.length; i++)
+    for (let j = i + 1; j < metrics.controls.length; j++) {
+      const a = metrics.controls[i]!,
+        b = metrics.controls[j]!;
+      const intersectionWidth = Math.min(a.right, b.right) - Math.max(a.x, b.x);
+      const intersectionHeight = Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y);
+      expect(
+        intersectionWidth > 1 && intersectionHeight > 1,
+        `${width}px overlap: ${a.label} / ${b.label}`,
+      ).toBe(false);
+    }
+  for (const link of metrics.links) expect(link.height).toBeGreaterThanOrEqual(44);
+  if (width <= 820) {
+    expect(metrics.header.height).toBeGreaterThanOrEqual(100);
+    for (const link of metrics.links) expect(link.y).toBeGreaterThanOrEqual(metrics.header.y + 56);
+  } else expect(metrics.header.height).toBeLessThan(60);
+}
+
+for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821])
+  test(`portal shell has distinct non-overlapping slots and room for a third public link at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(shellEvidence, { recursive: true });
+    const state = await fixture(page, {
+      educator: true,
+      author: true,
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/interface');
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    const publicNav = page.getByLabel('Разделы ASA Lab');
+    await expect(publicNav.getByRole('link')).toHaveCount(2);
+    await expect(publicNav.getByRole('link', { name: 'ИИ', exact: true })).toHaveCount(0);
+    await assertShellGeometry(page, width);
+    await page.screenshot({ path: `${shellEvidence}/shell-${width}.png` });
+    // Layout-only fixture: the real product exposes no placeholder AI feature.
+    await publicNav.evaluate((nav) => {
+      const third = nav.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
+      third.href = '/#/ai-fixture';
+      third.dataset.layoutFixture = 'future-ai';
+      third.removeAttribute('aria-current');
+      third.querySelector('span')!.textContent = 'ИИ';
+      nav.append(third);
+    });
+    await assertShellGeometry(page, width);
+    await page.screenshot({ path: `${shellEvidence}/third-link-fixture-${width}.png` });
+    await publicNav.locator('[data-layout-fixture]').evaluate((element) => element.remove());
+    const sidebar = page.locator('#portal-sidebar');
+    const settings = sidebar.getByRole('link', {
+      name: 'Настройки',
+      exact: true,
+      includeHidden: true,
+    });
+    await expect(sidebar.locator('a[href="/#/gallery"], a[href="/#/knowledge"]')).toHaveCount(0);
+    await expect(
+      sidebar.getByRole('link', { name: 'Мои проекты', exact: true, includeHidden: true }),
+    ).toHaveCount(1);
+    await expect(settings).toHaveCount(1);
+    await expect(
+      sidebar.getByRole('link', { name: 'Курсы и задания', exact: true, includeHidden: true }),
+    ).toHaveCount(1);
+    if (width <= 820) {
+      const toggle = page.getByRole('button', { name: 'Открыть меню', exact: true });
+      await toggle.click();
+      await expect(sidebar).toHaveAttribute('role', 'dialog');
+      await expect(page.locator('.portal-header')).toHaveAttribute('inert', '');
+      const order = await sidebar.evaluate((element) => {
+        const nav = element.querySelector('.portal-nav')!,
+          footer = element.querySelector('.portal-sidebar-footer')!;
+        const links = [...footer.querySelectorAll('a, button')].map((child) => {
+          const r = child.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, height: r.height };
+        });
+        return {
+          navBottom: nav.getBoundingClientRect().bottom,
+          links,
+          navOrder: getComputedStyle(nav).order,
+          footerBottomMargin: getComputedStyle(footer).marginBottom,
+        };
+      });
+      expect(order.navOrder).toBe('0');
+      expect(order.footerBottomMargin).toBe('0px');
+      expect(order.links[0]!.top).toBeGreaterThanOrEqual(order.navBottom);
+      for (let i = 1; i < order.links.length; i++)
+        expect(order.links[i]!.top).toBeGreaterThanOrEqual(order.links[i - 1]!.bottom);
+      for (const link of order.links) expect(link.height).toBeGreaterThanOrEqual(44);
+      await page.screenshot({ path: `${shellEvidence}/drawer-${width}-short.png` });
+      const exit = sidebar.getByRole('button', { name: 'Выход', exact: true });
+      await exit.scrollIntoViewIfNeeded();
+      expect(
+        (await exit.boundingBox())!.y + (await exit.boundingBox())!.height,
+      ).toBeLessThanOrEqual(568);
+      await page.screenshot({ path: `${shellEvidence}/drawer-${width}-logout.png` });
+      // Tab wraps from the last action to Close; Escape restores the trigger.
+      await exit.focus();
+      await page.keyboard.press('Tab');
+      await expect(
+        sidebar.getByRole('button', { name: 'Закрыть меню', exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(toggle).toBeFocused();
+      await expect(page.locator('.portal-header')).not.toHaveAttribute('inert', '');
+    } else {
+      const collapse = sidebar.getByRole('button', {
+        name: 'Свернуть боковую панель',
+        exact: true,
+      });
+      await collapse.scrollIntoViewIfNeeded();
+      const size = await collapse.boundingBox();
+      expect(size!.width).toBe(44);
+      expect(size!.height).toBe(44);
+      await expect(collapse).toHaveCSS('border-radius', '50%');
+      await page.screenshot({ path: `${shellEvidence}/expanded-control-${width}.png` });
+      await collapse.click();
+      await expect(sidebar).toHaveClass(/collapsed/);
+      await page.screenshot({ path: `${shellEvidence}/collapsed-${width}.png` });
+      expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(
+        1,
+      );
+      await page.reload();
+      await expect(sidebar).toHaveClass(/collapsed/);
+    }
+  });
+
+for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
+  test(`short mobile drawer preserves ${role} navigation projections and one settings destination`, async ({
+    page,
+  }) => {
+    await fixture(page, {
+      seat: role === 'seat',
+      educator: role === 'teacher',
+      author: role === 'author',
+      platformAdmin: role === 'admin',
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width: 390, height: 568 });
+    await page.goto('/#/account');
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    const sidebar = page.locator('#portal-sidebar');
+    await expect(
+      sidebar.getByRole('link', {
+        name: role === 'seat' ? 'Настройки учебного профиля' : 'Настройки',
+        exact: true,
+      }),
+    ).toHaveCount(1);
+    await expect(sidebar.locator('a[href="/#/account"]')).toHaveCount(1);
+    await expect(sidebar.getByRole('link', { name: 'Классы', exact: true })).toHaveCount(
+      role === 'teacher' ? 1 : 0,
+    );
+    await expect(sidebar.getByRole('link', { name: 'Курсы и задания', exact: true })).toHaveCount(
+      ['teacher', 'author'].includes(role) ? 1 : 0,
+    );
+    await expect(sidebar.getByRole('button', { name: 'Админ', exact: true })).toHaveCount(
+      role === 'admin' ? 1 : 0,
+    );
+    await expect(
+      sidebar.getByRole('link', {
+        name: role === 'seat' ? 'Мои учебные работы' : 'Мои проекты',
+        exact: true,
+      }),
+    ).toBeVisible();
+    const help = sidebar.getByRole('link', {
+      name: role === 'seat' ? 'Помощь' : 'Справка',
+      exact: true,
+    });
+    await help.scrollIntoViewIfNeeded();
+    await expect(help).toHaveAttribute('href', '/#/help');
+    await page.screenshot({ path: `${shellEvidence}/drawer-${role}-390-short.png` });
+    await help.click();
+    await expect(page).toHaveURL(/#\/help$/);
+    await expect(sidebar).not.toHaveClass(/mobile-open/);
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await page.locator('.portal-menu-backdrop').click({ position: { x: 385, y: 300 } });
+    await expect(sidebar).not.toHaveClass(/mobile-open/);
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await page.setViewportSize({ width: 821, height: 568 });
+    await expect(sidebar).not.toHaveClass(/mobile-open/);
+  });
+
+for (const width of [1440, 390])
+  test(`public and personal routes retain shell, active section, native links and dirty guard at ${width}px`, async ({
+    page,
+  }) => {
+    const state = await fixture(page);
+    await page.setViewportSize({ width, height: 900 });
+    for (const hash of [
+      'home',
+      'projects',
+      'gallery',
+      'knowledge',
+      'learning',
+      'help',
+      'account',
+    ]) {
+      await page.goto(`/#/${hash}`);
+      await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(2);
+      await assertShellGeometry(page, width);
+      const active = page.locator('.portal-global-nav [aria-current="page"]');
+      await expect(active).toHaveCount(['gallery', 'knowledge'].includes(hash) ? 1 : 0);
+      if (['gallery', 'knowledge'].includes(hash)) {
+        await expect(active).toHaveAttribute('href', `/#/${hash}`);
+        await expect(page.locator('.portal-sidebar a[aria-current="page"]')).toHaveCount(0);
+      }
+    }
+    const projects = page
+      .getByLabel('Разделы ASA Lab')
+      .getByRole('link', { name: 'Проекты', exact: true });
+    await expect(projects).toHaveAttribute('href', '/#/gallery');
+    await page.getByLabel('Отображаемое имя').fill('Несохранённый профиль');
+    // A modified click follows the native destination; it must not dispatch a
+    // guarded same-tab navigation or discard this tab's profile draft.
+    const prevented = await projects.evaluate((element) => {
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+      element.dispatchEvent(click);
+      return click.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    await expect(page).toHaveURL(/#\/account$/);
+    await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+    for (const hash of ['gallery', 'knowledge', 'help']) {
+      if (hash !== 'gallery') {
+        await page.goto('/#/account');
+        await page.getByLabel('Отображаемое имя').fill('Несохранённый профиль');
+      }
+      const target =
+        hash === 'help'
+          ? page.locator('#portal-sidebar a[href="/#/help"]')
+          : page.locator(`.portal-global-nav a[href="/#/${hash}"]`);
+      const follow = async () => {
+        if (hash === 'help' && width <= 820)
+          await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+        await target.click();
+      };
+      await follow();
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+      await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+      await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Несохранённый профиль');
+      await follow();
+      await page.getByRole('button', { name: 'Отменить изменения и перейти', exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`#/${hash}$`));
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+    }
+    await page
+      .getByLabel('Разделы ASA Lab')
+      .getByRole('link', { name: 'Проекты', exact: true })
+      .click();
+    await page
+      .getByLabel('Разделы ASA Lab')
+      .getByRole('link', { name: 'Знания', exact: true })
+      .click();
+    await expect(page).toHaveURL(/#\/knowledge$/);
+    await traverse(page, 'back');
+    await expect(page).toHaveURL(/#\/gallery$/);
+    await traverse(page, 'forward');
+    await expect(page).toHaveURL(/#\/knowledge$/);
+    expect(state.mutations).not.toContain('/api/account/profile');
+  });
+
+test('plain native links still protect settings drafts and modified or middle clicks stay native', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  await page.getByLabel('Отображаемое имя').fill('Черновик обычной ссылки');
+  await page.locator('main').evaluate((main) => {
+    const link = document.createElement('a');
+    link.href = '/#/help';
+    link.textContent = 'Обычная ссылка проверки';
+    main.append(link);
+  });
+  const plain = page.getByRole('link', { name: 'Обычная ссылка проверки', exact: true });
+  await plain.click();
+  await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+  await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+  const projects = page
+    .getByLabel('Разделы ASA Lab')
+    .getByRole('link', { name: 'Проекты', exact: true });
+  for (const options of [{ button: 1 }, { metaKey: true }, { shiftKey: true }, { altKey: true }])
+    expect(
+      await projects.evaluate((element, input) => {
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...input });
+        let observed = false,
+          prevented = true;
+        document.addEventListener(
+          'click',
+          (click) => {
+            observed = true;
+            prevented = click.defaultPrevented;
+            // The fixture observes whether the app retained native behavior,
+            // then suppresses a real new tab/download from this synthetic click.
+            click.preventDefault();
+          },
+          { once: true },
+        );
+        element.dispatchEvent(event);
+        return { observed, prevented };
+      }, options),
+    ).toEqual({ observed: true, prevented: false });
+  await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик обычной ссылки');
+  expect(state.mutations).not.toContain('/api/account/profile');
+  await plain.click();
+  await page.getByRole('button', { name: 'Отменить изменения и перейти', exact: true }).click();
+  await expect(page).toHaveURL(/#\/help$/);
+  await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+});
+
+for (const navigationApi of [true, false])
+  for (const decision of ['Сохранить и перейти', 'Отменить изменения и перейти'])
+    test(`Seat native Help completes one ${decision} decision ${navigationApi ? 'with' : 'without'} Navigation API`, async ({
+      page,
+    }) => {
+      if (!navigationApi)
+        await page.addInitScript(() =>
+          Object.defineProperty(window, 'navigation', { value: undefined, configurable: true }),
+        );
+      const state = await fixture(page, { seat: true });
+      await page.goto('/#/account/interface');
+      await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+      const help = page.locator('main').getByRole('link', { name: 'Помощь', exact: true });
+      await expect(help).not.toHaveAttribute('data-portal-navigation', 'managed');
+      await help.click();
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+      await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+      await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+      await help.click();
+      await page.getByRole('button', { name: decision, exact: true }).click();
+      await expect(page).toHaveURL(/#\/help$/);
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+      await traverse(page, 'back');
+      await expect(page).toHaveURL(/#\/account\/interface$/);
+      await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue(
+        decision === 'Сохранить и перейти' ? 'reduce' : 'system',
+      );
+      expect(state.mutations).not.toContain('/api/account/presentation');
+    });
 
 for (const width of [560, 561, 900, 901])
   test(`settings heading and picker switch without layout drift at ${width}px boundary`, async ({
@@ -1445,7 +1825,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByText('Сохранено до выхода из этого учебного сеанса.', { exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Помощь', exact: true })).toBeVisible();
+    await expect(
+      page.locator('main').getByRole('link', { name: 'Помощь', exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveCount(0);
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))

@@ -25,5 +25,12 @@ export function PortalLink({ href, onNavigate, ...props }: PortalLinkProps): JSX
     onNavigate();
   }
 
-  return <a {...props} href={href} onClick={follow} />;
+  return (
+    <a
+      {...props}
+      href={href}
+      data-portal-navigation={onNavigate ? 'managed' : undefined}
+      onClick={follow}
+    />
+  );
 }

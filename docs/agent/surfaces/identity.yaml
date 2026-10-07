@@ -1,6 +1,53 @@
 schema_version: 1.0.0
 context: identity
 surfaces:
+- id: SURF-PORTAL-SHELL
+  routes:
+  - '#/home'
+  - '#/projects'
+  - '#/gallery'
+  - '#/knowledge'
+  - '#/learning'
+  - '#/help'
+  - '#/account'
+  implementation:
+    files:
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/components/PortalLink.tsx
+    - apps/web/src/components/settings-navigation.tsx
+    - apps/web/src/creator-portal/navigation.ts
+    - apps/web/src/creator-portal/creator-portal.css
+    - apps/web/src/creator-portal/portal-workspace.css
+    - apps/web/src/creator-portal/home-workspace.css
+  invariants:
+  - IDA-AUTH-001
+  - IDA-CAP-001
+  - IDA-CTX-001
+  - IDA-PROFILE-001
+  - IDA-SEAT-PUBLIC-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  - TST-ACCOUNT-SETTINGS-UI-001
+  controls:
+  - id: CTRL-PORTAL-NAVIGATION
+    label: Public top navigation and scoped personal drawer preserve native links and settings guards
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/components/PortalLink.tsx
+    - apps/web/src/components/settings-navigation.tsx
+    - apps/web/src/creator-portal/navigation.ts
+    commands: []
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CAP-001
+    - IDA-CTX-001
+    - IDA-SEAT-PUBLIC-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
 - id: SURF-OWNER-ADMIN-OPERATOR
   routes:
   - 'operator:owner-admin'
