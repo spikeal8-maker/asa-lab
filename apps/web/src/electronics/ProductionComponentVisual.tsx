@@ -364,6 +364,16 @@ function useOwnerImageHref(asset: string): {
   readonly onError: () => void;
   readonly onLoad: () => void;
 } {
+  const probeId = useRef<object>({});
+  const probe = (kind: string): void => {
+    if (!asset.endsWith('/aa-2.svg')) return;
+    const target = window as unknown as { ordinaryImageProbe?: { kind: string; identity?: object; id?: number; at?: number; asset?: string }[] };
+    const events = target.ordinaryImageProbe;
+    if (!events) return;
+    let id = events.findIndex((event) => event.identity === probeId.current);
+    if (id < 0) { id = events.length; events.push({ kind: 'identity', identity: probeId.current }); }
+    events.push({ kind, id, at: performance.now(), asset });
+  };
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
   const current = useRef(loaded);
   current.current = loaded;
@@ -445,6 +455,7 @@ function useOwnerImageHref(asset: string): {
         if (active && current.current.asset === asset) recovery.recovered();
       },
     };
+    probe('callbacks-setup');
     handlers.current = mountedHandlers;
     // The native SVG image can notify before passive lifecycle setup. Replay
     // only this resource's latest event; a newer resource owns its own event.
@@ -479,8 +490,8 @@ function useOwnerImageHref(asset: string): {
   return {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
-    onError: () => notify('error'),
-    onLoad: () => notify('load'),
+    onError: () => { probe('react-error'); notify('error'); },
+    onLoad: () => { probe('react-load'); notify('load'); },
   };
 }
 
