@@ -251,16 +251,25 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
-      issue: 517
+      id: TASK-ELECTRONICS-VISUAL-SOURCE-REVIEW-001
+      issue: 518
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: ordinary_image_independent_findings_bounded_repair_selected
+      checkpoint: visual_source_bounded_maintenance_re_review_selected
       owner_acceptance: pending
     suspended_slices:
+      - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
+        issue: 517
+        status: blocked
+        candidate_sha: d6a78196c6c2423ebad59de4e682141d3d9d837d
+        preserved_successor_sha: 21f2da7075f3ffaa663e9fec3600c4bd20ae0e53
+        independent_review: request_changes
+        exact_candidate_general_run: 37670413727
+        exact_candidate_browser_run: 37670417852
+        resume_after: Accept separately selected maintenance Issue 518 responsibility review, then repair the two test fixtures in a separate bounded cycle and obtain causal built-browser evidence and required exact-head gates; do not treat candidate or successor as accepted.
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
         issue: 516
         status: blocked
@@ -285,21 +294,22 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
+      convergence_baseline_sha: da4e37461e4c73dc76f564ac6171fffbb45cb8ea
       head_sha: null
-      observed_at: '2026-10-07T19:11:52Z'
+      observed_at: '2026-10-07T19:18:39Z'
       main:
         branch: main
-        sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
+        sha: da4e37461e4c73dc76f564ac6171fffbb45cb8ea
       observation_note: >-
-        Dated remote main with Settings-owned 320 px repair 6e17a64e and independently
+        Dated remote main da4e3746 preserves unrelated Admin Logs backup changes and Settings-owned 320 px repair 6e17a64e and independently
         verified exact-head general workflow 37670104301 SUCCESS. Issue 510 remains
         accepted. Issue 517 independent review of d6a78196 REQUEST_CHANGES: new React
         fixture type errors, self-blocking browser navigation and directly caused
         large-source growth threshold failure. Published test-only successor
-        21f2da70 is preserved and unaccepted. Select a separate bounded test repair
-        and factual responsibility re-review of the single ProductionComponentVisual
-        baseline entry, as explicitly scoped in the card. Native historical image
+        21f2da70 is preserved and unaccepted. Issue 518 now selects the separate
+        documentation-only maintenance responsibility review required by Engineering
+        Hygiene Contract sections 6 and 8 before any baseline update. Issue 517 is
+        suspended pending that accepted review, then a bounded test repair. Native historical image
         event ordering and school frequency are unproved. Preserve suspended Issue
         516 and Issue 505 PR 506; no integrated acceptance, owner acceptance, release
         or deployment is claimed. Fetch main and exact-head CI before writes.
@@ -311,9 +321,9 @@ parallel_lanes:
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: Electronics R4-M1 Focused
+        workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm gate:electronics-m1
+          - pnpm gate:governance
       browser:
         workflow: Electronics R4-M1 Focused
         commands:
