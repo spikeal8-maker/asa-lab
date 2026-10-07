@@ -228,14 +228,14 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-ARDUINO-CADENCE-DIAGNOSIS-001
-      issue: 510
+      id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
+      issue: 516
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: arduino_ready_observation_cadence_diagnosis_selected
+      checkpoint: canonical_horizon_chunking_repair_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
@@ -246,16 +246,26 @@ parallel_lanes:
         independent_review: approved
         exact_candidate_general_run: 37506449481
         exact_candidate_browser_run: 37506449432
-        resume_after: Complete Arduino cadence Issue 510 evidence or repairs after accepted startup Issue 513 resolved E2 Issue 509; obtain full exact-head Electronics browser PASS before technical acceptance or merge.
+        resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: bf9126e69d8138536748a72ce3dfe3c073f1fbb1
+      convergence_baseline_sha: f909ac674a11e8864a8042e734b37d75fe9bb93d
       head_sha: null
-      observed_at: '2026-10-06T21:43:55Z'
+      observed_at: '2026-10-07T16:49:41Z'
       main:
         branch: main
-        sha: bf9126e69d8138536748a72ce3dfe3c073f1fbb1
-      observation_note: Dated main observation selecting Issue 510 after startup Issue 513 candidate bf9126e69d8138536748a72ce3dfe3c073f1fbb1 received independent APPROVE, exact-head general run 37533475410 SUCCESS and full Electronics run 37533998221 SUCCESS with 115 browser scenarios. Same SHA fast-forward integrated to main; preserved strict Issue 509 E2 assertion is included and that dependency is resolved. Later Arduino cadence remains unproved despite its passing scenario in this run. Issue 505 PR 506 stays suspended. Fetch main before writes. No deployment or owner acceptance occurred.
+        sha: f909ac674a11e8864a8042e734b37d75fe9bb93d
+      observation_note: >-
+        Dated main observation after report-only Issue 510 candidate
+        09924bf6ce1216ac16f89241f107fb14cf9570fa received independent APPROVE and
+        exact-head general workflow 37653153234 SUCCESS. Report was integrated
+        at f909ac674a11e8864a8042e734b37d75fe9bb93d, preserving disjoint Settings
+        changes. Normal and controlled-load measurements establish delayed complete
+        observation publication, not classroom frequency or repaired product.
+        Separate Issue 516 selects bounded/adaptive canonical horizon chunking,
+        preserving all physical/runtime state and ready-only frames. Issue 505
+        PR 506 remains suspended on its existing candidate. Fetch main before
+        writes; owner acceptance, live database operations and deployment are not claimed.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -525,6 +535,26 @@ parallel_lanes:
         status: technical_accepted
         owner_acceptance: pending
         deployment: not_run
+      - task_id: TASK-ELECTRONICS-ARDUINO-CADENCE-DIAGNOSIS-001
+        issue: 510
+        accepted_candidate_sha: 09924bf6ce1216ac16f89241f107fb14cf9570fa
+        integrated_sha: f909ac674a11e8864a8042e734b37d75fe9bb93d
+        independent_review: approved
+        exact_candidate_general_run: 37653153234
+        diagnostic_probe_sha: 00c9d9b1cb35ff21da2c071612215cf48260b53d
+        ordinary_diagnostic_run: 37579056488
+        controlled_failure_diagnostic_run: 37579060724
+        nx_fresh_executions:
+          general_code: 96
+          isolated_build: 43
+          browser_build: 27
+        status: diagnostic_accepted
+        followups:
+          - 516
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
+
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
@@ -863,8 +893,8 @@ blocking:
       - regression_authoring
       - documentation_update
       - focused_verification
-    reason: Issue 505 candidate PR 506 HEAD 350d2442d044d8992374ca4deef2758b6c95c61f passed its new browser scenario and independent review, but exact-head Electronics workflow 37506449432 failed different unchanged Arduino Reset and E2 running-style tests on attempts 1 and 2. General CI passed. Issue 507 is the selected separate baseline diagnosis. Do not accept, merge or close Issue 505 until required full browser evidence is green.
-    evidence: https://github.com/spikeal8-maker/asa-lab/issues/507
+    reason: Issue 505 PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f remains preserved. Independently accepted diagnosis Issue 510 report 09924bf6ce1216ac16f89241f107fb14cf9570fa proved delayed complete observation publication and reproduced the unchanged Arduino LOW failure under controlled CPU contention. Accepted startup repair Issue 513 resolved E2 Issue 509. Separate Issue 516 must resolve the remaining cadence dependency, followed by full exact-head Electronics browser PASS, before acceptance, merge or closure of Issue 505.
+    evidence: https://github.com/spikeal8-maker/asa-lab/issues/516
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
