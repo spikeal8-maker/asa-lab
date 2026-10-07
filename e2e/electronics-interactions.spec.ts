@@ -36,6 +36,40 @@ const touchVideoTest = test.extend({
 });
 const wireVideoTest = test.extend({ video: 'on' });
 test.beforeEach(async ({ page }, info) => {
+  if (!info.title.includes('a permanently missing ordinary image')) return;
+  await page.addInitScript(() => {
+    const events: unknown[] = [];
+    (window as unknown as { ordinaryImageProbe: unknown[] }).ordinaryImageProbe = events;
+    for (const type of ['error', 'load'])
+      document.addEventListener(
+        type,
+        (event) => {
+          const image = event.target;
+          if (!(image instanceof SVGImageElement) || !image.href.baseVal.includes('/aa-2.svg'))
+            return;
+          events.push({
+            kind: `native-${type}`,
+            at: performance.now(),
+            trusted: event.isTrusted,
+            href: image.href.baseVal,
+            consumer: image.closest('.workbench-catalog-card') ? 'catalog' : 'stage',
+          });
+        },
+        true,
+      );
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  if (!info.title.includes('a permanently missing ordinary image')) return;
+  const events = await page.evaluate(
+    () => (window as unknown as { ordinaryImageProbe?: unknown[] }).ordinaryImageProbe ?? [],
+  );
+  await info.attach('ordinary-image-probe.json', {
+    body: JSON.stringify(events, null, 2),
+    contentType: 'application/json',
+  });
+});
+test.beforeEach(async ({ page }, info) => {
   if (!/R3 native matrix|R3 cancellation/.test(info.title)) return;
   await page.addInitScript(() => {
     const events: unknown[] = [];

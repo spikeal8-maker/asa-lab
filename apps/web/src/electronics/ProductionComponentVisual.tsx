@@ -364,15 +364,30 @@ function useOwnerImageHref(asset: string): {
   readonly onError: () => void;
   readonly onLoad: () => void;
 } {
+  const probeId = useRef(Math.random());
+  const probe = (kind: string, detail?: unknown): void => {
+    if (!asset.endsWith('/aa-2.svg')) return;
+    const target = window as unknown as { ordinaryImageProbe?: unknown[] };
+    target.ordinaryImageProbe?.push({
+      kind,
+      id: probeId.current,
+      at: performance.now(),
+      asset,
+      detail,
+    });
+  };
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
   const current = useRef(loaded);
   current.current = loaded;
+  probe('render-state', loaded);
   const recoverRef = useRef<() => void>(() => undefined);
   const loadedRef = useRef<() => void>(() => undefined);
   useEffect(() => {
+    probe('effect-start');
     let active = true;
     let pending: Promise<boolean> | null = null;
     const load = (): Promise<boolean> => {
+      probe('load-start', { pending: !!pending });
       if (pending) return pending;
       setLoaded({ asset, href: asset, failed: false });
       pending = recoverOwnerImage(asset)
@@ -382,6 +397,7 @@ function useOwnerImageHref(asset: string): {
           return true;
         })
         .catch(() => {
+          probe('recovery-failed', { active });
           if (active) setLoaded({ asset, href: asset, failed: true });
           return false;
         })
@@ -421,6 +437,13 @@ function useOwnerImageHref(asset: string): {
       });
     };
     const recover = (): void => {
+      probe('recover-invoke', {
+        active,
+        pending: !!pending,
+        current: current.current,
+        sharedFailed: failedOwnerImages.has(asset),
+        permanent: recovery.permanent(),
+      });
       if (!active || pending || recovery.permanent()) return;
       if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
         return;
@@ -439,6 +462,7 @@ function useOwnerImageHref(asset: string): {
       start();
     };
     recoverRef.current = recover;
+    probe('callback-installed');
     loadedRef.current = () => {
       if (active && current.current.asset === asset) recovery.recovered();
     };
@@ -452,6 +476,7 @@ function useOwnerImageHref(asset: string): {
     window.addEventListener('focus', retry);
     document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
+      probe('cleanup');
       active = false;
       recovery.cancel();
       recoverRef.current = () => undefined;
@@ -464,8 +489,14 @@ function useOwnerImageHref(asset: string): {
   return {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
-    onError: () => recoverRef.current(),
-    onLoad: () => loadedRef.current(),
+    onError: () => {
+      probe('react-error');
+      recoverRef.current();
+    },
+    onLoad: () => {
+      probe('react-load');
+      loadedRef.current();
+    },
   };
 }
 
