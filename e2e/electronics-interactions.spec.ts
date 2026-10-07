@@ -36,7 +36,8 @@ const touchVideoTest = test.extend({
 });
 const wireVideoTest = test.extend({ video: 'on' });
 test.beforeEach(async ({ page }, info) => {
-  if (!info.title.includes('a permanently missing ordinary image')) return;
+  if (!/a permanently missing ordinary image|ordinary image commit-gap error/.test(info.title))
+    return;
   await page.addInitScript(() => {
     const events: unknown[] = [];
     (window as unknown as { ordinaryImageProbe: unknown[] }).ordinaryImageProbe = events;
@@ -60,11 +61,12 @@ test.beforeEach(async ({ page }, info) => {
   });
 });
 test.afterEach(async ({ page }, info) => {
-  if (!info.title.includes('a permanently missing ordinary image')) return;
+  if (!/a permanently missing ordinary image|ordinary image commit-gap error/.test(info.title))
+    return;
   const events = await page.evaluate(
     () => (window as unknown as { ordinaryImageProbe?: unknown[] }).ordinaryImageProbe ?? [],
   );
-  writeFileSync('reports/ordinary-image-probe.json', JSON.stringify(events, null, 2));
+  writeFileSync('reports/controlled-image-probe.json', JSON.stringify(events, null, 2));
   await info.attach('ordinary-image-probe.json', {
     body: JSON.stringify(events, null, 2),
     contentType: 'application/json',
@@ -1675,6 +1677,94 @@ test.describe('asset recovery in the built editor', () => {
     expect(errors).toEqual([]);
   });
 
+  test('ordinary image commit-gap error reaches stage and catalog before native delivery', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    await page.addInitScript((asset) => {
+      const observed = new WeakSet<Element>();
+      const events: { consumer: string; trusted: boolean }[] = [];
+      (window as unknown as { inducedImageErrors: unknown[] }).inducedImageErrors = events;
+      const notifyInserted = (node: Node) => {
+        if (!(node instanceof Element) || !node.isConnected) return;
+        const images = [
+          ...node.querySelectorAll('image'),
+          ...(node.matches('image') ? [node] : []),
+        ];
+        for (const image of images) {
+          if (image.getAttribute('href') !== asset || observed.has(image)) continue;
+          observed.add(image);
+          const event = new Event('error');
+          events.push({
+            consumer: image.closest('.workbench-catalog-card') ? 'catalog' : 'stage',
+            trusted: event.isTrusted,
+          });
+          // Test-only induced commit delivery. Original native requests remain
+          // pending until the unchanged failure indications are asserted.
+          (window as unknown as { ordinaryImageProbe: unknown[] }).ordinaryImageProbe.push({
+            kind: 'induced-dispatch',
+            at: performance.now(),
+            consumer: events.at(-1)?.consumer,
+          });
+          image.dispatchEvent(event);
+        }
+      };
+      const append = Node.prototype.appendChild;
+      Node.prototype.appendChild = function <T extends Node>(node: T): T {
+        const result = append.call(this, node) as T;
+        notifyInserted(node);
+        return result;
+      };
+      const insert = Node.prototype.insertBefore;
+      Node.prototype.insertBefore = function <T extends Node>(node: T, child: Node | null): T {
+        const result = insert.call(this, node, child) as T;
+        notifyInserted(node);
+        return result;
+      };
+    }, asset);
+    const release: (() => void)[] = [];
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'image') return route.continue();
+        if (!new URL(route.request().url()).searchParams.has('asa-image-retry'))
+          await new Promise<void>((resolve) => release.push(resolve));
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const initial = readDocument();
+    try {
+      await expect(
+        part(page, 'holder').getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible({ timeout: 10_000 });
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      await card.scrollIntoViewIfNeeded();
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      const induced = await page.evaluate(
+        () =>
+          (window as unknown as { inducedImageErrors: { consumer: string; trusted: boolean }[] })
+            .inducedImageErrors,
+      );
+      expect(induced.some((event) => event.consumer === 'stage')).toBe(true);
+      expect(induced.some((event) => event.consumer === 'catalog')).toBe(true);
+      expect(induced.every((event) => !event.trusted)).toBe(true);
+      expect(readDocument()).toEqual(initial);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } finally {
+      for (const resolve of release) resolve();
+    }
+  });
   test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
     page,
   }) => {
