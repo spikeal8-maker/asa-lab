@@ -2679,6 +2679,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await openAccountSettings(page);
   await expect(page.locator('.account-settings-page')).toBeVisible();
   await page.evaluate(() => window.history.back());
+  await page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий', exact: true })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
   await expect(page.getByTestId('courses-list')).toBeVisible();
   await courseRow.click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
@@ -2726,6 +2730,10 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     acceptedCourseEntry.state.asaRouteIndex + 1,
   );
   await page.evaluate(() => window.history.back());
+  await page
+    .getByRole('navigation', { name: 'Разделы курсов и заданий', exact: true })
+    .getByRole('button', { name: 'Курсы', exact: true })
+    .click();
   await expect(page.getByTestId('courses-list')).toBeVisible();
   await courseRow.click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
