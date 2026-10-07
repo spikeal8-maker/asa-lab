@@ -99,13 +99,40 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   await page.getByLabel(/^Отображаемое имя/).fill('Имя без смены прав');
   await page.getByRole('button', { name: 'Сохранить изменения', exact: true }).click();
   await expect(page.getByText('Изменения сохранены.', { exact: true })).toBeVisible();
+  const avatarWrites: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/account/avatar') && request.method() === 'PATCH')
+      avatarWrites.push(request.url());
+  });
   await page.getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
-  await page
-    .getByRole('dialog')
+  const avatarDialog = page.getByRole('dialog', { name: 'Выберите аватар', exact: true });
+  await avatarDialog
     .getByRole('button', { name: /^Выбрать:/ })
     .nth(1)
     .click();
-  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(avatarDialog).toBeVisible();
+  const avatarBefore = await page.request.get('/api/account/avatar');
+  expect(avatarBefore.ok(), await avatarBefore.text()).toBeTruthy();
+  expect((await avatarBefore.json()).avatarDataUrl).toBeNull();
+  expect(avatarWrites).toHaveLength(0);
+  const avatarSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/account/avatar') && response.request().method() === 'PATCH',
+  );
+  await avatarDialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  const avatarResponse = await avatarSaved;
+  expect(avatarResponse.ok(), await avatarResponse.text()).toBeTruthy();
+  const savedAvatar = (await avatarResponse.json()).avatarDataUrl;
+  expect(savedAvatar).toMatch(/^data:image\/webp;base64,/);
+  await expect(avatarDialog).toBeHidden();
+  expect(avatarWrites).toHaveLength(1);
+  await expect(page.getByRole('img', { name: 'Текущий аватар', exact: true })).toHaveAttribute(
+    'src',
+    savedAvatar,
+  );
+  const avatarStored = await page.request.get('/api/account/avatar');
+  expect(avatarStored.ok(), await avatarStored.text()).toBeTruthy();
+  expect((await avatarStored.json()).avatarDataUrl).toBe(savedAvatar);
   const unchanged = await (await page.request.get('/api/auth/me')).json();
   expect(
     unchanged.capabilities.some((c: { capability: string }) => c.capability === 'educator'),

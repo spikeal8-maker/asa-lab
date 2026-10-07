@@ -153,6 +153,7 @@
   margin-top: 12px;
 }
 .avatar-chooser-actions button {
+  margin: 0;
   min-height: 44px;
 }
 .avatar-chooser-actions .btn-primary {

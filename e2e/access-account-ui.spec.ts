@@ -2040,6 +2040,61 @@ for (const width of [1440, 1024, 390, 320]) {
 }
 
 const avatarEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-20261008';
+const avatarRepairEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-repair-20261008';
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true])
+    test(`S2 repair avatar action row ${seat ? 'seat' : 'account'} ${width} short screen`, async ({
+      page,
+    }) => {
+      mkdirSync(avatarRepairEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      await fixture(page, { seat, presentationLongContent: true });
+      await page.goto('/#/account');
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      const samples = [];
+      for (const state of ['current', 'selected']) {
+        if (state === 'selected')
+          await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+        const actions = await dialog
+          .locator('.avatar-chooser-actions button')
+          .evaluateAll((buttons) =>
+            buttons.map((button) => {
+              const r = button.getBoundingClientRect();
+              return {
+                top: r.top,
+                bottom: r.bottom,
+                width: r.width,
+                height: r.height,
+                textFits: button.scrollWidth <= button.clientWidth,
+              };
+            }),
+          );
+        samples.push({ state, actions });
+        writeFileSync(
+          `${avatarRepairEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
+          JSON.stringify(samples, null, 2),
+        );
+        expect(actions).toHaveLength(2);
+        expect(Math.abs(actions[0]!.top - actions[1]!.top)).toBeLessThan(1);
+        expect(Math.abs(actions[0]!.bottom - actions[1]!.bottom)).toBeLessThan(1);
+        for (const action of actions) {
+          expect(action.height).toBeGreaterThanOrEqual(44);
+          expect(action.width).toBeGreaterThanOrEqual(44);
+          expect(action.textFits).toBe(true);
+        }
+        await expect(
+          dialog.getByRole('button', { name: 'Использовать', exact: true }),
+        ).toBeInViewport();
+        await page.screenshot({
+          path: `${avatarRepairEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}-short.png`,
+        });
+      }
+    });
 async function assertAvatarGeometry(page: Page) {
   const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
   const metrics = await dialog.evaluate((element) => {
@@ -2270,6 +2325,8 @@ test('S2 save error stays visible, retry retains selected preview and Escape wor
 });
 for (const width of [1440, 1024, 390, 320])
   test(`S2 teacher avatar preview stages in narrow parent modal ${width}`, async ({ page }) => {
+    mkdirSync(avatarEvidence, { recursive: true });
+    mkdirSync(avatarRepairEvidence, { recursive: true });
     await page.setViewportSize({ width, height: 568 });
     await fixture(page, { educator: true });
     const student = {
@@ -2331,6 +2388,55 @@ for (const width of [1440, 1024, 390, 320])
     await parent.getByRole('img', { name: 'Предпросмотр аватара' }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${avatarEvidence}/teacher-${width}-short.png` });
     await parent.getByRole('button', { name: 'Использовать аватар', exact: true }).click();
+    const labelOpener = parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true });
+    await expect(labelOpener).toBeFocused();
+    mkdirSync(avatarRepairEvidence, { recursive: true });
+    const focusSamples = [{ trigger: 'label', action: 'use' }];
+    for (const [trigger, action] of [
+      ['preview', 'cancel'],
+      ['label', 'cancel'],
+      ['preview', 'use'],
+    ] as const) {
+      const opener =
+        trigger === 'preview'
+          ? parent.getByRole('button', { name: 'Увеличить и выбрать аватар ученика', exact: true })
+          : labelOpener;
+      await opener.click();
+      await parent
+        .getByRole('button', {
+          name: action === 'cancel' ? 'Выбрать: Аватар 8' : 'Выбрать: Аватар 7',
+          exact: true,
+        })
+        .click();
+      await parent
+        .getByRole('button', {
+          name: action === 'cancel' ? 'Отменить выбор аватара' : 'Использовать аватар',
+          exact: true,
+        })
+        .click();
+      await expect(parent.locator('.seat-avatar-staged-selection')).toHaveCount(0);
+      await expect(opener).toBeFocused();
+      await expect(parent.getByRole('img', { name: 'Текущий аватар ученика' })).toHaveAttribute(
+        'src',
+        /avatar-07.webp$/,
+      );
+      await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
+        'Изменённое имя ученика',
+      );
+      expect(writes).toHaveLength(0);
+      focusSamples.push({ trigger, action });
+      await page.screenshot({
+        path: `${avatarRepairEvidence}/teacher-${width}-${trigger}-${action}-focus.png`,
+      });
+      await page.keyboard.press('Tab');
+      expect(await parent.evaluate((element) => element.contains(document.activeElement))).toBe(
+        true,
+      );
+    }
+    writeFileSync(
+      `${avatarRepairEvidence}/teacher-${width}-focus.json`,
+      JSON.stringify(focusSamples, null, 2),
+    );
     expect(writes).toHaveLength(0);
     await parent.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(parent).toHaveCount(0);

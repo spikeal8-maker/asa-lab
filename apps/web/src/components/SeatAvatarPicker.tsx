@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useAvatarModule } from './use-avatar-module';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import './seat-avatar.css';
@@ -17,9 +17,14 @@ export function SeatAvatarPicker({
 }): JSX.Element {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('current');
+  const opener = useRef<HTMLButtonElement | null>(null);
   const { module, failed, canRetry, retry } = useAvatarModule(open);
   const AvatarSelection = module?.AvatarSelection;
   const current = seatAvatar(seatId, value);
+  function close(): void {
+    setOpen(false);
+    if (opener.current?.isConnected) opener.current.focus();
+  }
   return (
     <div className="seat-avatar-picker">
       <div className="seat-avatar-current">
@@ -28,7 +33,8 @@ export function SeatAvatarPicker({
           className="account-avatar-preview-button"
           aria-label="Увеличить и выбрать аватар ученика"
           disabled={busy}
-          onClick={() => {
+          onClick={(event) => {
+            opener.current = event.currentTarget;
             setSelected('current');
             setOpen(true);
           }}
@@ -39,7 +45,8 @@ export function SeatAvatarPicker({
           type="button"
           className="btn-secondary"
           disabled={busy}
-          onClick={() => {
+          onClick={(event) => {
+            opener.current = event.currentTarget;
             setSelected('current');
             setOpen(true);
           }}
@@ -68,7 +75,7 @@ export function SeatAvatarPicker({
             <p role="status">Открываем аватары…</p>
           )}
           <div className="avatar-chooser-actions">
-            <button type="button" className="btn-secondary" onClick={() => setOpen(false)}>
+            <button type="button" className="btn-secondary" onClick={close}>
               Отменить выбор аватара
             </button>
             <button
@@ -77,7 +84,7 @@ export function SeatAvatarPicker({
               disabled={busy || selected === 'current'}
               onClick={() => {
                 onChange(selected === 'automatic' ? null : selected);
-                setOpen(false);
+                close();
               }}
             >
               Использовать аватар
