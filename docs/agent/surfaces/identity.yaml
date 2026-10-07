@@ -17,6 +17,7 @@ surfaces:
     - apps/web/src/components/use-avatar-module.ts
     - apps/web/public/vite-preload-recovery.js
     - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/use-avatar-save.ts
     - apps/web/src/components/AvatarSelection.tsx
     - apps/web/src/components/avatar-chooser-events.ts
     - apps/web/src/components/avatar-chooser.css
@@ -92,10 +93,12 @@ surfaces:
   implementation:
     files:
     - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/account.css
     - apps/web/src/components/AvatarDialog.tsx
     - apps/web/src/components/use-avatar-module.ts
     - apps/web/public/vite-preload-recovery.js
     - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/use-avatar-save.ts
     - apps/web/src/components/AvatarSelection.tsx
     - apps/web/src/components/avatar-chooser-events.ts
     - apps/web/src/components/avatar-chooser.css
@@ -125,8 +128,10 @@ surfaces:
     change_class: L2_DOMAIN_MUTATION
     files:
     - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/use-avatar-save.ts
     - apps/web/src/components/PortalHeader.tsx
     - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/account.css
     - apps/web/src/creator-portal/avatar-file.ts
     commands:
     - account_avatar_update

@@ -2042,6 +2042,174 @@ for (const width of [1440, 1024, 390, 320]) {
 const avatarEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-20261008';
 const avatarRepairEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-repair-20261008';
 const avatarFontEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-font-repair-20261008';
+const avatarLifecycleEvidence =
+  'reports/playwright/settings-ui/portal-avatar-s2-lifecycle-repair-20261008';
+
+async function delayedAvatarWrite(page: Page, seat: boolean) {
+  let release!: () => void;
+  const gate = new Promise<void>((done) => (release = done));
+  let writes = 0;
+  let fail = false;
+  let saved: string | null = null;
+  await page.route(
+    seat ? '**/api/class-join/me/avatar' : '**/api/account/avatar',
+    async (route) => {
+      if (route.request().method() === 'GET')
+        return route.fulfill({ json: { avatarDataUrl: saved } });
+      writes += 1;
+      const body = route.request().postDataJSON();
+      if (writes === 1) await gate;
+      if (fail)
+        return route.fulfill({
+          status: 503,
+          json: {
+            error: { code: 'unavailable', message: 'Проверочная ошибка отправленного запроса' },
+          },
+        });
+      saved = seat ? body.avatarKey : body.avatarDataUrl;
+      return route.fulfill({
+        json: seat
+          ? {
+              authenticated: true,
+              student: {
+                seatId: 'seat-1',
+                displayName: 'Ученик с длинным именем',
+                safeMode: true,
+                avatarKey: saved,
+              },
+              classroom: {
+                id: 'class-1',
+                title: 'Учебный класс',
+                teacherDisplayName: 'Преподаватель',
+              },
+              expiresAt: '2030-01-01T00:00:00Z',
+            }
+          : { avatarDataUrl: saved },
+      });
+    },
+  );
+  return {
+    release,
+    fail: (value: boolean) => (fail = value),
+    writes: () => writes,
+    saved: () => saved,
+  };
+}
+
+for (const width of [1440, 320])
+  for (const seat of [false, true])
+    for (const close of ['Escape', 'Close'])
+      test(`S2 lifecycle sent save reconciles after ${close} ${seat ? 'seat' : 'account'} ${width}`, async ({
+        page,
+      }) => {
+        mkdirSync(avatarLifecycleEvidence, { recursive: true });
+        await page.setViewportSize({ width, height: 568 });
+        const state = await fixture(page, { seat });
+        const write = await delayedAvatarWrite(page, seat);
+        await page.goto('/#/account');
+        if (!seat) await page.getByLabel('Отображаемое имя').fill('Независимый черновик');
+        const opener = page
+          .locator('main')
+          .getByRole('button', { name: 'Выбрать аватар', exact: true });
+        await opener.click();
+        const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+        await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+        await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+        await expect.poll(write.writes).toBe(1);
+        await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
+        if (close === 'Escape') await page.keyboard.press('Escape');
+        else await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(opener).toBeFocused();
+        write.release();
+        const headerAvatar = page.locator('.portal-user-avatar img');
+        if (seat) await expect(headerAvatar).toHaveAttribute('src', /avatar-07.webp$/);
+        else {
+          await expect(headerAvatar).toHaveAttribute('src', /^data:image\/webp;base64,/);
+          await expect(headerAvatar).toHaveAttribute('src', write.saved()!);
+          await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Независимый черновик');
+          const profileAvatar = await page
+            .locator('.account-avatar-preview-button img')
+            .boundingBox();
+          expect(profileAvatar!.width).toBe(width <= 560 ? 64 : 96);
+          expect(profileAvatar!.height).toBe(profileAvatar!.width);
+        }
+        await opener.click();
+        await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+          'src',
+          (await headerAvatar.getAttribute('src'))!,
+        );
+        if (width <= 600)
+          await expect(dialog.getByRole('combobox', { name: 'Вариант аватара' })).toHaveValue(
+            'current',
+          );
+        else
+          await expect(
+            dialog.getByRole('button', { name: 'Текущий аватар', exact: true }),
+          ).toHaveAttribute('aria-pressed', 'true');
+        await assertAvatarGeometry(page);
+        await page.screenshot({
+          path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-${width}-${close}-reconciled.png`,
+        });
+        expect(write.writes()).toBe(1);
+        expect(state.mutations).not.toContain('/api/account/profile');
+        await page.keyboard.press('Escape');
+      });
+
+for (const seat of [false, true])
+  test(`S2 lifecycle pending reopen blocks duplicate save and displays late error ${seat ? 'seat' : 'account'}`, async ({
+    page,
+  }) => {
+    mkdirSync(avatarLifecycleEvidence, { recursive: true });
+    await page.setViewportSize({ width: 320, height: 568 });
+    await fixture(page, { seat });
+    const write = await delayedAvatarWrite(page, seat);
+    await page.goto('/#/account');
+    const opener = page
+      .locator('main')
+      .getByRole('button', { name: 'Выбрать аватар', exact: true });
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+    await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await expect.poll(write.writes).toBe(1);
+    await page.keyboard.press('Escape');
+    await opener.click();
+    await expect(
+      dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
+    ).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeEnabled();
+    await assertAvatarGeometry(page);
+    await page.screenshot({
+      path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-320-reopened-pending.png`,
+    });
+    expect(write.writes()).toBe(1);
+    write.fail(true);
+    write.release();
+    await expect(dialog.getByRole('alert')).toHaveText('Проверочная ошибка отправленного запроса');
+    await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeEnabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
+    ).toBeEnabled();
+    await page.screenshot({
+      path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-320-reopened-error.png`,
+    });
+    await dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    write.fail(false);
+    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(write.writes()).toBe(2);
+    await opener.click();
+    const headerAvatar = page.locator('.portal-user-avatar img');
+    await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+      'src',
+      (await headerAvatar.getAttribute('src'))!,
+    );
+    if (seat) await expect(headerAvatar).toHaveAttribute('src', /avatar-08.webp$/);
+  });
+
 for (const width of [320, 600, 601])
   for (const seat of [false, true])
     test(`S2 avatar action row tolerates wider 16px font ${seat ? 'seat' : 'account'} ${width}`, async ({
@@ -2158,7 +2326,7 @@ for (const width of [320, 600, 601])
         await expect(use).toBeEnabled();
         await assertActions('selected');
         await use.click();
-        await expect(dialog.getByRole('status')).toContainText('Подготавливаем и сохраняем');
+        await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
         await expect(use).toBeDisabled();
         await assertActions('busy');
         releaseSave();

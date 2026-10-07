@@ -1,25 +1,27 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type ClassroomStudentSession } from '../api';
+import { api } from '../api';
 import { createAvatarDataUrl } from '../creator-portal/avatar-file';
 import {
   DEFAULT_AVATARS,
   defaultAvatarFile,
   defaultAvatarForAccount,
-  notifyProfileAvatarChanged,
   seatAvatar,
 } from '../creator-portal/default-avatars';
 import type { AvatarActor } from './avatar-chooser-events';
 import { AvatarSelection } from './AvatarSelection';
+import type { AvatarSave } from './use-avatar-save';
 export { AvatarSelection } from './AvatarSelection';
 
 export interface AvatarChooserProps {
   readonly actor: AvatarActor;
   readonly currentUrl: string;
   readonly accountAvatarLoaded: boolean;
-  readonly seat?: ClassroomStudentSession | undefined;
   readonly isCurrent: () => boolean;
   readonly onAccountLoaded: (url: string | null) => void;
-  readonly onSeatChanged?: ((seat: ClassroomStudentSession) => void) | undefined;
+  readonly saving: boolean;
+  readonly saveError: string | null;
+  readonly onSave: (input: AvatarSave) => Promise<boolean>;
+  readonly onClearSaveError: () => void;
   readonly onClose: () => void;
 }
 
@@ -27,10 +29,12 @@ export function AvatarChooser({
   actor,
   currentUrl,
   accountAvatarLoaded,
-  seat,
   isCurrent,
   onAccountLoaded,
-  onSeatChanged,
+  saving,
+  saveError,
+  onSave,
+  onClearSaveError,
   onClose,
 }: AvatarChooserProps): JSX.Element {
   const [selected, setSelected] = useState('current');
@@ -93,7 +97,7 @@ export function AvatarChooser({
   }, []); // Only the opening read; retries are explicit.
 
   async function prepare(file: File): Promise<void> {
-    if (locked.current || loading) return;
+    if (locked.current || saving || loading) return;
     locked.current = true;
     const epoch = ++operation.current;
     setBusy(true);
@@ -115,7 +119,7 @@ export function AvatarChooser({
   }
 
   async function save(): Promise<void> {
-    if (locked.current || loading || !valid() || selected === 'current') return;
+    if (locked.current || saving || loading || !valid() || selected === 'current') return;
     locked.current = true;
     const epoch = ++operation.current;
     const stillCurrent = () => valid() && epoch === operation.current;
@@ -123,11 +127,11 @@ export function AvatarChooser({
     setError(null);
     try {
       if (actor.kind === 'seat') {
-        if (!seat || !onSeatChanged || !stillCurrent()) return;
-        const result = await api.setClassroomSeatAvatar(selected === 'automatic' ? null : selected);
         if (!stillCurrent()) return;
-        if (!result.ok) throw new Error(result.error.message || 'Не удалось сохранить аватар.');
-        onSeatChanged(result.data);
+        if (
+          !(await onSave({ kind: 'seat', avatarKey: selected === 'automatic' ? null : selected }))
+        )
+          return;
       } else {
         let dataUrl: string | null = null;
         if (selected === 'uploaded') dataUrl = uploaded;
@@ -140,11 +144,7 @@ export function AvatarChooser({
         }
         // Identity may change while a file downloads or the bitmap is processed.
         if (!stillCurrent()) return;
-        const result = await api.updateAccountAvatar(dataUrl);
-        if (!stillCurrent()) return;
-        if (!result.ok) throw new Error(result.error.message || 'Не удалось сохранить аватар.');
-        onAccountLoaded(result.data.avatarDataUrl);
-        notifyProfileAvatarChanged(result.data.avatarDataUrl);
+        if (!(await onSave({ kind: 'account', dataUrl }))) return;
       }
       if (stillCurrent()) onClose();
     } catch (reason) {
@@ -165,14 +165,14 @@ export function AvatarChooser({
         automatic={{ src: automatic.src, label: 'Автоматический аватар' }}
         {...(uploaded ? { uploaded: { src: uploaded, label: 'Загруженный аватар' } } : {})}
         selected={selected}
-        busy={busy || loading}
+        busy={busy || saving || loading}
         uploadAction={
           actor.kind === 'account' ? (
             <div className="avatar-chooser-upload">
               <button
                 type="button"
                 className="btn-secondary"
-                disabled={busy || loading}
+                disabled={busy || saving || loading}
                 onClick={() => input.current?.click()}
               >
                 Загрузить своё изображение
@@ -184,11 +184,18 @@ export function AvatarChooser({
         onSelect={(key) => {
           setSelected(key);
           setError(null);
+          onClearSaveError();
         }}
       />
       <div className="avatar-chooser-feedback" aria-live="polite">
-        {busy ? <p role="status">Подготавливаем и сохраняем аватар…</p> : null}
-        {error ? <p role="alert">{error}</p> : null}
+        {busy || saving ? (
+          <p role="status">
+            {saving
+              ? 'Сохраняем аватар… Закрытие окна не отменяет отправленный запрос.'
+              : 'Подготавливаем и сохраняем аватар…'}
+          </p>
+        ) : null}
+        {error || saveError ? <p role="alert">{error || saveError}</p> : null}
         {error && !accountAvatarLoaded && selected === 'current' ? (
           <button type="button" onClick={() => void loadCurrent()}>
             Повторить загрузку
@@ -197,12 +204,12 @@ export function AvatarChooser({
       </div>
       <footer className="avatar-chooser-actions">
         <button type="button" className="btn-secondary" onClick={onClose}>
-          Отмена
+          {saving ? 'Закрыть' : 'Отмена'}
         </button>
         <button
           type="button"
           className="btn-primary"
-          disabled={busy || loading || selected === 'current'}
+          disabled={busy || saving || loading || selected === 'current'}
           onClick={() => void save()}
         >
           Использовать

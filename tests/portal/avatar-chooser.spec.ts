@@ -8,6 +8,7 @@ import {
   type AvatarChooserProps,
 } from '../../apps/web/src/components/AvatarChooser';
 import { SeatAvatarPicker } from '../../apps/web/src/components/SeatAvatarPicker';
+import { useAvatarSave } from '../../apps/web/src/components/use-avatar-save';
 import { createAvatarDataUrl } from '../../apps/web/src/creator-portal/avatar-file';
 import {
   defaultAvatarFile,
@@ -43,6 +44,10 @@ beforeEach(() => {
     accountAvatarLoaded: true,
     isCurrent: () => active,
     onAccountLoaded: vi.fn(),
+    saving: false,
+    saveError: null,
+    onSave: vi.fn(),
+    onClearSaveError: vi.fn(),
     onClose: vi.fn(),
   };
   vi.mocked(defaultAvatarFile).mockResolvedValue(
@@ -70,8 +75,28 @@ const button = (name: string) =>
   [...container.querySelectorAll('button')].find(
     (item) => (item.getAttribute('aria-label') ?? item.textContent?.trim()) === name,
   )!;
-async function render(input = props) {
-  await act(async () => root.render(createElement(AvatarChooser, input)));
+function OwnedChooser({
+  input,
+  onSeatSaved,
+}: {
+  input: AvatarChooserProps;
+  onSeatSaved: (seat: ClassroomStudentSession) => void;
+}) {
+  const write = useAvatarSave({
+    actor: input.actor,
+    onAccountSaved: input.onAccountLoaded,
+    onSeatSaved,
+  });
+  return createElement(AvatarChooser, {
+    ...input,
+    onSave: write.save,
+    saving: write.saving,
+    saveError: write.error,
+    onClearSaveError: write.clearError,
+  });
+}
+async function render(input = props, onSeatSaved = vi.fn()) {
+  await act(async () => root.render(createElement(OwnedChooser, { input, onSeatSaved })));
 }
 async function click(name: string) {
   await act(async () => button(name).click());
@@ -171,7 +196,7 @@ describe('avatar confirmation and actor isolation', () => {
       expect(props.onClose).not.toHaveBeenCalled();
     },
   );
-  it('does not broadcast an Account save response after closing or changing actor', async () => {
+  it('does not broadcast an Account save response after changing the shell actor', async () => {
     let resolve!: (value: Awaited<ReturnType<typeof api.updateAccountAvatar>>) => void;
     vi.mocked(api.updateAccountAvatar).mockImplementation(
       () =>
@@ -186,6 +211,7 @@ describe('avatar confirmation and actor isolation', () => {
       await click('Автоматический аватар');
       await click('Использовать');
       active = false;
+      await render({ ...props, actor: { kind: 'account', id: 'account-2' } });
       await act(async () => resolve({ ok: true, status: 200, data: { avatarDataUrl: null } }));
       expect(props.onAccountLoaded).not.toHaveBeenCalled();
       expect(broadcast).not.toHaveBeenCalled();
@@ -218,12 +244,13 @@ describe('avatar confirmation and actor isolation', () => {
         }),
     );
     const changed = vi.fn();
-    await render({ ...props, actor: { kind: 'seat', id: 'seat-1' }, seat, onSeatChanged: changed });
+    await render({ ...props, actor: { kind: 'seat', id: 'seat-1' } }, changed);
     expect(container.querySelector('input[type="file"]')).toBeNull();
     await click('Выбрать: Аватар 1');
     await click('Использовать');
     expect(api.setClassroomSeatAvatar).toHaveBeenCalledExactlyOnceWith('asa-avatar-01');
     active = false;
+    await render({ ...props, actor: { kind: 'seat', id: 'seat-2' } }, changed);
     await act(async () => resolve({ ok: true, status: 200, data: seat }));
     expect(changed).not.toHaveBeenCalled();
     expect(api.updateAccountAvatar).not.toHaveBeenCalled();

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
 import { api, type ClassroomStudentSession, type SessionPayload } from '../api';
 import { AvatarDialog } from './AvatarDialog';
+import { useAvatarSave } from './use-avatar-save';
 import { OPEN_AVATAR_CHOOSER_EVENT, type AvatarActor } from './avatar-chooser-events';
 import type { AdminNavigationItem, AdminSection } from '../admin/admin-navigation';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
@@ -72,7 +73,6 @@ export function PortalHeader({
   seatLearner = false,
   classroomBadge,
   seatAvatarUrl,
-  seatSession,
   onSeatChanged,
   unfinishedCount = 0,
   maxVerificationDue = false,
@@ -125,6 +125,15 @@ export function PortalHeader({
   const avatarActorKey = `${avatarActor.kind}:${avatarActor.id}`;
   const currentActorKey = useRef(avatarActorKey);
   currentActorKey.current = avatarActorKey;
+  const avatarSave = useAvatarSave({
+    actor: avatarActor,
+    onAccountSaved: (url) => {
+      avatarVersion.current += 1;
+      setAvatarDataUrl(url);
+      setAvatarLoaded(true);
+    },
+    onSeatSaved: onSeatChanged,
+  });
   const presentation = usePresentation();
   const [settingsDirty, setSettingsDirty] = useState(hasSettingsDraft);
   useEffect(() => {
@@ -773,8 +782,10 @@ export function PortalHeader({
           actor={avatarActor}
           currentUrl={effectiveAvatarUrl}
           accountAvatarLoaded={avatarLoaded}
-          seat={seatSession}
-          onSeatChanged={onSeatChanged}
+          saving={avatarSave.saving}
+          saveError={avatarSave.error}
+          onSave={avatarSave.save}
+          onClearSaveError={avatarSave.clearError}
           isCurrent={() => avatarOpenRef.current && currentActorKey.current === avatarActorKey}
           onAccountLoaded={(url) => {
             avatarVersion.current += 1;
