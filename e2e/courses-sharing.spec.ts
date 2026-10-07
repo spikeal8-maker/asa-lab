@@ -264,9 +264,21 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     threeTitle = '3D ' + suffix,
     manualTitle = 'Material ' + suffix;
   const image = readFileSync('apps/web/public/landing/electronics-simulation.png');
-  const imageV2 = readFileSync('apps/web/public/landing/three-d-house.png');
+  const imageV2 = readFileSync('apps/web/public/landing/assignment-progress.png');
   const pdf = Buffer.from('%PDF-1.4\nLibrary v1\n%%EOF'),
     pdfV2 = Buffer.from('%PDF-1.4\nLibrary changed v2\n%%EOF');
+  // AuthoredMaterialsPage checkDraftImage/checkTaskPdf and API decoders share
+  // the 400000-byte limit. Reject incompatible fixtures before opening the UI.
+  for (const bytes of [image, imageV2]) {
+    expect(bytes.byteLength).toBeGreaterThanOrEqual(8);
+    expect(bytes.byteLength).toBeLessThanOrEqual(400_000);
+    expect(bytes.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  }
+  for (const bytes of [pdf, pdfV2]) {
+    expect(bytes.byteLength).toBeGreaterThanOrEqual(5);
+    expect(bytes.byteLength).toBeLessThanOrEqual(400_000);
+    expect(bytes.toString('ascii', 0, 5)).toBe('%PDF-');
+  }
   expect(imageV2.equals(image)).toBe(false);
   expect(pdfV2.equals(pdf)).toBe(false);
   const authorContext = await browser.newContext(),
