@@ -115,7 +115,7 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   await expect(page.getByRole('combobox', { name: 'Выбрать раздел настроек' })).toBeVisible();
   await shot(page, 'C-mobile-profile');
   await page.setViewportSize({ width: 1366, height: 900 });
-  await panel(page, 'Возможности');
+  await panel(page, 'Материалы и преподавание');
   await page
     .getByRole('article')
     .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })
@@ -154,7 +154,7 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
 test('F: author without teaching creates and opens own material, no roster', async ({ page }) => {
   await register(page, 'Только автор');
   await page.goto('/#/account');
-  await panel(page, 'Возможности');
+  await panel(page, 'Материалы и преподавание');
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await expect(portalSection(page, 'Курсы и задания')).toBeVisible();
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
@@ -295,7 +295,7 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
   expect((await page.request.get(`/api/classrooms/${classId}/roster`)).status()).toBe(403);
   await shot(page, 'I-learner-forbidden-staff');
   await page.goto('/#/account');
-  await panel(page, 'Возможности');
+  await panel(page, 'Материалы и преподавание');
   await page
     .getByRole('article')
     .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })

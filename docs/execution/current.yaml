@@ -135,37 +135,42 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ce51170f8d28cdec9f50eee5f43b5f86dc5c4a65
+      convergence_baseline_sha: 4bad8a7f1eb3543097c397f05df7805e9024e342
       head_sha: null
-      observed_at: '2026-10-07T17:43:21Z'
+      observed_at: '2026-10-07T18:08:44Z'
       main:
         branch: main
-        sha: ce51170f8d28cdec9f50eee5f43b5f86dc5c4a65
+        sha: 4bad8a7f1eb3543097c397f05df7805e9024e342
       observation_note: >-
-        Dated published main ce51170f8d28cdec9f50eee5f43b5f86dc5c4a65 has successful
-        exact-head general workflow 37655797364. The prior Settings density candidate
-        f8a0b026033d683711d1892f7203d4b8330d02e0 passed independent review and
-        exact-head general workflow 37653494501; owner visual acceptance remains pending.
-        After a read-only critical analysis the owner requested one bounded usability
-        repair of the same Settings task. The local repair has six actionable Account tabs with preserved
+        Dated published main 4bad8a7f1eb3543097c397f05df7805e9024e342 contains the
+        Settings usability candidate 08dd188b13dd3c6f53b9c45c80d287f0599dd249.
+        Independent challenge review approves the Settings slice on both revisions;
+        all twelve slice files are identical across the intervening Electronics-only
+        integration. The candidate has six actionable Account tabs with preserved
         legacy links, compact privacy/invitation information inside related sections,
         clearer independent presentation/time-zone actions, an explicit desktop
         sidebar preference label and compact mobile headings/actions/status.
-        Final local checks pass 53 focused unit tests, 76 canonical synthetic browser
+        Product checks pass 53 focused unit tests, 76 canonical synthetic browser
         scenarios and Web lint/typecheck/build with 13 fresh Nx tasks in the final cycle
-        (45 across implementation iterations), with NX_SKIP_NX_CACHE=true.
+        (45 across implementation iterations), with NX_SKIP_NX_CACHE=true;
+        independent direct Vitest checks pass 31 tests without Nx cache.
         Account/Seat were checked at 1440/1024/390/320 and the 900/901 breakpoint,
         including fresh, dirty, partial-save, error, reentry and long-content states.
-        Primary/cancel targets remain at least 44px; presentation actions use 57px,
-        or 109px at 320 with a secondary reset row. Time-zone actions use 57px.
         New settings-usability screenshots preserve previous owner previews.
+        Exact-head general workflow 37661992911 passes governance, code and
+        PostgreSQL/RLS but fails its real browser step: three pre-existing Access A
+        helper calls still search for the renamed Capabilities navigation label.
+        This is category A from the Settings diff, not an Electronics repair.
+        The selected bounded follow-up changes only those three test labels;
+        formatter/diff checks and discovery of all ten real browser scenarios pass.
+        Discovery uses an inert process-only test URL without opening a database
+        connection or server. It executes no Nx tasks and is not real browser proof.
         Account and StudentSeat scopes, draft/history guards and presentation
         persistence remain separate. Provider, handlers/effects, MAX JSX and
         navigation resolver/guard logic are unchanged. API, SQL, authentication,
         permissions, live database and deployment operations are excluded.
-        This dated observation precedes final composition, independent challenge
-        review and exact-head general/API/PostgreSQL/browser CI; those results
-        must be verified on the final candidate rather than inferred from baseline CI.
+        This dated observation precedes final composition/review of the test-only
+        repair and its exact-head general/real-browser CI; no full CI PASS is claimed.
         Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max
