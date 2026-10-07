@@ -33,6 +33,9 @@ async function fixture(
     notificationFailure?: boolean;
     organization?: boolean;
     platformAdmin?: boolean;
+    presentationFailure?: boolean;
+    presentationSaveFailure?: boolean;
+    presentationLongContent?: boolean;
   } = {},
 ) {
   const mutations: string[] = [];
@@ -41,7 +44,11 @@ async function fixture(
   let educator = options.educator ?? false;
   let awardsFailure = options.awardsFailure ?? false;
   let notificationFailure = options.notificationFailure ?? false;
+  let presentationFailure = options.presentationFailure ?? false;
+  let presentationSaveFailure = options.presentationSaveFailure ?? false;
+  let presentationActorChanged = false;
   let timeZone = 'Europe/Moscow';
+  let presentation = { motion: 'system', sidebar: 'expanded', revision: 0 };
   let preferences = {
     revision: 0,
     masterEnabled: true,
@@ -66,7 +73,9 @@ async function fixture(
     {
       workspaceId: '10000000-0000-4000-8000-000000000001',
       kind: 'personal',
-      title: 'Личное пространство',
+      title: options.presentationLongContent
+        ? 'Личное пространство для создания проектов, материалов и независимого обучения в нескольких организациях'
+        : 'Личное пространство',
       role: 'owner',
     },
   ];
@@ -79,7 +88,9 @@ async function fixture(
     });
   let profile = {
     username: 'access.preview',
-    displayName: 'Проверочный профиль',
+    displayName: options.presentationLongContent
+      ? 'Проверочный профиль с очень длинным отображаемым именем и несколькими учебными обязанностями'
+      : 'Проверочный профиль',
     bio: '',
     email: 'access@example.test',
     birthDate: '1990-01-01',
@@ -98,6 +109,30 @@ async function fixture(
     const method = request.method();
     const reply = (data: unknown, status = 200) => route.fulfill({ json: data, status });
     if (!['GET', 'HEAD'].includes(method)) mutations.push(path);
+    if (path === '/api/account/presentation') {
+      if (presentationFailure)
+        return reply({ error: { code: 'not_found', message: 'old backend' } }, 404);
+      if (method === 'PUT' && presentationSaveFailure)
+        return reply({ error: { code: 'unavailable', message: 'offline' } }, 503);
+      if (options.seat)
+        return reply({ error: { code: 'unauthorized', message: 'Account required' } }, 401);
+      expect(request.headers()['x-asa-presentation-account']).toBe(
+        '20000000-0000-4000-8000-000000000001',
+      );
+      if (presentationActorChanged)
+        return reply({ error: { code: 'actor_changed', message: 'Account changed' } }, 409);
+      if (method === 'PUT') {
+        const input = request.postDataJSON();
+        if (input.revision !== presentation.revision)
+          return reply({ error: { code: 'conflict', message: 'changed' } }, 409);
+        presentation = {
+          motion: input.motion,
+          sidebar: input.sidebar,
+          revision: presentation.revision + 1,
+        };
+      }
+      return reply(presentation);
+    }
     if (path === '/api/admin/v1/dashboard')
       return reply(
         { error: { code: 'unavailable', message: 'Dashboard fixture unavailable' } },
@@ -256,6 +291,24 @@ async function fixture(
       educator = true;
       return reply({ capability: 'educator', state: 'provisional', created: true });
     }
+    if (path === '/api/classrooms/teacher-home-attention')
+      return reply({
+        reviews: [
+          {
+            key: 'review-1',
+            classroomId: 'class-1',
+            classroomTitle: 'Класс с длинным названием',
+            assignmentId: 'assignment-1',
+            assignmentTitle: 'Учебная работа, ожидающая проверки преподавателем',
+            seatId: 'seat-1',
+            learnerName: 'Ученик с длинным именем',
+            attemptId: null,
+          },
+        ],
+        joinRequests: [],
+        classrooms: [{ id: 'class-1', title: 'Класс с длинным названием' }],
+        joinRequestsMayBeLimited: false,
+      });
     if (path === '/api/classrooms/awaiting-review') return reply({ total: 0 });
     // Read-only empty fixture data, never forwarded to a real API.
     if (method === 'GET') return reply({ items: [], meta: { total: 0 } });
@@ -263,6 +316,20 @@ async function fixture(
   });
   return {
     mutations,
+    changePresentationActor: () => {
+      presentationActorChanged = true;
+    },
+    recoverPresentation: () => {
+      presentationFailure = false;
+      presentationSaveFailure = false;
+    },
+    externalPresentation: () => {
+      presentation = {
+        motion: 'system',
+        sidebar: 'collapsed',
+        revision: presentation.revision + 1,
+      };
+    },
     recoverProfile: () => {
       failing = false;
     },
@@ -981,3 +1048,226 @@ for (const width of [1440, 1024, 390, 320])
     ).toBe(20);
     await inbox.screenshot({ path: `${evidence}/inbox-${width}-notifications.png` });
   });
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`Account presentation preview, guard and coherent persistence fit ${width}px`, async ({
+    page,
+  }) => {
+    const state = await fixture(page, {
+      educator: true,
+      author: true,
+      organization: true,
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/account/interface');
+    const motion = page.getByLabel('Движение', { exact: false }),
+      sidebar = page.getByLabel('Боковая панель', { exact: false });
+    await expect(motion).toBeEnabled();
+    await motion.selectOption('reduce');
+    await sidebar.selectOption('collapsed');
+    await expect(page.locator('.presentation-shell')).toHaveAttribute('data-motion', 'reduce');
+    await expect(page.locator('.portal-sidebar-collapse')).toBeDisabled();
+    if (width <= 900) await page.getByLabel('Выбрать раздел настроек').selectOption('profile');
+    else await panel(page, 'Профиль').click();
+    await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+    await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await expect(page.getByText('Оформление сохранено в аккаунте.', { exact: true })).toBeVisible();
+    await expect(page.locator('.portal-sidebar-collapse')).toBeEnabled();
+    await expect(
+      page.getByText('Предупреждения и учебные сообщения остаются видны.', { exact: false }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Часовой пояс', { exact: false })).toHaveValue('Europe/Moscow');
+    await expect(page.getByLabel('Текущий аккаунт и контекст')).toContainText(
+      'Проверочный профиль',
+    );
+    await expect(page.getByLabel('Текущий аккаунт и контекст')).toContainText(
+      'Личное пространство',
+    );
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect
+      .poll(async () => Math.abs((await page.locator('.portal-header').boundingBox())!.y))
+      .toBeLessThan(1);
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.querySelector('.skip-link')!.getBoundingClientRect().bottom),
+      )
+      .toBeLessThan(1);
+    await page.screenshot({
+      path: `${evidence}/presentation-account-${width}.png`,
+      fullPage: true,
+    });
+    await page.reload();
+    await expect(motion).toHaveValue('reduce');
+    await expect(sidebar).toHaveValue('collapsed');
+    await page.getByRole('button', { name: 'Сбросить оформление', exact: true }).click();
+    await expect(motion).toHaveValue('system');
+    await page.getByRole('button', { name: 'Отменить оформление', exact: true }).click();
+    await expect(motion).toHaveValue('reduce');
+    if (width >= 1024) {
+      await page.locator('.portal-sidebar-collapse').click();
+      await expect(sidebar).toHaveValue('expanded');
+    }
+    expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(
+      width >= 1024 ? 2 : 1,
+    );
+    await page.getByRole('button', { name: 'ASA Lab — главная', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Требует внимания', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText('Работы на проверке: 1', { exact: false })).toBeVisible();
+    await expect(page.locator('.presentation-shell')).toHaveAttribute('data-motion', 'reduce');
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await expect
+      .poll(async () => Math.abs((await page.locator('.portal-header').boundingBox())!.y))
+      .toBeLessThan(1);
+    await page.screenshot({ path: `${evidence}/presentation-home-${width}.png`, fullPage: true });
+  });
+  test(`Seat temporary motion preserves help and context at ${width}px`, async ({ page }) => {
+    const state = await fixture(page, { seat: true });
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/account/interface');
+    await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
+    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await expect(
+      page.getByText('Сохранено до выхода из этого учебного сеанса.', { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Помощь', exact: true })).toBeVisible();
+    await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveCount(0);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+      .toBe(true);
+    await page.evaluate(() => {
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    });
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
+    await page.screenshot({ path: `${evidence}/presentation-seat-${width}.png`, fullPage: true });
+    await page.reload();
+    await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
+    await page.evaluate(() => window.dispatchEvent(new Event('asa-session-logout')));
+    await expect
+      .poll(() => page.evaluate(() => sessionStorage.getItem('asa-seat-presentation-session')))
+      .toBeNull();
+    expect(state.mutations).not.toContain('/api/account/presentation');
+  });
+}
+test('old backend leaves preferences unavailable but navigation and profile still work', async ({
+  page,
+}) => {
+  const state = await fixture(page, { presentationFailure: true });
+  await page.goto('/#/account/interface');
+  await expect(page.getByRole('alert')).toContainText('Не удалось загрузить оформление');
+  await expect(page.getByLabel('Движение', { exact: false })).toBeDisabled();
+  await panel(page, 'Профиль').click();
+  await expect(page.getByLabel('Отображаемое имя')).toBeEnabled();
+  state.recoverPresentation();
+  await panel(page, 'Интерфейс').click();
+  await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
+  await expect(page.getByLabel('Движение', { exact: false })).toBeEnabled();
+});
+test('failed save preserves preview and conflict requires explicit cancellation and reload', async ({
+  page,
+}) => {
+  const state = await fixture(page, { presentationSaveFailure: true });
+  await page.goto('/#/account/interface');
+  await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
+  await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('не сохранено');
+  await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
+  state.recoverPresentation();
+  state.externalPresentation();
+  await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('другом окне');
+  await page.getByRole('button', { name: 'Отменить оформление', exact: true }).click();
+  await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
+  await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
+  await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveValue('collapsed');
+});
+test('dirty independent profile blocks header preference writes without storing a cross-user browser preference', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.addInitScript(() => localStorage.setItem('asa-portal-sidebar', 'collapsed'));
+  await page.goto('/#/account');
+  await expect(page.locator('#portal-sidebar')).not.toHaveClass(/collapsed/);
+  await page.getByLabel('Отображаемое имя').fill('Несохранённое новое имя');
+  const collapse = page.getByRole('button', { name: 'Свернуть боковую панель', exact: true });
+  await expect(collapse).toBeDisabled();
+  await expect(collapse).toHaveAttribute(
+    'title',
+    'Сначала сохраните или отмените изменения настроек',
+  );
+  expect(state.mutations).not.toContain('/api/account/presentation');
+});
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`Account changed terminal presentation state and explicit refresh fit ${width}px`, async ({
+    page,
+  }) => {
+    const state = await fixture(page);
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto('/#/account/interface');
+    await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
+    state.changePresentationActor();
+    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
+      'Аккаунт изменился',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Обновить страницу', exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
+    await expect(page.getByLabel('Движение', { exact: false })).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Отменить оформление', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByText('Предпросмотр только здесь; изменения ещё не сохранены.', { exact: true }),
+    ).toHaveCount(0);
+    const metrics = await page.evaluate(() => ({
+      viewport: innerWidth,
+      document: document.documentElement.scrollWidth,
+    }));
+    expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
+    await page.screenshot({
+      path: `${evidence}/presentation-actor-changed-${width}.png`,
+      fullPage: true,
+    });
+    expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(1);
+  });
+}

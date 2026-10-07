@@ -1,3 +1,4 @@
+import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   requestSettingsNavigation,
@@ -51,7 +52,9 @@ export function SeatAccountPage({
       if (generation === awardsGeneration.current) setAwardsError(true);
     }
   }, []);
+  const presentation = usePresentation();
   const draftDialog = useSettingsDraftGuard([
+    presentation,
     {
       dirty: notificationsDirty,
       save: async () => (await notificationControl.current?.save()) ?? false,
@@ -153,6 +156,7 @@ export function SeatAccountPage({
           {selectedPanel === 'interface' ? (
             <section className="account-settings-section" aria-label="Интерфейс">
               <h2>Интерфейс</h2>
+              <PresentationControls />
               <p>Дата и время показаны в часовом поясе класса. Его настраивает преподаватель.</p>
               <a className="btn-secondary" href="#/help">
                 Помощь

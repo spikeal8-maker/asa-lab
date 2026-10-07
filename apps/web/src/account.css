@@ -1666,3 +1666,47 @@ button.portal-account-identity:hover:not(:disabled) {
   background: #eaf5fb;
   font-weight: 700;
 }
+
+.presentation-shell {
+  display: contents;
+}
+.presentation-shell[data-motion='reduce'] *,
+.presentation-shell[data-motion='reduce'] *::before,
+.presentation-shell[data-motion='reduce'] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+.account-presentation {
+  margin-bottom: 24px;
+}
+.account-presentation h3 {
+  margin: 0;
+}
+.account-presentation select {
+  width: 100%;
+  min-width: 0;
+}
+
+.portal-presentation-context {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 24px;
+  margin-left: 72px;
+  padding: 10px 26px;
+  border-bottom: 1px solid #d9e0e8;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.portal-presentation-context span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .portal-presentation-context {
+    margin-left: 0;
+    padding: 10px 12px;
+  }
+}

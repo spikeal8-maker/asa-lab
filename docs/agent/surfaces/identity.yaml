@@ -33,12 +33,20 @@ surfaces:
 - id: SURF-ACCOUNT-SETTINGS
   routes:
   - '#/account'
+  - '#/account/interface'
+  - /api/account/presentation
   implementation:
     files:
     - apps/web/src/pages/AccountPage.tsx
     - apps/web/src/api.ts
     - apps/api/src/account-c1.controller.ts
     - contexts/identity/application/effective-actions.ts
+    - apps/web/src/components/PresentationPreferences.tsx
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/api/src/presentation-preferences.controller.ts
+    - contexts/identity/application/presentation-preferences.ts
+    - contexts/identity/infrastructure/pg-presentation-preferences.ts
+    - migrations/0200_account_presentation_preferences.sql
   invariants:
   - IDA-ACC-001
   - IDA-SCOPE-001
@@ -51,6 +59,29 @@ surfaces:
   - TST-ASA-ACCESS-A-CORE-001
   - TST-ASA-ACCESS-A-E2E-001
   controls:
+  - id: CTRL-ACCOUNT-SAVE-PRESENTATION
+    label: Preview and save supported Account presentation; Seat motion is temporary session-only
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/components/PresentationPreferences.tsx
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/api/src/presentation-preferences.controller.ts
+    - contexts/identity/application/presentation-preferences.ts
+    - contexts/identity/infrastructure/pg-presentation-preferences.ts
+    - migrations/0200_account_presentation_preferences.sql
+    commands:
+    - account_presentation_write
+    - account_presentation_read
+    invariants:
+    - IDA-AUTH-001
+    - IDA-PROFILE-001
+    - IDA-CTX-001
+    - IDA-SEAT-PUBLIC-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
   - id: CTRL-ACCOUNT-SAVE-PROFILE
     label: Save account profile
     change_class: L2_DOMAIN_MUTATION

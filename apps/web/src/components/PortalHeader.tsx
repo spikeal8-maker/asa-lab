@@ -1,3 +1,5 @@
+import { usePresentation } from './PresentationPreferences';
+import { hasSettingsDraft } from './settings-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
 import { api, type SessionPayload } from '../api';
@@ -108,9 +110,15 @@ export function PortalHeader({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(
-    () => window.localStorage.getItem('asa-portal-sidebar') === 'collapsed',
-  );
+  const presentation = usePresentation();
+  const [settingsDirty, setSettingsDirty] = useState(hasSettingsDraft);
+  useEffect(() => {
+    const sync = () => setSettingsDirty(hasSettingsDraft());
+    window.addEventListener('settings-draft-state', sync);
+    sync();
+    return () => window.removeEventListener('settings-draft-state', sync);
+  }, []);
+  const sidebarCollapsed = presentation.draft.sidebar === 'collapsed';
   const accountMenu = useRef<HTMLDetailsElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -508,6 +516,16 @@ export function PortalHeader({
           </div>
         </details>
       </header>
+      {sidebarCollapsed ? (
+        <div className="portal-presentation-context" aria-label="Текущий аккаунт и контекст">
+          <span>
+            <strong>Аккаунт:</strong> {session.user.displayName}
+          </span>
+          <span>
+            <strong>Контекст:</strong> {activeWorkspace?.title ?? 'Личные проекты'}
+          </span>
+        </div>
+      ) : null}
       {mobileOpen ? (
         <button
           className="portal-menu-backdrop"
@@ -642,20 +660,30 @@ export function PortalHeader({
             </button>
           </div>
         ) : null}
-        <button
-          type="button"
-          className="portal-sidebar-collapse"
-          aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
-          title={sidebarCollapsed ? 'Развернуть' : 'Свернуть'}
-          onClick={() => {
-            const next = !sidebarCollapsed;
-            setSidebarCollapsed(next);
-            window.localStorage.setItem('asa-portal-sidebar', next ? 'collapsed' : 'expanded');
-          }}
-        >
-          {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}
-        </button>
+        {!seatLearner ? (
+          <button
+            type="button"
+            className="portal-sidebar-collapse"
+            aria-label={sidebarCollapsed ? 'Развернуть боковую панель' : 'Свернуть боковую панель'}
+            title={
+              settingsDirty
+                ? 'Сначала сохраните или отмените изменения настроек'
+                : sidebarCollapsed
+                  ? 'Развернуть'
+                  : 'Свернуть'
+            }
+            disabled={presentation.busy || !presentation.loaded || settingsDirty}
+            onClick={() => void presentation.toggleSidebar()}
+          >
+            {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}
+          </button>
+        ) : null}
       </aside>
+      {presentation.error && active !== 'account' ? (
+        <p className="portal-global-error" role="alert">
+          {presentation.error}
+        </p>
+      ) : null}
       {error ? (
         <p className="portal-global-error" role="alert">
           {error}

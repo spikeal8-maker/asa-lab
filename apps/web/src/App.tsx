@@ -1,3 +1,7 @@
+import {
+  PresentationProvider,
+  usePresentationSessionLifetime,
+} from './components/PresentationPreferences';
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
@@ -139,6 +143,14 @@ function publicViewFromHash(): PublicView {
 
 export function App(): JSX.Element {
   const [session, setSession] = useState<SessionState>({ kind: 'checking' });
+  usePresentationSessionLifetime(
+    session.kind === 'checking'
+      ? undefined
+      : session.kind === 'student'
+        ? session.session.student.seatId
+        : null,
+    session.kind === 'student' ? session.session.expiresAt : undefined,
+  );
   const [publicView, setPublicViewState] = useState<PublicView>(() => publicViewFromHash());
   /**
    * Сколько работ ждёт ответа во всех классах — цифра рядом с «Классами».
@@ -821,358 +833,371 @@ export function App(): JSX.Element {
   };
 
   return (
-    <SchoolTimeProvider timeZone={portalSession.timeZone}>
-      <QuickProjectCreation
-        key={`${portalSession.user.id}:${portalSession.activeWorkspace.workspaceId}`}
-        contextKey={`${portalSession.user.id}:${portalSession.activeWorkspace.workspaceId}`}
-        onCreated={(project) =>
-          setView({
-            kind: 'editor',
-            projectId: project.id,
-            moduleKey: project.moduleKey,
-            returnTo: view.kind === 'my-projects' ? view : { kind: 'home' },
-          })
-        }
-      >
-        <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
-          <a
-            className="skip-link"
-            href="#main-content"
-            onClick={(event) => {
-              event.preventDefault();
-              document.getElementById('main-content')?.focus();
-            }}
-          >
-            Перейти к содержанию
-          </a>
-          <PortalHeader
-            session={portalSession}
-            active={active}
-            seatLearner={isSeatLearner}
-            classroomBadge={canManageClasses ? awaitingReview : undefined}
-            unfinishedCount={unfinished}
-            maxVerificationDue={!isSeatLearner && maxVerificationDue}
-            {...(session.kind === 'student'
-              ? {
-                  seatAvatarUrl: seatAvatar(
-                    session.session.student.seatId,
-                    session.session.student.avatarKey,
-                  ).src,
-                }
-              : {})}
-            canTeach={hasTeachingCapability}
-            {...(adminAccess.kind === 'granted'
-              ? {
-                  adminNavigation: {
-                    active: adminRoute,
-                    activeSection: adminSection ?? 'overview',
-                    items: adminNavigationItems(adminAccess.profile),
-                    onOpen: () => openAdminSection('overview'),
-                    onNavigate: openAdminSection,
-                  },
-                }
-              : {})}
-            onNavigate={navigate}
-            onSessionChanged={(updated) => setSession({ kind: 'authenticated', session: updated })}
-            onLoggedOut={() => {
-              setSession({ kind: 'anonymous' });
-              setPublicView({ kind: 'entry' });
-            }}
-          />
-          {adminRoute ? (
-            <Suspense
-              fallback={
-                <main className="portal-content admin-page" aria-busy="true">
-                  <span className="sr-only">Загрузка администрирования</span>
-                </main>
-              }
+    <PresentationProvider
+      key={
+        session.kind === 'student'
+          ? `seat:${session.session.student.seatId}:${session.session.expiresAt}`
+          : `account:${portalSession.user.id}`
+      }
+      actor={portalSession.user.id}
+      seat={isSeatLearner}
+      {...(session.kind === 'student' ? { expiresAt: session.session.expiresAt } : {})}
+    >
+      <SchoolTimeProvider timeZone={portalSession.timeZone}>
+        <QuickProjectCreation
+          key={`${portalSession.user.id}:${portalSession.activeWorkspace.workspaceId}`}
+          contextKey={`${portalSession.user.id}:${portalSession.activeWorkspace.workspaceId}`}
+          onCreated={(project) =>
+            setView({
+              kind: 'editor',
+              projectId: project.id,
+              moduleKey: project.moduleKey,
+              returnTo: view.kind === 'my-projects' ? view : { kind: 'home' },
+            })
+          }
+        >
+          <div className="portal-shell" data-build-revision={__ASA_BUILD_REVISION__}>
+            <a
+              className="skip-link"
+              href="#main-content"
+              onClick={(event) => {
+                event.preventDefault();
+                document.getElementById('main-content')?.focus();
+              }}
             >
-              <AdminPage
-                access={adminAccess}
-                section={adminSection ?? 'overview'}
-                onNavigate={openAdminSection}
-                onRetry={() => void loadAdminAccess()}
-                onBack={() => setView({ kind: 'home' })}
-                onAccessDenied={() => setAdminAccess({ kind: 'denied' })}
-              />
-            </Suspense>
-          ) : (
-            <Suspense
-              fallback={
-                <main className="portal-content" aria-busy="true">
-                  <span className="sr-only">Загрузка раздела</span>
-                </main>
+              Перейти к содержанию
+            </a>
+            <PortalHeader
+              session={portalSession}
+              active={active}
+              seatLearner={isSeatLearner}
+              classroomBadge={canManageClasses ? awaitingReview : undefined}
+              unfinishedCount={unfinished}
+              maxVerificationDue={!isSeatLearner && maxVerificationDue}
+              {...(session.kind === 'student'
+                ? {
+                    seatAvatarUrl: seatAvatar(
+                      session.session.student.seatId,
+                      session.session.student.avatarKey,
+                    ).src,
+                  }
+                : {})}
+              canTeach={hasTeachingCapability}
+              {...(adminAccess.kind === 'granted'
+                ? {
+                    adminNavigation: {
+                      active: adminRoute,
+                      activeSection: adminSection ?? 'overview',
+                      items: adminNavigationItems(adminAccess.profile),
+                      onOpen: () => openAdminSection('overview'),
+                      onNavigate: openAdminSection,
+                    },
+                  }
+                : {})}
+              onNavigate={navigate}
+              onSessionChanged={(updated) =>
+                setSession({ kind: 'authenticated', session: updated })
               }
-            >
-              {/* Главная одна для всех. Учащийся видит ту же страницу, что и любой
+              onLoggedOut={() => {
+                setSession({ kind: 'anonymous' });
+                setPublicView({ kind: 'entry' });
+              }}
+            />
+            {adminRoute ? (
+              <Suspense
+                fallback={
+                  <main className="portal-content admin-page" aria-busy="true">
+                    <span className="sr-only">Загрузка администрирования</span>
+                  </main>
+                }
+              >
+                <AdminPage
+                  access={adminAccess}
+                  section={adminSection ?? 'overview'}
+                  onNavigate={openAdminSection}
+                  onRetry={() => void loadAdminAccess()}
+                  onBack={() => setView({ kind: 'home' })}
+                  onAccessDenied={() => setAdminAccess({ kind: 'denied' })}
+                />
+              </Suspense>
+            ) : (
+              <Suspense
+                fallback={
+                  <main className="portal-content" aria-busy="true">
+                    <span className="sr-only">Загрузка раздела</span>
+                  </main>
+                }
+              >
+                {/* Главная одна для всех. Учащийся видит ту же страницу, что и любой
             другой: разница только в том, чего у него нет — не в том, что ему
             подсунули другую страницу. Всё классное живёт в «Классах». */}
-              {view.kind === 'home' ? (
-                <CreatorHomePage
-                  session={portalSession}
-                  onNavigate={navigate}
-                  onAllProjects={(module) =>
-                    setView({ kind: 'my-projects', ...(module ? { module } : {}) })
-                  }
-                  onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
-                  onOpenCourse={(courseId) => setView({ kind: 'knowledge-course', courseId })}
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
-                  }
-                />
-              ) : null}
-              {view.kind === 'my-projects' ? (
-                <MyProjectsPage
-                  view={view}
-                  onView={setView}
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({
-                      kind: 'editor',
-                      projectId,
-                      moduleKey,
-                      returnTo: view,
-                    })
-                  }
-                />
-              ) : null}
-              {view.kind === 'games' ? (
-                <GamesPage
-                  onOpenGame={(projectId, moduleKey) =>
-                    setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'games' } })
-                  }
-                />
-              ) : null}
-              {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
+                {view.kind === 'home' ? (
+                  <CreatorHomePage
+                    session={portalSession}
+                    onNavigate={navigate}
+                    onAllProjects={(module) =>
+                      setView({ kind: 'my-projects', ...(module ? { module } : {}) })
+                    }
+                    onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+                    onOpenCourse={(courseId) => setView({ kind: 'knowledge-course', courseId })}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
+                    }
+                  />
+                ) : null}
+                {view.kind === 'my-projects' ? (
+                  <MyProjectsPage
+                    view={view}
+                    onView={setView}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: view,
+                      })
+                    }
+                  />
+                ) : null}
+                {view.kind === 'games' ? (
+                  <GamesPage
+                    onOpenGame={(projectId, moduleKey) =>
+                      setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'games' } })
+                    }
+                  />
+                ) : null}
+                {/* "Задачи" is a teacher's own library of work now, not a leaflet. A
             learner has no library — the tasks they were given live in their
             class — so they still get the informational page. */}
-              {view.kind === 'challenges' && canAuthor ? (
-                <AssignmentLibraryPage canTeach={canManageClasses} />
-              ) : null}
-              {/* The gallery is the one place people see each other's work, and that
+                {view.kind === 'challenges' && canAuthor ? (
+                  <AssignmentLibraryPage canTeach={canManageClasses} />
+                ) : null}
+                {/* The gallery is the one place people see each other's work, and that
             is the whole point of it: inside a class nobody sees a classmate's
             model, because thirty children on one task shown each other's
             answers is a copying machine. Here the work is finished and was
             published on purpose. */}
-              {/* No "open" on a card: a gallery entry belongs to another person and
+                {/* No "open" on a card: a gallery entry belongs to another person and
             usually another school, and the picture is the point. */}
-              {view.kind === 'gallery' ? (
-                <GalleryPage
-                  canTeach={hasTeachingCapability && !isSeatLearner}
-                  onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
-                />
-              ) : null}
-              {view.kind === 'knowledge' || view.kind === 'knowledge-course' ? (
-                <KnowledgePage
-                  {...(view.kind === 'knowledge-course' ? { courseId: view.courseId } : {})}
-                  onOpen={(courseId) => setView({ kind: 'knowledge-course', courseId })}
-                  onBack={() => setView({ kind: 'knowledge' })}
-                />
-              ) : null}
-              {view.kind === 'gallery-work' ? (
-                <GalleryWorkPage
-                  projectId={view.projectId}
-                  onBack={() => setView({ kind: 'gallery' })}
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({
-                      kind: 'editor',
-                      projectId,
-                      moduleKey,
-                      returnTo: { kind: 'my-projects' },
-                    })
-                  }
-                />
-              ) : null}
-              {/* Коллекции перестали быть заглушкой: это подборки работ из галереи,
+                {view.kind === 'gallery' ? (
+                  <GalleryPage
+                    canTeach={hasTeachingCapability && !isSeatLearner}
+                    onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+                  />
+                ) : null}
+                {view.kind === 'knowledge' || view.kind === 'knowledge-course' ? (
+                  <KnowledgePage
+                    {...(view.kind === 'knowledge-course' ? { courseId: view.courseId } : {})}
+                    onOpen={(courseId) => setView({ kind: 'knowledge-course', courseId })}
+                    onBack={() => setView({ kind: 'knowledge' })}
+                  />
+                ) : null}
+                {view.kind === 'gallery-work' ? (
+                  <GalleryWorkPage
+                    projectId={view.projectId}
+                    onBack={() => setView({ kind: 'gallery' })}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: { kind: 'my-projects' },
+                      })
+                    }
+                  />
+                ) : null}
+                {/* Коллекции перестали быть заглушкой: это подборки работ из галереи,
             отложенных себе. Ни Задания, ни Проекты они не дублируют — там
             формулировки и своё, а здесь ссылки на чужое. */}
-              {view.kind === 'collections' ? (
-                <CollectionsPage
-                  onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
-                />
-              ) : null}
-              {view.kind === 'learning' ? (
-                <LearningPage
-                  seat={session.kind === 'student' ? session.session : null}
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({
-                      kind: 'editor',
-                      projectId,
-                      moduleKey,
-                      returnTo: { kind: 'learning' },
-                    })
-                  }
-                />
-              ) : null}
-              {(view.kind === 'challenges' && !canAuthor) || view.kind === 'help' ? (
-                <CreatorResourcePage
-                  section={view.kind === 'challenges' ? 'challenges' : view.kind}
-                  onNavigate={navigate}
-                />
-              ) : null}
-              {/* A learner has one class and no register: the door marked Classes
+                {view.kind === 'collections' ? (
+                  <CollectionsPage
+                    onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+                  />
+                ) : null}
+                {view.kind === 'learning' ? (
+                  <LearningPage
+                    seat={session.kind === 'student' ? session.session : null}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: { kind: 'learning' },
+                      })
+                    }
+                  />
+                ) : null}
+                {(view.kind === 'challenges' && !canAuthor) || view.kind === 'help' ? (
+                  <CreatorResourcePage
+                    section={view.kind === 'challenges' ? 'challenges' : view.kind}
+                    onNavigate={navigate}
+                  />
+                ) : null}
+                {/* A learner has one class and no register: the door marked Classes
             opens onto the work set for them. */}
-              {view.kind === 'classrooms' && session.kind === 'student' ? (
-                <SeatClassPage
-                  seat={session.session}
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({
-                      kind: 'editor',
-                      projectId,
-                      moduleKey,
-                      returnTo: { kind: 'my-projects' },
-                    })
-                  }
-                />
-              ) : null}
-              {/* Учатся не только дети. Преподаватель проходит курс коллеги, студент
+                {view.kind === 'classrooms' && session.kind === 'student' ? (
+                  <SeatClassPage
+                    seat={session.session}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: { kind: 'my-projects' },
+                      })
+                    }
+                  />
+                ) : null}
+                {/* Учатся не только дети. Преподаватель проходит курс коллеги, студент
             берёт факультатив, взрослый учится ради себя — и всем им незачем
             второй вход по выданному логину и вторая полка работ. */}
-              {view.kind === 'attending' ||
-              (view.kind === 'classrooms' && !canManageClasses && !isSeatLearner) ? (
-                <AttendedClassesPage
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({
-                      kind: 'editor',
-                      projectId,
-                      moduleKey,
-                      returnTo: { kind: 'my-projects' },
-                    })
-                  }
-                />
-              ) : null}
-              {view.kind === 'classrooms' && canManageClasses ? (
-                <DashboardPage
-                  onAttendClasses={() => setView({ kind: 'attending' })}
-                  onOpenProjects={(classroomId, classroomTitle) =>
-                    setView({ kind: 'classroom', classroomId, classroomTitle })
-                  }
-                />
-              ) : null}
-              {(view.kind === 'classroom' || view.kind === 'classroom-projects') &&
-              !canManageClasses ? (
-                <main id="main-content" className="portal-content" tabIndex={-1}>
-                  <h1>Доступ к управлению классом закрыт</h1>
-                  <p>Ваши занятия и работы находятся в «Моём обучении».</p>
-                  <button
-                    type="button"
-                    className="btn-primary"
-                    onClick={() => setView({ kind: 'learning' })}
-                  >
-                    Моё обучение
-                  </button>
-                </main>
-              ) : null}
-              {view.kind === 'classroom' && canManageClasses ? (
-                <ClassroomPage
-                  classroomId={view.classroomId}
-                  onBack={() => setView({ kind: 'classrooms' })}
-                  onOpenProjects={(classroomTitle) =>
-                    setView({
-                      kind: 'classroom-projects',
-                      classroomId: view.classroomId,
-                      classroomTitle,
-                    })
-                  }
-                  {...(view.seatId ? { openSeatId: view.seatId } : {})}
-                  /* Leaving a learner's model returns to that learner, not to the
-               teacher's own project list — which is where this used to land,
-               and is nobody's idea of "back". */
-                  onOpenProject={(projectId, moduleKey, seatId) =>
-                    setView({
-                      kind: 'editor',
-                      projectId,
-                      moduleKey,
-                      returnTo: {
-                        kind: 'classroom',
-                        classroomId: view.classroomId,
-                        classroomTitle: view.classroomTitle,
-                        ...(seatId ? { seatId } : {}),
-                      },
-                    })
-                  }
-                />
-              ) : null}
-              {view.kind === 'classroom-projects' && canManageClasses ? (
-                <ProjectsPage
-                  classroomId={view.classroomId}
-                  classroomTitle={view.classroomTitle}
-                  onBack={() => setView({ kind: 'classrooms' })}
-                  onOpenProject={(projectId, moduleKey) =>
-                    setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
-                  }
-                />
-              ) : null}
-              {/* An invitation to start teaching belongs to a grown-up who might. A
-            child signed in on a class seat is shown their work here, and asking
-            them to "выберите роль «Педагог»" under it is noise at best. */}
-              {!hasTeachingCapability &&
-              !isSeatLearner &&
-              (view.kind === 'classroom' || view.kind === 'classroom-projects') ? (
-                <main className="portal-content" id="main-content" tabIndex={-1}>
-                  <section className="creator-access-message">
-                    <p className="portal-eyebrow">Классы</p>
-                    <h1>Хотите вести занятия?</h1>
-                    <p>
-                      Подключите преподавание в разделе «Возможности». Доступ к чужим классам это не
-                      предоставляет.
-                    </p>
+                {view.kind === 'attending' ||
+                (view.kind === 'classrooms' && !canManageClasses && !isSeatLearner) ? (
+                  <AttendedClassesPage
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: { kind: 'my-projects' },
+                      })
+                    }
+                  />
+                ) : null}
+                {view.kind === 'classrooms' && canManageClasses ? (
+                  <DashboardPage
+                    onAttendClasses={() => setView({ kind: 'attending' })}
+                    onOpenProjects={(classroomId, classroomTitle) =>
+                      setView({ kind: 'classroom', classroomId, classroomTitle })
+                    }
+                  />
+                ) : null}
+                {(view.kind === 'classroom' || view.kind === 'classroom-projects') &&
+                !canManageClasses ? (
+                  <main id="main-content" className="portal-content" tabIndex={-1}>
+                    <h1>Доступ к управлению классом закрыт</h1>
+                    <p>Ваши занятия и работы находятся в «Моём обучении».</p>
                     <button
                       type="button"
-                      className="btn-secondary"
-                      onClick={() => {
-                        setAccountPanel('capabilities');
-                        setView({ kind: 'account' });
-                      }}
+                      className="btn-primary"
+                      onClick={() => setView({ kind: 'learning' })}
                     >
-                      Возможности
+                      Моё обучение
                     </button>
-                  </section>
-                </main>
-              ) : null}
-              {view.kind === 'teacher-invite' ? (
-                <TeacherInvitePage
-                  token={view.token}
-                  authenticated
-                  onAccepted={(classroom) => {
-                    setPendingTeacherInvite(null);
-                    setView({
-                      kind: 'classroom',
-                      classroomId: classroom.id,
-                      classroomTitle: classroom.title,
-                    });
-                  }}
-                  onBack={() => {
-                    setPendingTeacherInvite(null);
-                    setView({ kind: 'classrooms' });
-                  }}
-                  onOpenProfile={() => {
-                    setAccountPanel('profile');
-                    setView({ kind: 'account' });
-                  }}
-                />
-              ) : null}
-              {/* Settings, in the same shell for both. A seat owns fewer of them:
+                  </main>
+                ) : null}
+                {view.kind === 'classroom' && canManageClasses ? (
+                  <ClassroomPage
+                    classroomId={view.classroomId}
+                    onBack={() => setView({ kind: 'classrooms' })}
+                    onOpenProjects={(classroomTitle) =>
+                      setView({
+                        kind: 'classroom-projects',
+                        classroomId: view.classroomId,
+                        classroomTitle,
+                      })
+                    }
+                    {...(view.seatId ? { openSeatId: view.seatId } : {})}
+                    /* Leaving a learner's model returns to that learner, not to the
+               teacher's own project list — which is where this used to land,
+               and is nobody's idea of "back". */
+                    onOpenProject={(projectId, moduleKey, seatId) =>
+                      setView({
+                        kind: 'editor',
+                        projectId,
+                        moduleKey,
+                        returnTo: {
+                          kind: 'classroom',
+                          classroomId: view.classroomId,
+                          classroomTitle: view.classroomTitle,
+                          ...(seatId ? { seatId } : {}),
+                        },
+                      })
+                    }
+                  />
+                ) : null}
+                {view.kind === 'classroom-projects' && canManageClasses ? (
+                  <ProjectsPage
+                    classroomId={view.classroomId}
+                    classroomTitle={view.classroomTitle}
+                    onBack={() => setView({ kind: 'classrooms' })}
+                    onOpenProject={(projectId, moduleKey) =>
+                      setView({ kind: 'editor', projectId, moduleKey, returnTo: view })
+                    }
+                  />
+                ) : null}
+                {/* An invitation to start teaching belongs to a grown-up who might. A
+            child signed in on a class seat is shown their work here, and asking
+            them to "выберите роль «Педагог»" under it is noise at best. */}
+                {!hasTeachingCapability &&
+                !isSeatLearner &&
+                (view.kind === 'classroom' || view.kind === 'classroom-projects') ? (
+                  <main className="portal-content" id="main-content" tabIndex={-1}>
+                    <section className="creator-access-message">
+                      <p className="portal-eyebrow">Классы</p>
+                      <h1>Хотите вести занятия?</h1>
+                      <p>
+                        Подключите преподавание в разделе «Возможности». Доступ к чужим классам это
+                        не предоставляет.
+                      </p>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => {
+                          setAccountPanel('capabilities');
+                          setView({ kind: 'account' });
+                        }}
+                      >
+                        Возможности
+                      </button>
+                    </section>
+                  </main>
+                ) : null}
+                {view.kind === 'teacher-invite' ? (
+                  <TeacherInvitePage
+                    token={view.token}
+                    authenticated
+                    onAccepted={(classroom) => {
+                      setPendingTeacherInvite(null);
+                      setView({
+                        kind: 'classroom',
+                        classroomId: classroom.id,
+                        classroomTitle: classroom.title,
+                      });
+                    }}
+                    onBack={() => {
+                      setPendingTeacherInvite(null);
+                      setView({ kind: 'classrooms' });
+                    }}
+                    onOpenProfile={() => {
+                      setAccountPanel('profile');
+                      setView({ kind: 'account' });
+                    }}
+                  />
+                ) : null}
+                {/* Settings, in the same shell for both. A seat owns fewer of them:
             its picture, and not the name its teacher keeps the register by. */}
-              {view.kind === 'account' && !isSeatLearner ? (
-                <AccountPage
-                  session={portalSession}
-                  onSessionChanged={(updated) =>
-                    setSession({ kind: 'authenticated', session: updated })
-                  }
-                  onOpenClasses={() => navigate('classes')}
-                  initialPanel={accountPanel}
-                />
-              ) : null}
-              {view.kind === 'account' && session.kind === 'student' ? (
-                <SeatAccountPage
-                  seat={session.session}
-                  onSeatChanged={(updated) => setSession({ kind: 'student', session: updated })}
-                />
-              ) : null}
-            </Suspense>
-          )}
-        </div>
-      </QuickProjectCreation>
-    </SchoolTimeProvider>
+                {view.kind === 'account' && !isSeatLearner ? (
+                  <AccountPage
+                    session={portalSession}
+                    onSessionChanged={(updated) =>
+                      setSession({ kind: 'authenticated', session: updated })
+                    }
+                    onOpenClasses={() => navigate('classes')}
+                    initialPanel={accountPanel}
+                  />
+                ) : null}
+                {view.kind === 'account' && session.kind === 'student' ? (
+                  <SeatAccountPage
+                    seat={session.session}
+                    onSeatChanged={(updated) => setSession({ kind: 'student', session: updated })}
+                  />
+                ) : null}
+              </Suspense>
+            )}
+          </div>
+        </QuickProjectCreation>
+      </SchoolTimeProvider>
+    </PresentationProvider>
   );
 }

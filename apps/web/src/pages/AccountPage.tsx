@@ -1,3 +1,4 @@
+import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import {
   useCallback,
@@ -640,7 +641,9 @@ export function AccountPage({
     setError(null);
     setNotice(null);
   }
+  const presentation = usePresentation();
   const draftDialog = useSettingsDraftGuard([
+    presentation,
     {
       dirty: profileChanged,
       save: () => (busyAction === null ? saveProfile() : Promise.resolve(false)),
@@ -913,6 +916,7 @@ export function AccountPage({
           {panel === 'interface' ? (
             <section className="account-settings-section" aria-label="Интерфейс">
               <h2>Интерфейс</h2>
+              <PresentationControls />
               <form
                 className="account-profile-form account-time-zone"
                 onSubmit={(event) => void saveTimeZone(event)}

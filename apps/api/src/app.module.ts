@@ -1,3 +1,5 @@
+import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
+import { PresentationPreferencesController } from './presentation-preferences.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import type pg from 'pg';
 import {
@@ -172,6 +174,7 @@ export class AppModule {
         AuthController,
         AdminController,
         AccountC1Controller,
+        PresentationPreferencesController,
         AssignmentsController,
         CoursesController,
         LearningAssessmentsController,
@@ -198,6 +201,11 @@ export class AppModule {
       providers: [
         LearningRemindersService,
         { provide: TOKENS.pool, useValue: pool },
+        {
+          provide: TOKENS.presentationPreferences,
+          useFactory: () =>
+            new PresentationPreferencesUseCase(new PgPresentationPreferences(requirePool())),
+        },
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },

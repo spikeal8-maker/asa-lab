@@ -149,11 +149,16 @@ export function useSettingsDraftGuard(drafts: readonly SettingsDraft[]) {
     return () => {
       if (guard === protect) guard = null;
       if (dirtySettings === isDirty) dirtySettings = null;
+      window.dispatchEvent(new Event('settings-draft-state'));
       if (pendingSettings === isPending) pendingSettings = null;
       window.removeEventListener('beforeunload', unload);
       document.removeEventListener('click', click, true);
     };
   }, []);
+  const isAnyDirty = drafts.some((draft) => draft.dirty);
+  useEffect(() => {
+    window.dispatchEvent(new Event('settings-draft-state'));
+  }, [isAnyDirty]);
   const stay = () => {
     if (busy) return;
     pending.current = null;

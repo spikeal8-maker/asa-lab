@@ -1,3 +1,4 @@
+import { PresentationProvider } from '../../apps/web/src/components/PresentationPreferences';
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
@@ -53,6 +54,20 @@ const profile: AccountProfile = {
   capabilities: [],
   workspaces: session.workspaces,
 };
+function AccountView(props: Parameters<typeof AccountPage>[0]) {
+  return createElement(PresentationProvider, {
+    actor: props.session.user.id,
+    children: createElement(AccountPage, props),
+  });
+}
+function SeatView(props: Parameters<typeof SeatAccountPage>[0]) {
+  return createElement(PresentationProvider, {
+    actor: props.seat.student.seatId,
+    seat: true,
+    expiresAt: props.seat.expiresAt,
+    children: createElement(SeatAccountPage, props),
+  });
+}
 let container: HTMLDivElement;
 let root: Root;
 beforeAll(() => {
@@ -62,6 +77,17 @@ afterAll(() => {
   reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 beforeEach(() => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn().mockImplementation(async (path: string) => ({
+      ok: path === '/api/account/presentation',
+      status: path === '/api/account/presentation' ? 200 : 503,
+      json: async () =>
+        path === '/api/account/presentation'
+          ? { motion: 'system', sidebar: 'expanded', revision: 0 }
+          : { error: { code: 'unavailable', message: 'Unavailable' } },
+    })),
+  );
   window.history.replaceState(null, '', '/#/account');
   container = document.createElement('div');
   document.body.append(container);
@@ -103,11 +129,12 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 async function renderAccount(nextSession = session) {
   await act(async () =>
     root.render(
-      createElement(AccountPage, {
+      createElement(AccountView, {
         session: nextSession,
         onSessionChanged: vi.fn(),
         onOpenClasses: vi.fn(),
@@ -226,7 +253,7 @@ describe('account settings composition', () => {
     expect(save.mock.calls[0]?.[0].categories.NC02).toBe(true);
     await act(async () =>
       root.render(
-        createElement(AccountPage, {
+        createElement(AccountView, {
           session: { ...session, navigation: { ...session.navigation, classroomManagement: true } },
           onSessionChanged: vi.fn(),
           onOpenClasses: vi.fn(),
@@ -265,9 +292,7 @@ describe('account settings composition', () => {
       classroom: { id: 'class-1', title: 'Класс', teacherDisplayName: 'Преподаватель' },
       expiresAt: '2030-01-01T00:00:00Z',
     };
-    await act(async () =>
-      root.render(createElement(SeatAccountPage, { seat, onSeatChanged: vi.fn() })),
-    );
+    await act(async () => root.render(createElement(SeatView, { seat, onSeatChanged: vi.fn() })));
     expect(container.textContent).toContain('Не удалось загрузить значки');
     expect(container.textContent).not.toContain('Пока ни одного');
     await click('Повторить загрузку значков');

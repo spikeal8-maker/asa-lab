@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: supported_motion_sidebar_preferences_selected
+      checkpoint: presentation_fixture_corrected_final_verification
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -135,23 +135,29 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 50693c743169c2472faee6a2b8f21e015c03b651
+      convergence_baseline_sha: 114138ef5c8b4ddead0f7ace4e2411ee16263ccd
       head_sha: null
-      observed_at: '2026-10-07T05:55:12Z'
+      observed_at: '2026-10-07T07:04:33Z'
       main:
         branch: main
-        sha: 50693c743169c2472faee6a2b8f21e015c03b651
+        sha: 114138ef5c8b4ddead0f7ace4e2411ee16263ccd
       observation_note: >-
-        Settings UI convergence was independently approved and integrated on main
-        50693c743169c2472faee6a2b8f21e015c03b651. Exact-head general workflow
-        37577683245 succeeded, including PostgreSQL/RLS, 535 focused tests, eight
-        real Access A browser journeys and 51 synthetic UI scenarios. The owner
-        authorized continuation of the Settings programme and disjoint execution
-        record reconciliation. The next bounded slice implements only supported
-        motion and sidebar presentation preferences, with Account persistence and
-        an explicitly temporary safe Seat subset. MAX, authority and live data
-        operations remain outside scope. Fetch main before writes; no installed
-        revision, deployment or owner acceptance is inferred from this snapshot.
+        Dated main baseline 114138ef5c8b4ddead0f7ace4e2411ee16263ccd has successful
+        general workflow 37578816729. Supported Account motion/sidebar and temporary
+        Seat motion implementation received bounded independent review corrections
+        for expired Seat snapshots and cross-tab Account cookie changes. Repaired
+        source edfccc73448fa3f9aed7def6a4c25baf63829a40 clears terminal snapshots,
+        fences captured callbacks and requires a server-checked original Account
+        precondition on presentation reads and writes. It passes 67 focused tests,
+        66 synthetic browser scenarios and 21 fresh Nx tasks. Independent review
+        verified the product boundaries but found missing Account hints in the
+        PostgreSQL fixtures; the six authenticated request sites are corrected,
+        with 13 controller tests passing and 12 integration tests collected only.
+        Real database verification is not claimed. The unpublished
+        result is being composed into one final candidate;
+        its independent review and exact-head general/API/PostgreSQL/browser CI
+        remain pending. MAX, authority and live data operations are unchanged.
+        Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
