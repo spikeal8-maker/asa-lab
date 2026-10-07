@@ -1,6 +1,6 @@
 # #510 — Arduino calculation and visible observation cadence
 
-Diagnostic scope for [#510](https://github.com/spikeal8-maker/asa-lab/issues/510), a dependency of [#505 / PR #506](https://github.com/spikeal8-maker/asa-lab/pull/506). Accepted startup repair #513 and closure #509 are preserved. No product, physical scheduler, test assertion, wait, owner image, installation or user document was changed by this diagnosis.
+Diagnostic scope for [#510](https://github.com/spikeal8-maker/asa-lab/issues/510), a dependency of [#505 / PR #506](https://github.com/spikeal8-maker/asa-lab/pull/506). Accepted startup repair #513 and closure #509 are preserved. No product, physical scheduler, test assertion, wait, owner image, working installation or owner document was changed by this diagnosis.
 
 ## Evidence identity and procedure
 
@@ -47,7 +47,7 @@ This diagnosis proves a later **observation cadence defect under the measured co
 
 A justified separate repair can bound the size of **complete observation targets** while retaining later host demand, ordered inputs, existing yielded continuations, generation cancellation and ready-only publication. It must keep every canonical physical barrier/event and the exact electrical/thermal model; publishing a yielded partial horizon, enlarging waits or reducing accuracy is not an acceptable shortcut. Characterization should prove complete visible observations while calculation trails host time, then run this same HIGH → LOW / Reset journey under the recorded finite contention. Any cost optimization/hot-spot diagnosis is a separate concern unless directly proved necessary by that selected repair.
 
-The controller must formally select and independently review that repair before implementation. #505 / #506 should remain preserved pending resolution; this diagnosis is not its final acceptance. No installation, database, protected artwork or classroom operation occurred.
+The controller must formally select and independently review that repair before implementation. #505 / #506 should remain preserved pending resolution; this diagnosis is not its final acceptance. The isolated CI editor used a disposable test PostgreSQL database and applied its test migrations. No working installation, live database, protected artwork or classroom operation occurred.
 
 ## Delivery boundary
 
