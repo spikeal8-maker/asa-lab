@@ -5,7 +5,7 @@ import type pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
-import { openPortalSection } from './portal-navigation';
+import { openAccountSettings, openPortalSection } from './portal-navigation';
 import {
   closeAssignmentPreview,
   closeAssignmentSettings,
@@ -2675,6 +2675,11 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     });
   }
   await page.setViewportSize({ width: 1440, height: 900 });
+  // Create a real forward Settings entry before the dirty course guard probes.
+  await openAccountSettings(page);
+  await expect(page.locator('.account-settings-page')).toBeVisible();
+  await page.evaluate(() => window.history.back());
+  await expect(page.getByTestId('courses-list')).toBeVisible();
   await courseRow.click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
   await expect(editor.locator('.course-pinned-practice').nth(0)).toContainText(electronicsTitle);
@@ -2687,6 +2692,43 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
     .click();
   await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
   await expect(editor.getByRole('button', { name: 'Назначить курс', exact: true })).toBeDisabled();
+  const portalHistory = () =>
+    page.evaluate(() => ({ href: location.href, state: history.state, length: history.length }));
+  const denyPortalExit = async (action: () => Promise<unknown>) => {
+    const entry = await portalHistory();
+    let prompts = 0;
+    const dismiss = async (dialog: import('@playwright/test').Dialog) => {
+      prompts++;
+      expect(page.url()).toBe(entry.href);
+      await dialog.dismiss();
+    };
+    page.on('dialog', dismiss);
+    try {
+      await action();
+      await expect.poll(() => prompts).toBe(1);
+      await expect(page).toHaveURL(entry.href);
+      expect(await portalHistory()).toEqual(entry);
+      await expect(editor).toBeVisible();
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+    } finally {
+      page.off('dialog', dismiss);
+    }
+  };
+  await denyPortalExit(() => openAccountSettings(page));
+  await denyPortalExit(() => page.evaluate(() => window.history.back()));
+  await denyPortalExit(() => page.evaluate(() => window.history.forward()));
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Несохранённый курс');
+  const acceptedCourseEntry = await portalHistory();
+  page.once('dialog', (dialog) => dialog.accept());
+  await openAccountSettings(page);
+  await expect(page.locator('.account-settings-page')).toBeVisible();
+  expect((await portalHistory()).state.asaRouteIndex).toBe(
+    acceptedCourseEntry.state.asaRouteIndex + 1,
+  );
+  await page.evaluate(() => window.history.back());
+  await expect(page.getByTestId('courses-list')).toBeVisible();
+  await courseRow.click();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('Смешанная практика');
   await editor.getByLabel('Название урока').fill('Смешанная практика');
   await editor.getByRole('button', { name: 'Сохранить урок', exact: true }).click();
   await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
@@ -2800,6 +2842,8 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await editor.getByRole('button', { name: 'Курсы', exact: true }).click();
   await expect(editor).toBeVisible();
   await expect(page.getByTestId('courses-list')).toHaveCount(0);
+  await denyPortalExit(() => openAccountSettings(page));
+  await denyPortalExit(() => page.evaluate(() => window.history.back()));
   await editor.getByRole('button', { name: 'Назначить курс', exact: true }).click();
   assignDialog = page.getByRole('dialog', { name: 'Назначить курс', exact: true });
   await expect(assignDialog.getByLabel('Класс для курса')).toBeDisabled();

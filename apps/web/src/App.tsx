@@ -90,6 +90,11 @@ import './electronics/portal.css';
 import './modules/project-hub.css';
 import './modules/classroom-hub.css';
 import './account.css';
+import { historyEntryIndex, pushSettingsAwareLocation } from './components/settings-navigation';
+import {
+  createPortalHistoryGuard,
+  requestPortalNavigation,
+} from './creator-portal/portal-navigation-guard';
 import './creator-portal/creator-portal.css';
 import './creator-portal/portal-workspace.css';
 import './creator-portal/home-workspace.css';
@@ -180,19 +185,25 @@ export function App(): JSX.Element {
       : null,
   );
 
+  const acceptedLocation = useRef(window.location.href);
+  const acceptedHistoryIndex = useRef(historyEntryIndex() ?? 0);
+  // Used only after approval (including the acknowledged workspace switch).
   const applyView = useCallback((next: CreatorPortalView) => {
     setAdminSection(null);
     viewRef.current = next;
     setViewState(next);
     const href = creatorViewToHref(next);
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (current !== href) window.history.pushState(null, '', href);
+    if (current !== href) pushSettingsAwareLocation(href);
+    acceptedLocation.current = window.location.href;
+    acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
   }, []);
   const setView = useCallback(
-    (next: CreatorPortalView) => {
-      if (next.kind !== 'challenges' && !mayLeaveLearning()) return;
-      applyView(next);
-    },
+    (next: CreatorPortalView) =>
+      requestPortalNavigation(
+        () => next.kind === 'challenges' || mayLeaveLearning(),
+        () => applyView(next),
+      ),
     [applyView, mayLeaveLearning],
   );
 
@@ -226,23 +237,28 @@ export function App(): JSX.Element {
   }, [setPublicView, setView]);
 
   useEffect(() => {
-    const sync = (): void => {
-      const nextView = creatorViewFromLocation(window.location);
-      if (nextView.kind !== viewRef.current.kind && !mayLeaveLearning()) {
-        window.history.pushState(null, '', creatorViewToHref(viewRef.current));
-        return;
-      }
-      viewRef.current = nextView;
-      setViewState(nextView);
-      setAdminSection(adminSectionFromLocation(window.location));
-      if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
-      setPublicViewState(publicViewFromHash());
-    };
+    const { sync, accept } = createPortalHistoryGuard({
+      accepted: { location: acceptedLocation, index: acceptedHistoryIndex },
+      needsLearningDecision: (destination) =>
+        viewRef.current.kind === 'challenges' &&
+        creatorViewFromLocation(new URL(destination)).kind !== 'challenges',
+      mayLeaveLearning,
+      applyLocation: () => {
+        const nextView = creatorViewFromLocation(window.location);
+        viewRef.current = nextView;
+        setViewState(nextView);
+        setAdminSection(adminSectionFromLocation(window.location));
+        if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
+        setPublicViewState(publicViewFromHash());
+      },
+    });
+    window.addEventListener('settings-route', accept);
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
       window.removeEventListener('popstate', sync);
       window.removeEventListener('hashchange', sync);
+      window.removeEventListener('settings-route', accept);
     };
   }, [mayLeaveLearning]);
 
@@ -387,11 +403,14 @@ export function App(): JSX.Element {
 
   const openAdminSection = useCallback(
     (section: AdminSection): void => {
-      if (!mayLeaveLearning()) return;
-      setAdminSection(section);
-      const href = adminHref(section);
-      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-      if (current !== href) window.history.pushState(null, '', href);
+      requestPortalNavigation(mayLeaveLearning, () => {
+        setAdminSection(section);
+        const href = adminHref(section);
+        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (current !== href) pushSettingsAwareLocation(href);
+        acceptedLocation.current = window.location.href;
+        acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
+      });
     },
     [mayLeaveLearning],
   );

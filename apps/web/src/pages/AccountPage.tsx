@@ -28,18 +28,17 @@ import {
 } from '../creator-portal/default-avatars';
 import { ClassesIcon, CloseIcon, InspectIcon, UserIcon } from '../electronics/workbench-icons';
 import { deviceTimeZone, timeZoneLabel } from '../components/school-time';
+import {
+  requestSettingsNavigation,
+  pushSettingsAwareLocation,
+  settingsPanelFromLocation,
+  useDialogFocus,
+  useSettingsDraftGuard,
+  type SettingsPanel,
+  type SettingsDraft,
+} from '../components/settings-navigation';
 
 const USERNAME_PATTERN = String.raw`[a-zA-Z0-9][a-zA-Z0-9._\-]*[a-zA-Z0-9]`;
-
-type SettingsPanel =
-  | 'profile'
-  | 'school'
-  | 'security'
-  | 'interface'
-  | 'notifications'
-  | 'capabilities'
-  | 'requests'
-  | 'privacy';
 
 const SETTINGS_PANELS: ReadonlyArray<{
   readonly id: SettingsPanel;
@@ -47,13 +46,18 @@ const SETTINGS_PANELS: ReadonlyArray<{
   readonly icon: JSX.Element;
 }> = [
   { id: 'profile', label: 'Профиль', icon: <UserIcon /> },
-  { id: 'security', label: 'Вход и безопасность', icon: <InspectIcon /> },
   { id: 'interface', label: 'Интерфейс', icon: <InspectIcon /> },
   { id: 'notifications', label: 'Уведомления', icon: <InspectIcon /> },
+  { id: 'security', label: 'Вход и безопасность', icon: <InspectIcon /> },
+  { id: 'privacy', label: 'Данные и приватность', icon: <InspectIcon /> },
   { id: 'capabilities', label: 'Возможности', icon: <ClassesIcon /> },
   { id: 'school', label: 'Мои доступы', icon: <ClassesIcon /> },
   { id: 'requests', label: 'Приглашения и запросы', icon: <ClassesIcon /> },
-  { id: 'privacy', label: 'Данные и приватность', icon: <InspectIcon /> },
+];
+const SETTINGS_GROUPS = [
+  { label: 'Личное', ids: ['profile', 'interface', 'notifications'] },
+  { label: 'Аккаунт', ids: ['security', 'privacy'] },
+  { label: 'Работа и доступы', ids: ['capabilities', 'school', 'requests'] },
 ];
 
 /** Sign-in history reads in the account's own zone, like everything else. */
@@ -93,7 +97,9 @@ export function AccountPage({
   onOpenClasses: () => void;
   initialPanel?: SettingsPanel;
 }): JSX.Element {
-  const [panel, setPanel] = useState<SettingsPanel>(initialPanel);
+  const [panel, setPanel] = useState<SettingsPanel>(() =>
+    window.location.hash.startsWith('#/account/') ? settingsPanelFromLocation() : initialPanel,
+  );
   const [profile, setProfile] = useState<AccountProfile | null>(null);
   const [maxStatus, setMaxStatus] = useState<MaxAccountStatus | null>(null);
   const [maxConfig, setMaxConfig] = useState<MaxAuthConfig | null>(null);
@@ -120,6 +126,10 @@ export function AccountPage({
   const [maxPairingToken, setMaxPairingToken] = useState<string | null>(null);
   const [maxPairingUrl, setMaxPairingUrl] = useState<string | null>(null);
   const avatarInput = useRef<HTMLInputElement>(null);
+  const avatarDialog = useRef<HTMLElement>(null);
+  const notificationControl = useRef<SettingsDraft | null>(null);
+  const [notificationsDirty, setNotificationsDirty] = useState(false);
+  useDialogFocus(avatarPickerOpen, avatarDialog);
   const deviceZone = useMemo(() => deviceTimeZone(), []);
   const [timeZone, setTimeZone] = useState(session.timeZone ?? deviceZone);
   /**
@@ -135,6 +145,7 @@ export function AccountPage({
       zones = [];
     }
     if (zones.length === 0) zones = [deviceZone, 'UTC'];
+    if (!zones.includes('UTC')) zones = ['UTC', ...zones];
     const current = session.timeZone ?? deviceZone;
     return zones.includes(current) ? zones : [current, ...zones];
   }, [deviceZone, session.timeZone]);
@@ -143,7 +154,17 @@ export function AccountPage({
     setTimeZone(session.timeZone ?? deviceZone);
   }, [deviceZone, session.timeZone]);
 
-  useEffect(() => setPanel(initialPanel), [initialPanel]);
+  useEffect(() => {
+    if (window.location.hash.startsWith('#/account/')) return;
+    setPanel(initialPanel);
+  }, [initialPanel]);
+  useEffect(() => {
+    const sync = () => {
+      if (window.location.hash.startsWith('#/account')) setPanel(settingsPanelFromLocation());
+    };
+    window.addEventListener('settings-route', sync);
+    return () => window.removeEventListener('settings-route', sync);
+  }, []);
 
   const refresh = useCallback(async (): Promise<void> => {
     const generation = ++loadGeneration.current;
@@ -239,16 +260,6 @@ export function AccountPage({
   }, [refresh]);
 
   useEffect(() => {
-    const protectDraft = (event: BeforeUnloadEvent) => {
-      if (!profileDirty.current) return;
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', protectDraft);
-    return () => window.removeEventListener('beforeunload', protectDraft);
-  }, []);
-
-  useEffect(() => {
     if (!maxPairingToken) return;
     let active = true;
     let timer: number | null = null;
@@ -323,8 +334,8 @@ export function AccountPage({
    * The teacher deciding, rather than the browser reporting: `false` means
    * overwrite whatever is stored, which is the point of the control.
    */
-  async function saveTimeZone(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function saveTimeZone(event?: FormEvent<HTMLFormElement>): Promise<boolean> {
+    event?.preventDefault();
     setBusyAction('time-zone');
     setError(null);
     setNotice(null);
@@ -332,15 +343,27 @@ export function AccountPage({
     if (!result.ok) {
       setBusyAction(null);
       setError(result.error.message || 'Не удалось сохранить часовой пояс.');
-      return;
+      return false;
     }
     await refreshSession();
     setBusyAction(null);
     setNotice(`Часовой пояс: ${timeZoneLabel(result.data.timeZone ?? timeZone)}.`);
+    return true;
   }
 
-  async function saveProfile(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
+  async function saveProfile(event?: FormEvent<HTMLFormElement>): Promise<boolean> {
+    event?.preventDefault();
+    if (
+      !new RegExp(`^${USERNAME_PATTERN}$`).test(username) ||
+      username.length < 3 ||
+      username.length > 40 ||
+      displayName.trim().length < 2 ||
+      displayName.length > 255 ||
+      bio.length > 960
+    ) {
+      setError('Проверьте имя пользователя и отображаемое имя в профиле.');
+      return false;
+    }
     setBusyAction('profile');
     setError(null);
     setNotice(null);
@@ -353,7 +376,7 @@ export function AccountPage({
           ? 'Это имя пользователя уже занято.'
           : result.error.message,
       );
-      return;
+      return false;
     }
 
     profileDirty.current = false;
@@ -364,6 +387,7 @@ export function AccountPage({
     await refreshSession();
     setBusyAction(null);
     setNotice('Изменения сохранены.');
+    return true;
   }
 
   async function enableTeaching(): Promise<void> {
@@ -601,6 +625,49 @@ export function AccountPage({
     if (sessionsResult.ok) setSessions(sessionsResult.data.items);
   }
 
+  const profileChanged =
+    profile !== null &&
+    (username !== profile.username ||
+      displayName !== profile.displayName ||
+      bio !== (profile.bio ?? ''));
+  profileDirty.current = profileChanged;
+  function discardProfile() {
+    if (!profile) return;
+    profileDirty.current = false;
+    setUsername(profile.username);
+    setDisplayName(profile.displayName);
+    setBio(profile.bio ?? '');
+    setError(null);
+    setNotice(null);
+  }
+  const draftDialog = useSettingsDraftGuard([
+    {
+      dirty: profileChanged,
+      save: () => (busyAction === null ? saveProfile() : Promise.resolve(false)),
+      discard: discardProfile,
+    },
+    {
+      dirty: timeZone !== (session.timeZone ?? deviceZone),
+      save: () => (busyAction === null ? saveTimeZone() : Promise.resolve(false)),
+      discard: () => setTimeZone(session.timeZone ?? deviceZone),
+    },
+    {
+      dirty: notificationsDirty,
+      save: async () => (await notificationControl.current?.save()) ?? false,
+      discard: () => notificationControl.current?.discard(),
+    },
+  ]);
+  function changePanel(next: SettingsPanel) {
+    if (next === panel) return;
+    requestSettingsNavigation(() => {
+      setPanel(next);
+      setError(null);
+      setNotice(null);
+      pushSettingsAwareLocation(`#/account/${next}`);
+      window.dispatchEvent(new Event('settings-route'));
+    });
+  }
+
   if (loading) {
     return (
       <main id="main-content" className="account-page" aria-busy="true" tabIndex={-1}>
@@ -624,11 +691,6 @@ export function AccountPage({
 
   const maxManagedProfile = profile.email.endsWith('@users.asa.invalid');
 
-  const profileChanged =
-    username !== profile.username ||
-    displayName !== profile.displayName ||
-    bio !== (profile.bio ?? '');
-
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
       <header className="account-heading">
@@ -642,44 +704,38 @@ export function AccountPage({
           <select
             aria-label="Выбрать раздел настроек"
             value={panel}
-            onChange={(event) => {
-              setPanel(event.target.value as SettingsPanel);
-              setError(null);
-              setNotice(null);
-            }}
+            onChange={(event) => changePanel(event.target.value as SettingsPanel)}
           >
-            {SETTINGS_PANELS.map((item) => (
-              <option key={item.id} value={item.id}>
-                {item.label}
-              </option>
+            {SETTINGS_GROUPS.map((group) => (
+              <optgroup key={group.label} label={group.label}>
+                {SETTINGS_PANELS.filter((item) => group.ids.includes(item.id)).map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.label}
+                  </option>
+                ))}
+              </optgroup>
             ))}
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
           <strong>Настройки</strong>
           <nav>
-            {SETTINGS_PANELS.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={panel === item.id ? 'active' : undefined}
-                aria-current={panel === item.id ? 'page' : undefined}
-                onClick={() => {
-                  if (
-                    profileChanged &&
-                    !window.confirm(
-                      'Оставить несохранённые изменения в черновике и перейти в другой раздел?',
-                    )
-                  )
-                    return;
-                  setPanel(item.id);
-                  setError(null);
-                  setNotice(null);
-                }}
-              >
-                <span aria-hidden="true">{item.icon}</span>
-                {item.label}
-              </button>
+            {SETTINGS_GROUPS.map((group) => (
+              <div className="account-settings-group" key={group.label}>
+                <h2>{group.label}</h2>
+                {SETTINGS_PANELS.filter((item) => group.ids.includes(item.id)).map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={panel === item.id ? 'active' : undefined}
+                    aria-current={panel === item.id ? 'page' : undefined}
+                    onClick={() => changePanel(item.id)}
+                  >
+                    <span aria-hidden="true">{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
+              </div>
             ))}
           </nav>
         </aside>
@@ -724,6 +780,7 @@ export function AccountPage({
                 <div>
                   <strong>Аватар</strong>
                   <span>Выберите готовый аватар ASA Lab или загрузите своё изображение.</span>
+                  <span>Аватар сохраняется сразу, отдельно от полей профиля.</span>
                   <div className="account-avatar-buttons">
                     <button
                       type="button"
@@ -769,6 +826,7 @@ export function AccountPage({
                   <small>Короткое уникальное имя для профиля, например @ivan.petrov.</small>
                   <input
                     value={username}
+                    required
                     minLength={3}
                     maxLength={40}
                     pattern={USERNAME_PATTERN}
@@ -785,6 +843,7 @@ export function AccountPage({
                   <small>Это имя увидят другие пользователи в проектах и классах.</small>
                   <input
                     value={displayName}
+                    required
                     minLength={2}
                     maxLength={255}
                     autoComplete="name"
@@ -811,13 +870,42 @@ export function AccountPage({
                   />
                   <span className="account-character-count">{bio.length} / 960</span>
                 </label>
-                <button
-                  type="submit"
-                  className="btn-primary account-action"
-                  disabled={busyAction !== null || !profileChanged}
+                <div
+                  className="account-profile-preview"
+                  role="region"
+                  aria-label="Предпросмотр публичного профиля"
                 >
-                  {busyAction === 'profile' ? 'Сохраняем…' : 'Сохранить изменения'}
-                </button>
+                  <img src={effectiveAvatarUrl} alt="" />
+                  <div>
+                    <h3>Предпросмотр профиля</h3>
+                    <strong>{displayName || 'Отображаемое имя'}</strong>
+                    <span>@{username || 'имя.пользователя'}</span>
+                    <p>{bio || 'Здесь появится описание профиля.'}</p>
+                  </div>
+                </div>
+                <div className="account-form-actions">
+                  <button
+                    type="submit"
+                    className="btn-primary account-action"
+                    disabled={
+                      busyAction !== null ||
+                      !profileChanged ||
+                      !new RegExp(`^${USERNAME_PATTERN}$`).test(username) ||
+                      username.length < 3 ||
+                      displayName.trim().length < 2
+                    }
+                  >
+                    {busyAction === 'profile' ? 'Сохраняем…' : 'Сохранить изменения'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busyAction !== null || !profileChanged}
+                    onClick={discardProfile}
+                  >
+                    Отменить
+                  </button>
+                </div>
               </form>
             </section>
           ) : null}
@@ -836,7 +924,11 @@ export function AccountPage({
                     сохранял работу. Определён по вашему устройству — измените, если преподаёте в
                     другом поясе.
                   </small>
-                  <select value={timeZone} onChange={(event) => setTimeZone(event.target.value)}>
+                  <select
+                    value={timeZone}
+                    disabled={busyAction !== null}
+                    onChange={(event) => setTimeZone(event.target.value)}
+                  >
                     {timeZoneOptions.map((zone) => (
                       <option key={zone} value={zone}>
                         {timeZoneLabel(zone)}
@@ -844,13 +936,26 @@ export function AccountPage({
                     ))}
                   </select>
                 </label>
-                <button
-                  type="submit"
-                  className="btn-secondary account-action"
-                  disabled={busyAction !== null || timeZone === (session.timeZone ?? deviceZone)}
-                >
-                  {busyAction === 'time-zone' ? 'Сохраняем…' : 'Сохранить часовой пояс'}
-                </button>
+                <p className="account-hint">
+                  Пример времени: {formatDate(new Date().toISOString(), timeZone)}
+                </p>
+                <div className="account-form-actions">
+                  <button
+                    type="submit"
+                    className="btn-secondary account-action"
+                    disabled={busyAction !== null || timeZone === (session.timeZone ?? deviceZone)}
+                  >
+                    {busyAction === 'time-zone' ? 'Сохраняем…' : 'Сохранить часовой пояс'}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busyAction !== null || timeZone === (session.timeZone ?? deviceZone)}
+                    onClick={() => setTimeZone(session.timeZone ?? deviceZone)}
+                  >
+                    Отменить
+                  </button>
+                </div>
               </form>
             </section>
           ) : null}
@@ -858,7 +963,7 @@ export function AccountPage({
           {panel === 'capabilities' ? (
             <section className="account-settings-section" aria-label="Возможности">
               <h2>Возможности</h2>
-              <article className="account-school-empty">
+              <article className="account-capability-card">
                 <div>
                   <h3>Создавать материалы</h3>
                   <p>Личная библиотека учебных материалов. Без управления классами и учениками.</p>
@@ -878,7 +983,7 @@ export function AccountPage({
                   </button>
                 )}
               </article>
-              <article className="account-school-empty">
+              <article className="account-capability-card">
                 <div>
                   <h3>Преподавание</h3>
                   <p>
@@ -887,11 +992,11 @@ export function AccountPage({
                       : 'Создавайте классы и проводите занятия. Школа для подключения не требуется.'}
                   </p>
                 </div>
-                {isEducator ? (
+                {isEducator && session.navigation.classes ? (
                   <button type="button" className="btn-primary" onClick={onOpenClasses}>
                     Открыть классы
                   </button>
-                ) : (
+                ) : !isEducator ? (
                   <button
                     type="button"
                     className="btn-primary"
@@ -900,19 +1005,28 @@ export function AccountPage({
                   >
                     {busyAction === 'educator' ? 'Подключаем…' : 'Подключить'}
                   </button>
+                ) : (
+                  <p>Управление классами недоступно в текущем пространстве.</p>
                 )}
               </article>
             </section>
           ) : null}
 
-          {panel === 'notifications' ? (
+          <div hidden={panel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
               <h2>Уведомления</h2>
               <p>События доступны в меню «Оповещения». Здесь меняется только ваша доставка.</p>
               <p>Подключение MAX для входа само по себе не включает рассылку сообщений.</p>
-              <LearningNotificationPreferences />
+              <LearningNotificationPreferences
+                teaching={
+                  session.navigation.classroomManagement ||
+                  session.actions?.includes('class.read.staff') === true
+                }
+                controlRef={notificationControl}
+                onDirtyChange={setNotificationsDirty}
+              />
             </section>
-          ) : null}
+          </div>
 
           {panel === 'requests' ? (
             <section className="account-settings-section" aria-label="Приглашения и запросы">
@@ -990,18 +1104,13 @@ export function AccountPage({
                           <strong>{classroomCount ?? '—'}</strong>
                           <span>Классы</span>
                         </div>
-                        <div>
-                          <strong>Активна</strong>
-                          <span>Школа</span>
-                        </div>
-                        <div>
-                          <strong>{activeSchoolIsAdmin ? 'Полный' : 'Педагог'}</strong>
-                          <span>
-                            {activeSchoolIsAdmin ? 'Доступ администратора' : 'Роль в школе'}
-                          </span>
-                        </div>
                       </div>
-                      <button type="button" className="btn-primary" onClick={onOpenClasses}>
+                      <button
+                        type="button"
+                        className="btn-primary"
+                        onClick={onOpenClasses}
+                        disabled={!session.navigation.classroomManagement}
+                      >
                         Управлять классами
                       </button>
                     </div>
@@ -1022,7 +1131,9 @@ export function AccountPage({
                               type="button"
                               className={active ? 'btn-primary' : 'btn-secondary'}
                               disabled={busyAction !== null}
-                              onClick={() => void openSchoolClasses(workspace)}
+                              onClick={() =>
+                                requestSettingsNavigation(() => void openSchoolClasses(workspace))
+                              }
                             >
                               {busyAction === `school:${workspace.workspaceId}`
                                 ? 'Открываем…'
@@ -1264,10 +1375,14 @@ export function AccountPage({
       {avatarPickerOpen ? (
         <div className="account-avatar-backdrop" role="presentation">
           <section
+            ref={avatarDialog}
             className="account-avatar-dialog"
             role="dialog"
             aria-modal="true"
             aria-labelledby="avatar-dialog-title"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setAvatarPickerOpen(false);
+            }}
           >
             <header>
               <div>
@@ -1313,6 +1428,7 @@ export function AccountPage({
           </section>
         </div>
       ) : null}
+      {draftDialog}
     </main>
   );
 }

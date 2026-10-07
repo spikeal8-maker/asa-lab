@@ -414,6 +414,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   if (path === '/projects') {
     return projectListView(query);
   }
+  if (path?.startsWith('/account/')) return { kind: 'account' };
   return PORTAL_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'home' };
 }
 

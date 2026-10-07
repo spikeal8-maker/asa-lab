@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { requestSettingsNavigation } from './settings-navigation';
 import { api, type SessionPayload } from '../api';
 import type { AdminNavigationItem, AdminSection } from '../admin/admin-navigation';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
@@ -337,7 +338,13 @@ export function PortalHeader({
           </PortalLink>
         </nav>
         <QuickCreateMenu />
-        <LearningInbox seat={seatLearner} />
+        <LearningInbox
+          seat={seatLearner}
+          teaching={
+            session.navigation.classroomManagement ||
+            session.actions?.includes('class.read.staff') === true
+          }
+        />
         <details
           ref={accountMenu}
           className={active === 'account' ? 'portal-account active' : 'portal-account'}
@@ -430,7 +437,7 @@ export function PortalHeader({
               </button>
             </div>
 
-            {seatLearner ? null : (
+            {seatLearner || !session.navigation.classes ? null : (
               <div className="portal-account-group">
                 <button
                   type="button"
@@ -467,7 +474,11 @@ export function PortalHeader({
                         key={workspace.workspaceId}
                         className={current ? 'current' : undefined}
                         disabled={busy !== null || current}
-                        onClick={() => void switchWorkspace(workspace.workspaceId)}
+                        onClick={() =>
+                          requestSettingsNavigation(
+                            () => void switchWorkspace(workspace.workspaceId),
+                          )
+                        }
                       >
                         <span>
                           <strong>{workspace.title}</strong>
@@ -496,7 +507,7 @@ export function PortalHeader({
                 type="button"
                 className="portal-account-item portal-account-logout"
                 disabled={busy !== null}
-                onClick={() => void logout()}
+                onClick={() => requestSettingsNavigation(() => void logout())}
               >
                 <span className="portal-account-item-icon" aria-hidden="true">
                   <CloseIcon />
@@ -621,7 +632,7 @@ export function PortalHeader({
             type="button"
             className="portal-nav-item"
             disabled={busy !== null}
-            onClick={() => void logout()}
+            onClick={() => requestSettingsNavigation(() => void logout())}
           >
             Выход
           </button>
