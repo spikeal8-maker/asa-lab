@@ -364,6 +364,138 @@ function semanticPayload(result: ReadyResult) {
   };
 }
 
+function electrothermalFixture(load: 'motor' | 'damage' | 'arduino-led'): ReplayFixture {
+  const components =
+    load === 'damage'
+      ? [
+          {
+            ...source('battery', 3),
+            componentTypeId: 'battery-holder-aa-2',
+            pinIds: ['BAT-', 'BAT+'],
+          },
+        ]
+      : load === 'motor'
+        ? [
+            source('supply', 6),
+            {
+              id: 'motor',
+              kind: 'visual',
+              value: 6,
+              position: { x: 0, y: 0 },
+              componentTypeId: 'dc-motor',
+              pinIds: ['positive', 'negative'],
+            },
+          ]
+        : [
+            board(
+              'void setup(){pinMode(13,OUTPUT);}void loop(){digitalWrite(13,HIGH);delay(20);digitalWrite(13,LOW);delay(20);}',
+            ),
+            resistor('load', 330),
+            {
+              id: 'rgb',
+              kind: 'rgb-led',
+              value: 2,
+              position: { x: 0, y: 0 },
+              componentTypeId: 'rgb-led',
+              pinIds: ['red', 'green', 'blue', 'common'],
+            },
+          ];
+  const wires =
+    load === 'damage'
+      ? [['battery', 'BAT+', 'battery', 'BAT-']]
+      : load === 'motor'
+        ? [
+            ['supply', 'a', 'motor', 'positive'],
+            ['motor', 'negative', 'supply', 'b'],
+          ]
+        : [
+            ['uno', 'd13', 'load', 'a'],
+            ['load', 'b', 'rgb', 'red'],
+            ['rgb', 'common', 'uno', 'power-gnd-1'],
+          ];
+  return {
+    name: `observation-${load}`,
+    horizon: load === 'damage' ? 2_500_000 : 1_100_000,
+    trace: [],
+    document: parseDocument({
+      schemaVersion: 4,
+      components,
+      connections: wires.map(([from, a, to, b], index) => ({
+        id: `w${index}`,
+        from: { componentId: from, terminal: a },
+        to: { componentId: to, terminal: b },
+      })),
+    }),
+  };
+}
+
+describe('complete observation chunk physical state conformance', () => {
+  it('retains future canonical inputs across complete observation requests', () => {
+    const base = inputTraceFixture();
+    const fixture = {
+      ...base,
+      horizon: 1_100_000,
+      trace: base.trace.map((event, index) =>
+        index === 2 ? { ...event, atMicroseconds: 800_000 } : event,
+      ),
+    };
+    const first = advanceElectronicsToHorizon(fixture.document, {
+      requestedHorizonMicroseconds: 500_000,
+      inputEvents: fixture.trace,
+      maxEvents: 1024,
+    });
+    expect(first.executionStatus).toBe('ready');
+    expect(JSON.parse(first.state.continuation!.serializedState)).toMatchObject({
+      nextInputIndex: 2,
+    });
+    const final = advanceElectronicsToHorizon(fixture.document, {
+      requestedHorizonMicroseconds: fixture.horizon,
+      state: first.state,
+      maxEvents: 1024,
+    });
+    expect(final.executionStatus).toBe('ready');
+    if (final.executionStatus !== 'ready') return;
+    expect(JSON.stringify(semanticPayload(final))).toBe(
+      JSON.stringify(semanticPayload(replay(fixture, [fixture.horizon], 1024).final)),
+    );
+  });
+  for (const fixture of [
+    { ...physicalFixture(), horizon: 1_100_000 },
+    electrothermalFixture('arduino-led'),
+    electrothermalFixture('motor'),
+    electrothermalFixture('damage'),
+  ]) {
+    it(`${fixture.name}: preserves full state and result through bounded complete horizons`, () => {
+      const reference = replay(fixture, [fixture.horizon], 1024);
+      const targets = steppedTargets(fixture.horizon, 500_000, fixture.trace);
+      const chunked = replay(fixture, [0, ...targets], 256);
+      expect(JSON.stringify(semanticPayload(chunked.final))).toBe(
+        JSON.stringify(semanticPayload(reference.final)),
+      );
+      const canonical = JSON.parse(chunked.final.state.continuation!.serializedState);
+      expect(canonical.physicalState).toBeDefined();
+      if (fixture.name === 'observation-arduino-led') {
+        expect(canonical.boards[0].runtime.clockProfile).toBe('instruction-us-v1');
+        expect(canonical.physicalState.thermal.length).toBeGreaterThan(0);
+      }
+      if (fixture.name === 'observation-motor') {
+        expect(canonical.physicalState.motors[0].motorAngularVelocityRadPerSecond).toBeGreaterThan(
+          0,
+        );
+        expect(canonical.physicalState.motors[0].simulationTimeSeconds).toBeGreaterThan(0);
+      }
+      if (fixture.name === 'observation-damage') {
+        expect(
+          chunked.final.observation.components.find(
+            (component) => component.componentId === 'battery',
+          ),
+        ).toMatchObject({ damageState: 'failed', deviceHealth: 'failed_open' });
+        expect(canonical.physicalState.thermal[0].accumulatedDamage).toBeGreaterThan(0);
+      }
+    });
+  }
+});
+
 describe('E-OPT-3E canonical trace/replay equivalence', () => {
   for (const fixture of FIXTURES) {
     it(`${fixture.name}: converges across host request partitions`, () => {

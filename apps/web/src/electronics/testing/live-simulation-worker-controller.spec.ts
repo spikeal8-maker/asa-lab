@@ -823,7 +823,65 @@ describe('Electronics canonical Worker controller', () => {
     expect(executor.advances[2]).toMatchObject({ requestedHorizonMicroseconds: 200_001 });
     executor.advances[2]!.deferred.resolve(timedAdvance('ready', 200_001, 200_001, 3));
     await flush();
-    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 1_000_000 });
+    expect(executor.advances[3]).toMatchObject({ requestedHorizonMicroseconds: 700_001 });
+    executor.advances[3]!.deferred.resolve(timedAdvance('ready', 700_001, 700_001));
+    await flush();
+    expect(executor.advances[4]).toMatchObject({ requestedHorizonMicroseconds: 1_000_000 });
+  });
+
+  it('publishes repeated complete catch-up windows while retaining growing host demand', async () => {
+    const executor = new FakeExecutor();
+    const onResult = vi.fn();
+    const onCommittedHorizon = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, { onResult, onCommittedHorizon, onFailure: vi.fn() });
+    controller.update(circuit, 20_000_000);
+    await completeCanonicalStart(executor, 1);
+    expect(onCommittedHorizon.mock.calls).toEqual([[0]]);
+
+    for (let completed = 0; completed < 3; completed++) {
+      const horizon = (completed + 1) * 500_000;
+      const chunk = executor.advances.at(-1)!;
+      expect(chunk.requestedHorizonMicroseconds).toBe(horizon);
+      expect(chunk.state).toEqual(timedState(completed * 500_000));
+      controller.update(circuit, 30_000_000 + completed * 10_000_000);
+      chunk.deferred.resolve(timedAdvance('yielded', horizon, horizon - 200_000));
+      await flush();
+      expect(onResult).toHaveBeenCalledTimes(completed + 1);
+      expect(onCommittedHorizon).toHaveBeenCalledTimes(completed + 1);
+      const continuation = executor.advances.at(-1)!;
+      expect(continuation.requestedHorizonMicroseconds).toBe(horizon);
+      expect(continuation.state).toEqual(timedState(horizon - 200_000));
+      continuation.deferred.resolve(timedAdvance('ready', horizon, horizon, completed + 2));
+      await flush();
+      expect(onCommittedHorizon).toHaveBeenLastCalledWith(horizon);
+      expect(onResult).toHaveBeenLastCalledWith(result(completed + 2));
+    }
+    expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(2_000_000);
+    controller.stop();
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 2_000_000, 2_000_000, 99));
+    await flush();
+    expect(onResult).toHaveBeenCalledTimes(4);
+  });
+
+  it('drains the retained final host horizon without another host update', async () => {
+    const executor = new FakeExecutor();
+    const onCommittedHorizon = vi.fn();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', circuit, {
+      onResult: vi.fn(),
+      onCommittedHorizon,
+      onFailure: vi.fn(),
+    });
+    await completeCanonicalStart(executor, 1);
+    controller.update(circuit, 1_200_000);
+    for (const horizon of [500_000, 1_000_000, 1_200_000]) {
+      expect(executor.advances.at(-1)!.requestedHorizonMicroseconds).toBe(horizon);
+      executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', horizon, horizon));
+      await flush();
+    }
+    expect(onCommittedHorizon.mock.calls).toEqual([[0], [500_000], [1_000_000], [1_200_000]]);
+    expect(executor.advances).toHaveLength(4);
   });
 
   it('finishes a yielded target before chasing newer host horizons', async () => {
