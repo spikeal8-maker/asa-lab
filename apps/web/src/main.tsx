@@ -2,11 +2,13 @@ import React from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
 import { AppErrorBoundary } from './AppErrorBoundary';
+import { installClientDiagnostics } from './client-diagnostics';
 import './styles.css';
 import './accessibility.css';
 import './pages/PublicEntryHeroV2.css';
 
 const container = document.getElementById('root');
+installClientDiagnostics();
 if (!container) {
   throw new Error('root element missing');
 }

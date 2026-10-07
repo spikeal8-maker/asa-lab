@@ -8,6 +8,7 @@ import {
   type WheelEvent,
 } from 'react';
 import type { ElectronicsArduinoSerialProjection } from '@asa-lab/electronics/engine';
+import { reportClientDiagnostic } from '../client-diagnostics';
 import type { ComponentResult, ProductionStateValue, SchematicComponent, Terminal } from '../api';
 import {
   catalogEntry,
@@ -371,6 +372,7 @@ export function useElectronicsWorkbench(projectId: string) {
         );
       },
       onFailure: (failure) => {
+        reportClientDiagnostic('simulation_failed', 'electronics');
         setGenerationPending(false);
         resetSimulationRef.current();
         setLiveResult(null);

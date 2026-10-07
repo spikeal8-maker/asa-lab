@@ -26,6 +26,26 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-ADMIN-LOGS-001
+    title: Durable diagnostic collection, bounded archives and authorization
+    suite: security
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:admin-logs
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report, collector-report]
+  - id: TST-ADMIN-LOGS-UI-001
+    title: Admin Logs layout, filters and export state regression
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm e2e:admin-logs
+    timeout_seconds: 300
+    owner: admin-auth
+    artifacts: [playwright-report, admin-desktop-screenshot, admin-mobile-screenshot]
   - id: TST-OWNER-ADMIN-OPERATOR-001
     title: Confirmed owner identity, runtime authority, rollback and repeat safety
     suite: authorization

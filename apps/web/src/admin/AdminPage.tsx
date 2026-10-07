@@ -32,6 +32,7 @@ import {
   type AdminSection,
 } from './admin-navigation';
 import './admin.css';
+import { AdminLogsPage } from './AdminLogsPage';
 
 export type AdminAccessState =
   | { readonly kind: 'idle' }
@@ -1650,6 +1651,8 @@ function AdminWorkspace({
         <VerificationMethodsSection scope={selectedScope} onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'operations' ? (
         <OperationsSection onAccessDenied={onAccessDenied} />
+      ) : visibleSection === 'logs' ? (
+        <AdminLogsPage onAccessDenied={onAccessDenied} />
       ) : visibleSection === 'audit' ? (
         <section className="admin-audit" aria-labelledby="admin-audit-title">
           <div className="admin-section-heading admin-audit-heading">
