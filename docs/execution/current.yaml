@@ -104,18 +104,28 @@ parallel_lanes:
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
-      id: TASK-ACCOUNT-SETTINGS-UX-002
-      issue: 173
+      id: TASK-PORTAL-SHELL-UX-001
+      issue: 520
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: owner_visual_review_pending
+      status: in_progress
+      checkpoint: portal_shell_s1_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
+        - document: PORTAL-SHELL-UX-ETZ
+          revision: '1.0'
+    programme:
+      document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
+      owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
+      selected_slice: S1
+      dependency_order: [S1, S2, S3, S4]
+      remaining_slices: [S1, S2, S3, S4]
+      deployment_authorized: false
+      working_database_actions_authorized: false
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -206,6 +216,18 @@ parallel_lanes:
           - pnpm gate:repository
 
     accepted_slices:
+      - task_id: TASK-ACCOUNT-SETTINGS-UX-002
+        status: technical_accepted
+        issue: 173
+        integrated_sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
+        independent_review: approved
+        exact_head_general_run: 37670104301
+        exact_head_general_conclusion: success
+        synthetic_ui_browser_passed: 87
+        real_access_browser_passed: 10
+        owner_acceptance: pending
+        deployment: not_requested
+
       - task_id: TASK-ACCOUNT-SETTINGS-UX-001
         integrated_sha: 50693c743169c2472faee6a2b8f21e015c03b651
         independent_review: approved
