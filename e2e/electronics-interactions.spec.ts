@@ -1653,38 +1653,32 @@ test.describe('asset recovery in the built editor', () => {
       const observed = new WeakSet<Element>();
       const events: { consumer: string; trusted: boolean }[] = [];
       (window as unknown as { inducedImageErrors: unknown[] }).inducedImageErrors = events;
-      const notifyInserted = (node: Node) => {
-        if (!(node instanceof Element) || !node.isConnected) return;
-        const images = [
-          ...node.querySelectorAll('image'),
-          ...(node.matches('image') ? [node] : []),
-        ];
-        for (const image of images) {
-          if (image.getAttribute('href') !== asset || observed.has(image)) continue;
-          observed.add(image);
-          const event = new Event('error');
-          events.push({
-            consumer: image.closest('.workbench-catalog-card') ? 'catalog' : 'stage',
-            trusted: event.isTrusted,
-          });
-          // Test-only induced commit delivery. Original native requests remain
-          // pending until the unchanged failure indications are asserted.
-          queueMicrotask(() => {
-            if (image.isConnected) image.dispatchEvent(event);
-          });
+      // React calls this instrumentation hook after restoring event delivery
+      // and before flushing passive effects, including synchronous commits.
+      // This is deliberately induced delivery, not a native race reproduction.
+      (
+        window as unknown as {
+          __REACT_DEVTOOLS_GLOBAL_HOOK__: {
+            supportsFiber: boolean;
+            inject: () => number;
+            onCommitFiberRoot: () => void;
+          };
         }
-      };
-      const append = Node.prototype.appendChild;
-      Node.prototype.appendChild = function <T extends Node>(node: T): T {
-        const result = append.call(this, node) as T;
-        notifyInserted(node);
-        return result;
-      };
-      const insert = Node.prototype.insertBefore;
-      Node.prototype.insertBefore = function <T extends Node>(node: T, child: Node | null): T {
-        const result = insert.call(this, node, child) as T;
-        notifyInserted(node);
-        return result;
+      ).__REACT_DEVTOOLS_GLOBAL_HOOK__ = {
+        supportsFiber: true,
+        inject: () => 1,
+        onCommitFiberRoot: () => {
+          for (const image of document.querySelectorAll('image')) {
+            if (image.getAttribute('href') !== asset || observed.has(image)) continue;
+            observed.add(image);
+            const event = new Event('error');
+            events.push({
+              consumer: image.closest('.workbench-catalog-card') ? 'catalog' : 'stage',
+              trusted: event.isTrusted,
+            });
+            image.dispatchEvent(event);
+          }
+        },
       };
     }, asset);
     const release: (() => void)[] = [];
