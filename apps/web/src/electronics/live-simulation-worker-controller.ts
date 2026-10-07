@@ -57,6 +57,11 @@ const DISPLAY_ONLY_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
 };
 const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
+// Presentation requests are finite even when host demand accumulates faster than
+// physics can advance. This does not change the engine's barriers/work budget.
+// The cap is half a second of model time, not a wall-time/throughput promise.
+// Yielded work still finishes this exact target before another window is chosen.
+const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 500_000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -416,15 +421,25 @@ export class ElectronicsLiveSimulationWorkerController {
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
-    const target =
+    const pendingTarget =
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
-    if (generationId === null || !document || this.inFlight || !target) return;
+    if (generationId === null || !document || this.inFlight || !pendingTarget) return;
+    const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+    const target =
+      pendingTarget === this.latestTarget
+        ? {
+            requestedHorizonMicroseconds: Math.min(
+              pendingTarget.requestedHorizonMicroseconds,
+              committed + COMPLETE_OBSERVATION_WINDOW_MICROSECONDS,
+            ),
+          }
+        : pendingTarget;
     const isStartup = target === this.startupTarget;
     // Complete time zero before pursuing host ticks or inputs queued after Start.
     if (!isStartup) {
       if (this.inputTarget) this.inputTarget = null;
       else if (this.continuationTarget) this.continuationTarget = null;
-      else this.latestTarget = null;
+      // Keep the full host demand until ready responses actually satisfy it.
     }
     const inputEvents = isStartup ? [] : this.pendingInputEvents;
     if (!isStartup) this.pendingInputEvents = [];
