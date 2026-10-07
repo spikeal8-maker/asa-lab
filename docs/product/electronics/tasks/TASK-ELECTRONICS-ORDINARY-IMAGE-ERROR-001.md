@@ -38,6 +38,18 @@ Read stabilization specification §4 first milestone, ordinary-image hook and sh
 
 Expected final write budget: at most two directly justified production files in the named lifecycle/recovery boundary and two focused test files (`asset-recovery.spec.ts` and/or the failed browser source). A generated coverage source digest may be refreshed only when those actual source inputs change; never weaken its validator. If source ownership changes, update only the implicated component entry. No broad decomposition of the large visual source.
 
+## Selected bounded repair after independent REQUEST_CHANGES
+
+The controller selects a separate repair cycle for the independent findings on exact candidate `d6a78196c6c2423ebad59de4e682141d3d9d837d`. Preserve its product change and the published test-only successor `21f2da7075f3ffaa663e9fec3600c4bd20ae0e53`; neither is accepted. The source has no independent product finding, but the type-invalid React fixture and self-blocking browser navigation prevent acceptance.
+
+This cycle permits correcting only those two test fixtures and a selected responsibility re-review of `ProductionComponentVisual.tsx` under AGENT_GUIDE §10. The candidate source measures 72,432 bytes against the reviewed 60,089-byte baseline, exceeding the 20% growth boundary. Before changing the baseline, inspect the actual source, cohesive responsibilities, consumers and ordinary-image lifecycle boundary; record exact source SHA/blob, measured sizes, retention rationale and remaining decomposition debt in one dated evidence report. This is not a whole-program inventory or a hygiene checkpoint reset.
+
+Only after that factual responsibility review may the implementer update this file's `reviewed_bytes` and rationale in `evidence/hygiene-baseline.yaml`. All other baseline entries, thresholds, counters, validators and ownership remain intact. Do not shorten or split product code to evade the threshold. Product bytes from the reviewed candidate remain unchanged unless a new defect is established and the controller explicitly selects its repair.
+
+The corrected built-browser regression must demonstrate actual React error delivery before ordinary-image callback setup, reach the original failure assertion with the unfixed production lifecycle, and pass with the repaired lifecycle. A synthetic dispatch during React's event-disabled commit or a navigation timeout is not causal evidence. Native and induced delivery remain separately labelled; the historical failure's native ordering and classroom frequency are unproved. Keep existing timeouts and original permanent-image assertions unchanged.
+
+Expected additional write paths are the two already named test files, that single baseline entry, and one dated responsibility/causal evidence report. Temporary CI probes and diagnostics remain outside the final diff. Run local type and selected-card checks before expensive browser evidence, then final exact-SHA gates and a NEW independent review. The implementer reports and STOP; no automatic follow-up slice.
+
 ## Acceptance and STOP
 
 - Establish the exact cause with saved evidence plus the smallest directed scenario needed.
