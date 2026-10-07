@@ -25,6 +25,14 @@ on:
       - 'pnpm-lock.yaml'
       - '.github/workflows/electronics-r4-m1-focused.yml'
   workflow_dispatch:
+    inputs:
+      cadence_probe_mode:
+        description: 'Temporary #510 directed Arduino cadence measurement'
+        required: true
+        type: choice
+        options:
+          - solo
+          - loaded
 
 permissions:
   contents: read
@@ -39,6 +47,7 @@ concurrency:
 jobs:
   focused:
     name: Shared solver, editor contracts and build
+    if: false # Temporary #510 directed probe only.
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -73,6 +82,7 @@ jobs:
 
   benchmark:
     name: Electronics E-OPT benchmark integrity
+    if: false # Temporary #510 directed probe only.
     needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -123,7 +133,6 @@ jobs:
 
   browser:
     name: Actual editor live simulation journey
-    needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -169,11 +178,10 @@ jobs:
       # Identical to the command registered in docs/testing/active-task-tests.yaml.
       # Named as its own gate because `gate:electronics-m1` deliberately does not
       # include it: that gate needs no browser stack, this one does.
-      - name: Electronics M1 browser gate
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
+      - name: Directed Arduino cadence probe
+        run: |
+          docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner \
+            sh -lc 'echo "CADENCE_CPU_PROBE mode=${{ inputs.cadence_probe_mode }} nproc=$(nproc) cpu_max=$(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown) epoch=$(date +%s)"; if [ "${{ inputs.cadence_probe_mode }}" = loaded ]; then pids=""; for i in 1 2 3; do node tools/arduino-cadence-cpu-probe.mjs & pids="$pids $!"; done; echo "CADENCE_CPU_PROBE started=3 epoch=$(date +%s)"; trap "kill $pids 2>/dev/null || true" EXIT; fi; pnpm exec playwright test e2e/electronics-simulation.spec.ts --grep "^E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run$" --trace on --workers=1'
 
       - name: Show isolated stack state
         if: always()
@@ -198,6 +206,7 @@ jobs:
 
   review-images:
     name: Package exact-head review images
+    if: false # Temporary #510 directed probe only.
     needs: [focused, benchmark, browser]
     runs-on: ubuntu-24.04
     timeout-minutes: 35

@@ -2217,96 +2217,162 @@ for (const scenario of [
 
 test('E-OPT-3D acceptance: Arduino Reset restarts an already progressed canonical run', async ({
   page,
-}) => {
-  // Two 20-second model-time HIGH phases must complete within bounded wall time.
-  test.setTimeout(180_000);
-  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-  await observeSimulationWorkerClock(page);
-  await holdNextSimulationPreflight(page);
-  await page.setViewportSize({ width: 1600, height: 1000 });
-  await loginWithOrganization(page, teacher);
+}, testInfo) => {
+  await page.addInitScript({
+    content: `(() => {
+    const events = [];
+    window.__arduinoCadenceProbe = events;
+    const record = (kind, data = {}) => events.push({ t: performance.now(), kind, ...data });
+    const NativeWorker = window.Worker;
+    window.Worker = class extends NativeWorker {
+      constructor(...args) {
+        super(...args);
+        if (args[1]?.name !== 'asa-electronics-simulation') return;
+        record('worker-created', { url: String(args[0]) });
+        this.addEventListener('message', event => {
+          const response = event.data || {};
+          record('worker-response', {
+            requestId: response.requestId, generationId: response.generationId,
+            responseKind: response.kind, ok: response.ok, code: response.code,
+            metrics: response.metrics, executionStatus: response.advance?.executionStatus,
+            requestedHorizonMicroseconds: response.advance?.requestedHorizonMicroseconds,
+            committedHorizonMicroseconds: response.advance?.committedHorizonMicroseconds,
+          });
+        });
+        this.addEventListener('error', event => record('worker-error', { message: event.message }));
+      }
+      postMessage(message, ...args) {
+        record('worker-request', {
+          requestId: message.requestId, generationId: message.generationId,
+          requestKind: message.kind, requestedHorizonMicroseconds: message.requestedHorizonMicroseconds,
+        });
+        return super.postMessage(message, ...args);
+      }
+    };
+    let previous = '';
+    const sample = () => {
+      const led = document.querySelector('[data-component-type="led-5mm"] .workbench-production-visual');
+      const state = {
+        status: document.querySelector('button[data-simulation-status]')?.getAttribute('data-simulation-status') || 'absent',
+        display: document.querySelector('.workbench-simulation-time')?.textContent || '',
+        brightness: led?.getAttribute('data-led-brightness'),
+        ledState: led?.getAttribute('data-led-runtime-state'),
+      };
+      const key = JSON.stringify(state);
+      if (key !== previous) { record('ui-observation', state); previous = key; }
+    };
+    new MutationObserver(sample).observe(document, { subtree: true, childList: true, characterData: true,
+      attributes: true, attributeFilter: ['data-simulation-status', 'data-led-brightness', 'data-led-runtime-state'] });
+    sample();
+  })();`,
+  });
+  try {
+    // Two 20-second model-time HIGH phases must complete within bounded wall time.
+    test.setTimeout(180_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await observeSimulationWorkerClock(page);
+    await holdNextSimulationPreflight(page);
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await loginWithOrganization(page, teacher);
 
-  const projectId = await createProject(page, 'E-OPT-3D Arduino reset acceptance');
-  await saveDocument(page, projectId, arduinoResetAcceptanceDocument());
-  await page.goto(`/#/home/${projectId}`);
-  await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+    const projectId = await createProject(page, 'E-OPT-3D Arduino reset acceptance');
+    await saveDocument(page, projectId, arduinoResetAcceptanceDocument());
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
 
-  await page.getByRole('button', { name: 'Начать моделирование' }).click();
-  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+    await page.getByRole('button', { name: 'Начать моделирование' }).click();
+    await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
 
-  // Prove the canonical Arduino runtime has progressed beyond its initial state:
-  // setup() holds D13 high long enough for a loaded browser to observe it,
-  // then the first loop iteration holds it low. Both phases repeat after Reset.
-  await expectArduinoBrightness(page, 'high', 'before Reset');
-  await expectArduinoBrightness(page, 'low', 'before Reset');
-  const beforeResetWorker = await simulationWorkerObservation(page);
-  const beforeResetSample = beforeResetWorker.workerSamples.at(-1);
-  expect(
-    beforeResetSample?.committedMicroseconds,
-    JSON.stringify(beforeResetWorker),
-  ).toBeGreaterThanOrEqual(ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000);
-  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
-    'data-simulation-status',
-    'running',
-  );
-  await expect(page.locator('.workbench-simulation-time')).not.toHaveText(
-    'Время моделирования: 00:00:00',
-  );
+    // Prove the canonical Arduino runtime has progressed beyond its initial state:
+    // setup() holds D13 high long enough for a loaded browser to observe it,
+    // then the first loop iteration holds it low. Both phases repeat after Reset.
+    await expectArduinoBrightness(page, 'high', 'before Reset');
+    await expectArduinoBrightness(page, 'low', 'before Reset');
+    const beforeResetWorker = await simulationWorkerObservation(page);
+    const beforeResetSample = beforeResetWorker.workerSamples.at(-1);
+    expect(
+      beforeResetSample?.committedMicroseconds,
+      JSON.stringify(beforeResetWorker),
+    ).toBeGreaterThanOrEqual(ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000);
+    await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+      'data-simulation-status',
+      'running',
+    );
+    await expect(page.locator('.workbench-simulation-time')).not.toHaveText(
+      'Время моделирования: 00:00:00',
+    );
 
-  const resetButton = page.getByTestId('arduino-reset-button');
-  await expect(resetButton).toHaveAttribute('aria-label', 'Перезапустить Arduino');
-  await page.evaluate(() =>
-    (
-      window as Window & { __armNextSimulationPreflight?: () => void }
-    ).__armNextSimulationPreflight?.(),
-  );
-  await resetButton.click();
+    const resetButton = page.getByTestId('arduino-reset-button');
+    await expect(resetButton).toHaveAttribute('aria-label', 'Перезапустить Arduino');
+    await page.evaluate(() =>
+      (
+        window as Window & { __armNextSimulationPreflight?: () => void }
+      ).__armNextSimulationPreflight?.(),
+    );
+    await resetButton.click();
 
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          (window as Window & { __secondSimulationPreflightQueued?: boolean })
-            .__secondSimulationPreflightQueued ?? false,
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as Window & { __secondSimulationPreflightQueued?: boolean })
+              .__secondSimulationPreflightQueued ?? false,
+        ),
+      )
+      .toBe(true);
+    await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+      'data-simulation-status',
+      'starting',
+    );
+    await expect(page.locator('.workbench-simulation-time')).toHaveText(
+      'Время моделирования: 00:00:00',
+    );
+    await page.evaluate(() =>
+      (
+        window as Window & { __releaseSecondSimulationPreflight?: () => void }
+      ).__releaseSecondSimulationPreflight?.(),
+    );
+    await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
+      'data-simulation-status',
+      'running',
+    );
+
+    // Reset must discard the old continuation and replay setup()/loop() from time zero.
+    await expectArduinoBrightness(page, 'high', 'after Reset');
+    await page.waitForTimeout(350);
+    expect(await brightnessValue(page)).toBeGreaterThan(0);
+
+    // The same deterministic sequence must repeat without a fault/stuck runtime.
+    await expectArduinoBrightness(page, 'low', 'after Reset');
+    const afterResetWorker = await simulationWorkerObservation(page);
+    expect(
+      afterResetWorker.workerSamples.some(
+        (sample) =>
+          sample.committedMicroseconds >= ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000 &&
+          (sample.workerId > (beforeResetSample?.workerId ?? 0) ||
+            sample.generationId > (beforeResetSample?.generationId ?? 0)),
       ),
-    )
-    .toBe(true);
-  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
-    'data-simulation-status',
-    'starting',
-  );
-  await expect(page.locator('.workbench-simulation-time')).toHaveText(
-    'Время моделирования: 00:00:00',
-  );
-  await page.evaluate(() =>
-    (
-      window as Window & { __releaseSecondSimulationPreflight?: () => void }
-    ).__releaseSecondSimulationPreflight?.(),
-  );
-  await expect(page.locator('.workbench-pill.simulate')).toHaveAttribute(
-    'data-simulation-status',
-    'running',
-  );
-
-  // Reset must discard the old continuation and replay setup()/loop() from time zero.
-  await expectArduinoBrightness(page, 'high', 'after Reset');
-  await page.waitForTimeout(350);
-  expect(await brightnessValue(page)).toBeGreaterThan(0);
-
-  // The same deterministic sequence must repeat without a fault/stuck runtime.
-  await expectArduinoBrightness(page, 'low', 'after Reset');
-  const afterResetWorker = await simulationWorkerObservation(page);
-  expect(
-    afterResetWorker.workerSamples.some(
-      (sample) =>
-        sample.committedMicroseconds >= ARDUINO_RESET_HIGH_HOLD_MILLISECONDS * 1_000 &&
-        (sample.workerId > (beforeResetSample?.workerId ?? 0) ||
-          sample.generationId > (beforeResetSample?.generationId ?? 0)),
-    ),
-    JSON.stringify(afterResetWorker),
-  ).toBe(true);
-  await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
-  failures.assertEmpty();
+      JSON.stringify(afterResetWorker),
+    ).toBe(true);
+    await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
+    failures.assertEmpty();
+  } finally {
+    const events = await page.evaluate(
+      () => (window as unknown as { __arduinoCadenceProbe: unknown[] }).__arduinoCadenceProbe ?? [],
+    );
+    await testInfo.attach('arduino-cadence-probe', {
+      body: Buffer.from(JSON.stringify(events)),
+      contentType: 'application/json',
+    });
+    console.log(
+      'ARDUINO_CADENCE_PROBE ' +
+        JSON.stringify({
+          events: events.length,
+          status: testInfo.status,
+          expectedStatus: testInfo.expectedStatus,
+        }),
+    );
+  }
 });
 
 test('Arduino correctness: Uno numeric types and scopes across delay', async ({ page }) => {
