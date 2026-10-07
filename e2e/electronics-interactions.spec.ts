@@ -803,7 +803,11 @@ function documentFixture(): SchematicDocument {
 }
 
 /** UI-only fixture: all API traffic intercepted. The real-API simulation suite is separate. */
-async function openEditor(page: Page, initial = documentFixture()) {
+async function openEditor(
+  page: Page,
+  initial = documentFixture(),
+  navigationWaitUntil: 'load' | 'domcontentloaded' = 'load',
+) {
   let doc = initial;
   let revision = 1;
   const requests: string[] = [];
@@ -876,7 +880,7 @@ async function openEditor(page: Page, initial = documentFixture()) {
       body: JSON.stringify(body),
     });
   });
-  await page.goto('/projects/' + ID + '/electronics/edit');
+  await page.goto('/projects/' + ID + '/electronics/edit', { waitUntil: navigationWaitUntil });
   await expect(page.getByTestId('schematic-component')).toHaveCount(initial.components.length);
   // The mock server changes only after PUT /draft. Interaction checks use the
   // browser's synchronously written local draft until an explicit server save.
@@ -1665,7 +1669,9 @@ test.describe('asset recovery in the built editor', () => {
           });
           // Test-only induced commit delivery. Original native requests remain
           // pending until the unchanged failure indications are asserted.
-          image.dispatchEvent(event);
+          queueMicrotask(() => {
+            if (image.isConnected) image.dispatchEvent(event);
+          });
         }
       };
       const append = Node.prototype.appendChild;
@@ -1697,7 +1703,7 @@ test.describe('asset recovery in the built editor', () => {
       { x: 790, y: 450 },
       'holder',
     ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
+    const { readDocument, requests, errors } = await openEditor(page, doc, 'domcontentloaded');
     const initial = readDocument();
     try {
       await expect(
