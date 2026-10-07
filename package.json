@@ -90,6 +90,7 @@
     "test:account-c1": "vitest run contexts/identity/testing/account-c1.spec.ts",
     "test:access-a": "vitest run contexts/identity/testing apps/api/src/account-c1.controller.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/api/src/learning-activities.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/web/src/session-fetch.spec.ts tests/account tests/portal tests/courses",
     "e2e:access-a": "playwright test --config playwright.access-a.config.ts",
+    "e2e:settings-ui": "playwright test --config playwright.settings-ui.config.ts",
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
     "e2e:account-c1": "playwright test e2e/account-c1.spec.ts",
     "test:creator-portal": "node tools/run-creator-portal-tests.mjs",

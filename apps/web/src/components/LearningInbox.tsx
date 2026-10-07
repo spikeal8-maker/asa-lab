@@ -30,7 +30,13 @@ function destination(item: LearningNotification): string {
   }
   return `#/${item.recipientKind === 'requester' ? 'attending' : 'learning'}?${query.toString()}`;
 }
-export function LearningInbox({ seat = false }: { seat?: boolean }) {
+export function LearningInbox({
+  seat = false,
+  teaching = true,
+}: {
+  seat?: boolean;
+  teaching?: boolean;
+}) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [data, setData] = useState<{
       snapshot: string;
@@ -103,7 +109,7 @@ export function LearningInbox({ seat = false }: { seat?: boolean }) {
           {settings ? 'К событиям' : 'Настроить'}
         </button>
         {settings ? (
-          <LearningNotificationPreferences seat={seat} />
+          <LearningNotificationPreferences seat={seat} teaching={teaching} />
         ) : (
           <>
             {error ? (

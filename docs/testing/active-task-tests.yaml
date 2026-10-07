@@ -9,7 +9,7 @@ tests:
     suite: authorization
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-OWNER-ADMIN-PROVISIONING-001]
+    required_for: [TASK-ACCOUNT-SETTINGS-UX-001]
     command: pnpm test:access-a
     timeout_seconds: 1800
     owner: access-a
@@ -20,7 +20,7 @@ tests:
     suite: e2e
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-OWNER-ADMIN-PROVISIONING-001]
+    required_for: [TASK-ACCOUNT-SETTINGS-UX-001]
     command: pnpm e2e:access-a
     timeout_seconds: 1800
     owner: access-a
@@ -31,11 +31,22 @@ tests:
     suite: integration
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-OWNER-ADMIN-PROVISIONING-001]
+    required_for: [TASK-ACCOUNT-SETTINGS-UX-001]
     command: pnpm gate:repository
     timeout_seconds: 3600
     owner: access-a
     artifacts: [repository-report, ci-candidate-sha, migration-report]
+
+  - id: TST-ACCOUNT-SETTINGS-UI-001
+    title: Account and Seat settings drafts, routes, keyboard focus and responsive layout
+    suite: e2e
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-ACCOUNT-SETTINGS-UX-001]
+    command: pnpm e2e:settings-ui
+    timeout_seconds: 1200
+    owner: admin-auth
+    artifacts: [playwright-report, account-settings-screenshots, seat-settings-screenshots]
 
   - id: TST-LRN-COURSE-E1-CORE-001
     title: Learning E1 focused canonical direct project and learner access checks

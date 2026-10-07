@@ -90,6 +90,13 @@ import './electronics/portal.css';
 import './modules/project-hub.css';
 import './modules/classroom-hub.css';
 import './account.css';
+import {
+  requestSettingsNavigation,
+  hasSettingsDraft,
+  historyEntryIndex,
+  pushSettingsAwareLocation,
+  isSettingsNavigationPending,
+} from './components/settings-navigation';
 import './creator-portal/creator-portal.css';
 import './creator-portal/portal-workspace.css';
 import './creator-portal/home-workspace.css';
@@ -170,13 +177,22 @@ export function App(): JSX.Element {
       : null,
   );
 
-  const setView = useCallback((next: CreatorPortalView) => {
-    setAdminSection(null);
-    setViewState(next);
-    const href = creatorViewToHref(next);
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (current !== href) window.history.pushState(null, '', href);
-  }, []);
+  const acceptedLocation = useRef(window.location.href);
+  const acceptedHistoryIndex = useRef(historyEntryIndex() ?? 0);
+  const allowedTraversal = useRef<{ href: string; index: number } | null>(null);
+  const setView = useCallback(
+    (next: CreatorPortalView) =>
+      requestSettingsNavigation(() => {
+        setAdminSection(null);
+        setViewState(next);
+        const href = creatorViewToHref(next);
+        const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+        if (current !== href) pushSettingsAwareLocation(href);
+        acceptedLocation.current = window.location.href;
+        acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
+      }),
+    [],
+  );
 
   const handleModuleResolved = useCallback((projectId: string, moduleKey: string): void => {
     setViewState((current) => {
@@ -208,18 +224,126 @@ export function App(): JSX.Element {
   }, [setPublicView, setView]);
 
   useEffect(() => {
-    const sync = (): void => {
-      const nextView = creatorViewFromLocation(window.location);
-      setViewState(nextView);
-      setAdminSection(adminSectionFromLocation(window.location));
-      if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
-      setPublicViewState(publicViewFromHash());
+    if (window.history.state?.asaRouteIndex === undefined)
+      window.history.replaceState(
+        { ...window.history.state, asaRouteIndex: 0 },
+        '',
+        window.location.href,
+      );
+    let observedLocation = window.location.href;
+    let observedHistoryIndex = historyEntryIndex();
+    let observedAcceptedLocation = acceptedLocation.current;
+    let observedAcceptedHistoryIndex = acceptedHistoryIndex.current;
+    const sync = (event: Event): void => {
+      let destination = window.location.href;
+      let destinationIndex = historyEntryIndex();
+      if (destinationIndex === null) {
+        // Native hash assignment creates an entry with null state. Our accepted
+        // entries are stamped, so this is a new entry, not an assumed Back.
+        destinationIndex = acceptedHistoryIndex.current + 1;
+        window.history.replaceState(
+          { ...window.history.state, asaRouteIndex: destinationIndex },
+          '',
+          destination,
+        );
+      }
+      if (
+        allowedTraversal.current !== null &&
+        destinationIndex === allowedTraversal.current.index &&
+        destination !== allowedTraversal.current.href
+      ) {
+        // A native hash change during the draft dialog can replace the forward
+        // entry. Resume the saved address, not whichever URL now occupies its slot.
+        window.history.replaceState(window.history.state, '', allowedTraversal.current.href);
+        destination = window.location.href;
+      }
+      if (
+        observedAcceptedLocation !== acceptedLocation.current ||
+        observedAcceptedHistoryIndex !== acceptedHistoryIndex.current
+      ) {
+        observedLocation = acceptedLocation.current;
+        observedHistoryIndex = acceptedHistoryIndex.current;
+        observedAcceptedLocation = acceptedLocation.current;
+        observedAcceptedHistoryIndex = acceptedHistoryIndex.current;
+      }
+      // A same-document navigation emits both popstate and hashchange. Handle
+      // its entry once, including while a draft dialog is already open.
+      if (destination === observedLocation && destinationIndex === observedHistoryIndex) return;
+      observedLocation = destination;
+      observedHistoryIndex = destinationIndex;
+      if (
+        destination === acceptedLocation.current &&
+        destinationIndex === acceptedHistoryIndex.current
+      )
+        return;
+      const delta = acceptedHistoryIndex.current - destinationIndex;
+      if (isSettingsNavigationPending()) {
+        // Keep the original requested destination, but also undo a second Back
+        // or Forward. Ignoring it would leave the URL ahead of the visible form.
+        if (delta !== 0) window.history.go(delta);
+        return;
+      }
+      const apply = () => {
+        acceptedLocation.current = destination;
+        acceptedHistoryIndex.current =
+          destinationIndex ?? acceptedHistoryIndex.current + (event.type === 'popstate' ? -1 : 1);
+        if (window.history.state?.asaRouteIndex === undefined)
+          window.history.replaceState(
+            { ...window.history.state, asaRouteIndex: acceptedHistoryIndex.current },
+            '',
+            destination,
+          );
+        const nextView = creatorViewFromLocation(window.location);
+        setViewState(nextView);
+        setAdminSection(adminSectionFromLocation(window.location));
+        if (nextView.kind === 'teacher-invite') setPendingTeacherInvite(nextView.token);
+        setPublicViewState(publicViewFromHash());
+        window.dispatchEvent(new Event('settings-route'));
+      };
+      if (
+        allowedTraversal.current?.href === destination &&
+        allowedTraversal.current.index === destinationIndex
+      ) {
+        allowedTraversal.current = null;
+        apply();
+        return;
+      }
+      if (!hasSettingsDraft()) {
+        apply();
+        return;
+      }
+      // Restore the previous entry while the user decides; both history entries
+      // survive Stay, Back and Forward. Chromium supplies the actual entry index.
+      if (delta !== 0) {
+        requestSettingsNavigation(() => {
+          allowedTraversal.current = { href: destination, index: destinationIndex };
+          window.history.go(-delta);
+        });
+        window.history.go(delta);
+      } else {
+        // Native same-document hash changes create a new entry on older browsers.
+        requestSettingsNavigation(() => {
+          allowedTraversal.current = { href: destination, index: destinationIndex };
+          window.history.forward();
+        });
+        window.history.back();
+      }
     };
+    const acceptSettingsRoute = () => {
+      acceptedLocation.current = window.location.href;
+      acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
+      observedLocation = window.location.href;
+      observedHistoryIndex = acceptedHistoryIndex.current;
+      observedAcceptedLocation = acceptedLocation.current;
+      observedAcceptedHistoryIndex = acceptedHistoryIndex.current;
+    };
+    window.addEventListener('settings-route', acceptSettingsRoute);
     window.addEventListener('popstate', sync);
     window.addEventListener('hashchange', sync);
     return () => {
       window.removeEventListener('popstate', sync);
       window.removeEventListener('hashchange', sync);
+      window.removeEventListener('settings-route', acceptSettingsRoute);
     };
   }, []);
 
@@ -363,10 +487,14 @@ export function App(): JSX.Element {
   }, [loadAdminAccess]);
 
   const openAdminSection = useCallback((section: AdminSection): void => {
-    setAdminSection(section);
-    const href = adminHref(section);
-    const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (current !== href) window.history.pushState(null, '', href);
+    requestSettingsNavigation(() => {
+      setAdminSection(section);
+      const href = adminHref(section);
+      const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (current !== href) pushSettingsAwareLocation(href);
+      acceptedLocation.current = window.location.href;
+      acceptedHistoryIndex.current = historyEntryIndex() ?? acceptedHistoryIndex.current;
+    });
   }, []);
 
   /**

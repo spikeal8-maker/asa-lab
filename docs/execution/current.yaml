@@ -104,14 +104,14 @@ parallel_lanes:
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
-      id: TASK-OWNER-ADMIN-PROVISIONING-001
-      issue: 383
+      id: TASK-ACCOUNT-SETTINGS-UX-001
+      issue: 173
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: owner_granted_runtime_verified_repeat_safe_ci_passed
+      status: in_progress
+      checkpoint: settings_ui_owner_reconciled_final_verification
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -134,8 +134,24 @@ parallel_lanes:
           status: unverified
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
-      convergence_baseline_sha: 959e68502af8b8c69a4aaaf87a4f502e057140ac
-      head_sha: 94d3ef933624b743bd9a91cf7b709c3448cacef0
+      kind: observed_snapshot
+      convergence_baseline_sha: 0841f33a050827d47b675acb7e279890a39c1293
+      head_sha: null
+      observed_at: '2026-10-07T05:39:09Z'
+      main:
+        branch: main
+        sha: 0841f33a050827d47b675acb7e279890a39c1293
+      observation_note: >-
+        Local Settings UI candidate 26a17cae39ccae8b5b9e35819d090e7eabcdee0c received
+        independent APPROVE after bounded navigation repairs, with 51 local synthetic
+        browser scenarios and four viewport layouts verified. MAX is unchanged.
+        Remote main 0841f33a050827d47b675acb7e279890a39c1293 has successful general
+        workflow 37536214557 and independent Electronics changes, including its lane
+        in this shared state file. The owner approved reconciliation, and the local
+        candidate now preserves every non-admin execution record from remote main.
+        Final candidate CI, real auth/data journeys, owner acceptance and deployment
+        are not claimed;
+        fetch main and inspect exact-SHA conclusions before integration.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -146,11 +162,12 @@ parallel_lanes:
       focused:
         workflow: ASA Lab Governance and Code Gates
         commands:
-          - pnpm test:owner-admin
+          - pnpm test:access-a
       browser:
         workflow: ASA Lab Governance and Code Gates
         commands:
           - pnpm e2e:access-a
+          - pnpm e2e:settings-ui
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:

@@ -22,6 +22,28 @@ details.learning-notification-settings:not([open]) > :not(summary) {
   align-items: center;
   flex-wrap: wrap;
   font-size: 14px;
+  margin: 0;
+}
+.learning-notification-settings label:has(input[type='checkbox']) {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 0;
+  line-height: 1.5;
+}
+.learning-notification-settings input[type='checkbox'] {
+  width: 20px;
+  height: 20px;
+  min-height: 20px;
+  margin: 0;
+  padding: 0;
+}
+.learning-notification-settings legend {
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .learning-category-grid {
   display: grid;
@@ -45,6 +67,18 @@ details.learning-notification-settings:not([open]) > :not(summary) {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+.learning-notification-settings > .learning-notification-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  max-width: 520px;
+  padding-top: 12px;
+  border-top: 1px solid #dbe3ed;
+}
+.learning-notification-settings > .learning-notification-actions button {
+  width: auto;
+  min-height: 44px;
+  margin: 0;
 }
 .learning-inbox-dialog {
   width: min(820px, calc(100vw - 24px));

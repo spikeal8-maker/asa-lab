@@ -6,6 +6,35 @@
 
 **Live state authority:** `docs/execution/current.yaml`.
 
+## Owner-directed Settings convergence, 2026-10-07
+
+The owner authorized the reviewed Settings composition and repair programme, with
+MAX explicitly excluded. This direction selects Settings work independently of
+the historical MAX sequencing below; it does not reopen authentication,
+credential recovery, permissions, tenant/RLS, production installation or working
+database operations. The selected task and evidence remain in `current.yaml`.
+
+The controller integrates one bounded executor result at a time:
+
+1. Existing Account/Seat Settings convergence: semantic card layout, grouped and
+   addressable navigation, safe profile preview/cancel, guarded drafts, accessible
+   avatar dialog, applicable notification categories, truthful access/error
+   states, and regression coverage of all affected consumers. Preserve password,
+   session, MAX, avatar, awards, authorized school actions and historical routes.
+2. Supported presentation preferences: explicit persistence scope for Account and
+   Seat, validated values, coherent save/cancel/reset, stale-write protection,
+   and application of supported display choices without modifying authorization
+   or editor documents. New themes and languages may only be offered after their
+   complete implementation is verified; an unimplemented selector is not a result.
+
+Each result needs focused tests and bounded self-review; changes to persistence
+or canonical resolution also need independent challenge review. Browser evidence
+must cover 1440/1024/390/320, long content, failures, keyboard focus, reload/back,
+combined learner/teacher activities and protected operations remaining unchanged.
+Existing real Access A journeys remain mandatory; synthetic UI fixtures supplement
+them, never replace authentication/authorization evidence. No deployment or live
+database action is authorized by this programme.
+
 **Связанные нормативные источники:**
 - `docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md`;
 - `docs/product/ASA_AUTH_ENTRY_UX_SPEC.md`;
