@@ -143,7 +143,9 @@ async function uploadMaterial(page: Page, image: Buffer, pdf: Buffer, text: stri
   );
   await page.getByRole('button', { name: 'Сохранить', exact: true }).click();
   expect((await ack).ok()).toBe(true);
-  await expect(page.getByText('Черновик сохранён на сервере.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Черновик сохранён. Публикация — отдельное действие.', { exact: true }),
+  ).toBeVisible();
 }
 async function publishActivity(page: Page) {
   const ack = page.waitForResponse(
