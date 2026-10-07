@@ -1097,7 +1097,7 @@ async function assertCompactSettings(page: Page, width: number) {
   );
 }
 
-for (const width of [900, 901])
+for (const width of [560, 561, 900, 901])
   test(`settings heading and picker switch without layout drift at ${width}px boundary`, async ({
     page,
   }) => {
@@ -1107,7 +1107,7 @@ for (const width of [900, 901])
     await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
     await assertCompactSettings(page, width);
     await expect(page.getByLabel('Выбрать раздел настроек')).toBeVisible({
-      visible: width === 900,
+      visible: width <= 900,
     });
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
@@ -1158,6 +1158,86 @@ for (const navigationApi of [true, false])
       await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Проверочный профиль');
       expect(state.mutations).toHaveLength(0);
     });
+
+test('narrow time-zone action pair tolerates wider 16px font metrics', async ({ page }) => {
+  const state = await fixture(page, { presentationSaveFailure: true });
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto('/#/account/interface');
+  const form = page.getByRole('form', { name: 'Оформление', exact: true });
+  const zoneForm = page.getByRole('form', { name: 'Часовой пояс', exact: true });
+  const zone = zoneForm.getByRole('combobox', { name: /^Часовой пояс/ });
+  await expect(zone).toBeEnabled();
+  // Exercise a fallback font with wider Cyrillic metrics without adding a
+  // product font preference. Wider font metrics can reproduce the row wrapping seen in CI.
+  await page.addStyleTag({
+    content: `
+    .account-time-zone .account-form-actions > button,
+    .account-presentation-actions > :is(.btn-primary, .btn-secondary) {
+      font-family: monospace;
+      font-size: 16px;
+      letter-spacing: 1px;
+    }
+  `,
+  });
+  const assertPairs = async (stateName: string) => {
+    await capture(page, `${evidence}/settings-actions-font-stress-${stateName}-320.png`);
+    for (const actions of [
+      form.locator('.account-presentation-actions'),
+      zoneForm.locator('.account-form-actions'),
+    ]) {
+      const pair = actions.locator(':scope > :is(.btn-primary, .btn-secondary)');
+      const metrics = await pair.evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const bounds = button.getBoundingClientRect();
+          const style = getComputedStyle(button);
+          const text = document.createRange();
+          text.selectNodeContents(button);
+          const textBounds = text.getBoundingClientRect();
+          return {
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            fontSize: style.fontSize,
+            family: style.fontFamily,
+            textFits: textBounds.left >= bounds.left && textBounds.right <= bounds.right,
+          };
+        }),
+      );
+      expect(metrics).toHaveLength(2);
+      console.log(`Font stress ${stateName}: ${JSON.stringify(metrics)}`);
+      expect(metrics[0].y).toBe(metrics[1].y);
+      for (const metric of metrics) {
+        expect(metric.fontSize).toBe('16px');
+        expect(metric.family).toContain('monospace');
+        expect(metric.width).toBeGreaterThanOrEqual(44);
+        expect(metric.height).toBeGreaterThanOrEqual(44);
+        expect(metric.textFits).toBe(true);
+      }
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+      true,
+    );
+  };
+  await assertPairs('fresh');
+  await form.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+  await zone.selectOption('UTC');
+  await assertPairs('dirty');
+  await zoneForm
+    .getByRole('button', { name: 'Отменить изменения часового пояса', exact: true })
+    .click();
+  await expect(zone).toHaveValue('Europe/Moscow');
+  await expect(form.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await zone.selectOption('UTC');
+  await form.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await expect(form.getByRole('alert')).toBeVisible();
+  await zoneForm.getByRole('button', { name: 'Сохранить часовой пояс', exact: true }).click();
+  await expect(page.locator('.account-interface-feedback .account-save-status')).toContainText(
+    'Часовой пояс',
+  );
+  await assertPairs('partial-error');
+  expect(state.mutations.filter((path) => path === '/api/account/time-zone')).toHaveLength(1);
+  await expect(form.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+});
 
 for (const width of [1440, 1024, 390, 320])
   test(`independent presentation and time-zone operations remain clear at ${width}px`, async ({

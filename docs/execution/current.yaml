@@ -135,42 +135,54 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 4bad8a7f1eb3543097c397f05df7805e9024e342
+      convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
-      observed_at: '2026-10-07T18:08:44Z'
+      observed_at: '2026-10-07T18:50:29Z'
       main:
         branch: main
-        sha: 4bad8a7f1eb3543097c397f05df7805e9024e342
+        sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       observation_note: >-
-        Dated published main 4bad8a7f1eb3543097c397f05df7805e9024e342 contains the
+        Dated published main 78da596b3e27a5bd396d195f8d1348b7f8b8cb00 contains the
         Settings usability candidate 08dd188b13dd3c6f53b9c45c80d287f0599dd249.
-        Independent challenge review approves the Settings slice on both revisions;
-        all twelve slice files are identical across the intervening Electronics-only
-        integration. The candidate has six actionable Account tabs with preserved
+        Independent challenge review approves that slice on 08dd188b and 4bad8a7f;
+        the three Access A navigation test label repairs in 6b93059e are independently
+        approved. The candidate has six actionable Account tabs with preserved
         legacy links, compact privacy/invitation information inside related sections,
         clearer independent presentation/time-zone actions, an explicit desktop
         sidebar preference label and compact mobile headings/actions/status.
-        Product checks pass 53 focused unit tests, 76 canonical synthetic browser
-        scenarios and Web lint/typecheck/build with 13 fresh Nx tasks in the final cycle
-        (45 across implementation iterations), with NX_SKIP_NX_CACHE=true;
+        Historical product checks pass 53 focused unit tests and 76 canonical synthetic
+        browser scenarios, with 13 fresh Nx tasks in that final implementation cycle;
         independent direct Vitest checks pass 31 tests without Nx cache.
-        Account/Seat were checked at 1440/1024/390/320 and the 900/901 breakpoint,
-        including fresh, dirty, partial-save, error, reentry and long-content states.
-        New settings-usability screenshots preserve previous owner previews.
-        Exact-head general workflow 37661992911 passes governance, code and
-        PostgreSQL/RLS but fails its real browser step: three pre-existing Access A
-        helper calls still search for the renamed Capabilities navigation label.
-        This is category A from the Settings diff, not an Electronics repair.
-        The selected bounded follow-up changes only those three test labels;
-        formatter/diff checks and discovery of all ten real browser scenarios pass.
-        Discovery uses an inert process-only test URL without opening a database
-        connection or server. It executes no Nx tasks and is not real browser proof.
+        Exact-head general workflow 37664842435 on 6b93059e passes governance, code,
+        PostgreSQL/RLS, focused Access A tests and all ten real browser scenarios,
+        but synthetic UI passes 75/76: the time-zone Save/Cancel pair wraps at 320px.
+        General workflow 37666597933 on f71e189d repeats a synthetic-step
+        failure with its other three jobs successful. This is category A in Settings;
+        no Electronics module repair is included. The selected bounded repair changes
+        only the mobile time-zone footer CSS and adds a wider-font regression plus
+        560/561 boundary coverage, preserving the original strict row assertion.
+        The regression reproduces a 54px wrap before the fix; afterward both buttons
+        are 126x44px with readable text and aligned rows in fresh/dirty/error states.
+        Initial repair-local pnpm e2e:settings-ui passes all 79 scenarios; Web lint/build and
+        formatting pass with NX_SKIP_NX_CACHE=true, seven fresh Nx tasks in the final
+        check and thirteen including the baseline build. No listening socket or
+        database connection is used by synthetic fixtures. Account/Seat are checked
+        at 1440/1024/390/320, including fresh, dirty, partial-save, error, reentry and
+        long-content states. New screenshots preserve previous owner previews.
+        Independent review approves unpublished fa5cf069. Controlled convergence
+        onto Admin Logs baseline 79fc1e3e preserves the CSS/test blobs; repeated Web
+        lint/typecheck/build passes with eight fresh Nx tasks and cache skipped.
+        Canonical pnpm e2e:settings-ui on composed 0cc72ef3 passes 87/87, comprising
+        79 Account and eight unrelated Admin Logs fixtures. A final Python-only
+        collector change in observed 78da596b does not touch Web, package/lockfile,
+        Settings fixtures/configuration or execution state; those tested blobs remain
+        identical. Only the unpublished repair is carried forward; final-SHA CI is pending.
         Account and StudentSeat scopes, draft/history guards and presentation
         persistence remain separate. Provider, handlers/effects, MAX JSX and
         navigation resolver/guard logic are unchanged. API, SQL, authentication,
         permissions, live database and deployment operations are excluded.
-        This dated observation precedes final composition/review of the test-only
-        repair and its exact-head general/real-browser CI; no full CI PASS is claimed.
+        This dated observation precedes final composition/review of the CSS repair
+        and its exact-head general/real-browser CI; no full CI PASS is claimed.
         Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max
