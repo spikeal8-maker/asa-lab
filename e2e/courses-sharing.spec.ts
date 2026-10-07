@@ -766,6 +766,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     for (const width of [1440, 1024, 390, 320]) {
       await learner.setViewportSize({ width, height: 900 });
       await expect(player.getByTestId('seat-course-manual-material')).toBeVisible();
+      await expect(activity.getByText('Exact v1 instructions', { exact: true })).toBeVisible();
       await expect(activity.getByRole('button', { name: 'Начать', exact: true })).toBeVisible();
       expect(
         await learner.evaluate(() => document.documentElement.scrollWidth - innerWidth),
@@ -789,11 +790,35 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       const objectCount = learner.locator('.asa3d-object-count');
       await expect(viewport).toHaveAttribute('data-runtime-ready', 'true', { timeout: 60_000 });
       await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
+      const anchor = learner.getByTestId('assignment-brief-anchor');
+      if ((await anchor.getAttribute('aria-expanded')) === 'true') await anchor.click();
+      await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+      await expect(learner.getByTestId('assignment-brief')).toHaveCount(0);
+      const canvas = viewport.locator('canvas.asa3d-canvas');
       for (const width of [1440, 1024, 390, 320]) {
         await learner.setViewportSize({ width, height: 900 });
+        expect(projectId(learner, module)).toBe(started);
+        await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
         await expect(viewport).toBeVisible();
+        await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
         await expect(objectCount).toBeVisible();
-        await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible();
+        await expect(anchor).toBeVisible();
+        await expect(anchor).toHaveAttribute('aria-expanded', 'false');
+        await expect(learner.getByTestId('assignment-brief')).toHaveCount(0);
+        await expect(canvas).toBeVisible();
+        await expect(canvas).toBeInViewport();
+        expect(
+          await canvas.evaluate((element) => {
+            const bounds = element.getBoundingClientRect();
+            return (
+              document.elementFromPoint(
+                bounds.x + bounds.width / 2,
+                bounds.y + bounds.height / 2,
+              ) === element
+            );
+          }),
+          `Continued 3D canvas unobscured at ${width}px`,
+        ).toBe(true);
         expect(
           await learner.evaluate(() => document.documentElement.scrollWidth - innerWidth),
         ).toBeLessThanOrEqual(0);
