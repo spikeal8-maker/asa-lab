@@ -134,9 +134,9 @@ test('owner completes Account C1 and existing project modules remain available',
   // holds the profile it loaded before that.
   await page.reload();
   // The account shell is reached through "Настройки" now, and its heading is
-  // written for a person rather than for the architecture.
+  // matches the settings entry without repeating account identity.
   await openAccountSettings(page);
-  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   // The shell is tabbed now: schools and sessions live on their own panels
   // rather than all on one page. The panel names repeat as headings inside the
   // panels, so the clicks go through the settings navigation.
@@ -212,7 +212,7 @@ test('owner completes Account C1 and existing project modules remain available',
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   await expectNoHorizontalOverflow(page);
-  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/06-account-profile-mobile.png`,
     fullPage: true,
@@ -515,14 +515,23 @@ test('Account presentation persists through reload, cancels only display preview
   await registerInBrowser(page, 'prefsone');
   await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
   await page.getByLabel('Боковая панель', { exact: false }).selectOption('collapsed');
-  await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сохранить', exact: true })
+    .click();
   await expect(page.getByText('Оформление сохранено в аккаунте.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
   await expect(page.locator('#portal-sidebar')).toHaveClass(/collapsed/);
-  await page.getByRole('button', { name: 'Сбросить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'По умолчанию', exact: true })
+    .click();
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
-  await page.getByRole('button', { name: 'Отменить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Отменить', exact: true })
+    .click();
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
   // A concurrent server writer is real; the stale browser draft must be retained.
   const origin = new URL(page.url()).origin;
@@ -543,12 +552,18 @@ test('Account presentation persists through reload, cancels only display preview
   });
   expect(changed.status()).toBe(200);
   await page.getByLabel('Боковая панель', { exact: false }).selectOption('expanded');
-  await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сохранить', exact: true })
+    .click();
   await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
     'Оформление изменено в другом окне',
   );
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
-  await page.getByRole('button', { name: 'Отменить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Отменить', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
   await expectNoHorizontalOverflow(page);
@@ -647,7 +662,10 @@ test('mounted Account A cannot read or save Account B presentation after shared 
         response.url().endsWith('/api/account/presentation') &&
         response.request().method() === 'PUT',
     );
-    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'Сохранить', exact: true })
+      .click();
     const result = await rejection;
     expect(result.request().headers()['x-asa-presentation-account']).toBe(a.accountId);
     expect(result.status()).toBe(409);

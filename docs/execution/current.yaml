@@ -110,8 +110,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: owner_requested_settings_density_revision_selected
+      status: in_review
+      checkpoint: owner_visual_review_pending
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -135,24 +135,31 @@ parallel_lanes:
           evidence: docs/testing/ACCESS_A_WINDOWS_TOUCH_REPRO.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ec34383105fd7094f08c9331b307cc4866ee7f75
+      convergence_baseline_sha: e9c9bab28b0870d3d98fa3097ba6d20299efdcbe
       head_sha: null
-      observed_at: '2026-10-07T16:16:55Z'
+      observed_at: '2026-10-07T16:32:36Z'
       main:
         branch: main
-        sha: ec34383105fd7094f08c9331b307cc4866ee7f75
+        sha: e9c9bab28b0870d3d98fa3097ba6d20299efdcbe
       observation_note: >-
-        Dated published main ec34383105fd7094f08c9331b307cc4866ee7f75 has successful
-        exact-head general workflow 37589075857. Previous Settings convergence is
-        recorded below as technical evidence, not owner visual acceptance.
-        The owner requests one bounded density revision: audit the implemented UI,
-        remove the redundant Account/Context strip, use one Settings page heading
-        for Account and Seat, remove repeated navigation headings and tighten
-        unnecessary spacing and repeated explanatory copy. Preserve avatar-menu
-        identity and workspace controls, draft guards, preference persistence,
-        actor isolation, keyboard access, errors and warnings. Verify desktop and
-        mobile at 1440/1024/390/320. MAX, authentication, database and deployment
-        are excluded. Independent final review and exact-head CI remain required.
+        Dated published main e9c9bab28b0870d3d98fa3097ba6d20299efdcbe has successful
+        exact-head general workflow 37650918273. Owner-requested density revision
+        source 9fcaf435111aa01b136a4818f11562ef6b6de8bd removes the Account/Context
+        strip and redundant headings, uses one Settings H1 for Account and Seat,
+        shortens explanatory copy and scopes shared spacing to Settings consumers.
+        It passes 61 focused unit tests, 66 canonical synthetic browser scenarios,
+        final Web lint/type/build with 8 fresh Nx tasks and bounded self-review.
+        At 390/320 the section heading starts at 232px and first presentation
+        select spans 354-398px; desktop 1440/1024 spans 260-304px / 255-299px.
+        New settings-density screenshots cover Account/Seat at all four widths;
+        previous Account/Seat preview images are preserved. Avatar-menu identity
+        and workspace controls, draft guards and persistence remain intact.
+        MAX handlers/effects/JSX and PresentationProvider are unchanged; API, SQL,
+        authentication, live database and deployment operations are excluded.
+        This dated observation precedes final composition, independent challenge
+        review and exact-head general/API/PostgreSQL/browser CI. Those results
+        are verified on the published candidate, not inferred from baseline CI.
+        Owner visual acceptance remains pending; no next product slice is selected.
         Fetch main before writes; no deployment or owner acceptance is inferred.
     execution_lease:
       executor_id: codex-admin-auth-max

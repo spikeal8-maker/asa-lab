@@ -755,7 +755,10 @@ test('mobile selection uses the same draft guard and saving navigates only after
   await expect(guard).toBeVisible();
   await guard.getByRole('button', { name: 'Остаться', exact: true }).click();
   await expect(page.getByLabel('Часовой пояс')).toHaveValue('UTC');
-  await page.getByRole('button', { name: 'Отменить', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Время в классах', exact: true })
+    .getByRole('button', { name: 'Отменить', exact: true })
+    .click();
   await page.getByLabel('Выбрать раздел настроек').selectOption('profile');
   await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Сохранённый переход');
 });
@@ -1049,6 +1052,30 @@ for (const width of [1440, 1024, 390, 320])
     await inbox.screenshot({ path: `${evidence}/inbox-${width}-notifications.png` });
   });
 
+async function assertCompactSettings(page: Page, width: number) {
+  const main = page.locator('main.account-settings-page');
+  await expect(main.getByRole('heading', { level: 1 })).toHaveCount(1);
+  await expect(main.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
+  await expect(main.locator('.portal-eyebrow')).toHaveCount(0);
+  await expect(main.locator('.account-settings-navigation > strong')).toHaveCount(0);
+  await expect(main.getByRole('heading', { name: 'Оформление' })).toHaveCount(0);
+  // The first actual setting fits near the top even on a narrow phone. This
+  // catches the repeated headings and context strip shown in the owner report.
+  const firstControl = await main.getByLabel('Движение', { exact: false }).boundingBox();
+  expect(firstControl).not.toBeNull();
+  expect(firstControl!.y).toBeLessThan(width <= 900 ? 370 : 300);
+  expect(firstControl!.y + firstControl!.height).toBeLessThan(width <= 900 ? 410 : 350);
+  const sectionHeading = await main
+    .getByRole('heading', { name: 'Интерфейс', level: 2 })
+    .boundingBox();
+  console.log(
+    `Settings density ${width}px: H2 y=${sectionHeading!.y.toFixed(1)}, first control y=${firstControl!.y.toFixed(1)}, bottom=${(firstControl!.y + firstControl!.height).toFixed(1)}`,
+  );
+  const form = main.getByRole('form', { name: 'Оформление', exact: true });
+  for (const name of ['Сохранить', 'Отменить', 'По умолчанию'])
+    await expect(form.getByRole('button', { name, exact: true })).toBeVisible();
+}
+
 for (const width of [1440, 1024, 390, 320]) {
   test(`Account presentation preview, guard and coherent persistence fit ${width}px`, async ({
     page,
@@ -1072,19 +1099,21 @@ for (const width of [1440, 1024, 390, 320]) {
     else await panel(page, 'Профиль').click();
     await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
     await page.getByRole('button', { name: 'Остаться', exact: true }).click();
-    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'Сохранить', exact: true })
+      .click();
     await expect(page.getByText('Оформление сохранено в аккаунте.', { exact: true })).toBeVisible();
     await expect(page.locator('.portal-sidebar-collapse')).toBeEnabled();
-    await expect(
-      page.getByText('Предупреждения и учебные сообщения остаются видны.', { exact: false }),
-    ).toBeVisible();
     await expect(page.getByLabel('Часовой пояс', { exact: false })).toHaveValue('Europe/Moscow');
-    await expect(page.getByLabel('Текущий аккаунт и контекст')).toContainText(
-      'Проверочный профиль',
-    );
-    await expect(page.getByLabel('Текущий аккаунт и контекст')).toContainText(
+    await expect(page.getByLabel('Текущий аккаунт и контекст')).toHaveCount(0);
+    const accountMenu = page.locator('.portal-account > summary');
+    await accountMenu.click();
+    await expect(page.locator('.portal-account-identity')).toContainText('Проверочный профиль');
+    await expect(page.locator('.portal-account-workspace-copy')).toContainText(
       'Личное пространство',
     );
+    await accountMenu.click();
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       .toBe(true);
@@ -1106,16 +1135,24 @@ for (const width of [1440, 1024, 390, 320]) {
         page.evaluate(() => document.querySelector('.skip-link')!.getBoundingClientRect().bottom),
       )
       .toBeLessThan(1);
+    await assertCompactSettings(page, width);
     await page.screenshot({
-      path: `${evidence}/presentation-account-${width}.png`,
+      path: `${evidence}/settings-density-account-full-${width}.png`,
       fullPage: true,
     });
+    await page.screenshot({ path: `${evidence}/settings-density-account-${width}.png` });
     await page.reload();
     await expect(motion).toHaveValue('reduce');
     await expect(sidebar).toHaveValue('collapsed');
-    await page.getByRole('button', { name: 'Сбросить оформление', exact: true }).click();
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'По умолчанию', exact: true })
+      .click();
     await expect(motion).toHaveValue('system');
-    await page.getByRole('button', { name: 'Отменить оформление', exact: true }).click();
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'Отменить', exact: true })
+      .click();
     await expect(motion).toHaveValue('reduce');
     if (width >= 1024) {
       await page.locator('.portal-sidebar-collapse').click();
@@ -1130,6 +1167,7 @@ for (const width of [1440, 1024, 390, 320]) {
       page.getByRole('heading', { name: 'Требует внимания', exact: true }),
     ).toBeVisible();
     await expect(page.getByText('Работы на проверке: 1', { exact: false })).toBeVisible();
+    await expect(page.getByLabel('Текущий аккаунт и контекст')).toHaveCount(0);
     await expect(page.locator('.presentation-shell')).toHaveAttribute('data-motion', 'reduce');
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
@@ -1147,14 +1185,20 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect
       .poll(async () => Math.abs((await page.locator('.portal-header').boundingBox())!.y))
       .toBeLessThan(1);
-    await page.screenshot({ path: `${evidence}/presentation-home-${width}.png`, fullPage: true });
+    await page.screenshot({
+      path: `${evidence}/settings-density-home-${width}.png`,
+      fullPage: true,
+    });
   });
   test(`Seat temporary motion preserves help and context at ${width}px`, async ({ page }) => {
     const state = await fixture(page, { seat: true });
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
     await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
-    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'Сохранить', exact: true })
+      .click();
     await expect(
       page.getByText('Сохранено до выхода из этого учебного сеанса.', { exact: true }),
     ).toBeVisible();
@@ -1173,7 +1217,12 @@ for (const width of [1440, 1024, 390, 320]) {
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
-    await page.screenshot({ path: `${evidence}/presentation-seat-${width}.png`, fullPage: true });
+    await assertCompactSettings(page, width);
+    await page.screenshot({
+      path: `${evidence}/settings-density-seat-full-${width}.png`,
+      fullPage: true,
+    });
+    await page.screenshot({ path: `${evidence}/settings-density-seat-${width}.png` });
     await page.reload();
     await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
     await page.evaluate(() => window.dispatchEvent(new Event('asa-session-logout')));
@@ -1203,14 +1252,23 @@ test('failed save preserves preview and conflict requires explicit cancellation 
   const state = await fixture(page, { presentationSaveFailure: true });
   await page.goto('/#/account/interface');
   await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
-  await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сохранить', exact: true })
+    .click();
   await expect(page.getByRole('alert')).toContainText('не сохранено');
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('reduce');
   state.recoverPresentation();
   state.externalPresentation();
-  await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сохранить', exact: true })
+    .click();
   await expect(page.getByRole('alert')).toContainText('другом окне');
-  await page.getByRole('button', { name: 'Отменить оформление', exact: true }).click();
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Отменить', exact: true })
+    .click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
   await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
   await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveValue('collapsed');
@@ -1241,7 +1299,10 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.goto('/#/account/interface');
     await page.getByLabel('Движение', { exact: false }).selectOption('reduce');
     state.changePresentationActor();
-    await page.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'Сохранить', exact: true })
+      .click();
     await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
       'Аккаунт изменился',
     );
@@ -1254,7 +1315,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(page.getByLabel('Движение', { exact: false })).toHaveValue('system');
     await expect(page.getByLabel('Движение', { exact: false })).toBeDisabled();
     await expect(
-      page.getByRole('button', { name: 'Отменить оформление', exact: true }),
+      page
+        .getByRole('form', { name: 'Оформление', exact: true })
+        .getByRole('button', { name: 'Отменить', exact: true }),
     ).toBeDisabled();
     await expect(
       page.getByText('Предпросмотр только здесь; изменения ещё не сохранены.', { exact: true }),
@@ -1265,7 +1328,7 @@ for (const width of [1440, 1024, 390, 320]) {
     }));
     expect(metrics.document).toBeLessThanOrEqual(metrics.viewport);
     await page.screenshot({
-      path: `${evidence}/presentation-actor-changed-${width}.png`,
+      path: `${evidence}/settings-density-actor-changed-${width}.png`,
       fullPage: true,
     });
     expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(1);

@@ -57,7 +57,7 @@ const SETTINGS_PANELS: ReadonlyArray<{
 ];
 const SETTINGS_GROUPS = [
   { label: 'Личное', ids: ['profile', 'interface', 'notifications'] },
-  { label: 'Аккаунт', ids: ['security', 'privacy'] },
+  { label: 'Безопасность', ids: ['security', 'privacy'] },
   { label: 'Работа и доступы', ids: ['capabilities', 'school', 'requests'] },
 ];
 
@@ -684,7 +684,7 @@ export function AccountPage({
   if (!profile)
     return (
       <main id="main-content" className="account-page" tabIndex={-1}>
-        <h1>Ваш аккаунт</h1>
+        <h1>Настройки</h1>
         <p role="alert">{error ?? 'Профиль временно недоступен.'}</p>
         <button type="button" className="btn-secondary" onClick={() => void refresh()}>
           Повторить
@@ -697,13 +697,11 @@ export function AccountPage({
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
       <header className="account-heading">
-        <p className="portal-eyebrow">Настройки</p>
-        <h1>Ваш аккаунт</h1>
+        <h1>Настройки</h1>
       </header>
 
       <div className="account-settings-shell">
         <label className="account-mobile-panel-picker">
-          Раздел настроек
           <select
             aria-label="Выбрать раздел настроек"
             value={panel}
@@ -721,7 +719,6 @@ export function AccountPage({
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
-          <strong>Настройки</strong>
           <nav>
             {SETTINGS_GROUPS.map((group) => (
               <div className="account-settings-group" key={group.label}>
@@ -770,7 +767,6 @@ export function AccountPage({
           {panel === 'profile' ? (
             <section className="account-settings-section" aria-labelledby="profile-settings-title">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Профиль</p>
                 <h2 id="profile-settings-title">Как вас видят другие</h2>
                 <p>
                   Эти данные будут показаны рядом с вашими опубликованными проектами и в классах.
@@ -919,15 +915,12 @@ export function AccountPage({
               <PresentationControls />
               <form
                 className="account-profile-form account-time-zone"
+                aria-label="Время в классах"
                 onSubmit={(event) => void saveTimeZone(event)}
               >
                 <label>
                   Часовой пояс
-                  <small>
-                    В нём показываются все даты и время в классах: когда ученик заходил, когда
-                    сохранял работу. Определён по вашему устройству — измените, если преподаёте в
-                    другом поясе.
-                  </small>
+                  <small>Даты и время в классах показываются в выбранном часовом поясе.</small>
                   <select
                     value={timeZone}
                     disabled={busyAction !== null}
@@ -1186,7 +1179,6 @@ export function AccountPage({
           {panel === 'security' ? (
             <section className="account-settings-section" aria-labelledby="security-settings-title">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Учётная запись</p>
                 <h2 id="security-settings-title">Вход и безопасность</h2>
                 <p>Пароль, MAX, закрытые данные и устройства, на которых открыт ASA Lab.</p>
               </div>

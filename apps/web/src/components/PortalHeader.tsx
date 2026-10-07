@@ -516,16 +516,6 @@ export function PortalHeader({
           </div>
         </details>
       </header>
-      {sidebarCollapsed ? (
-        <div className="portal-presentation-context" aria-label="Текущий аккаунт и контекст">
-          <span>
-            <strong>Аккаунт:</strong> {session.user.displayName}
-          </span>
-          <span>
-            <strong>Контекст:</strong> {activeWorkspace?.title ?? 'Личные проекты'}
-          </span>
-        </div>
-      ) : null}
       {mobileOpen ? (
         <button
           className="portal-menu-backdrop"

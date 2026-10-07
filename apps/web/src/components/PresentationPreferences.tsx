@@ -325,11 +325,10 @@ export function PresentationControls() {
       }}
       aria-label="Оформление"
     >
-      <h3>Оформление</h3>
       <p className="account-hint">
         {p.seat
-          ? 'Только этот учебный сеанс в этом браузере. Настройка удалится при выходе или смене пользователя.'
-          : 'Сохраняется в вашем личном аккаунте и применяется на других устройствах. Изменения сначала видны в предпросмотре.'}
+          ? 'До выхода из этого учебного сеанса, только в этом браузере.'
+          : 'Сохраняется в аккаунте и применяется на других устройствах.'}
       </p>
       {!p.loaded && !p.error ? <p role="status">Загружаем оформление…</p> : null}
       <label>
@@ -344,10 +343,6 @@ export function PresentationControls() {
           <option value="system">Как в системе</option>
           <option value="reduce">Уменьшить движение</option>
         </select>
-        <small>
-          Переходы и анимация портала сокращаются. Предупреждения и учебные сообщения остаются
-          видны.
-        </small>
       </label>
       {!p.seat ? (
         <label>
@@ -362,7 +357,6 @@ export function PresentationControls() {
             <option value="expanded">Полная</option>
             <option value="collapsed">Свёрнутая</option>
           </select>
-          <small>Разделы остаются доступны. Настройка не меняет ваши права.</small>
         </label>
       ) : null}
       {p.dirty ? (
@@ -382,7 +376,7 @@ export function PresentationControls() {
       ) : null}
       <div className="account-form-actions">
         <button type="submit" className="btn-primary" disabled={!p.dirty || p.busy || !p.loaded}>
-          {p.busy ? 'Сохраняем…' : 'Сохранить оформление'}
+          {p.busy ? 'Сохраняем…' : 'Сохранить'}
         </button>
         <button
           type="button"
@@ -390,7 +384,7 @@ export function PresentationControls() {
           disabled={!p.dirty || p.busy}
           onClick={p.discard}
         >
-          Отменить оформление
+          Отменить
         </button>
         <button
           type="button"
@@ -398,7 +392,7 @@ export function PresentationControls() {
           disabled={!p.loaded || p.busy}
           onClick={p.reset}
         >
-          Сбросить оформление
+          По умолчанию
         </button>
       </div>
       {p.actorChanged ? (

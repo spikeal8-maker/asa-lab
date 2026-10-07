@@ -680,6 +680,14 @@ button.portal-account-identity:hover:not(:disabled) {
   padding-top: 18px;
 }
 
+.account-settings-page .account-heading {
+  margin-bottom: 16px;
+}
+
+.account-settings-page .account-heading h1 {
+  font-size: clamp(28px, 3vw, 34px);
+}
+
 .account-mobile-panel-picker {
   display: none;
 }
@@ -698,13 +706,6 @@ button.portal-account-identity:hover:not(:disabled) {
   padding: 18px 14px;
   border-right: 1px solid #e0e7eb;
   background: #fbfcfd;
-}
-
-.account-settings-navigation > strong {
-  display: block;
-  padding: 0 12px 18px;
-  color: #263d4a;
-  font-size: 18px;
 }
 
 .account-settings-navigation nav {
@@ -851,11 +852,15 @@ button.portal-account-identity:hover:not(:disabled) {
 
 .account-settings-content {
   min-width: 0;
-  padding: 22px 28px;
+  padding: 20px 24px;
 }
 
 .account-settings-section {
   width: min(760px, 100%);
+}
+
+.account-settings-section > h2 {
+  margin: 0 0 14px;
 }
 
 .account-section-heading {
@@ -1679,34 +1684,13 @@ button.portal-account-identity:hover:not(:disabled) {
   transition-duration: 0.001ms !important;
 }
 .account-presentation {
-  margin-bottom: 24px;
+  margin-top: 0;
+  margin-bottom: 18px;
 }
-.account-presentation h3 {
+.account-presentation > .account-hint {
   margin: 0;
 }
 .account-presentation select {
   width: 100%;
   min-width: 0;
-}
-
-.portal-presentation-context {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 24px;
-  margin-left: 72px;
-  padding: 10px 26px;
-  border-bottom: 1px solid #d9e0e8;
-  background: #fff;
-  font-size: 13px;
-  line-height: 1.5;
-}
-.portal-presentation-context span {
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-@media (max-width: 900px) {
-  .portal-presentation-context {
-    margin-left: 0;
-    padding: 10px 12px;
-  }
 }

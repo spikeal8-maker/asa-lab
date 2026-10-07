@@ -177,7 +177,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
    */
   await studentPage.locator('.portal-account > summary').click();
   await studentPage.getByRole('button', { name: 'Настройки', exact: true }).click();
-  await expect(studentPage.getByRole('heading', { name: 'Мой профиль' })).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   await studentPage.getByRole('button', { name: 'Аватар 7', exact: true }).click();
   await expect(studentPage.getByText('Аватар сохранён.')).toBeVisible();
   /**
@@ -226,7 +226,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
     staleAt,
   ]);
   await studentPage.reload();
-  await expect(studentPage.getByRole('heading', { name: 'Мой профиль' })).toBeVisible();
+  await expect(studentPage.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   const fresh = await admin.query(
     `SELECT last_active_at FROM classroom_student_seats WHERE id = $1`,
     [seatId],

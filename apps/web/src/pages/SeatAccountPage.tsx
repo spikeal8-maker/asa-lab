@@ -103,14 +103,11 @@ export function SeatAccountPage({
   return (
     <main id="main-content" className="account-page account-settings-page" tabIndex={-1}>
       <header className="account-heading">
-        <p className="portal-eyebrow">Настройки</p>
-        <h1>Мой профиль</h1>
-        <p>Здесь можно выбрать аватар. Имя и вход в класс настраивает преподаватель.</p>
+        <h1>Настройки</h1>
       </header>
 
       <div className="account-settings-shell">
         <label className="account-mobile-panel-picker">
-          Раздел настроек
           <select
             aria-label="Выбрать раздел настроек"
             value={selectedPanel}
@@ -124,7 +121,6 @@ export function SeatAccountPage({
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
-          <strong>Настройки</strong>
           <nav>
             {panels.map((item) => (
               <button
@@ -177,7 +173,6 @@ export function SeatAccountPage({
           <div hidden={selectedPanel !== 'profile'}>
             <section className="account-settings-section" aria-labelledby="seat-profile-title">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Профиль</p>
                 <h2 id="seat-profile-title">Как вас видят в классе</h2>
                 <p>Аватар появится в списке класса и рядом с вашими работами.</p>
               </div>

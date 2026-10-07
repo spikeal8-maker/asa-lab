@@ -351,7 +351,7 @@ describe('presentation canonical shell state', () => {
     expect(state.notice).toBe('');
     expect(hasSettingsDraft()).toBe(false);
     const cancel = [...container.querySelectorAll('button')].find(
-      (button) => button.textContent === 'Отменить оформление',
+      (button) => button.textContent === 'Отменить',
     )!;
     expect(cancel.disabled).toBe(true);
     await act(async () => expiredDraft.discard());
