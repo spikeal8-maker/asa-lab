@@ -36,6 +36,7 @@ async function fixture(
     presentationFailure?: boolean;
     presentationSaveFailure?: boolean;
     presentationLongContent?: boolean;
+    unreadCount?: number;
   } = {},
 ) {
   const mutations: string[] = [];
@@ -217,7 +218,11 @@ async function fixture(
     if (path === '/api/learning/notifications/classes/class-1/reminders')
       return reply({ revision: 0, due: true, overdue: true });
     if (path === '/api/learning/notifications')
-      return reply({ items: [], snapshot: '2026-01-01T00:00:00Z', unread: 0 });
+      return reply({
+        items: [],
+        snapshot: '2026-01-01T00:00:00Z',
+        unread: options.unreadCount ?? 0,
+      });
     if (path === '/api/learning/notifications/preferences') {
       if (notificationFailure)
         return reply(
@@ -1101,7 +1106,7 @@ async function assertCompactSettings(page: Page, width: number) {
   );
 }
 
-const shellEvidence = 'reports/playwright/portal-shell-s1-20261007';
+const shellEvidence = 'reports/playwright/portal-shell-s1-geometry-20261008';
 
 async function assertShellGeometry(page: Page, width: number) {
   const metrics = await page.locator('.portal-header').evaluate((header) => {
@@ -1128,6 +1133,7 @@ async function assertShellGeometry(page: Page, width: number) {
           })),
       ),
       links: [...header.querySelectorAll('.portal-global-nav a')].map(bounds),
+      main: bounds(document.querySelector('.portal-shell > main')!),
       overflow: document.documentElement.scrollWidth > innerWidth,
     };
   });
@@ -1151,13 +1157,16 @@ async function assertShellGeometry(page: Page, width: number) {
       ).toBe(false);
     }
   for (const link of metrics.links) expect(link.height).toBeGreaterThanOrEqual(44);
-  if (width <= 820) {
+  if (width <= 1023) {
     expect(metrics.header.height).toBeGreaterThanOrEqual(100);
     for (const link of metrics.links) expect(link.y).toBeGreaterThanOrEqual(metrics.header.y + 56);
+    // A hidden desktop sidebar must not leave its 264px content offset behind.
+    expect(metrics.main.x).toBeLessThanOrEqual(24);
+    expect(metrics.main.right).toBeLessThanOrEqual(width);
   } else expect(metrics.header.height).toBeLessThan(60);
 }
 
-for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821])
+for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1023])
   test(`portal shell has distinct non-overlapping slots and room for a third public link at ${width}px`, async ({
     page,
   }) => {
@@ -1201,7 +1210,7 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821])
     await expect(
       sidebar.getByRole('link', { name: 'Курсы и задания', exact: true, includeHidden: true }),
     ).toHaveCount(1);
-    if (width <= 820) {
+    if (width <= 1023) {
       const toggle = page.getByRole('button', { name: 'Открыть меню', exact: true });
       await toggle.click();
       await expect(sidebar).toHaveAttribute('role', 'dialog');
@@ -1264,6 +1273,44 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821])
     }
   });
 
+for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 320])
+  test(`portal shell reserves intrinsic brand and inbox width under wide text metrics at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(shellEvidence, { recursive: true });
+    await fixture(page, { educator: true, author: true, unreadCount: 9999 });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/interface');
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Оповещения: непрочитанных 9999' }),
+    ).toBeVisible();
+    // A deterministic wider font plus text-spacing stress exposes the brand's
+    // old 120px minimum on Windows too, instead of depending on Linux fonts.
+    await page.addStyleTag({
+      content: `
+        .portal-header, .portal-header * {
+          font-family: monospace !important;
+          letter-spacing: 2px !important;
+        }
+        .portal-header button, .portal-header a, .portal-header summary {
+          font-size: 16px !important;
+        }
+      `,
+    });
+    await assertShellGeometry(page, width);
+    const nav = page.getByLabel('Разделы ASA Lab');
+    await nav.evaluate((element) => {
+      const third = element.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
+      third.href = '/#/ai-fixture';
+      third.removeAttribute('aria-current');
+      third.querySelector('span')!.textContent = 'ИИ';
+      element.append(third);
+    });
+    await assertShellGeometry(page, width);
+    await page.screenshot({ path: `${shellEvidence}/wide-text-third-link-${width}.png` });
+  });
+
 for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
   test(`short mobile drawer preserves ${role} navigation projections and one settings destination`, async ({
     page,
@@ -1315,11 +1362,24 @@ for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
     await page.locator('.portal-menu-backdrop').click({ position: { x: 385, y: 300 } });
     await expect(sidebar).not.toHaveClass(/mobile-open/);
     await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
-    await page.setViewportSize({ width: 821, height: 568 });
+    await page.setViewportSize({ width: 1023, height: 568 });
+    await expect(sidebar).toHaveClass(/mobile-open/);
+    await page.setViewportSize({ width: 1024, height: 568 });
     await expect(sidebar).not.toHaveClass(/mobile-open/);
+    await expect(sidebar).not.toHaveAttribute('role', 'dialog');
+    await expect(page.locator('.portal-header')).not.toHaveAttribute('inert', '');
+    await expect(page.locator('.portal-shell > main')).not.toHaveAttribute('inert', '');
+    expect(await page.locator('body').evaluate((element) => element.style.overflow)).not.toBe(
+      'hidden',
+    );
+    await page.setViewportSize({ width: 1023, height: 568 });
+    const toggle = page.getByRole('button', { name: 'Открыть меню', exact: true });
+    await toggle.click();
+    await page.keyboard.press('Escape');
+    await expect(toggle).toBeFocused();
   });
 
-for (const width of [1440, 390])
+for (const width of [1440, 1024, 1023, 821, 390, 320])
   test(`public and personal routes retain shell, active section, native links and dirty guard at ${width}px`, async ({
     page,
   }) => {
@@ -1369,7 +1429,7 @@ for (const width of [1440, 390])
           ? page.locator('#portal-sidebar a[href="/#/help"]')
           : page.locator(`.portal-global-nav a[href="/#/${hash}"]`);
       const follow = async () => {
-        if (hash === 'help' && width <= 820)
+        if (hash === 'help' && width <= 1023)
           await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
         await target.click();
       };

@@ -141,7 +141,8 @@ export function PortalHeader({
     document.body.style.overflow = 'hidden';
     sidebar.current?.querySelector<HTMLButtonElement>('button')?.focus();
     const closeOnResize = (): void => {
-      if (window.innerWidth > 820) setMobileOpen(false);
+      // Keep the drawer transition aligned with portal-workspace.css.
+      if (window.innerWidth > 1023) setMobileOpen(false);
     };
     const handleKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') setMobileOpen(false);

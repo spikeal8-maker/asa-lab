@@ -169,9 +169,25 @@
   font-size: 21px;
 }
 
-@media (max-width: 820px) {
+/* Change structure before brand, three public links and inbox exhaust a row.
+   The same boundary governs drawer resize in PortalHeader. */
+@media (max-width: 1023px) {
   .portal-shell {
     --portal-header-height: 100px;
+  }
+  .portal-shell > .portal-content,
+  .portal-shell > .account-page,
+  .portal-shell:has(.portal-sidebar.collapsed) > .portal-content,
+  .portal-shell:has(.portal-sidebar.collapsed) > .account-page {
+    width: calc(100% - 24px);
+    margin-right: auto;
+    margin-left: auto;
+  }
+  .portal-global-error {
+    margin-left: 0;
+  }
+  .portal-shell > .creator-home {
+    width: calc(100% - 24px) !important;
   }
   .portal-shell .portal-header {
     grid-template-columns: 44px minmax(0, 1fr) auto 44px;
@@ -333,6 +349,15 @@
     border-radius: 10px;
     justify-content: flex-start;
   }
+  .portal-sidebar .portal-nav-item.active::before {
+    top: auto;
+    right: 8px;
+    bottom: 0;
+    left: 8px;
+    width: auto;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
   .portal-sidebar .portal-nav-glyph,
   .portal-sidebar.collapsed .portal-nav-label {
     display: inline-flex;
@@ -362,6 +387,8 @@
   .portal-sidebar-collapse {
     display: none;
   }
+}
+@media (max-width: 820px) {
   .creator-home .project-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
