@@ -1,29 +1,6 @@
 name: Electronics R4-M1 Focused
 
 on:
-  pull_request:
-    paths:
-      - 'compose.test.yaml'
-      - 'apps/api/src/origin-policy.ts'
-      - 'apps/api/src/app.factory.ts'
-      - 'AGENTS.md'
-      - 'contexts/electronics/**'
-      - 'apps/web/src/electronics/**'
-      - 'apps/web/src/pages/SchematicEditor.tsx'
-      - 'apps/web/vite.config.ts'
-      - 'apps/web/tsconfig.json'
-      - 'e2e/electronics-simulation.spec.ts'
-      - 'e2e/electronics-interactions.spec.ts'
-      - 'tests/electronics/**'
-      - 'tools/run-electronics-benchmark.mjs'
-      - 'tools/run-electronics-browser-benchmark.mjs'
-      - 'tools/run-electronics-load-benchmark.mjs'
-      - 'tools/run-electronics-memory-benchmark.mjs'
-      - 'tools/update-electronics-benchmark-golden.mjs'
-      - 'docs/delivery/evidence/electronics-opt0/**'
-      - 'package.json'
-      - 'pnpm-lock.yaml'
-      - '.github/workflows/electronics-r4-m1-focused.yml'
   workflow_dispatch:
 
 permissions:
@@ -33,21 +10,21 @@ env:
   NX_SKIP_NX_CACHE: 'true'
 
 concurrency:
-  group: electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}
+  group: electronics-r4-m1-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  focused:
-    name: Shared solver, editor contracts and build
+  diagnosis:
+    name: Temporary Issue 522 unit diagnosis (not a focused gate)
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 15
     env:
       CI: 'true'
     steps:
-      - name: Checkout repository
+      - name: Checkout exact diagnostic candidate
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
           fetch-depth: 0
 
@@ -66,180 +43,112 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      # One gate per result: the same command a local agent and an owner
-      # evidence run invoke. Do not inline its steps here.
-      - name: Focused Electronics M1 gate
-        run: pnpm gate:electronics-m1
-
-  benchmark:
-    name: Electronics E-OPT benchmark integrity
-    needs: focused
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chromium for benchmark probes
-        run: pnpm exec playwright install --with-deps chromium
-
-      # Performance timings are evidence only at E-OPT-0. This gate fails on
-      # execution errors, status drift, golden-result drift or nondeterminism;
-      # it deliberately has no millisecond threshold yet.
-      - name: Electronics E-OPT quick benchmark suite
-        run: pnpm benchmark:electronics:ci
-
-      - name: Upload E-OPT benchmark evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-e-opt-${{ github.run_id }}
-          path: |
-            reports/electronics-opt0-*.json
-            reports/electronics-opt0-*.md
-          if-no-files-found: ignore
-          retention-days: 14
-
-  browser:
-    name: Actual editor live simulation journey
-    needs: focused
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      CI: 'true'
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-      COMPOSE_PROJECT_NAME: asa-lab-electronics-${{ github.run_id }}
-      ASA_TEST_UID: '1000'
-      ASA_TEST_GID: '1000'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Prepare writable evidence directories
-        run: |
-          mkdir -p e2e/artifacts/electronics-simulation reports
-          chmod -R 0777 e2e/artifacts reports
-
-      - name: Build isolated Electronics browser images
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          build migration api web test-runner
-
-      - name: Start isolated PostgreSQL
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          up -d --wait --wait-timeout 120 postgres
-
-      - name: Apply isolated migrations
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          run --rm --no-deps migration
-
-      - name: Start Electronics API and Web without unrelated media services
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          up -d --wait --wait-timeout 240 --no-deps api web
-
-      # Identical to the command registered in docs/testing/active-task-tests.yaml.
-      # Named as its own gate because `gate:electronics-m1` deliberately does not
-      # include it: that gate needs no browser stack, this one does.
-      - name: Electronics M1 browser gate
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
-
-      - name: Show isolated stack state
-        if: always()
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test ps -a
-
-      - name: Upload browser evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-r4-m1-browser-${{ github.run_id }}
-          path: |
-            e2e/artifacts/electronics-simulation
-            reports
-          if-no-files-found: ignore
-          retention-days: 14
-
-      - name: Remove isolated test stack
-        if: always()
-        run: >-
-          docker compose -f compose.yaml -f compose.test.yaml --profile test
-          down -v --remove-orphans
-
-  review-images:
-    name: Package exact-head review images
-    needs: [focused, benchmark, browser]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Build exact API and Web review images
-        run: docker compose -f compose.yaml build api web
-
-      - name: Verify exact revision labels
+      - name: Archive executed sources and environment
         shell: bash
         run: |
           set -euo pipefail
-          api_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-api:${ASA_IMAGE_TAG}")"
-          web_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-web:${ASA_IMAGE_TAG}")"
-          test "$api_revision" = "$ASA_BUILD_REVISION"
-          test "$web_revision" = "$ASA_BUILD_REVISION"
+          mkdir -p reports/issue-522/source
+          git rev-parse HEAD > reports/issue-522/executed-sha.txt
+          git diff 04b653e7f884d50b30906e786e00d9f3e9bce680 HEAD -- contexts/electronics/testing/engine-trace-replay.spec.ts .github/workflows/electronics-r4-m1-focused.yml > reports/issue-522/executed.patch
+          cp contexts/electronics/testing/engine-trace-replay.spec.ts reports/issue-522/source/
+          cp .github/workflows/electronics-r4-m1-focused.yml reports/issue-522/source/
+          cp vitest.config.ts package.json pnpm-lock.yaml reports/issue-522/source/
+          node --version > reports/issue-522/node-version.txt
+          pnpm --version > reports/issue-522/pnpm-version.txt
+          pnpm exec vitest --version > reports/issue-522/vitest-version.txt
+          node --input-type=module - <<'NODE' > reports/issue-522/environment.json
+          import os from 'node:os';
+          import { readFileSync } from 'node:fs';
+          const read = p => { try { return readFileSync(p, 'utf8'); } catch { return null; } };
+          const vitest = JSON.parse(readFileSync('node_modules/vitest/package.json', 'utf8'));
+          if (vitest.version !== '4.1.11') throw Error(`unexpected Vitest ${vitest.version}`);
+          console.log(JSON.stringify({ node: process.version, vitest: vitest.version,
+            os: os.version(), release: os.release(), arch: os.arch(),
+            availableParallelism: os.availableParallelism(), cpus: os.cpus(), totalMemory: os.totalmem(),
+            cgroupCpuMax: read('/sys/fs/cgroup/cpu.max'), cgroupCpuStat: read('/sys/fs/cgroup/cpu.stat'),
+            cgroupCpuSet: read('/sys/fs/cgroup/cpuset.cpus.effective'), procStatus: read('/proc/self/status'),
+            nxSkipNxCache: process.env.NX_SKIP_NX_CACHE, ci: process.env.CI,
+            workerCliOverrides: 'none; original vitest.config.ts and Vitest defaults',
+            gcObservation: 'not attributed; per-process memory/resource/scheduling counters only' }, null, 2));
+          NODE
+          getconf CLK_TCK > reports/issue-522/clock-ticks.txt
+          lscpu > reports/issue-522/lscpu.txt
+          grep -n -C 3 'maxWorkers' node_modules/vitest/dist/chunks/cli-api.*.js > reports/issue-522/installed-worker-config-source.txt || true
+          cat > reports/issue-522/runner.mjs <<'NODE'
+          import { spawn } from 'node:child_process';
+          import { readFileSync, readdirSync, writeFileSync, createWriteStream } from 'node:fs';
+          import os from 'node:os';
+          const [stage, command, ...args] = process.argv.slice(2);
+          const read = p => { try { return readFileSync(p, 'utf8'); } catch { return null; } };
+          const cgroupStart = read('/sys/fs/cgroup/cpu.stat');
+          const startEpochMs = Date.now();
+          const log = createWriteStream(`reports/issue-522/${stage}.log`);
+          const child = spawn(command, args, { env: { ...process.env,
+            ASA_CONFORMANCE_PROFILE: `${process.cwd()}/reports/issue-522/${stage}-profile.json`,
+            ASA_DIAGNOSTIC_STAGE: stage }, stdio: ['ignore', 'pipe', 'pipe'] });
+          child.stdout.on('data', data => { log.write(data); process.stdout.write(data); });
+          child.stderr.on('data', data => { log.write(data); process.stderr.write(data); });
+          const samples = [];
+          function sample() {
+            const all = [];
+            for (const pid of readdirSync('/proc').filter(p => /^\d+$/.test(p))) {
+              const stat = read(`/proc/${pid}/stat`);
+              if (!stat) continue;
+              const fields = stat.slice(stat.lastIndexOf(')') + 2).split(' ');
+              all.push({ pid: Number(pid), ppid: Number(fields[1]), state: fields[0],
+                userTicks: Number(fields[11]), systemTicks: Number(fields[12]), threads: Number(fields[17]),
+                command: read(`/proc/${pid}/cmdline`)?.replaceAll('\0', ' '),
+                schedstat: read(`/proc/${pid}/schedstat`) });
+            }
+            const ids = new Set([child.pid]);
+            for (let i = 0; i < 10; i++) for (const p of all) if (ids.has(p.ppid)) ids.add(p.pid);
+            samples.push({ epochMs: Date.now(), loadavg: os.loadavg(), freeMemory: os.freemem(),
+              processes: all.filter(p => ids.has(p.pid)), cgroupCpuStat: read('/sys/fs/cgroup/cpu.stat') });
+          }
+          sample();
+          const timer = setInterval(sample, 250);
+          child.on('error', error => { console.error(error); process.exitCode = 1; });
+          child.on('close', (code, signal) => {
+            clearInterval(timer); sample(); log.end();
+            writeFileSync(`reports/issue-522/${stage}-runner.json`, JSON.stringify({
+              stage, command, args, startEpochMs, endEpochMs: Date.now(), exitCode: code, signal,
+              cgroupStart, cgroupEnd: read('/sys/fs/cgroup/cpu.stat'), samples,
+              limits: '250ms external sampler observes process descendants and process CPU ticks; it is not per-thread, engine-call or GC attribution. Sampling adds runner work. Short-lived processes may be missed.' }, null, 2));
+            process.exitCode = code ?? 1;
+          });
+          NODE
+          sha256sum reports/issue-522/source/* reports/issue-522/executed.patch reports/issue-522/runner.mjs > reports/issue-522/input-sha256.txt
 
-      - name: Export ready-to-load review images
+      - name: Prepare original module SDK dependency
+        run: corepack pnpm nx build module-sdk
+
+      - name: Stage 1 existing named case alone
+        id: alone
+        continue-on-error: true
+        run: >-
+          node reports/issue-522/runner.mjs alone pnpm exec vitest run
+          contexts/electronics/testing/engine-trace-replay.spec.ts -t
+          'observation-arduino-led: preserves full state and result through bounded complete horizons'
+
+      - name: Stage 2 original contexts suite once
+        id: suite
+        if: always() && steps.alone.outcome != 'skipped'
+        continue-on-error: true
+        run: node reports/issue-522/runner.mjs suite pnpm test:electronics
+
+      - name: Preserve diagnostic outcomes and hashes
+        if: always()
         shell: bash
         run: |
-          set -euo pipefail
-          mkdir -p review-images
-          docker save "asa-lab-api:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-api-${ASA_IMAGE_TAG}.tar.gz"
-          docker save "asa-lab-web:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-web-${ASA_IMAGE_TAG}.tar.gz"
-          printf 'revision=%s\napi=%s\nweb=%s\n' \
-            "$ASA_BUILD_REVISION" \
-            "asa-lab-api:${ASA_IMAGE_TAG}" \
-            "asa-lab-web:${ASA_IMAGE_TAG}" > review-images/MANIFEST.txt
-          sha256sum review-images/*.tar.gz > review-images/SHA256SUMS
+          mkdir -p reports/issue-522
+          printf 'alone=%s\nsuite=%s\n' '${{ steps.alone.outcome }}' '${{ steps.suite.outcome }}' > reports/issue-522/outcomes.txt
+          find reports/issue-522 -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > reports/issue-522/SHA256SUMS
 
-      - name: Upload exact-head review images
+      - name: Upload original raw diagnostic evidence (including failure)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: electronics-review-images-${{ github.run_id }}
-          path: review-images
+          name: electronics-522-matching-ci-${{ github.run_id }}
+          path: reports/issue-522
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 30
