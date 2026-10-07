@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { performance } from 'node:perf_hooks';
 import {
   advanceElectronicsToHorizon,
   parseElectronicsEngineDocument,
@@ -21,6 +23,134 @@ interface ReplayFixture {
 interface ReplayResult {
   readonly final: ReadyResult;
   readonly yieldSequence: readonly number[];
+}
+
+// Temporary #523 passive probe; removed from the report-only candidate.
+function diagnosticResources() {
+  return {
+    memory: process.memoryUsage(),
+    resource: process.resourceUsage(),
+    linuxStatus: readFileSync('/proc/self/status', 'utf8'),
+    linuxSchedstat: readFileSync('/proc/self/schedstat', 'utf8'),
+  };
+}
+
+function diagnosticProbe() {
+  const worker = (
+    globalThis as typeof globalThis & {
+      __vitest_worker__?: {
+        config?: {
+          maxWorkers?: number;
+          minWorkers?: number;
+          pool?: string;
+          fileParallelism?: boolean;
+          testTimeout?: number;
+        };
+      };
+    }
+  ).__vitest_worker__;
+  const phases: unknown[] = [];
+  const calls: unknown[] = [];
+  const initial = diagnosticResources();
+  const begin = performance.now();
+  const cpuBegin = process.cpuUsage();
+  let outcome = 'incomplete';
+  let details: unknown;
+  const calibrationBegin = performance.now();
+  for (let i = 0; i < 20; i++) {
+    const wall = performance.now();
+    const cpu = process.cpuUsage();
+    void (performance.now() - wall);
+    process.cpuUsage(cpu);
+  }
+  const emptyCountersWallMs = performance.now() - calibrationBegin;
+  function measure<T>(name: string, operation: () => T): T {
+    const wall = performance.now();
+    const cpu = process.cpuUsage();
+    try {
+      return operation();
+    } finally {
+      const usage = process.cpuUsage(cpu);
+      phases.push({
+        name,
+        wallMs: performance.now() - wall,
+        cpuUserUs: usage.user,
+        cpuSystemUs: usage.system,
+      });
+    }
+  }
+  function advance(
+    document: ElectronicsEngineDocument,
+    request: Parameters<typeof advanceElectronicsToHorizon>[1],
+  ) {
+    const wall = performance.now();
+    const cpu = process.cpuUsage();
+    const result = advanceElectronicsToHorizon(document, request);
+    const usage = process.cpuUsage(cpu);
+    const wallMs = performance.now() - wall;
+    calls.push({
+      requested: request.requestedHorizonMicroseconds,
+      budget: request.maxEvents,
+      previousCommitted: request.state?.continuation?.committedHorizonMicroseconds ?? 0,
+      committed: result.committedHorizonMicroseconds,
+      status: result.executionStatus,
+      continuationChars: result.state.continuation?.serializedState.length ?? 0,
+      wallMs,
+      cpuUserUs: usage.user,
+      cpuSystemUs: usage.system,
+    });
+    return result;
+  }
+  return {
+    measure,
+    advance,
+    complete(value: unknown) {
+      outcome = 'assertions-completed';
+      details = value;
+    },
+    flush() {
+      const usage = process.cpuUsage(cpuBegin);
+      const wallMs = performance.now() - begin;
+      const final = diagnosticResources();
+      writeFileSync(
+        process.env.ASA_CONFORMANCE_PROFILE!,
+        JSON.stringify(
+          {
+            schema: 'asa-523-passive-v1',
+            stage: process.env.ASA_DIAGNOSTIC_STAGE,
+            sha: process.env.GITHUB_SHA,
+            pid: process.pid,
+            node: process.version,
+            workerId: process.env.VITEST_WORKER_ID,
+            poolId: process.env.VITEST_POOL_ID,
+            observedWorkerConfig: worker?.config && {
+              maxWorkers: worker.config.maxWorkers,
+              minWorkers: worker.config.minWorkers,
+              pool: worker.config.pool,
+              fileParallelism: worker.config.fileParallelism,
+              testTimeout: worker.config.testTimeout,
+            },
+            beginEpochMs: performance.timeOrigin + begin,
+            endEpochMs: performance.timeOrigin + performance.now(),
+            wallMs,
+            cpuUserUs: usage.user,
+            cpuSystemUs: usage.system,
+            initial,
+            final,
+            phases,
+            calls,
+            outcome,
+            details,
+            emptyCountersWallMs,
+            limits:
+              'CPU aggregates all process threads. No GC pause attribution. Counter calibration is a lower bound; probe bookkeeping and flush are not subtracted. Profile flush follows the measured body but remains within the original test guard.',
+          },
+          null,
+          2,
+        ),
+      );
+    },
+  };
 }
 
 function parseDocument(value: unknown): ElectronicsEngineDocument {
@@ -299,7 +429,9 @@ function replay(
   fixture: ReplayFixture,
   targets: readonly number[],
   maxEvents: number | undefined,
+  probe?: ReturnType<typeof diagnosticProbe>,
 ): ReplayResult {
+  const advance = probe?.advance ?? advanceElectronicsToHorizon;
   let state: ElectronicsTimedState = resetElectronicsTimedState();
   let sent = 0;
   let final: ReadyResult | undefined;
@@ -322,7 +454,7 @@ function replay(
       throw new Error(`profile committed past unsent input at ${nextUnsent.atMicroseconds}`);
     }
 
-    let result = advanceElectronicsToHorizon(fixture.document, {
+    let result = advance(fixture.document, {
       requestedHorizonMicroseconds: target,
       state,
       ...(newlyAccepted.length > 0 ? { inputEvents: newlyAccepted } : {}),
@@ -332,7 +464,7 @@ function replay(
       if (resume > 20_000) throw new Error(`yield did not converge for ${fixture.name}`);
       yieldSequence.push(result.committedHorizonMicroseconds);
       state = result.state;
-      result = advanceElectronicsToHorizon(fixture.document, {
+      result = advance(fixture.document, {
         requestedHorizonMicroseconds: target,
         state,
         ...(maxEvents === undefined ? {} : { maxEvents }),
@@ -466,31 +598,60 @@ describe('complete observation chunk physical state conformance', () => {
     electrothermalFixture('damage'),
   ]) {
     it(`${fixture.name}: preserves full state and result through bounded complete horizons`, () => {
-      const reference = replay(fixture, [fixture.horizon], 1024);
-      const targets = steppedTargets(fixture.horizon, 500_000, fixture.trace);
-      const chunked = replay(fixture, [0, ...targets], 256);
-      expect(JSON.stringify(semanticPayload(chunked.final))).toBe(
-        JSON.stringify(semanticPayload(reference.final)),
-      );
-      const canonical = JSON.parse(chunked.final.state.continuation!.serializedState);
-      expect(canonical.physicalState).toBeDefined();
-      if (fixture.name === 'observation-arduino-led') {
-        expect(canonical.boards[0].runtime.clockProfile).toBe('instruction-us-v1');
-        expect(canonical.physicalState.thermal.length).toBeGreaterThan(0);
-      }
-      if (fixture.name === 'observation-motor') {
-        expect(canonical.physicalState.motors[0].motorAngularVelocityRadPerSecond).toBeGreaterThan(
-          0,
+      const probe =
+        fixture.name === 'observation-arduino-led' && process.env.ASA_CONFORMANCE_PROFILE
+          ? diagnosticProbe()
+          : undefined;
+      const measure = probe?.measure ?? (<T>(_name: string, operation: () => T) => operation());
+      try {
+        const reference = measure('reference-1024', () =>
+          replay(fixture, [fixture.horizon], 1024, probe),
         );
-        expect(canonical.physicalState.motors[0].simulationTimeSeconds).toBeGreaterThan(0);
-      }
-      if (fixture.name === 'observation-damage') {
-        expect(
-          chunked.final.observation.components.find(
-            (component) => component.componentId === 'battery',
-          ),
-        ).toMatchObject({ damageState: 'failed', deviceHealth: 'failed_open' });
-        expect(canonical.physicalState.thermal[0].accumulatedDamage).toBeGreaterThan(0);
+        const targets = steppedTargets(fixture.horizon, 500_000, fixture.trace);
+        const chunked = measure('chunked-256', () => replay(fixture, [0, ...targets], 256, probe));
+        const chunkedJson = measure('serialize-chunked', () =>
+          JSON.stringify(semanticPayload(chunked.final)),
+        );
+        const referenceJson = measure('serialize-reference', () =>
+          JSON.stringify(semanticPayload(reference.final)),
+        );
+        measure('complete-semantic-equality', () => expect(chunkedJson).toBe(referenceJson));
+        measure('canonical-parse-and-physical-assertions', () => {
+          const canonical = JSON.parse(chunked.final.state.continuation!.serializedState);
+          expect(canonical.physicalState).toBeDefined();
+          if (fixture.name === 'observation-arduino-led') {
+            expect(canonical.boards[0].runtime.clockProfile).toBe('instruction-us-v1');
+            expect(canonical.physicalState.thermal.length).toBeGreaterThan(0);
+          }
+          if (fixture.name === 'observation-motor') {
+            expect(
+              canonical.physicalState.motors[0].motorAngularVelocityRadPerSecond,
+            ).toBeGreaterThan(0);
+            expect(canonical.physicalState.motors[0].simulationTimeSeconds).toBeGreaterThan(0);
+          }
+          if (fixture.name === 'observation-damage') {
+            expect(
+              chunked.final.observation.components.find(
+                (component) => component.componentId === 'battery',
+              ),
+            ).toMatchObject({ damageState: 'failed', deviceHealth: 'failed_open' });
+            expect(canonical.physicalState.thermal[0].accumulatedDamage).toBeGreaterThan(0);
+          }
+          probe?.complete({
+            horizon: fixture.horizon,
+            targets: [0, ...targets],
+            referenceChars: referenceJson.length,
+            chunkedChars: chunkedJson.length,
+            finalStatus: chunked.final.executionStatus,
+            committed: chunked.final.committedHorizonMicroseconds,
+            canonicalReached: canonical.reachedMicroseconds,
+            arduinoVirtualTimeMs: canonical.boards[0]?.runtime.virtualTimeMs,
+            referenceYieldSequence: reference.yieldSequence,
+            chunkedYieldSequence: chunked.yieldSequence,
+          });
+        });
+      } finally {
+        probe?.flush();
       }
     });
   }
