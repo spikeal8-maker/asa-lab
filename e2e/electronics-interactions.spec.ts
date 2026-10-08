@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
@@ -1763,6 +1763,238 @@ test.describe('asset recovery in the built editor', () => {
     // shared recovery promise makes at most three probe requests between them.
     expect(imageRequests).toBeLessThanOrEqual(7);
     expect(readDocument()).toEqual(initial);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('late ordinary image subscriber after confirmed permanent HEAD failure', async ({
+    page,
+  }, info) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    const network: Record<string, unknown>[] = [];
+    const heads: number[] = [];
+    let headRequests = 0;
+    let recoveryRequests = 0;
+    let recoveryAtConfirmation = 0;
+    let phase = 'initial';
+    let failurePhase = '';
+    let failure: unknown;
+    let cessationObserved = false;
+    let aConnected: boolean;
+    let documentUnchanged: boolean;
+    let editorDocumentUnchanged: boolean;
+    let aHonest: boolean;
+    await page.addInitScript((targetAsset) => {
+      const events: Record<string, unknown>[] = [];
+      (
+        window as unknown as { __asaLateOrdinaryImageProbe: unknown[] }
+      ).__asaLateOrdinaryImageProbe = events;
+      const nodes = new WeakMap<Element, number>();
+      let nodeSequence = 0;
+      const record = (kind: string, image: Element, trusted?: boolean): void => {
+        if (image.tagName.toLowerCase() !== 'image' || image.getAttribute('href') !== targetAsset)
+          return;
+        if (!nodes.has(image)) nodes.set(image, ++nodeSequence);
+        if (events.length >= 256) return;
+        events.push({
+          source: 'native-dom',
+          kind,
+          t: performance.now(),
+          wallMs: Date.now(),
+          nodeId: nodes.get(image),
+          trusted,
+          href: image.getAttribute('href'),
+          consumer: image.closest('.workbench-catalog-card')
+            ? 'catalog'
+            : image.closest('[data-testid="schematic-component"]')
+              ? 'stage'
+              : 'other',
+          connected: image.isConnected,
+          failed: image.getAttribute('data-owner-image-status'),
+        });
+      };
+      for (const kind of ['error', 'load']) {
+        window.addEventListener(
+          kind,
+          (event) => {
+            if (event.target instanceof Element) record(kind, event.target, event.isTrusted);
+          },
+          true,
+        );
+      }
+      window.addEventListener(
+        'DOMContentLoaded',
+        () => {
+          new MutationObserver((changes) => {
+            for (const change of changes) {
+              for (const [kind, changed] of [
+                ['added', change.addedNodes],
+                ['removed', change.removedNodes],
+              ] as const) {
+                for (const node of changed) {
+                  if (!(node instanceof Element)) continue;
+                  record(kind, node);
+                  for (const image of node.querySelectorAll('image')) record(kind, image);
+                }
+              }
+            }
+          }).observe(document.documentElement, { childList: true, subtree: true });
+        },
+        { once: true },
+      );
+    }, asset);
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        const request = route.request();
+        const url = new URL(request.url());
+        if (request.method() === 'HEAD') {
+          const wallMs = Date.now();
+          headRequests += 1;
+          heads.push(wallMs);
+          await route.fulfill({ status: 404, body: '' });
+          network.push({ method: 'HEAD', url: request.url(), status: 404, wallMs, phase });
+          return;
+        }
+        if (request.resourceType() !== 'image') return route.continue();
+        if (url.searchParams.has('asa-image-retry')) recoveryRequests += 1;
+        network.push({
+          method: 'GET',
+          resourceType: 'image',
+          url: request.url(),
+          status: 404,
+          wallMs: Date.now(),
+          phase,
+          recovery: url.searchParams.has('asa-image-retry'),
+        });
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const { readDocument, readEditorDocument, requests, errors } = await openEditor(page, doc);
+    const initial = structuredClone(readDocument());
+    const initialEditor = structuredClone(await readEditorDocument());
+    const a = part(page, 'holder');
+    const aImage = await a.locator('image[href="' + asset + '"]').elementHandle();
+    if (!aImage) throw new Error('Missing mounted ordinary stage A image');
+    const category = page.getByRole('combobox', { name: 'Категория компонентов' });
+    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+    try {
+      await expect(
+        a.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible({ timeout: 10_000 });
+      await category.selectOption('basic');
+      await expect(card).toHaveCount(0);
+      phase = 'A-only-confirmation';
+      const secondResponse = page.waitForResponse(
+        (response) =>
+          new URL(response.url()).pathname === asset &&
+          response.request().method() === 'HEAD' &&
+          headRequests >= 2,
+        { timeout: 210_000 },
+      );
+      await expect.poll(() => headRequests, { timeout: 210_000 }).toBe(2);
+      await (await secondResponse).finished();
+      expect(heads[1]! - heads[0]!).toBeGreaterThanOrEqual(30_000);
+      await page.waitForTimeout(800);
+      recoveryAtConfirmation = recoveryRequests;
+      expect(await aImage.evaluate((element) => element.isConnected)).toBe(true);
+      await expect(
+        a.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      phase = 'new-B-mount';
+      await page.evaluate(() => {
+        const events = (window as unknown as { __asaLateOrdinaryImageProbe: unknown[] })
+          .__asaLateOrdinaryImageProbe;
+        events.push({
+          source: 'test',
+          kind: 'mount-B-boundary',
+          t: performance.now(),
+          wallMs: Date.now(),
+        });
+      });
+      await category.selectOption('power');
+      await expect(card).toHaveCount(1);
+      await expect(card).toHaveAttribute('data-selected-variant', 'battery-holder-aa-2');
+      await card.scrollIntoViewIfNeeded();
+      await expect(card.locator('image')).toHaveAttribute('href', asset);
+      phase = 'B-badge-original-assertion';
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+    } catch (error) {
+      failure = error;
+      failurePhase = phase;
+    } finally {
+      if (headRequests === 2) {
+        phase = 'cessation-after-B';
+        await page.waitForTimeout(65_000);
+        cessationObserved = true;
+      }
+      aConnected = await aImage.evaluate((element) => element.isConnected);
+      aHonest = await a
+        .getByRole('status', { name: 'Изображение детали не загрузилось' })
+        .isVisible();
+      documentUnchanged = JSON.stringify(readDocument()) === JSON.stringify(initial);
+      editorDocumentUnchanged =
+        JSON.stringify(await readEditorDocument()) === JSON.stringify(initialEditor);
+      const events = await page.evaluate(
+        () =>
+          (window as unknown as { __asaLateOrdinaryImageProbe: unknown[] })
+            .__asaLateOrdinaryImageProbe,
+      );
+      const dom = await page.evaluate((targetAsset) => {
+        const selector = 'image[href="' + targetAsset + '"]';
+        return [...document.querySelectorAll(selector)].map((image) => ({
+          consumer: image.closest('.workbench-catalog-card') ? 'catalog' : 'stage',
+          href: image.getAttribute('href'),
+          failed: image.getAttribute('data-owner-image-status'),
+          variant: image.closest('[data-selected-variant]')?.getAttribute('data-selected-variant'),
+          badge: Boolean(image.parentElement?.querySelector('[data-testid="owner-image-error"]')),
+        }));
+      }, asset);
+      const result = {
+        asset,
+        phase,
+        failurePhase,
+        dom,
+        heads,
+        headRequests,
+        recoveryAtConfirmation,
+        recoveryRequests,
+        network,
+        events,
+        cessationObserved,
+        aConnected,
+        aHonest,
+        documentUnchanged,
+        editorDocumentUnchanged,
+        requests,
+        errors,
+        failure: failure instanceof Error ? failure.message : String(failure ?? ''),
+        limits: { totalMs: 300_000, headWaitMs: 210_000, cessationMs: 65_000, badgeMs: 5000 },
+      };
+      const body = JSON.stringify(result, null, 2);
+      writeFileSync('reports/late-permanent-ordinary-image-probe.json', body);
+      await info.attach('late-permanent-ordinary-image-probe', {
+        body,
+        contentType: 'application/json',
+      });
+    }
+    if (failure) throw failure;
+    expect(headRequests).toBe(2);
+    expect(recoveryRequests).toBe(recoveryAtConfirmation);
+    expect(aConnected).toBe(true);
+    expect(aHonest).toBe(true);
+    expect(documentUnchanged).toBe(true);
+    expect(editorDocumentUnchanged).toBe(true);
     expect(requests).toHaveLength(0);
     expect(errors).toEqual([]);
   });
