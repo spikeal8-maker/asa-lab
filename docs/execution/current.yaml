@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_owner_revision_r1_compact_avatar_selected
+      checkpoint: portal_owner_revision_br1_recovery_fixture_selected
       owner_acceptance: changes_requested
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -124,12 +124,40 @@ parallel_lanes:
       status: in_progress
       verified_revision: '1.1'
       target_revision: '2.0'
-      selected_slice: R1
-      dependency_order: [R1, R2, R3]
-      remaining_slices: [R1, R2, R3]
+      selected_slice: BR1
+      dependency_order: [R1, BR1, R2, R3]
+      remaining_slices: [BR1, R2, R3]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
+        - id: R1
+          status: technical_accepted
+          product_sha: 7464c34fe26c6e6616f6d2f1cbe8889392a9ef0d
+          integrated_sha: 5d57f0eb2e4dcc6ff49c3c1ab08ed9951d0eded8
+          independent_review: approved
+          independent_review_sha: 5d57f0eb2e4dcc6ff49c3c1ab08ed9951d0eded8
+          exact_head_general_run: 37743003531
+          exact_head_general_conclusion: success
+          focused_tests_passed: 641
+          full_tests_passed: 3146
+          separate_rls_tests_passed: 16
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 246
+          browser_build_nx_tasks_executed_uncached: 27
+          source_web_evidence_sha: 7464c34fe26c6e6616f6d2f1cbe8889392a9ef0d
+          source_web_nx_tasks_executed_uncached: 8
+          entry_js_raw_bytes: 307135
+          entry_js_gzip_calculated_bytes: 91771
+          entry_js_budget_bytes: 307200
+          visual_evidence: reports/playwright/portal-compact-avatar-r1-frozen-author-20261008
+          independent_layout_evidence: reports/playwright/portal-compact-avatar-r1-independent-review-20261008
+          independent_final_review: reports/playwright/portal-compact-avatar-r1-ci-repair-independent-20261008/review.md
+          exact_ci_evidence: reports/playwright/portal-compact-avatar-r1-exact-ci-20261008
+          initial_ci_failure_run: 37741353378
+          initial_failure_category: A
+          repair_scope: obsolete_profile_avatar_unit_selector_only
+          owner_acceptance: changes_requested
+          deployment: not_requested
         - id: S1
           status: technical_accepted
           integrated_sha: 9f93d884a32ec7399a3ff6d475b5bef9bff364c3
@@ -199,6 +227,24 @@ parallel_lanes:
         - deployment
       load_protocol: docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
       known_baseline_issues:
+        - id: s4_host_recovery_fixture_intermediate_document
+          classification: independent_baseline_defect
+          status: bounded_repair_selected
+          selected_repair: BR1
+          affected_path: e2e/access-account-ui.spec.ts
+          product_change_authorized: false
+          observed_failure_sha: 6026b587a491ccf76e9ee9a264daf79aac2bae2a
+          observed_failure_run: 37735851307
+          diagnosis: >-
+            Saved trace proves that the S4 host test accepted the old-document
+            error heading while automatic reload was already in flight. Its
+            synchronous host request count failed before the second document
+            committed. No product recovery defect was proved. Select only a
+            deterministic second-navigation barrier and strict second-host
+            request synchronization before final UI assertions; retain friendly
+            errors and game/project back actions. Runtime recovery, API, MAX,
+            dependencies, database and deployment remain outside this repair.
+          evidence: C:/Users/spike/.codex/temp/portal-s4-baseline-6026-diagnosis
         - id: anonymous_invitation_signin_browser_back
           classification: independent_baseline_defect
           status: unaddressed_outside_delivery_scope
