@@ -180,11 +180,87 @@ for (const width of [1440, 1024, 390, 320])
             expect(
               (await prefs.getByLabel('Мои оповещения об этом классе').boundingBox())!.width,
             ).toBeLessThanOrEqual(420);
+            const saveMetrics = await prefs
+              .getByRole('button', { name: 'Сохранить оповещения', exact: true })
+              .evaluate((button) => {
+                const style = getComputedStyle(button);
+                const bounds = button.getBoundingClientRect();
+                const parent = button.parentElement!;
+                const parentBounds = parent.getBoundingClientRect();
+                const parentStyle = getComputedStyle(parent);
+                const chrome =
+                  parseFloat(style.paddingLeft) +
+                  parseFloat(style.paddingRight) +
+                  parseFloat(style.borderLeftWidth) +
+                  parseFloat(style.borderRightWidth);
+                const contentLeft =
+                  parentBounds.left +
+                  parseFloat(parentStyle.borderLeftWidth) +
+                  parseFloat(parentStyle.paddingLeft);
+                const contentRight =
+                  parentBounds.right -
+                  parseFloat(parentStyle.borderRightWidth) -
+                  parseFloat(parentStyle.paddingRight);
+                const text = document.createRange();
+                text.selectNodeContents(button);
+                const textWidths = [...text.getClientRects()].map((rect) => rect.width);
+                // Measure the same rendered font without the parent's wrapping
+                // constraint. Only the hidden probe receives measurement styles.
+                const probe = button.cloneNode(true) as HTMLElement;
+                probe.removeAttribute('id');
+                probe.style.cssText +=
+                  ';position:fixed;visibility:hidden;pointer-events:none;display:inline-block;' +
+                  'width:max-content;min-width:0;max-width:none;white-space:nowrap;margin:0;';
+                parent.append(probe);
+                try {
+                  const unwrapped = document.createRange();
+                  unwrapped.selectNodeContents(probe);
+                  const textWidth = unwrapped.getBoundingClientRect().width;
+                  return {
+                    width: bounds.width,
+                    height: bounds.height,
+                    left: bounds.left,
+                    right: bounds.right,
+                    contentLeft,
+                    contentRight,
+                    contentWidth: contentRight - contentLeft,
+                    chrome,
+                    textWidth,
+                    naturalWidth: textWidth + chrome,
+                    probeWidth: probe.getBoundingClientRect().width,
+                    textWidths,
+                    scrollWidth: button.scrollWidth,
+                    clientWidth: button.clientWidth,
+                    font: style.font,
+                  };
+                } finally {
+                  probe.remove();
+                }
+              });
+            expect(Math.abs(saveMetrics.probeWidth - saveMetrics.naturalWidth)).toBeLessThanOrEqual(
+              1,
+            );
             expect(
-              (await prefs
-                .getByRole('button', { name: 'Сохранить оповещения', exact: true })
-                .boundingBox())!.width,
-            ).toBeLessThanOrEqual(enlarged ? 350 : 260);
+              Math.abs(
+                saveMetrics.width - Math.min(saveMetrics.naturalWidth, saveMetrics.contentWidth),
+              ),
+            ).toBeLessThanOrEqual(1);
+            expect(saveMetrics.height).toBeGreaterThanOrEqual(44);
+            expect(saveMetrics.left).toBeGreaterThanOrEqual(saveMetrics.contentLeft - 1);
+            expect(saveMetrics.right).toBeLessThanOrEqual(saveMetrics.contentRight + 1);
+            expect(saveMetrics.scrollWidth).toBeLessThanOrEqual(saveMetrics.clientWidth + 1);
+            for (const textWidth of saveMetrics.textWidths)
+              expect(textWidth).toBeLessThanOrEqual(saveMetrics.width - saveMetrics.chrome + 1);
+            if (!enlarged) expect(saveMetrics.width).toBeLessThanOrEqual(260);
+            mkdirSync(test.info().outputDir, { recursive: true });
+            writeFileSync(
+              test
+                .info()
+                .outputPath(
+                  `notification-save-${seat ? 'seat' : 'account'}-${width}-${enlarged ? 'font150' : 'normal'}.json`,
+                ),
+              JSON.stringify(saveMetrics, null, 2),
+            );
           }
           if (panelId === 'school') {
             expect(
