@@ -4046,6 +4046,25 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
     .filter({ hasText: 'Сопротивление' })
     .locator('input[type="number"]');
   await expect(value).toHaveValue('50');
+  const beforeDenialLocal = await e01LocalDraft(page, projectId);
+  expect(beforeDenialLocal).not.toBeNull();
+  const olderCopy = JSON.parse(beforeDenialLocal!) as {
+    schemaVersion: number;
+    identityKind: string;
+    projectId: string;
+    moduleKey: string;
+    document: SchematicDocument;
+  };
+  expect(olderCopy).toMatchObject({
+    schemaVersion: 3,
+    identityKind: 'account',
+    projectId,
+    moduleKey: 'electronics',
+  });
+  expect(olderCopy.document.components.find((c) => c.id === 'resistor')?.value).toBe(50);
+  expect(
+    olderCopy.document.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
+  ).toBe(E01_SKETCH);
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -4067,6 +4086,8 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   await page.route(`**/api/projects/${projectId}/draft`, (route) =>
     route.abort('internetdisconnected'),
   );
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
   await value.fill('166.7');
   await expect(value).toHaveValue('166.7');
   await expect(
@@ -4081,7 +4102,8 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   expect(beforeAttemptCopy.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
   expect(
     beforeAttemptCopy.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
-  ).toBe(E01_SKETCH);
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(beforeAttemptCopy).not.toEqual(olderCopy.document);
   expect(requests).toEqual([]);
   await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
   await expect(page.locator('.workbench-main')).toHaveAttribute(
@@ -4095,6 +4117,13 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
     .context()
     .request.get(`/api/projects/${projectId}`, { headers: { origin: new URL(page.url()).origin } });
   expect(server.ok()).toBe(true);
+  const serverPayload = (await server.json()) as { draft: { document: SchematicDocument } };
+  expect(serverPayload.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(50);
+  expect(
+    serverPayload.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_SKETCH);
   const local = await e01LocalDraft(page, projectId);
   writeFileSync(
     `${evidenceDir}/after-local-denial.json`,
@@ -4102,8 +4131,10 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
       {
         projectId,
         requests,
+        beforeDenialLocal,
+        beforeAttemptCopy,
         local,
-        server: await server.json(),
+        server: serverPayload,
         dom: {
           status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
           label: await indicator.textContent(),
@@ -4116,7 +4147,11 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
     ),
   );
   await page.screenshot({ path: `${evidenceDir}/after-local-denial-1440.png`, fullPage: true });
-  expect(local).toBeNull();
+  expect(local).toBe(beforeDenialLocal);
+  await expect(indicator).toHaveAttribute(
+    'title',
+    /Последние изменения только в открытом редакторе/,
+  );
   const download = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Получить аварийную копию проекта' }).click();
   const downloaded = await download;
@@ -4125,9 +4160,11 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   const copy = JSON.parse(readFileSync(copyPath, 'utf8')) as SchematicDocument;
   expect(copy.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
   expect(copy.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource']).toBe(
-    E01_SKETCH,
+    E01_CHANGED_SKETCH,
   );
   expect(copy.connections).toEqual(e01Document().connections);
+  expect(copy).toEqual(beforeAttemptCopy);
+  const layouts: unknown[] = [];
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expect(indicator).toBeVisible();
@@ -4137,6 +4174,32 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
     await expect(
       page.getByRole('button', { name: 'Получить аварийную копию проекта' }),
     ).toBeVisible();
+    const layout = await page
+      .getByRole('button', { name: 'Получить аварийную копию проекта' })
+      .evaluate((button) => {
+        const box = button.getBoundingClientRect();
+        const indicatorBox = document
+          .querySelector('.workbench-save-state')!
+          .getBoundingClientRect();
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+        return {
+          viewport: innerWidth,
+          pageWidth: document.documentElement.scrollWidth,
+          box: { x: box.x, y: box.y, width: box.width, height: box.height },
+          unobstructed: hit !== null && button.contains(hit),
+          indicatorOverlap:
+            Math.min(box.right, indicatorBox.right) > Math.max(box.left, indicatorBox.left) &&
+            Math.min(box.bottom, indicatorBox.bottom) > Math.max(box.top, indicatorBox.top),
+        };
+      });
+    expect(layout.box.width).toBeGreaterThan(0);
+    expect(layout.box.height).toBeGreaterThan(0);
+    expect(layout.box.x).toBeGreaterThanOrEqual(0);
+    expect(layout.box.x + layout.box.width).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.unobstructed).toBe(true);
+    expect(layout.indicatorOverlap).toBe(false);
+    layouts.push({ width, ...layout });
     await page.screenshot({
       path: `${evidenceDir}/after-local-denial-${width}.png`,
       fullPage: true,
@@ -4146,6 +4209,13 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   await expect(indicator).not.toHaveAttribute(
     'title',
     /сохранена на этом устройстве|сохранены в браузере/,
+  );
+  const receipt = JSON.parse(
+    readFileSync(`${evidenceDir}/after-local-denial.json`, 'utf8'),
+  ) as Record<string, unknown>;
+  writeFileSync(
+    `${evidenceDir}/after-local-denial.json`,
+    JSON.stringify({ ...receipt, emergencyCopy: copy, layouts }, null, 2),
   );
 });
 
@@ -4292,6 +4362,14 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
   const projectId = await createProject(page, 'E01 crash recovery');
   await saveDocument(page, projectId, e01Document());
   await page.goto(`/#/home/${projectId}`);
+  const safetySubmissions: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      safetySubmissions.push({ at: Date.now(), body: request.postDataJSON() });
+  });
   await e01EditSketch(page, E01_CHANGED_SKETCH);
   await (await e01Resistance(page)).fill('177.7');
   const local = JSON.parse((await e01LocalDraft(page, projectId))!);
@@ -4311,14 +4389,23 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
     if (message.text() === 'E01 pagehide') lifecycle.push('pagehide');
   });
   await page.evaluate(() => window.addEventListener('pagehide', () => console.log('E01 pagehide')));
-  const cdp = await page.context().newCDPSession(page);
   const crash = page.waitForEvent('crash');
-  void cdp.send('Page.crash').catch(() => undefined);
+  // Pinned Playwright 1.55.1's Chromium crash fixture uses this browser URL.
+  // Record the injection outcome; an injection error alone is not a crash.
+  const injection = page.goto('chrome://crash').then(
+    () => ({ status: 'resolved' as const }),
+    (error: unknown) => ({ status: 'rejected' as const, error: String(error) }),
+  );
   await crash;
+  const injectionOutcome = await injection;
+  await expect(page.evaluate(() => document.title)).rejects.toThrow(/crash/i);
   expect(lifecycle).toEqual([]);
+  expect(safetySubmissions).toEqual([]);
   const reopened = await page.context().newPage();
   await reopened.goto(`/#/home/${projectId}`);
   await expect(await e01Resistance(reopened)).toHaveValue('177.7');
+  const recoveredLocal = JSON.parse((await e01LocalDraft(reopened, projectId))!);
+  expect(recoveredLocal.document).toEqual(local.document);
   await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
   await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
     E01_CHANGED_SKETCH,
@@ -4336,10 +4423,24 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
       'arduinoSource'
     ],
   ).toBe(E01_CHANGED_SKETCH);
+  expect(server.draft.document).toEqual(local.document);
   mkdirSync('reports/playwright/electronics-e01', { recursive: true });
   writeFileSync(
     'reports/playwright/electronics-e01/after-renderer-crash.json',
-    JSON.stringify({ projectId, local, lifecycle, crash: true, server }, null, 2),
+    JSON.stringify(
+      {
+        projectId,
+        local,
+        recoveredLocal,
+        lifecycle,
+        injectionOutcome,
+        safetySubmissions,
+        crash: true,
+        server,
+      },
+      null,
+      2,
+    ),
   );
   await reopened.close();
 });
@@ -4467,6 +4568,286 @@ test('ELECTRONICS-E01 SAV05/09 keeps the latest edit local after a late reply an
     'reports/playwright/electronics-e01/after-late-reply-departure.json',
     JSON.stringify({ projectId, requests, server }, null, 2),
   );
+});
+
+test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save replies are pending', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await loginWithOrganization(page, teacher);
+  const actor = async () => {
+    const response = await page.context().request.get('/api/auth/me');
+    expect(response.status()).toBe(200);
+    const session = (await response.json()) as {
+      authenticated: boolean;
+      user: { id: string; email: string; displayName: string };
+    };
+    expect(session.authenticated).toBe(true);
+    return session.user;
+  };
+  const actorA = await actor();
+  expect(actorA.email).toBe(teacher.email);
+  const firstProject = await createProject(page, 'E01 SAV10 A first');
+  const secondProject = await createProject(page, 'E01 SAV10 A second');
+  await saveDocument(page, firstProject, e01Document());
+  const secondDocument = e01Document();
+  secondDocument.components = secondDocument.components.map((c) =>
+    c.id === 'resistor' ? { ...c, value: 70 } : c,
+  );
+  await saveDocument(page, secondProject, secondDocument);
+  const localKey = (userId: string, projectId: string) =>
+    `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`;
+  const local = async (userId: string, projectId: string) => {
+    const key = localKey(userId, projectId);
+    const raw = await page.evaluate((key) => localStorage.getItem(key), key);
+    if (raw === null) return { key, raw, record: null };
+    const record = JSON.parse(raw) as {
+      schemaVersion: number;
+      identityKind: string;
+      userId: string;
+      projectId: string;
+      moduleKey: string;
+      document: SchematicDocument;
+    };
+    expect(record).toMatchObject({
+      schemaVersion: 3,
+      identityKind: 'account',
+      userId,
+      projectId,
+      moduleKey: 'electronics',
+    });
+    return { key, raw, record };
+  };
+  const assertContent = (document: SchematicDocument, resistance: number, sketch: string) => {
+    expect(document.components.find((c) => c.id === 'resistor')?.value).toBe(resistance);
+    expect(
+      document.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
+    ).toBe(sketch);
+    expect(document.connections).toEqual(e01Document().connections);
+    expect(document.components.map((c) => c.id)).toEqual(e01Document().components.map((c) => c.id));
+  };
+  const ui = async (target: Page, resistance: string, sketch: string, expectedActor = actorA) => {
+    await expect(target.locator('.workbench-avatar')).toHaveAttribute(
+      'title',
+      expectedActor.displayName,
+    );
+    await expect(await e01Resistance(target)).toHaveValue(resistance);
+    await target.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(target.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(sketch);
+    await target.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    return {
+      url: target.url(),
+      resistance,
+      sketch,
+      principalLabel: await target.locator('.workbench-avatar').getAttribute('aria-label'),
+      status: await target.locator('.workbench-main').getAttribute('data-project-save-status'),
+    };
+  };
+  let phase = 'actor-A';
+  const requests: unknown[] = [];
+  const heldReplies: unknown[] = [];
+  const holdReply = async (projectId: string) => {
+    let release!: () => void;
+    let received!: () => void;
+    let delivered!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const reached = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    const finished = new Promise<void>((resolve) => {
+      delivered = resolve;
+    });
+    let first = true;
+    await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+      const identity = await actor();
+      const request = {
+        phase,
+        at: Date.now(),
+        projectId,
+        actor: identity,
+        body: route.request().postDataJSON(),
+      };
+      requests.push(request);
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      if (first) {
+        first = false;
+        const serverResponse: unknown = await response.json();
+        received();
+        await gate;
+        await route.fulfill({ response });
+        heldReplies.push({
+          request,
+          serverResponse,
+          deliveryPhase: phase,
+          deliveredAt: Date.now(),
+          outcome: 'delivered',
+        });
+        delivered();
+      } else await route.fulfill({ response });
+    });
+    return { reached, release, finished };
+  };
+  const oldBrowserPuts: Array<{ phase: string; projectId: string; body: unknown }> = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'PUT' && path.endsWith('/draft'))
+      oldBrowserPuts.push({ phase, projectId: path.split('/')[3]!, body: request.postDataJSON() });
+  });
+  await page.goto(`/#/home/${firstProject}`);
+  const projectReply = await holdReply(firstProject);
+  const firstSketch = `${E01_CHANGED_SKETCH}\n// first project sent`;
+  const latestFirstSketch = `${E01_CHANGED_SKETCH}\n// first project latest`;
+  await e01EditSketch(page, firstSketch);
+  await (await e01Resistance(page)).fill('111.1');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await projectReply.reached;
+  const committedFirst = await e01Server(page, firstProject);
+  assertContent(committedFirst.draft.document, 111.1, firstSketch);
+  await e01EditSketch(page, latestFirstSketch);
+  await (await e01Resistance(page)).fill('222.2');
+  const beforeProjectSwitch = await local(actorA.id, firstProject);
+  assertContent(beforeProjectSwitch.record!.document, 222.2, latestFirstSketch);
+  // Real SPA URL navigation keeps the browser renderer alive for the late reply.
+  await page.evaluate((id) => {
+    window.location.hash = `/home/${id}`;
+  }, secondProject);
+  const secondBeforeReply = await ui(page, '70', E01_SKETCH);
+  const secondServerBeforeReply = await e01Server(page, secondProject);
+  phase = 'actor-A-second-project';
+  projectReply.release();
+  await projectReply.finished;
+  const secondAfterReply = await ui(page, '70', E01_SKETCH);
+  expect(secondAfterReply).toEqual(secondBeforeReply);
+  expect(await e01Server(page, secondProject)).toEqual(secondServerBeforeReply);
+  const afterProjectSwitch = await local(actorA.id, firstProject);
+  expect(afterProjectSwitch.raw).toBe(beforeProjectSwitch.raw);
+
+  const accountReply = await holdReply(secondProject);
+  const sentSecondSketch = `${E01_CHANGED_SKETCH}\n// second project sent`;
+  const latestSecondSketch = `${E01_CHANGED_SKETCH}\n// second project latest`;
+  await e01EditSketch(page, sentSecondSketch);
+  await (await e01Resistance(page)).fill('333.3');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await accountReply.reached;
+  const committedSecond = await e01Server(page, secondProject);
+  assertContent(committedSecond.draft.document, 333.3, sentSecondSketch);
+  await e01EditSketch(page, latestSecondSketch);
+  await (await e01Resistance(page)).fill('444.4');
+  const beforeAccountSwitch = await local(actorA.id, secondProject);
+  assertContent(beforeAccountSwitch.record!.document, 444.4, latestSecondSketch);
+  const otherTeacher = await seedTeacher(admin, 'e2e-electronics-sav10-other-actor');
+  const other = await page.context().newPage();
+  try {
+    // Actual account logout/login in a second page changes shared server cookies,
+    // not the old page's cached App principal or document.
+    await other.goto('/#/home');
+    await other
+      .getByRole('banner')
+      .getByLabel(/^Меню аккаунта /)
+      .click();
+    await other.getByRole('button', { name: 'Выход', exact: true }).click();
+    await expect(
+      other.getByRole('banner').getByRole('button', { name: 'Войти', exact: true }),
+    ).toBeVisible();
+    await loginWithOrganization(other, otherTeacher);
+    const actorB = await actor();
+    expect(actorB.email).toBe(otherTeacher.email);
+    expect(actorB.id).not.toBe(actorA.id);
+    phase = 'actor-B';
+    const newProject = await createProject(other, 'E01 SAV10 B project');
+    await saveDocument(other, newProject, e01Document());
+    await other.goto(`/#/home/${newProject}`);
+    const newSketch = `${E01_CHANGED_SKETCH}\n// different account`;
+    await e01EditSketch(other, newSketch);
+    await (await e01Resistance(other)).fill('888.8');
+    const newLocalBefore = await local(actorB.id, newProject);
+    assertContent(newLocalBefore.record!.document, 888.8, newSketch);
+    await other.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    await expect(other.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+    const newServerBeforeReply = await e01Server(other, newProject);
+    assertContent(newServerBeforeReply.draft.document, 888.8, newSketch);
+    const newUiBeforeReply = await ui(other, '888.8', newSketch, actorB);
+    const oldPutCountAtB = oldBrowserPuts.length;
+    accountReply.release();
+    await accountReply.finished;
+    await expect(page.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'dirty',
+    );
+    const oldUiAfterReply = await ui(page, '444.4', latestSecondSketch);
+    expect(await ui(other, '888.8', newSketch, actorB)).toEqual(newUiBeforeReply);
+    expect(await e01Server(other, newProject)).toEqual(newServerBeforeReply);
+    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    await expect(page.locator('.workbench-save-state')).toHaveText('Нужно войти');
+    expect(oldBrowserPuts).toHaveLength(oldPutCountAtB);
+    expect(oldBrowserPuts.filter((request) => request.phase === 'actor-B')).toEqual([]);
+    const oldLocalAfterReply = await local(actorA.id, secondProject);
+    assertContent(oldLocalAfterReply.record!.document, 444.4, latestSecondSketch);
+    expect(await local(actorB.id, secondProject)).toMatchObject({ raw: null, record: null });
+    const deniedProjects: unknown[] = [];
+    for (const projectId of [firstProject, secondProject]) {
+      const response = await other.context().request.get(`/api/projects/${projectId}`);
+      expect([403, 404]).toContain(response.status());
+      deniedProjects.push({ projectId, status: response.status() });
+    }
+    // A normal bootstrap now renders B in the old page; no fake principal/event.
+    await page.goto(`/#/home/${newProject}`);
+    const bootstrappedActorB = await actor();
+    expect(bootstrappedActorB).toEqual(actorB);
+    const bootstrappedUi = await ui(page, '888.8', newSketch, actorB);
+    expect(bootstrappedUi.status).toBe('saved');
+    assertContent(
+      (await local(actorA.id, secondProject)).record!.document,
+      444.4,
+      latestSecondSketch,
+    );
+    expect(oldBrowserPuts.filter((request) => request.phase === 'actor-B')).toEqual([]);
+    writeFileSync(
+      `${evidenceDir}/after-project-account-isolation.json`,
+      JSON.stringify(
+        {
+          actorA,
+          actorB,
+          firstProject,
+          secondProject,
+          newProject,
+          requests,
+          oldBrowserPuts,
+          heldReplies,
+          committedFirst,
+          committedSecond,
+          beforeProjectSwitch,
+          afterProjectSwitch,
+          secondBeforeReply,
+          secondAfterReply,
+          secondServerBeforeReply,
+          beforeAccountSwitch,
+          oldUiAfterReply,
+          oldLocalAfterReply,
+          newLocalBefore,
+          newServerBeforeReply,
+          newUiBeforeReply,
+          deniedProjects,
+          bootstrappedActorB,
+          bootstrappedUi,
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    projectReply.release();
+    accountReply.release();
+    await other.close();
+  }
 });
 
 test('ELECTRONICS-E01 SAV06 does not clear a real two-tab conflict by editing again', async ({

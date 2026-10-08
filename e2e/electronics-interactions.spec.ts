@@ -956,6 +956,7 @@ async function openEditor(
 ) {
   let doc = initial;
   let revision = 1;
+  const user = { id: ID, displayName: 'Проверка интерфейса', email: 'interaction@example.test' };
   const requests: string[] = [];
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -977,7 +978,6 @@ async function openEditor(
   });
   await page.route('**/api/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
-    const user = { id: ID, displayName: 'Проверка интерфейса', email: 'interaction@example.test' };
     let body: unknown;
     if (path === '/api/auth/me')
       body = {
@@ -1031,10 +1031,31 @@ async function openEditor(
   // The mock server changes only after PUT /draft. Interaction checks use the
   // browser's synchronously written local draft until an explicit server save.
   const readEditorDocument = async (): Promise<SchematicDocument> => {
-    const local = await page.evaluate((id) => {
-      const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
-      return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
-    }, ID);
+    const local = await page.evaluate(
+      ({ projectId, userId }) => {
+        const raw = localStorage.getItem(
+          `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`,
+        );
+        if (raw === null) return null;
+        const record = JSON.parse(raw) as Record<string, unknown>;
+        if (
+          record['schemaVersion'] !== 3 ||
+          record['identityKind'] !== 'account' ||
+          record['userId'] !== userId ||
+          record['projectId'] !== projectId ||
+          record['moduleKey'] !== 'electronics' ||
+          !Number.isSafeInteger(record['baseRevision']) ||
+          typeof record['updatedAt'] !== 'string' ||
+          typeof record['document'] !== 'object' ||
+          record['document'] === null ||
+          Array.isArray(record['document'])
+        ) {
+          throw new Error('Interaction fixture read an invalid attributed Electronics draft');
+        }
+        return record['document'] as SchematicDocument;
+      },
+      { projectId: ID, userId: user.id },
+    );
     return local ?? doc;
   };
   return { requests, errors, readDocument: () => doc, readEditorDocument };
