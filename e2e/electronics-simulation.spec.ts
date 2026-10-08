@@ -3975,8 +3975,545 @@ async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void>
   expect(
     await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
   ).toBeNull();
+  expect(await e01LocalDraft(page, projectId)).toBeNull();
   await page.goto('/#/projects');
 }
+
+const E01_SKETCH = '// E01 pupil original\nvoid setup() {}\nvoid loop() {}';
+const E01_CHANGED_SKETCH = '// E01 pupil changed\nvoid setup() {}\nvoid loop() {}';
+
+function e01Document(): SchematicDocument {
+  const base = circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false });
+  const board = arduinoInputDocument('button').components.find((c) => c.id === 'uno')!;
+  return {
+    ...base,
+    components: [
+      ...base.components,
+      {
+        ...board,
+        position: { x: 1100, y: 550 },
+        stateProperties: { ...board.stateProperties, arduinoSource: E01_SKETCH },
+      },
+    ],
+  };
+}
+
+async function e01LocalDraft(page: Page, projectId: string): Promise<string | null> {
+  const me = await page.context().request.get('/api/auth/me');
+  const session = (await me.json()) as { authenticated: boolean; user?: { id: string } };
+  expect(session.authenticated).toBe(true);
+  const key = `asa-project-local-draft:user:account:${encodeURIComponent(session.user!.id)}:${encodeURIComponent(projectId)}`;
+  return page.evaluate((key) => localStorage.getItem(key), key);
+}
+
+async function e01Server(page: Page, projectId: string) {
+  const response = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(response.status()).toBe(200);
+  return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
+}
+
+async function e01Resistance(page: Page) {
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  return page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+}
+
+async function e01EditSketch(page: Page, source: string) {
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await page.getByLabel('Код Arduino C++', { exact: true }).fill(source);
+  await expect(page.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(source);
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+}
+
+test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local copy', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 denied local copy');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('asa-project-local-draft:'))
+        throw new DOMException('E01 controlled local storage denial', 'QuotaExceededError');
+      original.call(this, key, value);
+    };
+  });
+  const requests: unknown[] = [];
+  page.on('requestfailed', (request) => {
+    if (new URL(request.url()).pathname === `/api/projects/${projectId}/draft`)
+      requests.push({
+        at: Date.now(),
+        method: request.method(),
+        body: request.postDataJSON(),
+        failure: request.failure(),
+      });
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await expect(
+    page.getByRole('button', { name: 'Получить аварийную копию проекта' }),
+  ).toBeVisible();
+  const beforeSaveDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Получить аварийную копию проекта' }).click();
+  await (await beforeSaveDownload).saveAs(`${evidenceDir}/after-before-server-attempt.json`);
+  const beforeAttemptCopy = JSON.parse(
+    readFileSync(`${evidenceDir}/after-before-server-attempt.json`, 'utf8'),
+  ) as SchematicDocument;
+  expect(beforeAttemptCopy.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
+  expect(
+    beforeAttemptCopy.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
+  ).toBe(E01_SKETCH);
+  expect(requests).toEqual([]);
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect.poll(() => requests.length).toBe(1);
+  const indicator = page.locator('.workbench-save-state');
+  await expect(indicator).toHaveAttribute('data-persistence-status', 'error');
+  const server = await page
+    .context()
+    .request.get(`/api/projects/${projectId}`, { headers: { origin: new URL(page.url()).origin } });
+  expect(server.ok()).toBe(true);
+  const local = await e01LocalDraft(page, projectId);
+  writeFileSync(
+    `${evidenceDir}/after-local-denial.json`,
+    JSON.stringify(
+      {
+        projectId,
+        requests,
+        local,
+        server: await server.json(),
+        dom: {
+          status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
+          label: await indicator.textContent(),
+          detail: await indicator.getAttribute('title'),
+          resistor: await value.inputValue(),
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await page.screenshot({ path: `${evidenceDir}/after-local-denial-1440.png`, fullPage: true });
+  expect(local).toBeNull();
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Получить аварийную копию проекта' }).click();
+  const downloaded = await download;
+  const copyPath = `${evidenceDir}/after-emergency-document.json`;
+  await downloaded.saveAs(copyPath);
+  const copy = JSON.parse(readFileSync(copyPath, 'utf8')) as SchematicDocument;
+  expect(copy.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
+  expect(copy.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource']).toBe(
+    E01_SKETCH,
+  );
+  expect(copy.connections).toEqual(e01Document().connections);
+  for (const width of [1440, 1024, 390, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(indicator).toBeVisible();
+    await page
+      .getByRole('button', { name: 'Получить аварийную копию проекта' })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      page.getByRole('button', { name: 'Получить аварийную копию проекта' }),
+    ).toBeVisible();
+    await page.screenshot({
+      path: `${evidenceDir}/after-local-denial-${width}.png`,
+      fullPage: true,
+    });
+  }
+  await expect(value).toHaveValue('166.7');
+  await expect(indicator).not.toHaveAttribute(
+    'title',
+    /сохранена на этом устройстве|сохранены в браузере/,
+  );
+});
+
+test('ELECTRONICS-E01 AFTER latest failed save recovers quietly without another edit', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 quiet network recovery');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  const requests: unknown[] = [];
+  const replies: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      requests.push({ at: Date.now(), body: request.postDataJSON() });
+  });
+  page.on('response', (response) => {
+    if (
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      replies.push({ at: Date.now(), status: response.status() });
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  expect(requests).toHaveLength(1);
+  await page.unroute(`**/api/projects/${projectId}/draft`);
+  const transportRestoredAt = Date.now();
+  try {
+    // Real browser time, no focus/online event, page reload, clock injection or new edit.
+    await expect
+      .poll(() => replies.filter((reply) => (reply as { status: number }).status === 200).length, {
+        timeout: 70_000,
+        intervals: [1_000],
+      })
+      .toBe(1);
+  } finally {
+    const server = await page.context().request.get(`/api/projects/${projectId}`, {
+      headers: { origin: new URL(page.url()).origin },
+    });
+    expect(server.ok()).toBe(true);
+    writeFileSync(
+      `${evidenceDir}/after-quiet-recovery.json`,
+      JSON.stringify(
+        {
+          projectId,
+          transportRestoredAt,
+          capturedAt: Date.now(),
+          requests,
+          replies,
+          local: await e01LocalDraft(page, projectId),
+          server: await server.json(),
+          dom: {
+            status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
+            detail: await page.locator('.workbench-save-state').getAttribute('title'),
+            resistor: await value.inputValue(),
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/after-quiet-recovery-1440.png`,
+      fullPage: true,
+    });
+  }
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const confirmed = await e01Server(page, projectId);
+  expect(confirmed.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
+  expect(
+    confirmed.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(confirmed.draft.revision).toBeGreaterThan(1);
+  const profile = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    const independent = await profile.newPage();
+    await loginWithOrganization(independent, teacher);
+    expect(await e01LocalDraft(independent, projectId)).toBeNull();
+    await independent.goto(`/#/home/${projectId}`);
+    await expect(await e01Resistance(independent)).toHaveValue('166.7');
+    await independent.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(independent.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
+      E01_CHANGED_SKETCH,
+    );
+    writeFileSync(
+      `${evidenceDir}/after-second-profile.json`,
+      JSON.stringify(
+        {
+          projectId,
+          server: await e01Server(independent, projectId),
+          local: await e01LocalDraft(independent, projectId),
+          sketch: await independent.getByLabel('Код Arduino C++', { exact: true }).inputValue(),
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    try {
+      await profile.request.post('/api/auth/logout', {
+        headers: { origin: new URL(page.url()).origin },
+      });
+    } finally {
+      await profile.close();
+    }
+  }
+});
+
+test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a renderer crash', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 crash recovery');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await (await e01Resistance(page)).fill('177.7');
+  const local = JSON.parse((await e01LocalDraft(page, projectId))!);
+  expect(local.document.components.find((c: { id: string }) => c.id === 'resistor').value).toBe(
+    177.7,
+  );
+  expect(
+    local.document.components.find((c: { id: string }) => c.id === 'uno').stateProperties
+      .arduinoSource,
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(
+    (await e01Server(page, projectId)).draft.document.components.find((c) => c.id === 'resistor')
+      ?.value,
+  ).toBe(50);
+  const lifecycle: string[] = [];
+  page.on('console', (message) => {
+    if (message.text() === 'E01 pagehide') lifecycle.push('pagehide');
+  });
+  await page.evaluate(() => window.addEventListener('pagehide', () => console.log('E01 pagehide')));
+  const cdp = await page.context().newCDPSession(page);
+  const crash = page.waitForEvent('crash');
+  void cdp.send('Page.crash').catch(() => undefined);
+  await crash;
+  expect(lifecycle).toEqual([]);
+  const reopened = await page.context().newPage();
+  await reopened.goto(`/#/home/${projectId}`);
+  await expect(await e01Resistance(reopened)).toHaveValue('177.7');
+  await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
+    E01_CHANGED_SKETCH,
+  );
+  await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await reopened.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(reopened.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const server = await e01Server(reopened, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(177.7);
+  expect(
+    server.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-renderer-crash.json',
+    JSON.stringify({ projectId, local, lifecycle, crash: true, server }, null, 2),
+  );
+  await reopened.close();
+});
+
+test('ELECTRONICS-E01 SAV04 reauthenticates the same actor and restores only its attributed work', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 expired session');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await (await e01Resistance(page)).fill('188.8');
+  const before = await e01LocalDraft(page, projectId);
+  await page.context().clearCookies();
+  const puts: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      puts.push(request.url());
+  });
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-save-state')).toHaveText('Нужно войти');
+  expect(puts).toEqual([]);
+  await loginWithOrganization(page, teacher);
+  await page.goto(`/#/home/${projectId}`);
+  await expect(await e01Resistance(page)).toHaveValue('188.8');
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await expect(page.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(E01_CHANGED_SKETCH);
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const server = await e01Server(page, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(188.8);
+  expect(
+    server.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-reauth.json',
+    JSON.stringify({ projectId, before, puts, server }, null, 2),
+  );
+});
+
+test('ELECTRONICS-E01 SAV05/09 keeps the latest edit local after a late reply and serializes departure', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 late response and leave');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  const input = await e01Resistance(page);
+  let release!: () => void;
+  let received!: () => void;
+  let gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reached = new Promise<void>((resolve) => {
+    received = resolve;
+  });
+  const requests: unknown[] = [];
+  let held = false;
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    requests.push(route.request().postDataJSON());
+    const response = await route.fetch();
+    if (!held) {
+      held = true;
+      received();
+      await gate;
+    }
+    await route.fulfill({ response });
+  });
+  await input.fill('111.1');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await reached;
+  await input.fill('222.2');
+  release();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'dirty',
+  );
+  expect(
+    JSON.parse((await e01LocalDraft(page, projectId))!).document.components.find(
+      (c: { id: string }) => c.id === 'resistor',
+    ).value,
+  ).toBe(222.2);
+  expect(
+    (await e01Server(page, projectId)).draft.document.components.find((c) => c.id === 'resistor')
+      ?.value,
+  ).toBe(111.1);
+  held = false;
+  gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  reached = new Promise<void>((resolve) => {
+    received = resolve;
+  });
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await reached;
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  await input.fill('333.3');
+  await page.getByRole('button', { name: 'ASA Lab', exact: true }).click();
+  release();
+  await expect(page).toHaveURL(/\/#\/home$/);
+  const server = await e01Server(page, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(333.3);
+  expect(
+    server.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(requests).toHaveLength(3);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-late-reply-departure.json',
+    JSON.stringify({ projectId, requests, server }, null, 2),
+  );
+});
+
+test('ELECTRONICS-E01 SAV06 does not clear a real two-tab conflict by editing again', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 two tabs conflict');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  const first = await e01Resistance(page);
+  await first.fill('444.4');
+  const other = await page.context().newPage();
+  await other.goto(`/#/home/${projectId}`);
+  await (await e01Resistance(other)).fill('555.5');
+  await other.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(other.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect(page.locator('.workbench-save-state')).toHaveAttribute(
+    'title',
+    /другую версию.*отправка остановлена/,
+  );
+  await first.fill('666.6');
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  const local = JSON.parse((await e01LocalDraft(page, projectId))!);
+  expect(local.document.components.find((c: { id: string }) => c.id === 'resistor').value).toBe(
+    666.6,
+  );
+  const server = await e01Server(page, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(555.5);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-two-tabs-conflict.json',
+    JSON.stringify({ projectId, local, server }, null, 2),
+  );
+  await other.close();
+});
 
 test('real API autosave sends the edited draft after one minute', async ({ page }) => {
   test.setTimeout(120_000);
