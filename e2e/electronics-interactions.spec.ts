@@ -36,6 +36,90 @@ const touchVideoTest = test.extend({
 });
 const wireVideoTest = test.extend({ video: 'on' });
 test.beforeEach(async ({ page }, info) => {
+  if (
+    !info.title.includes(
+      'a permanently missing ordinary image shows an accessible failure on stage and catalog',
+    )
+  )
+    return;
+  await page.addInitScript(() => {
+    const buffer: unknown[] = [];
+    (window as Window & { __ownerImageNativeProbe?: unknown[] }).__ownerImageNativeProbe = buffer;
+    const capture = (event: string, element: Element): void => {
+      const visual = element.closest('[data-owner-image-probe-id]');
+      const href = element.getAttribute('href') ?? element.getAttribute('src');
+      const card = element.closest('.workbench-catalog-card');
+      const component = element.closest('[data-testid="schematic-component"]');
+      if (!href?.includes('/battery-holders/aa-2.svg') && !visual) return;
+      if (visual && !visual.querySelector('image[href*="/battery-holders/aa-2.svg"]')) return;
+      buffer.push({
+        time: performance.now(),
+        event,
+        id: visual?.getAttribute('data-owner-image-probe-id'),
+        href,
+        owner: card ? 'catalog' : component ? 'stage' : 'other',
+        family: card?.getAttribute('data-family-id'),
+        component: component?.getAttribute('data-component-id'),
+        status: visual
+          ?.querySelector('[data-owner-image-status]')
+          ?.getAttribute('data-owner-image-status'),
+        badge: Boolean(visual?.querySelector('[data-testid="owner-image-error"]')),
+        connected: element.isConnected,
+      });
+    };
+    for (const kind of ['error', 'load'])
+      document.addEventListener(
+        kind,
+        (event) => {
+          if (event.target instanceof Element) capture('native-' + kind, event.target);
+        },
+        true,
+      );
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type === 'attributes' && record.target instanceof Element)
+          capture('dom-attribute-' + record.attributeName, record.target);
+        for (const node of record.addedNodes)
+          if (node instanceof Element) {
+            capture('dom-added', node);
+            for (const visual of node.querySelectorAll('[data-owner-image-probe-id]'))
+              capture('dom-visual-added', visual);
+          }
+      }
+    }).observe(document, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['href', 'data-owner-image-status', 'data-owner-image-probe-id'],
+    });
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  if (
+    !info.title.includes(
+      'a permanently missing ordinary image shows an accessible failure on stage and catalog',
+    ) ||
+    page.isClosed()
+  )
+    return;
+  await info.attach('owner-image-native-probe', {
+    body: JSON.stringify(
+      await page.evaluate(() => ({
+        entries: (window as Window & { __ownerImageNativeProbe?: unknown[] })
+          .__ownerImageNativeProbe,
+        final: [...document.querySelectorAll('[data-owner-image-probe-id]')]
+          .filter((node) => node.querySelector('image[href*="/battery-holders/aa-2.svg"]'))
+          .map((node) => ({
+            id: node.getAttribute('data-owner-image-probe-id'),
+            html: node.outerHTML,
+          })),
+      })),
+    ),
+    contentType: 'application/json',
+  });
+});
+
+test.beforeEach(async ({ page }, info) => {
   if (!/R3 native matrix|R3 cancellation/.test(info.title)) return;
   await page.addInitScript(() => {
     const events: unknown[] = [];

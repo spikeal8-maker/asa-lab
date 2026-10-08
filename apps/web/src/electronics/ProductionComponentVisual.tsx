@@ -12,6 +12,7 @@ import { visualAsset } from './component-catalog';
 import { OwnerServoVisual } from './OwnerServoVisual';
 import {
   subscribeSharedQuietAssetRecovery,
+  recordOwnerImageProbe,
   dcMotorRuntimeMarkup,
   dcMotorVisualMotion,
   gearmotorRuntimeMarkup,
@@ -293,6 +294,16 @@ function OwnerSvgFallback({
   );
 }
 
+let ownerImageProbeSequence = 0;
+let ownerImagePromiseSequence = 0;
+const ownerImagePromiseIds = new WeakMap<Promise<unknown>, number>();
+function ownerImagePromiseId(promise: Promise<unknown>): number {
+  const existing = ownerImagePromiseIds.get(promise);
+  if (existing) return existing;
+  const id = ++ownerImagePromiseSequence;
+  ownerImagePromiseIds.set(promise, id);
+  return id;
+}
 const recoveredOwnerImages = new Map<string, Promise<string>>();
 const failedOwnerImages = new Set<string>();
 const ownerImageCycles = new Map<string, number>();
@@ -306,9 +317,17 @@ function isCurrentOwnerImageHref(asset: string, href: string): boolean {
 
 function recoverOwnerImage(asset: string): Promise<string> {
   const cached = recoveredOwnerImages.get(asset);
-  if (cached) return cached;
+  if (cached) {
+    recordOwnerImageProbe('cache-hit', {
+      asset,
+      cycle: ownerImageCycles.get(asset),
+      promiseId: ownerImagePromiseId(cached),
+    });
+    return cached;
+  }
   const cycle = (ownerImageCycles.get(asset) ?? 0) + 1;
   ownerImageCycles.set(asset, cycle);
+  recordOwnerImageProbe('cache-new-cycle', { asset, cycle });
   const pending = (async () => {
     for (let attempt = 0; attempt < OWNER_SVG_ATTEMPTS; attempt += 1) {
       try {
@@ -340,6 +359,7 @@ function recoverOwnerImage(asset: string): Promise<string> {
           image.src = url.href;
         });
         failedOwnerImages.delete(asset);
+        recordOwnerImageProbe('cache-resolve', { asset, href, cycle });
         return href;
       } catch (error) {
         if (attempt + 1 === OWNER_SVG_ATTEMPTS) throw error;
@@ -351,43 +371,88 @@ function recoverOwnerImage(asset: string): Promise<string> {
     throw new Error('Owner image recovery exhausted');
   })();
   recoveredOwnerImages.set(asset, pending);
+  recordOwnerImageProbe('cache-created', { asset, cycle, promiseId: ownerImagePromiseId(pending) });
   void pending.catch(() => {
     if (recoveredOwnerImages.get(asset) === pending) recoveredOwnerImages.delete(asset);
     failedOwnerImages.add(asset);
+    recordOwnerImageProbe('cache-reject', {
+      asset,
+      cycle,
+      stillCached: recoveredOwnerImages.get(asset) === pending,
+    });
   });
   return pending;
 }
 
 function useOwnerImageHref(asset: string): {
+  readonly probeId: number;
   readonly href: string;
   readonly failed: boolean;
   readonly onError: () => void;
   readonly onLoad: () => void;
 } {
+  const probeIdRef = useRef(0);
+  if (!probeIdRef.current) probeIdRef.current = ++ownerImageProbeSequence;
+  const id = probeIdRef.current;
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
   const current = useRef(loaded);
   current.current = loaded;
   const handlers = useRef<{ asset: string; error: () => void; load: () => void } | null>(null);
   const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
+  recordOwnerImageProbe('render-state', {
+    asset,
+    id,
+    loaded,
+    globalFailed: failedOwnerImages.has(asset),
+    cycle: ownerImageCycles.get(asset),
+  });
   useEffect(() => {
     let active = true;
     let pending: Promise<boolean> | null = null;
+    const probe = (event: string, extra: Record<string, unknown> = {}): void =>
+      recordOwnerImageProbe(event, {
+        asset,
+        id,
+        active,
+        pending: pending !== null,
+        pendingId: pending ? ownerImagePromiseId(pending) : null,
+        current: current.current,
+        globalFailed: failedOwnerImages.has(asset),
+        cycle: ownerImageCycles.get(asset),
+        ...extra,
+      });
+    probe('effect-setup', { queued: earlyEvent.current });
+    const publish = (next: typeof loaded, reason: string): void => {
+      probe('publish-state', { next, reason });
+      setLoaded(next);
+    };
     const load = (): Promise<boolean> => {
-      if (pending) return pending;
-      setLoaded({ asset, href: asset, failed: false });
-      pending = recoverOwnerImage(asset)
+      probe('load-enter');
+      if (pending) {
+        probe('load-pending-reused');
+        return pending;
+      }
+      publish({ asset, href: asset, failed: false }, 'load-start');
+      const recoveryPromise = recoverOwnerImage(asset);
+      pending = recoveryPromise
         .then((href) => {
-          if (active && isCurrentOwnerImageHref(asset, href))
-            setLoaded({ asset, href, failed: false });
+          const isCurrent = isCurrentOwnerImageHref(asset, href);
+          probe('load-resolve', { href, isCurrent, returnedReady: true });
+          if (active && isCurrent) publish({ asset, href, failed: false }, 'load-resolve');
+          else probe('drop-load-publication', { href, isCurrent });
           return true;
         })
         .catch(() => {
-          if (active) setLoaded({ asset, href: asset, failed: true });
+          probe('load-reject', { returnedReady: false });
+          if (active) publish({ asset, href: asset, failed: true }, 'load-reject');
+          else probe('drop-reject-publication');
           return false;
         })
         .finally(() => {
+          probe('load-finally');
           pending = null;
         });
+      probe('load-created', { recoveryPromiseId: ownerImagePromiseId(recoveryPromise) });
       return pending;
     };
     const recovery = subscribeSharedQuietAssetRecovery(
@@ -397,42 +462,62 @@ function useOwnerImageHref(asset: string): {
           await recoverOwnerImage(asset);
           // A preflight Image is not proof that the mounted SVG <image> decoded.
           // Its onLoad is the success signal; onError keeps the finite budget.
+          probe('quiet-retry-resolve', { result: 'pending' });
           return 'pending';
         } catch {
+          probe('quiet-retry-reject');
           return false;
         }
       },
       () => {
         void recoverOwnerImage(asset)
           .then((href) => {
-            if (active && isCurrentOwnerImageHref(asset, href))
-              setLoaded({ asset, href, failed: false });
+            const isCurrent = isCurrentOwnerImageHref(asset, href);
+            probe('shared-ready-resolve', { href, isCurrent });
+            if (active && isCurrent)
+              publish({ asset, href, failed: false }, 'shared-ready-resolve');
+            else probe('drop-shared-publication', { href, isCurrent });
           })
           .catch(() => {
-            if (active) setLoaded({ asset, href: asset, failed: true });
+            probe('shared-ready-reject');
+            if (active) publish({ asset, href: asset, failed: true }, 'shared-ready-reject');
           });
       },
       asset,
+      id,
     );
     const start = (): void => {
+      probe('start-guard', { permanent: recovery.permanent() });
       if (recovery.permanent()) return;
       void load().then((ready) => {
+        probe('start-outcome', { ready });
         if (active && !ready) recovery.failed();
       });
     };
     const recover = (): void => {
-      if (!active || pending || recovery.permanent()) return;
-      if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
+      probe('recover-guard', { permanent: recovery.permanent() });
+      if (!active || pending || recovery.permanent()) {
+        probe('recover-drop-inactive-pending-permanent');
         return;
+      }
+      if (
+        current.current.asset === asset &&
+        current.current.failed &&
+        failedOwnerImages.has(asset)
+      ) {
+        probe('recover-drop-already-failed');
+        return;
+      }
       if (
         current.current.asset === asset &&
         current.current.href !== asset &&
         !failedOwnerImages.has(asset)
       ) {
         // The validated retry URL failed in this mounted SVG image consumer.
+        probe('recover-invalidate-global-cache');
         recoveredOwnerImages.delete(asset);
         failedOwnerImages.add(asset);
-        setLoaded({ asset, href: current.current.href, failed: true });
+        publish({ asset, href: current.current.href, failed: true }, 'mounted-retry-error');
         recovery.failed();
         return;
       }
@@ -442,15 +527,18 @@ function useOwnerImageHref(asset: string): {
       asset,
       error: recover,
       load: () => {
+        probe('mounted-load-handler');
         if (active && current.current.asset === asset) recovery.recovered();
       },
     };
     handlers.current = mountedHandlers;
+    probe('handlers-installed');
     // The native SVG image can notify before passive lifecycle setup. Replay
     // only this resource's latest event; a newer resource owns its own event.
     if (earlyEvent.current?.asset === asset) {
       const kind = earlyEvent.current.kind;
       earlyEvent.current = null;
+      probe('queued-event-replay', { kind });
       mountedHandlers[kind]();
     }
     const retry = (): void => {
@@ -463,6 +551,7 @@ function useOwnerImageHref(asset: string): {
     window.addEventListener('focus', retry);
     document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
+      probe('effect-cleanup');
       active = false;
       recovery.cancel();
       if (handlers.current === mountedHandlers) handlers.current = null;
@@ -473,10 +562,23 @@ function useOwnerImageHref(asset: string): {
     };
   }, [asset]);
   const notify = (kind: 'error' | 'load'): void => {
+    recordOwnerImageProbe('react-event-ingress', {
+      asset,
+      id,
+      kind,
+      handlerAsset: handlers.current?.asset,
+      current: current.current,
+      globalFailed: failedOwnerImages.has(asset),
+      queued: earlyEvent.current,
+    });
     if (handlers.current?.asset === asset) handlers.current[kind]();
-    else earlyEvent.current = { asset, kind };
+    else {
+      earlyEvent.current = { asset, kind };
+      recordOwnerImageProbe('queued-event', { asset, id, kind });
+    }
   };
   return {
+    probeId: id,
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
     onError: () => notify('error'),
@@ -1422,6 +1524,7 @@ export function ProductionComponentVisual({
       height={height}
       viewBox={`0 0 ${width} ${height}`}
       overflow="visible"
+      data-owner-image-probe-id={ownerImage.probeId}
       data-led-colour={entry.key === 'led-5mm' ? ledColour : undefined}
       data-led-brightness={entry.key === 'led-5mm' ? ledBrightness : undefined}
       data-led-runtime-state={ledRuntimeState}

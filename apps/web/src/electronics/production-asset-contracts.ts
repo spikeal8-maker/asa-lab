@@ -409,6 +409,19 @@ export function createQuietAssetRecovery(
   };
 }
 
+// Temporary passive native probe, present only in the archived diagnostic build.
+export function recordOwnerImageProbe(event: string, details: Record<string, unknown>): void {
+  if (typeof window === 'undefined') return;
+  const buffer = (window as Window & { __ownerImageNativeProbe?: unknown[] })
+    .__ownerImageNativeProbe;
+  if (
+    !buffer ||
+    !String(details['asset'] ?? details['key'] ?? '').includes('/battery-holders/aa-2.svg')
+  )
+    return;
+  buffer.push({ time: performance.now(), event, ...details });
+}
+
 const sharedQuietRecoveries = new Map<
   string,
   {
@@ -424,6 +437,7 @@ export function subscribeSharedQuietAssetRecovery(
   retry: () => Promise<boolean | 'pending'>,
   onReady: () => void,
   lateAsset?: string,
+  probeId?: number,
 ): { failed: () => void; recovered: () => void; cancel: () => void; permanent: () => boolean } {
   let shared = sharedQuietRecoveries.get(key);
   if (!shared) {
@@ -431,6 +445,13 @@ export function subscribeSharedQuietAssetRecovery(
     const failedListeners = new Set<() => void>();
     const recovery = createQuietAssetRecovery(async () => {
       const result = await retry();
+      recordOwnerImageProbe('shared-retry-outcome', {
+        key,
+        id: probeId,
+        result,
+        listeners: listeners.size,
+        failedListeners: failedListeners.size,
+      });
       if (result !== false) for (const listener of listeners) listener();
       return result === true;
     }, lateAsset);
@@ -439,13 +460,26 @@ export function subscribeSharedQuietAssetRecovery(
   }
   shared.listeners.add(onReady);
   const entry = shared;
+  const probe = (event: string): void =>
+    recordOwnerImageProbe(event, {
+      key,
+      id: probeId,
+      member: entry.listeners.has(onReady),
+      failedMember: entry.failedListeners.has(onReady),
+      listeners: entry.listeners.size,
+      failedListeners: entry.failedListeners.size,
+      permanent: entry.recovery.permanent(),
+    });
+  probe('shared-subscribe');
   return {
     failed: () => {
       entry.failedListeners.add(onReady);
+      probe('shared-failed');
       entry.recovery.failed();
     },
     recovered: () => {
       entry.failedListeners.delete(onReady);
+      probe('shared-recovered');
       // A successful mounted image cannot clear another consumer's timer.
       if (entry.failedListeners.size === 0) entry.recovery.recovered();
     },
@@ -453,6 +487,7 @@ export function subscribeSharedQuietAssetRecovery(
     cancel: () => {
       entry.listeners.delete(onReady);
       entry.failedListeners.delete(onReady);
+      probe('shared-unsubscribe');
       if (entry.listeners.size > 0) {
         if (entry.failedListeners.size === 0) entry.recovery.recovered();
         return;
