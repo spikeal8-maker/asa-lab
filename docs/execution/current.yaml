@@ -110,21 +110,23 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: portal_programme_technical_complete_owner_review_pending
-      owner_acceptance: pending
+      status: in_progress
+      checkpoint: portal_owner_revision_r1_compact_avatar_selected
+      owner_acceptance: changes_requested
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
         - document: PORTAL-SHELL-UX-ETZ
-          revision: '1.1'
+          revision: '2.0'
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
-      owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
-      status: technical_complete
-      selected_slice: null
-      dependency_order: [S1, S2, S3, S4]
-      remaining_slices: []
+      owner_authorization: revise_avatar_shell_and_settings_to_compact_owner_requirements
+      status: in_progress
+      verified_revision: '1.1'
+      target_revision: '2.0'
+      selected_slice: R1
+      dependency_order: [R1, R2, R3]
+      remaining_slices: [R1, R2, R3]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:

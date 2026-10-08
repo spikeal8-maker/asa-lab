@@ -220,9 +220,9 @@ documents:
     kind: target
     status: canonical
     authority: portal_shell_avatar_ux
-    revision: '1.1'
+    revision: '2.0'
     context_role: task
-    read_when: [portal_shell, responsive_navigation, avatar_preview, notification_polling, startup_delivery]
+    read_when: [portal_shell, responsive_navigation, avatar_preview, settings_composition, contextual_information, notification_polling, startup_delivery]
 
   - id: IDENTITY-ACCESS-V22
     path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
