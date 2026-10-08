@@ -581,16 +581,31 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-SAVE-RECOVERY-001
-      issue: 526
+      id: TASK-ELECTRONICS-SKETCH-DRAFT-COMMIT-001
+      issue: 529
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: independent_review_requests_fixture_and_sav10
+      checkpoint: inherited_fast_exit_sketch_loss_bounded_repair
       owner_acceptance: pending
     suspended_slices:
+      - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+        issue: 526
+        status: suspended_for_baseline_dependency
+        checkpoint: r1_exact_head_independent_request_changes
+        preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
+        preserved_branch: codex/electronics-save-recovery-526-review-r1
+        preserved_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
+        exact_general_run: 37845048256
+        exact_general_conclusion: success
+        exact_electronics_run: 37845156460
+        exact_browser_conclusion: failure
+        independent_review: request_changes
+        dependency_issue: 529
+        reason: Independent review proved inherited 260ms sketch commit cancellation on genuine exit; separate baseline repair before E01 acceptance. New JSON CTA clipping remains a separate current-diff repair in526.
+        resume_after: Technical acceptance of529, then fresh canonical526 selection and bounded CTA/readiness repair with new final-SHA review.
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
         status: suspended_by_owner_priority
@@ -612,24 +627,26 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 1e2ce7a94be4c8e5a1a14d2db259ec693892fe8b
       head_sha: null
-      observed_at: '2026-10-08T20:54:10Z'
+      observed_at: '2026-10-08T21:45:50Z'
       main:
         branch: main
-        sha: 4f6b677e08975680e9b3222778b11b8738ed0227
+        sha: af5a012cfd5ddd387d7226e88888f8a94fe36d98
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
-        Published candidate74928374ce93a41fd59ec8cc0b1fb96a5b55b290 received NEW independent REQUEST_CHANGES.
-        Controller independently confirmed registered interactions fixture1035 still reads legacy unscoped draft key,
-        so strict detach assertion361 observes stale server bindings after the scoped-key product change.
-        SAV10 real production user/project isolation evidence is also incomplete. Select only bounded review repair
-        of the existing fixture reader and missing SAV10 browser journey; do not weaken assertions/timeouts,
-        restore legacy adoption, or change accepted product code without a newly proved defect and controller scope ACK.
-        General37839211753 terminalSUCCESS on749. Ordinary37839235069 focused/benchmarkSUCCESS, browserFAIL25/99PASS, review-imagesSKIPPED. Raw AFTER independently shows a valid older scoped50draft predating injected write denial, latestUI166.7 and truthful memory-only warning; test4119 incorrectly expects null. Crash4315 received no crash event; cached trace records pending Page.crash until teardown, not proof of crash recovery. Bounded R1 may correct these existing evidence fixtures after concrete setup diagnosis without weakening content/durability checks. Main4f6 General37840144460 terminalSUCCESS; preserve independent admin-logs changes.
-        Localfocused timeout on untouched697asset hash case remains FAIL despite directed standalone PASS;
-        timing cause provisional, no gate or acceptance claim. Preserve original BEFORE and suspended525ed4.
-        Corrected final SHA requires ordinary exact gates and another NEW independent review before technical closure.
-        School K0/version/backup, actual-device T3 and owner/class acceptance remain separate pending evidence;
-        no deployment, DB, network or backup operation is authorized.
+        Fresh main af5a012cfd5ddd387d7226e88888f8a94fe36d98 General37843167580 terminalSUCCESS.
+        Published526R1 c15e6e13dab91f72619c28ba0adc552a96fa2d77 received NEW independent REQUEST_CHANGES.
+        Exact General37845048256 SUCCESS all4/166fresh0hits; ordinary37845156460 focused and benchmarkSUCCESS,
+        browser122PASS3FAIL, review-imagesSKIPPED. Original logs/traces cached once and preserved.
+        Actual fast genuine-exit PUT returned200 with oldsketch despite visible newtext; ArduinoCodePanel260ms
+        commit is cancelled on unmount. Same source blob in main and candidate proves inherited baseline defect.
+        Select only529 sketch-input-to-canonical commit repair from main, no unaccepted526 product integration.
+        Closing the panel alone does not unmount it. Do not hide fast-exit loss with waits or weaker assertions.
+        Crash/SAV10 evidence remains incomplete before injection/scope change;526 also has proved JSON CTA77px clipping.
+        Keep526c15 and525ed4 published and preserved, prior accepted results and foreign lanes unchanged.
+        New bounded implementer and NEW independent final-SHA review plus required exact gates before529 closure.
+        Then reselect526 for its narrow current-diff repair and remaining evidence, no reuse of old acceptance.
+        School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
+        no deployment, DB, network, backup or protected-artwork operation is authorized.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
