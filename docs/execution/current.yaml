@@ -320,7 +320,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_diagnosis_qualified_late_consumer_confirmation
+      checkpoint: late_consumer_fixture_correction_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -347,15 +347,15 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 6ac83dba22e63fe886f5f14f1133b949661f97dd
+      convergence_baseline_sha: 75a2c6123b43e8089e0197bd15a3f525429ff11d
       head_sha: null
-      observed_at: '2026-10-08T02:00:10Z'
+      observed_at: '2026-10-08T02:30:25Z'
       main:
         branch: main
-        sha: 6ac83dba22e63fe886f5f14f1133b949661f97dd
+        sha: 75a2c6123b43e8089e0197bd15a3f525429ff11d
       observation_note: >-
-        Dated main 6ac83dba before this evidence/confirmation selection; fetch
-        main and read exact-head CI before writes. Its general 37714366323 is
+        Dated main 75a2c612 before this evidence/confirmation selection; fetch
+        main and read exact-head CI before writes. Its general 37715848183 is
         successful; preserve Portal S4 and every other lane. Preserved Issue 517
         candidate dd912b2f (original 2d4654f2, product blob ab292c4a) is not
         accepted: exact general 37709690202 and required focused 1005 tests are
@@ -368,8 +368,15 @@ parallel_lanes:
         before execution; four temporary paths were restored byte-exact. See
         evidence/ordinary-image-native-diagnostic-517-20261008.md. Select ONE
         separate directed late/permanent consumer confirmation within this
-        card, preserving source and normal timings; no product repair until
-        that specific path is proved and a separate repair cycle is selected.
+        card, preserving source and normal timings. Its e045a0ba/run37717165930
+        failed a diagnostic precondition: basic includes battery-holder-aa, so
+        the catalog consumer was not removed. HEAD=0, no new B/permanent path
+        or cessation evidence; product cause remains unknown. NEW independent
+        review REQUEST_CHANGES applies only to this fixture. Select a separate
+        bounded correction of the removal/remount filter with cheap production
+        category-mapping checks before ONE corrected diagnostic case. No
+        product repair until that path is proved and a separate repair cycle
+        is selected. Original candidate and restored c1c84507 tree stay intact.
         No repeat native/full-suite run without a new hypothesis. Preserve
         suspended Issue 516 and Issue 505 PR 506 and their acceptance blockers.
         Issue 523 and Issue 521 remain technically closed, without repeated

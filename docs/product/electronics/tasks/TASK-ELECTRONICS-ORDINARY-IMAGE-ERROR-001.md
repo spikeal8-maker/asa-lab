@@ -60,6 +60,12 @@ The executor first reads existing permanent-404 coverage and source, then choose
 
 No product repair is authorized in this diagnostic cycle. Preserve the candidate source, original branch, #516 and #505/PR #506. Local type/lint/list checks precede the browser dispatch. Cache original evidence once, qualify instrumentation and baseline differences, restore temporary files byte-exact, report and STOP. A NEW independent reviewer checks exact source and raw observations. Only a confirmed path permits the controller to select a separate bounded product repair; native historical causality and classroom frequency remain separate limits.
 
+## Selected bounded diagnostic fixture correction after precondition failure
+
+The first late-consumer confirmation `e045a0ba17cda5603e482a96b99adf58d7facd51` / run `37717165930` received NEW independent REQUEST_CHANGES for its fixture: `basic` includes `battery-holder-aa` in `TINKERCAD_BASIC_FAMILY_ORDER`, so no removal occurred. The run reached HEAD=0, no new B and no permanent guard; it neither confirms nor disproves the product finding. Its three temporary paths were restored at `c1c845077c1b5b3c5adcd4f4e49733b29db7c546`, whose whole tree equals preserved `dd912`. Do not repeat the unchanged failing scenario.
+
+Select one separate bounded fixture correction: use a real category/filter that demonstrably excludes this actual family, prove B's removal while A remains connected, and restore B through its matching category. First perform a cheap local precondition check with the actual production `familyForVariant` / `familyMatchesCategory` mapping: the chosen hiding category excludes AA-2 and `power` includes it. Preserve all production semantics, temporary passive hook diagnostics, existing scenario bodies, original assertions and protocol budgets. No product repair, timeout increase, timer acceleration or synthetic error is authorized. A new exact source archive and controller acknowledgement precede ONE corrected directed case; no native/full-suite rerun. Independently verify the captured guard path, request cessation and unchanged-document witnesses, explicitly qualifying a saturated buffer or missing full document payloads. Restore all temporary paths byte-exact to `dd912`, report and STOP; a NEW reviewer checks the actual exact source and raw result.
+
 ## Acceptance and STOP
 
 - Establish the exact cause with saved evidence plus the smallest directed scenario needed.
