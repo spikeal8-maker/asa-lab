@@ -69,7 +69,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт' }).click();
   // A new account lands on the creator home, not on the projects list.
-  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
 
   const context = page.context();
   for (const [module, title] of [
@@ -108,7 +108,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await secondPage.getByLabel('Пароль').fill(password);
   await secondPage.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await secondPage.getByRole('button', { name: 'Войти', exact: true }).click();
-  await expect(secondPage.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(secondPage.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   secondFailures.assertEmpty();
 
   const meResponse = await context.request.get('/api/auth/me');
@@ -276,7 +276,9 @@ test('owner completes Account C1 and existing project modules remain available',
   await oldPasswordPage.getByRole('button', { name: 'Войти', exact: true }).click();
   expect((await oldPasswordLoginResponsePromise).status()).toBe(401);
   await expect(oldPasswordPage).toHaveURL(/#\/sign-in$/);
-  await expect(oldPasswordPage.getByRole('heading', { name: 'Главная' })).not.toBeVisible();
+  await expect(
+    oldPasswordPage.getByRole('main', { name: 'Главная', exact: true }),
+  ).not.toBeVisible();
   await oldPasswordPage.close();
 
   await page.goto('/#/sign-in');
@@ -289,7 +291,7 @@ test('owner completes Account C1 and existing project modules remain available',
   });
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   expect((await newPasswordLoginResponsePromise).status()).toBe(200);
-  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   const newPasswordSession = await context.request.get('/api/auth/me');
   expect(newPasswordSession.status()).toBe(200);
   await expect(page.getByText('Account C1 Electronics')).toBeVisible();
@@ -368,7 +370,7 @@ test('migrated teacher changes password through organization browser login', asy
   });
   await page.getByRole('button', { name: 'Войти через организацию', exact: true }).click();
   expect((await initialOrganizationLogin).status()).toBe(200);
-  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
 
   const context = page.context();
   const organizationSessionBeforeChange = await context.request.get('/api/auth/me');
@@ -437,7 +439,9 @@ test('migrated teacher changes password through organization browser login', asy
     .getByRole('button', { name: 'Войти через организацию', exact: true })
     .click();
   expect((await oldOrganizationLogin).status()).toBe(401);
-  await expect(oldPasswordPage.getByRole('heading', { name: 'Главная' })).not.toBeVisible();
+  await expect(
+    oldPasswordPage.getByRole('main', { name: 'Главная', exact: true }),
+  ).not.toBeVisible();
   await oldPasswordPage.close();
 
   await page.goto('/#/organization-sign-in');
@@ -451,7 +455,7 @@ test('migrated teacher changes password through organization browser login', asy
   });
   await page.getByRole('button', { name: 'Войти через организацию', exact: true }).click();
   expect((await newOrganizationLogin).status()).toBe(200);
-  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   const newOrganizationSession = await context.request.get('/api/auth/me');
   expect(newOrganizationSession.status()).toBe(200);
   expect(await newOrganizationSession.json()).toMatchObject({
@@ -476,7 +480,7 @@ test('migrated teacher changes password through organization browser login', asy
   });
   await page.getByRole('button', { name: 'Войти', exact: true }).click();
   expect((await normalLogin).status()).toBe(200);
-  await expect(page.getByRole('heading', { name: 'Главная' })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   const normalSession = await context.request.get('/api/auth/me');
   expect(normalSession.status()).toBe(200);
   expect(await normalSession.json()).toMatchObject({
@@ -505,7 +509,7 @@ test('Account presentation persists through reload, cancels only display preview
     await target.getByLabel('Пароль').fill(`Safe-${unique}-Password`);
     await target.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
     await target.getByRole('button', { name: 'Создать аккаунт' }).click();
-    await expect(target.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(target.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
     await openAccountSettings(target);
     if ((target.viewportSize()?.width ?? 1440) <= 900)
       await target.getByLabel('Выбрать раздел настроек').selectOption('interface');
@@ -599,7 +603,7 @@ test('mounted Account A cannot read or save Account B presentation after shared 
     await target.getByLabel('Пароль').fill(password);
     await target.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
     await target.getByRole('button', { name: 'Создать аккаунт' }).click();
-    await expect(target.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(target.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
     const accountId = (await (await target.request.get('/api/auth/me')).json()).user.id as string;
     return { email, password, accountId };
   }
