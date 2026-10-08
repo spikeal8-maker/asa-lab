@@ -2,7 +2,9 @@ import { test, expect, type Page } from '@playwright/test';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 
-const evidence = 'e2e/artifacts/owner-preview/access-a-ui/admin-logs';
+const evidence =
+  process.env['ASA_ADMIN_LOGS_EVIDENCE_DIR'] ??
+  'e2e/artifacts/owner-preview/access-a-ui/admin-logs';
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
 
 async function fixture(
@@ -14,6 +16,8 @@ async function fixture(
   const workspaceId = '10000000-0000-4000-8000-000000000001';
   let failed = state === 'error';
   let exports = 0;
+  const queries: URLSearchParams[] = [];
+  const exportBodies: unknown[] = [];
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url());
     if (url.origin !== 'http://127.0.0.1:4612') return route.abort();
@@ -77,10 +81,20 @@ async function fixture(
           {
             source: 'api',
             state: 'ok',
-            detail: '',
+            detail: 'Fresh events',
             lastCollectedAt: new Date().toISOString(),
             collectedThrough: new Date().toISOString(),
+            retainedFrom: '2026-10-01T00:00:00.000Z',
+            retainedTo: '2026-10-07T10:00:00.000Z',
+            trimmed: true,
           },
+          ...Array.from({ length: 151 }, (_, i) => ({
+            source: `windows:Channel-${i}`,
+            state: 'pending',
+            detail: 'Historical coverage incomplete; queued',
+            lastCollectedAt: null,
+            collectedThrough: '2026-10-07T10:00:00.000Z',
+          })),
           {
             source: 'windows:Security',
             state: 'unavailable',
@@ -91,6 +105,7 @@ async function fixture(
         ],
       });
     if (path === '/api/admin/v1/logs') {
+      queries.push(url.searchParams);
       if (state === 'loading') return; // Deliberately unresolved response; page close releases it.
       if (failed) return reply({ error: { code: 'unavailable', message: 'offline' } }, 503);
       return reply({
@@ -110,12 +125,15 @@ async function fixture(
                 truncated: true,
               },
             ],
-        next: null,
+        next: url.searchParams.has('beforeTime')
+          ? null
+          : { time: '2026-10-07T10:00:00.000Z', id: 'a'.repeat(64) },
         partial: false,
       });
     }
     if (path === '/api/admin/v1/logs/exports') {
       exports += 1;
+      exportBodies.push(route.request().postDataJSON());
       return reply({ id: 'export-1', state: 'running', count: null, bytes: null, error: null });
     }
     if (path === '/api/admin/v1/logs/exports/export-1')
@@ -128,16 +146,21 @@ async function fixture(
       failed = false;
     },
     exports: () => exports,
+    queries: () => queries,
+    exportBodies: () => exportBodies,
   };
 }
 
-for (const width of [1440, 1024, 390, 320]) {
+for (const width of [1440, 1025, 1024, 390, 320]) {
   test(`populated page and long messages fit ${width}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 1000 });
     const f = await fixture(page, 'populated');
     await expect(page.getByRole('heading', { name: 'Админ Логи', exact: true })).toBeVisible();
     await expect(page.locator('.admin-log-entry')).toHaveCount(1);
     await expect(page.getByLabel('Журналы системы')).toBeVisible();
+    await expect(
+      page.getByText('Источники и полнота: 151 дозагружаются; 1 недоступны'),
+    ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
     ).toBe(true);
@@ -147,6 +170,29 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(f.exports()).toBe(1);
   });
 }
+
+test('source coverage is readable and archive buttons use dates independently of screen filters', async ({
+  page,
+}) => {
+  const f = await fixture(page, 'populated');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  await page.getByText(/Источники и полнота:/).click();
+  await expect(page.getByText('Нет доступа к этому журналу.')).toBeVisible();
+  await expect(page.getByText(/старые записи этого источника сокращены/)).toBeVisible();
+  await page.getByLabel(/^Источник/).selectOption('scratch');
+  await page.getByLabel(/^Модуль/).selectOption('scratch');
+  await page.getByLabel('Поиск', { exact: true }).fill('failure');
+  await page.getByRole('button', { name: 'Показать', exact: true }).click();
+  await expect.poll(() => f.queries().at(-1)?.get('search')).toBe('failure');
+  expect(f.queries().at(-1)?.get('source')).toBe('scratch');
+  await page.getByRole('button', { name: /Показать ещё/ }).click();
+  await expect.poll(() => f.queries().at(-1)?.has('beforeTime')).toBe(true);
+  await page.getByRole('button', { name: 'Скачать ошибки', exact: true }).click();
+  await expect(page.getByRole('link', { name: /Скачать ZIP/ })).toBeVisible();
+  expect(f.exportBodies()[0]).toEqual(expect.objectContaining({ level: 'error' }));
+  expect(f.exportBodies()[0]).not.toHaveProperty('source');
+  expect(f.exportBodies()[0]).not.toHaveProperty('search');
+});
 
 for (const state of ['empty', 'error', 'loading', 'unavailable'] as const) {
   test(`visible ${state} state at 320`, async ({ page }) => {

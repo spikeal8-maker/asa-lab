@@ -43,7 +43,7 @@ foreach ($channel in $channels) {
         foreach ($event in $records) {
             $message = [string]$event.Message
             $messageBytes += [System.Text.Encoding]::UTF8.GetByteCount($message.Substring(0,[Math]::Min(16384,$message.Length)))
-            $events.Add(@{channel=$name; recordId=$event.RecordId; time=$event.TimeCreated.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); provider=$event.ProviderName; level=$event.Level; message=$message.Substring(0,[Math]::Min(16384,$message.Length)); truncated=($message.Length -gt 16384)})
+            $events.Add(@{channel=$name; eventId=$event.Id; recordId=$event.RecordId; time=$event.TimeCreated.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ'); provider=$event.ProviderName; level=$event.Level; message=$message.Substring(0,[Math]::Min(16384,$message.Length)); truncated=($message.Length -gt 16384)})
         }
         if ($records.Count -eq 256) {
             $last = $records[-1]

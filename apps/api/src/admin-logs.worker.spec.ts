@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { mkdtemp, writeFile, rm, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { inflateRawSync } from 'node:zlib';
+import { inflateRawSync, gzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { queryLogs, exportLogs, type LogFilter } from './admin-logs.worker.js';
 const filter: LogFilter = {
   from: '2026-10-01T00:00:00.000Z',
@@ -15,6 +16,133 @@ const filter: LogFilter = {
 };
 
 describe('retained log reader and archive', () => {
+  it('exports more than the old 256 MiB limit from compressed segments without losing rows', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-logs-large-'));
+    try {
+      const segments = [];
+      let rawBytes = 0;
+      for (let n = 0; n < 300; n += 1) {
+        const first = n * 64 + 1,
+          last = first + 63;
+        const events = Array.from({ length: 64 }, (_, i) => ({
+          id: (first + i).toString(16).padStart(64, '0'),
+          time: '2026-10-03T12:00:00.000Z',
+          source: 'api',
+          module: 'portal',
+          level: 'info',
+          message: 'А'.repeat(7500),
+          requestId: null,
+          revision: null,
+          origin: '',
+          truncated: false,
+        }));
+        const raw = Buffer.from(events.map((e) => JSON.stringify(e)).join('\n') + '\n');
+        const stored = gzipSync(raw);
+        const file = `seg-${String(first).padStart(16, '0')}-${String(last).padStart(16, '0')}.jsonl.gz`;
+        await writeFile(join(root, file), stored);
+        rawBytes += raw.length;
+        segments.push({
+          file,
+          schema: 2,
+          sha256: createHash('sha256').update(raw).digest('hex'),
+          rawBytes: raw.length,
+          bytes: stored.length,
+          count: events.length,
+          first: events[0]!.time,
+          last: events[0]!.time,
+          sources: ['api'],
+          modules: ['portal'],
+          levels: ['info'],
+        });
+      }
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({ version: 1, sources: [], segments }),
+      );
+      expect(rawBytes).toBeGreaterThan(256 * 1024 * 1024);
+      const output = join(root, 'all.zip');
+      const result = await exportLogs(root, filter, output);
+      expect(result.count).toBe(19200);
+      // Extract every ZIP local entry independently. Reused gzip deflate streams
+      // must decode to ordinary JSONL, including the first and last occurrences.
+      const archive = await readFile(output);
+      let offset = 0,
+        rows = 0;
+      const identities = new Set<string>();
+      while (archive.readUInt32LE(offset) === 0x04034b50) {
+        const size = archive.readUInt32LE(offset + 18);
+        const nameSize = archive.readUInt16LE(offset + 26);
+        const name = archive.subarray(offset + 30, offset + 30 + nameSize).toString();
+        const dataOffset = offset + 30 + nameSize;
+        const raw = inflateRawSync(archive.subarray(dataOffset, dataOffset + size));
+        if (name.endsWith('.jsonl'))
+          for (const line of raw.toString().trimEnd().split('\n')) {
+            rows += 1;
+            identities.add((JSON.parse(line) as { id: string }).id);
+          }
+        offset = dataOffset + size;
+      }
+      expect(rows).toBe(result.count);
+      expect(identities.size).toBe(rows);
+      expect(archive.readUInt32LE(offset)).toBe(0x02014b50);
+      const page = await queryLogs(root, filter, 100);
+      expect(page.items).toHaveLength(100);
+      expect((await queryLogs(root, { ...filter, level: 'error' }, 100)).items).toHaveLength(0);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 60000);
+
+  it('rejects corrupted gzip, mismatched checksums, overlapping ranges and retired snapshots', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-logs-corrupt-'));
+    try {
+      const file = 'seg-0000000000000001-0000000000000001.jsonl.gz';
+      const event = {
+        id: 'a'.repeat(64),
+        time: filter.from,
+        source: 'api',
+        module: 'system',
+        level: 'info',
+        message: 'ok',
+      };
+      const raw = Buffer.from(JSON.stringify(event) + '\n'),
+        stored = gzipSync(raw);
+      const segment = {
+        file,
+        bytes: stored.length,
+        rawBytes: raw.length,
+        schema: 2,
+        sha256: '0'.repeat(64),
+        count: 1,
+        first: filter.from,
+        last: filter.from,
+        sources: ['api'],
+        modules: ['system'],
+        levels: ['info'],
+      };
+      await writeFile(join(root, file), stored);
+      const catalog = { version: 1, sources: [], segments: [segment] };
+      await writeFile(join(root, 'catalog.json'), JSON.stringify(catalog));
+      await expect(queryLogs(root, filter, 100)).rejects.toThrow('LOG_SEGMENT_INVALID');
+      segment.sha256 = createHash('sha256').update(raw).digest('hex');
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({ ...catalog, segments: [segment, segment] }),
+      );
+      await expect(exportLogs(root, filter, join(root, 'overlap.zip'))).rejects.toThrow(
+        'LOG_CATALOG_INVALID',
+      );
+      await writeFile(join(root, 'catalog.json'), JSON.stringify(catalog));
+      const broken = Buffer.from(stored);
+      broken[broken.length - 8] = broken[broken.length - 8]! ^ 255;
+      await writeFile(join(root, file), broken);
+      await expect(queryLogs(root, filter, 100)).rejects.toThrow('LOG_SEGMENT_INVALID');
+      await rm(join(root, file));
+      await expect(queryLogs(root, filter, 100)).rejects.toThrow('LOG_SNAPSHOT_CHANGED');
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('orders interleaved segments, paginates without loss, filters and produces a readable ZIP', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-logs-'));
     try {

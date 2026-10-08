@@ -151,9 +151,18 @@ export class AdminLogsService {
         job.count = result.count;
         job.bytes = result.bytes;
       })
-      .catch(async () => {
+      .catch(async (failure: unknown) => {
         job.state = 'failed';
-        job.error = 'Не удалось собрать архив. Уменьшите период или повторите позже.';
+        const code = failure instanceof Error ? failure.message : '';
+        const reasons: Record<string, string> = {
+          LOG_EXPORT_TOO_LARGE: 'Архив превышает допустимый объём. Выберите меньший период.',
+          LOG_TIMEOUT: 'Сбор архива занял слишком много времени. Выберите меньший период.',
+          LOG_SNAPSHOT_CHANGED: 'Журналы обновились во время сборки. Повторите сбор архива.',
+          LOG_SEGMENT_INVALID: 'Обнаружен повреждённый файл журнала. Требуется проверка сборщика.',
+          LOG_CATALOG_INVALID: 'Каталог журналов повреждён. Требуется проверка сборщика.',
+          LOG_COLLECTOR_UNAVAILABLE: 'Сборщик журналов недоступен. Проверьте его подключение.',
+        };
+        job.error = reasons[code] ?? 'Не удалось собрать архив. Повторите позже.';
         await rm(job.output, { force: true }).catch(() => undefined);
       });
     return this.view(job);

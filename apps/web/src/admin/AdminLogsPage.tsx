@@ -13,6 +13,9 @@ interface LogEvent {
   readonly revision: string | null;
   readonly origin: string;
   readonly truncated: boolean;
+  readonly timeBasis?: string;
+  readonly windowsEventId?: number;
+  readonly windowsRecordId?: string;
 }
 interface LogSource {
   readonly source: string;
@@ -20,6 +23,10 @@ interface LogSource {
   readonly detail: string;
   readonly lastCollectedAt: string | null;
   readonly collectedThrough: string | null;
+  readonly checkedAt?: string;
+  readonly retainedFrom?: string | null;
+  readonly retainedTo?: string | null;
+  readonly trimmed?: boolean;
 }
 interface LogStatus {
   readonly state: 'ok' | 'stale' | 'unavailable';
@@ -88,6 +95,18 @@ const sourceLabel = (source: string): string =>
   source.endsWith(':recent')
     ? `${SOURCE[source.slice(0, -7)] ?? source.slice(0, -7)} · свежие записи`
     : (SOURCE[source] ?? source.replace(/^windows:/, 'Windows · '));
+const DETAIL: Record<string, string> = {
+  'Fresh events': 'Свежие события',
+  'History starts at container creation; removed containers cannot be recovered':
+    'История начинается с создания контейнера. Журналы удалённых контейнеров недоступны.',
+  'History collection is queued': 'История дозагружается.',
+  'Periodic reconciliation of the retained interval': 'Проверяется история за срок хранения.',
+  'Per-channel coverage and access limitations are listed separately':
+    'Полнота и ограничения доступа показаны отдельно для каждого журнала.',
+  'Channel was cleared; older history is unavailable':
+    'Журнал Windows был очищен. Более старая история недоступна.',
+  'Access denied': 'Нет доступа к этому журналу.',
+};
 
 export function AdminLogsPage({
   onAccessDenied,
@@ -306,23 +325,25 @@ export function AdminLogsPage({
             onChange={(event) => setSearch(event.target.value)}
           />
         </label>
-        <button type="submit" className="btn-secondary" disabled={loading}>
-          Показать
-        </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          onClick={() => {
-            const start = DAY.format(new Date(Date.now() - 6 * 86400_000));
-            const end = DAY.format(new Date());
-            setFrom(start);
-            setTo(end);
-            filters.current = { ...filters.current, from: start, to: end };
-            void load();
-          }}
-        >
-          Последние 7 дней
-        </button>
+        <div className="admin-logs-filter-actions">
+          <button type="submit" className="btn-secondary" disabled={loading}>
+            Показать
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              const start = DAY.format(new Date(Date.now() - 6 * 86400_000));
+              const end = DAY.format(new Date());
+              setFrom(start);
+              setTo(end);
+              filters.current = { ...filters.current, from: start, to: end };
+              void load();
+            }}
+          >
+            Последние 7 дней
+          </button>
+        </div>
       </form>
       {status ? (
         <div className="admin-logs-coverage">
@@ -343,8 +364,10 @@ export function AdminLogsPage({
               </p>
               <details>
                 <summary>
-                  Источники и полнота ({status.sources.filter((s) => s.state !== 'ok').length}{' '}
-                  требуют внимания)
+                  Источники и полнота: {status.sources.filter((s) => s.state === 'pending').length}{' '}
+                  дозагружаются;{' '}
+                  {status.sources.filter((s) => !['ok', 'pending'].includes(s.state)).length}{' '}
+                  недоступны
                 </summary>
                 <ul>
                   {status.sources.map((s) => (
@@ -353,11 +376,21 @@ export function AdminLogsPage({
                       {s.state === 'ok'
                         ? 'сбор работает'
                         : s.state === 'pending'
-                          ? 'ожидает сбора'
+                          ? 'история дозагружается'
                           : 'недоступен'}
-                      ; проверено {dateLabel(s.lastCollectedAt)}
+                      ; проверено {dateLabel(s.checkedAt ?? s.lastCollectedAt)}
                       {s.collectedThrough ? `; обработано по ${dateLabel(s.collectedThrough)}` : ''}
-                      {s.detail ? <small>{s.detail}</small> : null}
+                      {s.retainedFrom ? (
+                        <small>
+                          Сохранились записи: {dateLabel(s.retainedFrom)} —{' '}
+                          {dateLabel(s.retainedTo ?? null)}
+                          {s.trimmed
+                            ? '; старые записи этого источника сокращены по лимиту объёма'
+                            : ''}
+                          .
+                        </small>
+                      ) : null}
+                      {s.detail ? <small>{DETAIL[s.detail] ?? s.detail}</small> : null}
                     </li>
                   ))}
                 </ul>
@@ -416,7 +449,12 @@ export function AdminLogsPage({
               </span>
             </div>
             <pre>{entry.message}</pre>
-            {entry.requestId || entry.revision || entry.origin || entry.truncated ? (
+            {entry.requestId ||
+            entry.revision ||
+            entry.origin ||
+            entry.truncated ||
+            entry.timeBasis === 'file_mtime' ||
+            entry.windowsRecordId ? (
               <details>
                 <summary>Подробности</summary>
                 <dl>
@@ -436,6 +474,26 @@ export function AdminLogsPage({
                     <>
                       <dt>Журнал</dt>
                       <dd>{entry.origin}</dd>
+                    </>
+                  ) : null}
+                  {entry.timeBasis === 'file_mtime' ? (
+                    <>
+                      <dt>Время</dt>
+                      <dd>
+                        Собственное время события не распознано. Указано время изменения файла.
+                      </dd>
+                    </>
+                  ) : null}
+                  {entry.windowsEventId !== undefined ? (
+                    <>
+                      <dt>Событие Windows</dt>
+                      <dd>{entry.windowsEventId}</dd>
+                    </>
+                  ) : null}
+                  {entry.windowsRecordId ? (
+                    <>
+                      <dt>Запись Windows</dt>
+                      <dd>{entry.windowsRecordId}</dd>
                     </>
                   ) : null}
                   {entry.truncated ? (
