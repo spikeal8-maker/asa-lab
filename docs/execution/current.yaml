@@ -302,6 +302,23 @@ parallel_lanes:
         - deployment
       load_protocol: docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
       known_baseline_issues:
+        - id: s4_home_recovery_capture_navigation
+          classification: independent_baseline_defect
+          status: diagnosis_required
+          affected_path: e2e/access-account-ui.spec.ts
+          product_change_authorized: false
+          observed_failure_sha: 875e41aa083d92769f1b6d71bf110616fc66a30a
+          observed_failure_run: 37761366272
+          observed_synthetic_passed: 244
+          observed_synthetic_total: 245
+          diagnosis: >-
+            The unchanged published baseline lost the JavaScript execution context
+            during startupCapture in the Home delivery-error case. The same case
+            remains byte-identical in the bounded R3 working diff. Saved trace
+            diagnosis is pending; no R3 or product cause has been established.
+            A separate bounded cycle must address the proven cause before closure;
+            do not weaken the native My Projects exit, error or layout assertions.
+          evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/37761366272
         - id: s4_host_recovery_fixture_intermediate_document
           classification: independent_baseline_defect
           status: resolved_by_verified_fixture
@@ -1256,6 +1273,19 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: PORTAL-HOME-CAPTURE-BASELINE
+    kind: acceptance_blocker
+    lane: admin-auth
+    task_id: TASK-PORTAL-SHELL-UX-001
+    blocks: [technical_acceptance, owner_acceptance, release_claim, close_issue]
+    allows: [bounded_implementation, focused_verification, baseline_diagnosis]
+    reason: >-
+      Exact baseline General 37761366272 fails only the existing Home capture
+      during automatic navigation. R3 may complete its selected bounded candidate
+      and focused layout checks, but technical closure requires saved-trace
+      diagnosis, a separately reviewed correction of the proven cause, and full
+      exact-SHA CI. A green rerun alone does not resolve this dependency.
+    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/37761366272
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
