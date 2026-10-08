@@ -4139,6 +4139,12 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
       contentType: 'application/json',
     });
     failures.assertEmpty();
+    const reportDirectory = 'reports/playwright/sketch-529';
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/after-${action === 'manual Save' ? 'manual-Save' : 'genuine-departure'}.json`,
+      JSON.stringify(report, null, 2),
+    );
   });
 }
 
