@@ -5248,6 +5248,23 @@ describe('A4-3b immutable-origin Project Submission', () => {
       }
     };
     const bySeatList = await readList('Seat', seatId);
+    if (process.env.ASA_ORIGIN_LIST_PLAN_DIAGNOSTIC === 'true') {
+      // Diagnostic CI only: use the real reciprocal fixture and restricted role,
+      // then stop before the remaining assertions so EXPLAIN fits the test limit.
+      mark('Account list EXPLAIN start');
+      const explained = await inTenant(owner.tenantId, (client) =>
+        client.query<{ 'QUERY PLAN': unknown }>(
+          'EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) SELECT context FROM learning_origin_learner_list(NULL,$1)',
+          [accountId],
+        ),
+      );
+      mark('Account list EXPLAIN complete');
+      console.info(
+        '[Access A origin list plan]',
+        JSON.stringify(explained.rows[0]?.['QUERY PLAN'] ?? null),
+      );
+      return;
+    }
     const byAccountList = await readList('Account', accountId);
     mark('learner list SQL calls complete');
     const originCount = await diagnosticPool
