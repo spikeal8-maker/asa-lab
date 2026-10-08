@@ -48,3 +48,9 @@ Default write budget: at most five directly justified production files in the ma
 No local second stack, working-installation update, live database/network operation, protected-asset change or classroom load is authorized. Isolated disposable CI resources are permitted for the required evidence.
 
 The implementer handles only this slice, self-reviews, reports exact SHA/evidence and STOP. Confirmed review findings receive a separate bounded repair and new review. The controller performs integration/closeout and dependency selection under AGENTS.md §2.1; owner acceptance and deployment remain separate.
+
+## Selected preserved-result acceptance after dependency repair
+
+Separate #517 is technically accepted at normally published exact main `29da6bfb151907b8c6835ed79299e54b11edfd68`, with required General `37729828726`, full Electronics `37729984165` and NEW independent product/published reviews APPROVE. Earlier Settings defects were separately repaired. Preserve all three cadence source/test blobs from `ba05381` / integrated `4bad8a7f`; no product change is selected.
+
+This bounded cycle restores fresh canonical main/CI, verifies the selected card and preserved actual source/evidence, obtains required exact-main gates and a NEW independent review of the cadence result, then reports and STOP. Use saved normal/CPU-load measurements; do not rerun those probes or alter timeout/physics without a specific new defect. #505/PR506 and T3 remain pending their own acceptance boundaries. Controller alone records closeout and canonical next selection.
