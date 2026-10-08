@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_owner_revision_r3_settings_composition_selected
+      checkpoint: portal_owner_revision_r3_verification_pending_br3_selected
       owner_acceptance: changes_requested
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -124,12 +124,33 @@ parallel_lanes:
       status: in_progress
       verified_revision: '1.1'
       target_revision: '2.0'
-      selected_slice: R3
-      dependency_order: [R1, BR1, BR2, R2, R3]
-      remaining_slices: [R3]
+      selected_slice: BR3
+      dependency_order: [R1, BR1, BR2, R2, R3, BR3]
+      remaining_slices: [R3, BR3]
       deployment_authorized: false
       working_database_actions_authorized: false
-      verification_pending_slices: []
+      verification_pending_slices:
+        - id: R3
+          candidate_sha: 838b4d306852ac50dc0289152b7a459394ac44f9
+          independent_review: pending_combined_final_sha
+          focused_browser_passed: 41
+          affected_unit_tests_passed: 82
+          web_nx_tasks_executed_uncached: 8
+          canonical_browser_passed: 278
+          canonical_browser_total: 278
+          canonical_browser_conclusion: success
+          acceptance_dependency: BR3
+          source_set_sha256: 836575f77ffaeaaf72a312a0585d1bd282b12af7582cb382b5864b9115449baa
+          author_evidence: reports/playwright/portal-compact-settings-r3-20261008
+          entry_js_raw_bytes: 296159
+          entry_js_gzip_calculated_bytes: 88389
+          entry_js_budget_bytes: 307200
+          initial_js_css_graph_bytes: 438607
+          initial_canonical_browser_passed: 260
+          initial_canonical_browser_total: 277
+          initial_failure_category: A
+          owner_acceptance: changes_requested
+          deployment: not_requested
       completed_slices:
         - id: R2
           status: technical_accepted
@@ -304,20 +325,25 @@ parallel_lanes:
       known_baseline_issues:
         - id: s4_home_recovery_capture_navigation
           classification: independent_baseline_defect
-          status: diagnosis_required
+          status: correction_selected
+          repair_slice: BR3
           affected_path: e2e/access-account-ui.spec.ts
+          repair_scope: existing_home_delivery_error_fixture_only
           product_change_authorized: false
           observed_failure_sha: 875e41aa083d92769f1b6d71bf110616fc66a30a
           observed_failure_run: 37761366272
           observed_synthetic_passed: 244
           observed_synthetic_total: 245
           diagnosis: >-
-            The unchanged published baseline lost the JavaScript execution context
-            during startupCapture in the Home delivery-error case. The same case
-            remains byte-identical in the bounded R3 working diff. Saved trace
-            diagnosis is pending; no R3 or product cause has been established.
-            A separate bounded cycle must address the proven cause before closure;
-            do not weaken the native My Projects exit, error or layout assertions.
+            Saved trace proves two main-document requests but only one failed Home
+            chunk before startupCapture loses its context. The outgoing error
+            heading passes while automatic recovery reload is in flight. Select
+            only a fixture barrier for the replacement document and strict second
+            failed Home delivery before existing geometry/error/native My Projects
+            exit assertions. Preserve those assertions, timeouts and all other
+            callbacks byte-for-byte; no runtime recovery or product fix is allowed.
+            Green reruns of the unchanged fixture do not resolve this cause.
+          diagnostic_evidence: reports/playwright/portal-home-baseline-875-diagnosis-20261008/diagnosis.md
           evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/37761366272
         - id: s4_host_recovery_fixture_intermediate_document
           classification: independent_baseline_defect
@@ -1280,11 +1306,12 @@ blocking:
     blocks: [technical_acceptance, owner_acceptance, release_claim, close_issue]
     allows: [bounded_implementation, focused_verification, baseline_diagnosis]
     reason: >-
-      Exact baseline General 37761366272 fails only the existing Home capture
-      during automatic navigation. R3 may complete its selected bounded candidate
-      and focused layout checks, but technical closure requires saved-trace
-      diagnosis, a separately reviewed correction of the proven cause, and full
-      exact-SHA CI. A green rerun alone does not resolve this dependency.
+      Saved trace establishes the unchanged Home fixture capture during automatic
+      recovery navigation. R3 candidate 838b4d30 has passed local canonical278,
+      but remains verification-pending. Separate BR3 may correct only the proven
+      fixture synchronization cause; technical closure still requires independent
+      final-SHA R3/BR3 review and full exact-SHA CI. A green rerun alone does not
+      resolve this dependency. Runtime, deployment and database are unchanged.
     evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/37761366272
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
