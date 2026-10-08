@@ -4827,6 +4827,8 @@ test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings'
   page,
 }) => {
   test.setTimeout(120_000);
+  const diagnosticDir = 'reports/playwright/electronics-525';
+  mkdirSync(diagnosticDir, { recursive: true });
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await loginWithOrganization(page, teacher);
@@ -5022,7 +5024,7 @@ test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings'
       );
       observations.push({ rotation, mirror, ...readings });
       writeFileSync(
-        `${ARTIFACT_DIR}/instrument-mirror-525-matrices.json`,
+        `${diagnosticDir}/instrument-mirror-525-matrices.json`,
         JSON.stringify(observations, null, 2),
       );
       expect(readings.readouts).toHaveLength(8);
@@ -5034,7 +5036,7 @@ test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings'
         for (const width of [1440, 390]) {
           await page.setViewportSize({ width, height: 1000 });
           await page.screenshot({
-            path: `${ARTIFACT_DIR}/instrument-mirror-525-${width}.png`,
+            path: `${diagnosticDir}/instrument-mirror-525-${width}.png`,
             fullPage: true,
           });
         }
@@ -5044,7 +5046,7 @@ test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings'
     }
   }
   writeFileSync(
-    `${ARTIFACT_DIR}/instrument-mirror-525-matrices.json`,
+    `${diagnosticDir}/instrument-mirror-525-matrices.json`,
     JSON.stringify(observations, null, 2),
   );
   for (const observation of observations) {

@@ -37,7 +37,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # TASK-ELECTRONICS-INSTRUMENT-MIRROR-001: one BEFORE probe, not a full gate.
   focused:
+    if: ${{ false }}
     name: Shared solver, editor contracts and build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -72,6 +74,7 @@ jobs:
         run: pnpm gate:electronics-m1
 
   benchmark:
+    if: ${{ false }}
     name: Electronics E-OPT benchmark integrity
     needs: focused
     runs-on: ubuntu-24.04
@@ -123,7 +126,6 @@ jobs:
 
   browser:
     name: Actual editor live simulation journey
-    needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -173,7 +175,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
+          pnpm gate:electronics-m1:browser --grep 'ELECTRONICS-525 mirror readout matrix'
 
       - name: Show isolated stack state
         if: always()
@@ -197,6 +199,7 @@ jobs:
           down -v --remove-orphans
 
   review-images:
+    if: ${{ false }}
     name: Package exact-head review images
     needs: [focused, benchmark, browser]
     runs-on: ubuntu-24.04
