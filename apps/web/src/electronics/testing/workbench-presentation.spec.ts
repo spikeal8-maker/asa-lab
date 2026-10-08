@@ -1,6 +1,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  instrumentReadoutMirrorStyle,
+  regulatedPowerSupplyRuntimeMarkup,
+  signalGeneratorRuntimeMarkup,
+  oscilloscopeRuntimeMarkup,
+} from '../production-asset-contracts';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
@@ -782,5 +788,121 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(shortcutsSource).toContain('.arduino-source-editor');
     expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'c'");
     expect(controllerModuleSource).not.toContain("event.key.toLowerCase() === 'v'");
+  });
+});
+
+describe('instrument mirror readout regression', () => {
+  const imports = JSON.parse(
+    readFileSync(
+      resolve(
+        process.cwd(),
+        'apps/web/public/assets/electronics/component-database/owner-imports.json',
+      ),
+      'utf8',
+    ),
+  ) as { imports: { componentId: string; runtimePath: string }[] };
+  const owner = (id: string) => {
+    const asset = imports.imports.find((entry) => entry.componentId === id);
+    if (!asset) throw new Error(`Missing owner instrument ${id}`);
+    return readFileSync(
+      resolve(process.cwd(), 'apps/web/public', asset.runtimePath.slice(1)),
+      'utf8',
+    );
+  };
+  it('counter-reflects glyphs while preserving ordinary rotation', () => {
+    for (const rotation of [0, 90, 180, 270]) {
+      for (const mirrorX of [false, true])
+        for (const mirrorY of [false, true]) {
+          const style = instrumentReadoutMirrorStyle(mirrorX, mirrorY);
+          if (!mirrorX && !mirrorY) {
+            expect(style).toBeUndefined();
+            continue;
+          }
+          expect(style?.transformBox).toBe('fill-box');
+          expect(style?.transformOrigin).toBe('center');
+          const scale = style?.transform.match(/scale\((-?1), (-?1)\)/);
+          if (!scale) throw new Error('Missing finite counter-reflection');
+          const x = Number(scale[1]);
+          const y = Number(scale[2]);
+          const theta = (rotation * Math.PI) / 180;
+          const bodyX = mirrorX ? -1 : 1;
+          const bodyY = mirrorY ? -1 : 1;
+          expect(Math.cos(theta) * bodyX * x).toBeCloseTo(Math.cos(theta), 12);
+          expect(Math.sin(theta) * bodyX * x).toBeCloseTo(Math.sin(theta), 12);
+          expect(-Math.sin(theta) * bodyY * y).toBeCloseTo(-Math.sin(theta), 12);
+          expect(Math.cos(theta) * bodyY * y).toBeCloseTo(Math.cos(theta), 12);
+        }
+    }
+    expect(productionVisualSource).toContain(
+      'style={instrumentReadoutMirrorStyle(mirrorX, mirrorY)}',
+    );
+  });
+  it('changes only individual runtime text styling, preserving owner controls, values and trace', () => {
+    const cases = [
+      (mirrorX: boolean, mirrorY: boolean) =>
+        regulatedPowerSupplyRuntimeMarkup(owner('regulated-power-supply'), {
+          mirrorX,
+          mirrorY,
+          voltageSetpointVolt: 30,
+          currentLimitAmp: 5,
+          outputEnabled: false,
+          mode: 'off',
+          voltageDisplay: '30.00 V',
+          currentDisplay: '5.000 A',
+        }),
+      (mirrorX: boolean, mirrorY: boolean) =>
+        signalGeneratorRuntimeMarkup(owner('signal-generator'), {
+          mirrorX,
+          mirrorY,
+          waveform: 'triangle',
+          frequencyHz: 1_000_000,
+          amplitudeVpp: 10,
+          dcOffsetVolt: -5,
+          outputEnabled: false,
+        }),
+      (mirrorX: boolean, mirrorY: boolean) =>
+        oscilloscopeRuntimeMarkup(owner('oscilloscope'), {
+          mirrorX,
+          mirrorY,
+          displayEnabled: true,
+          voltsPerDivision: 0.001,
+          timePerDivisionMs: 1000,
+          inputVoltageVolt: -30,
+          trace: [
+            { timeMs: 0, voltageVolt: -1 },
+            { timeMs: 1, voltageVolt: 1 },
+          ],
+        }),
+      (mirrorX: boolean, mirrorY: boolean) =>
+        oscilloscopeRuntimeMarkup(owner('oscilloscope'), {
+          mirrorX,
+          mirrorY,
+          displayEnabled: false,
+          voltsPerDivision: 1,
+          timePerDivisionMs: 1,
+          inputVoltageVolt: 0,
+        }),
+    ];
+    for (const build of cases) {
+      const original = build(false, false);
+      expect(original).not.toBe('');
+      expect(original).not.toContain('transform-box:fill-box');
+      for (const [mirrorX, mirrorY] of [
+        [true, false],
+        [false, true],
+        [true, true],
+      ]) {
+        const mirrored = build(mirrorX!, mirrorY!);
+        expect(
+          mirrored.replace(
+            / style="transform-box:fill-box;transform-origin:center;transform:scale\(-?1, -?1\)"/g,
+            '',
+          ),
+        ).toBe(original);
+        const compensated = mirrored.match(/<text[^>]* style="transform-box:fill-box[^>]*>/g) ?? [];
+        expect(compensated.length).toBe(build === cases[1] ? 3 : 2);
+        expect(mirrored).not.toMatch(/<(?:g|path|rect|circle)[^>]*transform-box:fill-box/);
+      }
+    }
   });
 });

@@ -4823,6 +4823,494 @@ test('MATH-6E seven-segment display uses physical pins and an arbitrary segment 
   failures.assertEmpty();
 });
 
+test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const diagnosticDir = 'reports/playwright/electronics-525';
+  mkdirSync(diagnosticDir, { recursive: true });
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Instrument mirror readability');
+  const voltage = multimeterDcVoltageDocument(true);
+  const supply = regulatedPowerSupplyDocument();
+  const instrumentIds = ['meter', 'bench-supply', 'generator', 'scope'];
+  const base: SchematicDocument = {
+    ...voltage,
+    components: [
+      ...voltage.components.map((item) => ({
+        ...item,
+        position: item.id === 'source' ? { x: 30, y: 30 } : { x: 180, y: 30 },
+      })),
+      ...supply.components.map((item) =>
+        item.id === 'bench-supply'
+          ? {
+              ...item,
+              position: { x: 600, y: 30 },
+              state: true,
+              stateProperties: { ...item.stateProperties, outputEnabled: true },
+            }
+          : { ...item, position: { x: 810, y: 30 } },
+      ),
+      {
+        id: 'generator',
+        kind: 'source',
+        componentTypeId: 'signal-generator',
+        variantId: 'signal-generator',
+        name: 'Генератор',
+        position: { x: 80, y: 340 },
+        rotation: 0,
+        value: 1_000,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          waveform: 'sine',
+          frequencyHz: 1_000,
+          amplitudeVpp: 5,
+          dcOffsetVolt: -0.25,
+          outputEnabled: true,
+          outputResistanceOhm: 50,
+          maxContinuousCurrentAmp: 0.1,
+        },
+      },
+      {
+        id: 'scope',
+        kind: 'visual',
+        componentTypeId: 'oscilloscope',
+        variantId: 'oscilloscope',
+        name: 'Осциллограф',
+        position: { x: 520, y: 340 },
+        rotation: 0,
+        value: 1,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          voltsPerDivision: 1,
+          timePerDivisionMs: 1,
+          triggerLevelVolt: 0,
+          displayEnabled: true,
+        },
+      },
+    ],
+    connections: [
+      ...voltage.connections,
+      ...supply.connections,
+      {
+        id: 'generator-signal',
+        from: { componentId: 'generator', terminal: 'signal' },
+        to: { componentId: 'scope', terminal: 'signal' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'generator-ground',
+        from: { componentId: 'generator', terminal: 'ground' },
+        to: { componentId: 'scope', terminal: 'ground' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 0.7 },
+  };
+  const focusInstrument = async (id: string) => {
+    const body = page.locator(
+      `[data-component-id="${id}"][data-testid="schematic-component"] .workbench-part`,
+    );
+    await body.press('Escape');
+    await expect(
+      page.getByRole('complementary', { name: 'Параметры выделения', exact: true }),
+    ).toBeHidden();
+    const stage = page.locator('.workbench-canvas');
+    let field = await stage.boundingBox();
+    let bounds = await body.boundingBox();
+    if (!field || !bounds) throw new Error(`Missing instrument/stage bounds: ${id}`);
+    // Existing viewport gestures only; scheme geometry and DOM transforms stay intact.
+    for (
+      let attempt = 0;
+      attempt < 8 && (bounds.width > field.width - 32 || bounds.height > field.height * 0.7);
+      attempt += 1
+    ) {
+      await page.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
+      bounds = await body.boundingBox();
+      if (!bounds) throw new Error(`Missing instrument bounds: ${id}`);
+    }
+    const dx = field.x + field.width / 2 - (bounds.x + bounds.width / 2);
+    const dy = field.y + field.height * 0.4 - (bounds.y + bounds.height / 2);
+    await page.mouse.move(field.x + 8, field.y + 8);
+    await page.mouse.down({ button: 'middle' });
+    await page.mouse.move(field.x + 8 + dx, field.y + 8 + dy, { steps: 4 });
+    await page.mouse.up({ button: 'middle' });
+    await expect
+      .poll(async () => {
+        field = await stage.boundingBox();
+        bounds = await body.boundingBox();
+        return Boolean(
+          field &&
+          bounds &&
+          bounds.x >= field.x + 4 &&
+          bounds.y >= field.y + 4 &&
+          bounds.x + bounds.width <= field.x + field.width - 4 &&
+          bounds.y + bounds.height <= field.y + field.height - 4,
+        );
+      })
+      .toBe(true);
+    return body;
+  };
+  const observations = [];
+  const views = [];
+
+  const recordView = async (width: number, id: string, state: string) => {
+    const body = await focusInstrument(id);
+    const texts = await body
+      .locator(
+        '.workbench-multimeter-reading, .workbench-regulated-supply-reading, .workbench-signal-generator-readings text, .workbench-oscilloscope-status, .workbench-oscilloscope-scale',
+      )
+      .evaluateAll((items) =>
+        items.map((item) => {
+          const text = item as SVGTextElement;
+          const rect = text.getBoundingClientRect();
+          const matrix = text.getScreenCTM();
+          const bodyMatrix = text.closest<SVGGraphicsElement>('.workbench-part')!.getScreenCTM();
+          const parentMatrix = text.ownerSVGElement!.getScreenCTM();
+          if (
+            !matrix ||
+            !bodyMatrix ||
+            !parentMatrix ||
+            ![
+              rect.x,
+              rect.y,
+              rect.width,
+              rect.height,
+              matrix.a,
+              matrix.b,
+              matrix.c,
+              matrix.d,
+              matrix.e,
+              matrix.f,
+            ].every(Number.isFinite)
+          )
+            throw new Error('Nonfinite visible readout');
+          const bbox = text.getBBox();
+          const center = new DOMPoint(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
+          const actual = center.matrixTransform(matrix);
+          const expected = center.matrixTransform(parentMatrix);
+          const normalize = (x: number, y: number) => {
+            const length = Math.hypot(x, y);
+            if (!Number.isFinite(length) || !length) throw new Error('Invalid visible glyph axis');
+            return [x / length, y / length];
+          };
+          return {
+            text: text.textContent,
+            rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+            actualX: normalize(matrix.a, matrix.b),
+            actualY: normalize(matrix.c, matrix.d),
+            expectedX: normalize(-bodyMatrix.a, -bodyMatrix.b),
+            expectedY: normalize(bodyMatrix.c, bodyMatrix.d),
+            centerError: Math.hypot(actual.x - expected.x, actual.y - expected.y),
+          };
+        }),
+      );
+    expect(texts.length).toBe(id === 'meter' ? 1 : id === 'generator' ? 3 : 2);
+    for (const text of texts) {
+      expect(
+        Boolean(text.text?.trim()) &&
+          text.rect.width > 0 &&
+          text.rect.height > 0 &&
+          text.rect.x >= 0 &&
+          text.rect.x + text.rect.width <= width &&
+          text.rect.y >= 0 &&
+          text.rect.y + text.rect.height <= 1000,
+      ).toBe(true);
+      expect(text.centerError).toBeLessThan(0.1);
+      for (let axis = 0; axis < 2; axis += 1) {
+        expect(text.actualX[axis]).toBeCloseTo(text.expectedX[axis]!, 6);
+        expect(text.actualY[axis]).toBeCloseTo(text.expectedY[axis]!, 6);
+      }
+    }
+    views.push({ width, id, state, texts });
+    writeFileSync(
+      `${diagnosticDir}/instrument-mirror-525-views.json`,
+      JSON.stringify(views, null, 2),
+    );
+  };
+  for (const rotation of [0, 90, 180, 270]) {
+    for (const mirror of [
+      { name: 'none', mirrorX: false, mirrorY: false },
+      { name: 'x', mirrorX: true, mirrorY: false },
+      { name: 'y', mirrorX: false, mirrorY: true },
+      { name: 'xy', mirrorX: true, mirrorY: true },
+    ]) {
+      const document: SchematicDocument = {
+        ...base,
+        components: base.components.map((item) =>
+          instrumentIds.includes(item.id)
+            ? {
+                ...item,
+                rotation,
+                stateProperties: {
+                  ...item.stateProperties,
+                  mirrorX: mirror.mirrorX,
+                  mirrorY: mirror.mirrorY,
+                },
+              }
+            : item,
+        ),
+      };
+      await saveDocument(page, projectId, document);
+      await page.goto(`/#/home/${projectId}`);
+      await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      await page.getByRole('button', { name: 'Начать моделирование' }).click();
+      const meter = component(page, 'multimeter').getByTestId('multimeter-runtime-display');
+      await expect
+        .poll(async () => Number(await meter.getAttribute('data-measured-value')))
+        .toBeCloseTo(-2.999999865, 6);
+      await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('-3.000 V');
+      await expect(
+        component(page, 'regulated-power-supply')
+          .locator('.workbench-regulated-supply-reading')
+          .first(),
+      ).toHaveText('5.00 V');
+      const scope = component(page, 'oscilloscope').getByTestId('oscilloscope-runtime');
+      await expect(scope).toHaveAttribute('data-display-enabled', 'true');
+      await expect(scope.locator('.workbench-oscilloscope-status')).toHaveText(
+        '1.00 kHz · 5.00 Vpp',
+      );
+      await expect(scope.locator('.workbench-oscilloscope-scale')).toHaveText(
+        '1.00 V/div · 1.00 ms/div',
+      );
+      const generator = component(page, 'signal-generator').getByTestId('signal-generator-runtime');
+      await expect(generator).toHaveAttribute('data-waveform', 'sine');
+      await expect(generator).toHaveAttribute('data-output-enabled', 'true');
+      await expect(generator.locator('.workbench-signal-generator-readings text')).toHaveText([
+        '1.00 kHz',
+        '5.00 Vpp',
+        '-0.25 V',
+      ]);
+      // The unchanged canonical live route suppresses waveform samples. Preserve
+      // this separate, unfulfilled #466 requirement; count0 is not an approved
+      // permanent policy or acceptance of complete generator/scope functionality.
+      await expect(scope.locator('.workbench-oscilloscope-trace')).toHaveCount(0);
+      const baselineScopeTraceCount = await scope.locator('.workbench-oscilloscope-trace').count();
+      const readings = await page.evaluate(
+        ({ instrumentIds, mirror, connections }) => {
+          const readoutSelectors: Record<string, string> = {
+            meter: '.workbench-multimeter-reading',
+            'bench-supply': '.workbench-regulated-supply-reading',
+            generator: '.workbench-signal-generator-readings text',
+            scope: '.workbench-oscilloscope-status, .workbench-oscilloscope-scale',
+          };
+          const normalized = (x: number, y: number) => {
+            const length = Math.hypot(x, y);
+            if (!Number.isFinite(length) || length === 0) throw new Error('Invalid glyph matrix');
+            return [x / length, y / length];
+          };
+          const readouts = instrumentIds.flatMap((id) => {
+            const root = window.document.querySelector(
+              `[data-component-id="${id}"][data-testid="schematic-component"]`,
+            )!;
+            const body = root.querySelector<SVGGraphicsElement>('.workbench-part')!;
+            const bodyMatrix = body.getScreenCTM()!;
+            return [...root.querySelectorAll<SVGTextElement>(readoutSelectors[id]!)].map((text) => {
+              const matrix = text.getScreenCTM()!;
+              const bbox = text.getBBox();
+              const center = new DOMPoint(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
+              const actualCenter = center.matrixTransform(matrix);
+              const expectedCenter = center.matrixTransform(text.ownerSVGElement!.getScreenCTM()!);
+              return {
+                id,
+                text: text.textContent,
+                bodyTransform: body.getAttribute('transform'),
+                glyphMatrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+                actualX: normalized(matrix.a, matrix.b),
+                actualY: normalized(matrix.c, matrix.d),
+                expectedX: normalized(
+                  bodyMatrix.a * (mirror.mirrorX ? -1 : 1),
+                  bodyMatrix.b * (mirror.mirrorX ? -1 : 1),
+                ),
+                expectedY: normalized(
+                  bodyMatrix.c * (mirror.mirrorY ? -1 : 1),
+                  bodyMatrix.d * (mirror.mirrorY ? -1 : 1),
+                ),
+                centerError: Math.hypot(
+                  actualCenter.x - expectedCenter.x,
+                  actualCenter.y - expectedCenter.y,
+                ),
+                bbox: { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height },
+              };
+            });
+          });
+          const wires = connections.map((wire) => {
+            const path = window.document.querySelector<SVGPathElement>(
+              `[data-testid="schematic-wire"][data-wire-id="${wire.id}"]`,
+            )!;
+            return [wire.from, wire.to].map((endpoint, index) => {
+              const terminal = window.document.querySelector<SVGGraphicsElement>(
+                `[data-terminal-component-id="${endpoint.componentId}"][data-terminal-id="${endpoint.terminal}"]`,
+              )!;
+              const terminalPoint = new DOMPoint(0, 0).matrixTransform(terminal.getScreenCTM()!);
+              const point = path.getPointAtLength(index === 0 ? 0 : path.getTotalLength());
+              const wirePoint = new DOMPoint(point.x, point.y).matrixTransform(
+                path.getScreenCTM()!,
+              );
+              return Math.hypot(terminalPoint.x - wirePoint.x, terminalPoint.y - wirePoint.y);
+            });
+          });
+          return { readouts, wires };
+        },
+        { instrumentIds, mirror, connections: document.connections },
+      );
+      observations.push({ rotation, mirror, baselineScopeTraceCount, ...readings });
+      writeFileSync(
+        `${diagnosticDir}/instrument-mirror-525-matrices.json`,
+        JSON.stringify(observations, null, 2),
+      );
+      expect(readings.readouts).toHaveLength(8);
+      expect(readings.readouts.every((item) => Boolean(item.text?.trim()))).toBe(true);
+      expect(readings.wires.flat().every((error) => Number.isFinite(error) && error < 0.1)).toBe(
+        true,
+      );
+      if (rotation === 0 && mirror.name === 'x') {
+        for (const width of [1440, 1024, 390, 320]) {
+          await page.setViewportSize({ width, height: 1000 });
+          const hideLibrary = page.getByRole('button', { name: 'Скрыть компоненты', exact: true });
+          if (width < 980 && (await hideLibrary.isVisible())) await hideLibrary.click();
+          expect(
+            await page.evaluate(
+              () =>
+                window.document.documentElement.scrollWidth <=
+                window.document.documentElement.clientWidth,
+            ),
+          ).toBe(true);
+          for (const id of instrumentIds) {
+            await recordView(width, id, 'active');
+            if (width === 1440 || width === 390)
+              await page.screenshot({
+                path: `${diagnosticDir}/instrument-mirror-525-${width}-${id}-active.png`,
+                fullPage: true,
+              });
+          }
+        }
+        await page.setViewportSize({ width: 1440, height: 1000 });
+      }
+      if (rotation === 0 && mirror.name === 'x') {
+        await focusInstrument('meter');
+        await meter.locator('.workbench-multimeter-mode-resistance').click();
+        await expect(meter).toHaveAttribute('data-measurement-mode', 'resistance');
+        await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('ОШИБКА');
+        for (const width of [1440, 1024, 390, 320]) {
+          await page.setViewportSize({ width, height: 1000 });
+          await recordView(width, 'meter', 'external-voltage-error');
+          if (width === 1440 || width === 390)
+            await page.screenshot({
+              path: `${diagnosticDir}/instrument-mirror-525-${width}-meter-error.png`,
+              fullPage: true,
+            });
+        }
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await focusInstrument('meter');
+        await meter.locator('.workbench-multimeter-mode-voltage').click();
+        await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('-3.000 V');
+        await focusInstrument('bench-supply');
+        const supplyRuntime = component(page, 'regulated-power-supply').getByTestId(
+          'regulated-power-supply-runtime',
+        );
+        await supplyRuntime.locator('.workbench-regulated-supply-power-slider').click();
+        await expect(supplyRuntime).toHaveAttribute('data-output-enabled', 'false');
+        await expect(supplyRuntime.locator('.workbench-regulated-supply-reading')).toHaveText([
+          '5.00 V',
+          '1.000 A',
+        ]);
+        for (const width of [1440, 1024, 390, 320]) {
+          await page.setViewportSize({ width, height: 1000 });
+          await recordView(width, 'bench-supply', 'output-disabled');
+        }
+        await page.setViewportSize({ width: 1440, height: 1000 });
+        await focusInstrument('bench-supply');
+        await supplyRuntime.locator('.workbench-regulated-supply-power-slider').click();
+        await expect(supplyRuntime).toHaveAttribute('data-output-enabled', 'true');
+        await focusInstrument('generator');
+        await generator.locator('.workbench-signal-generator-triangle').click();
+        await expect(generator).toHaveAttribute('data-waveform', 'triangle');
+        await generator.locator('.workbench-signal-generator-power-slider').click();
+        await expect(generator).toHaveAttribute('data-output-enabled', 'false');
+        await generator.locator('.workbench-signal-generator-power-slider').click();
+        await expect(generator).toHaveAttribute('data-output-enabled', 'true');
+        await generator.locator('.workbench-signal-generator-sine').click();
+        await expect(generator).toHaveAttribute('data-waveform', 'sine');
+      }
+      await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+      await expect(meter.locator('.workbench-multimeter-reading')).toHaveCount(0);
+      await expect(scope).toHaveAttribute('data-display-enabled', 'false');
+      await expect(scope.locator('.workbench-oscilloscope-status')).toHaveText('OFF');
+      const saved = await page.context().request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+      expect(saved.status()).toBe(200);
+      const persisted = (await saved.json()) as { draft: { document: SchematicDocument } };
+      const geometry = (items: SchematicDocument['components']) =>
+        items.map((item) => ({
+          id: item.id,
+          componentTypeId: item.componentTypeId,
+          position: item.position,
+          rotation: item.rotation,
+          pinIds: item.pinIds,
+          mirrorX: item.stateProperties?.['mirrorX'],
+          mirrorY: item.stateProperties?.['mirrorY'],
+        }));
+      expect(geometry(persisted.draft.document.components)).toEqual(geometry(document.components));
+      expect(persisted.draft.document.connections).toEqual(document.connections);
+      if (rotation === 0 && mirror.name === 'x') {
+        await focusInstrument('generator');
+        await component(page, 'signal-generator').locator('.workbench-part').press('Enter');
+        await page.getByLabel('Частота генератора', { exact: true }).fill('1000000');
+        await page.getByLabel('Амплитуда генератора пик-пик', { exact: true }).fill('10');
+        await page.getByLabel('Постоянное смещение генератора', { exact: true }).fill('-5');
+        await expect(generator.locator('.workbench-signal-generator-readings text')).toHaveText([
+          '1.00 MHz',
+          '10.00 Vpp',
+          '-5.00 V',
+        ]);
+
+        for (const width of [1440, 1024, 390, 320]) {
+          await page.setViewportSize({ width, height: 1000 });
+          await recordView(width, 'generator', 'long-supported-setpoint-stopped');
+          if (width === 1440 || width === 390)
+            await page.screenshot({
+              path: `${diagnosticDir}/instrument-mirror-525-${width}-generator-long.png`,
+              fullPage: true,
+            });
+          await recordView(width, 'scope', 'stopped');
+          if (width === 1440 || width === 390)
+            await page.screenshot({
+              path: `${diagnosticDir}/instrument-mirror-525-${width}-scope-stopped.png`,
+              fullPage: true,
+            });
+        }
+        await page.setViewportSize({ width: 1440, height: 1000 });
+      }
+    }
+  }
+  writeFileSync(
+    `${diagnosticDir}/instrument-mirror-525-matrices.json`,
+    JSON.stringify(observations, null, 2),
+  );
+  for (const observation of observations) {
+    for (const reading of observation.readouts) {
+      for (let axis = 0; axis < 2; axis += 1) {
+        expect
+          .soft(reading.actualX[axis], `${reading.id}/${observation.mirror.name}/x${axis}`)
+          .toBeCloseTo(reading.expectedX[axis]!, 6);
+        expect
+          .soft(reading.actualY[axis], `${reading.id}/${observation.mirror.name}/y${axis}`)
+          .toBeCloseTo(reading.expectedY[axis]!, 6);
+      }
+      expect.soft(reading.centerError).toBeLessThan(0.1);
+    }
+  }
+  failures.assertEmpty();
+});
+
 test('MATH-10A1 multimeter measures signed DC voltage with a finite input', async ({ page }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });

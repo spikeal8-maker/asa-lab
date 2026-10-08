@@ -17,6 +17,7 @@ import {
   gearmotorRuntimeMarkup,
   gearmotorVisualPresentation,
   multimeterRuntimeMarkup,
+  instrumentReadoutMirrorStyle,
   piezoRuntimeMarkup,
   potentiometerKnobAngle,
   potentiometerRuntimeMarkup,
@@ -502,7 +503,11 @@ function OwnerMultimeterVisual({
   displayValue,
   measuredValue,
   onModeChange,
+  mirrorX,
+  mirrorY,
 }: {
+  readonly mirrorX: boolean;
+  readonly mirrorY: boolean;
   readonly asset: string;
   readonly width: number;
   readonly height: number;
@@ -573,6 +578,7 @@ function OwnerMultimeterVisual({
           fontSize="58"
           textAnchor="middle"
           dominantBaseline="central"
+          style={instrumentReadoutMirrorStyle(mirrorX, mirrorY)}
         >
           {displayValue}
         </text>
@@ -656,6 +662,8 @@ function OwnerRegulatedPowerSupplyVisual({
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const [draggingKnob, setDraggingKnob] = useState<'voltage' | 'current' | null>(null);
   const properties = component.stateProperties ?? {};
+  const mirrorX = properties['mirrorX'] === true;
+  const mirrorY = properties['mirrorY'] === true;
   const voltageSetpointVolt = Math.min(
     30,
     Math.max(0, Number(properties['voltageSetpointVolt'] ?? component.value ?? 5)),
@@ -683,6 +691,8 @@ function OwnerRegulatedPowerSupplyVisual({
     () =>
       ownerSvg
         ? regulatedPowerSupplyRuntimeMarkup(ownerSvg, {
+            mirrorX,
+            mirrorY,
             voltageSetpointVolt,
             currentLimitAmp,
             outputEnabled,
@@ -692,6 +702,8 @@ function OwnerRegulatedPowerSupplyVisual({
           })
         : '',
     [
+      mirrorX,
+      mirrorY,
       currentDisplay,
       currentLimitAmp,
       mode,
@@ -819,6 +831,8 @@ function OwnerSignalGeneratorVisual({
     null,
   );
   const properties = component.stateProperties ?? {};
+  const mirrorX = properties['mirrorX'] === true;
+  const mirrorY = properties['mirrorY'] === true;
   const waveformValue = String(properties['waveform'] ?? 'sine');
   const waveform =
     waveformValue === 'square' || waveformValue === 'triangle' ? waveformValue : 'sine';
@@ -836,6 +850,8 @@ function OwnerSignalGeneratorVisual({
     () =>
       ownerSvg
         ? signalGeneratorRuntimeMarkup(ownerSvg, {
+            mirrorX,
+            mirrorY,
             waveform,
             frequencyHz,
             amplitudeVpp,
@@ -843,7 +859,7 @@ function OwnerSignalGeneratorVisual({
             outputEnabled,
           })
         : '',
-    [amplitudeVpp, dcOffsetVolt, frequencyHz, outputEnabled, ownerSvg, waveform],
+    [mirrorX, mirrorY, amplitudeVpp, dcOffsetVolt, frequencyHz, outputEnabled, ownerSvg, waveform],
   );
   const updateKnob = (
     event: ReactPointerEvent<SVGSVGElement>,
@@ -946,6 +962,8 @@ function OwnerOscilloscopeVisual({
 }): JSX.Element {
   const { source: ownerSvg, failed: ownerSvgFailed } = useOwnerSvgSource(asset);
   const properties = component.stateProperties ?? {};
+  const mirrorX = properties['mirrorX'] === true;
+  const mirrorY = properties['mirrorY'] === true;
   const displayEnabled =
     (typeof properties['displayEnabled'] === 'boolean'
       ? properties['displayEnabled']
@@ -956,6 +974,8 @@ function OwnerOscilloscopeVisual({
     () =>
       ownerSvg
         ? oscilloscopeRuntimeMarkup(ownerSvg, {
+            mirrorX,
+            mirrorY,
             displayEnabled,
             voltsPerDivision,
             timePerDivisionMs,
@@ -969,7 +989,7 @@ function OwnerOscilloscopeVisual({
             ...(result?.oscilloscopeTrace === undefined ? {} : { trace: result.oscilloscopeTrace }),
           })
         : '',
-    [displayEnabled, ownerSvg, result, timePerDivisionMs, voltsPerDivision],
+    [mirrorX, mirrorY, displayEnabled, ownerSvg, result, timePerDivisionMs, voltsPerDivision],
   );
   if (!markup)
     return (
@@ -1742,6 +1762,8 @@ export function ProductionComponentVisual({
               asset={asset}
               width={width}
               height={height}
+              mirrorX={component.stateProperties?.['mirrorX'] === true}
+              mirrorY={component.stateProperties?.['mirrorY'] === true}
               measurementMode={meterVisualMode}
               displayValue={meterDisplay}
               measuredValue={

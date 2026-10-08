@@ -695,6 +695,28 @@ export function multimeterRuntimeMarkup(
   return `${withRuntimeState.slice(bodyStart + 1, bodyEnd)}${reading}`;
 }
 
+/** Counter only the body's mirrors about each readout's own glyph bounds.
+ * Ordinary rotation, window position and owner artwork remain unchanged. */
+export function instrumentReadoutMirrorStyle(mirrorX = false, mirrorY = false) {
+  return mirrorX || mirrorY
+    ? {
+        transformBox: 'fill-box' as const,
+        transformOrigin: 'center',
+        transform: `scale(${mirrorX ? -1 : 1}, ${mirrorY ? -1 : 1})`,
+      }
+    : undefined;
+}
+
+function instrumentReadoutMirrorAttribute(input: {
+  readonly mirrorX?: boolean;
+  readonly mirrorY?: boolean;
+}): string {
+  const style = instrumentReadoutMirrorStyle(input.mirrorX, input.mirrorY);
+  return style
+    ? ` style="transform-box:fill-box;transform-origin:center;transform:${style.transform}"`
+    : '';
+}
+
 export type RegulatedPowerSupplyVisualMode = 'off' | 'cv' | 'cc';
 
 export function regulatedPowerSupplyKnobAngle(value: number, maximum: number): number {
@@ -713,6 +735,8 @@ export function regulatedPowerSupplyKnobAngle(value: number, maximum: number): n
 export function regulatedPowerSupplyRuntimeMarkup(
   ownerSvg: string,
   input: {
+    readonly mirrorX?: boolean;
+    readonly mirrorY?: boolean;
     readonly voltageSetpointVolt: number;
     readonly currentLimitAmp: number;
     readonly outputEnabled: boolean;
@@ -776,7 +800,7 @@ export function regulatedPowerSupplyRuntimeMarkup(
   const bodyStart = markup.indexOf('>');
   const bodyEnd = markup.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
-  const readings = `<text class="workbench-regulated-supply-reading" x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading" x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`;
+  const readings = `<text class="workbench-regulated-supply-reading"${instrumentReadoutMirrorAttribute(input)} x="99" y="55" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.voltageDisplay)}</text><text class="workbench-regulated-supply-reading"${instrumentReadoutMirrorAttribute(input)} x="99" y="144" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(input.currentDisplay)}</text>`;
   return `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
 }
 
@@ -798,6 +822,8 @@ export function signalGeneratorKnobAngle(
 export function signalGeneratorRuntimeMarkup(
   ownerSvg: string,
   input: {
+    readonly mirrorX?: boolean;
+    readonly mirrorY?: boolean;
     readonly waveform: SignalGeneratorVisualWaveform;
     readonly frequencyHz: number;
     readonly amplitudeVpp: number;
@@ -885,7 +911,7 @@ export function signalGeneratorRuntimeMarkup(
   const bodyStart = markup.indexOf('>');
   const bodyEnd = markup.lastIndexOf('</svg>');
   if (bodyStart < 0 || bodyEnd <= bodyStart) return '';
-  const readings = `<g class="workbench-signal-generator-readings" pointer-events="none"><text x="131.5" y="83" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(formatSignalFrequency(input.frequencyHz))}</text><text x="131.5" y="174" text-anchor="middle" dominant-baseline="central">${input.amplitudeVpp.toFixed(2)} Vpp</text><text x="131.5" y="264" text-anchor="middle" dominant-baseline="central">${input.dcOffsetVolt >= 0 ? '+' : ''}${input.dcOffsetVolt.toFixed(2)} V</text></g>`;
+  const readings = `<g class="workbench-signal-generator-readings" pointer-events="none"><text x="131.5"${instrumentReadoutMirrorAttribute(input)} y="83" text-anchor="middle" dominant-baseline="central">${escapeMultimeterDisplay(formatSignalFrequency(input.frequencyHz))}</text><text x="131.5"${instrumentReadoutMirrorAttribute(input)} y="174" text-anchor="middle" dominant-baseline="central">${input.amplitudeVpp.toFixed(2)} Vpp</text><text x="131.5"${instrumentReadoutMirrorAttribute(input)} y="264" text-anchor="middle" dominant-baseline="central">${input.dcOffsetVolt >= 0 ? '+' : ''}${input.dcOffsetVolt.toFixed(2)} V</text></g>`;
   markup = `${markup.slice(bodyStart + 1, bodyEnd)}${readings}`;
   return markup;
 }
@@ -899,6 +925,8 @@ function formatSignalFrequency(frequencyHz: number): string {
 export function oscilloscopeRuntimeMarkup(
   ownerSvg: string,
   input: {
+    readonly mirrorX?: boolean;
+    readonly mirrorY?: boolean;
     readonly displayEnabled: boolean;
     readonly voltsPerDivision: number;
     readonly timePerDivisionMs: number;
@@ -928,7 +956,7 @@ export function oscilloscopeRuntimeMarkup(
     : input.frequencyHz
       ? `${formatSignalFrequency(input.frequencyHz)} · ${(input.amplitudeVpp ?? 0).toFixed(2)} Vpp`
       : `${input.inputVoltageVolt.toFixed(3)} V DC`;
-  const runtime = `<g class="workbench-oscilloscope-runtime-layer" pointer-events="none">${tracePath ? `<path class="workbench-oscilloscope-trace" d="${tracePath}"/>` : ''}<text class="workbench-oscilloscope-status" x="72" y="78">${escapeMultimeterDisplay(status)}</text><text class="workbench-oscilloscope-scale" x="72" y="444">${input.voltsPerDivision.toFixed(2)} V/div · ${input.timePerDivisionMs.toFixed(2)} ms/div</text></g>`;
+  const runtime = `<g class="workbench-oscilloscope-runtime-layer" pointer-events="none">${tracePath ? `<path class="workbench-oscilloscope-trace" d="${tracePath}"/>` : ''}<text class="workbench-oscilloscope-status"${instrumentReadoutMirrorAttribute(input)} x="72" y="78">${escapeMultimeterDisplay(status)}</text><text class="workbench-oscilloscope-scale"${instrumentReadoutMirrorAttribute(input)} x="72" y="444">${input.voltsPerDivision.toFixed(2)} V/div · ${input.timePerDivisionMs.toFixed(2)} ms/div</text></g>`;
   return `${ownerSvg.slice(bodyStart + 1, bodyEnd)}${runtime}`;
 }
 
