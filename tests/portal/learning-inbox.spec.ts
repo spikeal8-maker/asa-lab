@@ -40,12 +40,6 @@ beforeEach(() => {
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.useFakeTimers();
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
-  HTMLDialogElement.prototype.showModal = function () {
-    this.setAttribute('open', '');
-  };
-  HTMLDialogElement.prototype.close = function () {
-    this.removeAttribute('open');
-  };
   vi.spyOn(api, 'learningNotifications').mockResolvedValue(snapshot());
   vi.spyOn(api, 'readLearningNotifications').mockResolvedValue({
     ok: true,
@@ -68,7 +62,12 @@ const render = async (key = 'account:1') => {
 const click = async (element: HTMLElement) => {
   await act(async () => element.click());
 };
-const trigger = () => container.querySelector<HTMLButtonElement>('.learning-inbox-button')!;
+const unreadStatus = () => container.querySelector<HTMLElement>('.learning-inbox-unread')!;
+const periodicRefresh = async () => {
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(19000);
+  });
+};
 const readAll = () =>
   [...container.querySelectorAll<HTMLButtonElement>('button')].find(
     (button) => button.textContent === 'Отметить прочитанными',
@@ -76,18 +75,12 @@ const readAll = () =>
 
 describe('compiled consumer contract for the learning inbox', () => {
   it.each([0, 1, 99, 100, 999999])(
-    'keeps exact accessible unread %s with a bounded visual badge',
+    'shows exact unread %s inline without a button or nested dialog',
     async (unread) => {
       vi.mocked(api.learningNotifications).mockResolvedValue(snapshot(unread));
       await render();
-      expect(trigger().getAttribute('aria-label')).toBe(`Оповещения: непрочитанных ${unread}`);
-      expect(trigger().querySelector('svg')).not.toBeNull();
-      expect(trigger().textContent?.trim()).toBe(
-        unread === 0 ? '' : unread > 99 ? '99+' : String(unread),
-      );
-      expect(trigger().querySelector('.learning-inbox-badge')?.getAttribute('aria-hidden')).toBe(
-        unread ? 'true' : undefined,
-      );
+      expect(unreadStatus().textContent).toBe(`Непрочитанных: ${unread}`);
+      expect(container.querySelector('.learning-inbox-button, dialog')).toBeNull();
     },
   );
 
@@ -97,7 +90,7 @@ describe('compiled consumer contract for the learning inbox', () => {
     vi.mocked(api.learningNotifications)
       .mockReturnValueOnce(old.promise)
       .mockResolvedValue(snapshot(0));
-    await click(trigger());
+    await periodicRefresh();
     const write = deferred<Awaited<ReturnType<typeof api.readLearningNotifications>>>();
     vi.mocked(api.readLearningNotifications).mockReturnValue(write.promise);
     await click(readAll());
@@ -108,44 +101,47 @@ describe('compiled consumer contract for the learning inbox', () => {
     expect(api.learningNotifications).toHaveBeenCalledTimes(2);
     await act(async () => old.resolve(snapshot(999)));
     expect(api.learningNotifications).toHaveBeenCalledTimes(3);
-    expect(trigger().getAttribute('aria-label')).toBe('Оповещения: непрочитанных 0');
+    expect(unreadStatus().textContent).toBe('Непрочитанных: 0');
     expect(readAll().disabled).toBe(false);
   });
 
-  it('does not apply a delayed read or load to the replacement actor', async () => {
-    await render();
-    await click(trigger());
-    const old = deferred<ApiResult<LearningInboxSnapshot>>();
-    vi.mocked(api.learningNotifications)
-      .mockReturnValueOnce(old.promise)
-      .mockResolvedValue(snapshot(7));
-    await act(async () => {
-      window.dispatchEvent(new Event('focus'));
-      await vi.advanceTimersByTimeAsync(1000);
-    });
-    // Explicit open does not rely on the passive activation window.
-    await click(trigger());
-    const write = deferred<Awaited<ReturnType<typeof api.readLearningNotifications>>>();
-    vi.mocked(api.readLearningNotifications).mockReturnValue(write.promise);
-    await click(readAll());
-    await render('seat:2');
-    const calls = vi.mocked(api.learningNotifications).mock.calls.length;
-    await act(async () => {
-      old.resolve(snapshot(99));
-      write.resolve({
-        ok: false,
-        status: 503,
-        error: { code: 'old', message: 'Старый пользователь' },
+  it.each(['seat:2', 'account:1:workspace:2'])(
+    'does not apply a delayed read or load to replacement context %s',
+    async (nextKey) => {
+      await render();
+      await periodicRefresh();
+      const old = deferred<ApiResult<LearningInboxSnapshot>>();
+      vi.mocked(api.learningNotifications)
+        .mockReturnValueOnce(old.promise)
+        .mockResolvedValue(snapshot(7));
+      await act(async () => {
+        window.dispatchEvent(new Event('focus'));
+        await vi.advanceTimersByTimeAsync(1000);
       });
-    });
-    expect(trigger().getAttribute('aria-label')).toBe('Оповещения: непрочитанных 7');
-    expect(container.textContent).not.toContain('Старый пользователь');
-    expect(api.learningNotifications).toHaveBeenCalledTimes(calls);
-  });
+      // Explicit open does not rely on the passive activation window.
+      await periodicRefresh();
+      const write = deferred<Awaited<ReturnType<typeof api.readLearningNotifications>>>();
+      vi.mocked(api.readLearningNotifications).mockReturnValue(write.promise);
+      await click(readAll());
+      await render(nextKey);
+      const calls = vi.mocked(api.learningNotifications).mock.calls.length;
+      await act(async () => {
+        old.resolve(snapshot(99));
+        write.resolve({
+          ok: false,
+          status: 503,
+          error: { code: 'old', message: 'Старый пользователь' },
+        });
+      });
+      expect(unreadStatus().textContent).toBe('Непрочитанных: 7');
+      expect(container.textContent).not.toContain('Старый пользователь');
+      expect(api.learningNotifications).toHaveBeenCalledTimes(calls);
+    },
+  );
 
-  it('keeps read errors visible after a fresh GET and exposes an explicit retry inside the dialog', async () => {
+  it('keeps read errors visible after a fresh GET and exposes an explicit retry inside the active panel', async () => {
     await render();
-    await click(trigger());
+    await periodicRefresh();
     vi.mocked(api.readLearningNotifications).mockResolvedValue({
       ok: false,
       status: 503,
@@ -155,7 +151,7 @@ describe('compiled consumer contract for the learning inbox', () => {
     expect(container.querySelector('[role="alert"]')?.textContent).toContain(
       'Чтение временно недоступно',
     );
-    expect(trigger().textContent).not.toContain('!');
+    expect(unreadStatus().textContent).not.toContain('!');
     const retry = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
       (button) => button.textContent === 'Повторить',
     )!;

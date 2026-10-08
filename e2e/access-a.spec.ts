@@ -5,6 +5,7 @@ import {
   openPortalSection,
   portalSection,
   openAccountMenu,
+  openAccountSettings,
   accountMenu,
 } from './portal-navigation';
 
@@ -53,7 +54,7 @@ async function register(page: Page, label: string) {
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await expect(page.getByRole('checkbox', { name: 'Я не робот' })).toBeChecked();
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   const response = await page.request.get('/api/auth/me');
   expect(response.ok()).toBeTruthy();
   return response.json();
@@ -80,13 +81,13 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   await expect(portalSection(page, 'Классы')).toHaveCount(0);
   await expect(page.getByRole('link', { name: 'Открыть знания', exact: true })).toBeVisible();
   await shot(page, 'A-new-personal-account');
-  await page.locator('.access-personal-start summary').click();
+  await page.locator('.portal-header .portal-quick-create > summary').click();
   const created = page.waitForResponse(
     (response) =>
       response.url().endsWith('/api/projects') && response.request().method() === 'POST',
   );
   await page
-    .locator('.access-personal-start')
+    .locator('.portal-header .portal-quick-create')
     .getByRole('button', { name: /Электрическая цепь/ })
     .click();
   const creation = await created;
@@ -473,11 +474,16 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     await page.getByRole('button', { name: 'Войти', exact: true }).click();
     await page.setViewportSize({ width: 1366, height: 900 });
     await expect(portalSection(page, 'Главная')).toBeVisible();
-    await expect(portalSection(page, 'Настройки учебного профиля')).toBeVisible();
+    await expect(portalSection(page, 'Настройки учебного профиля')).not.toBeVisible();
+    await openAccountMenu(page);
+    await expect(
+      accountMenu(page).getByRole('button', { name: 'Настройки', exact: true }),
+    ).toBeVisible();
+    await page.locator('.portal-account > summary').click();
   }
   await enter(first.student.studentCode, 390);
   await openPortalSection(page, 'Главная');
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   // First real sign-in creates the Seat principal. Give this active learner
   // a real teacher note; do not manufacture principal rows in the fixture.
   const award = await page.request.put(
@@ -501,7 +507,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   });
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true }).first()).toBeVisible();
-  await openPortalSection(page, 'Настройки учебного профиля');
+  await openAccountSettings(page);
   await expect(page.getByText(privateTeacherNote, { exact: true })).toBeVisible();
   await shot(page, 'H-first-seat-profile');
   await page.evaluate(() => {
@@ -533,7 +539,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   expect([403, 404]).toContain(
     (await page.request.get(`/api/projects/${work.project.id}`)).status(),
   );
-  await openPortalSection(page, 'Настройки учебного профиля');
+  await openAccountSettings(page);
   await expect(page.getByText('Первый ученик', { exact: true })).toHaveCount(0);
   await expect(page.getByText(privateTeacherNote, { exact: true })).toHaveCount(0);
   const secondAwards = await page.request.get('/api/class-join/me/awards');

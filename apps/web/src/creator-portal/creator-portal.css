@@ -171,8 +171,8 @@
   display: flex;
   flex-direction: column;
   width: 240px;
-  padding: 0 8px 12px;
-  overflow-y: auto;
+  padding: 0 12px 12px 8px;
+  overflow: visible;
   border-right: 1px solid #dce3e8;
   background: #fff;
 }
@@ -325,14 +325,15 @@
 .portal-sidebar .portal-nav {
   order: 0;
   display: flex;
-  flex: 1 0 auto;
+  flex: 1 1 auto;
+  min-height: 0;
   flex-direction: column;
   align-items: stretch;
   align-self: auto;
   gap: 4px;
   width: 100%;
   height: auto;
-  overflow: visible;
+  overflow-y: auto;
 }
 
 .portal-sidebar .portal-nav-item {
@@ -444,25 +445,40 @@
 }
 
 .portal-sidebar-collapse {
-  flex-shrink: 0;
-  align-self: center;
+  position: absolute;
+  right: -33px;
+  bottom: 112px;
+  display: grid;
+  place-items: start;
+  width: 44px;
+  height: 48px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-muted);
+}
+
+.portal-sidebar-collapse-visual {
   display: grid;
   place-items: center;
-  width: 44px;
-  height: 44px;
-  margin-top: 8px;
-  padding: 0;
+  box-sizing: border-box;
+  width: 24px;
+  height: 48px;
   border: 1px solid #cdd7dd;
-  border-radius: 50%;
+  border-radius: 12px;
   background: #fff;
-  color: var(--ink-muted);
-  font-size: 24px;
   box-shadow: 0 2px 8px rgba(32, 56, 70, 0.08);
 }
 
-.portal-sidebar-collapse:hover {
+.portal-sidebar-collapse:hover .portal-sidebar-collapse-visual {
   color: #0877b3;
   background: #f2f9fc;
+}
+
+.portal-sidebar-collapse:focus-visible {
+  outline: 2px solid #0877b3;
+  outline-offset: 2px;
 }
 
 .portal-sidebar-collapse svg {
@@ -473,15 +489,15 @@
 
 .portal-shell > .portal-content,
 .portal-shell > .account-page {
-  width: min(1180px, calc(100% - 284px));
+  width: min(1180px, calc(100% - 300px));
   margin-right: 26px;
-  margin-left: 264px;
+  margin-left: 272px;
 }
 
 .portal-shell:has(.portal-sidebar.collapsed) > .portal-content,
 .portal-shell:has(.portal-sidebar.collapsed) > .account-page {
-  width: min(1340px, calc(100% - 124px));
-  margin-left: 98px;
+  width: min(1340px, calc(100% - 132px));
+  margin-left: 106px;
 }
 
 .portal-global-error {
@@ -491,7 +507,7 @@
 .creator-home {
   display: grid;
   gap: 42px;
-  width: min(1060px, calc(100% - 292px)) !important;
+  width: min(1060px, calc(100% - 300px)) !important;
   padding-top: 26px;
 }
 

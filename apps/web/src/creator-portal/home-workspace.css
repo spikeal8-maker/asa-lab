@@ -533,7 +533,7 @@
     gap: 4px 8px;
   }
   .creator-home .creator-module-heading h2 {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
   }
   .creator-home .creator-module-heading .home-create-button {
     width: auto;
@@ -563,4 +563,25 @@
   .home-shelf-track {
     scroll-behavior: auto;
   }
+}
+
+.home-module-empty {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 14px;
+}
+
+.creator-home .creator-module-heading .home-module-all,
+.creator-home .creator-module-heading .home-create-button {
+  max-width: 100%;
+  white-space: normal;
+}
+.creator-home .creator-module-heading .home-module-all {
+  text-align: left;
+  flex-wrap: wrap;
+}
+
+.creator-home .creator-module-heading .home-create-button {
+  height: auto;
+  padding-block: 6px;
 }

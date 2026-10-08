@@ -16,7 +16,6 @@ import { portalNavigation, type CreatorPortalSection } from '../creator-portal/n
 import { QuickCreateMenu } from '../creator-portal/QuickProjectCreation';
 import { classAttention } from '../creator-portal/attention';
 import { PortalLink } from './PortalLink';
-import { LearningInbox } from './LearningInbox';
 import {
   ChevronIcon,
   CloseIcon,
@@ -404,6 +403,7 @@ export function PortalHeader({
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
           <PortalLink
             href={sectionHref('gallery')}
+            aria-label="Проекты"
             aria-current={active === 'gallery' ? 'page' : undefined}
             onNavigate={() => onNavigate('gallery')}
           >
@@ -412,6 +412,7 @@ export function PortalHeader({
           </PortalLink>
           <PortalLink
             href={sectionHref('knowledge')}
+            aria-label="Знания"
             aria-current={active === 'knowledge' ? 'page' : undefined}
             onNavigate={() => onNavigate('knowledge')}
           >
@@ -420,14 +421,6 @@ export function PortalHeader({
           </PortalLink>
         </nav>
         <QuickCreateMenu />
-        <LearningInbox
-          key={avatarActorKey}
-          seat={seatLearner}
-          teaching={
-            session.navigation.classroomManagement ||
-            session.actions?.includes('class.read.staff') === true
-          }
-        />
         <details
           ref={accountMenu}
           className={active === 'account' ? 'portal-account active' : 'portal-account'}
@@ -668,6 +661,24 @@ export function PortalHeader({
               ) : null}
             </PortalLink>
           ))}
+          <div className="portal-mobile-public">
+            {(['gallery', 'knowledge'] as const).map((section) => (
+              <PortalLink
+                key={section}
+                href={sectionHref(section)}
+                className={active === section ? 'portal-nav-item active' : 'portal-nav-item'}
+                aria-current={active === section ? 'page' : undefined}
+                onNavigate={() => go(section)}
+              >
+                <span className="portal-nav-glyph" aria-hidden="true">
+                  {sectionIcon(section)}
+                </span>
+                <span className="portal-nav-label">
+                  {section === 'gallery' ? 'Проекты' : 'Знания'}
+                </span>
+              </PortalLink>
+            ))}
+          </div>
           {adminNavigation ? (
             <div className="portal-admin-navigation">
               <button
@@ -714,7 +725,7 @@ export function PortalHeader({
           {settingsNavigation ? (
             <PortalLink
               href={sectionHref('account')}
-              className={active === 'account' ? 'portal-nav-item active' : 'portal-nav-item'}
+              className={`portal-mobile-account portal-nav-item${active === 'account' ? ' active' : ''}`}
               aria-label={settingsNavigation.label}
               aria-current={active === 'account' ? 'page' : undefined}
               onNavigate={() => go('account')}
@@ -763,7 +774,9 @@ export function PortalHeader({
             disabled={presentation.busy || !presentation.loaded || settingsDirty}
             onClick={() => void presentation.toggleSidebar()}
           >
-            {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}
+            <span className="portal-sidebar-collapse-visual" aria-hidden="true">
+              {sidebarCollapsed ? <ExpandIcon /> : <CollapseIcon />}
+            </span>
           </button>
         ) : null}
       </aside>

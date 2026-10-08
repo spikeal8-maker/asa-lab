@@ -39,10 +39,16 @@
   --portal-sidebar-width: 240px;
 }
 .portal-shell .portal-header {
-  /* Slots follow the DOM: brand | public navigation | create | inbox | account.
+  /* Slots follow the DOM: brand | public navigation | create | account.
      The public area keeps its content width, including a future third link. */
-  grid-template-columns: minmax(max-content, 220px) minmax(max-content, 1fr) auto auto 44px;
+  grid-template-columns: minmax(max-content, 220px) minmax(max-content, 1fr) auto 44px;
   min-height: var(--portal-header-height);
+}
+.portal-header .portal-brand {
+  min-height: 44px;
+}
+.portal-header .portal-account {
+  justify-self: end;
 }
 .portal-shell .portal-sidebar {
   top: var(--portal-header-height);
@@ -169,7 +175,7 @@
   font-size: 21px;
 }
 
-/* Change structure before brand, three public links and inbox exhaust a row.
+/* Public glyphs and Create share a second row before desktop slots exhaust a row.
    The same boundary governs drawer resize in PortalHeader. */
 @media (max-width: 1023px) {
   .portal-shell {
@@ -190,11 +196,11 @@
     width: calc(100% - 24px) !important;
   }
   .portal-shell .portal-header {
-    grid-template-columns: 44px minmax(0, 1fr) auto 44px;
+    grid-template-columns: 44px minmax(0, 1fr) auto;
     grid-template-rows: 56px 44px;
     grid-template-areas:
-      'menu brand inbox account'
-      'public public public public';
+      'menu brand account'
+      'public public create';
     gap: 6px;
     row-gap: 0;
     padding: 0 8px;
@@ -220,17 +226,26 @@
     font-size: 14px;
   }
   .portal-header .portal-global-nav a svg {
-    display: none;
+    display: block;
+    width: 22px;
+    height: 22px;
   }
-  .portal-header .learning-inbox-button {
-    grid-area: inbox;
+  .portal-header .portal-global-nav a span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .portal-header .portal-account {
     grid-area: account;
     display: block;
   }
   .portal-header .portal-quick-create {
-    display: none;
+    grid-area: create;
+    display: block;
+    align-self: center;
   }
   .portal-menu-toggle {
     grid-area: menu;
@@ -284,7 +299,7 @@
     width: min(320px, calc(100vw - 32px));
     height: 100dvh;
     padding: 8px 12px max(12px, env(safe-area-inset-bottom));
-    overflow: auto;
+    overflow: visible;
     background: white;
     border: 0;
     box-shadow: 10px 0 28px #0b355822;
@@ -310,6 +325,7 @@
   .portal-sidebar .portal-sidebar-profile {
     display: flex;
     flex-direction: row;
+    flex-shrink: 0;
     min-height: 72px;
     gap: 12px;
     margin: 0 0 8px;
@@ -334,7 +350,9 @@
     /* The base portal's horizontal menu gives nav order:3 below 900px. The
        drawer follows DOM order at every mobile width. */
     order: 0;
-    flex: 1 0 auto;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
     display: flex;
     flex-direction: column;
     height: auto;
@@ -376,6 +394,12 @@
   .portal-sidebar .portal-admin-subnav-item {
     min-height: 44px;
   }
+  .portal-sidebar .portal-mobile-public {
+    display: grid;
+    border-top: 1px solid #dce3e8;
+    padding-top: 4px;
+  }
+  .portal-sidebar .portal-mobile-account,
   .portal-sidebar .portal-mobile-logout {
     display: flex;
   }

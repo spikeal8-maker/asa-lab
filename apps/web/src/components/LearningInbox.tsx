@@ -1,10 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type LearningNotification, type NotificationCategory } from '../api';
-import {
-  LearningNotificationPreferences,
-  notificationCategories,
-} from './LearningNotificationPreferences';
-import { BellGlyph } from './portal-icons';
+import { notificationCategories } from './LearningNotificationPreferences';
 import { createLearningInboxPoller, type LearningInboxSnapshot } from './learning-inbox-poller';
 
 const titles: Record<string, string> = {
@@ -32,22 +28,15 @@ function destination(item: LearningNotification): string {
   }
   return `#/${item.recipientKind === 'requester' ? 'attending' : 'learning'}?${query.toString()}`;
 }
-export function LearningInbox({
-  seat = false,
-  teaching = true,
-}: {
-  seat?: boolean;
-  teaching?: boolean;
-}) {
-  const dialog = useRef<HTMLDialogElement>(null);
+/** Mounted only in the active Notifications panel; the parent keys actor and workspace. */
+export function LearningInbox() {
   const poller = useRef<ReturnType<typeof createLearningInboxPoller> | null>(null);
   const marking = useRef(false);
   const [data, setData] = useState<LearningInboxSnapshot | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [readError, setReadError] = useState<string | null>(null);
   const error = readError ?? loadError;
-  const [settings, setSettings] = useState(false),
-    [category, setCategory] = useState(''),
+  const [category, setCategory] = useState(''),
     [classId, setClassId] = useState(''),
     [busy, setBusy] = useState(false);
   useEffect(() => {
@@ -94,114 +83,79 @@ export function LearningInbox({
         (!category || category === item.category) && (!classId || classId === item.classroomId),
     ) ?? [];
   return (
-    <>
-      <button
-        className="btn-secondary learning-inbox-button"
-        aria-label={`Оповещения${data ? `: непрочитанных ${data.unread}` : ''}`}
-        title="Оповещения"
-        onClick={() => {
-          setSettings(false);
-          dialog.current?.showModal();
-          refresh();
-        }}
-      >
-        <span className="learning-inbox-icon" aria-hidden="true">
-          <BellGlyph />
-        </span>
-        {data && data.unread > 0 ? (
-          <span className="learning-inbox-badge" aria-hidden="true">
-            {data.unread > 99 ? '99+' : data.unread}
-          </span>
-        ) : null}
-      </button>
-      <dialog ref={dialog} className="learning-inbox-dialog" aria-label="Учебные оповещения">
-        <header>
-          <strong>{settings ? 'Настройки оповещений' : 'Учебные оповещения'}</strong>
-          <button className="btn-secondary" onClick={() => dialog.current?.close()}>
-            Закрыть
+    <section className="learning-inbox-events" aria-label="События уведомлений">
+      <h3>События</h3>
+      <p className="learning-inbox-unread" role="status">
+        Непрочитанных: {data?.unread ?? '…'}
+      </p>
+
+      {error ? (
+        <div className="learning-inbox-error" role="alert">
+          {error}
+          <button className="btn-secondary" onClick={refresh}>
+            Повторить
           </button>
-        </header>
-        <button className="btn-secondary" onClick={() => setSettings(!settings)}>
-          {settings ? 'К событиям' : 'Настроить'}
+        </div>
+      ) : null}
+      {!data && !error ? <p>Загружаем события…</p> : null}
+      <div className="learning-notification-actions">
+        <label>
+          Категория{' '}
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">Все категории</option>
+            {Object.entries(notificationCategories).map(([id, title]) => (
+              <option value={id} key={id}>
+                {title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Класс{' '}
+          <select value={classId} onChange={(e) => setClassId(e.target.value)}>
+            <option value="">Все классы</option>
+            {[
+              ...new Map(
+                (data?.items ?? []).map((item) => [item.classroomId, item.classroomTitle]),
+              ).entries(),
+            ].map(([id, title]) => (
+              <option key={id} value={id}>
+                {title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button
+          className="btn-secondary"
+          disabled={busy || !shown.length}
+          onClick={() => void mark(category || classId ? shown.map((item) => item.id) : null)}
+        >
+          Отметить прочитанными
         </button>
-        {settings ? (
-          <LearningNotificationPreferences seat={seat} teaching={teaching} />
-        ) : (
-          <div className="learning-inbox-events">
-            {error ? (
-              <div className="learning-inbox-error" role="alert">
-                {error}
-                <button className="btn-secondary" onClick={refresh}>
-                  Повторить
-                </button>
-              </div>
-            ) : null}
-            {!data && !error ? <p>Загружаем события…</p> : null}
+      </div>
+      {data && !shown.length ? <p>Нет доставленных оповещений в этом списке.</p> : null}
+      <ul className="learning-inbox-list">
+        {shown.map((item) => (
+          <li key={item.id} data-unread={!item.readAt}>
+            <strong>
+              {titles[item.kind] ?? notificationCategories[item.category as NotificationCategory]}
+            </strong>
             <p>
-              Непрочитанные — личные оповещения. Очередь «Ждут проверки» в журнале считается
-              отдельно.
+              {item.title} · {item.classroomTitle}
             </p>
-            <div className="learning-notification-actions">
-              <label>
-                Категория{' '}
-                <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                  <option value="">Все категории</option>
-                  {Object.entries(notificationCategories).map(([id, title]) => (
-                    <option value={id} key={id}>
-                      {title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Класс{' '}
-                <select value={classId} onChange={(e) => setClassId(e.target.value)}>
-                  <option value="">Все классы</option>
-                  {[
-                    ...new Map(
-                      (data?.items ?? []).map((item) => [item.classroomId, item.classroomTitle]),
-                    ).entries(),
-                  ].map(([id, title]) => (
-                    <option key={id} value={id}>
-                      {title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button
-                disabled={busy || !shown.length}
-                onClick={() => void mark(category || classId ? shown.map((item) => item.id) : null)}
-              >
-                Отметить прочитанными
-              </button>
-            </div>
-            {data && !shown.length ? <p>Нет доставленных оповещений в этом списке.</p> : null}
-            <ul className="learning-inbox-list">
-              {shown.map((item) => (
-                <li key={item.id} data-unread={!item.readAt}>
-                  <strong>
-                    {titles[item.kind] ??
-                      notificationCategories[item.category as NotificationCategory]}
-                  </strong>
-                  <p>
-                    {item.title} · {item.classroomTitle}
-                  </p>
-                  <small>{new Date(item.createdAt).toLocaleString()}</small>
-                  <a
-                    href={destination(item)}
-                    onClick={() => {
-                      void mark([item.id]);
-                      dialog.current?.close();
-                    }}
-                  >
-                    Открыть
-                  </a>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-      </dialog>
-    </>
+            <small>{new Date(item.createdAt).toLocaleString()}</small>
+            <a
+              className="learning-inbox-open"
+              href={destination(item)}
+              onClick={() => {
+                void mark([item.id]);
+              }}
+            >
+              Открыть
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

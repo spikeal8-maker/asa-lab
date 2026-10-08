@@ -408,7 +408,8 @@ async function fixture(
 const panel = (page: Page, name: string) =>
   page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
 
-const inboxEvidence = 'reports/playwright/settings-ui/portal-inbox-s3-20261008';
+const r2Evidence = 'reports/playwright/portal-compact-shell-r2-20261008';
+const inboxEvidence = `${r2Evidence}/events`;
 const inboxItems: LearningNotification[] = [
   {
     id: 'notification-1',
@@ -445,133 +446,48 @@ const inboxItems: LearningNotification[] = [
 ];
 async function stressInboxFont(page: Page) {
   await page.addStyleTag({
-    content: `
-    .learning-inbox-dialog, .learning-inbox-dialog *, .learning-inbox-badge {
-      font-family: monospace !important;
-      font-size: 16px !important;
-    }
-  `,
+    content: `.learning-inbox-events, .learning-inbox-events * { font-size: 24px !important; }`,
   });
 }
-async function assertInboxGeometry(page: Page, width: number, stateName: string) {
-  const metrics = await page.locator('.learning-inbox-button').evaluate((button) => {
-    const rect = button.getBoundingClientRect();
-    const badge = button.querySelector('.learning-inbox-badge')?.getBoundingClientRect();
+async function assertInboxGeometry(page: Page, width: number, name: string) {
+  const events = page.getByRole('region', { name: 'События уведомлений', exact: true });
+  await expect(page.locator('.learning-inbox-button, .learning-inbox-dialog')).toHaveCount(0);
+  const metrics = await events.evaluate((element) => {
+    const r = element.getBoundingClientRect();
     return {
-      x: rect.x,
-      y: rect.y,
-      width: rect.width,
-      height: rect.height,
-      badgeFits:
-        !badge ||
-        (badge.left >= rect.left &&
-          badge.right <= rect.right &&
-          badge.top >= rect.top &&
-          badge.bottom <= rect.bottom),
-    };
-  });
-  expect(metrics.width).toBe(44);
-  expect(metrics.height).toBe(44);
-  expect(metrics.badgeFits).toBe(true);
-  await assertShellGeometry(page, width);
-  writeFileSync(`${inboxEvidence}/${stateName}-${width}-button.json`, JSON.stringify(metrics));
-  return metrics;
-}
-async function assertInboxDialog(page: Page, width: number, name: string) {
-  const metrics = await page.locator('.learning-inbox-dialog').evaluate((dialog) => {
-    const rect = dialog.getBoundingClientRect();
-    const controls = [...dialog.querySelectorAll('button, select, a, input')]
-      .filter((element) => element.checkVisibility())
-      .map((element) => {
-        const r = element.getBoundingClientRect();
-        return {
-          label: element.textContent,
-          x: r.x,
-          y: r.y,
-          right: r.right,
-          width: r.width,
-          height: r.height,
-          isCheckbox: element instanceof HTMLInputElement && element.type === 'checkbox',
-        };
-      });
-    return {
-      x: rect.x,
-      right: rect.right,
-      y: rect.y,
-      bottom: rect.bottom,
-      width: rect.width,
-      clientWidth: dialog.clientWidth,
-      scrollWidth: dialog.scrollWidth,
-      controls,
-      pageOverflow: document.documentElement.scrollWidth > innerWidth,
+      x: r.x,
+      right: r.right,
+      width: r.width,
+      scrollWidth: element.scrollWidth,
+      clientWidth: element.clientWidth,
+      controls: [...element.querySelectorAll('button, select, a')].map((control) => {
+        const b = control.getBoundingClientRect();
+        return { name: control.textContent, x: b.x, right: b.right, height: b.height };
+      }),
+      overflow: document.documentElement.scrollWidth > innerWidth,
     };
   });
   expect(metrics.x).toBeGreaterThanOrEqual(0);
   expect(metrics.right).toBeLessThanOrEqual(width);
-  expect(metrics.y).toBeGreaterThanOrEqual(0);
-  expect(metrics.bottom).toBeLessThanOrEqual(568);
   expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
-  expect(metrics.pageOverflow).toBe(false);
+  expect(metrics.overflow).toBe(false);
   for (const control of metrics.controls) {
-    expect(control.x, control.label ?? '').toBeGreaterThanOrEqual(metrics.x);
-    expect(control.right, control.label ?? '').toBeLessThanOrEqual(metrics.right);
-    if (!control.isCheckbox) expect(control.height, control.label ?? '').toBeGreaterThanOrEqual(44);
+    expect(control.x, control.name ?? '').toBeGreaterThanOrEqual(metrics.x);
+    expect(control.right, control.name ?? '').toBeLessThanOrEqual(metrics.right);
+    expect(control.height, control.name ?? '').toBeGreaterThanOrEqual(44);
   }
-  writeFileSync(`${inboxEvidence}/${name}-${width}-dialog.json`, JSON.stringify(metrics));
+  writeFileSync(`${inboxEvidence}/${name}-${width}.json`, JSON.stringify(metrics));
+  await events.evaluate((element) => element.scrollIntoView({ block: 'start' }));
+  await page.evaluate(() =>
+    window.scrollBy(
+      0,
+      -document.querySelector('.portal-header')!.getBoundingClientRect().height - 12,
+    ),
+  );
   await page.screenshot({ path: `${inboxEvidence}/${name}-${width}.png` });
 }
-
-for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1023])
-  test(`inbox keeps a 44px slot and bounded badge across counts and a future third link at ${width}px`, async ({
-    page,
-  }) => {
-    mkdirSync(inboxEvidence, { recursive: true });
-    const state = await fixture(page, {
-      educator: true,
-      author: true,
-      presentationLongContent: true,
-    });
-    await page.setViewportSize({ width, height: 568 });
-    await page.goto('/#/account/interface');
-    const trigger = page.locator('.learning-inbox-button');
-    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
-    await stressInboxFont(page);
-    const original = await assertInboxGeometry(page, width, 'empty');
-    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
-    for (const count of [1, 99, 100, 999999]) {
-      state.setInboxUnread(count);
-      await trigger.click();
-      await expect(trigger).toHaveAttribute('aria-label', `Оповещения: непрочитанных ${count}`);
-      await expect(trigger.locator('.learning-inbox-badge')).toHaveText(
-        count > 99 ? '99+' : String(count),
-      );
-      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
-      const next = await assertInboxGeometry(page, width, `count-${count}`);
-      expect(next.x).toBe(original.x);
-      expect(next.y).toBe(original.y);
-    }
-    await page.getByLabel('Разделы ASA Lab').evaluate((nav) => {
-      const third = nav.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
-      third.href = '/#/ai-fixture';
-      third.removeAttribute('aria-current');
-      third.querySelector('span')!.textContent = 'ИИ';
-      nav.append(third);
-    });
-    await assertInboxGeometry(page, width, 'third-link');
-    await page.screenshot({ path: `${inboxEvidence}/third-link-${width}.png` });
-    state.failInbox(true);
-    await trigger.click();
-    await expect(dialog.getByRole('alert')).toContainText('Оповещения временно недоступны');
-    await assertInboxDialog(page, width, 'error');
-    await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
-    const failed = await assertInboxGeometry(page, width, 'error');
-    expect(failed.x).toBe(original.x);
-    expect(failed.y).toBe(original.y);
-    expect(await trigger.innerText()).toBe('99+');
-  });
-
 for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
-  test(`inbox preserves ${role} filtering, snapshot reads, native destinations and preferences`, async ({
+  test(`inline notifications preserve ${role} filters, snapshot reads, native destinations and preferences`, async ({
     page,
   }) => {
     mkdirSync(inboxEvidence, { recursive: true });
@@ -585,65 +501,57 @@ for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
         inboxItems,
       });
       await page.setViewportSize({ width, height: 568 });
-      // Each viewport gets a fresh fixture document, rather than a same-hash
-      // navigation that correctly preserves the previous inbox component.
-      await page.goto(`/?inbox-fixture=${role}-${width}#/account`);
-      const trigger = page.locator('.learning-inbox-button');
-      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 2');
-      await trigger.click();
-      await stressInboxFont(page);
-      const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
-      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(2);
-      await assertInboxDialog(page, width, `${role}-populated`);
-      await expect(dialog.getByRole('link', { name: 'Открыть' }).nth(0)).toHaveAttribute(
+      await page.goto(`/?r2=${role}-${width}#/account/notifications`);
+      const events = page.getByRole('region', { name: 'События уведомлений', exact: true });
+      await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 2');
+      await expect(events.locator('.learning-inbox-list > li')).toHaveCount(2);
+      await assertInboxGeometry(page, width, `${role}-populated`);
+      await expect(events.getByRole('link', { name: 'Открыть' }).nth(0)).toHaveAttribute(
         'href',
         '#/learning?assignment=assignment-1&learner=seat-1',
       );
-      await expect(dialog.getByRole('link', { name: 'Открыть' }).nth(1)).toHaveAttribute(
+      await expect(events.getByRole('link', { name: 'Открыть' }).nth(1)).toHaveAttribute(
         'href',
         '#/classrooms/class-2?joinRequest=join-1',
       );
-      await dialog.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('NC01');
-      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(1);
-      await dialog.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('class-2');
-      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(0);
-      await expect(dialog.getByRole('button', { name: 'Отметить прочитанными' })).toBeDisabled();
-      await dialog.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('');
-      await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
-      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 1');
+      await events.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('NC01');
+      await expect(events.locator('.learning-inbox-list > li')).toHaveCount(1);
+      await events.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('class-2');
+      await expect(events.locator('.learning-inbox-list > li')).toHaveCount(0);
+      await expect(events.getByRole('button', { name: 'Отметить прочитанными' })).toBeDisabled();
+      await events.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('');
+      await events.getByRole('button', { name: 'Отметить прочитанными' }).click();
+      await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 1');
       expect(state.notificationReads).toEqual([
         { ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' },
       ]);
-      await dialog.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('');
-      await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
-      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+      await events.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('');
+      await events.getByRole('button', { name: 'Отметить прочитанными' }).click();
+      await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 0');
       expect(state.notificationReads[1]).toEqual({ ids: null, asOf: '2026-01-01T00:00:00Z' });
-      await dialog.getByRole('button', { name: 'Настроить', exact: true }).click();
-      await expect(dialog.getByLabel('Получать учебные оповещения')).toBeEnabled();
-      await expect(dialog.getByLabel('Работы на проверку', { exact: true })).toHaveCount(
+      const prefs = page.getByRole('region', {
+        name: 'Учебные оповещения — только для меня',
+        exact: true,
+      });
+      await expect(prefs.getByLabel('Работы на проверку', { exact: true })).toHaveCount(
         role === 'teacher' ? 1 : 0,
       );
-      await expect(dialog.getByLabel('Заявки и приглашения', { exact: true })).toHaveCount(
+      await expect(prefs.getByLabel('Заявки и приглашения', { exact: true })).toHaveCount(
         role === 'seat' ? 0 : 1,
       );
-      await assertInboxDialog(page, width, `${role}-preferences`);
-      await dialog.getByLabel('Получать учебные оповещения').uncheck();
-      await dialog.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
-      await expect(dialog.getByRole('status')).toHaveText('Настройки сохранены.');
+      await prefs.getByLabel('Получать учебные оповещения').uncheck();
+      await prefs.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+      await expect(prefs.getByRole('status')).toHaveText('Настройки сохранены.');
       expect(
         state.mutations.filter((path) => path === '/api/learning/notifications/preferences'),
       ).toHaveLength(1);
-      await dialog.getByRole('button', { name: 'К событиям', exact: true }).click();
-      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
-      await assertInboxGeometry(page, width, `${role}-saved`);
     }
   });
-
-test('compiled inbox pauses hidden polling and coalesces visible and focus activation', async ({
+test('inline events mount only in Notifications, stop outside it, and coalesce visible/focus activation', async ({
   page,
 }) => {
   mkdirSync(inboxEvidence, { recursive: true });
-  await fixture(page, { unreadCount: 7 });
+  await fixture(page, { unreadCount: 7, educator: true });
   await page.addInitScript(() => {
     let visibility: DocumentVisibilityState = 'hidden';
     Object.defineProperty(document, 'visibilityState', {
@@ -656,13 +564,25 @@ test('compiled inbox pauses hidden polling and coalesces visible and focus activ
     });
   });
   await page.clock.install({ time: new Date('2026-10-08T00:00:00Z') });
-  let requests = 0;
+  let requests = 0,
+    attention = 0;
   page.on('request', (request) => {
-    if (new URL(request.url()).pathname === '/api/learning/notifications') requests += 1;
+    const path = new URL(request.url()).pathname;
+    if (path === '/api/learning/notifications') requests++;
+    if (path.includes('/attention')) attention++;
   });
-  await page.goto('/#/account');
-  const trigger = page.locator('.learning-inbox-button');
-  await expect(trigger).toBeVisible();
+  await page.goto('/#/home');
+  await expect(page.getByRole('main', { name: 'Главная' })).toBeVisible();
+  await page.clock.fastForward(120000);
+  expect(requests).toBe(0);
+  expect(attention).toBe(0);
+  await page.goto('/#/account/profile');
+  await expect(page.getByRole('heading', { name: 'Профиль', exact: true })).toBeVisible();
+  await page.clock.fastForward(120000);
+  expect(requests).toBe(0);
+  await panel(page, 'Уведомления').click();
+  const events = page.getByRole('region', { name: 'События уведомлений', exact: true });
+  await expect(events).toBeVisible();
   await page.clock.fastForward(120000);
   expect(requests).toBe(0);
   await page.evaluate(() => {
@@ -670,7 +590,7 @@ test('compiled inbox pauses hidden polling and coalesces visible and focus activ
     window.dispatchEvent(new Event('focus'));
   });
   await page.clock.runFor(100);
-  await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 7');
+  await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 7');
   expect(requests).toBe(1);
   await page.evaluate(() => window.dispatchEvent(new Event('focus')));
   await page.clock.runFor(200);
@@ -688,35 +608,40 @@ test('compiled inbox pauses hidden polling and coalesces visible and focus activ
   });
   await page.clock.runFor(100);
   await expect.poll(() => requests).toBe(3);
-  await trigger.click();
+  await panel(page, 'Интерфейс').click();
+  await expect(events).toHaveCount(0);
+  await page.clock.fastForward(300000);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.runFor(100);
+  expect(requests).toBe(3);
+  await panel(page, 'Уведомления').click();
+  await expect(events).toBeVisible();
   await expect.poll(() => requests).toBe(4);
   writeFileSync(
     `${inboxEvidence}/compiled-visibility.json`,
-    JSON.stringify({ requests, initiallyHiddenRequests: 0, hiddenPeriodicRequests: 0 }),
+    JSON.stringify({ requests, homeRequests: 0, hiddenRequests: 0, stoppedRequests: 0, attention }),
   );
 });
-
 for (const seat of [false, true])
-  test(`compiled ${seat ? 'Seat' : 'Account'} read invalidates an older GET and preserves native read-one navigation`, async ({
+  test(`inline ${seat ? 'Seat' : 'Account'} read invalidates an older GET and preserves native read-one navigation`, async ({
     page,
   }) => {
     mkdirSync(inboxEvidence, { recursive: true });
     await fixture(page, { seat, unreadCount: 1, inboxItems: [inboxItems[0]] });
-    await page.goto('/#/account');
-    const trigger = page.locator('.learning-inbox-button');
-    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 1');
+    await page.clock.install();
+    await page.goto('/#/account/notifications');
+    const events = page.getByRole('region', { name: 'События уведомлений', exact: true });
+    await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 1');
     let release!: () => void;
-    const gate = new Promise<void>((done) => {
-      release = done;
-    });
+    const gate = new Promise<void>((done) => (release = done));
     let getCount = 0,
       activeGets = 0,
       maximumGets = 0,
       unread = 1;
     const writes: { ids: string[] | null; asOf: string }[] = [];
     await page.route('**/api/learning/notifications', async (route) => {
-      getCount += 1;
-      activeGets += 1;
+      getCount++;
+      activeGets++;
       maximumGets = Math.max(maximumGets, activeGets);
       const old = getCount === 1;
       if (old) await gate;
@@ -727,29 +652,29 @@ for (const seat of [false, true])
           items: [inboxItems[0]],
         },
       });
-      activeGets -= 1;
+      activeGets--;
     });
     await page.route('**/api/learning/notifications/read', async (route) => {
       writes.push(route.request().postDataJSON());
       unread = 0;
       await route.fulfill({ json: { count: 1 } });
     });
-    await trigger.evaluate((button) => {
+    await events.locator('.learning-inbox-unread').evaluate((element) => {
       const seen: string[] = [];
       (window as typeof window & { inboxFixtureSeen: string[] }).inboxFixtureSeen = seen;
-      new MutationObserver(() => seen.push(button.getAttribute('aria-label') ?? '')).observe(
-        button,
-        { attributes: true, attributeFilter: ['aria-label'] },
-      );
+      new MutationObserver(() => seen.push(element.textContent ?? '')).observe(element, {
+        childList: true,
+        subtree: true,
+        characterData: true,
+      });
     });
-    await trigger.click();
-    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    await page.clock.runFor(19000);
     await expect.poll(() => getCount).toBe(1);
-    await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+    await events.getByRole('button', { name: 'Отметить прочитанными' }).click();
     await expect.poll(() => writes.length).toBe(1);
     expect(getCount).toBe(1);
     release();
-    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 0');
     expect(getCount).toBe(2);
     expect(maximumGets).toBe(1);
     expect(writes[0]).toEqual({ ids: null, asOf: '2026-01-01T00:00:00Z' });
@@ -757,31 +682,28 @@ for (const seat of [false, true])
       await page.evaluate(
         () => (window as typeof window & { inboxFixtureSeen: string[] }).inboxFixtureSeen,
       ),
-    ).not.toContain('Оповещения: непрочитанных 999');
-    await dialog.getByRole('link', { name: 'Открыть', exact: true }).click();
+    ).not.toContain('Непрочитанных: 999');
+    await events.getByRole('link', { name: 'Открыть', exact: true }).click();
     await expect(page).toHaveURL(/#\/learning\?assignment=assignment-1&learner=seat-1$/);
     await expect.poll(() => writes.length).toBe(2);
     expect(writes[1]).toEqual({ ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' });
-    await expect(dialog).not.toBeVisible();
+    await expect(events).toHaveCount(0);
     writeFileSync(
       `${inboxEvidence}/compiled-read-race-${seat ? 'seat' : 'account'}.json`,
       JSON.stringify({ getCount, maximumGets, writes }),
     );
   });
-
 for (const width of [1440, 1024, 390, 320])
-  test(`inbox loading, failure and explicit retry keep usable geometry at ${width}px`, async ({
+  test(`inline notifications loading, error and retry keep usable geometry at ${width}px`, async ({
     page,
   }) => {
     mkdirSync(inboxEvidence, { recursive: true });
     await fixture(page);
     let release!: () => void;
-    const gate = new Promise<void>((done) => {
-      release = done;
-    });
+    const gate = new Promise<void>((done) => (release = done));
     let requests = 0;
     await page.route('**/api/learning/notifications', async (route) => {
-      requests += 1;
+      requests++;
       await gate;
       await route.fulfill({
         status: 503,
@@ -789,26 +711,21 @@ for (const width of [1440, 1024, 390, 320])
       });
     });
     await page.setViewportSize({ width, height: 568 });
-    await page.goto('/#/account');
-    const trigger = page.locator('.learning-inbox-button');
-    await trigger.click();
-    await stressInboxFont(page);
-    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
-    await expect(dialog.getByText('Загружаем события…')).toBeVisible();
-    await assertInboxDialog(page, width, 'loading');
+    await page.goto('/#/account/notifications');
+    const events = page.getByRole('region', { name: 'События уведомлений', exact: true });
+    await expect(events.getByText('Загружаем события…')).toBeVisible();
+    await assertInboxGeometry(page, width, 'loading');
     expect(requests).toBe(1);
     release();
-    await expect(dialog.getByRole('alert')).toContainText('Временно недоступно');
+    await expect(events.getByRole('alert')).toContainText('Временно недоступно');
     await page.unroute('**/api/learning/notifications');
-    await dialog.getByRole('button', { name: 'Повторить', exact: true }).click();
-    await expect(dialog.getByRole('alert')).toHaveCount(0);
-    await expect(dialog.getByText('Нет доставленных оповещений в этом списке.')).toBeVisible();
-    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
-    await assertInboxDialog(page, width, 'retry-empty');
-    await page.keyboard.press('Escape');
-    await expect(dialog).not.toBeVisible();
-    await expect(trigger).toBeFocused();
-    await assertInboxGeometry(page, width, 'retry');
+    await events.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(events.getByRole('alert')).toHaveCount(0);
+    await expect(events.getByText('Нет доставленных оповещений в этом списке.')).toBeVisible();
+    await expect(events.locator('.learning-inbox-unread')).toHaveText('Непрочитанных: 0');
+    await assertInboxGeometry(page, width, 'retry-empty');
+    await stressInboxFont(page);
+    await assertInboxGeometry(page, width, 'font150-empty');
   });
 
 async function traverse(page: Page, direction: 'back' | 'forward') {
@@ -1506,9 +1423,10 @@ for (const width of [1440, 1024, 390, 320])
       });
     }
     await page.goto('/#/account/notifications');
-    await page.getByRole('button', { name: 'Оповещения: непрочитанных 0', exact: true }).click();
-    const inbox = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
-    await inbox.getByRole('button', { name: 'Настроить', exact: true }).click();
+    const inbox = page.getByRole('region', {
+      name: 'Учебные оповещения — только для меня',
+      exact: true,
+    });
     await expect(inbox.getByLabel('Работы на проверку', { exact: true })).toBeVisible();
     expect(
       await inbox
@@ -1569,7 +1487,43 @@ async function assertCompactSettings(page: Page, width: number) {
   );
 }
 
-const shellEvidence = 'reports/playwright/settings-ui/portal-shell-s1';
+async function assertCollapseAnchor(page: Page) {
+  const geometry = await page.locator('#portal-sidebar').evaluate((sidebar) => {
+    const box = (el: Element) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const button = sidebar.querySelector('.portal-sidebar-collapse')!;
+    const visual = button.querySelector('.portal-sidebar-collapse-visual')!;
+    return {
+      sidebar: box(sidebar),
+      button: box(button),
+      visual: box(visual),
+      height: innerHeight,
+      controls: [
+        ...document.querySelectorAll(
+          '#portal-sidebar a,#portal-sidebar button:not(.portal-sidebar-collapse),main button,main a,main input,main select',
+        ),
+      ]
+        .filter((el) => el.checkVisibility())
+        .map(box),
+    };
+  });
+  expect(geometry.visual.width).toBe(24);
+  expect(geometry.visual.height).toBe(48);
+  expect(geometry.visual.x + 12).toBeCloseTo(geometry.sidebar.right, 0);
+  expect(geometry.height - geometry.visual.bottom).toBe(112);
+  expect(geometry.button.width).toBeGreaterThanOrEqual(44);
+  expect(geometry.button.height).toBeGreaterThanOrEqual(44);
+  for (const control of geometry.controls) {
+    const x =
+      Math.min(control.right, geometry.button.right) - Math.max(control.x, geometry.button.x);
+    const y =
+      Math.min(control.bottom, geometry.button.bottom) - Math.max(control.y, geometry.button.y);
+    expect(x > 0 && y > 0, 'collapse hit overlaps a navigation/content action').toBe(false);
+  }
+}
+const shellEvidence = `${r2Evidence}/shell`;
 
 async function assertShellGeometry(page: Page, width: number) {
   const metrics = await page.locator('.portal-header').evaluate((header) => {
@@ -1602,6 +1556,8 @@ async function assertShellGeometry(page: Page, width: number) {
   });
   expect(metrics.overflow, `${width}px page overflow`).toBe(false);
   for (const control of metrics.controls) {
+    expect(control.height, `${width}px ${control.label} touch height`).toBeGreaterThanOrEqual(44);
+    expect(control.width, `${width}px ${control.label} touch width`).toBeGreaterThanOrEqual(44);
     expect(control.x, `${width}px ${control.label} left`).toBeGreaterThanOrEqual(0);
     expect(control.right, `${width}px ${control.label} right`).toBeLessThanOrEqual(width);
     expect(control.bottom, `${width}px ${control.label} below header`).toBeLessThanOrEqual(
@@ -1619,6 +1575,10 @@ async function assertShellGeometry(page: Page, width: number) {
         `${width}px overlap: ${a.label} / ${b.label}`,
       ).toBe(false);
     }
+  if (width <= 1023) {
+    const account = metrics.controls.find((control) => control.label?.startsWith('Меню аккаунта'))!;
+    expect(account.right, 'mobile avatar follows the Header right inset').toBe(width - 8);
+  }
   for (const link of metrics.links) expect(link.height).toBeGreaterThanOrEqual(44);
   if (width <= 1023) {
     expect(metrics.header.height).toBeGreaterThanOrEqual(100);
@@ -1653,6 +1613,7 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
       third.href = '/#/ai-fixture';
       third.dataset.layoutFixture = 'future-ai';
       third.removeAttribute('aria-current');
+      third.setAttribute('aria-label', 'ИИ');
       third.querySelector('span')!.textContent = 'ИИ';
       nav.append(third);
     });
@@ -1665,7 +1626,7 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
       exact: true,
       includeHidden: true,
     });
-    await expect(sidebar.locator('a[href="/#/gallery"], a[href="/#/knowledge"]')).toHaveCount(0);
+    await expect(sidebar.locator('a[href="/#/gallery"], a[href="/#/knowledge"]')).toHaveCount(2);
     await expect(
       sidebar.getByRole('link', { name: 'Мои проекты', exact: true, includeHidden: true }),
     ).toHaveCount(1);
@@ -1722,11 +1683,12 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
       await collapse.scrollIntoViewIfNeeded();
       const size = await collapse.boundingBox();
       expect(size!.width).toBe(44);
-      expect(size!.height).toBe(44);
-      await expect(collapse).toHaveCSS('border-radius', '50%');
+      expect(size!.height).toBe(48);
+      await assertCollapseAnchor(page);
       await page.screenshot({ path: `${shellEvidence}/expanded-control-${width}.png` });
       await collapse.click();
       await expect(sidebar).toHaveClass(/collapsed/);
+      await assertCollapseAnchor(page);
       await page.screenshot({ path: `${shellEvidence}/collapsed-${width}.png` });
       expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(
         1,
@@ -1737,7 +1699,7 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
   });
 
 for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 320])
-  test(`portal shell reserves intrinsic brand and inbox width under wide text metrics at ${width}px`, async ({
+  test(`portal shell reserves intrinsic brand and Create width under wide text metrics at ${width}px`, async ({
     page,
   }) => {
     mkdirSync(shellEvidence, { recursive: true });
@@ -1745,9 +1707,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 
     await page.setViewportSize({ width, height: 568 });
     await page.goto('/#/account/interface');
     await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
-    await expect(
-      page.getByRole('button', { name: 'Оповещения: непрочитанных 9999' }),
-    ).toBeVisible();
+    await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
     // A deterministic wider font plus text-spacing stress exposes the brand's
     // old 120px minimum on Windows too, instead of depending on Linux fonts.
     await page.addStyleTag({
@@ -1757,7 +1717,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 
           letter-spacing: 2px !important;
         }
         .portal-header button, .portal-header a, .portal-header summary {
-          font-size: 16px !important;
+          font-size: 24px !important;
         }
       `,
     });
@@ -1767,6 +1727,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 
       const third = element.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
       third.href = '/#/ai-fixture';
       third.removeAttribute('aria-current');
+      third.setAttribute('aria-label', 'ИИ');
       third.querySelector('span')!.textContent = 'ИИ';
       element.append(third);
     });
@@ -1864,7 +1825,11 @@ for (const width of [1440, 1024, 1023, 821, 390, 320])
       await expect(active).toHaveCount(['gallery', 'knowledge'].includes(hash) ? 1 : 0);
       if (['gallery', 'knowledge'].includes(hash)) {
         await expect(active).toHaveAttribute('href', `/#/${hash}`);
-        await expect(page.locator('.portal-sidebar a[aria-current="page"]')).toHaveCount(0);
+        await expect(page.locator('.portal-nav > a[aria-current="page"]')).toHaveCount(0);
+        await expect(page.locator('.portal-mobile-public a[aria-current="page"]')).toHaveAttribute(
+          'href',
+          `/#/${hash}`,
+        );
       }
     }
     const projects = page
@@ -2230,6 +2195,11 @@ for (const width of [1440, 1024, 390, 320]) {
       organization: true,
       presentationLongContent: true,
     });
+    let attentionRequests = 0;
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname === '/api/classrooms/teacher-home-attention')
+        attentionRequests++;
+    });
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
     const motion = page.getByLabel('Анимации', { exact: false }),
@@ -2308,11 +2278,12 @@ for (const width of [1440, 1024, 390, 320]) {
       width >= 1024 ? 2 : 1,
     );
     await page.getByRole('button', { name: 'ASA Lab — главная', exact: true }).click();
-    await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
-    await expect(
-      page.getByRole('heading', { name: 'Требует внимания', exact: true }),
-    ).toBeVisible();
-    await expect(page.getByText('Работы на проверке: 1', { exact: false })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Требует внимания', exact: true })).toHaveCount(
+      0,
+    );
+    await expect(page.getByText('Работы на проверке: 1', { exact: false })).toHaveCount(0);
+    expect(attentionRequests).toBe(0);
     await expect(page.getByLabel('Текущий аккаунт и контекст')).toHaveCount(0);
     await expect(page.locator('.presentation-shell')).toHaveAttribute('data-motion', 'reduce');
     await expect
@@ -3645,7 +3616,7 @@ test('S2 avatar library code is requested only when opening the chooser', async 
     if (/AvatarChooser-/.test(request.url())) requests.push(request.url());
   });
   await page.goto('/#/home');
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   expect(requests).toHaveLength(0);
   await page.locator('.portal-account > summary').click();
   await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
@@ -3763,7 +3734,7 @@ for (const actor of ['account', 'seat', 'teacher', 'author', 'admin'] as const) 
     const requests: string[] = [];
     page.on('request', (request) => requests.push(new URL(request.url()).pathname.slice(1)));
     await page.goto('/#/home');
-    await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
     for (const route of ['projects', 'gallery', 'knowledge', 'learning', 'help', 'account']) {
       await page.evaluate((hash) => {
         window.location.hash = hash;
@@ -3822,7 +3793,7 @@ for (const width of [1440, 1024, 390, 320]) {
         await startupCapture(page, `${kind}-${width}-loading`);
         release();
         await expect(
-          page.getByRole('heading', {
+          page.getByRole(kind === 'home' ? 'main' : 'heading', {
             name:
               kind === 'home'
                 ? 'Главная'
@@ -3978,7 +3949,7 @@ test('S4 Home delivery error preserves portal controls and My Projects exit', as
     page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
   ).toBeVisible();
   await startupCapture(page, 'home-390-error');
-  await expect(page.getByRole('button', { name: /^Оповещения/ })).toBeVisible();
+  await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
   await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
   await expect(page).toHaveURL(/#\/projects$/);
   await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible();
@@ -4167,3 +4138,286 @@ for (const game of [false, true]) {
     }
   });
 }
+
+for (const width of [1440, 1024, 390, 320])
+  test(`R2 compact Home has one create action per empty module and no attention/global polling at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(`${r2Evidence}/home`, { recursive: true });
+    await fixture(page, { educator: true });
+    await page.route('**/api/modules', (route) =>
+      route.fulfill({
+        json: {
+          items: ['three-d', 'electronics', 'blocks'].map((moduleKey) => ({
+            moduleKey,
+            displayName: moduleKey,
+            availability: 'active',
+            creatable: true,
+          })),
+        },
+      }),
+    );
+
+    let notifications = 0,
+      attention = 0;
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/api/learning/notifications') notifications++;
+      if (path.includes('/attention')) attention++;
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/home');
+    const main = page.getByRole('main', { name: 'Главная', exact: true });
+    await expect(main).toBeVisible();
+    await expect(main.locator('.creator-module-section')).toHaveCount(3);
+    await expect(main.getByRole('heading', { name: 'Главная', exact: true })).toHaveCount(0);
+    await expect(
+      main.locator('.home-mobile-create,.home-empty-create,.portal-quick-create'),
+    ).toHaveCount(0);
+    await expect(main.locator('.home-create-button')).toHaveCount(3);
+    const actionGeometry = async () => {
+      const boxes = await main.locator('.home-create-button').evaluateAll((buttons) =>
+        buttons.map((button) => {
+          const hit = button.getBoundingClientRect();
+          const empty = button
+            .closest('.creator-module-section')!
+            .querySelector('.home-module-empty')!
+            .getBoundingClientRect();
+          const frame = getComputedStyle(button, '::before');
+          return {
+            width: hit.width,
+            height: hit.height,
+            visualHeight: hit.height - parseFloat(frame.top) - parseFloat(frame.bottom),
+            hitBottom: hit.bottom,
+            emptyTop: empty.top,
+          };
+        }),
+      );
+      for (const box of boxes) {
+        expect(box.width).toBeGreaterThanOrEqual(44);
+        expect(box.height).toBeGreaterThanOrEqual(44);
+        expect(box.hitBottom).toBeLessThanOrEqual(box.emptyTop);
+      }
+      return boxes;
+    };
+    const normalGeometry = await actionGeometry();
+
+    await expect(main.locator('.home-module-empty')).toHaveCount(3);
+    await expect(page.locator('.portal-header .portal-quick-create > summary')).toBeVisible();
+    await expect(main.getByRole('link', { name: 'Открыть знания', exact: true })).toBeVisible();
+    await assertShellGeometry(page, width);
+    expect(notifications).toBe(0);
+    expect(attention).toBe(0);
+    await page.screenshot({ path: `${r2Evidence}/home/empty-${width}.png` });
+    await page.addStyleTag({ content: '.creator-home button {font-size:24px !important; }' });
+    await assertShellGeometry(page, width);
+    const font150Geometry = await actionGeometry();
+    writeFileSync(
+      `${r2Evidence}/home/geometry-${width}.json`,
+      JSON.stringify({ normalGeometry, font150Geometry }, null, 2),
+    );
+    await page.screenshot({ path: `${r2Evidence}/home/empty-font150-${width}.png` });
+  });
+
+for (const seat of [false, true])
+  test(`R2 ${seat ? 'Seat' : 'Account'} retains general and per-class preferences through guarded tabs and clean lifecycle`, async ({
+    page,
+  }) => {
+    await fixture(page, { seat });
+    let preferenceLoads = 0,
+      eventLoads = 0;
+    page.on('request', (request) => {
+      const path = new URL(request.url()).pathname;
+      if (path === '/api/learning/notifications/preferences' && request.method() === 'GET')
+        preferenceLoads++;
+      if (path === '/api/learning/notifications') eventLoads++;
+    });
+    await page.goto('/#/account/notifications');
+    const prefs = page.getByRole('region', {
+      name: 'Учебные оповещения — только для меня',
+      exact: true,
+    });
+    await expect(prefs.getByLabel('Скоро срок', { exact: true })).toBeChecked();
+    await prefs.evaluate(
+      (element) =>
+        ((window as typeof window & { r2PreferencesElement: Element }).r2PreferencesElement =
+          element),
+    );
+    await prefs.getByLabel('Скоро срок', { exact: true }).uncheck();
+    await prefs.locator('summary').click();
+    await prefs.getByLabel('Мои оповещения об этом классе').selectOption('custom');
+    await prefs
+      .getByRole('combobox', { name: 'Назначения и условия', exact: true })
+      .selectOption('off');
+    await panel(page, seat ? 'Мой профиль' : 'Профиль').click();
+    const guard = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+    await expect(guard).toBeVisible();
+    await guard.getByRole('button', { name: 'Остаться', exact: true }).click();
+    await expect(prefs.getByLabel('Скоро срок', { exact: true })).not.toBeChecked();
+    await expect(prefs.getByLabel('Мои оповещения об этом классе')).toHaveValue('custom');
+    await expect(
+      prefs.getByRole('combobox', { name: 'Назначения и условия', exact: true }),
+    ).toHaveValue('off');
+    await prefs.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+    await expect(prefs.getByRole('status')).toHaveText('Настройки сохранены.');
+    await panel(page, 'Интерфейс').click();
+    await expect(page.locator('.learning-inbox-events')).toHaveCount(0);
+    await panel(page, 'Уведомления').click();
+    await expect(page.locator('.learning-inbox-events')).toBeVisible();
+    expect(
+      await prefs.evaluate(
+        (element) =>
+          element ===
+          (window as typeof window & { r2PreferencesElement: Element }).r2PreferencesElement,
+      ),
+    ).toBe(true);
+    expect(preferenceLoads).toBe(1);
+    expect(eventLoads).toBe(2);
+    await expect(prefs.getByLabel('Скоро срок', { exact: true })).not.toBeChecked();
+    await expect(
+      prefs.getByRole('combobox', { name: 'Назначения и условия', exact: true }),
+    ).toHaveValue('off');
+    await prefs.getByLabel('Скоро срок', { exact: true }).check();
+    await panel(page, 'Интерфейс').click();
+    await expect(guard).toBeVisible();
+    await guard.getByRole('button', { name: 'Отменить изменения и перейти', exact: true }).click();
+    await expect(page).toHaveURL(/#\/account\/interface$/);
+    await panel(page, 'Уведомления').click();
+    await expect(prefs.getByLabel('Скоро срок', { exact: true })).not.toBeChecked();
+  });
+test('R2 short admin drawer scrolls navigation independently while profile, close and footer remain reachable', async ({
+  page,
+}) => {
+  mkdirSync(`${r2Evidence}/shell`, { recursive: true });
+  await fixture(page, {
+    platformAdmin: true,
+    educator: true,
+    author: true,
+    presentationLongContent: true,
+  });
+  await page.route('**/api/admin/v1/me', (route) =>
+    route.fulfill({
+      json: {
+        administrator: true,
+        principalId: 'admin-1',
+        accountId: '20000000-0000-4000-8000-000000000001',
+        displayName: 'Проверочный администратор',
+        activeWorkspaceId: '10000000-0000-4000-8000-000000000001',
+        scopes: [
+          {
+            kind: 'platform',
+            id: null,
+            title: 'ASA Lab',
+            role: 'platform_admin',
+            permissions: [
+              'administration.open',
+              'administration.accounts.read',
+              'administration.organizations.read',
+              'administration.security.read',
+              'administration.audit.read',
+              'administration.operations.read',
+            ],
+          },
+        ],
+      },
+    }),
+  );
+  await page.setViewportSize({ width: 320, height: 568 });
+  await page.goto('/#/admin');
+  await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+  const sidebar = page.locator('#portal-sidebar');
+  await expect(sidebar.locator('.portal-admin-subnav-item')).toHaveCount(8);
+  await expect(sidebar.getByRole('button', { name: 'Закрыть меню', exact: true })).toBeInViewport();
+  await expect(sidebar.getByRole('button', { name: 'Выбрать аватар в меню' })).toBeInViewport();
+  const nav = sidebar.locator('.portal-nav');
+  expect(await nav.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await sidebar.getByRole('button', { name: 'История', exact: true }).scrollIntoViewIfNeeded();
+  await expect(sidebar.getByRole('button', { name: 'История', exact: true })).toBeInViewport();
+  for (const label of ['Настройки', 'Справка'])
+    await expect(sidebar.getByRole('link', { name: label, exact: true })).toBeInViewport();
+  await expect(sidebar.getByRole('button', { name: 'Выход', exact: true })).toBeInViewport();
+  expect(await sidebar.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
+  await page.screenshot({ path: `${r2Evidence}/shell/admin-long-nav-320.png` });
+});
+
+for (const width of [390, 320])
+  test(`R2 inline event keyboard focus stays below fixed Header at ${width}px`, async ({
+    page,
+  }) => {
+    await fixture(page, { inboxItems });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/notifications');
+    await expect(page.locator('.learning-inbox-list li')).toHaveCount(2);
+    const category = page.locator('.learning-inbox-events select').first();
+    await category.focus();
+    for (let i = 0; i < 5; i++) {
+      await expect
+        .poll(
+          async () =>
+            page.locator(':focus').evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              const header = document.querySelector('.portal-header')!.getBoundingClientRect();
+              return rect.y >= header.bottom && rect.bottom <= innerHeight;
+            }),
+          { message: `focused event control ${i} fits below Header` },
+        )
+        .toBe(true);
+      await page.keyboard.press('Tab');
+    }
+  });
+
+test('R2 Home module creation preserves server projection, busy and idempotent retry after failure', async ({
+  page,
+}) => {
+  await fixture(page);
+  await page.route('**/api/modules', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            moduleKey: 'electronics',
+            displayName: 'Электроника',
+            availability: 'active',
+            creatable: true,
+          },
+          { moduleKey: 'three-d', displayName: '3D', availability: 'active', creatable: false },
+        ],
+      },
+    }),
+  );
+  let release!: () => void;
+  const gate = new Promise<void>((done) => (release = done));
+  const keys: string[] = [];
+  const bodies: unknown[] = [];
+  await page.route('**/api/projects', async (route) => {
+    if (route.request().method() !== 'POST') return route.fallback();
+    keys.push(route.request().headers()['idempotency-key']);
+    bodies.push(route.request().postDataJSON());
+    if (keys.length === 1) await gate;
+    await route.fulfill({
+      status: 503,
+      json: { error: { code: 'unavailable', message: 'Создание временно недоступно' } },
+    });
+  });
+  await page.goto('/#/home');
+  const button = page.getByRole('button', { name: 'Создать цепь', exact: true });
+  await expect(button).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Создать модель', exact: true })).toHaveCount(0);
+  await button.click();
+  await expect(button).toBeDisabled();
+  release();
+  await expect(page.getByRole('alert')).toContainText('Создание временно недоступно');
+  await expect(button).toBeEnabled();
+  await page
+    .getByRole('alert')
+    .getByRole('button', { name: 'Продолжить создание', exact: true })
+    .click();
+  await expect.poll(() => keys.length).toBe(2);
+  expect(keys[0]).toBe(keys[1]);
+  expect(bodies[0]).toEqual(bodies[1]);
+  expect(bodies[0]).toMatchObject({
+    scope: 'personal',
+    module: 'electronics',
+    automaticTitle: true,
+  });
+});

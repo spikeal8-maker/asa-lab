@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { api, type Project, type SessionPayload } from '../api';
 import { PortalLink } from '../components/PortalLink';
-import { TeacherHomeAttention } from '../components/TeacherHomeAttention';
 import {
   HOME_MODULES,
-  QuickCreateMenu,
   homeModuleTitle,
   useQuickProjectCreation,
   useProjectScroll,
@@ -65,25 +63,14 @@ export function CreatorHomePage({
   }, [session.user.id, session.activeWorkspace.workspaceId, reload]);
   const rememberScroll = useProjectScroll(projects !== null);
   return (
-    <main className="portal-content creator-home" id="main-content" tabIndex={-1}>
-      <div className="creator-home-topline">
-        <h1 className="creator-home-title">Главная</h1>
-        <div className="home-mobile-create">
-          <QuickCreateMenu />
-        </div>
-      </div>
-      {session.navigation.classroomManagement &&
-      session.capabilities.some(
-        (item) =>
-          item.capability === 'educator' && ['verified', 'provisional'].includes(item.state),
-      ) ? (
-        <TeacherHomeAttention
-          key={`attention:${session.user.id}:${session.activeWorkspace.workspaceId}`}
-        />
-      ) : null}
+    <main
+      className="portal-content creator-home"
+      id="main-content"
+      aria-label="Главная"
+      tabIndex={-1}
+    >
       {projects?.length === 0 ? (
         <section className="access-personal-start" aria-label="Начать работу">
-          <QuickCreateMenu />
           <PortalLink
             href={creatorViewToHref({ kind: 'knowledge' })}
             className="btn-secondary"
@@ -189,21 +176,13 @@ export function CreatorHomePage({
                     ))}
                   </HomeShelf>
                 ) : (
-                  <button
-                    type="button"
-                    className="home-empty-create"
-                    disabled={busy}
-                    onClick={() => create(key)}
-                  >
-                    <span aria-hidden="true">＋</span>
-                    <span>
-                      {key === 'three-d'
-                        ? 'Ваша первая 3D модель'
-                        : key === 'electronics'
-                          ? 'Ваша первая электрическая цепь'
-                          : 'Ваша первая программа'}
-                    </span>
-                  </button>
+                  <p className="home-module-empty">
+                    {key === 'three-d'
+                      ? 'Пока нет моделей'
+                      : key === 'electronics'
+                        ? 'Пока нет схем'
+                        : 'Пока нет программ'}
+                  </p>
                 )}
               </section>
             );

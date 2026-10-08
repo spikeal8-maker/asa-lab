@@ -1,3 +1,4 @@
+import { LearningInbox } from '../components/LearningInbox';
 import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -120,6 +121,11 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
           <div hidden={selectedPanel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
               <h2 className="account-panel-title">Уведомления</h2>
+              {selectedPanel === 'notifications' ? (
+                <LearningInbox
+                  key={`seat:${seat.student.seatId}:${seat.classroom.id}:${seat.expiresAt}`}
+                />
+              ) : null}
               <LearningNotificationPreferences
                 seat
                 teaching={false}

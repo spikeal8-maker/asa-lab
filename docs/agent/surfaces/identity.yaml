@@ -65,13 +65,14 @@ surfaces:
     - TST-ASA-ACCESS-A-E2E-001
     - TST-ACCOUNT-SETTINGS-UI-001
   - id: CTRL-PORTAL-LEARNING-INBOX
-    label: Actor-scoped learning inbox preserves reads and polls only visible sessions with single-flight refresh
+    label: Settings Notifications mounts actor/workspace-scoped events only while active, preserving snapshot reads and visible single-flight polling
     change_class: L1_UI_BEHAVIOR
     files:
     - apps/web/src/components/LearningInbox.tsx
     - apps/web/src/components/learning-inbox-poller.ts
     - apps/web/src/components/learning-notifications.css
-    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/pages/SeatAccountPage.tsx
     commands: []
     invariants:
     - IDA-AUTH-001

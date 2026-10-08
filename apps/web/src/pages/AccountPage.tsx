@@ -1,3 +1,4 @@
+import { LearningInbox } from '../components/LearningInbox';
 import { PresentationControls, usePresentation } from '../components/PresentationPreferences';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
@@ -936,8 +937,12 @@ export function AccountPage({
           <div hidden={panel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
               <h2 className="account-panel-title">Уведомления</h2>
-              <p>События доступны в меню «Оповещения». Здесь меняется только ваша доставка.</p>
               <p>Подключение MAX для входа само по себе не включает рассылку сообщений.</p>
+              {selectedPanel === 'notifications' ? (
+                <LearningInbox
+                  key={`account:${session.user.id}:${session.activeWorkspace.workspaceId}`}
+                />
+              ) : null}
               <LearningNotificationPreferences
                 teaching={
                   session.navigation.classroomManagement ||
