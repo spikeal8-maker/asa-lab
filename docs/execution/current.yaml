@@ -315,49 +315,40 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
-      issue: 505
+      id: TASK-ELECTRONICS-GOVERNANCE-006
+      issue: 524
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: integrated_candidate_postintegration_browser_pending
+      checkpoint: mandatory_hygiene_checkpoint_selected
       owner_acceptance: pending
     suspended_slices: []
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: a05e7801d3c300750a0dbc3a792891102868bcc9
+      convergence_baseline_sha: 5d57f0eb2e4dcc6ff49c3c1ab08ed9951d0eded8
       head_sha: null
-      observed_at: '2026-10-08T06:49:51Z'
+      observed_at: '2026-10-08T07:30:53Z'
       main:
         branch: main
-        sha: a05e7801d3c300750a0dbc3a792891102868bcc9
-      observation_note: >-
-        Fetch main and read exact-head CI before writes. Dated main a05e7801
-        is the normal merge of PR 506: parents 6026b587 and approved candidate
-        2c76f97b, identical tree 708d34072e9931cb60b12fa74cdf585c391e69d7.
-        NEW independent candidate review APPROVE/STOP; required General
-        37736754158 and full Electronics 37736754136 are terminal SUCCESS
-        on exact 2c76, with 1007 focused and 118 browser tests. The original
-        146-line rigid-board test is unchanged; no product defect was proved
-        and no product repair was made. Existing human programme authorization
-        covered bounded integration; owner/class acceptance, release and
-        deployment remain separate. PR 506 is MERGED, so clear only its active
-        delivery association. Exact a05 General 37739236522 failed Governance
-        solely because this association still named a merged PR; downstream
-        Code/Data/Access were SKIPPED. This bounded controller metadata repair
-        preserves every product, dependency, workflow and foreign lane.
-        Obtain its actual Governance result, then perform the mandatory
-        AFTER-integration exact-main browser repeat and NEW published-state
-        independent review before closing Issue 505. No browser dispatch ran
-        while control-plane entry was blocked. Candidate verification and
-        premerge approval do not replace this temporal repeat. The prior
-        6026 S4 Portal failure remains separately owner-coordinated; its cause
-        is not claimed fixed by the test-only Electronics diff. Keep accepted
-        500/513/509/516/517/523/521 unchanged. T3 remains pending evidence from
-        a real student computer; do not repeat old cadence/load measurements.
-        No next product or hygiene slice is selected here.
+        sha: 5d57f0eb2e4dcc6ff49c3c1ab08ed9951d0eded8
+      observation_note:
+        'Fetch main and read exact-head CI before writes. Dated main5d57 contains accepted
+        505/PR506 candidate2c76, normal mergea05 and postintegration verified74bc. NEW candidate and published-state
+        reviewers APPROVE/STOP; executor STOP. Required exact74bc General37740061575 and AFTER-integration
+        full37741016763 are terminalSUCCESS:1007focused/118browser,166+159freshNx/0hits. Only the original146-line
+        test was added; no product defect or repair was proved. Resolve only Electronics505 acceptance blocker
+        from this actual evidence and record controller technical closeout. Fixture persistence and absent
+        passing rawtrace are qualified; no owner/class acceptance, release or deployment. Foreign Portal7464
+        General37741353378 failed account-settings-ui Missingbutton and was separately owner-coordinated.
+        Portal5d57 contains only its test repair; General37743003531 was pending at this selection snapshot,
+        so latest-main readiness is not claimed. All Electronics/current/deps/workflows are unchanged by
+        those foreign commits. Select only documentation checkpoint524: hygiene is due since490;518 single-file
+        review was not full checkpoint. Use existing baseline/deltas and report seven required categories
+        without another broad capability inventory, product/asset/decomposition work or repeat measurements.
+        Preserve accepted500/513/509/516/517/523/521. T3 remains pending actual pupil device evidence;465/452
+        remain open for their remaining boundaries. No next product slice is selected.'
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -378,6 +369,30 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
+        issue: 505
+        pr: 506
+        accepted_candidate_sha: 2c76f97b1d54bd9693fb6e1ddc2fd8172a2afd86
+        integrated_sha: a05e7801d3c300750a0dbc3a792891102868bcc9
+        accepted_postintegration_sha: 74bc9ddfb367f385cd902116ddc7150569a10270
+        independent_review: approved
+        independent_exact_main_review: approved
+        exact_candidate_general_run: 37736754158
+        exact_candidate_focused_run: 37736754136
+        exact_main_general_run: 37740061575
+        exact_main_focused_run: 37741016763
+        browser_scenarios_passed: 118
+        nx_fresh_executions:
+          general: 166
+          focused_workflow: 159
+        candidate_review: docs/product/electronics/evidence/rigid-move-505-candidate-review-20261008.md
+        independent_evidence: docs/product/electronics/evidence/rigid-move-505-published-review-20261008.md
+        independent_review_original_sha256: 76b045c20dfcffb64717cd2446c350235e60d8746d3ec3d0086d44b253b56ac7
+        status: technical_accepted
+        production_source_changed: false
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
         issue: 516
         accepted_candidate_sha: ba05381af8e95ad26ee04f9d501625b7a3154681
@@ -1081,23 +1096,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: ELECTRONICS-505-BROWSER-BASELINE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
-    blocks:
-      - technical_acceptance
-      - merge_pr
-      - owner_acceptance
-      - release_claim
-      - close_issue
-    allows:
-      - bounded_repair
-      - regression_authoring
-      - documentation_update
-      - focused_verification
-    reason: Issue 505 PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f remains preserved. Independently accepted diagnosis Issue 510 report 09924bf6ce1216ac16f89241f107fb14cf9570fa proved delayed complete observation publication and reproduced the unchanged Arduino LOW failure under controlled CPU contention. Accepted startup repair Issue 513 resolved E2 Issue 509. Separate Issue 516 must resolve the remaining cadence dependency, followed by full exact-head Electronics browser PASS, before acceptance, merge or closure of Issue 505.
-    evidence: https://github.com/spikeal8-maker/asa-lab/issues/516
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
