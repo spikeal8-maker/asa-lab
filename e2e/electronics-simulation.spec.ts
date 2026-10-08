@@ -4390,6 +4390,7 @@ test('ELECTRONICS-E01 AFTER latest failed save recovers quietly without another 
 
 test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a renderer crash', async ({
   page,
+  browser,
 }) => {
   test.setTimeout(120_000);
   await loginWithOrganization(page, teacher);
@@ -4423,15 +4424,89 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
     if (message.text() === 'E01 pagehide') lifecycle.push('pagehide');
   });
   await page.evaluate(() => window.addEventListener('pagehide', () => console.log('E01 pagehide')));
+  // Temporary R3 diagnostic: read only this isolated browser's own descendants.
+  // Do not change Chromium flags, seccomp, capabilities, or the crash mechanism.
+  const browserCdp = await browser.newBrowserCDPSession();
+  const version = await browserCdp.send('Browser.getVersion');
+  const { processInfo } = await browserCdp.send('SystemInfo.getProcessInfo');
+  const browserPid = processInfo.find((entry) => entry.type === 'browser')?.id;
+  const readProcess = (pid: number) => {
+    if (process.platform !== 'linux' || !Number.isSafeInteger(pid) || pid <= 0) return null;
+    try {
+      const status = Object.fromEntries(
+        readFileSync(`/proc/${pid}/status`, 'utf8')
+          .split('\n')
+          .filter((line) => /^(State|PPid|TracerPid|NSpid|Seccomp):/.test(line))
+          .map((line) => {
+            const colon = line.indexOf(':');
+            return [line.slice(0, colon), line.slice(colon + 1).trim()];
+          }),
+      );
+      return { pid, status, wchan: readFileSync(`/proc/${pid}/wchan`, 'utf8').trim() };
+    } catch (error) {
+      return { pid, error: String(error) };
+    }
+  };
+  const rendererPids = processInfo
+    .filter((entry) => entry.type === 'renderer')
+    .map((entry) => entry.id)
+    .filter((pid) => {
+      if (browserPid === undefined) return false;
+      for (let ancestor = pid, depth = 0; depth < 12; depth += 1) {
+        if (ancestor === browserPid) return true;
+        const own = readProcess(ancestor);
+        if (!own || !('status' in own)) return false;
+        const parent = Number(own.status.PPid);
+        if (!Number.isSafeInteger(parent) || parent <= 1 || parent === ancestor) return false;
+        ancestor = parent;
+      }
+      return false;
+    });
+  const snapshots: unknown[] = [];
+  const snapshot = (phase: string) => {
+    snapshots.push({ phase, at: Date.now(), renderers: rendererPids.map(readProcess) });
+  };
+  const targetCrashed: unknown[] = [];
+  const pageCdp = await page.context().newCDPSession(page);
+  pageCdp.on('Inspector.targetCrashed', (event) => targetCrashed.push({ at: Date.now(), event }));
+  const pageCrashes: number[] = [];
+  page.on('crash', () => pageCrashes.push(Date.now()));
+  snapshot('before-injection');
   const crash = page.waitForEvent('crash');
   // Pinned Playwright 1.55.1's Chromium crash fixture uses this browser URL.
   // Record the injection outcome; an injection error alone is not a crash.
+  let injectionOutcome: { status: string; error?: string } = { status: 'pending' };
   const injection = page.goto('chrome://crash').then(
-    () => ({ status: 'resolved' as const }),
-    (error: unknown) => ({ status: 'rejected' as const, error: String(error) }),
+    () => (injectionOutcome = { status: 'resolved' }),
+    (error: unknown) => (injectionOutcome = { status: 'rejected', error: String(error) }),
   );
-  await crash;
-  const injectionOutcome = await injection;
+  const sampler = setTimeout(() => snapshot('one-second-after-injection'), 1_000);
+  try {
+    await crash;
+    await injection;
+  } finally {
+    clearTimeout(sampler);
+    snapshot('after-crash-wait');
+    mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+    writeFileSync(
+      'reports/playwright/electronics-e01/renderer-crash-injection-diagnostic.json',
+      JSON.stringify(
+        {
+          version,
+          browserPid,
+          rendererPids,
+          snapshots,
+          targetCrashed,
+          pageCrashes,
+          injectionOutcome,
+          lifecycle,
+          safetySubmissions,
+        },
+        null,
+        2,
+      ),
+    );
+  }
   await expect(page.evaluate(() => document.title)).rejects.toThrow(/crash/i);
   expect(lifecycle).toEqual([]);
   expect(safetySubmissions).toEqual([]);
@@ -4733,6 +4808,29 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
       oldBrowserPuts.push({ phase, projectId: path.split('/')[3]!, body: request.postDataJSON() });
   });
   await page.goto(`/#/home/${firstProject}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${firstProject}/electronics/edit\\?returnTo=%23%2Fhome$`),
+  );
+  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(
+    'E01 SAV10 A first',
+  );
+  const firstEditorUrl = page.url();
+  const sameRendererTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+  // Prepare a real same-document Forward entry before any pending save.
+  // A hash alone cannot override the first editor's canonical pathname.
+  await page.evaluate((id) => {
+    const index = Number(window.history.state?.asaRouteIndex ?? 0);
+    window.history.pushState(
+      { ...window.history.state, asaRouteIndex: index + 1 },
+      '',
+      `/projects/${encodeURIComponent(id)}/electronics/edit?returnTo=%23%2Fhome`,
+    );
+    window.history.back();
+  }, secondProject);
+  await expect(page).toHaveURL(firstEditorUrl);
+  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(
+    'E01 SAV10 A first',
+  );
   const projectReply = await holdReply(firstProject);
   const firstSketch = `${E01_CHANGED_SKETCH}\n// first project sent`;
   const latestFirstSketch = `${E01_CHANGED_SKETCH}\n// first project latest`;
@@ -4746,10 +4844,18 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
   await (await e01Resistance(page)).fill('222.2');
   const beforeProjectSwitch = await local(actorA.id, firstProject);
   assertContent(beforeProjectSwitch.record!.document, 222.2, latestFirstSketch);
-  // Real SPA URL navigation keeps the browser renderer alive for the late reply.
-  await page.evaluate((id) => {
-    window.location.hash = `/home/${id}`;
-  }, secondProject);
+  // Native history traversal delivers the canonical route without a reload,
+  // synthetic route event, or abandoning the held first-project response.
+  await page.evaluate(() => window.history.forward());
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${secondProject}/electronics/edit\\?returnTo=%23%2Fhome$`),
+  );
+  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(
+    'E01 SAV10 A second',
+  );
+  const afterSwitchTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+  expect(afterSwitchTimeOrigin).toBe(sameRendererTimeOrigin);
+  expect(heldReplies).toEqual([]);
   const secondBeforeReply = await ui(page, '70', E01_SKETCH);
   const secondServerBeforeReply = await e01Server(page, secondProject);
   phase = 'actor-A-second-project';
@@ -4853,6 +4959,9 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
           firstProject,
           secondProject,
           newProject,
+          firstEditorUrl,
+          sameRendererTimeOrigin,
+          afterSwitchTimeOrigin,
           requests,
           oldBrowserPuts,
           heldReplies,

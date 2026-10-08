@@ -38,6 +38,7 @@ concurrency:
 
 jobs:
   focused:
+    if: false # Temporary526 R3 directed diagnostic: explicitly SKIPPED.
     name: Shared solver, editor contracts and build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -72,6 +73,7 @@ jobs:
         run: pnpm gate:electronics-m1
 
   benchmark:
+    if: false # Temporary526 R3 directed diagnostic: explicitly SKIPPED.
     name: Electronics E-OPT benchmark integrity
     needs: focused
     runs-on: ubuntu-24.04
@@ -123,7 +125,6 @@ jobs:
 
   browser:
     name: Actual editor live simulation journey
-    needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -172,8 +173,8 @@ jobs:
       - name: Electronics M1 browser gate
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
-          run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
+          run --rm --no-deps -e DEBUG=pw:browser test-runner
+          pnpm gate:electronics-m1:browser --grep 'ELECTRONICS-E01 SAV02/08|ELECTRONICS-E01 SAV10'
 
       - name: Show isolated stack state
         if: always()
@@ -197,6 +198,7 @@ jobs:
           down -v --remove-orphans
 
   review-images:
+    if: false # Temporary526 R3 directed diagnostic: explicitly SKIPPED.
     name: Package exact-head review images
     needs: [focused, benchmark, browser]
     runs-on: ubuntu-24.04
