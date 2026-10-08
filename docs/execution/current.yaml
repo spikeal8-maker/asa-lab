@@ -588,7 +588,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: causal_before_proven_product_repair_ready
+      checkpoint: independent_review_requests_fixture_and_sav10
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
@@ -610,28 +610,26 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
+      convergence_baseline_sha: 1e2ce7a94be4c8e5a1a14d2db259ec693892fe8b
       head_sha: null
-      observed_at: '2026-10-08T19:28:00Z'
+      observed_at: '2026-10-08T20:54:10Z'
       main:
         branch: main
-        sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
+        sha: 4f6b677e08975680e9b3222778b11b8738ed0227
       observation_note: >-
-        Fetch main and read actual exact-head GitHub CI before writes; this is a dated snapshot, not a live HEAD claim.
-        Separate fixture528 exactf011 independently APPROVE, General37829871415
-        terminalSUCCESS/all4 and166 fresh Nx executions/zero hits; fast-forward
-        integrated unchangedf011 into main. Directed67e2 run37830452725 reused the
-        identical fixture blob and reached both actual E01 causal assertions. Local
-        denial had no local copy/server50/UI166.7 but a false durable-copy claim.
-        Quiet transport recovery left only one failed PUT/server50/local166.7;
-        actual wall interval69235ms, unchanged test budget70000ms. These expected
-        product BEFORE failures are not a green full browser gate. Preserve0e97
-        failed precondition evidence and suspended525 ed4 without redo. Select526
-        bounded causal production repair, minute cadence/manual safety/CAS/scoped
-        identity/latest-document durability/emergency whole-document copy. Final
-        exact-SHA ordinary gates and NEW independent review remain mandatory.
-        Missing school K0/version/backup and actual-device T3 evidence are pending,
-        not substituted by CI; no owner/class/deployment/DB/backup/network claim.
+        Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
+        Published candidate74928374ce93a41fd59ec8cc0b1fb96a5b55b290 received NEW independent REQUEST_CHANGES.
+        Controller independently confirmed registered interactions fixture1035 still reads legacy unscoped draft key,
+        so strict detach assertion361 observes stale server bindings after the scoped-key product change.
+        SAV10 real production user/project isolation evidence is also incomplete. Select only bounded review repair
+        of the existing fixture reader and missing SAV10 browser journey; do not weaken assertions/timeouts,
+        restore legacy adoption, or change accepted product code without a newly proved defect and controller scope ACK.
+        General37839211753 terminalSUCCESS on749. Ordinary37839235069 focused/benchmarkSUCCESS, browserFAIL25/99PASS, review-imagesSKIPPED. Raw AFTER independently shows a valid older scoped50draft predating injected write denial, latestUI166.7 and truthful memory-only warning; test4119 incorrectly expects null. Crash4315 received no crash event; cached trace records pending Page.crash until teardown, not proof of crash recovery. Bounded R1 may correct these existing evidence fixtures after concrete setup diagnosis without weakening content/durability checks. Main4f6 General37840144460 terminalSUCCESS; preserve independent admin-logs changes.
+        Localfocused timeout on untouched697asset hash case remains FAIL despite directed standalone PASS;
+        timing cause provisional, no gate or acceptance claim. Preserve original BEFORE and suspended525ed4.
+        Corrected final SHA requires ordinary exact gates and another NEW independent review before technical closure.
+        School K0/version/backup, actual-device T3 and owner/class acceptance remain separate pending evidence;
+        no deployment, DB, network or backup operation is authorized.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
