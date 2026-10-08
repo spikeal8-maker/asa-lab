@@ -319,8 +319,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: late_permanent_failure_publication_repair_selected
+      status: blocked
+      checkpoint: late_publication_candidate_portal_general_ci_blocked
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -347,69 +347,42 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 76386dade0ec4908fc9394d36997e4734f4b0c7c
+      convergence_baseline_sha: 0a327ad75db5c2d81873d5e7355e34135b241249
       head_sha: null
-      observed_at: '2026-10-08T03:33:49Z'
+      observed_at: '2026-10-08T04:18:11Z'
       main:
         branch: main
-        sha: 76386dade0ec4908fc9394d36997e4734f4b0c7c
+        sha: 0a327ad75db5c2d81873d5e7355e34135b241249
       observation_note: >-
-        Dated main 76386dad before this evidence/confirmation selection; fetch
-        main and read exact-head CI before writes. Its general 37720838189 is
-        successful; preserve Portal S4 and every other lane. Preserved Issue 517
-        candidate dd912b2f (original 2d4654f2, product blob ab292c4a) is not
-        accepted: exact general 37709690202 and required focused 1005 tests are
-        successful, but full browser 37709699955 failed the native catalog badge
-        at its unchanged 5000 ms assertion. NEW review REQUEST_CHANGES also
-        identifies a separate late-permanent subscriber path. ONE passive
-        diagnostic f6588bc0/run 37713526540 is independently APPROVED as evidence
-        only: all consumers receive error after setup and publish failure;
-        historical native cause remains unknown. Its source archive was verified
-        before execution; four temporary paths were restored byte-exact. See
-        evidence/ordinary-image-native-diagnostic-517-20261008.md. Select ONE
-        separate directed late/permanent consumer confirmation within this
-        card, preserving source and normal timings. Its e045a0ba/run37717165930
-        failed a diagnostic precondition: basic includes battery-holder-aa, so
-        the catalog consumer was not removed. HEAD=0, no new B/permanent path
-        or cessation evidence; product cause remains unknown. NEW independent
-        review REQUEST_CHANGES applies only to this fixture. Select a separate
-        bounded correction of the removal/remount filter with cheap production
-        category-mapping checks before ONE corrected diagnostic case. No
-        product repair until that path is proved and a separate repair cycle
-        is selected. Corrected fixture 2fb83112/run37719347863 proves removal
-        and two HEAD 404 headers 32.235 seconds apart, but stalls at the next
-        Response.finished await until the unchanged 300000ms deadline. HAR
-        records net::ERR_ABORTED; underlying completion cause is unproved.
-        No B/permanent/raw buffer/final document/cessation evidence. NEW
-        independent REQUEST_CHANGES applies only to this diagnostic protocol.
-        See evidence/ordinary-image-late-fixture-diagnostic-517-20261008.md.
-        Select one separate HEAD protocol correction: received status/headers
-        and positive passive actual retained-A permanent witness before B,
-        robust partial capture, no HEAD body-finished dependency. All timing
-        budgets and product semantics stay intact. New exact archive and
-        controller ACK precede ONE directed case; restore all temp paths to
-        dd912. Its bf6ef9e0/run37722090739 receives NEW independent evidence-only
-        APPROVE: actual retained A5 is active/permanent, new B38 trusted native
-        and React error returns at permanent guard with failed=false; no badge
-        after original 5000ms and full 65s. All seven full documents match and
-        A remains honest, buffer57/256. Ordinary retry12 and HEAD2 cease; an
-        extra plain GET exists with unknown initiator, not global zero-network.
-        See evidence/ordinary-image-late-consumer-proof-517-20261008.md.
-        Restoration 1b10954b whole tree equals dd912, clean. Select a separate
-        bounded product repair of failure publication in the ordinary image
-        hook, preserving permanent retry termination, lifecycle/resource/stale
-        semantics and prior early-event repair. Add meaningful production unit
-        and built-browser regressions with unchanged existing timeouts. Remove
-        all temporary diagnostics; final exact focused/full-browser/general
-        gates and NEW independent product review precede acceptance. Preserve
-        candidate dd912 and suspended 516/505; no solver or other asset repair.
-        No repeat native/full-suite run without a new hypothesis. Preserve
-        suspended Issue 516 and Issue 505 PR 506 and their acceptance blockers.
-        Issue 523 and Issue 521 remain technically closed, without repeated
-        measurements. Historical Learning ordering failure remains unproved.
-        T3 stays pending real school-device evidence; no dev-PC or runner
-        substitution. No full hygiene checkpoint, owner acceptance, release
-        or deployment is claimed.
+        Dated main 0a327ad7 before this blocker checkpoint; exact general
+        37723523140 is successful. Fetch main and read exact-head CI before
+        further writes; preserve Portal and every other lane. Candidate
+        cd405c23b1e165bbbbe18b1cddd7b3adf55c4def is immutable on branch
+        codex/electronics-517-late-publication-repair-20261008. It preserves
+        dd912 early-event repair and adds the separately proved late-permanent
+        failure publication fix. Exact Electronics 37724762306 succeeds:
+        focused1007 and browser117 of117, including native and late scenarios.
+        Required general37724260365 fails independent Portal pagination at
+        90000ms and pool.end at10000ms; Gov, Code and Data succeed. The same
+        Portal case passes40739ms in Data. CategoryC occurrence is outside
+        the candidate diff; underlying product versus DB/infra cause UNKNOWN.
+        NEW final independent review REQUEST_CHANGES solely for required
+        general failure, with no actionable Electronics source or evidence
+        fixture finding. See evidence/ordinary-image-517-final-review-20261008.md.
+        Executor and reviewer STOP. Do not modify the tested candidate, repair
+        Portal inside it or rerun identical code hoping for green. Route a
+        separate Portal diagnosis after explicit cross-chat messaging approval,
+        then obtain required successful verification and NEW bounded review
+        of the actual final integration candidate before integration or closure.
+        No passing late-case raw JSON/trace exists; actual exact-source strict
+        assertions and terminal browser PASS suffice for observable regression
+        per independent review, without reconstructing raw evidence. Historical
+        short native cause, plain background GET attribution and classroom
+        frequency remain unproved. Preserve suspended516 and505/PR506350d2442
+        and their acceptance blockers. Accepted523/521/513/509/510/500 stay
+        intact. T3 remains pending real student-device evidence, not dev-PC or
+        runner substitution. No full hygiene checkpoint, owner acceptance,
+        release or deployment is claimed. No next product slice is activated.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -1086,6 +1059,22 @@ integration:
     - docs/testing/**
 
 blocking:
+  - id: ELECTRONICS-517-GENERAL-PORTAL-PAGINATION
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
+    blocks:
+      - integrate_candidate
+      - technical_acceptance
+      - owner_acceptance
+      - release_claim
+      - close_issue
+    allows:
+      - documentation_update
+      - focused_verification
+      - separate_baseline_diagnosis
+    reason: Exact candidate cd405c23 passes Electronics focused and full browser run 37724762306, but required general 37724260365 fails independent Portal pagination 90000ms and pool.end 10000ms in Access job 113140006317. The same case passes 40739ms in Data; underlying product versus DB/infra cause is UNKNOWN. NEW independent review REQUEST_CHANGES is solely this general blocker. Resolve it separately without changing Electronics or timeouts; successful actual final verification and new bounded review are required before integration or closure.
+    evidence: docs/product/electronics/evidence/ordinary-image-517-final-review-20261008.md
   - id: ELECTRONICS-516-INTEGRATION-BASELINE
     kind: acceptance_blocker
     lane: electronics
