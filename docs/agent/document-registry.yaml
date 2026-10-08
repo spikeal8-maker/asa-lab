@@ -220,7 +220,7 @@ documents:
     kind: target
     status: canonical
     authority: portal_shell_avatar_ux
-    revision: '1.0'
+    revision: '1.1'
     context_role: task
     read_when: [portal_shell, responsive_navigation, avatar_preview, notification_polling, startup_delivery]
 

@@ -111,19 +111,19 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_inbox_s3_selected
+      checkpoint: portal_startup_s4_page_boundary_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
         - document: PORTAL-SHELL-UX-ETZ
-          revision: '1.0'
+          revision: '1.1'
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
-      selected_slice: S3
+      selected_slice: S4
       dependency_order: [S1, S2, S3, S4]
-      remaining_slices: [S3, S4]
+      remaining_slices: [S4]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -153,6 +153,20 @@ parallel_lanes:
           web_nx_tasks_executed_uncached: 8
           browser_build_nx_tasks_executed_uncached: 27
           visual_evidence: reports/playwright/settings-ui/portal-avatar-s2-pending-font-repair-20261008
+          owner_acceptance: pending
+          deployment: not_requested
+        - id: S3
+          status: technical_accepted
+          integrated_sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
+          independent_review: approved
+          exact_head_general_run: 37708338360
+          exact_head_general_conclusion: success
+          focused_tests_passed: 629
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 196
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          visual_evidence: reports/playwright/portal-inbox-s3-20261008
           owner_acceptance: pending
           deployment: not_requested
     accepted_result:

@@ -12,6 +12,10 @@ surfaces:
   - '#/account'
   implementation:
     files:
+    - apps/web/src/App.tsx
+    - apps/web/src/components/PageDeliveryBoundary.tsx
+    - apps/web/src/components/page-delivery.css
+    - docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
     - apps/web/src/components/PortalHeader.tsx
     - apps/web/src/components/LearningInbox.tsx
     - apps/web/src/components/learning-inbox-poller.ts
@@ -41,6 +45,23 @@ surfaces:
   - TST-ASA-ACCESS-A-E2E-001
   - TST-ACCOUNT-SETTINGS-UI-001
   controls:
+  - id: CTRL-PORTAL-STARTUP-DELIVERY
+    label: Load selected pages and the editor host on demand with branded waiting and usable failure exits
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/App.tsx
+    - apps/web/src/components/PageDeliveryBoundary.tsx
+    - apps/web/src/components/page-delivery.css
+    - docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
+    commands: []
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CTX-001
+    - IDA-SEAT-PROJECT-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
   - id: CTRL-PORTAL-LEARNING-INBOX
     label: Actor-scoped learning inbox preserves reads and polls only visible sessions with single-flight refresh
     change_class: L1_UI_BEHAVIOR

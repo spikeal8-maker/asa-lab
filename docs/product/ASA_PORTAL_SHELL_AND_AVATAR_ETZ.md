@@ -1,6 +1,6 @@
 # ASA Lab — ЭТЗ общего меню, адаптивной оболочки и аватаров
 
-Редакция: 1.0. Назначение: принятые владельцем требования к реализации.
+Редакция: 1.1. Назначение: требования к реализации порученного владельцем пакета.
 Документ задаёт результат и проверки. Задача, Issue, текущий срез, SHA,
 статусы и evidence ведутся только в `docs/execution/current.yaml`.
 
@@ -112,10 +112,19 @@
 
 1. Убрать причинно установленную загрузку тяжёлого редакторского кода при старте
    обычного портала: loader/adapter должен загружаться по реальному открытию
-   соответствующего редактора. Сохранить маршрут, возврат, user/actor props,
-   сохранность документа, fallback и error boundary.
+  соответствующего редактора. Сохранить маршрут, возврат, user/actor props,
+  сохранность документа, fallback и error boundary.
+  Для достижения стартового бюджета допускаются такие же границы доставки
+  `CreatorHomePage`, `PublicEntryPage` и `TeacherInvitePage`: их код загружается
+  только при показе соответствующего экрана. Содержимое этих страниц,
+  обработчики входа/приглашения и условия выбора маршрутов не меняются.
+  Пока код загружается, остаётся фирменный fallback; ошибка имеет честное
+  сообщение и доступный выход либо повторную загрузку.
 2. Не менять внутренности Scratch/других редакторов, dependency graph или
-   auth bootstrap. Этот срез касается только границы lazy loading.
+   auth bootstrap. Этот срез касается только указанных границ lazy loading
+   в App и их лёгких оболочек ошибки/ожидания. `LoginPage`, `RegisterPage`,
+   `OrganizationLoginPage`, `JoinClassPage`, MAX, проверка сессии и API-клиент
+   не переводятся на новый способ доставки этим пакетом.
 3. Измерить entry JS и начальный CSS у свежей production Web-сборки. Сохранить
    действующий бюджет `docs/testing/performance-budget.json`; цель entry JS —
    не более 300 КиБ. Не снижать лимит/не прятать нарушения изменением измерителя.
@@ -140,7 +149,7 @@
 | S1 | §2: shell/navigation/mobile Help/collapse/third-nav fixture | Route/permission/draft regressions; non-overlap и target checks на основных ширинах, границах breakpoint и коротком экране |
 | S2 | §3: quick avatar access/shared preview/Account и Seat consumers | Cancel без mutation; явный save; failure/retry; selected/current state; focus/Escape; grid non-overlap; actor и draft preservation |
 | S3 | §4: inbox control/poll lifecycle | Hidden/visible/focus/open; in-flight exclusion; error backoff; cleanup/stale response; badge 0/1/99/100/large count и layout |
-| S4 | §5: lazy editor boundary/startup measurements | Fresh build entry budget, deferred chunk proof, editor-open/back/error smoke и отсутствие scope expansion |
+| S4 | §5: указанные lazy delivery boundaries/startup measurements | Fresh build entry budget, deferred chunk proof, editor-open/back/error smoke, public-entry/invite loading/error/navigation и отсутствие scope expansion |
 
 Для каждого среза: POST_STEP_REVIEW и layout-impact review, свежие Web
 lint/typecheck/build, focused `pnpm test:access-a`, canonical synthetic

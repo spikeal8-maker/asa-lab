@@ -1,0 +1,37 @@
+.page-delivery-error {
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.page-delivery--embedded .app-boot-shell,
+.page-delivery--embedded .page-delivery-error {
+  min-height: min(60svh, 420px);
+}
+
+.page-delivery-card {
+  width: min(100%, 380px);
+  padding: 1.5rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.page-delivery-card h1 {
+  font-size: 1.5rem;
+  overflow-wrap: anywhere;
+}
+
+.page-delivery-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(140px, 100%), 1fr));
+  gap: 0.75rem;
+  margin-top: 1.25rem;
+}
+
+.page-delivery-actions button {
+  min-height: 44px;
+  margin: 0;
+  white-space: normal;
+}
