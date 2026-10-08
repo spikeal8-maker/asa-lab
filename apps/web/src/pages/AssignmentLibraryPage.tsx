@@ -303,10 +303,6 @@ export function AssignmentLibraryPage({
       <header className="library-heading">
         <div>
           <h1>Курсы и задания</h1>
-          <p>
-            Собирайте программу из разделов, материалов и практики. В классах назначайте её ученикам
-            и проверяйте работы.
-          </p>
         </div>
         {tab === 'bank' ? (
           <button type="button" className="portal-create-button" onClick={() => setEditing('new')}>

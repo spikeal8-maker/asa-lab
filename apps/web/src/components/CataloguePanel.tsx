@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type JSX } from 'react';
 import { api, type CatalogueCoursePreview, type CatalogueEntry, type ModuleSummary } from '../api';
-import { CLASSROOM_AGE_OPTIONS } from './ClassroomFields';
 import { LessonBlocks } from './LessonBlocks';
 import './courses-panel.css';
 
@@ -28,7 +27,7 @@ export function CataloguePanel({
   const [contents, setContents] = useState<CatalogueCoursePreview | null | undefined>(undefined);
   const [search, setSearch] = useState('');
   const [kindFilter, setKindFilter] = useState<'' | 'course' | 'assignment'>('');
-  const [ageFilter, setAgeFilter] = useState('');
+  const [moduleFilter, setModuleFilter] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -61,7 +60,7 @@ export function CataloguePanel({
     () =>
       (items ?? []).filter((entry) => {
         if (kindFilter && entry.kind !== kindFilter) return false;
-        if (ageFilter && entry.ageBand !== ageFilter) return false;
+        if (moduleFilter && entry.moduleKey !== moduleFilter) return false;
         if (needle.length === 0) return true;
         return (
           entry.title.toLocaleLowerCase('ru-RU').includes(needle) ||
@@ -69,7 +68,7 @@ export function CataloguePanel({
           entry.authorName.toLocaleLowerCase('ru-RU').includes(needle)
         );
       }),
-    [items, kindFilter, ageFilter, needle],
+    [items, kindFilter, moduleFilter, needle],
   );
 
   async function take(entry: CatalogueEntry): Promise<void> {
@@ -92,115 +91,126 @@ export function CataloguePanel({
 
   return (
     <section className="catalogue-panel">
-      <p className="catalogue-intro">
-        Чужие курсы и задания, открытые вам: вашей школой, лично вам или всей платформе. Забранное
-        становится вашей копией — автор правит своё, вы своё.
-      </p>
-
-      <div className="library-filters">
-        <label className="library-search">
-          <span className="sr-only">Поиск в каталоге</span>
-          <input
-            type="search"
-            placeholder="Поиск по названию, описанию или автору"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </label>
-        <label>
-          <span className="sr-only">Что показывать</span>
-          <select
-            value={kindFilter}
-            onChange={(event) => setKindFilter(event.target.value as '' | 'course' | 'assignment')}
-          >
-            <option value="">Курсы и задания</option>
-            <option value="course">Только курсы</option>
-            <option value="assignment">Только задания</option>
-          </select>
-        </label>
-        <label>
-          <span className="sr-only">Возраст</span>
-          <select value={ageFilter} onChange={(event) => setAgeFilter(event.target.value)}>
-            <option value="">Любой возраст</option>
-            {CLASSROOM_AGE_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-
-      {notice ? (
-        <p className="notice-success" role="status">
-          {notice}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {items === null ? (
-        <p role="status">Загружаем каталог…</p>
-      ) : visible.length === 0 ? (
-        <div className="classroom-roster-empty">
-          <h3>{needle ? 'Ничего не найдено' : 'Каталог пока пуст'}</h3>
-          <p>
-            Здесь появится то, чем поделятся коллеги. Вы тоже можете открыть свой курс школе или
-            всей платформе — в карточке курса есть «Кому видно».
-          </p>
+      <div className="catalogue-workspace">
+        <div className="catalogue-toolbar">
+          <label className="catalogue-search">
+            <span className="sr-only">Поиск в библиотеке</span>
+            <input
+              type="search"
+              placeholder="Найти ресурс"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+            />
+          </label>
+          <label className="catalogue-filter">
+            <span className="sr-only">Тип ресурса</span>
+            <select
+              aria-label="Тип ресурса"
+              value={kindFilter}
+              onChange={(event) =>
+                setKindFilter(event.target.value as '' | 'course' | 'assignment')
+              }
+            >
+              <option value="">Все типы</option>
+              <option value="assignment">Задания</option>
+              <option value="course">Курсы</option>
+            </select>
+          </label>
+          <label className="catalogue-filter">
+            <span className="sr-only">Среда</span>
+            <select
+              aria-label="Среда"
+              value={moduleFilter}
+              onChange={(event) => setModuleFilter(event.target.value)}
+            >
+              <option value="">Все среды</option>
+              {modules.map((module) => (
+                <option key={module.moduleKey} value={module.moduleKey}>
+                  {module.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      ) : (
-        <ul className="catalogue-list" data-testid="catalogue-list">
-          {visible.map((entry) => (
-            <li key={`${entry.kind}-${entry.id}`}>
-              {entry.sampleImage ? (
-                <img src={entry.sampleImage} alt="" width={72} height={72} />
-              ) : (
-                <span className="library-no-sample" aria-hidden="true" />
-              )}
-              <div className="catalogue-copy">
-                <strong>
-                  {entry.title}
-                  <em className={entry.kind === 'course' ? 'is-course' : undefined}>
-                    {entry.kind === 'course' ? `курс · ${entry.itemCount}` : 'задание'}
-                  </em>
-                </strong>
-                {entry.summary ? <span>{entry.summary}</span> : null}
-                {/* Кто автор — не украшение: преподаватель решает, брать ли
-                    работу незнакомого человека. */}
-                {/* Школу называем, только если она не совпадает с именем: у
-                    личной полки название и есть имя человека, и «Иванов ·
-                    Иванов» ничего не сообщает. */}
-                <span className="catalogue-author">
-                  {entry.authorName}
-                  {entry.authorSchool && entry.authorSchool !== entry.authorName
-                    ? ` · ${entry.authorSchool}`
-                    : ''}
-                  {entry.kind === 'assignment' ? ` · ${moduleName(entry.moduleKey)}` : ''}
-                </span>
-              </div>
-              <div className="catalogue-actions">
-                {entry.kind === 'course' ? (
-                  <button type="button" className="btn-secondary" onClick={() => setPreview(entry)}>
-                    Посмотреть
+
+        {notice ? (
+          <div className="catalogue-state is-success" role="status">
+            {notice}
+          </div>
+        ) : null}
+        {error ? (
+          <div className="catalogue-state is-error" role="alert">
+            {error}
+          </div>
+        ) : null}
+
+        {items === null ? (
+          <div className="catalogue-state" role="status">
+            Загружаем библиотеку…
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="catalogue-state">
+            <strong>{needle ? 'Ничего не найдено.' : 'Библиотека пока пуста.'}</strong>
+            <span>
+              {needle ? 'Измените запрос или фильтры.' : 'Здесь появятся материалы коллег.'}
+            </span>
+          </div>
+        ) : (
+          <ul className="catalogue-list catalogue-resource-list" data-testid="catalogue-list">
+            {visible.map((entry) => (
+              <li key={`${entry.kind}-${entry.id}`}>
+                {entry.sampleImage ? (
+                  <img className="catalogue-resource-thumb" src={entry.sampleImage} alt="" />
+                ) : (
+                  <span className="catalogue-resource-mark" aria-hidden="true">
+                    {entry.kind === 'course' ? 'К' : 'З'}
+                  </span>
+                )}
+                <div className="catalogue-copy">
+                  <strong>{entry.title}</strong>
+                  <span className="catalogue-resource-meta">
+                    {entry.kind === 'course' ? 'Курс' : 'Задание'}
+                    {entry.kind === 'assignment' && entry.moduleKey
+                      ? ` · ${moduleName(entry.moduleKey)}`
+                      : ''}
+                    {entry.kind === 'course' && entry.itemCount
+                      ? ` · ${entry.itemCount} материалов`
+                      : ''}
+                  </span>
+                  {entry.summary ? (
+                    <span className="catalogue-resource-summary">{entry.summary}</span>
+                  ) : null}
+                  <span className="catalogue-author">
+                    {entry.authorName}
+                    {entry.authorSchool && entry.authorSchool !== entry.authorName
+                      ? ` · ${entry.authorSchool}`
+                      : ''}
+                  </span>
+                </div>
+                <div className="catalogue-actions">
+                  {entry.kind === 'course' ? (
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setPreview(entry)}
+                    >
+                      Открыть
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy}
+                    onClick={() => void take(entry)}
+                  >
+                    Добавить
                   </button>
-                ) : null}
-                <button
-                  type="button"
-                  className="portal-create-button"
-                  disabled={busy}
-                  onClick={() => void take(entry)}
-                >
-                  Забрать себе
-                </button>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {preview ? (
         <div className="modal-backdrop" role="presentation">

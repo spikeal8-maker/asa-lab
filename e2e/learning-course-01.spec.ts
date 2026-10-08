@@ -5,6 +5,15 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
+import {
+  addAssignmentBlock,
+  closeAssignmentPreview,
+  closeAssignmentSettings,
+  openAssignmentSettings,
+  openExistingAssignmentEditor,
+  openNewAssignmentEditor,
+  previewAssignmentAs,
+} from './learning-authoring-navigation';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
 const ux0EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
@@ -277,12 +286,14 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
-  await page.goto('/#/challenges');
-  await page.getByLabel('Название материала', { exact: true }).fill('Оцениваемая практика автора');
+  await openNewAssignmentEditor(page);
+  await page.getByLabel('Название задания', { exact: true }).fill('Оцениваемая практика автора');
   await page.getByLabel('Содержание', { exact: true }).fill('Первая редакция.');
+  await openAssignmentSettings(page);
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption('graded');
   await page.getByLabel('Максимум баллов', { exact: true }).fill('10');
-  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await closeAssignmentSettings(page);
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   const before = await (await page.request.get('/api/learning/activities')).json();
   const id = before.items[0].id;
@@ -290,7 +301,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     403,
   );
   await page.reload();
-  await page.getByRole('button', { name: 'Оцениваемая практика автора', exact: true }).click();
+  await openExistingAssignmentEditor(page, 'Оцениваемая практика автора');
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Соберите проект и объясните соединение.');
@@ -447,12 +458,12 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
   const titles = Array.from({ length: 10 }, (_, i) => `Практика ${String(i + 1).padStart(2, '0')}`);
   await createPublishedProjectActivity(page, titles[0]!);
   for (const title of titles.slice(1)) {
-    await page.getByRole('button', { name: 'Новый материал', exact: true }).click();
-    await page.getByLabel('Название материала', { exact: true }).fill(title);
+    await openNewAssignmentEditor(page);
+    await page.getByLabel('Название задания', { exact: true }).fill(title);
     await page
       .getByLabel('Содержание', { exact: true })
       .fill('Соберите и сохраните собственный проект.');
-    await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+    await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
     await expect(
       page.getByText('Черновик сохранён. Публикация — отдельное действие.'),
     ).toBeVisible();
@@ -571,16 +582,16 @@ async function createPublishedProjectActivityAfterLogin(
   sampleImage?: Buffer,
   goal?: string,
 ): Promise<void> {
-  await page.goto('/#/challenges');
-  const newMaterial = page.getByRole('button', { name: 'Новый материал', exact: true });
-  if (await newMaterial.isVisible()) await newMaterial.click();
-  await page.getByLabel('Название материала', { exact: true }).fill(title);
+  await openNewAssignmentEditor(page);
+  await page.getByLabel('Название задания', { exact: true }).fill(title);
   if (goal) await page.getByLabel('Цель задания', { exact: true }).fill(goal);
   await page
     .getByLabel('Содержание', { exact: true })
     .fill('Соберите цепь, сохраните проект и сдайте точную редакцию.');
+  await openAssignmentSettings(page);
   await page.getByLabel('Среда проекта').selectOption(module);
   await page.getByRole('combobox', { name: 'Результат', exact: true }).selectOption(resultMode);
+  await closeAssignmentSettings(page);
   if (sampleImage) {
     await page.getByLabel('Файл схемы или изображения', { exact: true }).setInputFiles({
       name: 'course-activity-sample.png',
@@ -588,17 +599,23 @@ async function createPublishedProjectActivityAfterLogin(
       buffer: sampleImage,
     });
   }
-  await page.getByRole('button', { name: 'Создать материал', exact: true }).click();
+  await page.getByRole('button', { name: 'Создать задание', exact: true }).click();
   await expect(page.getByText('Черновик сохранён. Публикация — отдельное действие.')).toBeVisible();
   if (goal) {
-    await page.getByRole('button', { name: 'Как ученик: сохранённый черновик' }).click();
-    await expect(page.getByTestId('learner-preview')).toContainText(goal);
+    await previewAssignmentAs(page, 'draft');
+    await expect(
+      page.getByRole('dialog', { name: 'Как увидит ученик' }).getByTestId('learner-preview'),
+    ).toContainText(goal);
+    await closeAssignmentPreview(page);
   }
   await page.getByRole('button', { name: 'Опубликовать', exact: true }).click();
   await expect(page.getByText(/Опубликована версия 1/)).toBeVisible();
   if (goal) {
-    await page.getByRole('button', { name: 'Как ученик: опубликованная версия' }).click();
-    await expect(page.getByTestId('learner-preview')).toContainText(goal);
+    await previewAssignmentAs(page, 'published');
+    await expect(
+      page.getByRole('dialog', { name: 'Как увидит ученик' }).getByTestId('learner-preview'),
+    ).toContainText(goal);
+    await closeAssignmentPreview(page);
   }
   await page.screenshot({ path: evidenceDir + '/authored-material-published.png', fullPage: true });
 }
