@@ -581,29 +581,16 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-LOGIN-FIXTURE-001
-      issue: 528
+      id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+      issue: 526
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: e01_browser_precondition_repair_selected
+      checkpoint: causal_before_proven_product_repair_ready
       owner_acceptance: pending
     suspended_slices:
-      - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
-        issue: 526
-        status: waiting_shared_browser_fixture
-        checkpoint: before_blocked_by_removed_home_heading
-        preserved_diagnostic_sha: 0e97ac647070186c199b9550a43c2978228dc71f
-        preserved_branch: codex/electronics-save-recovery-526-before
-        before_browser_run: 37827077075
-        before_product_cause: not_reached
-        product_changes: none
-        independent_review: pending
-        owner_acceptance: pending
-        reason: Separate shared login fixture528 must retain authenticated readiness after Portal heading removal; no E01 product defect proved by this failed precondition.
-        resume_after: Independently accepted528 fixture and fresh526 canonical selection; keep original BEFORE artifacts and avoid blind rerun.
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
         status: suspended_by_owner_priority
@@ -623,25 +610,28 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ffb42f89f9da8fa01bb76f70cba7e2eed1754fed
+      convergence_baseline_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
       head_sha: null
-      observed_at: '2026-10-08T18:58:00Z'
+      observed_at: '2026-10-08T19:28:00Z'
       main:
         branch: main
-        sha: ffb42f89f9da8fa01bb76f70cba7e2eed1754fed
+        sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; this is a dated snapshot, not a live HEAD claim.
-        Actual ffb General37825947453 terminalSUCCESS/all4 independently checked.
-        Owner programme452 registry3.0 retains P0 E01 priority. Directed0e97 run37827077075
-        failed only removed Home heading in shared organization-login helper before
-        either save scenario; classify C, not E01 causal proof. Select separate bounded
-        fixture528, preserve526 diagnostic SHA/raw logs/traces and suspended525 ed4.
-        Change only authenticated browser readiness, no Portal or Electronics product,
-        authorization policy, timeouts or prior accepted repairs. Require exact-SHA
-        independent review and ordinary General gate; directed E01 causal assertions
-        remain strict and are expected negative BEFORE, not full browser PASS.
-        Then freshly resume526 production repair. K0 installed school/backup and T3
-        remain pending owner evidence; no deployment, DB, backup/restore or network action.
+        Separate fixture528 exactf011 independently APPROVE, General37829871415
+        terminalSUCCESS/all4 and166 fresh Nx executions/zero hits; fast-forward
+        integrated unchangedf011 into main. Directed67e2 run37830452725 reused the
+        identical fixture blob and reached both actual E01 causal assertions. Local
+        denial had no local copy/server50/UI166.7 but a false durable-copy claim.
+        Quiet transport recovery left only one failed PUT/server50/local166.7;
+        actual wall interval69235ms, unchanged test budget70000ms. These expected
+        product BEFORE failures are not a green full browser gate. Preserve0e97
+        failed precondition evidence and suspended525 ed4 without redo. Select526
+        bounded causal production repair, minute cadence/manual safety/CAS/scoped
+        identity/latest-document durability/emergency whole-document copy. Final
+        exact-SHA ordinary gates and NEW independent review remain mandatory.
+        Missing school K0/version/backup and actual-device T3 evidence are pending,
+        not substituted by CI; no owner/class/deployment/DB/backup/network claim.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -662,6 +652,24 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-LOGIN-FIXTURE-001
+        issue: 528
+        accepted_candidate_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
+        integrated_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
+        independent_review: approved
+        independent_review_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
+        exact_candidate_general_run: 37829871415
+        exact_candidate_general_conclusion: success
+        nx_fresh_executions: 166
+        production_source_changed: false
+        fixture_browser_probe_sha: 67e2f4d413f76679392bcd3b7647931c718e1e27
+        fixture_browser_probe_run: 37830452725
+        fixture_readiness: passed_before_intended_e01_failures
+        status: technical_accepted
+        review_evidence: docs/product/electronics/evidence/login-fixture-528-acceptance-20261008.md
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-GOVERNANCE-006
         issue: 524
         accepted_candidate_sha: 24ddd7c5f88cb1d672df448a5f9e9fa658b81772

@@ -1,0 +1,902 @@
+{
+  "projectId": "6d14dac4-c8d1-410b-b0d8-02d66dd11e77",
+  "requests": [
+    {
+      "at": 1791487020460,
+      "method": "PUT",
+      "body": {
+        "document": {
+          "viewport": {
+            "x": 0,
+            "y": 0,
+            "zoom": 1
+          },
+          "components": [
+            {
+              "id": "source",
+              "kind": "source",
+              "name": "Источник 3 В",
+              "value": 3,
+              "pinIds": [
+                "BAT-",
+                "BAT+"
+              ],
+              "position": {
+                "x": 70,
+                "y": 110
+              },
+              "rotation": 0,
+              "variantId": "battery-holder-aa-2",
+              "modelProfileId": "generic-battery-pack-aa-2",
+              "componentTypeId": "battery-holder-aa-2",
+              "stateProperties": {
+                "cells": 2
+              },
+              "electricalModelId": "ideal-dc-source",
+              "modelProfileVersion": 1,
+              "electricalModelVersion": 1
+            },
+            {
+              "id": "board",
+              "kind": "breadboard",
+              "name": "Макетная плата",
+              "value": 0,
+              "pinIds": [
+                "J1",
+                "I1"
+              ],
+              "position": {
+                "x": 260,
+                "y": 380
+              },
+              "rotation": 0,
+              "variantId": "breadboard-medium",
+              "modelProfileId": "breadboard-medium",
+              "componentTypeId": "breadboard-medium",
+              "stateProperties": {
+                "simulationStatus": "not_yet_supported"
+              },
+              "electricalModelId": "breadboard-connectivity",
+              "internalConnections": [
+                [
+                  "J1",
+                  "I1"
+                ]
+              ],
+              "modelProfileVersion": 1,
+              "electricalModelVersion": 1
+            },
+            {
+              "id": "switch",
+              "kind": "switch",
+              "name": "SW1",
+              "state": false,
+              "value": 0,
+              "pinIds": [
+                "throw-left",
+                "common",
+                "throw-right"
+              ],
+              "position": {
+                "x": 390,
+                "y": 120
+              },
+              "rotation": 0,
+              "variantId": "switch-spdt",
+              "modelProfileId": "slide-switch-spdt",
+              "componentTypeId": "switch-spdt",
+              "stateProperties": {
+                "selectedThrow": "left"
+              },
+              "electricalModelId": "spdt-switch",
+              "modelProfileVersion": 1,
+              "electricalModelVersion": 1
+            },
+            {
+              "id": "resistor",
+              "kind": "resistor",
+              "name": "R1",
+              "value": 166.7,
+              "pinIds": [
+                "lead-1",
+                "lead-2"
+              ],
+              "position": {
+                "x": 610,
+                "y": 150
+              },
+              "rotation": 90,
+              "variantId": "resistor-axial",
+              "modelProfileId": "axial-resistor",
+              "componentTypeId": "resistor-axial",
+              "stateProperties": {
+                "tolerancePercent": 5,
+                "resistanceUnit": "Ω",
+                "powerRatingWatt": 0.25
+              },
+              "electricalModelId": "resistor",
+              "modelProfileVersion": 1,
+              "electricalModelVersion": 1
+            },
+            {
+              "id": "led",
+              "kind": "led",
+              "name": "LED1",
+              "value": 2,
+              "pinIds": [
+                "anode",
+                "cathode"
+              ],
+              "position": {
+                "x": 790,
+                "y": 140
+              },
+              "rotation": 0,
+              "variantId": "led-5mm",
+              "modelProfileId": "generic-red-led",
+              "componentTypeId": "led-5mm",
+              "stateProperties": {
+                "ledColour": "red",
+                "ledBrightness": 0,
+                "ledFault": "none"
+              },
+              "electricalModelId": "ordinary-led",
+              "modelProfileVersion": 1,
+              "electricalModelVersion": 1
+            }
+          ],
+          "simulation": {
+            "running": false,
+            "maxIterations": 24
+          },
+          "connections": [
+            {
+              "id": "wire-source-board",
+              "to": {
+                "terminal": "J1",
+                "componentId": "board"
+              },
+              "from": {
+                "terminal": "BAT+",
+                "componentId": "source"
+              },
+              "color": "#e3212b",
+              "vertices": [
+                {
+                  "x": 230,
+                  "y": 300
+                }
+              ]
+            },
+            {
+              "id": "wire-board-switch",
+              "to": {
+                "terminal": "common",
+                "componentId": "switch"
+              },
+              "from": {
+                "terminal": "I1",
+                "componentId": "board"
+              },
+              "color": "#e3212b",
+              "vertices": [
+                {
+                  "x": 430,
+                  "y": 320
+                }
+              ]
+            },
+            {
+              "id": "wire-switch-resistor",
+              "to": {
+                "terminal": "lead-1",
+                "componentId": "resistor"
+              },
+              "from": {
+                "terminal": "throw-right",
+                "componentId": "switch"
+              },
+              "color": "#149447",
+              "vertices": []
+            },
+            {
+              "id": "wire-resistor-led",
+              "to": {
+                "terminal": "anode",
+                "componentId": "led"
+              },
+              "from": {
+                "terminal": "lead-2",
+                "componentId": "resistor"
+              },
+              "color": "#149447",
+              "vertices": []
+            },
+            {
+              "id": "wire-led-source",
+              "to": {
+                "terminal": "BAT-",
+                "componentId": "source"
+              },
+              "from": {
+                "terminal": "cathode",
+                "componentId": "led"
+              },
+              "color": "#2a3035",
+              "vertices": [
+                {
+                  "x": 820,
+                  "y": 330
+                },
+                {
+                  "x": 160,
+                  "y": 330
+                }
+              ]
+            }
+          ],
+          "schemaVersion": 4
+        },
+        "baseRevision": 2,
+        "mutationId": "017b21b8-062f-4b25-b1c1-0c5a0f373ad7"
+      },
+      "failure": {
+        "errorText": "net::ERR_INTERNET_DISCONNECTED"
+      }
+    }
+  ],
+  "local": null,
+  "server": {
+    "project": {
+      "id": "6d14dac4-c8d1-410b-b0d8-02d66dd11e77",
+      "scope": "personal",
+      "classroomId": null,
+      "moduleKey": "electronics",
+      "title": "E01 denied local copy",
+      "status": "active",
+      "createdAt": "2026-10-08T19:16:59.540Z",
+      "updatedAt": "2026-10-08T19:16:59.630Z",
+      "preview": {
+        "digest": "60ef3b48",
+        "descriptor": {
+          "kind": "schematic",
+          "figure": {
+            "shapes": [
+              {
+                "x1": 44,
+                "x2": 234,
+                "y1": 44,
+                "y2": 314,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#e3212b"
+              },
+              {
+                "x1": 234,
+                "x2": 364,
+                "y1": 314,
+                "y2": 54,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#e3212b"
+              },
+              {
+                "x1": 364,
+                "x2": 584,
+                "y1": 54,
+                "y2": 84,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 584,
+                "x2": 764,
+                "y1": 84,
+                "y2": 74,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 764,
+                "x2": 44,
+                "y1": 74,
+                "y2": 44,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#2a3035"
+              },
+              {
+                "x": 22,
+                "y": 22,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 212,
+                "y": 292,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 342,
+                "y": 32,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 562,
+                "y": 62,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 742,
+                "y": 52,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              }
+            ],
+            "viewBox": {
+              "width": 808,
+              "height": 358
+            },
+            "background": "#e8edf1"
+          },
+          "summary": "5 компонентов · 5 соединений"
+        }
+      },
+      "snapshotRevision": null,
+      "description": null,
+      "tags": [],
+      "license": "reserved",
+      "copiedFrom": null
+    },
+    "draft": {
+      "projectId": "6d14dac4-c8d1-410b-b0d8-02d66dd11e77",
+      "document": {
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "components": [
+          {
+            "id": "source",
+            "kind": "source",
+            "name": "Источник 3 В",
+            "value": 3,
+            "pinIds": [
+              "BAT-",
+              "BAT+"
+            ],
+            "position": {
+              "x": 70,
+              "y": 110
+            },
+            "rotation": 0,
+            "variantId": "battery-holder-aa-2",
+            "modelProfileId": "generic-battery-pack-aa-2",
+            "componentTypeId": "battery-holder-aa-2",
+            "stateProperties": {
+              "cells": 2
+            },
+            "electricalModelId": "ideal-dc-source",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "board",
+            "kind": "breadboard",
+            "name": "Макетная плата",
+            "value": 0,
+            "pinIds": [
+              "J1",
+              "I1"
+            ],
+            "position": {
+              "x": 260,
+              "y": 380
+            },
+            "rotation": 0,
+            "variantId": "breadboard-medium",
+            "modelProfileId": "breadboard-medium",
+            "componentTypeId": "breadboard-medium",
+            "stateProperties": {},
+            "electricalModelId": "breadboard-connectivity",
+            "internalConnections": [
+              [
+                "J1",
+                "I1"
+              ]
+            ],
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "switch",
+            "kind": "switch",
+            "name": "SW1",
+            "state": false,
+            "value": 0,
+            "pinIds": [
+              "throw-left",
+              "common",
+              "throw-right"
+            ],
+            "position": {
+              "x": 390,
+              "y": 120
+            },
+            "rotation": 0,
+            "variantId": "switch-spdt",
+            "modelProfileId": "slide-switch-spdt",
+            "componentTypeId": "switch-spdt",
+            "stateProperties": {
+              "selectedThrow": "left"
+            },
+            "electricalModelId": "spdt-switch",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "resistor",
+            "kind": "resistor",
+            "name": "R1",
+            "value": 50,
+            "pinIds": [
+              "lead-1",
+              "lead-2"
+            ],
+            "position": {
+              "x": 610,
+              "y": 150
+            },
+            "rotation": 90,
+            "variantId": "resistor-axial",
+            "modelProfileId": "axial-resistor",
+            "componentTypeId": "resistor-axial",
+            "stateProperties": {
+              "resistanceUnit": "Ом",
+              "tolerancePercent": 5
+            },
+            "electricalModelId": "resistor",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "led",
+            "kind": "led",
+            "name": "LED1",
+            "value": 2,
+            "pinIds": [
+              "anode",
+              "cathode"
+            ],
+            "position": {
+              "x": 790,
+              "y": 140
+            },
+            "rotation": 0,
+            "variantId": "led-5mm",
+            "modelProfileId": "generic-red-led",
+            "componentTypeId": "led-5mm",
+            "stateProperties": {
+              "ledFault": "none",
+              "ledColour": "red",
+              "ledBrightness": 0
+            },
+            "electricalModelId": "ordinary-led",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          }
+        ],
+        "simulation": {
+          "running": false,
+          "maxIterations": 24
+        },
+        "connections": [
+          {
+            "id": "wire-source-board",
+            "to": {
+              "terminal": "J1",
+              "componentId": "board"
+            },
+            "from": {
+              "terminal": "BAT+",
+              "componentId": "source"
+            },
+            "color": "#e3212b",
+            "vertices": [
+              {
+                "x": 230,
+                "y": 300
+              }
+            ]
+          },
+          {
+            "id": "wire-board-switch",
+            "to": {
+              "terminal": "common",
+              "componentId": "switch"
+            },
+            "from": {
+              "terminal": "I1",
+              "componentId": "board"
+            },
+            "color": "#e3212b",
+            "vertices": [
+              {
+                "x": 430,
+                "y": 320
+              }
+            ]
+          },
+          {
+            "id": "wire-switch-resistor",
+            "to": {
+              "terminal": "lead-1",
+              "componentId": "resistor"
+            },
+            "from": {
+              "terminal": "throw-right",
+              "componentId": "switch"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-resistor-led",
+            "to": {
+              "terminal": "anode",
+              "componentId": "led"
+            },
+            "from": {
+              "terminal": "lead-2",
+              "componentId": "resistor"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-led-source",
+            "to": {
+              "terminal": "BAT-",
+              "componentId": "source"
+            },
+            "from": {
+              "terminal": "cathode",
+              "componentId": "led"
+            },
+            "color": "#2a3035",
+            "vertices": [
+              {
+                "x": 820,
+                "y": 330
+              },
+              {
+                "x": 160,
+                "y": 330
+              }
+            ]
+          }
+        ],
+        "schemaVersion": 4
+      },
+      "revision": 2,
+      "updatedAt": "Thu Oct 08 2026 19:16:59 GMT+0000 (Coordinated Universal Time)",
+      "preview": {
+        "digest": "60ef3b48",
+        "descriptor": {
+          "kind": "schematic",
+          "figure": {
+            "shapes": [
+              {
+                "x1": 44,
+                "x2": 234,
+                "y1": 44,
+                "y2": 314,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#e3212b"
+              },
+              {
+                "x1": 234,
+                "x2": 364,
+                "y1": 314,
+                "y2": 54,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#e3212b"
+              },
+              {
+                "x1": 364,
+                "x2": 584,
+                "y1": 54,
+                "y2": 84,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 584,
+                "x2": 764,
+                "y1": 84,
+                "y2": 74,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 764,
+                "x2": 44,
+                "y1": 74,
+                "y2": 44,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#2a3035"
+              },
+              {
+                "x": 22,
+                "y": 22,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 212,
+                "y": 292,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 342,
+                "y": 32,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 562,
+                "y": 62,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 742,
+                "y": 52,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              }
+            ],
+            "viewBox": {
+              "width": 808,
+              "height": 358
+            },
+            "background": "#e8edf1"
+          },
+          "summary": "5 компонентов · 5 соединений"
+        }
+      }
+    },
+    "versions": [],
+    "result": {
+      "solved": true,
+      "status": "solved",
+      "current": 0,
+      "components": [
+        {
+          "componentId": "board",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "I1": 2.999999999995,
+            "J1": 2.999999999995
+          },
+          "power": 0,
+          "brightness": 0
+        },
+        {
+          "componentId": "led",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "anode": 0,
+            "cathode": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "branchCurrents": {
+            "led": 0
+          },
+          "branchBrightness": {
+            "led": 0
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "forward_blocking",
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": false
+        },
+        {
+          "componentId": "resistor",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "terminalCurrents": {
+            "lead-1": 0,
+            "lead-2": 0
+          },
+          "power": 0,
+          "brightness": 0,
+          "powerUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal"
+        },
+        {
+          "componentId": "source",
+          "voltageDrop": 2.999999999995,
+          "current": 0,
+          "terminalVoltages": {
+            "BAT+": 2.999999999995,
+            "BAT-": 0
+          },
+          "terminalCurrents": {
+            "BAT+": 0,
+            "BAT-": 0
+          },
+          "voltageConstraintResidual": 0,
+          "power": 3.3e-11,
+          "brightness": 0,
+          "currentUtilizationPercent": 0,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "internalResistanceOhm": 0.45,
+          "internalPower": 0,
+          "voltageSag": 5e-12,
+          "sourceOperatingMode": "idle"
+        },
+        {
+          "componentId": "switch",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "common": 2.999999999995,
+            "throw-left": 2.999999999995,
+            "throw-right": 0
+          },
+          "power": 0,
+          "brightness": 0
+        }
+      ],
+      "nodes": [
+        {
+          "id": "net-0",
+          "voltage": 2.999999999995,
+          "terminals": [
+            "board:I1",
+            "board:J1",
+            "source:BAT+",
+            "switch:common"
+          ]
+        },
+        {
+          "id": "net-1",
+          "voltage": 0,
+          "terminals": [
+            "led:anode",
+            "resistor:lead-2"
+          ]
+        },
+        {
+          "id": "net-2",
+          "voltage": 0,
+          "terminals": [
+            "led:cathode",
+            "source:BAT-"
+          ]
+        },
+        {
+          "id": "net-3",
+          "voltage": 0,
+          "terminals": [
+            "resistor:lead-1",
+            "switch:throw-right"
+          ]
+        },
+        {
+          "id": "net-4",
+          "voltage": 2.999999999995,
+          "terminals": [
+            "switch:throw-left"
+          ]
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "circuit_ok",
+          "severity": "info",
+          "message": "DC-расчёт завершён. Ток источника 0.00 мА."
+        }
+      ],
+      "iterations": 1,
+      "numericalResidual": 3.637978807091713e-12,
+      "numericalTolerance": 3.0000000000000004e-9,
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 0,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000001,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "topologySignature": "{\"components\":[\"board\",\"led\",\"resistor\",\"source\",\"switch\"],\"nets\":[[\"net-0\",[\"board:I1\",\"board:J1\",\"source:BAT+\",\"switch:common\"]],[\"net-1\",[\"led:anode\",\"resistor:lead-2\"]],[\"net-2\",[\"led:cathode\",\"source:BAT-\"]],[\"net-3\",[\"resistor:lead-1\",\"switch:throw-right\"]],[\"net-4\",[\"switch:throw-left\"]]]}",
+      "simulationInputDigest": "a697b9192f8c3c165ea7ae89fc5d5cc711a2f471bdfe274341eab9c59b5e5279",
+      "solverRevision": "asa-electronics-solver-v21",
+      "modelSetDigest": "sha256:cf1c1cdf671948ddaa41e25ff2d9d8a33dc43596d4faffe57552f5e4e60a2a59",
+      "analysis": {
+        "electricalMode": "dc",
+        "controllerRuntime": "none"
+      }
+    }
+  },
+  "dom": {
+    "status": "error",
+    "label": "Нет связи",
+    "detail": "Работа сохранена на этом устройстве и будет отправлена после восстановления связи.",
+    "resistor": "166.7"
+  }
+}
