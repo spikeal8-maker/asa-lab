@@ -110,8 +110,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: portal_startup_s4_page_boundary_selected
+      status: in_review
+      checkpoint: portal_programme_technical_complete_owner_review_pending
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -121,9 +121,10 @@ parallel_lanes:
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
-      selected_slice: S4
+      status: technical_complete
+      selected_slice: null
       dependency_order: [S1, S2, S3, S4]
-      remaining_slices: [S4]
+      remaining_slices: []
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -169,6 +170,37 @@ parallel_lanes:
           visual_evidence: reports/playwright/portal-inbox-s3-20261008
           owner_acceptance: pending
           deployment: not_requested
+        - id: S4
+          status: technical_accepted
+          integrated_sha: 7744cebbe92f7b7155ac280d875fdc1abecb51a8
+          independent_review: approved
+          exact_head_general_run: 37712955083
+          exact_head_general_conclusion: success
+          focused_tests_passed: 631
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 228
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          entry_js_raw_bytes: 304561
+          entry_js_gzip_calculated_bytes: 90969
+          entry_js_budget_bytes: 307200
+          initial_css_raw_bytes: 144265
+          visual_evidence: reports/playwright/portal-startup-s4-boundary-20261008
+          independent_layout_evidence: reports/playwright/portal-startup-s4-independent-review-20261008
+          exact_ci_browser_log: reports/portal-startup-s4-exact-ci-browser-20261008.log
+          owner_acceptance: pending
+          deployment: not_requested
+      unverified:
+        - real_network_performance
+        - capacity_3000_users
+        - owner_acceptance
+        - deployment
+      load_protocol: docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
+      known_baseline_issues:
+        - id: anonymous_invitation_signin_browser_back
+          classification: independent_baseline_defect
+          status: unaddressed_outside_delivery_scope
+          evidence: reports/playwright/portal-startup-s4-boundary-20261008/anonymous-back-control.json
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -190,53 +222,18 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
-      observed_at: '2026-10-07T18:50:29Z'
+      observed_at: '2026-10-08T01:40:05Z'
       main:
         branch: main
-        sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
+        sha: 7744cebbe92f7b7155ac280d875fdc1abecb51a8
       observation_note: >-
-        Dated published main 78da596b3e27a5bd396d195f8d1348b7f8b8cb00 contains the
-        Settings usability candidate 08dd188b13dd3c6f53b9c45c80d287f0599dd249.
-        Independent challenge review approves that slice on 08dd188b and 4bad8a7f;
-        the three Access A navigation test label repairs in 6b93059e are independently
-        approved. The candidate has six actionable Account tabs with preserved
-        legacy links, compact privacy/invitation information inside related sections,
-        clearer independent presentation/time-zone actions, an explicit desktop
-        sidebar preference label and compact mobile headings/actions/status.
-        Historical product checks pass 53 focused unit tests and 76 canonical synthetic
-        browser scenarios, with 13 fresh Nx tasks in that final implementation cycle;
-        independent direct Vitest checks pass 31 tests without Nx cache.
-        Exact-head general workflow 37664842435 on 6b93059e passes governance, code,
-        PostgreSQL/RLS, focused Access A tests and all ten real browser scenarios,
-        but synthetic UI passes 75/76: the time-zone Save/Cancel pair wraps at 320px.
-        General workflow 37666597933 on f71e189d repeats a synthetic-step
-        failure with its other three jobs successful. This is category A in Settings;
-        no Electronics module repair is included. The selected bounded repair changes
-        only the mobile time-zone footer CSS and adds a wider-font regression plus
-        560/561 boundary coverage, preserving the original strict row assertion.
-        The regression reproduces a 54px wrap before the fix; afterward both buttons
-        are 126x44px with readable text and aligned rows in fresh/dirty/error states.
-        Initial repair-local pnpm e2e:settings-ui passes all 79 scenarios; Web lint/build and
-        formatting pass with NX_SKIP_NX_CACHE=true, seven fresh Nx tasks in the final
-        check and thirteen including the baseline build. No listening socket or
-        database connection is used by synthetic fixtures. Account/Seat are checked
-        at 1440/1024/390/320, including fresh, dirty, partial-save, error, reentry and
-        long-content states. New screenshots preserve previous owner previews.
-        Independent review approves unpublished fa5cf069. Controlled convergence
-        onto Admin Logs baseline 79fc1e3e preserves the CSS/test blobs; repeated Web
-        lint/typecheck/build passes with eight fresh Nx tasks and cache skipped.
-        Canonical pnpm e2e:settings-ui on composed 0cc72ef3 passes 87/87, comprising
-        79 Account and eight unrelated Admin Logs fixtures. A final Python-only
-        collector change in observed 78da596b does not touch Web, package/lockfile,
-        Settings fixtures/configuration or execution state; those tested blobs remain
-        identical. Only the unpublished repair is carried forward; final-SHA CI is pending.
-        Account and StudentSeat scopes, draft/history guards and presentation
-        persistence remain separate. Provider, handlers/effects, MAX JSX and
-        navigation resolver/guard logic are unchanged. API, SQL, authentication,
-        permissions, live database and deployment operations are excluded.
-        This dated observation precedes final composition/review of the CSS repair
-        and its exact-head general/real-browser CI; no full CI PASS is claimed.
-        Fetch main before writes; no deployment or owner acceptance is inferred.
+        Dated published main contains the final Portal shell delivery candidate.
+        This is a historical observation, not a live HEAD claim. Fetch main and
+        read exact-SHA GitHub CI before writes. Slice evidence is recorded in the
+        programme; it grants no owner acceptance or deployment authority.
+        Account and StudentSeat scopes, permissions, MAX, API, SQL and the working
+        database are unchanged. The load protocol is unexecuted; calculated bundle
+        compression does not establish network performance or 3000-user capacity.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
