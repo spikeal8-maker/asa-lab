@@ -319,47 +319,45 @@ parallel_lanes:
       issue: 505
       branch: main
       base_branch: main
-      pr: 506
-      pr_draft: true
+      pr: null
+      pr_draft: false
       status: in_progress
-      checkpoint: preserved_test_candidate_final_convergence_selected
+      checkpoint: integrated_candidate_postintegration_browser_pending
       owner_acceptance: pending
     suspended_slices: []
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 3ff8fc3369538280928a519b7d58e2df6e52043a
+      convergence_baseline_sha: a05e7801d3c300750a0dbc3a792891102868bcc9
       head_sha: null
-      observed_at: '2026-10-08T06:03:34Z'
+      observed_at: '2026-10-08T06:49:51Z'
       main:
         branch: main
-        sha: 3ff8fc3369538280928a519b7d58e2df6e52043a
+        sha: a05e7801d3c300750a0dbc3a792891102868bcc9
       observation_note: >-
-        Fetch main and read exact-head CI before writes. Dated actualmain3ff8fc33
-        is a normal Portal-only documentation descendant of accepted516 dd97;
-        preserve its new Portal lane, registry and normative revision2.0.
-        NEW independent516 review APPROVE/STOP and verification executor STOP;
-        required General37732525782 and fullElectronics37732936127 both
-        terminalSUCCESS on exactdd97,1007focused/117browser,166+159freshNx.
-        Allthree516 blobs are unchanged; savednormal/load evidence was
-        independently checked without repeating measurements. Its technical
-        acceptance blocker condition is fulfilled by actualevidence.
-        Formally select only preserved505/PR506 candidate350d2442 for one
-        final convergence with checked currentmain and new selection metadata,
-        then actual exact-final requiredgates and NEW independentreview.
-        Preserve the entire146-line rigid-board test body and every currentmain
-        change. Productcode is not selected for editing without a proved defect.
-        PR506 remains OPEN/DRAFT at the observed350d2442 until this bounded
-        convergence; do not call oldreview or localtests newcandidateacceptance.
-        Before normalcandidatepush supply exactsource/archive for controller
-        and NEWreviewer ACK; existingPR synchronize can automatically start
-        registered General/Electronics, so do not add duplicate dispatches.
-        The505 acceptance blocker stays until its own actualgates/review;
-        postintegration exact-main browser repeat remains required by itscard.
-        Draft removal/PRmerge follow owner decision under AGENTS2; owner/class
-        acceptance, release and deployment remain separate. Keep500/513/509
-        accepted and unchanged. T3 is pending actualstudentdevice evidence;
-        no devPC/runner substitute, no repeatedcadence/loadmeasurement or
-        fullhygiene/solver/assetcleanup/unrelatedproduct slice is selected.
+        Fetch main and read exact-head CI before writes. Dated main a05e7801
+        is the normal merge of PR 506: parents 6026b587 and approved candidate
+        2c76f97b, identical tree 708d34072e9931cb60b12fa74cdf585c391e69d7.
+        NEW independent candidate review APPROVE/STOP; required General
+        37736754158 and full Electronics 37736754136 are terminal SUCCESS
+        on exact 2c76, with 1007 focused and 118 browser tests. The original
+        146-line rigid-board test is unchanged; no product defect was proved
+        and no product repair was made. Existing human programme authorization
+        covered bounded integration; owner/class acceptance, release and
+        deployment remain separate. PR 506 is MERGED, so clear only its active
+        delivery association. Exact a05 General 37739236522 failed Governance
+        solely because this association still named a merged PR; downstream
+        Code/Data/Access were SKIPPED. This bounded controller metadata repair
+        preserves every product, dependency, workflow and foreign lane.
+        Obtain its actual Governance result, then perform the mandatory
+        AFTER-integration exact-main browser repeat and NEW published-state
+        independent review before closing Issue 505. No browser dispatch ran
+        while control-plane entry was blocked. Candidate verification and
+        premerge approval do not replace this temporal repeat. The prior
+        6026 S4 Portal failure remains separately owner-coordinated; its cause
+        is not claimed fixed by the test-only Electronics diff. Keep accepted
+        500/513/509/516/517/523/521 unchanged. T3 remains pending evidence from
+        a real student computer; do not repeat old cadence/load measurements.
+        No next product or hygiene slice is selected here.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
