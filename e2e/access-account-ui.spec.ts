@@ -4083,26 +4083,55 @@ for (const game of [false, true]) {
     await page.setViewportSize({ width: 320, height: 568 });
     const hostFile = startupChunks().host.file;
     let requests = 0;
+    let documents = 0;
+    let release!: () => void;
+    const releasePromise = new Promise<void>((done) => {
+      release = done;
+    });
+    await page.route('http://127.0.0.1:4612/', async (route) => {
+      const request = route.request();
+      if (
+        request.method() === 'GET' &&
+        request.isNavigationRequest() &&
+        request.frame() === page.mainFrame()
+      ) {
+        documents += 1;
+        if (documents === 2) await releasePromise;
+      }
+      await route.fallback();
+    });
     await page.route(`**/${hostFile}`, (route) => {
       requests += 1;
       return route.fulfill({ status: 503, body: 'delivery unavailable' });
     });
-    await page.goto(`/#/projects/${startupProjectId}?module=${game ? 'chess' : 'blocks'}`, {
-      waitUntil: 'domcontentloaded',
-    });
-    await expect(
-      page.getByRole('heading', { name: 'Учебная среда не загрузилась', exact: true }),
-    ).toBeVisible();
-    expect(requests).toBe(2);
-    await expect(page.getByRole('alert')).toContainText(
-      'Не удалось загрузить рабочую среду. Проверьте соединение и попробуйте снова.',
-    );
-    await expect(page.getByRole('alert')).not.toContainText(hostFile);
-    await startupCapture(page, `editor-320-${game ? 'game' : 'project'}-chunk-error`);
-    await page.getByRole('button', { name: game ? 'К играм' : 'К проектам', exact: true }).click();
-    await expect(page).toHaveURL(game ? /#\/games$/ : /#\/projects$/);
-    await expect(
-      page.getByRole('heading', { name: 'Учебная среда не загрузилась', exact: true }),
-    ).toHaveCount(0);
+    try {
+      await page.goto(`/#/projects/${startupProjectId}?module=${game ? 'chess' : 'blocks'}`, {
+        waitUntil: 'domcontentloaded',
+      });
+      // The old boundary can appear while the global reload is still in flight.
+      // Hold its document request to prove the second host request cannot yet
+      // have happened, then synchronize the final assertions with that request.
+      await expect.poll(() => documents).toBe(2);
+      expect(requests).toBe(1);
+      release();
+      await expect.poll(() => requests).toBe(2);
+      await expect(
+        page.getByRole('heading', { name: 'Учебная среда не загрузилась', exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole('alert')).toContainText(
+        'Не удалось загрузить рабочую среду. Проверьте соединение и попробуйте снова.',
+      );
+      await expect(page.getByRole('alert')).not.toContainText(hostFile);
+      await startupCapture(page, `editor-320-${game ? 'game' : 'project'}-chunk-error`);
+      await page
+        .getByRole('button', { name: game ? 'К играм' : 'К проектам', exact: true })
+        .click();
+      await expect(page).toHaveURL(game ? /#\/games$/ : /#\/projects$/);
+      await expect(
+        page.getByRole('heading', { name: 'Учебная среда не загрузилась', exact: true }),
+      ).toHaveCount(0);
+    } finally {
+      release();
+    }
   });
 }
