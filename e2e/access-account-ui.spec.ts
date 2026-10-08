@@ -4455,18 +4455,71 @@ test('S4 Home delivery error preserves portal controls and My Projects exit', as
   await fixture(page);
   await page.setViewportSize({ width: 390, height: 568 });
   const chunk = startupChunks().manifest['src/pages/CreatorHomePage.tsx']!.file;
-  await page.route(`**/${chunk}`, (route) =>
-    route.fulfill({ status: 503, body: 'delivery unavailable' }),
-  );
-  await page.goto('/#/home', { waitUntil: 'domcontentloaded' });
-  await expect(
-    page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
-  ).toBeVisible();
-  await startupCapture(page, 'home-390-error');
-  await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
-  await expect(page).toHaveURL(/#\/projects$/);
-  await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible();
+  let documents = 0;
+  let requests = 0;
+  let failedDeliveries = 0;
+  let loadedDocuments = 0;
+  let release!: () => void;
+  const releasePromise = new Promise<void>((done) => {
+    release = done;
+  });
+  const onDocumentLoaded = () => {
+    loadedDocuments += 1;
+  };
+  page.on('domcontentloaded', onDocumentLoaded);
+  await page.route('http://127.0.0.1:4612/', async (route) => {
+    const request = route.request();
+    if (
+      request.method() === 'GET' &&
+      request.isNavigationRequest() &&
+      request.frame() === page.mainFrame()
+    ) {
+      documents += 1;
+      if (documents === 2) await releasePromise;
+    }
+    await route.fallback();
+  });
+  await page.route(`**/${chunk}`, async (route) => {
+    requests += 1;
+    await route.fulfill({ status: 503, body: 'delivery unavailable' });
+    failedDeliveries += 1;
+  });
+  try {
+    await page.goto('/#/home', { waitUntil: 'domcontentloaded' });
+    await expect.poll(() => documents).toBe(2);
+    expect(requests).toBe(1);
+    expect(failedDeliveries).toBe(1);
+    expect(loadedDocuments).toBe(1);
+    const held = { documents, requests, failedDeliveries, loadedDocuments };
+    release();
+    // The load witness is registered before goto; neither an outgoing heading
+    // nor a second request alone proves that its replacement document is ready.
+    await expect.poll(() => loadedDocuments).toBe(2);
+    await expect.poll(() => failedDeliveries).toBe(2);
+    expect(requests).toBe(2);
+    mkdirSync(test.info().outputDir, { recursive: true });
+    writeFileSync(
+      test.info().outputPath('home-barrier.json'),
+      JSON.stringify(
+        { held, reloaded: { documents, requests, failedDeliveries, loadedDocuments } },
+        null,
+        2,
+      ),
+    );
+    await expect(
+      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+    ).toBeVisible();
+    await startupCapture(page, 'home-390-error');
+    await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
+    await page.screenshot({ path: test.info().outputPath('home-error.png') });
+    await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
+    await expect(page).toHaveURL(/#\/projects$/);
+    await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible();
+    writeFileSync(test.info().outputPath('home-exit.json'), JSON.stringify({ url: page.url() }));
+  } finally {
+    release();
+    page.off('domcontentloaded', onDocumentLoaded);
+  }
 });
 
 const startupProjectId = '30000000-0000-4000-8000-000000000004';
