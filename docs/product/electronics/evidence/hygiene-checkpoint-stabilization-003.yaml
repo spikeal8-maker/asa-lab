@@ -1,0 +1,202 @@
+schema: asa-lab.electronics-hygiene-stabilization-003.v1
+task_id: TASK-ELECTRONICS-GOVERNANCE-006
+issue: 524
+program_issue: 452
+checkpoint_reason: More than three production-changing stabilization slices since the last full checkpoint 490; gate-restoration repairs were allowed, while the one-file review 518 did not reset the full checkpoint.
+reviewed_main_sha: 32f530c3b84a60af444872f5138af4933fc3c919
+previous_full_checkpoint:
+  issue: 490
+  evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-002.yaml
+  reviewed_main_sha: 11616af174f5cff637ccfcf1cb5df92ffdc8ceb8
+  intervening_single_file_review:
+    issue: 518
+    evidence: docs/product/electronics/evidence/visual-source-responsibility-518-20261007.md
+    baseline_visual_reviewed_bytes: 72432
+    resets_full_checkpoint: false
+method:
+  sizes: Git blob bytes from git ls-tree -r --long on the reviewed SHA; checkout line-ending conversion is not counted as source growth.
+  delta: Git name-status and blob comparison from the previous full checkpoint reviewed SHA; no repeated capability inventory or browser/load/device measurements.
+  scope: The two established production source roots, eight baseline entries, existing legacy concerns, named routing/generated/historical/protected paths and their actual changes.
+
+large_sources:
+  source_roots:
+    - contexts/electronics/domain
+    - apps/web/src/electronics
+  threshold_bytes: 50000
+  growth_review_percent: 20
+  tracked_production_sources_above_threshold: 8
+  newly_unreviewed_sources: []
+  over_twenty_percent_growth: []
+  excluded: Tests, compiled dist and generated outputs under the existing contract.
+  reviewed:
+    - path: contexts/electronics/domain/solver.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 179752
+      previous_full_checkpoint_bytes: 184413
+      current_bytes: 184413
+      growth_percent: 2.59
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active solver orchestration; retain pending separately selected responsibility extraction with physics, deterministic netlist and direct/Worker parity evidence.
+    - path: apps/web/src/electronics/workbench.css
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 120669
+      previous_full_checkpoint_bytes: 133259
+      current_bytes: 133474
+      growth_percent: 10.61
+      delta_since_full_checkpoint_bytes: 215
+      disposition: Active workbench cascade retained; breadboard focus-within selectors accompany the measured overlay boundary and do not establish a safe split without selected visual/cascade ownership review.
+    - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103985
+      previous_full_checkpoint_bytes: 113843
+      current_bytes: 113843
+      growth_percent: 9.48
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active library and inspector; retain until a selected responsibility review proves boundaries and behavior parity.
+    - path: apps/web/src/electronics/use-electronics-workbench.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103385
+      previous_full_checkpoint_bytes: 106018
+      current_bytes: 105621
+      growth_percent: 2.16
+      delta_since_full_checkpoint_bytes: -397
+      disposition: Active gesture/simulation orchestration retained; accepted rapid wire regrab and canonical observation adapter changes do not authorize further extraction or semantic changes.
+    - path: contexts/electronics/domain/arduino-program-runtime.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 84928
+      previous_full_checkpoint_bytes: 84880
+      current_bytes: 84880
+      growth_percent: -0.06
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active runtime and legacy profile; retain until separately selected clock convergence proves compatibility.
+    - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 72432
+      previous_full_checkpoint_bytes: 71754
+      current_bytes: 72775
+      growth_percent: 0.47
+      delta_since_full_checkpoint_bytes: 1021
+      disposition: Retain private ordinary-image lifecycle repair and shared family renderer; review 518 renewed only this file's baseline, and subsequent accepted lifecycle growth remains below its renewed ceiling. Loader/cache identity, instruments and selection/family dispatch remain explicit debt.
+    - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 63884
+      previous_full_checkpoint_bytes: 61409
+      current_bytes: 61409
+      growth_percent: -3.87
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active code editor; its decrease from the original baseline is not deletion proof.
+    - path: apps/web/src/electronics/WorkbenchStage.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 54879
+      previous_full_checkpoint_bytes: 58399
+      current_bytes: 62462
+      growth_percent: 13.82
+      delta_since_full_checkpoint_bytes: 4063
+      disposition: Retain active stage rendering and measured breadboard overlay boundary; extraction requires separately selected gesture/browser parity and no new hit-testing or connectivity semantics.
+  production_delta_since_full_checkpoint:
+    modified:
+      - apps/web/src/electronics/ProductionComponentVisual.tsx
+      - apps/web/src/electronics/WorkbenchStage.tsx
+      - apps/web/src/electronics/live-simulation-worker-controller.ts
+      - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/use-workbench-project-state.ts
+      - apps/web/src/electronics/workbench-model.ts
+      - apps/web/src/electronics/workbench.css
+    new: []
+    deleted: []
+    renamed: []
+    accepted_boundaries: Existing breadboard overlay hotspot 465, rapid wire-vertex regrab 493, mounted-part stacking for rigid extraction 500, canonical time-zero startup 513, bounded complete observation horizons 516 and ordinary-image lifecycle/error publication 517. These are existing changes inspected as delta, not reimplemented or remeasured here.
+    cross_lane_delta: The existing owner-admin diagnostics commit 9071d587 also added autosave_failed reporting in use-workbench-project-state.ts; preserve that foreign work. This checkpoint does not review or alter its product semantics.
+  baseline_changed_by_this_task: false
+  baseline_reason: All eight sources remain active decomposition candidates below the applicable 20-percent ceilings. The existing 518 visual-only renewal is retained; no new threshold crossing, changed ownership or retirement-ready replacement requires a baseline rewrite.
+
+legacy_bridges:
+  - path: apps/web/src/electronics/live-simulation.ts
+    class: compatibility-shim
+    retention_evidence: advanceLiveSimulation has zero production runtime callers outside its declaration, but 13 actual calls in live-simulation.spec.ts and three actual calls across run-electronics-browser-benchmark.mjs and run-electronics-memory-benchmark.mjs remain. calculateSimulationPreflight is still imported by simulation-worker-evaluator.ts and use-electronics-workbench.ts; deleting the file would remove active production helpers.
+    changed_since_full_checkpoint: false
+    retirement_condition: Select a bounded maintenance slice that migrates or explicitly retires every active advanceLiveSimulation test/tool caller, preserves historical benchmark evidence, proves runtime/import and public/package exports plus schema/contract dependencies have no remaining removal blocker, and verifies replacement/focused/shared gates before deleting any helper or file.
+    retirement_ready: false
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: active-legacy-bridge
+    retention_evidence: advanceArduinoRuntime still explicitly calls advanceRuntime with legacy-ms-v1; arduino-model.ts and solver.ts retain production calls. The instruction-us-v1 canonical path coexists with this stateless/snapshot compatibility path; the observation-controller repairs did not replace it.
+    changed_since_full_checkpoint: false
+    retirement_condition: Select Arduino runtime convergence establishing the canonical profile for all stateless and snapshot consumers, migrate production/public callers, and prove accepted persisted-state, normative and replay/parity compatibility before retiring legacy-ms-v1 or its bridge.
+    retirement_ready: false
+
+routing:
+  canonical_map: docs/product/electronics/COMPONENT_MAP.yaml
+  map_changed_since_full_checkpoint: false
+  existing_component_route_files: 4
+  component_entries: 29
+  new_component_route_files: []
+  deleted_component_route_files: []
+  updated_component_route_files: []
+  orphaned_routes: []
+  router_and_guide_changed_since_full_checkpoint: false
+  contract_delta:
+    - path: docs/product/electronics/contracts/SIMULATION_FAULT_STATE_CONTRACT.md
+      reason: Accepted time-zero startup clarification; stable route retained.
+  task_and_evidence_delta: Bounded task/evidence documents for accepted repairs, diagnosis, CI dependencies and reviews were added under the established registered classes. Their existence is provenance, not authority to select another slice.
+  validation_evidence: Selected-card validation checks the existing map, exact symbols/source/test routes and declared concrete cards; no orphan or routing ownership repair was proved.
+
+generated:
+  new_artifacts: []
+  deleted_artifacts: []
+  new_generators: []
+  deleted_generators: []
+  reviewed:
+    - path: docs/product/electronics/generated/component-coverage.json
+      class: generated
+      generator: tools/generate-electronics-component-coverage.mjs
+      stale_output_validator: tools/validate-electronics-component-information.mjs
+      blob_sha: ad959aa44ebb6b61bc245552fb79f4b68122cece
+      generated_bytes: 31454
+      changed_since_full_checkpoint: false
+      generator_changed_since_full_checkpoint: false
+      validator_changed_since_full_checkpoint: false
+      evidence: Artifact blob, generator and validator are unchanged from the prior full checkpoint; existing stale-output validation is retained. No output was regenerated or hand-edited by this checkpoint.
+  hand_edited_by_this_task: false
+
+historical_and_protected:
+  historical_evidence_preserved: true
+  historical_paths:
+    - docs/product/electronics/tasks/**
+    - docs/product/electronics/evidence/**
+    - docs/delivery/evidence/electronics-opt0/**
+  historical_deletions_or_renames_since_full_checkpoint: []
+  previous_checkpoint_and_518_report_preserved: true
+  protected_owner_assets_preserved: true
+  owner_supplied_tree_sha: 1314b45c0c38f9d3bfaa905526e34a0840e67d86
+  owner_audit_tree_sha: 87b2a4ba91a1bdfbeea0997d5df3a321757f03fe
+  protected_asset_changes_since_full_checkpoint: []
+  ordinary_browser_output_policy_changed: false
+  tracked_screenshot_changes_since_full_checkpoint: []
+  preservation_evidence: Protected owner tree IDs match checkpoint 002; Git delta contains no change under either protected root, tracked e2e/artifacts, .gitignore or retained Electronics benchmark evidence. Untracked owner screenshots, ZIPs, credentials and backups are outside this read-only Git audit and were not accessed or modified.
+
+actual_removals: []
+removal_evidence: Git name-status with delete/rename filters found no deletions or renames in the established Electronics production, route, generated, task, evidence, test or protected asset roots since the previous reviewed checkpoint. No artifact was classified for deletion; this task removes nothing and supplies no permission to remove retained concerns.
+
+residual_debt:
+  - concern: All eight active large sources retain mixed responsibilities, with stage growth 13.82 percent and visual growth 0.47 percent from its renewed 518 baseline.
+    owner_selectable_followup: Separately selected responsibility reviews or stable-boundary decomposition with mapped ownership and applicable parity evidence; no split is required by bytes alone.
+  - concern: Ordinary asset loading/error presentation, instrument controls and selection/family rendering still coexist in ProductionComponentVisual.tsx.
+    owner_selectable_followup: A separately selected extraction preserving asset/cache identity, mounted-consumer cancellation, catalog/stage controls and accepted early/late error behavior; preserve original owner artwork.
+  - concern: advanceLiveSimulation compatibility test/tool callers and active preflight helpers prevent retirement.
+    owner_selectable_followup: Separately select migration and complete deletion proof; do not delete the file on the strength of zero advance production callers.
+  - concern: legacy-ms-v1 still serves production stateless/snapshot Arduino paths.
+    owner_selectable_followup: Separately selected canonical-runtime convergence with compatibility and replay/parity evidence.
+  - concern: T3 remains pending actual pupil-computer evidence; existing CI browser/load/CPU observations do not establish classroom performance or owner acceptance.
+    owner_selectable_followup: Obtain the required owner/device evidence through the canonical remaining 465 and programme 452 boundaries; do not repeat accepted measurements here.
+  - concern: Remaining gesture/visual/instrument and classroom boundaries and unresolved product choices belong to the stabilization specification, not this checkpoint.
+    owner_selectable_followup: Controller must freshly select the canonical dependency and obtain any required section-7 product decision or installation authorization before a later slice.
+
+production_source_changed_by_this_task: false
+test_source_changed_by_this_task: false
+generated_output_changed_by_this_task: false
+protected_asset_changed_by_this_task: false
+baseline_changed_by_this_task: false
+measurements_repeated_by_this_task: false
+owner_class_acceptance_claimed: false
+release_or_deployment_claimed: false
+task_selection_authorized_by_this_evidence: false
