@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_owner_revision_br1_recovery_fixture_selected
+      checkpoint: portal_owner_revision_br2_invitation_fixture_selected
       owner_acceptance: changes_requested
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -124,11 +124,25 @@ parallel_lanes:
       status: in_progress
       verified_revision: '1.1'
       target_revision: '2.0'
-      selected_slice: BR1
-      dependency_order: [R1, BR1, R2, R3]
-      remaining_slices: [BR1, R2, R3]
+      selected_slice: BR2
+      dependency_order: [R1, BR1, BR2, R2, R3]
+      remaining_slices: [BR1, BR2, R2, R3]
       deployment_authorized: false
       working_database_actions_authorized: false
+      verification_pending_slices:
+        - id: BR1
+          candidate_sha: 634aece03fef5aa43645c95d09c38edff41a98e9
+          independent_review: approved_bounded_diff
+          independent_review_sha: 634aece03fef5aa43645c95d09c38edff41a98e9
+          focused_browser_passed: 2
+          canonical_browser_passed: 245
+          canonical_browser_total: 246
+          canonical_browser_conclusion: failure
+          canonical_failure_category: C
+          acceptance_dependency: BR2
+          author_evidence: reports/playwright/portal-br1-recovery-author-20261008
+          independent_evidence: reports/playwright/portal-br1-recovery-independent-20261008/review.json
+          product_source_changed: false
       completed_slices:
         - id: R1
           status: technical_accepted
@@ -229,8 +243,8 @@ parallel_lanes:
       known_baseline_issues:
         - id: s4_host_recovery_fixture_intermediate_document
           classification: independent_baseline_defect
-          status: bounded_repair_selected
-          selected_repair: BR1
+          status: bounded_diff_verified_full_gate_pending
+          repair_slice: BR1
           affected_path: e2e/access-account-ui.spec.ts
           product_change_authorized: false
           observed_failure_sha: 6026b587a491ccf76e9ee9a264daf79aac2bae2a
@@ -245,6 +259,24 @@ parallel_lanes:
             errors and game/project back actions. Runtime recovery, API, MAX,
             dependencies, database and deployment remain outside this repair.
           evidence: C:/Users/spike/.codex/temp/portal-s4-baseline-6026-diagnosis
+        - id: s4_invitation_recovery_capture_intermediate_document
+          classification: independent_baseline_defect
+          status: bounded_repair_selected
+          repair_slice: BR2
+          affected_path: e2e/access-account-ui.spec.ts
+          product_change_authorized: false
+          observed_candidate_sha: 634aece03fef5aa43645c95d09c38edff41a98e9
+          diagnosis: >-
+            The unchanged invitation class-exit case failed before the modified
+            host cases on its own browser page. Saved trace shows a failed
+            TeacherInvitePage chunk, automatic second root-document navigation,
+            and startupCapture evaluation losing its execution context. Select
+            only the existing authenticated/anonymous invitation delivery-error
+            fixtures: synchronize the final error heading and capture with the
+            second chunk attempt using an explicit navigation barrier. Preserve
+            both exit URLs and final UI assertions. No invitation, authentication,
+            runtime recovery, API, MAX, dependency or database changes are allowed.
+          evidence: reports/playwright/portal-br1-recovery-author-20261008/full-final/access-account-ui-S4-invit-d332a-ry-error-retains-class-exit/trace.zip
         - id: anonymous_invitation_signin_browser_back
           classification: independent_baseline_defect
           status: unaddressed_outside_delivery_scope
