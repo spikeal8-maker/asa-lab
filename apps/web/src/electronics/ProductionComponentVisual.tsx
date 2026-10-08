@@ -358,51 +358,22 @@ function recoverOwnerImage(asset: string): Promise<string> {
   return pending;
 }
 
-let lateOrdinaryProbeSequence = 0;
-function recordLateOrdinaryImageProbe(
-  asset: string,
-  id: number,
-  kind: string,
-  detail: Record<string, unknown> = {},
-): void {
-  if (typeof window === 'undefined' || !asset.endsWith('/battery-holders/aa-2.svg')) return;
-  const events = (window as unknown as { __asaLateOrdinaryImageProbe?: unknown[] })
-    .__asaLateOrdinaryImageProbe;
-  if (!events || events.length >= 256) return;
-  events.push({
-    source: 'hook',
-    t: performance.now(),
-    wallMs: Date.now(),
-    id,
-    asset,
-    kind,
-    ...detail,
-  });
-}
-
 function useOwnerImageHref(asset: string): {
   readonly href: string;
   readonly failed: boolean;
-  readonly onError: (event?: { currentTarget: Element; isTrusted?: boolean }) => void;
-  readonly onLoad: (event?: { currentTarget: Element; isTrusted?: boolean }) => void;
+  readonly onError: () => void;
+  readonly onLoad: () => void;
 } {
   const [loaded, setLoaded] = useState({ asset, href: asset, failed: false });
-  const probeId = useRef(0);
-  if (probeId.current === 0) probeId.current = ++lateOrdinaryProbeSequence;
-  const probe = (kind: string, detail: Record<string, unknown> = {}): void =>
-    recordLateOrdinaryImageProbe(asset, probeId.current, kind, detail);
-  probe('render-state', { loaded });
   const current = useRef(loaded);
   current.current = loaded;
   const handlers = useRef<{ asset: string; error: () => void; load: () => void } | null>(null);
   const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
   useEffect(() => {
-    probe('effect-enter');
     let active = true;
     let pending: Promise<boolean> | null = null;
     const load = (): Promise<boolean> => {
       if (pending) return pending;
-      probe('publish-loading');
       setLoaded({ asset, href: asset, failed: false });
       pending = recoverOwnerImage(asset)
         .then((href) => {
@@ -411,10 +382,7 @@ function useOwnerImageHref(asset: string): {
           return true;
         })
         .catch(() => {
-          if (active) {
-            probe('publish-failed');
-            setLoaded({ asset, href: asset, failed: true });
-          }
+          if (active) setLoaded({ asset, href: asset, failed: true });
           return false;
         })
         .finally(() => {
@@ -453,21 +421,7 @@ function useOwnerImageHref(asset: string): {
       });
     };
     const recover = (): void => {
-      probe('recover-enter', {
-        active,
-        pending: Boolean(pending),
-        permanent: recovery.permanent(),
-        current: current.current,
-      });
-      if (!active || pending || recovery.permanent()) {
-        probe('recover-guard-return', {
-          active,
-          pending: Boolean(pending),
-          permanent: recovery.permanent(),
-          current: current.current,
-        });
-        return;
-      }
+      if (!active || pending || recovery.permanent()) return;
       if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
         return;
       if (
@@ -492,7 +446,6 @@ function useOwnerImageHref(asset: string): {
       },
     };
     handlers.current = mountedHandlers;
-    probe('handlers-installed', { permanent: recovery.permanent() });
     // The native SVG image can notify before passive lifecycle setup. Replay
     // only this resource's latest event; a newer resource owns its own event.
     if (earlyEvent.current?.asset === asset) {
@@ -510,7 +463,6 @@ function useOwnerImageHref(asset: string): {
     window.addEventListener('focus', retry);
     document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
-      probe('effect-cleanup');
       active = false;
       recovery.cancel();
       if (handlers.current === mountedHandlers) handlers.current = null;
@@ -520,28 +472,15 @@ function useOwnerImageHref(asset: string): {
       document.removeEventListener('visibilitychange', retryWhenVisible);
     };
   }, [asset]);
-  const notify = (
-    kind: 'error' | 'load',
-    event?: { currentTarget: Element; isTrusted?: boolean },
-  ): void => {
-    probe('react-' + kind, {
-      hasHandlers: handlers.current?.asset === asset,
-      trusted: event?.isTrusted,
-      href: event?.currentTarget.getAttribute('href'),
-      consumer: event?.currentTarget.closest('.workbench-catalog-card')
-        ? 'catalog'
-        : event?.currentTarget.closest('[data-testid="schematic-component"]')
-          ? 'stage'
-          : 'other',
-    });
+  const notify = (kind: 'error' | 'load'): void => {
     if (handlers.current?.asset === asset) handlers.current[kind]();
     else earlyEvent.current = { asset, kind };
   };
   return {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
-    onError: (event) => notify('error', event),
-    onLoad: (event) => notify('load', event),
+    onError: () => notify('error'),
+    onLoad: () => notify('load'),
   };
 }
 
