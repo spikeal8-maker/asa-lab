@@ -3914,24 +3914,56 @@ for (const authenticated of [false, true]) {
     else await anonymousStartup(page);
     await page.setViewportSize({ width: 320, height: 568 });
     const chunk = startupChunks().manifest['src/pages/TeacherInvitePage.tsx']!.file;
-    await page.route(`**/${chunk}`, (route) =>
-      route.fulfill({ status: 503, body: 'delivery unavailable' }),
-    );
-    await page.goto('/#/teacher-invite/s4-token', { waitUntil: 'domcontentloaded' });
-    await expect(
-      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
-    ).toBeVisible();
-    await startupCapture(page, `invite-${authenticated ? 'authenticated' : 'anonymous'}-320-error`);
-    await page
-      .getByRole('button', {
-        name: authenticated ? 'Вернуться к классам' : 'На главную',
-        exact: true,
-      })
-      .click();
-    await expect(page).toHaveURL(authenticated ? /#\/classrooms$/ : /#\/$/);
-    await expect(
-      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
-    ).toHaveCount(0);
+    let requests = 0;
+    let documents = 0;
+    let release!: () => void;
+    const releasePromise = new Promise<void>((done) => {
+      release = done;
+    });
+    await page.route('http://127.0.0.1:4612/', async (route) => {
+      const request = route.request();
+      if (
+        request.method() === 'GET' &&
+        request.isNavigationRequest() &&
+        request.frame() === page.mainFrame()
+      ) {
+        documents += 1;
+        if (documents === 2) await releasePromise;
+      }
+      await route.fallback();
+    });
+    await page.route(`**/${chunk}`, (route) => {
+      requests += 1;
+      return route.fulfill({ status: 503, body: 'delivery unavailable' });
+    });
+    try {
+      await page.goto('/#/teacher-invite/s4-token', { waitUntil: 'domcontentloaded' });
+      // Keep capture out of the old document while its recovery reload is held.
+      // The second invitation request proves the replacement document is running.
+      await expect.poll(() => documents).toBe(2);
+      expect(requests).toBe(1);
+      release();
+      await expect.poll(() => requests).toBe(2);
+      await expect(
+        page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+      ).toBeVisible();
+      await startupCapture(
+        page,
+        `invite-${authenticated ? 'authenticated' : 'anonymous'}-320-error`,
+      );
+      await page
+        .getByRole('button', {
+          name: authenticated ? 'Вернуться к классам' : 'На главную',
+          exact: true,
+        })
+        .click();
+      await expect(page).toHaveURL(authenticated ? /#\/classrooms$/ : /#\/$/);
+      await expect(
+        page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+      ).toHaveCount(0);
+    } finally {
+      release();
+    }
   });
 }
 test('S4 Home delivery error preserves portal controls and My Projects exit', async ({ page }) => {
