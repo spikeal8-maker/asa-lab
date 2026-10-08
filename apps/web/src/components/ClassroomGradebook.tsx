@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type GradebookEntry, type LearningReviewContext } from '../api';
 import { ProjectPreviewFigure } from '../modules/ProjectPreviewFigure';
 import { LearningConditions } from './LearningConditions';
-import { ClassroomGradingScheme } from './ClassroomGradingScheme';
 import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
@@ -426,7 +425,6 @@ export function ClassroomGradebook({ classroomId }: { classroomId: string }): JS
         </div>
         <span>Ждут проверки: {awaiting}</span>
       </header>
-      <ClassroomGradingScheme classroomId={classroomId} />
       {error ? (
         <p role="alert">
           {error}

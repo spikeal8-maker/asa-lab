@@ -23,10 +23,12 @@ export function JoinClassPage({
   onBack,
   onHome,
   onSignedIn,
+  accountDisplayName,
 }: {
   onBack: () => void;
   onHome: () => void;
   onSignedIn: () => void;
+  accountDisplayName?: string;
 }): JSX.Element {
   const [initialClassCode] = useState(initialCode);
   const [state, setState] = useState<JoinState>(() =>
@@ -36,6 +38,8 @@ export function JoinClassPage({
   const [studentCode, setStudentCode] = useState('');
   const [busy, setBusy] = useState(initialClassCode.length > 0);
   const [error, setError] = useState<string | null>(null);
+  const [joined, setJoined] = useState<{ title: string; alreadyMember: boolean } | null>(null);
+  const accountEntry = accountDisplayName !== undefined;
 
   useEffect(() => {
     if (!initialClassCode) return;
@@ -71,11 +75,21 @@ export function JoinClassPage({
   async function signIn(event: FormEvent): Promise<void> {
     event.preventDefault();
     setError(null);
-    if (!STUDENT_CODE_PATTERN.test(studentCode)) {
+    if (!accountEntry && !STUDENT_CODE_PATTERN.test(studentCode)) {
       setError('Введите код ученика из 4–10 латинских букв или цифр.');
       return;
     }
     setBusy(true);
+    if (accountEntry) {
+      // Reuse the signed-in Account and the existing teacher-approved request.
+      // Merely opening a QR link never switches identity or grants membership.
+      const result = await api.joinClassAsAccount(code);
+      setBusy(false);
+      if (result.ok) {
+        setJoined({ title: result.data.classroom.title, alreadyMember: result.data.alreadyMember });
+      } else setError(result.error.message || 'Не удалось отправить заявку.');
+      return;
+    }
     const result = await api.signInClassroomSeat(code, studentCode);
     setBusy(false);
     if (result.ok) {
@@ -84,6 +98,25 @@ export function JoinClassPage({
     }
     setError(result.error.message || 'Код класса или код ученика не подошёл.');
   }
+
+  if (joined)
+    return (
+      <div className="page-center join-class-page">
+        <main className="login-card join-class-card">
+          <AuthHomeBrand onHome={onHome} />
+          <h2>{joined.alreadyMember ? 'Вы уже в классе' : 'Заявка отправлена'}</h2>
+          <p role="status">
+            {joined.title}.{' '}
+            {joined.alreadyMember
+              ? 'Ваши задания доступны в обучении.'
+              : 'Доступ появится после подтверждения преподавателя.'}
+          </p>
+          <button type="button" className="btn-primary" onClick={onSignedIn}>
+            Открыть моё обучение
+          </button>
+        </main>
+      </div>
+    );
 
   return (
     <div className="page-center join-class-page">
@@ -145,24 +178,35 @@ export function JoinClassPage({
                 <small className="join-class-safe-mode">Безопасный режим класса</small>
               ) : null}
             </div>
-            <h2>Введите код ученика</h2>
-            <p className="subtitle">
-              Код с вашей личной карточки доступа. Регистр букв учитывается.
-            </p>
-            <label htmlFor="class-student-code">Код ученика</label>
-            <input
-              id="class-student-code"
-              autoFocus
-              autoComplete="one-time-code"
-              autoCapitalize="none"
-              autoCorrect="off"
-              spellCheck={false}
-              inputMode="text"
-              value={studentCode}
-              disabled={busy}
-              placeholder="Ab7k"
-              onChange={(event) => setStudentCode(event.target.value)}
-            />
+            {accountEntry ? (
+              <>
+                <h2>Присоединиться к классу</h2>
+                <p className="subtitle">
+                  Аккаунт: {accountDisplayName}. Преподаватель получит вашу заявку.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2>Введите код ученика</h2>
+                <p className="subtitle">
+                  Код с вашей личной карточки доступа. Регистр букв учитывается.
+                </p>
+                <label htmlFor="class-student-code">Код ученика</label>
+                <input
+                  id="class-student-code"
+                  autoFocus
+                  autoComplete="one-time-code"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  inputMode="text"
+                  value={studentCode}
+                  disabled={busy}
+                  placeholder="Ab7k"
+                  onChange={(event) => setStudentCode(event.target.value)}
+                />
+              </>
+            )}
             {error ? (
               <p className="form-error" role="alert">
                 {error}
@@ -171,9 +215,15 @@ export function JoinClassPage({
             <button
               type="submit"
               className="btn-primary"
-              disabled={busy || !STUDENT_CODE_PATTERN.test(studentCode)}
+              disabled={busy || (!accountEntry && !STUDENT_CODE_PATTERN.test(studentCode))}
             >
-              {busy ? 'Входим…' : 'Войти'}
+              {busy
+                ? accountEntry
+                  ? 'Отправляем…'
+                  : 'Входим…'
+                : accountEntry
+                  ? 'Отправить заявку'
+                  : 'Войти'}
             </button>
           </form>
         ) : null}

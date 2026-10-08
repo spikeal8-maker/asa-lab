@@ -71,3 +71,51 @@ describe('StudentAccessCards class-only QR contract', () => {
     expect(html).toContain('disabled=""');
   });
 });
+
+describe('twenty-card A4 pagination', () => {
+  it.each([
+    [0, 0],
+    [1, 1],
+    [20, 1],
+    [21, 2],
+    [30, 2],
+    [40, 2],
+    [41, 3],
+    [100, 5],
+  ])('%i students use %i sheets', (count, pageCount) => {
+    vi.stubGlobal('window', {
+      location: { origin: 'https://portal.example.org', protocol: 'https:' },
+    });
+    const html = renderToStaticMarkup(
+      createElement(StudentAccessCards, {
+        classroomTitle: '7А',
+        classCode,
+        onClose: vi.fn(),
+        students: Array.from({ length: count }, (_, index) => ({ ...student, id: String(index) })),
+      }),
+    );
+    expect(html.match(/class="student-access-print-page"/g) ?? []).toHaveLength(pageCount);
+    const pageSizes = [...html.matchAll(/data-card-count="(\d+)"/g)].map((m) => Number(m[1]));
+    expect(pageSizes.reduce((a, b) => a + b, 0)).toBe(count);
+    expect(pageSizes.every((size) => size <= 20)).toBe(true);
+  });
+  it('prints only newly selected active learners', () => {
+    vi.stubGlobal('window', {
+      location: { origin: 'https://portal.example.org', protocol: 'https:' },
+    });
+    const html = renderToStaticMarkup(
+      createElement(StudentAccessCards, {
+        classroomTitle: '7А',
+        classCode,
+        onClose: vi.fn(),
+        initialStudentIds: ['new', 'suspended'],
+        students: [
+          { ...student, id: 'old' },
+          { ...student, id: 'new' },
+          { ...student, id: 'suspended', status: 'suspended' },
+        ],
+      }),
+    );
+    expect(html.match(/class="student-access-card"/g)).toHaveLength(1);
+  });
+});

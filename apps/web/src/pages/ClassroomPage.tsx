@@ -6,8 +6,6 @@ import {
   type ClassroomTeacher,
   type ClassroomActivityEntry,
   type ClassroomTeacherInvitation,
-  type ClassroomSeatBatchCommitResult,
-  type ClassroomSeatBatchPreviewRow,
   type ClassroomSeatBatchStudentInput,
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
@@ -22,7 +20,10 @@ import { ClassroomGradebook } from '../components/ClassroomGradebook';
 import { ClassroomStudentPage } from './ClassroomStudentPage';
 import { ClassShareScreen } from '../components/ClassShareScreen';
 import { Dropdown } from '../components/Dropdown';
-import { learnerCount } from '../plural';
+import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
+import { ClassroomGradingScheme } from '../components/ClassroomGradingScheme';
+import { sortClassroomRoster, type ClassroomRosterSort } from '../components/classroom-roster-sort';
+import '../modules/classroom-owner-layout.css';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
@@ -31,7 +32,14 @@ import { StudentAccessCards } from '../components/StudentAccessCards';
 import { StudentCodeDialog } from '../components/StudentCodeDialog';
 
 type ClassroomTab =
-  'students' | 'activities' | 'gradebook' | 'projects' | 'moderation' | 'teachers';
+  | 'students'
+  | 'activities'
+  | 'gradebook'
+  | 'projects'
+  | 'moderation'
+  | 'teachers'
+  | 'settings'
+  | 'requests';
 type PageState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
@@ -52,6 +60,8 @@ const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
   { id: 'projects', label: 'Проекты' },
   { id: 'moderation', label: 'История' },
   { id: 'teachers', label: 'Коллеги-преподаватели' },
+  { id: 'requests', label: 'Заявки' },
+  { id: 'settings', label: 'Настройки' },
 ];
 
 /** 1 ученик, 2 ученика, 5 учеников — a class page that says "1 учеников" reads
@@ -157,15 +167,14 @@ function BatchDialog({
 }: {
   classroomId: string;
   onClose: () => void;
-  onCommitted: (created: number) => Promise<void>;
+  onCommitted: (created: number, skipped: number) => Promise<void>;
   onOpenCards: (seatIds: string[]) => void;
 }): JSX.Element {
   const [text, setText] = useState('');
-  const [busy, setBusy] = useState<'preview' | 'commit' | null>(null);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [preview, setPreview] = useState<ClassroomSeatBatchPreviewRow[] | null>(null);
-  const [committed, setCommitted] = useState<ClassroomSeatBatchCommitResult | null>(null);
-  const requestId = useRef<string | null>(null);
+  const request = useRef<{ payload: string; id: string } | null>(null);
+  const inFlight = useRef(false);
   const students = useMemo<ClassroomSeatBatchStudentInput[]>(
     () =>
       text
@@ -175,199 +184,93 @@ function BatchDialog({
         .map((displayLabel) => ({ displayLabel, safeMode: true })),
     [text],
   );
-  const counts = useMemo(
-    () => ({
-      valid: preview?.filter((row) => row.status === 'valid').length ?? 0,
-      duplicate: preview?.filter((row) => row.status === 'duplicate').length ?? 0,
-      conflict: preview?.filter((row) => row.status === 'conflict').length ?? 0,
-      invalid: preview?.filter((row) => row.status === 'invalid').length ?? 0,
-    }),
-    [preview],
-  );
-  const createdRows =
-    committed?.results.filter((row) => row.status === 'created' && row.seatId) ?? [];
 
-  function resetPreview(nextText: string): void {
-    setText(nextText);
-    setPreview(null);
-    setCommitted(null);
-    requestId.current = null;
+  async function addStudents(event: FormEvent): Promise<void> {
+    event.preventDefault();
+    if (inFlight.current) return;
+    if (students.length < 1 || students.length > 100) {
+      setError('Добавьте от 1 до 100 учеников, по одному на строку.');
+      return;
+    }
+    const invalid = students.findIndex((student) => student.displayLabel.length > 120);
+    if (invalid !== -1) {
+      setError(`Строка ${invalid + 1}: имя не должно быть длиннее 120 символов.`);
+      return;
+    }
+    const payload = JSON.stringify(students);
+    if (request.current?.payload !== payload) {
+      request.current = { payload, id: crypto.randomUUID() };
+    }
+    inFlight.current = true;
+    setBusy(true);
     setError(null);
-  }
-
-  async function previewList(): Promise<void> {
-    if (students.length === 0) {
-      setError('Добавьте хотя бы одного ученика.');
-      return;
+    try {
+      // The server prepares and commits atomically. A lost response reuses the
+      // same request ID rather than creating a second set of StudentSeats.
+      const result = await api.addClassroomSeatsBatch(classroomId, students, request.current.id);
+      if (!result.ok) {
+        setError(result.error.message || 'Не удалось добавить учеников. Повторите попытку.');
+        return;
+      }
+      const created = result.data.results.filter((row) => row.status === 'created' && row.seatId);
+      const skipped = result.data.results.length - created.length;
+      if (created.length === 0) {
+        setError('Новые ученики не добавлены. Проверьте список и повторите попытку.');
+        return;
+      }
+      await onCommitted(created.length, skipped);
+      onOpenCards(created.flatMap((row) => (row.seatId ? [row.seatId] : [])));
+    } finally {
+      inFlight.current = false;
+      setBusy(false);
     }
-    if (students.length > 100) {
-      setError('Не более 100 учеников за один раз.');
-      return;
-    }
-    if (!requestId.current) requestId.current = crypto.randomUUID();
-    setBusy('preview');
-    setError(null);
-    const result = await api.previewClassroomSeatsBatch(classroomId, students, requestId.current);
-    setBusy(null);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось проверить список.');
-      return;
-    }
-    setPreview(result.data.results);
-  }
-
-  async function commitList(): Promise<void> {
-    if (!preview || !requestId.current) {
-      setError('Проверьте список перед добавлением.');
-      return;
-    }
-    if (counts.valid === 0) {
-      setError('Сервер не подтвердил ни одной строки для создания.');
-      return;
-    }
-    setBusy('commit');
-    setError(null);
-    const result = await api.addClassroomSeatsBatch(classroomId, students, requestId.current);
-    setBusy(null);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось добавить учеников.');
-      return;
-    }
-    setCommitted(result.data);
-    await onCommitted(result.data.created);
   }
 
   return (
     <div className="modal-backdrop" role="presentation">
-      <div className="modal classroom-batch-dialog" role="dialog" aria-modal="true">
-        <h2>Добавить список учеников</h2>
-        {!committed ? (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void (preview ? commitList() : previewList());
+      <section
+        className="modal classroom-batch-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="classroom-batch-title"
+        aria-busy={busy}
+      >
+        <h2 id="classroom-batch-title">Добавить список учеников</h2>
+        <form onSubmit={(event) => void addStudents(event)}>
+          <p>Один ученик на строку. После добавления откроются карточки доступа для печати.</p>
+          <label htmlFor="seat-batch">Ученики</label>
+          <textarea
+            id="seat-batch"
+            autoFocus
+            rows={8}
+            value={text}
+            disabled={busy}
+            placeholder={'Алина К.\nМаксим П.\nСофия М.'}
+            onChange={(event) => {
+              setText(event.target.value);
+              setError(null);
             }}
-          >
-            <p>
-              Один ученик на строку. Вставьте один столбец из таблицы — короткие коды учеников
-              создаст сервер.
+          />
+          <p role="status">Учеников: {students.length} / 100</p>
+          {error ? (
+            <p className="form-error" role="alert">
+              {error}
             </p>
-            <label htmlFor="seat-batch">Ученики</label>
-            <textarea
-              id="seat-batch"
-              autoFocus
-              rows={8}
-              value={text}
-              disabled={busy !== null}
-              placeholder={'Алина К.\\nМаксим П.\\nСофия М.'}
-              onChange={(event) => resetPreview(event.target.value)}
-            />
-            {students.length > 100 ? (
-              <p className="form-error" role="alert">
-                Не более 100 учеников за один раз.
-              </p>
-            ) : null}
-            {preview ? (
-              <div className="classroom-batch-preview" aria-label="Предварительный просмотр">
-                <strong>Список проверен сервером</strong>
-                <div className="classroom-batch-summary">
-                  <span>Можно добавить: {counts.valid}</span>
-                  <span>Повторы: {counts.duplicate}</span>
-                  <span>Конфликты: {counts.conflict}</span>
-                  <span>Ошибки: {counts.invalid}</span>
-                </div>
-                <div className="classroom-batch-rows">
-                  {preview.map((row) => (
-                    <div className="classroom-batch-row" data-status={row.status} key={row.index}>
-                      <span>{row.index + 1}</span>
-                      <span>
-                        <strong>{row.displayLabel || '—'}</strong>
-                        <small>Код ученика: {row.studentCode || '—'}</small>
-                      </span>
-                      <span>
-                        {row.status === 'valid'
-                          ? 'Готово к добавлению'
-                          : row.status === 'duplicate'
-                            ? 'Уже существует'
-                            : row.status === 'conflict'
-                              ? 'Конфликт кода'
-                              : 'Некорректная строка'}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-            {error ? (
-              <p className="form-error" role="alert">
-                {error}
-              </p>
-            ) : null}
-            <div className="modal-actions">
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busy !== null}
-                onClick={onClose}
-              >
-                Отмена
-              </button>
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busy !== null || students.length === 0 || students.length > 100}
-                onClick={() => void previewList()}
-              >
-                {busy === 'preview' ? 'Проверяем…' : 'Проверить список'}
-              </button>
-              {preview ? (
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  disabled={busy !== null || counts.valid === 0}
-                >
-                  {busy === 'commit' ? 'Добавляем…' : `Добавить учеников (${counts.valid})`}
-                </button>
-              ) : null}
-            </div>
-          </form>
-        ) : (
-          <div className="classroom-batch-result">
-            <h3>Ученики добавлены: {committed.created}</h3>
-            <p>Коды сохранены в списке класса. Карточки можно распечатать сейчас или позже.</p>
-            {createdRows.length > 0 ? (
-              <div className="classroom-batch-rows" aria-label="Созданные ученики">
-                {createdRows.map((row) => (
-                  <div className="classroom-batch-row" key={row.index}>
-                    <span>{row.index + 1}</span>
-                    <span>
-                      <strong>{row.displayLabel}</strong>
-                      <small>Код ученика: {row.studentCode}</small>
-                    </span>
-                    <span>Добавлен</span>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            <div className="modal-actions">
-              {createdRows.length > 0 ? (
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() =>
-                    onOpenCards(createdRows.flatMap((row) => (row.seatId ? [row.seatId] : [])))
-                  }
-                >
-                  Карточки новых учеников
-                </button>
-              ) : null}
-              <button type="button" className="btn-secondary" onClick={onClose}>
-                Закрыть
-              </button>
-            </div>
+          ) : null}
+          <div className="modal-actions">
+            <button type="button" className="btn-secondary" disabled={busy} onClick={onClose}>
+              Отмена
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || students.length === 0 || students.length > 100}
+            >
+              {busy ? 'Добавляем…' : 'Добавить'}
+            </button>
           </div>
-        )}
-      </div>
+        </form>
+      </section>
     </div>
   );
 }
@@ -390,6 +293,8 @@ export function ClassroomPage({
   const [tab, setTab] = useState<ClassroomTab>('students');
   const [dialog, setDialog] = useState<'single' | 'batch' | null>(null);
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
+  const [propertiesOpen, setPropertiesOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // null = closed; [] = all active learners; non-empty = selected learner cards.
@@ -408,7 +313,7 @@ export function ClassroomPage({
       setTab('gradebook');
       setOpenStudent(null);
     } else if (destination.joinRequest) {
-      setTab('students');
+      setTab('requests');
       setOpenStudent(null);
     } else if (destination.courseRun) {
       setTab('activities');
@@ -429,9 +334,23 @@ export function ClassroomPage({
     behindCount: number;
   } | null>(null);
   /** Чем упорядочен список учащихся. */
-  const [rosterSort, setRosterSort] = useState<'name' | 'awaiting' | 'submitted' | 'active'>(
-    'name',
-  );
+  const [rosterSort, setRosterSort] = useState<ClassroomRosterSort>('name');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  function selectRosterSort(key: ClassroomRosterSort): void {
+    setSortDirection(
+      key === rosterSort
+        ? sortDirection === 'asc'
+          ? 'desc'
+          : 'asc'
+        : key === 'name' || key === 'code'
+          ? 'asc'
+          : 'desc',
+    );
+    setRosterSort(key);
+  }
+  function sortMark(key: ClassroomRosterSort): string {
+    return key === rosterSort ? (sortDirection === 'asc' ? ' ▴' : ' ▾') : ' ▹';
+  }
   const [sharing, setSharing] = useState(false);
   const [search, setSearch] = useState('');
   const time = useSchoolTime();
@@ -516,7 +435,12 @@ export function ClassroomPage({
     setBusy(`seat:${student.id}`);
     const result = await api.updateClassroomSeat(classroomId, student);
     setBusy(null);
-    if (!result.ok) return result.error.message || 'Не удалось сохранить настройки.';
+    if (!result.ok) {
+      const message = result.error.message || 'Не удалось сохранить настройки.';
+      setActionError(message);
+      return message;
+    }
+    setActionError(null);
     setEditing(null);
     setNotice(`Настройки «${result.data.student.displayLabel}» сохранены.`);
     await reload();
@@ -525,13 +449,20 @@ export function ClassroomPage({
 
   if (page.kind === 'loading')
     return (
-      <main id="main-content" className="portal-content classroom-workspace" role="status">
+      <main
+        id="main-content"
+        className="portal-content classroom-workspace classroom-owner-workspace"
+        role="status"
+      >
         Загрузка класса…
       </main>
     );
   if (page.kind === 'error')
     return (
-      <main id="main-content" className="portal-content classroom-workspace">
+      <main
+        id="main-content"
+        className="portal-content classroom-workspace classroom-owner-workspace"
+      >
         <button type="button" className="btn-ghost" onClick={onBack}>
           ← Мои классы
         </button>
@@ -562,20 +493,7 @@ export function ClassroomPage({
    * отвечают на вопрос «кем заняться сейчас»: кто ждёт ответа, кто сдал больше
    * всех, кто давно не заходил.
    */
-  const sortedStudents = [...visibleStudents].sort((a, b) => {
-    if (rosterSort === 'submitted') {
-      return (b.submittedCount ?? 0) - (a.submittedCount ?? 0);
-    }
-    if (rosterSort === 'awaiting') {
-      return (b.awaitingReview ?? 0) - (a.awaitingReview ?? 0);
-    }
-    if (rosterSort === 'active') {
-      const left = a.lastActiveAt ? new Date(a.lastActiveAt).getTime() : 0;
-      const right = b.lastActiveAt ? new Date(b.lastActiveAt).getTime() : 0;
-      return right - left;
-    }
-    return a.displayLabel.localeCompare(b.displayLabel, 'ru');
-  });
+  const sortedStudents = sortClassroomRoster(visibleStudents, rosterSort, sortDirection);
 
   if (openStudent !== null) {
     return (
@@ -600,26 +518,22 @@ export function ClassroomPage({
   const archived = classroom.status === 'archived';
 
   return (
-    <main id="main-content" className="portal-content classroom-workspace" tabIndex={-1}>
+    <main
+      id="main-content"
+      className="portal-content classroom-workspace classroom-owner-workspace"
+      tabIndex={-1}
+    >
       {/* Возврат и то, чей это класс, — одной строкой: раньше это были три
           строки одна над другой, и две из них ничего не решали. */}
-      <div className="classroom-crumbs">
+      <header className="classroom-head classroom-head-compact">
         <button type="button" className="classroom-back" onClick={onBack}>
           ← Мои классы
         </button>
-        <span className="classroom-crumb-role">
-          {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
-          {' · '}
-          {classroom.teacherRole === 'owner' ? 'основной преподаватель' : 'коллега-преподаватель'}
-        </span>
-      </div>
-      <header className="classroom-head">
         <div className="classroom-head-title">
           <h1>
             {classroom.title}
             <small>
-              {learnerCount(classroom.studentCount)} · возраст{' '}
-              {classroom.ageBand === 'mixed' ? 'разный' : classroom.ageBand}
+              {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
             </small>
           </h1>
         </div>
@@ -681,6 +595,30 @@ export function ClassroomPage({
         </p>
       ) : null}
 
+      {progress ? (
+        <div className="classroom-progress" aria-label="Успеваемость класса">
+          <span>
+            <strong>{classroom.studentCount}</strong>учеников
+          </span>
+          <span>
+            <strong>{progress.assignedCount}</strong>
+            заданий выдано
+          </span>
+          <span>
+            <strong>{progress.submittedCount}</strong>
+            работ сдано
+          </span>
+          <span className={progress.awaitingReview > 0 ? 'is-waiting' : undefined}>
+            <strong>{progress.awaitingReview}</strong>
+            ждут проверки
+          </span>
+          <span className={progress.behindCount > 0 ? 'is-behind' : undefined}>
+            <strong>{progress.behindCount}</strong>
+            не сдали ничего
+          </span>
+        </div>
+      ) : null}
+
       {/* The tabs and the one switch that applies to every learner share a row:
           both are about the class as a whole, and the switch used to be a
           banner of its own that pushed the register below the fold. */}
@@ -697,43 +635,78 @@ export function ClassroomPage({
             </button>
           ))}
         </nav>
-        <label className="classroom-safe-switch">
-          <span>Безопасный режим для всех</span>
-          <input
-            type="checkbox"
-            checked={classroom.safeModeDefault}
-            disabled={busy === 'policy' || archived}
-            onChange={async (event) => {
-              setBusy('policy');
-              const result = await api.updateClassroomPolicy(classroomId, event.target.checked);
-              setBusy(null);
-              if (result.ok) {
-                setNotice(
-                  event.target.checked
-                    ? 'Безопасный режим включён для класса.'
-                    : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
-                );
-                await reload();
-              }
-            }}
-          />
-          <i aria-hidden="true" />
-        </label>
       </div>
-      <details className="classroom-tab-panel">
-        <summary>Настройки учебных оповещений</summary>
-        <LearningNotificationPreferences classroomId={classroomId} />
-        <ClassroomLearningReminders classroomId={classroomId} />
-      </details>
+
       {notice ? (
         <p className="notice-success" role="status">
           {notice}
         </p>
       ) : null}
 
+      {actionError ? (
+        <p className="form-error" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+      {tab === 'requests' ? (
+        <section className="classroom-tab-panel">
+          <ClassroomJoinRequests
+            classroomId={classroom.id}
+            onChanged={() => void reload()}
+            expanded
+          />
+        </section>
+      ) : null}
+      {tab === 'settings' ? (
+        <section className="classroom-tab-panel classroom-settings-panel">
+          <h2>Настройки класса</h2>
+          <button
+            type="button"
+            className="btn-secondary"
+            disabled={archived}
+            onClick={() => setPropertiesOpen(true)}
+          >
+            Название и свойства класса
+          </button>
+          <label className="classroom-safe-switch">
+            <span>Безопасный режим для всех</span>
+            <input
+              type="checkbox"
+              checked={classroom.safeModeDefault}
+              disabled={busy === 'policy' || archived}
+              onChange={async (event) => {
+                setBusy('policy');
+                const result = await api.updateClassroomPolicy(classroomId, event.target.checked);
+                setBusy(null);
+                if (result.ok) {
+                  setNotice(
+                    event.target.checked
+                      ? 'Безопасный режим включён для класса.'
+                      : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
+                  );
+                  await reload();
+                }
+              }}
+            />
+            <i aria-hidden="true" />
+          </label>
+          <ClassroomGradingScheme classroomId={classroomId} />
+          <LearningNotificationPreferences classroomId={classroomId} />
+          <ClassroomLearningReminders classroomId={classroomId} />
+        </section>
+      ) : null}
+      {propertiesOpen ? (
+        <ClassroomPropertiesModal
+          classroom={classroom}
+          onClose={() => setPropertiesOpen(false)}
+          onSaved={() => {
+            setPropertiesOpen(false);
+            void reload();
+          }}
+        />
+      ) : null}
       {tab === 'students' ? (
         <section className="classroom-roster-panel">
-          <ClassroomJoinRequests classroomId={classroom.id} onChanged={() => void reload()} />
           {/* Actions on the left, finding on the right: the two things a
               teacher does to a register, in the order they do them. */}
           <div className="classroom-roster-toolbar">
@@ -783,68 +756,64 @@ export function ClassroomPage({
             </div>
           ) : (
             <>
-              {progress ? (
-                <div className="classroom-progress" aria-label="Успеваемость класса">
-                  <span>
-                    <strong>{progress.assignedCount}</strong>
-                    заданий выдано
-                  </span>
-                  <span>
-                    <strong>{progress.submittedCount}</strong>
-                    работ сдано
-                  </span>
-                  <span className={progress.awaitingReview > 0 ? 'is-waiting' : undefined}>
-                    <strong>{progress.awaitingReview}</strong>
-                    ждут проверки
-                  </span>
-                  <span className={progress.behindCount > 0 ? 'is-behind' : undefined}>
-                    <strong>{progress.behindCount}</strong>
-                    не сдали ничего
-                  </span>
-                </div>
-              ) : null}
               <div className="classroom-roster-table" role="table" aria-label="Ученики класса">
                 <div className="classroom-roster-head" role="row">
+                  <span role="columnheader">№</span>
                   {/* Заголовки сортируют: колонка, которая только сообщает,
                     заставляет искать нужного человека глазами. */}
                   <button
                     type="button"
                     className={`classroom-roster-sort${rosterSort === 'name' ? ' is-active' : ''}`}
-                    onClick={() => setRosterSort('name')}
+                    onClick={() => selectRosterSort('name')}
                   >
-                    Учащийся
+                    Учащийся{sortMark('name')}
                   </button>
-                  <span>Код ученика</span>
+                  <button
+                    type="button"
+                    className="classroom-roster-sort"
+                    onClick={() => selectRosterSort('code')}
+                  >
+                    Код ученика{sortMark('code')}
+                  </button>
                   {/* Две сортировки на одну колонку: «кто сделал больше» и
                     «кто ждёт ответа» — разные вопросы к одним и тем же числам. */}
                   <span className="classroom-roster-sortgroup">
                     <button
                       type="button"
                       className={`classroom-roster-sort${rosterSort === 'submitted' ? ' is-active' : ''}`}
-                      onClick={() => setRosterSort('submitted')}
+                      onClick={() => selectRosterSort('submitted')}
                     >
-                      Задания
+                      Задания{sortMark('submitted')}
                     </button>
                     <button
                       type="button"
                       className={`classroom-roster-sort${rosterSort === 'awaiting' ? ' is-active' : ''}`}
-                      onClick={() => setRosterSort('awaiting')}
+                      onClick={() => selectRosterSort('awaiting')}
                     >
-                      ждут
+                      ждут{sortMark('awaiting')}
                     </button>
                   </span>
                   <button
                     type="button"
                     className={`classroom-roster-sort${rosterSort === 'active' ? ' is-active' : ''}`}
-                    onClick={() => setRosterSort('active')}
+                    onClick={() => selectRosterSort('active')}
                   >
-                    Последняя активность
+                    Последняя активность{sortMark('active')}
                   </button>
-                  <span>Безопасный режим</span>
+                  <button
+                    type="button"
+                    className="classroom-roster-sort"
+                    onClick={() => selectRosterSort('safe')}
+                  >
+                    Безопасный режим{sortMark('safe')}
+                  </button>
                   <span className="sr-only">Действия</span>
                 </div>
-                {sortedStudents.map((student) => (
+                {sortedStudents.map((student, index) => (
                   <div className="classroom-roster-row" role="row" key={student.id}>
+                    <span className="classroom-roster-index" role="cell">
+                      {index + 1}
+                    </span>
                     {/* The name is the way in: a register tells you who is here,
                       and the next thing a teacher wants is how they are doing. */}
                     <button
@@ -865,11 +834,9 @@ export function ClassroomPage({
                           {student.displayLabel}
                           <SeatAwardRow keys={awards[student.id] ?? []} size="small" />
                         </strong>
-                        <small>
-                          {student.status === 'suspended'
-                            ? 'Доступ приостановлен'
-                            : 'Место ученика'}
-                        </small>
+                        {student.status === 'suspended' ? (
+                          <small>Доступ приостановлен</small>
+                        ) : null}
                       </span>
                     </button>
                     <button
@@ -1266,8 +1233,10 @@ export function ClassroomPage({
                 'Код класса обновлён. Старые карточки больше не подходят — распечатайте новые.',
               );
               await reload();
+              setSharing(false);
               setAccessCardIds([]);
-            }
+              setActionError(null);
+            } else setActionError(result.error.message || 'Не удалось сменить код класса.');
           }}
           onRevoke={async () => {
             setBusy('code');
@@ -1275,8 +1244,9 @@ export function ClassroomPage({
             setBusy(null);
             if (result.ok) {
               setNotice('Вход по коду закрыт.');
+              setActionError(null);
               await reload();
-            }
+            } else setActionError(result.error.message || 'Не удалось закрыть вход.');
           }}
           onClose={() => setSharing(false)}
         />
@@ -1305,8 +1275,10 @@ export function ClassroomPage({
         <BatchDialog
           classroomId={classroomId}
           onClose={() => setDialog(null)}
-          onCommitted={async (created) => {
-            setNotice(`Добавлено учеников: ${created}.`);
+          onCommitted={async (created, skipped) => {
+            setNotice(
+              `Добавлено учеников: ${created}.${skipped > 0 ? ` Не добавлено строк: ${skipped}.` : ''}`,
+            );
             await reload();
           }}
           onOpenCards={(seatIds) => {

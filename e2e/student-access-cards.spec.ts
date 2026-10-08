@@ -211,7 +211,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   const classCodeA = (await initialClass.json()).classroom.joinCode as string;
 
   const students: Array<{ id: string; studentCode: string }> = [];
-  for (let index = 0; index < 10; index += 1) {
+  for (let index = 0; index < 20; index += 1) {
     const seat = await page.request.post(`/api/classrooms/${classroomId}/seats`, {
       headers: { origin },
       data: {
@@ -229,7 +229,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   await page.setViewportSize({ width: 1440, height: 1000 });
   let cards = await openCards(page, classroomId);
   const portalOrigin = await page.evaluate(() => window.location.origin);
-  await expect(cards.locator('.student-access-card')).toHaveCount(10);
+  await expect(cards.locator('.student-access-card')).toHaveCount(20);
   await expect(cards).toContainText(new URL(portalOrigin).host);
   await expect(cards).not.toContainText('asa-lab.ru');
   await expect(cards.getByText('https://', { exact: false })).toHaveCount(0);
@@ -253,7 +253,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   await firstCard.screenshot({ path: `${evidence}/card.png` });
 
   // Exercise the live card DOM with the actual print stylesheet. The second case
-  // substitutes a representative portable ingress host while keeping the ten-card grid.
+  // substitutes a representative portable ingress host while keeping the twenty-card grid.
   await page.emulateMedia({ media: 'print' });
   await page.evaluate(() => document.body.classList.add('student-access-printing'));
   for (const host of [
@@ -272,7 +272,9 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       const sheetBounds = sheet.getBoundingClientRect();
       return {
         sheetWidth: sheetBounds.width,
-        gridColumns: getComputedStyle(sheet).gridTemplateColumns.split(' ').length,
+        gridColumns: getComputedStyle(
+          sheet.querySelector('.student-access-print-page')!,
+        ).gridTemplateColumns.split(' ').length,
         cards: cards.map((card) => {
           const bounds = card.getBoundingClientRect();
           const copy = card.querySelector<HTMLElement>('.student-access-card-copy')!;
@@ -296,10 +298,10 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       };
     }, host);
     const mm = 96 / 25.4;
-    expect(layout.cards, `${host}: ten printable cards`).toHaveLength(10);
+    expect(layout.cards, `${host}: twenty printable cards`).toHaveLength(20);
     expect(layout.gridColumns, `${host}: two print columns`).toBe(2);
     expect(layout.sheetWidth, `${host}: A4 printable width`).toBeLessThanOrEqual(196 * mm + 2);
-    for (let row = 0; row < 5; row += 1) {
+    for (let row = 0; row < 10; row += 1) {
       const left = layout.cards[row * 2]!;
       const right = layout.cards[row * 2 + 1]!;
       expect(left.left, `${host}: row ${row} left card`).toBeLessThan(right.left);
@@ -313,7 +315,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       }
     }
     expect(
-      layout.cards[9]!.bottom - layout.cards[0]!.top,
+      layout.cards[19]!.bottom - layout.cards[0]!.top,
       `${host}: A4 portrait height`,
     ).toBeLessThanOrEqual(283 * mm);
     for (const [index, card] of layout.cards.entries()) {
@@ -408,17 +410,17 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
           : 0,
       };
     });
-    const style = getComputedStyle(sheet);
+    const style = getComputedStyle(sheet.querySelector('.student-access-print-page')!);
     return {
       columns: style.gridTemplateColumns,
       boxes,
       sheetWidth: sheet.getBoundingClientRect().width,
     };
   });
-  expect(printGeometry.boxes).toHaveLength(10);
+  expect(printGeometry.boxes).toHaveLength(20);
   expect(printGeometry.columns.trim().split(/\s+/)).toHaveLength(2);
   expect(new Set(printGeometry.boxes.map((box) => Math.round(box.x))).size).toBe(2);
-  expect(new Set(printGeometry.boxes.map((box) => Math.round(box.y))).size).toBe(5);
+  expect(new Set(printGeometry.boxes.map((box) => Math.round(box.y))).size).toBe(10);
   expect(printGeometry.boxes.every((box) => box.breakInside === 'avoid')).toBe(true);
   expect(printGeometry.boxes.every((box) => box.borderStyle === 'dashed')).toBe(true);
   expect(
@@ -486,4 +488,118 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     `${evidence}/decoded-urls.json`,
     JSON.stringify({ classCodeA, decodedA, classCodeB, decodedB }, null, 2),
   );
+});
+
+test('owner classroom flow: one-click batch, exact retry and existing Account approval', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await registerTeacher(page);
+  const created = await page.request.post('/api/classrooms', {
+    headers: { origin, 'idempotency-key': `owner-class-${crypto.randomUUID()}` },
+    data: {
+      title: 'Класс для проверки списка и заявок',
+      ageBand: 'mixed',
+      topicKeys: [],
+      safeModeDefault: true,
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const classroom = (await created.json()).classroom as { id: string; joinCode: string };
+  const batchWrites: Array<{
+    requestId: string;
+    students: Array<{ displayLabel: string; safeMode: boolean }>;
+  }> = [];
+  page.on('request', (request) => {
+    if (
+      new URL(request.url()).pathname === `/api/classrooms/${classroom.id}/seats/batch` &&
+      request.method() === 'POST'
+    ) {
+      batchWrites.push(request.postDataJSON());
+    }
+  });
+  await page.goto(`/#/classrooms/${classroom.id}`);
+  await page.getByRole('button', { name: 'Добавить списком', exact: true }).click();
+  const batchDialog = page.getByRole('dialog', { name: 'Добавить список учеников' });
+  await batchDialog
+    .getByLabel('Ученики', { exact: true })
+    .fill(Array.from({ length: 30 }, (_, index) => `Проверочный ученик ${index + 1}`).join('\n'));
+  await batchDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+  await expect(cards).toBeVisible();
+  await expect(cards.locator('.student-access-card')).toHaveCount(30);
+  await expect(cards.locator('.student-access-print-page')).toHaveCount(2);
+  expect(batchWrites).toHaveLength(1);
+  const before = await (await page.request.get(`/api/classrooms/${classroom.id}/roster`)).json();
+  expect(before.items).toHaveLength(30);
+  const retry = await page.request.post(`/api/classrooms/${classroom.id}/seats/batch`, {
+    headers: { origin },
+    data: batchWrites[0],
+  });
+  expect(retry.ok(), await retry.text()).toBe(true);
+  expect((await retry.json()).reused).toBe(true);
+  const after = await (await page.request.get(`/api/classrooms/${classroom.id}/roster`)).json();
+  expect(after).toEqual(before);
+  await cards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+
+  const accountContext = await browser.newContext({ baseURL: origin });
+  try {
+    const accountPage = await accountContext.newPage();
+    const id = crypto.randomUUID().replaceAll('-', '');
+    const registered = await accountPage.request.post('/api/auth/register', {
+      headers: { origin },
+      data: {
+        email: `${id}@classroom-owner.test`,
+        username: `co_${id.slice(0, 20)}`,
+        displayName: 'Участник по существующему аккаунту',
+        password: `Safe-${id}-Password`,
+        birthDate: '1990-04-12',
+        country: 'RU',
+      },
+    });
+    expect(registered.status(), await registered.text()).toBe(201);
+    const initialAccount = await (await accountPage.request.get('/api/auth/me')).json();
+    await accountPage.goto(`/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`);
+    await expect(
+      accountPage.getByRole('heading', { name: 'Присоединиться к классу', exact: true }),
+    ).toBeVisible();
+    await expect(accountPage.getByLabel('Код ученика', { exact: true })).toHaveCount(0);
+    await accountPage.getByRole('button', { name: 'Отправить заявку', exact: true }).click();
+    await expect(
+      accountPage.getByRole('heading', { name: 'Заявка отправлена', exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole('navigation', { name: 'Разделы класса' })
+      .getByRole('button', { name: 'Заявки', exact: true })
+      .click();
+    const requestRow = page
+      .locator('.learning-join-requests li')
+      .filter({ hasText: 'Участник по существующему аккаунту' });
+    await expect(requestRow).toBeVisible();
+    await requestRow.getByRole('button', { name: 'Принять заявку', exact: true }).click();
+    await expect(requestRow).toContainText('Принята');
+    const approvedRoster = await (
+      await page.request.get(`/api/classrooms/${classroom.id}/roster`)
+    ).json();
+    expect(approvedRoster.items).toHaveLength(31);
+    expect(
+      approvedRoster.items.filter(
+        (item: { displayLabel: string }) =>
+          item.displayLabel === 'Участник по существующему аккаунту',
+      ),
+    ).toHaveLength(1);
+    const finalAccount = await (await accountPage.request.get('/api/auth/me')).json();
+    expect(finalAccount.authenticated).toBe(true);
+    expect(finalAccount.account.id).toBe(initialAccount.account.id);
+    const attended = await accountPage.request.get('/api/class-join/account/classes');
+    expect(attended.status(), await attended.text()).toBe(200);
+    expect(
+      (await attended.json()).items.some(
+        (item: { classroomId: string }) => item.classroomId === classroom.id,
+      ),
+    ).toBe(true);
+  } finally {
+    await accountContext.close();
+  }
 });
