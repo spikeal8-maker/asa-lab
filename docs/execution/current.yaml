@@ -581,16 +581,29 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-SAVE-RECOVERY-001
-      issue: 526
+      id: TASK-ELECTRONICS-LOGIN-FIXTURE-001
+      issue: 528
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: owner_e01_save_recovery_selected
+      checkpoint: e01_browser_precondition_repair_selected
       owner_acceptance: pending
     suspended_slices:
+      - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+        issue: 526
+        status: waiting_shared_browser_fixture
+        checkpoint: before_blocked_by_removed_home_heading
+        preserved_diagnostic_sha: 0e97ac647070186c199b9550a43c2978228dc71f
+        preserved_branch: codex/electronics-save-recovery-526-before
+        before_browser_run: 37827077075
+        before_product_cause: not_reached
+        product_changes: none
+        independent_review: pending
+        owner_acceptance: pending
+        reason: Separate shared login fixture528 must retain authenticated readiness after Portal heading removal; no E01 product defect proved by this failed precondition.
+        resume_after: Independently accepted528 fixture and fresh526 canonical selection; keep original BEFORE artifacts and avoid blind rerun.
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
         status: suspended_by_owner_priority
@@ -610,28 +623,25 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e2352a99d602c05c42c99be9dea22bb593accdc9
+      convergence_baseline_sha: ffb42f89f9da8fa01bb76f70cba7e2eed1754fed
       head_sha: null
-      observed_at: '2026-10-08T18:24:04Z'
+      observed_at: '2026-10-08T18:58:00Z'
       main:
         branch: main
-        sha: e2352a99d602c05c42c99be9dea22bb593accdc9
+        sha: ffb42f89f9da8fa01bb76f70cba7e2eed1754fed
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; this is a dated snapshot, not a live HEAD claim.
-        Owner programme452 input6066364541 adopts priority registry3.0 E01-E35/K0-K8.
-        Actual baseline e235 General37790598431 terminalSUCCESS/all4 independently
-        checked before selection. Earlier Portal875 S4 capture failure was separately
-        repaired; old red CI is history, not a current execution blocker. Preserve
-        accepted523/521/517/516/505/PR506/524/500/513/509 and their original evidence.
-        Suspend525 exact published ed4 candidate with no combined-head/AFTER/review
-        acceptance; its original workflow is canonical and diagnostic refs/artifacts
-        remain preserved. Select only526 E01 latest-work save recovery and truthful
-        local durability, retaining minute cadence/manual save/CAS/scope isolation.
-        Parallel K0 E27/E35 is read-only; missing school installation/backup identity
-        does not stop the isolated product repair. Frozen exact-head CI, real browser
-        before/after and NEW independent review are required. No owner/classroom
-        acceptance, release/deployment, working DB, backup/restore or network action
-        follows from this selection. T3 remains pending actual pupil-device evidence.
+        Actual ffb General37825947453 terminalSUCCESS/all4 independently checked.
+        Owner programme452 registry3.0 retains P0 E01 priority. Directed0e97 run37827077075
+        failed only removed Home heading in shared organization-login helper before
+        either save scenario; classify C, not E01 causal proof. Select separate bounded
+        fixture528, preserve526 diagnostic SHA/raw logs/traces and suspended525 ed4.
+        Change only authenticated browser readiness, no Portal or Electronics product,
+        authorization policy, timeouts or prior accepted repairs. Require exact-SHA
+        independent review and ordinary General gate; directed E01 causal assertions
+        remain strict and are expected negative BEFORE, not full browser PASS.
+        Then freshly resume526 production repair. K0 installed school/backup and T3
+        remain pending owner evidence; no deployment, DB, backup/restore or network action.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
