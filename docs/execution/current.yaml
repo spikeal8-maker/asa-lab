@@ -302,35 +302,16 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-CONFORMANCE-WORKER-ALLOCATION-001
-      issue: 523
+      id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
+      issue: 517
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_worker_allocation_control_selected
+      checkpoint: preserved_candidate_final_convergence_after_523
       owner_acceptance: pending
     suspended_slices:
-      - task_id: TASK-ELECTRONICS-CONFORMANCE-RUNTIME-001
-        issue: 521
-        status: blocked
-        report_candidate_sha: 38ca0bcb43312c74d9f8a1795abad9190f9eec98
-        report_independent_review: approve_for_evidence_only
-        report_evidence: docs/product/electronics/evidence/conformance-runtime-521-20261007.md
-        repair_acceptance: not_achieved
-        dependency_issue: 523
-        resume_after: Accept separately selected worker-allocation maintenance Issue 523 if its matched controls justify a preserved-coverage repair. Issue 522 report d2b2b142 is independently accepted evidence of current scheduling contention, not a unique historical cause or repair. Keep Issue 521 open until its required runtime evidence and independent repair acceptance exist.
-      - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
-        issue: 517
-        status: blocked
-        candidate_sha: 2d4654f207f41e5d3712b3071af05e6d3830fa31
-        independent_review: request_changes
-        exact_candidate_general_run: 37680001869
-        exact_candidate_general_conclusion: success
-        exact_candidate_focused_failure_run: 37680023310
-        baseline_dependency_issue: 521
-        resume_after: Accept separately selected conformance runtime dependency Issue 521; preserve candidate product blob ab292c4a and valid saved causal before/after evidence, then obtain exact focused/browser/general evidence and NEW independent review.
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
         issue: 516
         status: blocked
@@ -355,32 +336,34 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d8d1c6e44a3af82a0a9f785fb7660a822d3c17b8
+      convergence_baseline_sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
       head_sha: null
-      observed_at: '2026-10-07T21:47:16Z'
+      observed_at: '2026-10-08T00:38:06Z'
       main:
         branch: main
-        sha: d8d1c6e44a3af82a0a9f785fb7660a822d3c17b8
+        sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
       observation_note: >-
-        Dated main d8d1c6e4 before this closeout/selection; fetch main and read
-        exact-head CI before writes. Fresh preflight SAFE_TO_START, zero dirty
-        paths and overlaps; preserve the Portal S2 selection and other lanes.
-        Independently APPROVED diagnostic report Issue 522 exact d2b2b142 has
-        general 37690274396 SUCCESS, all four jobs and 166 fresh Nx tasks.
-        Integrate its byte-identical report only at 0d345e0f; no product/test/
-        workflow/config/dependency change. Current scheduling contention was
-        directly measured, but the historical 5234 ms cause, GC and worker-cap
-        effect remain unproved. Issue 521 stays unresolved; select separate
-        Issue 523 matched default/one-worker controls in one CI job, with only
-        a justified test:electronics allocation change allowed afterward.
-        All fixtures, 5000 ms guards, horizons, budgets and physics are preserved.
-        Preserve suspended 517 exact candidate 2d4654f2 and 516/505/PR 506.
-        T3 stays pending real classroom device evidence; first measurement
-        records exact CPU/RAM/OS/browser versions, resolution and power state
-        with the same production large-board scenario and established metrics.
-        First measured student computer becomes the reference until owner change.
-        No dev-PC/runner substitution or independent-task blocker from T3.
-        No product acceptance, full hygiene checkpoint, release or deployment.
+        Dated main e0143d0f before this closeout/selection; fetch main
+        and read exact-head CI before writes. Preserve the unrelated Portal S3
+        changes and its exact-head CI. Independently APPROVED Issue 523
+        candidate 0ced518f integrates the identical two blobs at e99e08fb.
+        Exact integrated required focused job in 37706609957 and general
+        37706607927 are successful; the full focused workflow including browser is also
+        successful, but does not substitute for Issue 517 final exact-head gates. The existing 5000 ms guard, full coverage and physics stay
+        unchanged. One matched pair supports this runner allocation; it does
+        not prove every historical slow run or guarantee future runtime.
+        Resolve Issue 521 runtime dependency through this separately accepted
+        maintenance, without claiming its evidence-only report repaired code.
+        Select preserved Issue 517 candidate 2d4654f207f41e5d3712b3071af05e6d3830fa31 for one controlled final
+        convergence, exact focused/browser/general gates and NEW independent
+        review. Keep product blob ab292c4a and existing original causal evidence;
+        no repeat measurement or product change without a new proven defect.
+        Preserve Issue 516 and Issue 505 PR 506, other lanes and foreign work.
+        Historical independent Learning ordering failure remains unproved and
+        is not declared fixed by a green run. T3 is pending real school-device
+        evidence, with exact hardware/software/power/scenario/metrics recorded
+        at first measurement; no dev-PC or runner substitution. No full hygiene
+        checkpoint, owner acceptance, release or deployment is claimed.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -401,6 +384,34 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-CONFORMANCE-WORKER-ALLOCATION-001
+        issue: 523
+        accepted_candidate_sha: 0ced518f8c154f1c80a4ea3d2d9fd839233f76f5
+        integrated_sha: e99e08fb056fd00991a9bcefc1b698c9a0ef5436
+        independent_review: approved
+        exact_candidate_general_run: 37694439764
+        exact_candidate_focused_run: 37694431775
+        exact_main_general_run: 37706607927
+        exact_main_focused_run: 37706609957
+        exact_main_required_focused_job_conclusion: success
+        matching_diagnostic_sha: af726c6d6ea217545c8b022180a1675b8dd2475d
+        matching_diagnostic_run: 37693429149
+        evidence: docs/product/electronics/evidence/conformance-worker-allocation-20261008.md
+        status: maintenance_accepted
+        historical_cause: qualified_not_unique
+        product_repair: none
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-CONFORMANCE-RUNTIME-001
+        issue: 521
+        report_candidate_sha: 38ca0bcb43312c74d9f8a1795abad9190f9eec98
+        report_independent_review: approve_for_evidence_only
+        evidence: docs/product/electronics/evidence/conformance-runtime-521-20261007.md
+        status: runtime_dependency_resolved_by_separate_523
+        repair_issue: 523
+        historical_cause: qualified_not_unique
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-CONFORMANCE-CI-DIAGNOSIS-001
         issue: 522
         accepted_candidate_sha: d2b2b14271f27ddcaa194141d8aadafa0db12eae
