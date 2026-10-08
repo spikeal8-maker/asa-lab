@@ -3978,6 +3978,194 @@ async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void>
   await page.goto('/#/projects');
 }
 
+test('ELECTRONICS-E01 BEFORE denied local storage never claims a durable local copy', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 denied local copy');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false }),
+  );
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('asa-project-local-draft:'))
+        throw new DOMException('E01 controlled local storage denial', 'QuotaExceededError');
+      original.call(this, key, value);
+    };
+  });
+  const requests: unknown[] = [];
+  page.on('requestfailed', (request) => {
+    if (new URL(request.url()).pathname === `/api/projects/${projectId}/draft`)
+      requests.push({
+        at: Date.now(),
+        method: request.method(),
+        body: request.postDataJSON(),
+        failure: request.failure(),
+      });
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect.poll(() => requests.length).toBe(1);
+  const indicator = page.locator('.workbench-save-state');
+  await expect(indicator).toHaveAttribute('data-persistence-status', 'error');
+  const server = await page
+    .context()
+    .request.get(`/api/projects/${projectId}`, { headers: { origin: new URL(page.url()).origin } });
+  expect(server.ok()).toBe(true);
+  const local = await page.evaluate(
+    (id) => localStorage.getItem(`asa-project-local-draft:${id}`),
+    projectId,
+  );
+  writeFileSync(
+    `${evidenceDir}/before-local-denial.json`,
+    JSON.stringify(
+      {
+        projectId,
+        requests,
+        local,
+        server: await server.json(),
+        dom: {
+          status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
+          label: await indicator.textContent(),
+          detail: await indicator.getAttribute('title'),
+          resistor: await value.inputValue(),
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await page.screenshot({ path: `${evidenceDir}/before-local-denial-1440.png`, fullPage: true });
+  expect(local).toBeNull();
+  await expect(value).toHaveValue('166.7');
+  await expect(indicator).not.toHaveAttribute(
+    'title',
+    /сохранена на этом устройстве|сохранены в браузере/,
+  );
+});
+
+test('ELECTRONICS-E01 BEFORE latest failed save recovers quietly without another edit', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 quiet network recovery');
+  await saveDocument(
+    page,
+    projectId,
+    circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false }),
+  );
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  const requests: unknown[] = [];
+  const replies: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      requests.push({ at: Date.now(), body: request.postDataJSON() });
+  });
+  page.on('response', (response) => {
+    if (
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      replies.push({ at: Date.now(), status: response.status() });
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  expect(requests).toHaveLength(1);
+  await page.unroute(`**/api/projects/${projectId}/draft`);
+  const transportRestoredAt = Date.now();
+  try {
+    // Real browser time, no focus/online event, page reload, clock injection or new edit.
+    await expect
+      .poll(() => replies.filter((reply) => (reply as { status: number }).status === 200).length, {
+        timeout: 70_000,
+        intervals: [1_000],
+      })
+      .toBe(1);
+  } finally {
+    const server = await page
+      .context()
+      .request.get(`/api/projects/${projectId}`, {
+        headers: { origin: new URL(page.url()).origin },
+      });
+    expect(server.ok()).toBe(true);
+    writeFileSync(
+      `${evidenceDir}/before-quiet-recovery.json`,
+      JSON.stringify(
+        {
+          projectId,
+          transportRestoredAt,
+          capturedAt: Date.now(),
+          requests,
+          replies,
+          local: await page.evaluate(
+            (id) => localStorage.getItem(`asa-project-local-draft:${id}`),
+            projectId,
+          ),
+          server: await server.json(),
+          dom: {
+            status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
+            detail: await page.locator('.workbench-save-state').getAttribute('title'),
+            resistor: await value.inputValue(),
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/before-quiet-recovery-1440.png`,
+      fullPage: true,
+    });
+  }
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+});
+
 test('real API autosave sends the edited draft after one minute', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 900 });
