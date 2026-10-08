@@ -153,7 +153,7 @@ export function portalNavigation(
       { section: 'learning', label: 'Моё обучение' },
       { section: 'projects', label: 'Мои учебные работы' },
       { section: 'help', label: 'Помощь' },
-      { section: 'account', label: 'Мой учебный профиль' },
+      { section: 'account', label: 'Настройки учебного профиля' },
     ];
   const classes = options.classes === true;
   return [
@@ -162,10 +162,6 @@ export function portalNavigation(
     { section: 'projects', label: 'Мои проекты' },
     { section: 'games', label: 'Игры' },
     { section: 'collections', label: 'Сохранённое' },
-    // Where the work that was shared lives. Everyone has it: seeing what other
-    // people made is the reason a child opens a making tool twice.
-    { section: 'gallery', label: 'Сообщество' },
-    { section: 'knowledge', label: 'Знания' },
     // Learning is the place where a person studies. Course authoring lives in
     // the teacher-only destination below, so the two labels describe different
     // actions instead of competing for the same meaning.
@@ -174,7 +170,7 @@ export function portalNavigation(
       ? ([{ section: 'challenges', label: 'Курсы и задания' }] as const)
       : []),
     { section: 'help', label: 'Справка' },
-    { section: 'account', label: 'Профиль' },
+    { section: 'account', label: 'Настройки' },
   ];
 }
 
@@ -414,6 +410,7 @@ export function creatorViewFromHash(hash: string): CreatorPortalView {
   if (path === '/projects') {
     return projectListView(query);
   }
+  if (path?.startsWith('/account/')) return { kind: 'account' };
   return PORTAL_ROUTES.find((route) => route.path === path)?.view ?? { kind: 'home' };
 }
 

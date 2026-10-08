@@ -436,6 +436,17 @@ export class AdminControlPlaneService {
     return authorizeAdmin(access.subject, { permission, scope }).allowed;
   }
 
+  async recordLogRead(access: ResolvedAdminAccess, requestId: string): Promise<void> {
+    const scope = { kind: 'platform' as const, id: null };
+    this.requirePermission(access, 'administration.operations.read', scope);
+    await this.auditRead(
+      access,
+      { scope, requestId },
+      'administration.operations.read',
+      'technical_logs',
+    );
+  }
+
   async listAuditEvents(
     access: ResolvedAdminAccess,
     input: {

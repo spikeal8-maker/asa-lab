@@ -1,3 +1,5 @@
+import { PgPresentationPreferences, PresentationPreferencesUseCase } from '@asa-lab/identity';
+import { PresentationPreferencesController } from './presentation-preferences.controller.js';
 import { Module, type DynamicModule } from '@nestjs/common';
 import type pg from 'pg';
 import {
@@ -47,6 +49,9 @@ import {
 import type { RegisteredModule } from '@asa-lab/module-sdk';
 import { AuthController } from './auth.controller.js';
 import { AdminController } from './admin.controller.js';
+import { AdminLogsController } from './admin-logs.controller.js';
+import { AdminLogsService } from './admin-logs.service.js';
+import { ClientDiagnosticsController } from './client-diagnostics.controller.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AccountC1Controller } from './account-c1.controller.js';
 import { CheckersClassroomController } from './checkers-classroom.controller.js';
@@ -171,7 +176,10 @@ export class AppModule {
         HealthController,
         AuthController,
         AdminController,
+        AdminLogsController,
+        ClientDiagnosticsController,
         AccountC1Controller,
+        PresentationPreferencesController,
         AssignmentsController,
         CoursesController,
         LearningAssessmentsController,
@@ -196,8 +204,14 @@ export class AppModule {
         ProductAnalyticsController,
       ],
       providers: [
+        { provide: AdminLogsService, useFactory: () => new AdminLogsService() },
         LearningRemindersService,
         { provide: TOKENS.pool, useValue: pool },
+        {
+          provide: TOKENS.presentationPreferences,
+          useFactory: () =>
+            new PresentationPreferencesUseCase(new PgPresentationPreferences(requirePool())),
+        },
         { provide: TOKENS.runtimeMetrics, useValue: runtimeMetrics },
         { provide: TOKENS.botChallengeService, useFactory: () => new BotChallengeService() },
         { provide: TOKENS.maxAuthService, useValue: maxAuthService },

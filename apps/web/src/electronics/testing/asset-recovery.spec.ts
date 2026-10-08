@@ -1,5 +1,12 @@
+/* @vitest-environment jsdom */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ownerSvgSource } from '../ProductionComponentVisual';
+import { act, createElement, useLayoutEffect } from 'react';
+import { createRoot } from 'react-dom/client';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { catalogEntry } from '../component-catalog';
+import { configureProductionLibrary } from '../production-manifest-adapter';
+import { ownerSvgSource, ProductionComponentVisual } from '../ProductionComponentVisual';
 import {
   createQuietAssetRecovery,
   subscribeSharedQuietAssetRecovery,
@@ -426,4 +433,172 @@ describe('production state-image warmup', () => {
     warmProductionAsset(asset);
     expect(requests).toHaveLength(2);
   });
+});
+
+// Induced commit-to-passive delivery proves the production lifecycle contract;
+// it does not establish native race frequency or the old CI failure's cause.
+describe('ordinary image mount lifecycle', () => {
+  const mounted: (() => void)[] = [];
+  afterEach(() => {
+    for (const unmount of mounted.splice(0)) unmount();
+  });
+  function mount() {
+    vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    (
+      globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    configureProductionLibrary(
+      JSON.parse(
+        readFileSync(
+          resolve(
+            process.cwd(),
+            'apps/web/public/assets/electronics/component-database/catalog.json',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const entry = catalogEntry('battery-holder-aa-2')!;
+    const probes: { href: string; error: () => void; load: () => void }[] = [];
+    class ProbeImage {
+      naturalWidth = 10;
+      naturalHeight = 10;
+      onerror: (() => void) | null = null;
+      onload: (() => void) | null = null;
+      set src(href: string) {
+        probes.push({ href, error: () => this.onerror?.(), load: () => this.onload?.() });
+        if (!href.includes('pending'))
+          queueMicrotask(() => (href.includes('success') ? this.onload?.() : this.onerror?.()));
+      }
+    }
+    vi.stubGlobal('Image', ProbeImage);
+    const host = document.body.appendChild(document.createElement('div'));
+    const root = createRoot(host);
+    function Consumer({ asset, events }: { asset: string; events: readonly string[] }) {
+      useLayoutEffect(() => {
+        const image = host.querySelector('image')!;
+        for (const kind of events) image.dispatchEvent(new Event(kind));
+      }, [asset, events]);
+      return createElement(
+        'svg',
+        {},
+        createElement(ProductionComponentVisual, {
+          entry: { ...entry, asset },
+          component: {
+            id: 'early',
+            kind: entry.kind,
+            componentTypeId: entry.key,
+            position: { x: 0, y: 0 },
+            value: entry.defaultValue,
+            rotation: 0,
+            stateProperties: {},
+          },
+          width: 100,
+          height: 100,
+          visualState: 'default',
+        }),
+      );
+    }
+    let unmounted = false;
+    const unmount = () => {
+      if (!unmounted) {
+        unmounted = true;
+        act(() => root.unmount());
+        host.remove();
+      }
+    };
+    mounted.push(unmount);
+    return {
+      host,
+      probes,
+      unmount,
+      render: async (asset: string, events: readonly string[]) => {
+        await act(async () => root.render(createElement(Consumer, { asset, events })));
+      },
+      advance: async (ms: number) => {
+        await act(async () => vi.advanceTimersByTimeAsync(ms));
+      },
+    };
+  }
+  it('replays an error delivered before passive setup once through the finite shared recovery', async () => {
+    const fixture = mount();
+    await fixture.render('/assets/electronics/early-mount-test.svg', ['error']);
+    await fixture.advance(1_500);
+    expect(fixture.probes).toHaveLength(3);
+    expect(fixture.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+    expect(fixture.host.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(
+      'Изображение детали не загрузилось',
+    );
+  });
+  it('lets a later early load supersede an early error without inventing failure or recovery requests', async () => {
+    const fixture = mount();
+    await fixture.render('/assets/electronics/early-load-last.svg', ['error', 'load']);
+    await fixture.advance(40_000);
+    expect(fixture.probes).toHaveLength(0);
+    expect(fixture.host.querySelector('[data-owner-image-status="failed"]')).toBeNull();
+  });
+  it('keeps a new resource early event through old cleanup and ignores old completed recovery', async () => {
+    const fixture = mount();
+    await fixture.render('/assets/electronics/pending-old-switch.svg', ['error']);
+    expect(fixture.probes).toHaveLength(1);
+    await fixture.render('/assets/electronics/success-new-switch.svg', ['error']);
+    expect(fixture.probes).toHaveLength(2);
+    expect(fixture.probes[1]!.href).toContain('success-new-switch.svg');
+    await act(async () => fixture.probes[0]!.load());
+    await fixture.advance(100);
+    expect(fixture.host.querySelector('image')!.getAttribute('href')).toContain(
+      'success-new-switch.svg',
+    );
+    expect(fixture.host.querySelector('[data-owner-image-status="failed"]')).toBeNull();
+  });
+  it('does not publish or schedule quiet recovery after the consumer unmounts', async () => {
+    const fixture = mount();
+    await fixture.render('/assets/electronics/pending-unmounted.svg', ['error']);
+    fixture.unmount();
+    await act(async () => fixture.probes[0]!.error());
+    await fixture.advance(40_000);
+    // The already started shared finite decode can finish, but no mounted
+    // listener schedules another quiet cycle or commits a consumer state.
+    expect(fixture.probes).toHaveLength(3);
+    expect(fixture.host.childNodes).toHaveLength(0);
+  });
+  it.each(['before passive setup', 'after passive setup'])(
+    'publishes a late consumer error %s after shared recovery permanently stops without restarting requests',
+    async (delivery) => {
+      const asset = `/assets/electronics/late-permanent-${delivery.replaceAll(' ', '-')}.svg`;
+      const first = mount();
+      const fetch = vi.fn().mockResolvedValue({ status: 404 });
+      vi.stubGlobal('fetch', fetch);
+      await first.render(asset, ['error']);
+      await first.advance(140_000);
+      expect(first.probes).toHaveLength(12);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      const witness = subscribeSharedQuietAssetRecovery(
+        `image:${asset}`,
+        async () => false,
+        () => {},
+      );
+      expect(witness.permanent()).toBe(true);
+      witness.cancel();
+
+      const late = mount();
+      await late.render(asset, delivery === 'before passive setup' ? ['error'] : []);
+      if (delivery === 'after passive setup') {
+        expect(late.host.querySelector('[role="status"]')).toBeNull();
+        await act(async () => late.host.querySelector('image')!.dispatchEvent(new Event('error')));
+      }
+      expect(late.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+      expect(late.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(late.host.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(
+        'Изображение детали не загрузилось',
+      );
+      await late.advance(65_000);
+      expect(first.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(late.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(first.probes).toHaveLength(12);
+      expect(late.probes).toHaveLength(0);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
 });

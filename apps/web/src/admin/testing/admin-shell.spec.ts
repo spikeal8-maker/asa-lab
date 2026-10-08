@@ -1,3 +1,4 @@
+import { PresentationProvider } from '../../components/PresentationPreferences';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -46,27 +47,30 @@ afterEach(() => {
 
 function render(admin: boolean): string {
   return renderToStaticMarkup(
-    createElement(PortalHeader, {
-      session: SESSION,
-      active: 'home',
-      canTeach: true,
-      onNavigate: vi.fn(),
-      onSessionChanged: vi.fn(),
-      onLoggedOut: vi.fn(),
-      ...(admin
-        ? {
-            adminNavigation: {
-              active: true,
-              activeSection: 'overview' as const,
-              items: [
-                { id: 'overview' as const, label: 'Обзор', href: '/#/admin' },
-                { id: 'accounts' as const, label: 'Пользователи', href: '/#/admin/users' },
-              ],
-              onOpen: vi.fn(),
-              onNavigate: vi.fn(),
-            },
-          }
-        : {}),
+    createElement(PresentationProvider, {
+      actor: SESSION.user.id,
+      children: createElement(PortalHeader, {
+        session: SESSION,
+        active: 'home',
+        canTeach: true,
+        onNavigate: vi.fn(),
+        onSessionChanged: vi.fn(),
+        onLoggedOut: vi.fn(),
+        ...(admin
+          ? {
+              adminNavigation: {
+                active: true,
+                activeSection: 'overview' as const,
+                items: [
+                  { id: 'overview' as const, label: 'Обзор', href: '/#/admin' },
+                  { id: 'accounts' as const, label: 'Пользователи', href: '/#/admin/users' },
+                ],
+                onOpen: vi.fn(),
+                onNavigate: vi.fn(),
+              },
+            }
+          : {}),
+      }),
     }),
   );
 }

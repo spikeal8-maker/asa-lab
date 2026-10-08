@@ -213,6 +213,17 @@ documents:
     snapshot_sha256: 155b419eb68f400eb74c39c2d77eb08493237d7ee28a938612974fdd34e99545
     do_not_read_for: [new_implementation]
 
+  - id: PORTAL-SHELL-UX-ETZ
+    path: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
+    scope: identity
+    lanes: [admin-auth]
+    kind: target
+    status: canonical
+    authority: portal_shell_avatar_ux
+    revision: '2.0'
+    context_role: task
+    read_when: [portal_shell, responsive_navigation, avatar_preview, settings_composition, contextual_information, notification_polling, startup_delivery]
+
   - id: IDENTITY-ACCESS-V22
     path: docs/product/ASA_USERS_ACCESS_AND_SETTINGS_SPEC.md
     scope: identity

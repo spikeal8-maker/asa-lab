@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import type { SettingsDraft } from './settings-navigation';
 import {
   api,
   type LearningNotificationPreferences as Preferences,
@@ -19,9 +20,15 @@ export const notificationCategories: Record<NotificationCategory, string> = {
 export function LearningNotificationPreferences({
   classroomId,
   seat = false,
+  teaching = true,
+  controlRef,
+  onDirtyChange,
 }: {
   classroomId?: string;
   seat?: boolean;
+  teaching?: boolean;
+  controlRef?: MutableRefObject<SettingsDraft | null>;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const [saved, setSaved] = useState<Preferences | null>(null),
     [draft, setDraft] = useState<Preferences | null>(null);
@@ -47,15 +54,26 @@ export function LearningNotificationPreferences({
     void load();
   }, [load]);
   const keys = (Object.keys(notificationCategories) as NotificationCategory[]).filter(
-    (key) => !seat || (key !== 'NC02' && key !== 'NC08'),
+    (key) => (!seat || key !== 'NC08') && ((!seat && teaching) || key !== 'NC02'),
   );
+  const dirty = saved !== null && draft !== null && JSON.stringify(saved) !== JSON.stringify(draft);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
+  function discard() {
+    editRevision.current += 1;
+    setDraft(saved);
+    setError(null);
+    setNotice('');
+  }
+  if (controlRef) controlRef.current = { dirty, save, discard };
   function editDraft(next: Preferences) {
     editRevision.current += 1;
     setDraft(next);
     setNotice('');
   }
   async function save() {
-    if (!draft || busy) return;
+    if (!draft || busy) return false;
     latestLoad.current += 1;
     const input = {
       revision: draft.revision,
@@ -79,6 +97,7 @@ export function LearningNotificationPreferences({
       setSaved(result.data);
       setNotice('Настройки сохранены.');
     } else setError(result.error.message);
+    return result.ok;
   }
   function classRule(id: string, mode: string) {
     if (!draft) return;
@@ -106,9 +125,9 @@ export function LearningNotificationPreferences({
         </p>
       ) : null}
       {notice ? <p role="status">{notice}</p> : null}
-      {!draft ? (
+      {!draft && !error ? (
         <p>Загружаем настройки…</p>
-      ) : (
+      ) : draft ? (
         <>
           <label>
             <input
@@ -144,78 +163,82 @@ export function LearningNotificationPreferences({
               ))}
             </div>
           ) : null}
-          <details open={classroomId ? true : undefined}>
-            <summary>По классам</summary>
-            {!classroomId ? (
-              <label>
-                Найти класс{' '}
-                <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
-              </label>
-            ) : null}
-            {draft.classes
-              .filter(
-                (c) =>
-                  (!classroomId || c.id === classroomId) &&
-                  c.title.toLowerCase().includes(search.toLowerCase()),
-              )
-              .map((c) => {
-                const rule = draft.classOverrides[c.id];
-                return (
-                  <fieldset key={c.id} disabled={busy}>
-                    <legend>{c.title}</legend>
-                    <label>
-                      Мои оповещения об этом классе{' '}
-                      <select
-                        value={rule?.mode ?? 'inherit'}
-                        onChange={(e) => classRule(c.id, e.target.value)}
-                      >
-                        <option value="inherit">Как в общих настройках</option>
-                        <option value="off">Выключить для меня</option>
-                        <option value="custom">Настроить категории</option>
-                      </select>
-                    </label>
-                    {rule?.mode === 'custom' ? (
-                      <div className="learning-category-grid">
-                        {keys.map((key) => (
-                          <label key={key}>
-                            {notificationCategories[key]}
-                            <select
-                              value={rule.categories?.[key] ?? 'inherit'}
-                              onChange={(e) =>
-                                editDraft({
-                                  ...draft,
-                                  classOverrides: {
-                                    ...draft.classOverrides,
-                                    [c.id]: {
-                                      ...rule,
-                                      categories: {
-                                        ...rule.categories,
-                                        [key]: e.target.value as 'inherit' | 'on' | 'off',
+          {draft.classes.length > 0 ? (
+            <details open={classroomId ? true : undefined}>
+              <summary>По классам</summary>
+              {!classroomId ? (
+                <label>
+                  Найти класс{' '}
+                  <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
+                </label>
+              ) : null}
+              {draft.classes
+                .filter(
+                  (c) =>
+                    (!classroomId || c.id === classroomId) &&
+                    c.title.toLowerCase().includes(search.toLowerCase()),
+                )
+                .map((c) => {
+                  const rule = draft.classOverrides[c.id];
+                  return (
+                    <fieldset key={c.id} disabled={busy}>
+                      <legend>{c.title}</legend>
+                      <label>
+                        Мои оповещения об этом классе{' '}
+                        <select
+                          value={rule?.mode ?? 'inherit'}
+                          onChange={(e) => classRule(c.id, e.target.value)}
+                        >
+                          <option value="inherit">Как в общих настройках</option>
+                          <option value="off">Выключить для меня</option>
+                          <option value="custom">Настроить категории</option>
+                        </select>
+                      </label>
+                      {rule?.mode === 'custom' ? (
+                        <div className="learning-category-grid">
+                          {keys.map((key) => (
+                            <label key={key}>
+                              {notificationCategories[key]}
+                              <select
+                                value={rule.categories?.[key] ?? 'inherit'}
+                                onChange={(e) =>
+                                  editDraft({
+                                    ...draft,
+                                    classOverrides: {
+                                      ...draft.classOverrides,
+                                      [c.id]: {
+                                        ...rule,
+                                        categories: {
+                                          ...rule.categories,
+                                          [key]: e.target.value as 'inherit' | 'on' | 'off',
+                                        },
                                       },
                                     },
-                                  },
-                                })
-                              }
-                            >
-                              <option value="inherit">
-                                Наследовать — {draft.categories[key] ? 'включено' : 'выключено'}
-                              </option>
-                              <option value="on">Включено</option>
-                              <option value="off">Выключено</option>
-                            </select>
-                          </label>
-                        ))}
-                      </div>
-                    ) : null}
-                    {rule ? (
-                      <button type="button" onClick={() => classRule(c.id, 'inherit')}>
-                        Сбросить для класса
-                      </button>
-                    ) : null}
-                  </fieldset>
-                );
-              })}
-          </details>
+                                  })
+                                }
+                              >
+                                <option value="inherit">
+                                  Наследовать — {draft.categories[key] ? 'включено' : 'выключено'}
+                                </option>
+                                <option value="on">Включено</option>
+                                <option value="off">Выключено</option>
+                              </select>
+                            </label>
+                          ))}
+                        </div>
+                      ) : null}
+                      {rule ? (
+                        <button type="button" onClick={() => classRule(c.id, 'inherit')}>
+                          Сбросить для класса
+                        </button>
+                      ) : null}
+                    </fieldset>
+                  );
+                })}
+            </details>
+          ) : (
+            <p>Нет доступных классов для отдельных настроек.</p>
+          )}
           <p>
             Обязательные сообщения безопасности не отключаются здесь. MAX используется для входа, а
             не для рассылки.
@@ -224,21 +247,12 @@ export function LearningNotificationPreferences({
             <button className="btn-primary" disabled={busy} onClick={() => void save()}>
               Сохранить оповещения
             </button>
-            <button
-              className="btn-secondary"
-              disabled={busy}
-              onClick={() => {
-                editRevision.current += 1;
-                setDraft(saved);
-                setError(null);
-                setNotice('');
-              }}
-            >
+            <button className="btn-secondary" disabled={busy} onClick={discard}>
               Отменить
             </button>
           </div>
         </>
-      )}
+      ) : null}
     </section>
   );
 }

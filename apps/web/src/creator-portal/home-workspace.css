@@ -430,43 +430,7 @@
   margin-left: 14px;
   color: #5a7282;
 }
-@media (max-width: 820px) {
-  .portal-shell .portal-header {
-    grid-template-columns: 44px auto minmax(0, 1fr) auto 44px;
-    gap: 4px;
-    padding: 0 8px;
-    height: 56px;
-  }
-  .portal-header .portal-global-nav {
-    display: flex;
-    gap: 0;
-    justify-content: center;
-  }
-  .portal-global-nav a {
-    gap: 4px;
-    padding: 0 6px;
-    font-size: 13px;
-  }
-  .portal-global-nav a svg {
-    display: none;
-  }
-  .portal-header .portal-quick-create {
-    display: none;
-  }
-  .portal-header .portal-account {
-    display: block;
-  }
-  .portal-header .asa-brand-mark {
-    width: 28px;
-    height: 28px;
-  }
-  .portal-header .asa-brand-copy strong,
-  .portal-header .asa-brand-copy span {
-    font-size: 17px;
-  }
-  .portal-header .asa-brand-lockup {
-    gap: 5px;
-  }
+@media (max-width: 1023px) {
   .portal-sidebar.mobile-open .portal-section-attention {
     display: inline;
   }
@@ -486,6 +450,8 @@
   .home-mobile-create .portal-header-create-label {
     display: inline;
   }
+}
+@media (max-width: 820px) {
   .creator-home {
     padding: 8px 12px 16px;
     gap: 6px;
@@ -561,13 +527,6 @@
   }
 }
 @media (max-width: 480px) {
-  .portal-header .asa-brand-copy {
-    display: none;
-  }
-  .portal-global-nav a {
-    padding: 0 4px;
-    font-size: 12px;
-  }
   .creator-home .creator-module-heading {
     align-items: flex-start;
     flex-wrap: wrap;
@@ -586,13 +545,6 @@
 @media (max-width: 349px) {
   .creator-home .creator-module-heading .home-module-all > span:last-child {
     display: none;
-  }
-  .portal-header .asa-brand-copy {
-    display: none;
-  }
-  .portal-global-nav a {
-    font-size: 13px;
-    padding: 0 8px;
   }
   .creator-home .home-shelf-track {
     grid-auto-columns: calc((100% - 14px) / 2.45);

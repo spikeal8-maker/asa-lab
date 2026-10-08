@@ -1063,3 +1063,110 @@ describe('Account C1 compatibility', () => {
     expect(teacherProjects.statusCode).toBe(200);
   });
 });
+
+describe('Account presentation preferences real server authorization and concurrency', () => {
+  it('isolates accounts, rejects forged fields and anonymous/Seat-only callers, persists across real sessions', async () => {
+    const account = await register('presentation-owner'),
+      other = await register('presentation-other');
+    const url = '/api/account/presentation';
+    const command = {
+      motion: 'reduce',
+      sidebar: 'collapsed',
+      revision: 0,
+      requestId: crypto.randomUUID(),
+    };
+    expect((await inject(app, { method: 'GET', url })).statusCode).toBe(401);
+    expect(
+      (
+        await inject(app, {
+          method: 'PUT',
+          url,
+          cookies: { asa_seat_session: 'seat-only' },
+          payload: command,
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await inject(app, {
+          method: 'PUT',
+          url,
+          cookies: { asa_session: account.token },
+          headers: { 'x-asa-presentation-account': account.accountId },
+          payload: { ...command, accountId: other.accountId },
+        })
+      ).statusCode,
+    ).toBe(400);
+    const results = await Promise.all(
+      [command, { ...command, requestId: crypto.randomUUID(), motion: 'system' }].map((payload) =>
+        inject(app, {
+          method: 'PUT',
+          url,
+          cookies: { asa_session: account.token },
+          headers: { 'x-asa-presentation-account': account.accountId },
+          payload,
+        }),
+      ),
+    );
+    expect(results.map((result) => result.statusCode).sort()).toEqual([200, 409]);
+    const saved = (
+      await inject(app, {
+        method: 'GET',
+        url,
+        cookies: { asa_session: account.token },
+        headers: { 'x-asa-presentation-account': account.accountId },
+      })
+    ).json();
+    expect(saved.revision).toBe(1);
+    expect(
+      (
+        await inject(app, {
+          method: 'GET',
+          url,
+          cookies: { asa_session: other.token },
+          headers: { 'x-asa-presentation-account': other.accountId },
+        })
+      ).json(),
+    ).toEqual({ motion: 'system', sidebar: 'expanded', revision: 0 });
+    const newToken = await login(account.username, account.password);
+    expect(
+      (
+        await inject(app, {
+          method: 'GET',
+          url,
+          cookies: { asa_session: newToken },
+          headers: { 'x-asa-presentation-account': account.accountId },
+        })
+      ).json(),
+    ).toEqual(saved);
+  });
+  it('retries lost response idempotently while keeping current canonical state after another writer', async () => {
+    const account = await register('presentation-retry');
+    const url = '/api/account/presentation';
+    const command = {
+      motion: 'reduce',
+      sidebar: 'expanded',
+      revision: 0,
+      requestId: crypto.randomUUID(),
+    };
+    const write = (payload: unknown) =>
+      inject(app, {
+        method: 'PUT',
+        url,
+        cookies: { asa_session: account.token },
+        headers: { 'x-asa-presentation-account': account.accountId },
+        payload,
+      });
+    expect((await write(command)).statusCode).toBe(200);
+    expect((await write(command)).json().revision).toBe(1);
+    expect((await write({ ...command, sidebar: 'collapsed' })).statusCode).toBe(409);
+    const next = await write({
+      ...command,
+      motion: 'system',
+      revision: 1,
+      requestId: crypto.randomUUID(),
+    });
+    expect(next.statusCode).toBe(200);
+    expect((await write(command)).json()).toEqual(next.json());
+  });
+});

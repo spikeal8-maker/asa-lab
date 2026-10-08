@@ -4,6 +4,7 @@ import {
   creatorViewFromLocation,
   creatorViewToHash,
   creatorViewToHref,
+  sectionForView,
   threeDEditorHash,
   type CreatorPortalView,
 } from '../../apps/web/src/creator-portal/navigation';
@@ -46,6 +47,8 @@ describe('Creator Portal routing', () => {
     ['#/projects', { kind: 'my-projects' }],
     ['#/games', { kind: 'games' }],
     ['#/learning', { kind: 'learning' }],
+    ['#/gallery', { kind: 'gallery' }],
+    ['#/knowledge', { kind: 'knowledge' }],
     ['#/collections', { kind: 'collections' }],
     ['#/challenges', { kind: 'challenges' }],
     ['#/classrooms', { kind: 'classrooms' }],
@@ -54,6 +57,17 @@ describe('Creator Portal routing', () => {
   ] as const)('restores %s after a refresh', (hash, expected) => {
     expect(creatorViewFromHash(hash)).toEqual(expected);
     expect(creatorViewToHash(expected)).toBe(hash);
+  });
+
+  it('marks public child routes in their own top section, without selecting personal work', () => {
+    for (const [route, section] of [
+      ['#/gallery', 'gallery'],
+      ['#/gallery/public-work', 'gallery'],
+      ['#/knowledge', 'knowledge'],
+      ['#/knowledge/public-course', 'knowledge'],
+    ] as const) {
+      expect(sectionForView(creatorViewFromHash(route), false)).toBe(section);
+    }
   });
 
   it('preserves the return route for projects opened from Home and Projects', () => {

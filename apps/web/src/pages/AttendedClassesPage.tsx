@@ -173,7 +173,10 @@ export function AttendedClassesPage({
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
                     <details>
                       <summary>Мои оповещения об этом классе</summary>
-                      <LearningNotificationPreferences classroomId={entry.classroomId} />
+                      <LearningNotificationPreferences
+                        classroomId={entry.classroomId}
+                        teaching={false}
+                      />
                     </details>
                   </div>
                   {entry.unfinishedCount > 0 ? (

@@ -1,7 +1,14 @@
 import type { AdminProfile, AdminScope } from './admin-api';
 
 export type AdminSection =
-  'overview' | 'accounts' | 'organizations' | 'security' | 'confirmations' | 'operations' | 'audit';
+  | 'overview'
+  | 'accounts'
+  | 'organizations'
+  | 'security'
+  | 'confirmations'
+  | 'operations'
+  | 'audit'
+  | 'logs';
 
 export interface AdminNavigationItem {
   readonly id: AdminSection;
@@ -20,6 +27,7 @@ const ADMIN_SECTIONS: readonly {
   { id: 'security', label: 'Безопасность', path: '/admin/security' },
   { id: 'confirmations', label: 'Подтверждения', path: '/admin/confirmations' },
   { id: 'operations', label: 'Система', path: '/admin/system' },
+  { id: 'logs', label: 'Логи', path: '/admin/logs' },
   { id: 'audit', label: 'История', path: '/admin/history' },
 ];
 

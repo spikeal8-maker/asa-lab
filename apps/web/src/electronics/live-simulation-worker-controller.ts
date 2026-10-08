@@ -57,6 +57,11 @@ const DISPLAY_ONLY_PROPERTIES: Readonly<Record<string, readonly string[]>> = {
 };
 const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
+// Presentation requests are finite even when host demand accumulates faster than
+// physics can advance. This does not change the engine's barriers/work budget.
+// The cap is half a second of model time, not a wall-time/throughput promise.
+// Yielded work still finishes this exact target before another window is chosen.
+const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 500_000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -202,6 +207,7 @@ export class ElectronicsLiveSimulationWorkerController {
   private lastRuntimeDocument: SchematicDocument | null = null;
   private timedState: ElectronicsTimedState = resetElectronicsTimedState();
   private latestTarget: SimulationTarget | null = null;
+  private startupTarget: SimulationTarget | null = null;
   private continuationTarget: SimulationTarget | null = null;
   private inputTarget: SimulationTarget | null = null;
   private pendingInputEvents: ElectronicsTimedInputEvent[] = [];
@@ -337,6 +343,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = document;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = { requestedHorizonMicroseconds: canonicalHorizonMicroseconds };
+    this.startupTarget = { requestedHorizonMicroseconds: 0 };
     this.continuationTarget = null;
     this.inputTarget = null;
     this.pendingInputEvents = [];
@@ -361,6 +368,7 @@ export class ElectronicsLiveSimulationWorkerController {
     this.lastRuntimeDocument = null;
     this.timedState = resetElectronicsTimedState();
     this.latestTarget = null;
+    this.startupTarget = null;
     this.continuationTarget = null;
     this.inputTarget = null;
     this.pendingInputEvents = [];
@@ -413,13 +421,28 @@ export class ElectronicsLiveSimulationWorkerController {
   private pump(): void {
     const generationId = this.generationId;
     const document = this.canonicalDocument;
-    const target = this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
-    if (generationId === null || !document || this.inFlight || !target) return;
-    if (this.inputTarget) this.inputTarget = null;
-    else if (this.continuationTarget) this.continuationTarget = null;
-    else this.latestTarget = null;
-    const inputEvents = this.pendingInputEvents;
-    this.pendingInputEvents = [];
+    const pendingTarget =
+      this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
+    if (generationId === null || !document || this.inFlight || !pendingTarget) return;
+    const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
+    const target =
+      pendingTarget === this.latestTarget
+        ? {
+            requestedHorizonMicroseconds: Math.min(
+              pendingTarget.requestedHorizonMicroseconds,
+              committed + COMPLETE_OBSERVATION_WINDOW_MICROSECONDS,
+            ),
+          }
+        : pendingTarget;
+    const isStartup = target === this.startupTarget;
+    // Complete time zero before pursuing host ticks or inputs queued after Start.
+    if (!isStartup) {
+      if (this.inputTarget) this.inputTarget = null;
+      else if (this.continuationTarget) this.continuationTarget = null;
+      // Keep the full host demand until ready responses actually satisfy it.
+    }
+    const inputEvents = isStartup ? [] : this.pendingInputEvents;
+    if (!isStartup) this.pendingInputEvents = [];
     this.inFlight = true;
     this.inFlightKind = 'advance';
     void this.executor
@@ -465,7 +488,7 @@ export class ElectronicsLiveSimulationWorkerController {
       target.requestedHorizonMicroseconds,
     );
     if (advance.executionStatus === 'yielded') {
-      this.continuationTarget = target;
+      if (target !== this.startupTarget) this.continuationTarget = target;
       this.pump();
       return;
     }
@@ -485,7 +508,9 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, new Error('Ready Electronics timed advance omitted its result.'));
       return;
     }
-    if (this.pendingInputEvents.length === 0) {
+    const isStartup = target === this.startupTarget;
+    if (isStartup) this.startupTarget = null;
+    if (isStartup || this.pendingInputEvents.length === 0) {
       this.callbacks?.onCommittedHorizon?.(advance.committedHorizonMicroseconds);
       this.callbacks?.onResult(advance.result);
     }

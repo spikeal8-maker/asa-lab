@@ -1,0 +1,132 @@
+.admin-logs {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.admin-logs-intro {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.admin-logs-intro p {
+  margin: 0;
+}
+.admin-logs-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-logs-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+.admin-logs-filters label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.admin-logs-filters input,
+.admin-logs-filters select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 42px;
+  padding: 8px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 8px;
+  background: var(--surface, white);
+  color: inherit;
+}
+.admin-logs-search {
+  grid-column: span 2;
+}
+.admin-logs-coverage {
+  padding: 14px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.admin-logs-coverage p {
+  margin: 0 0 8px;
+}
+.admin-logs-coverage ul {
+  max-height: 320px;
+  overflow-y: auto;
+  padding-left: 22px;
+}
+.admin-logs-coverage li {
+  margin-bottom: 10px;
+}
+.admin-logs-coverage small {
+  display: block;
+  margin-top: 8px;
+}
+.admin-logs-list {
+  display: grid;
+  gap: 12px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.admin-log-entry {
+  padding: 14px;
+  border: 1px solid var(--border-color, #d1d5db);
+  border-left: 4px solid #64748b;
+  border-radius: 8px;
+  min-width: 0;
+}
+.admin-log-entry-error {
+  border-left-color: #b91c1c;
+}
+.admin-log-entry-warn {
+  border-left-color: #b45309;
+}
+.admin-log-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  overflow-wrap: anywhere;
+}
+.admin-log-entry pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  font-size: 13px;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 10px 0;
+}
+.admin-log-entry dl {
+  overflow-wrap: anywhere;
+}
+.admin-log-entry dd {
+  margin: 2px 0 10px;
+}
+.admin-logs summary {
+  cursor: pointer;
+}
+@media (max-width: 1024px) {
+  .admin-logs-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 480px) {
+  .admin-logs-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-logs-search {
+    grid-column: auto;
+  }
+  .admin-logs-actions {
+    display: grid;
+    width: 100%;
+  }
+  .admin-log-entry {
+    padding: 10px;
+  }
+}

@@ -20,7 +20,7 @@ test('exact saved and published learner preview ignores late responses and creat
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -108,7 +108,7 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -176,7 +176,7 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -354,7 +354,7 @@ test('first-class image block survives draft reload and pins exact published byt
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -506,7 +506,7 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 
@@ -583,7 +583,7 @@ test('published task image stays immutable across versions', async ({ page }) =>
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 

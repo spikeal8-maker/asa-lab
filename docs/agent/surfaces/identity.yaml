@@ -1,6 +1,102 @@
 schema_version: 1.0.0
 context: identity
 surfaces:
+- id: SURF-PORTAL-SHELL
+  routes:
+  - '#/home'
+  - '#/projects'
+  - '#/gallery'
+  - '#/knowledge'
+  - '#/learning'
+  - '#/help'
+  - '#/account'
+  implementation:
+    files:
+    - apps/web/src/App.tsx
+    - apps/web/src/components/PageDeliveryBoundary.tsx
+    - apps/web/src/components/page-delivery.css
+    - docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/components/LearningInbox.tsx
+    - apps/web/src/components/learning-inbox-poller.ts
+    - apps/web/src/components/learning-notifications.css
+    - apps/web/src/components/AvatarDialog.tsx
+    - apps/web/src/components/use-avatar-module.ts
+    - apps/web/public/vite-preload-recovery.js
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/use-avatar-save.ts
+    - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/avatar-chooser-events.ts
+    - apps/web/src/components/avatar-chooser.css
+    - apps/web/src/components/PortalLink.tsx
+    - apps/web/src/components/settings-navigation.tsx
+    - apps/web/src/creator-portal/navigation.ts
+    - apps/web/src/creator-portal/creator-portal.css
+    - apps/web/src/creator-portal/portal-workspace.css
+    - apps/web/src/creator-portal/home-workspace.css
+  invariants:
+  - IDA-AUTH-001
+  - IDA-CAP-001
+  - IDA-CTX-001
+  - IDA-PROFILE-001
+  - IDA-SEAT-PUBLIC-001
+  tests:
+  - TST-ASA-ACCESS-A-CORE-001
+  - TST-ASA-ACCESS-A-E2E-001
+  - TST-ACCOUNT-SETTINGS-UI-001
+  controls:
+  - id: CTRL-PORTAL-STARTUP-DELIVERY
+    label: Load selected pages and the editor host on demand with branded waiting and usable failure exits
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/App.tsx
+    - apps/web/src/components/PageDeliveryBoundary.tsx
+    - apps/web/src/components/page-delivery.css
+    - docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
+    commands: []
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CTX-001
+    - IDA-SEAT-PROJECT-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
+  - id: CTRL-PORTAL-LEARNING-INBOX
+    label: Actor-scoped learning inbox preserves reads and polls only visible sessions with single-flight refresh
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/LearningInbox.tsx
+    - apps/web/src/components/learning-inbox-poller.ts
+    - apps/web/src/components/learning-notifications.css
+    - apps/web/src/components/PortalHeader.tsx
+    commands: []
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CTX-001
+    - IDA-MAX-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
+  - id: CTRL-PORTAL-NAVIGATION
+    label: Public top navigation and scoped personal drawer preserve native links and settings guards
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/components/PortalLink.tsx
+    - apps/web/src/components/settings-navigation.tsx
+    - apps/web/src/creator-portal/navigation.ts
+    commands: []
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CAP-001
+    - IDA-CTX-001
+    - IDA-SEAT-PUBLIC-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
 - id: SURF-OWNER-ADMIN-OPERATOR
   routes:
   - 'operator:owner-admin'
@@ -33,12 +129,29 @@ surfaces:
 - id: SURF-ACCOUNT-SETTINGS
   routes:
   - '#/account'
+  - '#/account/interface'
+  - /api/account/presentation
   implementation:
     files:
     - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/account.css
+    - apps/web/src/components/AvatarDialog.tsx
+    - apps/web/src/components/use-avatar-module.ts
+    - apps/web/public/vite-preload-recovery.js
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/use-avatar-save.ts
+    - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/avatar-chooser-events.ts
+    - apps/web/src/components/avatar-chooser.css
     - apps/web/src/api.ts
     - apps/api/src/account-c1.controller.ts
     - contexts/identity/application/effective-actions.ts
+    - apps/web/src/components/PresentationPreferences.tsx
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/api/src/presentation-preferences.controller.ts
+    - contexts/identity/application/presentation-preferences.ts
+    - contexts/identity/infrastructure/pg-presentation-preferences.ts
+    - migrations/0200_account_presentation_preferences.sql
   invariants:
   - IDA-ACC-001
   - IDA-SCOPE-001
@@ -51,6 +164,48 @@ surfaces:
   - TST-ASA-ACCESS-A-CORE-001
   - TST-ASA-ACCESS-A-E2E-001
   controls:
+  - id: CTRL-ACCOUNT-AVATAR
+    label: Preview and explicitly save Account avatar independently of profile drafts
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/use-avatar-save.ts
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/pages/AccountPage.tsx
+    - apps/web/src/account.css
+    - apps/web/src/creator-portal/avatar-file.ts
+    commands:
+    - account_avatar_update
+    invariants:
+    - IDA-PROFILE-001
+    - IDA-CTX-001
+    - IDA-AUTH-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ACCOUNT-SETTINGS-UI-001
+  - id: CTRL-ACCOUNT-SAVE-PRESENTATION
+    label: Preview and save supported Account presentation; Seat motion is temporary session-only
+    change_class: L2_DOMAIN_MUTATION
+    files:
+    - apps/web/src/components/PresentationPreferences.tsx
+    - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/api/src/presentation-preferences.controller.ts
+    - contexts/identity/application/presentation-preferences.ts
+    - contexts/identity/infrastructure/pg-presentation-preferences.ts
+    - migrations/0200_account_presentation_preferences.sql
+    commands:
+    - account_presentation_write
+    - account_presentation_read
+    invariants:
+    - IDA-AUTH-001
+    - IDA-PROFILE-001
+    - IDA-CTX-001
+    - IDA-SEAT-PUBLIC-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
   - id: CTRL-ACCOUNT-SAVE-PROFILE
     label: Save account profile
     change_class: L2_DOMAIN_MUTATION
@@ -294,6 +449,17 @@ surfaces:
   implementation:
     files:
     - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/web/src/components/AvatarDialog.tsx
+    - apps/web/src/components/use-avatar-module.ts
+    - apps/web/public/vite-preload-recovery.js
+    - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/avatar-chooser-events.ts
+    - apps/web/src/components/avatar-chooser.css
+    - apps/web/src/components/SeatAvatarPicker.tsx
+    - apps/web/src/components/seat-avatar.css
+    - apps/web/src/pages/ClassroomPage.tsx
+    - apps/web/src/App.tsx
     - apps/web/src/api.ts
     - apps/api/src/classroom-join.controller.ts
   invariants:

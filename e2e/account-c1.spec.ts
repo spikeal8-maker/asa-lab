@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import {
@@ -133,9 +134,9 @@ test('owner completes Account C1 and existing project modules remain available',
   // holds the profile it loaded before that.
   await page.reload();
   // The account shell is reached through "Настройки" now, and its heading is
-  // written for a person rather than for the architecture.
+  // matches the settings entry without repeating account identity.
   await openAccountSettings(page);
-  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   // The shell is tabbed now: schools and sessions live on their own panels
   // rather than all on one page. The panel names repeat as headings inside the
   // panels, so the clicks go through the settings navigation.
@@ -162,13 +163,13 @@ test('owner completes Account C1 and existing project modules remain available',
       (grant: { capability: string }) => grant.capability === 'educator',
     ),
   ).toBe(false);
-  await settingsPanel('Возможности').click();
+  await settingsPanel('Материалы и преподавание').click();
   await page
     .getByRole('article')
     .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })
     .getByRole('button', { name: 'Подключить', exact: true })
     .click();
-  await settingsPanel('Мои доступы').click();
+  await settingsPanel('Рабочие пространства').click();
   await expect(settingsContent.getByText('Owner Preview School', { exact: true })).toBeVisible();
   await settingsPanel('Вход и безопасность').click();
   // The session summary carries the platform of whatever machine runs the
@@ -211,7 +212,7 @@ test('owner completes Account C1 and existing project modules remain available',
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
   });
   await expectNoHorizontalOverflow(page);
-  await expect(page.getByRole('heading', { name: 'Ваш аккаунт' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   await page.screenshot({
     path: `${EVIDENCE_DIR}/06-account-profile-mobile.png`,
     fullPage: true,
@@ -484,4 +485,212 @@ test('migrated teacher changes password through organization browser login', asy
   });
 
   failures.assertEmpty();
+});
+
+test('Account presentation persists through reload, cancels only display preview and stays isolated from another Account', async ({
+  browser,
+  page,
+}) => {
+  test.setTimeout(120000);
+  async function registerInBrowser(target: Page, label: string) {
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+    await target.goto('/#/');
+    await target.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+    await target.getByLabel('Email').fill(`${label}-${unique}@presentation-e2e.test`);
+    await target.getByLabel('Имя пользователя').fill(`${label}_${unique}`.slice(0, 36));
+    await target
+      .getByLabel('Отображаемое имя', { exact: true })
+      .fill('Очень длинное имя для проверки персонального оформления интерфейса');
+    await target.getByLabel('Дата рождения').fill('1990-04-12');
+    await target.getByLabel('Пароль').fill(`Safe-${unique}-Password`);
+    await target.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+    await target.getByRole('button', { name: 'Создать аккаунт' }).click();
+    await expect(target.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    await openAccountSettings(target);
+    if ((target.viewportSize()?.width ?? 1440) <= 900)
+      await target.getByLabel('Выбрать раздел настроек').selectOption('interface');
+    else await target.getByRole('button', { name: 'Интерфейс', exact: true }).click();
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await registerInBrowser(page, 'prefsone');
+  await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+  await page.getByLabel('Боковая панель', { exact: false }).selectOption('collapsed');
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сохранить оформление', exact: true })
+    .click();
+  await expect(page.getByText('Оформление сохранено в аккаунте.', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(page.locator('#portal-sidebar')).toHaveClass(/collapsed/);
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сбросить оформление', exact: true })
+    .click();
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
+    .click();
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  // A concurrent server writer is real; the stale browser draft must be retained.
+  const origin = new URL(page.url()).origin;
+  const accountId = (await (await page.request.get('/api/auth/me')).json()).user.id as string;
+  const presentationHeaders = { 'x-asa-presentation-account': accountId };
+  const current = await page
+    .context()
+    .request.get('/api/account/presentation', { headers: presentationHeaders });
+  const saved = await current.json();
+  const changed = await page.context().request.put('/api/account/presentation', {
+    headers: { origin, ...presentationHeaders },
+    data: {
+      motion: 'system',
+      sidebar: 'expanded',
+      revision: saved.revision,
+      requestId: crypto.randomUUID(),
+    },
+  });
+  expect(changed.status()).toBe(200);
+  await page.getByLabel('Боковая панель', { exact: false }).selectOption('expanded');
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Сохранить оформление', exact: true })
+    .click();
+  await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
+    'Оформление изменено в другом окне',
+  );
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await page
+    .getByRole('form', { name: 'Оформление', exact: true })
+    .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
+  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+  await expectNoHorizontalOverflow(page);
+  const other = await browser.newContext({ baseURL: origin });
+  try {
+    const second = await other.newPage();
+    await second.setViewportSize({ width: 390, height: 844 });
+    await registerInBrowser(second, 'prefstwo');
+    await expect(second.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+    await expect(second.getByLabel('Боковая панель', { exact: false })).toHaveValue('expanded');
+    await expectNoHorizontalOverflow(second);
+  } finally {
+    await other.close();
+  }
+});
+
+test('mounted Account A cannot read or save Account B presentation after shared cookie login changes', async ({
+  browser,
+  page,
+  playwright,
+}) => {
+  test.setTimeout(120000);
+  async function register(target: Page, label: string) {
+    const unique = `${Date.now()}${Math.floor(Math.random() * 1e6)}`;
+    const email = `${label}-${unique}@presentation-actor-e2e.test`;
+    const password = `Safe-${unique}-Password`;
+    await target.goto('/#/');
+    await target.getByRole('button', { name: 'Создать аккаунт', exact: true }).first().click();
+    await target.getByLabel('Email').fill(email);
+    await target.getByLabel('Имя пользователя').fill(`${label}_${unique}`.slice(0, 36));
+    await target.getByLabel('Отображаемое имя', { exact: true }).fill(label);
+    await target.getByLabel('Дата рождения').fill('1990-04-12');
+    await target.getByLabel('Пароль').fill(password);
+    await target.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
+    await target.getByRole('button', { name: 'Создать аккаунт' }).click();
+    await expect(target.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    const accountId = (await (await target.request.get('/api/auth/me')).json()).user.id as string;
+    return { email, password, accountId };
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const a = await register(page, 'actorone');
+  const origin = new URL(page.url()).origin;
+  const ownA = await playwright.request.newContext({
+    baseURL: origin,
+    storageState: await page.context().storageState(),
+  });
+  const other = await browser.newContext({ baseURL: origin });
+  try {
+    const second = await other.newPage();
+    const b = await register(second, 'actortwo');
+    const headersA = { 'x-asa-presentation-account': a.accountId };
+    const headersB = { 'x-asa-presentation-account': b.accountId };
+    const beforeA = await (
+      await ownA.get('/api/account/presentation', { headers: headersA })
+    ).json();
+    const beforeB = await (
+      await second.request.get('/api/account/presentation', { headers: headersB })
+    ).json();
+    expect(beforeA.revision).toBe(0);
+    expect(beforeB.revision).toBe(0);
+    await openAccountSettings(page);
+    await page.getByRole('button', { name: 'Интерфейс', exact: true }).click();
+    await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+    await page.getByLabel('Боковая панель', { exact: false }).selectOption('collapsed');
+    // A real login through the shared browser cookie jar. No navigation, mocked
+    // auth, session event or actor-prop update is performed on the mounted A page.
+    const userAgent = await page.evaluate(() => navigator.userAgent);
+    const challengeResponse = await page.request.get('/api/auth/bot-challenge?action=login', {
+      headers: { 'user-agent': userAgent },
+    });
+    expect(challengeResponse.status()).toBe(200);
+    const { challenge } = await challengeResponse.json();
+    let counter = 0;
+    for (; counter <= 2000000; counter++) {
+      const digest = createHash('sha256').update(`${challenge.salt}:${counter}`).digest();
+      let bits = 0;
+      for (const byte of digest) {
+        if (byte === 0) bits += 8;
+        else {
+          bits += Math.clz32(byte) - 24;
+          break;
+        }
+      }
+      if (bits >= challenge.difficulty) break;
+    }
+    expect(counter).toBeLessThanOrEqual(2000000);
+    const login = await page.request.post('/api/auth/login', {
+      headers: { origin, 'user-agent': userAgent },
+      data: { identifier: b.email, password: b.password, botProof: { ...challenge, counter } },
+    });
+    expect(login.status()).toBe(200);
+    expect((await login.json()).user.id).toBe(b.accountId);
+    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+    const rejection = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/account/presentation') &&
+        response.request().method() === 'PUT',
+    );
+    await page
+      .getByRole('form', { name: 'Оформление', exact: true })
+      .getByRole('button', { name: 'Сохранить оформление', exact: true })
+      .click();
+    const result = await rejection;
+    expect(result.request().headers()['x-asa-presentation-account']).toBe(a.accountId);
+    expect(result.status()).toBe(409);
+    expect(await result.json()).toMatchObject({ error: { code: 'actor_changed' } });
+    await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
+      'Аккаунт изменился',
+    );
+    await expect(
+      page.getByRole('button', { name: 'Обновить страницу', exact: true }),
+    ).toBeVisible();
+    const deniedRead = await page.request.get('/api/account/presentation', { headers: headersA });
+    expect(deniedRead.status()).toBe(409);
+    expect(await deniedRead.json()).toMatchObject({ error: { code: 'actor_changed' } });
+    expect(
+      await (await ownA.get('/api/account/presentation', { headers: headersA })).json(),
+    ).toEqual(beforeA);
+    expect(
+      await (await page.request.get('/api/account/presentation', { headers: headersB })).json(),
+    ).toEqual(beforeB);
+    await page.getByRole('button', { name: 'Обновить страницу', exact: true }).click();
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+    await expect(page.locator('.account-presentation').getByRole('alert')).toHaveCount(0);
+  } finally {
+    await ownA.dispose();
+    await other.close();
+  }
 });

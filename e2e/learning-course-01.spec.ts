@@ -274,7 +274,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -300,7 +300,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
     .click();
   await page
     .getByRole('article')

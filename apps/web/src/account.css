@@ -680,6 +680,14 @@ button.portal-account-identity:hover:not(:disabled) {
   padding-top: 18px;
 }
 
+.account-settings-page .account-heading {
+  margin-bottom: 16px;
+}
+
+.account-settings-page .account-heading h1 {
+  font-size: clamp(28px, 3vw, 34px);
+}
+
 .account-mobile-panel-picker {
   display: none;
 }
@@ -688,7 +696,6 @@ button.portal-account-identity:hover:not(:disabled) {
   display: grid;
   grid-template-columns: 230px minmax(0, 1fr);
   min-height: 480px;
-  overflow: hidden;
   border: 1px solid #d7e0e6;
   border-radius: 12px;
   background: #fff;
@@ -701,21 +708,115 @@ button.portal-account-identity:hover:not(:disabled) {
   background: #fbfcfd;
 }
 
-.account-settings-navigation > strong {
-  display: block;
-  padding: 0 12px 18px;
-  color: #263d4a;
-  font-size: 18px;
-}
-
 .account-settings-navigation nav {
   display: grid;
   gap: 3px;
 }
 
+.account-settings-group {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 14px;
+}
+
+.account-settings-group h2 {
+  margin: 8px 12px 4px;
+  font-size: 12px;
+  color: var(--ink-muted);
+}
+
+/* Capability slot contract: description | action; there is no icon slot. */
+.account-capability-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 18px;
+  align-items: center;
+  padding: 20px;
+  margin-top: 14px;
+  border: 1px solid #cfe0e8;
+  border-radius: 12px;
+  background: #f6fbfd;
+}
+
+.account-capability-card h3,
+.account-capability-card p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.account-capability-card p {
+  margin-top: 8px;
+  line-height: 1.55;
+  color: var(--ink-muted);
+}
+
+.account-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #e0e7eb;
+}
+
+.account-form-actions button,
+.account-capability-card > :is(button, a) {
+  max-width: 100%;
+  width: auto;
+  margin: 0;
+  white-space: normal;
+}
+
+.account-profile-preview {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #dce5ea;
+  border-radius: 10px;
+  background: #f8fbfc;
+  overflow-wrap: anywhere;
+}
+
+.account-profile-preview img {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.account-profile-preview span {
+  display: block;
+  color: var(--ink-muted);
+}
+
+.account-profile-preview p {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+}
+
+.account-draft-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 24px;
+  border-radius: 12px;
+  background: #fff;
+}
+
+@media (max-width: 1100px) {
+  .account-capability-card {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 16px;
+  }
+  .account-capability-card > :is(button, a) {
+    justify-self: start;
+  }
+}
+
 .account-settings-navigation button {
   display: grid;
-  grid-template-columns: 27px minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 9px;
   min-height: 48px;
@@ -739,23 +840,17 @@ button.portal-account-identity:hover:not(:disabled) {
   color: #0877b3;
 }
 
-.account-settings-navigation button span {
-  display: grid;
-  place-items: center;
-}
-
-.account-settings-navigation button svg {
-  width: 21px;
-  height: 21px;
-}
-
 .account-settings-content {
   min-width: 0;
-  padding: 22px 28px;
+  padding: 20px 24px;
 }
 
 .account-settings-section {
   width: min(760px, 100%);
+}
+
+.account-settings-section > h2 {
+  margin: 0 0 14px;
 }
 
 .account-section-heading {
@@ -787,7 +882,8 @@ button.portal-account-identity:hover:not(:disabled) {
   background: #f8fbfc;
 }
 
-.account-avatar-editor > img {
+.account-avatar-editor > img,
+.account-avatar-editor > .account-avatar-preview-button > img {
   width: 96px;
   height: 96px;
   border: 4px solid #fff;
@@ -1462,7 +1558,8 @@ button.portal-account-identity:hover:not(:disabled) {
     gap: 10px;
   }
 
-  .account-avatar-editor > img {
+  .account-avatar-editor > img,
+  .account-avatar-editor > .account-avatar-preview-button > img {
     width: 64px;
     height: 64px;
   }
@@ -1565,4 +1662,126 @@ button.portal-account-identity:hover:not(:disabled) {
   border-color: #087eaf;
   background: #eaf5fb;
   font-weight: 700;
+}
+
+.presentation-shell {
+  display: contents;
+}
+.presentation-shell[data-motion='reduce'] *,
+.presentation-shell[data-motion='reduce'] *::before,
+.presentation-shell[data-motion='reduce'] *::after {
+  scroll-behavior: auto !important;
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+}
+.account-presentation {
+  margin-top: 0;
+  margin-bottom: 18px;
+}
+.account-presentation > .account-hint {
+  margin: 0;
+}
+.account-presentation select {
+  width: 100%;
+  min-width: 0;
+}
+
+.account-operation-title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.account-time-zone {
+  margin-top: 24px;
+  padding-top: 24px;
+  border-top: 1px solid #d7e0e6;
+}
+
+.account-time-zone .account-form-actions > button {
+  min-height: 44px;
+}
+
+.account-presentation-footer {
+  display: grid;
+  gap: 6px;
+}
+
+.account-presentation-actions {
+  gap: 8px;
+}
+
+.account-presentation-actions > button {
+  min-height: 44px;
+}
+
+.account-presentation-actions > .account-presentation-reset {
+  min-width: 44px;
+  padding: 0 2px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.account-save-status {
+  margin: 0;
+  color: #267045;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.account-interface-feedback > p {
+  margin: 8px 0 0;
+}
+
+.account-settings-information {
+  margin-top: 20px;
+  border-top: 1px solid #e0e7eb;
+  overflow-wrap: anywhere;
+}
+
+.account-settings-information > summary {
+  min-height: 44px;
+  padding: 12px 0;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.account-settings-information > p {
+  margin: 0 0 12px;
+}
+
+@media (max-width: 900px) {
+  /* The native section picker already names this panel; retain its heading
+   * for assistive navigation without repeating it in the visual flow. */
+  .account-settings-page .account-panel-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .account-presentation-actions > :is(.btn-primary, .btn-secondary) {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+}
+
+@media (max-width: 560px) {
+  /* Keep the operation's primary/cancel pair together even when a fallback
+   * font has wider metrics than the development machine's font. */
+  .account-time-zone .account-form-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+  }
+
+  .account-time-zone .account-form-actions > button {
+    min-width: 0;
+    padding-right: 12px;
+    padding-left: 12px;
+  }
 }
