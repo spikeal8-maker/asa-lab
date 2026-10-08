@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import type { LearningNotification } from '../apps/web/src/api';
 
@@ -3360,3 +3360,457 @@ test('S2 avatar library code is requested only when opening the chooser', async 
   await expect(page.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
   expect(requests.length).toBeGreaterThan(0);
 });
+
+const startupEvidence = 'reports/playwright/settings-ui/portal-startup-s4-boundary-20261008';
+type BuildChunk = { file: string; name?: string; css?: string[]; dynamicImports?: string[] };
+function startupChunks() {
+  const manifest = JSON.parse(readFileSync('apps/web/dist/.vite/manifest.json', 'utf8')) as Record<
+    string,
+    BuildChunk
+  >;
+  // Rollup shares this lazy host with module chunks, so its manifest key is a
+  // generated chunk ID. Read its declared name rather than guessing that key.
+  const host = Object.values(manifest).find((chunk) => chunk.name === 'ModuleEditorHost')!;
+  return {
+    manifest,
+    host,
+    editorFiles: [
+      host.file,
+      ...(host.css ?? []),
+      ...(host.dynamicImports ?? []).map((key) => manifest[key]!.file),
+    ],
+  };
+}
+async function startupCapture(page: Page, name: string) {
+  mkdirSync(startupEvidence, { recursive: true });
+  const geometry = await page.evaluate(() => ({
+    width: innerWidth,
+    height: innerHeight,
+    overflow: document.documentElement.scrollWidth > innerWidth,
+    mainCount: document.querySelectorAll('main').length,
+    nestedMain: document.querySelectorAll('main main').length,
+    controls: [...document.querySelectorAll('.page-delivery-actions button')].map((node) => {
+      const rect = node.getBoundingClientRect();
+      return {
+        label: node.textContent,
+        left: rect.left,
+        right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        height: rect.height,
+      };
+    }),
+  }));
+  expect(geometry.overflow).toBe(false);
+  expect(geometry.nestedMain).toBe(0);
+  expect(geometry.mainCount).toBe(1);
+  for (const control of geometry.controls) {
+    expect(control.height).toBeGreaterThanOrEqual(44);
+    expect(control.left).toBeGreaterThanOrEqual(0);
+    expect(control.right).toBeLessThanOrEqual(geometry.width);
+    expect(control.bottom).toBeLessThanOrEqual(geometry.height);
+  }
+  writeFileSync(`${startupEvidence}/${name}.json`, JSON.stringify(geometry, null, 2));
+  await page.screenshot({ path: `${startupEvidence}/${name}.png` });
+}
+async function anonymousStartup(page: Page) {
+  await fixture(page);
+  await page.route('**/api/auth/me', (route) => route.fulfill({ json: { authenticated: false } }));
+}
+async function holdStartupChunk(page: Page, chunk: string) {
+  let release!: () => void;
+  const gate = new Promise<void>((done) => {
+    release = done;
+  });
+  await page.route(`**/${chunk}`, async (route) => {
+    await gate;
+    await route.fallback();
+  });
+  return release;
+}
+async function invitationStartup(page: Page, acceptFailure = false) {
+  const accepted: unknown[] = [];
+  await page.route('**/api/classroom-teacher-invitations/*', (route) =>
+    route.fulfill({
+      json: {
+        invitation: {
+          classroomId: 'class-1',
+          classroomTitle: 'Учебный класс',
+          ownerDisplayName: 'Преподаватель',
+          status: 'pending',
+          expiresAt: '2030-01-01T00:00:00Z',
+        },
+      },
+    }),
+  );
+  await page.route('**/api/classroom-teacher-invitations/*/accept', (route) => {
+    accepted.push(route.request().postDataJSON());
+    return route.fulfill(
+      acceptFailure
+        ? {
+            status: 403,
+            json: { error: { code: 'forbidden', message: 'Проверьте возможности аккаунта' } },
+          }
+        : { json: { classroom: { id: 'class-1', title: 'Учебный класс', role: 'co_teacher' } } },
+    );
+  });
+  return accepted;
+}
+
+for (const actor of ['account', 'seat', 'teacher', 'author', 'admin'] as const) {
+  test(`S4 ordinary portal defers editor, public-entry and invitation code for ${actor}`, async ({
+    page,
+  }) => {
+    await fixture(page, {
+      seat: actor === 'seat',
+      educator: actor === 'teacher',
+      author: actor === 'author',
+      platformAdmin: actor === 'admin',
+    });
+    const { manifest, editorFiles } = startupChunks();
+    const requests: string[] = [];
+    page.on('request', (request) => requests.push(new URL(request.url()).pathname.slice(1)));
+    await page.goto('/#/home');
+    await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+    for (const route of ['projects', 'gallery', 'knowledge', 'learning', 'help', 'account']) {
+      await page.evaluate((hash) => {
+        window.location.hash = hash;
+      }, `/${route}`);
+      await expect(page.locator('main').first()).toBeVisible();
+      await expect(page.locator('main[aria-busy="true"]')).toHaveCount(0);
+    }
+    for (const file of [
+      ...editorFiles,
+      manifest['src/pages/PublicEntryPage.tsx']!.file,
+      manifest['src/pages/TeacherInvitePage.tsx']!.file,
+    ])
+      expect(requests).not.toContain(file);
+    expect(
+      await page
+        .locator('link[rel="stylesheet"]')
+        .evaluateAll((links) => links.map((node) => (node as HTMLLinkElement).href)),
+    ).not.toContain(`http://127.0.0.1:4612/${editorFiles[1]}`);
+    mkdirSync(startupEvidence, { recursive: true });
+    writeFileSync(
+      `${startupEvidence}/deferred-${actor}.json`,
+      JSON.stringify({ requests, excluded: editorFiles }, null, 2),
+    );
+  });
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  for (const kind of ['entry', 'home', 'invite'] as const) {
+    test(`S4 branded ${kind} chunk loading stays within ${width}px short screen`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 568 });
+      if (kind === 'home') await fixture(page, { educator: true });
+      else await anonymousStartup(page);
+      if (kind === 'invite') await invitationStartup(page);
+      const chunk =
+        startupChunks().manifest[
+          `src/pages/${kind === 'entry' ? 'PublicEntryPage' : kind === 'home' ? 'CreatorHomePage' : 'TeacherInvitePage'}.tsx`
+        ]!.file;
+      const release = await holdStartupChunk(page, chunk);
+      try {
+        await page.goto(kind === 'invite' ? '/#/teacher-invite/s4-token' : '/#/home', {
+          waitUntil: 'domcontentloaded',
+        });
+        const label =
+          kind === 'home'
+            ? 'Открываем главную'
+            : kind === 'invite'
+              ? 'Открываем приглашение'
+              : 'Открываем ASA Lab';
+        await expect(page.getByRole('status', { name: label, exact: true })).toBeVisible();
+        await expect(page.locator('.app-boot-brand img')).toHaveAttribute(
+          'src',
+          '/asa-lab-mark.svg',
+        );
+        await startupCapture(page, `${kind}-${width}-loading`);
+        release();
+        await expect(
+          page.getByRole('heading', {
+            name:
+              kind === 'home'
+                ? 'Главная'
+                : kind === 'invite'
+                  ? 'Вести класс вместе'
+                  : 'Идея есть? Сделай её.',
+            exact: true,
+          }),
+        ).toBeVisible();
+        if (kind === 'entry') {
+          await page.getByRole('button', { name: 'Войти и открыть галерею', exact: true }).click();
+          await expect(page).toHaveURL(/#\/sign-in$/);
+          await expect(page.locator('input[type="password"]')).toBeVisible();
+        }
+      } finally {
+        release();
+      }
+    });
+  }
+  test(`S4 public chunk failure preserves usable sign-in and reload retry at ${width}px`, async ({
+    page,
+  }) => {
+    await anonymousStartup(page);
+    await page.setViewportSize({ width, height: 568 });
+    const chunk = startupChunks().manifest['src/pages/PublicEntryPage.tsx']!.file;
+    let fail = true;
+    let attempts = 0;
+    await page.route(`**/${chunk}`, (route) => {
+      attempts += 1;
+      return fail ? route.fulfill({ status: 503, body: 'delivery unavailable' }) : route.fallback();
+    });
+    await page.goto('/#/home', { waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+    ).toBeVisible();
+    expect(attempts).toBe(2); // Original global recovery reloads once; its bounded second failure reaches our boundary.
+    await expect(page.getByRole('alert')).not.toContainText(chunk);
+    await startupCapture(page, `entry-${width}-error`);
+    fail = false;
+    await page.getByRole('button', { name: 'Попробовать снова', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Идея есть? Сделай её.', exact: true }),
+    ).toBeVisible();
+    fail = true;
+    // A same-hash goto is a same-document traversal and keeps a loaded module.
+    // Start a new document before failing delivery again to test the other exit.
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Войти', exact: true }).click();
+    await expect(page.locator('input[type="password"]')).toBeVisible();
+  });
+}
+
+for (const authenticated of [false, true]) {
+  test(`S4 invitation preserves native ${authenticated ? 'authenticated' : 'anonymous'} handlers`, async ({
+    page,
+  }) => {
+    if (authenticated) await fixture(page, { educator: true });
+    else await anonymousStartup(page);
+    const accepted = await invitationStartup(page);
+    await page.goto('/#/teacher-invite/s4-token');
+    await expect(
+      page.getByRole('heading', { name: 'Вести класс вместе', exact: true }),
+    ).toBeVisible();
+    if (authenticated) {
+      await page.getByRole('button', { name: 'Принять приглашение', exact: true }).click();
+      await expect(page).toHaveURL(/#\/classrooms\/class-1/);
+      expect(accepted).toEqual([{}]);
+    } else {
+      await page.getByRole('button', { name: 'Войти и продолжить', exact: true }).click();
+      await expect(page).toHaveURL(/#\/sign-in$/);
+      // Exercise the second original action from its actual invitation URL;
+      // anonymous auth-history restoration is not changed by this delivery slice.
+      await page.goto('/#/teacher-invite/s4-token');
+      await expect(
+        page.getByRole('heading', { name: 'Вести класс вместе', exact: true }),
+      ).toBeVisible();
+      await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
+      await expect(page).toHaveURL(/#\/sign-up$/);
+      expect(accepted).toEqual([]);
+    }
+  });
+  test(`S4 invitation delivery error retains ${authenticated ? 'class' : 'public'} exit`, async ({
+    page,
+  }) => {
+    if (authenticated) await fixture(page, { educator: true });
+    else await anonymousStartup(page);
+    await page.setViewportSize({ width: 320, height: 568 });
+    const chunk = startupChunks().manifest['src/pages/TeacherInvitePage.tsx']!.file;
+    await page.route(`**/${chunk}`, (route) =>
+      route.fulfill({ status: 503, body: 'delivery unavailable' }),
+    );
+    await page.goto('/#/teacher-invite/s4-token', { waitUntil: 'domcontentloaded' });
+    await expect(
+      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+    ).toBeVisible();
+    await startupCapture(page, `invite-${authenticated ? 'authenticated' : 'anonymous'}-320-error`);
+    await page
+      .getByRole('button', {
+        name: authenticated ? 'Вернуться к классам' : 'На главную',
+        exact: true,
+      })
+      .click();
+    await expect(page).toHaveURL(authenticated ? /#\/classrooms$/ : /#\/$/);
+    await expect(
+      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+    ).toHaveCount(0);
+  });
+}
+test('S4 Home delivery error preserves portal controls and My Projects exit', async ({ page }) => {
+  await fixture(page);
+  await page.setViewportSize({ width: 390, height: 568 });
+  const chunk = startupChunks().manifest['src/pages/CreatorHomePage.tsx']!.file;
+  await page.route(`**/${chunk}`, (route) =>
+    route.fulfill({ status: 503, body: 'delivery unavailable' }),
+  );
+  await page.goto('/#/home', { waitUntil: 'domcontentloaded' });
+  await expect(
+    page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+  ).toBeVisible();
+  await startupCapture(page, 'home-390-error');
+  await expect(page.getByRole('button', { name: /^Оповещения/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Мои проекты', exact: true }).click();
+  await expect(page).toHaveURL(/#\/projects$/);
+  await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible();
+});
+
+const startupProjectId = '30000000-0000-4000-8000-000000000004';
+for (const seat of [false, true])
+  for (const known of [false, true]) {
+    test(`S4 deferred host preserves ${seat ? 'Seat' : 'Account'} ${known ? 'known' : 'historical'} editor document and return route`, async ({
+      page,
+    }) => {
+      await fixture(page, { seat });
+      await page.setViewportSize({ width: seat ? 320 : 1024, height: 568 });
+      const reads: string[] = [];
+      const projectJson = {
+        targets: [
+          {
+            isStage: true,
+            name: 'S4 сохранённый документ',
+            blocks: {},
+            variables: {},
+            costumes: [],
+            sounds: [],
+          },
+        ],
+        monitors: [],
+        extensions: [],
+      };
+      await page.route(`**/api/projects/${startupProjectId}`, (route) => {
+        reads.push(route.request().url());
+        return route.fulfill({
+          json: {
+            project: { id: startupProjectId, moduleKey: 'blocks', title: 'Сохранённая работа' },
+            draft: { revision: 7, document: projectJson },
+            versions: [],
+            result: null,
+          },
+        });
+      });
+      await page.route(`**/api/projects/${startupProjectId}/blocks/runtime-session`, (route) =>
+        route.fulfill({
+          json: {
+            runtimeOrigin: 'http://127.0.0.1:4612',
+            runtimeToken: 'fixture.payload.signature',
+            expiresAt: Math.floor(Date.now() / 1000) + 3600,
+            draftRevision: 7,
+            projectJson,
+            assets: [],
+          },
+        }),
+      );
+      // GUI is a protocol fixture, not a second Scratch runtime. The compiled ASA
+      // host, Blocks adapter, actor props and real bridge execute unchanged.
+      await page.route('**/internal/blocks/?asaStatus=parent', (route) =>
+        route.fulfill({
+          contentType: 'text/html',
+          body: `<!doctype html><html><body><button id="fail">Ошибка среды</button><script>
+      let init;
+      window.addEventListener('message', (event) => {
+        if (event.source !== parent || event.origin !== location.origin || event.data.messageType !== 'ASA_BLOCKS_INIT') return;
+        init = event.data; window.fixtureInit = init;
+        parent.postMessage({ protocolVersion: init.protocolVersion, projectId: init.projectId, sessionNonce: init.sessionNonce, messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' }, location.origin);
+      });
+      document.getElementById('fail').onclick = () => parent.postMessage({ protocolVersion: init.protocolVersion, projectId: init.projectId, sessionNonce: init.sessionNonce, messageType: 'ASA_BLOCKS_FATAL', code: 'runtime_error', message: 'Fixture error' }, location.origin);
+    </script></body></html>`,
+        }),
+      );
+      const hostFile = startupChunks().host.file;
+      const release = await holdStartupChunk(page, hostFile);
+      try {
+        await page.goto(`/#/projects/${startupProjectId}${known ? '?module=blocks' : ''}`, {
+          waitUntil: 'domcontentloaded',
+        });
+        await expect(
+          page.getByRole('status', { name: 'Открываем проект', exact: true }),
+        ).toBeVisible();
+        await startupCapture(
+          page,
+          `editor-${seat ? 'seat' : 'account'}-${known ? 'known' : 'historical'}-loading`,
+        );
+        release();
+        await expect(page.locator('[data-asa-blocks-loading-overlay]')).toHaveAttribute(
+          'data-state',
+          'ready',
+        );
+        const frame = page.frameLocator('iframe[title="Scratch runtime"]');
+        const init = await frame
+          .locator('body')
+          .evaluate(
+            () => (window as unknown as { fixtureInit: Record<string, unknown> }).fixtureInit,
+          );
+        expect(init.projectId).toBe(startupProjectId);
+        expect(init.projectJson).toEqual(projectJson);
+        expect(init.draftRevision).toBe(7);
+        expect(init.recoveryPrincipalKey).toBe(
+          seat ? 'seat-1' : '20000000-0000-4000-8000-000000000001',
+        );
+        expect(reads).toHaveLength(known ? 0 : 1);
+        await expect(
+          page.getByRole('button', {
+            name: seat
+              ? 'Открыть аккаунт: Ученик с длинным именем'
+              : 'Открыть аккаунт: Проверочный профиль',
+            exact: true,
+          }),
+        ).toBeVisible();
+        await frame.getByRole('button', { name: 'Ошибка среды' }).click();
+        await expect(page.locator('[data-asa-blocks-loading-overlay]')).toHaveAttribute(
+          'data-state',
+          'error',
+        );
+        await page.getByRole('button', { name: 'К проектам', exact: true }).click();
+        await expect(page).toHaveURL(/#\/projects$/);
+        await expect(page.getByRole('heading', { name: 'Мои проекты', exact: true })).toBeVisible();
+        mkdirSync(startupEvidence, { recursive: true });
+        writeFileSync(
+          `${startupEvidence}/editor-${seat ? 'seat' : 'account'}-${known ? 'known' : 'historical'}-bridge.json`,
+          JSON.stringify(
+            { init: { ...init, runtimeToken: '[synthetic fixture]' }, reads },
+            null,
+            2,
+          ),
+        );
+      } finally {
+        release();
+      }
+    });
+  }
+for (const game of [false, true]) {
+  test(`S4 host chunk failure retains global recovery and ${game ? 'game' : 'project'} back action`, async ({
+    page,
+  }) => {
+    await fixture(page);
+    await page.setViewportSize({ width: 320, height: 568 });
+    const hostFile = startupChunks().host.file;
+    let requests = 0;
+    await page.route(`**/${hostFile}`, (route) => {
+      requests += 1;
+      return route.fulfill({ status: 503, body: 'delivery unavailable' });
+    });
+    await page.goto(`/#/projects/${startupProjectId}?module=${game ? 'chess' : 'blocks'}`, {
+      waitUntil: 'domcontentloaded',
+    });
+    await expect(
+      page.getByRole('heading', { name: 'Учебная среда не загрузилась', exact: true }),
+    ).toBeVisible();
+    expect(requests).toBe(2);
+    await expect(page.getByRole('alert')).toContainText(
+      'Не удалось загрузить рабочую среду. Проверьте соединение и попробуйте снова.',
+    );
+    await expect(page.getByRole('alert')).not.toContainText(hostFile);
+    await startupCapture(page, `editor-320-${game ? 'game' : 'project'}-chunk-error`);
+    await page.getByRole('button', { name: game ? 'К играм' : 'К проектам', exact: true }).click();
+    await expect(page).toHaveURL(game ? /#\/games$/ : /#\/projects$/);
+    await expect(
+      page.getByRole('heading', { name: 'Учебная среда не загрузилась', exact: true }),
+    ).toHaveCount(0);
+  });
+}

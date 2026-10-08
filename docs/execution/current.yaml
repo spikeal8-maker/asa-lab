@@ -110,20 +110,21 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: portal_inbox_s3_selected
+      status: in_review
+      checkpoint: portal_programme_technical_complete_owner_review_pending
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
         - document: PORTAL-SHELL-UX-ETZ
-          revision: '1.0'
+          revision: '1.1'
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
-      selected_slice: S3
+      status: technical_complete
+      selected_slice: null
       dependency_order: [S1, S2, S3, S4]
-      remaining_slices: [S3, S4]
+      remaining_slices: []
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -155,6 +156,51 @@ parallel_lanes:
           visual_evidence: reports/playwright/settings-ui/portal-avatar-s2-pending-font-repair-20261008
           owner_acceptance: pending
           deployment: not_requested
+        - id: S3
+          status: technical_accepted
+          integrated_sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
+          independent_review: approved
+          exact_head_general_run: 37708338360
+          exact_head_general_conclusion: success
+          focused_tests_passed: 629
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 196
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          visual_evidence: reports/playwright/portal-inbox-s3-20261008
+          owner_acceptance: pending
+          deployment: not_requested
+        - id: S4
+          status: technical_accepted
+          integrated_sha: 7744cebbe92f7b7155ac280d875fdc1abecb51a8
+          independent_review: approved
+          exact_head_general_run: 37712955083
+          exact_head_general_conclusion: success
+          focused_tests_passed: 631
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 228
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          entry_js_raw_bytes: 304561
+          entry_js_gzip_calculated_bytes: 90969
+          entry_js_budget_bytes: 307200
+          initial_css_raw_bytes: 144265
+          visual_evidence: reports/playwright/portal-startup-s4-boundary-20261008
+          independent_layout_evidence: reports/playwright/portal-startup-s4-independent-review-20261008
+          exact_ci_browser_log: reports/portal-startup-s4-exact-ci-browser-20261008.log
+          owner_acceptance: pending
+          deployment: not_requested
+      unverified:
+        - real_network_performance
+        - capacity_3000_users
+        - owner_acceptance
+        - deployment
+      load_protocol: docs/testing/PORTAL_3000_USER_LOAD_PROTOCOL.md
+      known_baseline_issues:
+        - id: anonymous_invitation_signin_browser_back
+          classification: independent_baseline_defect
+          status: unaddressed_outside_delivery_scope
+          evidence: reports/playwright/portal-startup-s4-boundary-20261008/anonymous-back-control.json
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -176,53 +222,18 @@ parallel_lanes:
       kind: observed_snapshot
       convergence_baseline_sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
       head_sha: null
-      observed_at: '2026-10-07T18:50:29Z'
+      observed_at: '2026-10-08T01:40:05Z'
       main:
         branch: main
-        sha: 78da596b3e27a5bd396d195f8d1348b7f8b8cb00
+        sha: 7744cebbe92f7b7155ac280d875fdc1abecb51a8
       observation_note: >-
-        Dated published main 78da596b3e27a5bd396d195f8d1348b7f8b8cb00 contains the
-        Settings usability candidate 08dd188b13dd3c6f53b9c45c80d287f0599dd249.
-        Independent challenge review approves that slice on 08dd188b and 4bad8a7f;
-        the three Access A navigation test label repairs in 6b93059e are independently
-        approved. The candidate has six actionable Account tabs with preserved
-        legacy links, compact privacy/invitation information inside related sections,
-        clearer independent presentation/time-zone actions, an explicit desktop
-        sidebar preference label and compact mobile headings/actions/status.
-        Historical product checks pass 53 focused unit tests and 76 canonical synthetic
-        browser scenarios, with 13 fresh Nx tasks in that final implementation cycle;
-        independent direct Vitest checks pass 31 tests without Nx cache.
-        Exact-head general workflow 37664842435 on 6b93059e passes governance, code,
-        PostgreSQL/RLS, focused Access A tests and all ten real browser scenarios,
-        but synthetic UI passes 75/76: the time-zone Save/Cancel pair wraps at 320px.
-        General workflow 37666597933 on f71e189d repeats a synthetic-step
-        failure with its other three jobs successful. This is category A in Settings;
-        no Electronics module repair is included. The selected bounded repair changes
-        only the mobile time-zone footer CSS and adds a wider-font regression plus
-        560/561 boundary coverage, preserving the original strict row assertion.
-        The regression reproduces a 54px wrap before the fix; afterward both buttons
-        are 126x44px with readable text and aligned rows in fresh/dirty/error states.
-        Initial repair-local pnpm e2e:settings-ui passes all 79 scenarios; Web lint/build and
-        formatting pass with NX_SKIP_NX_CACHE=true, seven fresh Nx tasks in the final
-        check and thirteen including the baseline build. No listening socket or
-        database connection is used by synthetic fixtures. Account/Seat are checked
-        at 1440/1024/390/320, including fresh, dirty, partial-save, error, reentry and
-        long-content states. New screenshots preserve previous owner previews.
-        Independent review approves unpublished fa5cf069. Controlled convergence
-        onto Admin Logs baseline 79fc1e3e preserves the CSS/test blobs; repeated Web
-        lint/typecheck/build passes with eight fresh Nx tasks and cache skipped.
-        Canonical pnpm e2e:settings-ui on composed 0cc72ef3 passes 87/87, comprising
-        79 Account and eight unrelated Admin Logs fixtures. A final Python-only
-        collector change in observed 78da596b does not touch Web, package/lockfile,
-        Settings fixtures/configuration or execution state; those tested blobs remain
-        identical. Only the unpublished repair is carried forward; final-SHA CI is pending.
-        Account and StudentSeat scopes, draft/history guards and presentation
-        persistence remain separate. Provider, handlers/effects, MAX JSX and
-        navigation resolver/guard logic are unchanged. API, SQL, authentication,
-        permissions, live database and deployment operations are excluded.
-        This dated observation precedes final composition/review of the CSS repair
-        and its exact-head general/real-browser CI; no full CI PASS is claimed.
-        Fetch main before writes; no deployment or owner acceptance is inferred.
+        Dated published main contains the final Portal shell delivery candidate.
+        This is a historical observation, not a live HEAD claim. Fetch main and
+        read exact-SHA GitHub CI before writes. Slice evidence is recorded in the
+        programme; it grants no owner acceptance or deployment authority.
+        Account and StudentSeat scopes, permissions, MAX, API, SQL and the working
+        database are unchanged. The load protocol is unexecuted; calculated bundle
+        compression does not establish network performance or 3000-user capacity.
     execution_lease:
       executor_id: codex-admin-auth-max
       holder: unassigned
@@ -309,7 +320,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: preserved_candidate_final_convergence_after_523
+      checkpoint: late_permanent_failure_publication_repair_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -336,34 +347,69 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
+      convergence_baseline_sha: 76386dade0ec4908fc9394d36997e4734f4b0c7c
       head_sha: null
-      observed_at: '2026-10-08T00:38:06Z'
+      observed_at: '2026-10-08T03:33:49Z'
       main:
         branch: main
-        sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
+        sha: 76386dade0ec4908fc9394d36997e4734f4b0c7c
       observation_note: >-
-        Dated main e0143d0f before this closeout/selection; fetch main
-        and read exact-head CI before writes. Preserve the unrelated Portal S3
-        changes and its exact-head CI. Independently APPROVED Issue 523
-        candidate 0ced518f integrates the identical two blobs at e99e08fb.
-        Exact integrated required focused job in 37706609957 and general
-        37706607927 are successful; the full focused workflow including browser is also
-        successful, but does not substitute for Issue 517 final exact-head gates. The existing 5000 ms guard, full coverage and physics stay
-        unchanged. One matched pair supports this runner allocation; it does
-        not prove every historical slow run or guarantee future runtime.
-        Resolve Issue 521 runtime dependency through this separately accepted
-        maintenance, without claiming its evidence-only report repaired code.
-        Select preserved Issue 517 candidate 2d4654f207f41e5d3712b3071af05e6d3830fa31 for one controlled final
-        convergence, exact focused/browser/general gates and NEW independent
-        review. Keep product blob ab292c4a and existing original causal evidence;
-        no repeat measurement or product change without a new proven defect.
-        Preserve Issue 516 and Issue 505 PR 506, other lanes and foreign work.
-        Historical independent Learning ordering failure remains unproved and
-        is not declared fixed by a green run. T3 is pending real school-device
-        evidence, with exact hardware/software/power/scenario/metrics recorded
-        at first measurement; no dev-PC or runner substitution. No full hygiene
-        checkpoint, owner acceptance, release or deployment is claimed.
+        Dated main 76386dad before this evidence/confirmation selection; fetch
+        main and read exact-head CI before writes. Its general 37720838189 is
+        successful; preserve Portal S4 and every other lane. Preserved Issue 517
+        candidate dd912b2f (original 2d4654f2, product blob ab292c4a) is not
+        accepted: exact general 37709690202 and required focused 1005 tests are
+        successful, but full browser 37709699955 failed the native catalog badge
+        at its unchanged 5000 ms assertion. NEW review REQUEST_CHANGES also
+        identifies a separate late-permanent subscriber path. ONE passive
+        diagnostic f6588bc0/run 37713526540 is independently APPROVED as evidence
+        only: all consumers receive error after setup and publish failure;
+        historical native cause remains unknown. Its source archive was verified
+        before execution; four temporary paths were restored byte-exact. See
+        evidence/ordinary-image-native-diagnostic-517-20261008.md. Select ONE
+        separate directed late/permanent consumer confirmation within this
+        card, preserving source and normal timings. Its e045a0ba/run37717165930
+        failed a diagnostic precondition: basic includes battery-holder-aa, so
+        the catalog consumer was not removed. HEAD=0, no new B/permanent path
+        or cessation evidence; product cause remains unknown. NEW independent
+        review REQUEST_CHANGES applies only to this fixture. Select a separate
+        bounded correction of the removal/remount filter with cheap production
+        category-mapping checks before ONE corrected diagnostic case. No
+        product repair until that path is proved and a separate repair cycle
+        is selected. Corrected fixture 2fb83112/run37719347863 proves removal
+        and two HEAD 404 headers 32.235 seconds apart, but stalls at the next
+        Response.finished await until the unchanged 300000ms deadline. HAR
+        records net::ERR_ABORTED; underlying completion cause is unproved.
+        No B/permanent/raw buffer/final document/cessation evidence. NEW
+        independent REQUEST_CHANGES applies only to this diagnostic protocol.
+        See evidence/ordinary-image-late-fixture-diagnostic-517-20261008.md.
+        Select one separate HEAD protocol correction: received status/headers
+        and positive passive actual retained-A permanent witness before B,
+        robust partial capture, no HEAD body-finished dependency. All timing
+        budgets and product semantics stay intact. New exact archive and
+        controller ACK precede ONE directed case; restore all temp paths to
+        dd912. Its bf6ef9e0/run37722090739 receives NEW independent evidence-only
+        APPROVE: actual retained A5 is active/permanent, new B38 trusted native
+        and React error returns at permanent guard with failed=false; no badge
+        after original 5000ms and full 65s. All seven full documents match and
+        A remains honest, buffer57/256. Ordinary retry12 and HEAD2 cease; an
+        extra plain GET exists with unknown initiator, not global zero-network.
+        See evidence/ordinary-image-late-consumer-proof-517-20261008.md.
+        Restoration 1b10954b whole tree equals dd912, clean. Select a separate
+        bounded product repair of failure publication in the ordinary image
+        hook, preserving permanent retry termination, lifecycle/resource/stale
+        semantics and prior early-event repair. Add meaningful production unit
+        and built-browser regressions with unchanged existing timeouts. Remove
+        all temporary diagnostics; final exact focused/full-browser/general
+        gates and NEW independent product review precede acceptance. Preserve
+        candidate dd912 and suspended 516/505; no solver or other asset repair.
+        No repeat native/full-suite run without a new hypothesis. Preserve
+        suspended Issue 516 and Issue 505 PR 506 and their acceptance blockers.
+        Issue 523 and Issue 521 remain technically closed, without repeated
+        measurements. Historical Learning ordering failure remains unproved.
+        T3 stays pending real school-device evidence; no dev-PC or runner
+        substitution. No full hygiene checkpoint, owner acceptance, release
+        or deployment is claimed.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned

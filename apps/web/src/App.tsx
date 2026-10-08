@@ -10,7 +10,10 @@ import { RegisterPage } from './pages/RegisterPage';
 import { OrganizationLoginPage } from './pages/OrganizationLoginPage';
 import { JoinClassPage } from './pages/JoinClassPage';
 import { studentSessionPayload } from './creator-portal/student-session';
-import { PublicEntryPage, type PublicIntent } from './pages/PublicEntryPage';
+import type { PublicIntent } from './pages/PublicEntryPage';
+const PublicEntryPage = lazy(() =>
+  import('./pages/PublicEntryPage').then((module) => ({ default: module.PublicEntryPage })),
+);
 const DashboardPage = lazy(() =>
   import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })),
 );
@@ -27,7 +30,9 @@ const ProjectsPage = lazy(() =>
 const ClassroomPage = lazy(() =>
   import('./pages/ClassroomPage').then((module) => ({ default: module.ClassroomPage })),
 );
-import { TeacherInvitePage } from './pages/TeacherInvitePage';
+const TeacherInvitePage = lazy(() =>
+  import('./pages/TeacherInvitePage').then((module) => ({ default: module.TeacherInvitePage })),
+);
 const AccountPage = lazy(() =>
   import('./pages/AccountPage').then((module) => ({ default: module.AccountPage })),
 );
@@ -37,7 +42,9 @@ const SeatAccountPage = lazy(() =>
 const SeatClassPage = lazy(() =>
   import('./pages/SeatClassPage').then((module) => ({ default: module.SeatClassPage })),
 );
-import { CreatorHomePage } from './pages/CreatorHomePage';
+const CreatorHomePage = lazy(() =>
+  import('./pages/CreatorHomePage').then((module) => ({ default: module.CreatorHomePage })),
+);
 const AttendedClassesPage = lazy(() =>
   import('./pages/AttendedClassesPage').then((module) => ({ default: module.AttendedClassesPage })),
 );
@@ -77,8 +84,18 @@ import { SchoolTimeProvider, deviceTimeZone } from './components/school-time';
 import { seatAvatar } from './creator-portal/default-avatars';
 import { QuickProjectCreation } from './creator-portal/QuickProjectCreation';
 import { AsaLabWordmark } from './brand/AsaLabBrand';
-import { ModuleEditorHost } from './modules/ModuleEditorHost';
+import { EditorErrorBoundary } from './modules/EditorErrorBoundary';
+const ModuleEditorHost = lazy(() =>
+  import('./modules/ModuleEditorHost')
+    .then((module) => ({ default: module.ModuleEditorHost }))
+    .catch(() => {
+      throw new Error(
+        'Не удалось загрузить рабочую среду. Проверьте соединение и попробуйте снова.',
+      );
+    }),
+);
 import { AppBootShell } from './components/AppBootShell';
+import { PageDeliveryBoundary } from './components/PageDeliveryBoundary';
 import { isMaxLaunchLocation, leaveMaxLaunch, readMaxInitData } from './max-auth';
 import { onSessionLoggedOut } from './session-fetch';
 import {
@@ -691,23 +708,34 @@ export function App(): JSX.Element {
 
     if (view.kind === 'teacher-invite' && publicView.kind === 'entry') {
       return (
-        <TeacherInvitePage
-          token={view.token}
-          authenticated={false}
-          onSignIn={() => {
-            setPendingTeacherInvite(view.token);
-            setPublicView({ kind: 'sign-in' });
-          }}
-          onRegister={() => {
-            setPendingTeacherInvite(view.token);
-            setPublicView({ kind: 'sign-up' });
-          }}
+        <PageDeliveryBoundary
+          key={view.token}
+          label="Открываем приглашение"
+          backLabel="На главную"
           onBack={() => {
             setPendingTeacherInvite(null);
             setView({ kind: 'home' });
             setPublicView({ kind: 'entry' });
           }}
-        />
+        >
+          <TeacherInvitePage
+            token={view.token}
+            authenticated={false}
+            onSignIn={() => {
+              setPendingTeacherInvite(view.token);
+              setPublicView({ kind: 'sign-in' });
+            }}
+            onRegister={() => {
+              setPendingTeacherInvite(view.token);
+              setPublicView({ kind: 'sign-up' });
+            }}
+            onBack={() => {
+              setPendingTeacherInvite(null);
+              setView({ kind: 'home' });
+              setPublicView({ kind: 'entry' });
+            }}
+          />
+        </PageDeliveryBoundary>
       );
     }
 
@@ -763,13 +791,19 @@ export function App(): JSX.Element {
       );
     }
     return (
-      <PublicEntryPage
-        onChoose={(intent: PublicIntent) => {
-          if (intent === 'sign-up') setPublicView({ kind: 'sign-up' });
-          else if (intent === 'class-code') setPublicView({ kind: 'join-class' });
-          else setPublicView({ kind: 'sign-in' });
-        }}
-      />
+      <PageDeliveryBoundary
+        label="Открываем ASA Lab"
+        backLabel="Войти"
+        onBack={() => setPublicView({ kind: 'sign-in' })}
+      >
+        <PublicEntryPage
+          onChoose={(intent: PublicIntent) => {
+            if (intent === 'sign-up') setPublicView({ kind: 'sign-up' });
+            else if (intent === 'class-code') setPublicView({ kind: 'join-class' });
+            else setPublicView({ kind: 'sign-in' });
+          }}
+        />
+      </PageDeliveryBoundary>
     );
   }
 
@@ -791,24 +825,35 @@ export function App(): JSX.Element {
   const canAuthor = portalSession.navigation.contentAuthoring === true && !isSeatLearner;
 
   if (view.kind === 'editor') {
+    const game = isGameModule(view.moduleKey) || view.returnTo.kind === 'games';
+    const onBack = (): void =>
+      setView(
+        isGameModule(view.moduleKey) &&
+          (view.returnTo.kind === 'home' || view.returnTo.kind === 'my-projects')
+          ? { kind: 'games' }
+          : view.returnTo,
+      );
     return (
       <SchoolTimeProvider timeZone={portalSession.timeZone}>
-        <ModuleEditorHost
-          projectId={view.projectId}
-          {...(view.moduleKey ? { moduleKey: view.moduleKey } : {})}
-          onBack={() =>
-            setView(
-              isGameModule(view.moduleKey) &&
-                (view.returnTo.kind === 'home' || view.returnTo.kind === 'my-projects')
-                ? { kind: 'games' }
-                : view.returnTo,
-            )
-          }
-          onModuleResolved={handleModuleResolved}
-          returnTo={view.returnTo}
-          seatLearner={isSeatLearner}
-          user={portalSession.user}
-        />
+        <EditorErrorBoundary
+          key={view.projectId}
+          onBack={onBack}
+          backLabel={game ? 'К играм' : 'К проектам'}
+        >
+          <Suspense
+            fallback={<AppBootShell label={game ? 'Открываем игру' : 'Открываем проект'} />}
+          >
+            <ModuleEditorHost
+              projectId={view.projectId}
+              {...(view.moduleKey ? { moduleKey: view.moduleKey } : {})}
+              onBack={onBack}
+              onModuleResolved={handleModuleResolved}
+              returnTo={view.returnTo}
+              seatLearner={isSeatLearner}
+              user={portalSession.user}
+            />
+          </Suspense>
+        </EditorErrorBoundary>
       </SchoolTimeProvider>
     );
   }
@@ -945,18 +990,30 @@ export function App(): JSX.Element {
             другой: разница только в том, чего у него нет — не в том, что ему
             подсунули другую страницу. Всё классное живёт в «Классах». */}
                 {view.kind === 'home' ? (
-                  <CreatorHomePage
-                    session={portalSession}
-                    onNavigate={navigate}
-                    onAllProjects={(module) =>
-                      setView({ kind: 'my-projects', ...(module ? { module } : {}) })
-                    }
-                    onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
-                    onOpenCourse={(courseId) => setView({ kind: 'knowledge-course', courseId })}
-                    onOpenProject={(projectId, moduleKey) =>
-                      setView({ kind: 'editor', projectId, moduleKey, returnTo: { kind: 'home' } })
-                    }
-                  />
+                  <PageDeliveryBoundary
+                    label="Открываем главную"
+                    backLabel="Мои проекты"
+                    onBack={() => setView({ kind: 'my-projects' })}
+                    embedded
+                  >
+                    <CreatorHomePage
+                      session={portalSession}
+                      onNavigate={navigate}
+                      onAllProjects={(module) =>
+                        setView({ kind: 'my-projects', ...(module ? { module } : {}) })
+                      }
+                      onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
+                      onOpenCourse={(courseId) => setView({ kind: 'knowledge-course', courseId })}
+                      onOpenProject={(projectId, moduleKey) =>
+                        setView({
+                          kind: 'editor',
+                          projectId,
+                          moduleKey,
+                          returnTo: { kind: 'home' },
+                        })
+                      }
+                    />
+                  </PageDeliveryBoundary>
                 ) : null}
                 {view.kind === 'my-projects' ? (
                   <MyProjectsPage
@@ -1167,26 +1224,37 @@ export function App(): JSX.Element {
                   </main>
                 ) : null}
                 {view.kind === 'teacher-invite' ? (
-                  <TeacherInvitePage
-                    token={view.token}
-                    authenticated
-                    onAccepted={(classroom) => {
-                      setPendingTeacherInvite(null);
-                      setView({
-                        kind: 'classroom',
-                        classroomId: classroom.id,
-                        classroomTitle: classroom.title,
-                      });
-                    }}
+                  <PageDeliveryBoundary
+                    key={view.token}
+                    label="Открываем приглашение"
+                    backLabel="Вернуться к классам"
                     onBack={() => {
                       setPendingTeacherInvite(null);
                       setView({ kind: 'classrooms' });
                     }}
-                    onOpenProfile={() => {
-                      setAccountPanel('profile');
-                      setView({ kind: 'account' });
-                    }}
-                  />
+                    embedded
+                  >
+                    <TeacherInvitePage
+                      token={view.token}
+                      authenticated
+                      onAccepted={(classroom) => {
+                        setPendingTeacherInvite(null);
+                        setView({
+                          kind: 'classroom',
+                          classroomId: classroom.id,
+                          classroomTitle: classroom.title,
+                        });
+                      }}
+                      onBack={() => {
+                        setPendingTeacherInvite(null);
+                        setView({ kind: 'classrooms' });
+                      }}
+                      onOpenProfile={() => {
+                        setAccountPanel('profile');
+                        setView({ kind: 'account' });
+                      }}
+                    />
+                  </PageDeliveryBoundary>
                 ) : null}
                 {/* Settings, in the same shell for both. A seat owns fewer of them:
             its picture, and not the name its teacher keeps the register by. */}
