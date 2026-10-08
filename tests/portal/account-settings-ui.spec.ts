@@ -240,18 +240,27 @@ describe('account settings composition', () => {
     expect(input('Отображаемое имя').value).toBe(profile.displayName);
   });
   it('requests the scoped shared chooser without saving or discarding a profile draft', async () => {
+    const profileSave = vi.spyOn(api, 'updateAccountProfile');
+    const avatarSave = vi.spyOn(api, 'updateAccountAvatar');
     await renderAccount();
     await fill(input('Отображаемое имя'), 'Несохранённое имя');
     const opened = vi.fn();
     window.addEventListener(OPEN_AVATAR_CHOOSER_EVENT, opened);
     try {
-      await click('Выбрать аватар');
+      const triggers = container.querySelectorAll<HTMLButtonElement>(
+        'button[aria-label="Выбрать аватар"]',
+      );
+      expect(triggers).toHaveLength(1);
+      expect(triggers[0]!.querySelector('img')).not.toBeNull();
+      await act(async () => triggers[0]!.click());
       expect(opened).toHaveBeenCalledOnce();
       expect((opened.mock.calls[0][0] as CustomEvent).detail).toEqual({
         kind: 'account',
         id: session.user.id,
       });
       expect(input('Отображаемое имя').value).toBe('Несохранённое имя');
+      expect(profileSave).not.toHaveBeenCalled();
+      expect(avatarSave).not.toHaveBeenCalled();
     } finally {
       window.removeEventListener(OPEN_AVATAR_CHOOSER_EVENT, opened);
     }
