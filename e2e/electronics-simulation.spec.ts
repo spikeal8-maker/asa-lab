@@ -4823,6 +4823,246 @@ test('MATH-6E seven-segment display uses physical pins and an arbitrary segment 
   failures.assertEmpty();
 });
 
+test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Instrument mirror readability');
+  const voltage = multimeterDcVoltageDocument(true);
+  const supply = regulatedPowerSupplyDocument();
+  const instrumentIds = ['meter', 'bench-supply', 'generator', 'scope'];
+  const base: SchematicDocument = {
+    ...voltage,
+    components: [
+      ...voltage.components.map((item) => ({
+        ...item,
+        position: item.id === 'source' ? { x: 30, y: 30 } : { x: 180, y: 30 },
+      })),
+      ...supply.components.map((item) =>
+        item.id === 'bench-supply'
+          ? {
+              ...item,
+              position: { x: 600, y: 30 },
+              state: true,
+              stateProperties: { ...item.stateProperties, outputEnabled: true },
+            }
+          : { ...item, position: { x: 810, y: 30 } },
+      ),
+      {
+        id: 'generator',
+        kind: 'source',
+        componentTypeId: 'signal-generator',
+        variantId: 'signal-generator',
+        name: 'Генератор',
+        position: { x: 80, y: 340 },
+        rotation: 0,
+        value: 1_000,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          waveform: 'sine',
+          frequencyHz: 1_000,
+          amplitudeVpp: 5,
+          dcOffsetVolt: -0.25,
+          outputEnabled: true,
+          outputResistanceOhm: 50,
+          maxContinuousCurrentAmp: 0.1,
+        },
+      },
+      {
+        id: 'scope',
+        kind: 'visual',
+        componentTypeId: 'oscilloscope',
+        variantId: 'oscilloscope',
+        name: 'Осциллограф',
+        position: { x: 520, y: 340 },
+        rotation: 0,
+        value: 1,
+        state: true,
+        pinIds: ['signal', 'ground'],
+        stateProperties: {
+          voltsPerDivision: 1,
+          timePerDivisionMs: 1,
+          triggerLevelVolt: 0,
+          displayEnabled: true,
+        },
+      },
+    ],
+    connections: [
+      ...voltage.connections,
+      ...supply.connections,
+      {
+        id: 'generator-signal',
+        from: { componentId: 'generator', terminal: 'signal' },
+        to: { componentId: 'scope', terminal: 'signal' },
+        color: '#e3212b',
+        vertices: [],
+      },
+      {
+        id: 'generator-ground',
+        from: { componentId: 'generator', terminal: 'ground' },
+        to: { componentId: 'scope', terminal: 'ground' },
+        color: '#2a3035',
+        vertices: [],
+      },
+    ],
+    viewport: { x: 0, y: 0, zoom: 0.7 },
+  };
+  const observations = [];
+  for (const rotation of [0]) {
+    for (const mirror of [
+      { name: 'none', mirrorX: false, mirrorY: false },
+      { name: 'x', mirrorX: true, mirrorY: false },
+      { name: 'y', mirrorX: false, mirrorY: true },
+      { name: 'xy', mirrorX: true, mirrorY: true },
+    ]) {
+      const document: SchematicDocument = {
+        ...base,
+        components: base.components.map((item) =>
+          instrumentIds.includes(item.id)
+            ? {
+                ...item,
+                rotation,
+                stateProperties: {
+                  ...item.stateProperties,
+                  mirrorX: mirror.mirrorX,
+                  mirrorY: mirror.mirrorY,
+                },
+              }
+            : item,
+        ),
+      };
+      await saveDocument(page, projectId, document);
+      await page.goto(`/#/home/${projectId}`);
+      await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      await page.getByRole('button', { name: 'Начать моделирование' }).click();
+      const meter = component(page, 'multimeter').getByTestId('multimeter-runtime-display');
+      await expect
+        .poll(async () => Number(await meter.getAttribute('data-measured-value')))
+        .toBeCloseTo(-2.999999865, 6);
+      await expect(meter.locator('.workbench-multimeter-reading')).toHaveText('-3.000 V');
+      await expect(
+        component(page, 'regulated-power-supply')
+          .locator('.workbench-regulated-supply-reading')
+          .first(),
+      ).toHaveText('5.00 V');
+      await expect(
+        component(page, 'oscilloscope').locator('.workbench-oscilloscope-trace'),
+      ).toHaveCount(1);
+      const readings = await page.evaluate(
+        ({ instrumentIds, mirror, connections }) => {
+          const readoutSelectors: Record<string, string> = {
+            meter: '.workbench-multimeter-reading',
+            'bench-supply': '.workbench-regulated-supply-reading',
+            generator: '.workbench-signal-generator-readings text',
+            scope: '.workbench-oscilloscope-status, .workbench-oscilloscope-scale',
+          };
+          const normalized = (x: number, y: number) => {
+            const length = Math.hypot(x, y);
+            if (!Number.isFinite(length) || length === 0) throw new Error('Invalid glyph matrix');
+            return [x / length, y / length];
+          };
+          const readouts = instrumentIds.flatMap((id) => {
+            const root = window.document.querySelector(
+              `[data-component-id="${id}"][data-testid="schematic-component"]`,
+            )!;
+            const body = root.querySelector<SVGGraphicsElement>('.workbench-part')!;
+            const bodyMatrix = body.getScreenCTM()!;
+            return [...root.querySelectorAll<SVGTextElement>(readoutSelectors[id]!)].map((text) => {
+              const matrix = text.getScreenCTM()!;
+              const bbox = text.getBBox();
+              const center = new DOMPoint(bbox.x + bbox.width / 2, bbox.y + bbox.height / 2);
+              const actualCenter = center.matrixTransform(matrix);
+              const expectedCenter = center.matrixTransform(text.ownerSVGElement!.getScreenCTM()!);
+              return {
+                id,
+                text: text.textContent,
+                bodyTransform: body.getAttribute('transform'),
+                glyphMatrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+                actualX: normalized(matrix.a, matrix.b),
+                actualY: normalized(matrix.c, matrix.d),
+                expectedX: normalized(
+                  bodyMatrix.a * (mirror.mirrorX ? -1 : 1),
+                  bodyMatrix.b * (mirror.mirrorX ? -1 : 1),
+                ),
+                expectedY: normalized(
+                  bodyMatrix.c * (mirror.mirrorY ? -1 : 1),
+                  bodyMatrix.d * (mirror.mirrorY ? -1 : 1),
+                ),
+                centerError: Math.hypot(
+                  actualCenter.x - expectedCenter.x,
+                  actualCenter.y - expectedCenter.y,
+                ),
+                bbox: { x: bbox.x, y: bbox.y, width: bbox.width, height: bbox.height },
+              };
+            });
+          });
+          const wires = connections.map((wire) => {
+            const path = window.document.querySelector<SVGPathElement>(
+              `[data-testid="schematic-wire"][data-wire-id="${wire.id}"]`,
+            )!;
+            return [wire.from, wire.to].map((endpoint, index) => {
+              const terminal = window.document.querySelector<SVGGraphicsElement>(
+                `[data-terminal-component-id="${endpoint.componentId}"][data-terminal-id="${endpoint.terminal}"]`,
+              )!;
+              const terminalPoint = new DOMPoint(0, 0).matrixTransform(terminal.getScreenCTM()!);
+              const point = path.getPointAtLength(index === 0 ? 0 : path.getTotalLength());
+              const wirePoint = new DOMPoint(point.x, point.y).matrixTransform(
+                path.getScreenCTM()!,
+              );
+              return Math.hypot(terminalPoint.x - wirePoint.x, terminalPoint.y - wirePoint.y);
+            });
+          });
+          return { readouts, wires };
+        },
+        { instrumentIds, mirror, connections: document.connections },
+      );
+      observations.push({ rotation, mirror, ...readings });
+      writeFileSync(
+        `${ARTIFACT_DIR}/instrument-mirror-525-matrices.json`,
+        JSON.stringify(observations, null, 2),
+      );
+      expect(readings.readouts).toHaveLength(8);
+      expect(readings.readouts.every((item) => Boolean(item.text?.trim()))).toBe(true);
+      expect(readings.wires.flat().every((error) => Number.isFinite(error) && error < 0.1)).toBe(
+        true,
+      );
+      if (rotation === 0 && mirror.name === 'x') {
+        for (const width of [1440, 390]) {
+          await page.setViewportSize({ width, height: 1000 });
+          await page.screenshot({
+            path: `${ARTIFACT_DIR}/instrument-mirror-525-${width}.png`,
+            fullPage: true,
+          });
+        }
+        await page.setViewportSize({ width: 1440, height: 1000 });
+      }
+      await page.getByRole('button', { name: 'Остановить моделирование' }).click();
+    }
+  }
+  writeFileSync(
+    `${ARTIFACT_DIR}/instrument-mirror-525-matrices.json`,
+    JSON.stringify(observations, null, 2),
+  );
+  for (const observation of observations) {
+    for (const reading of observation.readouts) {
+      for (let axis = 0; axis < 2; axis += 1) {
+        expect
+          .soft(reading.actualX[axis], `${reading.id}/${observation.mirror.name}/x${axis}`)
+          .toBeCloseTo(reading.expectedX[axis]!, 6);
+        expect
+          .soft(reading.actualY[axis], `${reading.id}/${observation.mirror.name}/y${axis}`)
+          .toBeCloseTo(reading.expectedY[axis]!, 6);
+      }
+      expect.soft(reading.centerError).toBeLessThan(0.1);
+    }
+  }
+  failures.assertEmpty();
+});
+
 test('MATH-10A1 multimeter measures signed DC voltage with a finite input', async ({ page }) => {
   test.setTimeout(120_000);
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
