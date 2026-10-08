@@ -110,9 +110,9 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: portal_owner_revision_r3_native_back_hint_repair_r3b_selected
-      owner_acceptance: changes_requested
+      status: in_review
+      checkpoint: portal_owner_revision_2_0_technical_verified_owner_review_pending
+      owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
@@ -121,98 +121,114 @@ parallel_lanes:
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: revise_avatar_shell_and_settings_to_compact_owner_requirements
-      status: in_progress
-      verified_revision: '1.1'
+      status: technical_accepted
+      verified_revision: '2.0'
       target_revision: '2.0'
-      selected_slice: R3B
+      final_source_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+      exact_final_general_run: 37785183646
+      exact_final_general_conclusion: success
+      owner_acceptance: pending
+      load_3000: not_run
+      selected_slice: null
       dependency_order: [R1, BR1, BR2, R2, R3, BR3, R3A, R3B]
-      remaining_slices: [R3, BR3, R3A, R3B]
+      remaining_slices: []
       deployment_authorized: false
       working_database_actions_authorized: false
-      verification_pending_slices:
+      verification_pending_slices: []
+      completed_slices:
         - id: R3
-          candidate_sha: 838b4d306852ac50dc0289152b7a459394ac44f9
-          independent_review: needs_fix_on_9bf5d9a6
-          independent_review_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
-          independent_review_evidence: reports/playwright/portal-compact-settings-r3-independent-20261008/REVIEW.md
-          independent_browser_passed: 75
-          independent_unit_tests_passed: 82
+          status: technical_accepted
+          product_sha: 838b4d306852ac50dc0289152b7a459394ac44f9
+          integrated_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_review: approved
+          independent_review_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_review_evidence: reports/playwright/portal-final-source-r3b-independent-20261008/REVIEW.md
+          independent_focused_browser_passed: 83
+          independent_affected_units_passed: 90
           independent_web_nx_tasks_executed_uncached: 8
-          lifecycle_repair_dependency: R3B
-          lifecycle_diagnostic_category: A
-          lifecycle_diagnostic_failed: 1
-          lifecycle_diagnostic_passed: 0
-          lifecycle_repair_scope: info_hint_hidden_anchor_navigation_dismissal_only
-          lifecycle_diagnosis: >-
-            Native Back from Notifications to Interface leaves a click-pinned
-            delivery tooltip portalled to BODY while its trigger is hidden.
-            Preserve the mounted notification draft form; dismiss the hint on
-            accepted navigation or anchor visibility loss. Add causal native
-            Account/Seat Back/Forward and hidden-anchor coverage without changing
-            writers, MAX, route guards or stationary-avatar hover intent.
-          observed_combined_general_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
-          observed_combined_general_run: 37775928234
-          observed_combined_general_conclusion: success
-          focused_browser_passed: 41
-          affected_unit_tests_passed: 82
-          web_nx_tasks_executed_uncached: 8
-          canonical_browser_passed: 278
-          canonical_browser_total: 278
-          canonical_browser_conclusion: success
-          acceptance_dependency: BR3
-          test_fixture_repair_dependency: R3A
-          observed_exact_ci_sha: a0f1c989bc60742a18711745e6cc35083e719701
-          observed_exact_ci_run: 37769873589
-          observed_exact_ci_conclusion: failure
-          observed_own_failure_category: A
-          observed_own_failure_count: 4
-          selected_repair_scope: notification_save_intrinsic_width_assertion_only
-          selected_repair_product_changes_authorized: false
-          repair_diagnosis: >-
-            Linux enlarged-font composition cases measure a natural Save button
-            at 364.8125px while the fixture assumes a fixed350px cap. The four
-            failures share this assertion. R3A must measure intrinsic content
-            width, parent fit and absence of stretch/clipping instead of raising
-            an arbitrary pixel cap or shrinking accessible enlarged text.
-          source_set_sha256: 836575f77ffaeaaf72a312a0585d1bd282b12af7582cb382b5864b9115449baa
-          author_evidence: reports/playwright/portal-compact-settings-r3-20261008
-          entry_js_raw_bytes: 296159
-          entry_js_gzip_calculated_bytes: 88389
+          independent_visual_png_inspected: 24
+          exact_head_general_run: 37785183646
+          exact_head_general_conclusion: success
+          focused_tests_passed: 652
+          full_tests_passed: 3157
+          separate_rls_tests_passed: 16
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 282
+          code_nx_tasks_executed_uncached: 96
+          data_build_nx_tasks_executed_uncached: 43
+          browser_build_nx_tasks_executed_uncached: 27
+          entry_js_raw_bytes: 296893
+          entry_js_gzip_calculated_bytes: 88656
           entry_js_budget_bytes: 307200
-          initial_js_css_graph_bytes: 438607
-          initial_canonical_browser_passed: 260
-          initial_canonical_browser_total: 277
-          initial_failure_category: A
-          owner_acceptance: changes_requested
+          initial_js_css_graph_bytes: 439341
+          resolved_acceptance_dependencies: [BR3, R3A, R3B]
+          original_independent_review: needs_fix
+          original_independent_review_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
+          original_independent_review_evidence: reports/playwright/portal-compact-settings-r3-independent-20261008/REVIEW.md
+          visual_evidence: reports/playwright/portal-compact-settings-r3-20261008
+          final_cause_author_evidence: reports/playwright/portal-r3b-hint-lifecycle-author-20261008
+          exact_ci_evidence: reports/playwright/portal-final-source-r3b-exact-ci-20261008
+          owner_acceptance: pending
           deployment: not_requested
+          load_3000: not_run
         - id: BR3
-          candidate_sha: c45a9f26ee00b893439b084f23cd789c7df49136
-          independent_review: approved_on_9bf5d9a6_pending_final_combined_sha
-          independent_review_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
-          independent_review_evidence: reports/playwright/portal-br3-home-recovery-independent-20261008/REVIEW.md
-          independent_browser_passed: 5
-          focused_browser_passed: 5
-          canonical_browser_passed: 278
-          canonical_browser_total: 278
-          canonical_browser_conclusion: success
-          web_nx_tasks_executed_uncached: 0
-          web_build: reused_verified_r3_compiled_build
-          source_sha256: 2691b13a18db3b2215dc52119678d163876758676571084443c2092e51b1b825
+          status: technical_accepted
+          integrated_sha: c45a9f26ee00b893439b084f23cd789c7df49136
+          verification_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          verification_basis: unchanged_home_barrier_native_exit_verified_at_final_source
+          independent_review: approved
+          independent_review_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_focused_browser_passed: 5
+          independent_web_nx_tasks_executed_uncached: 0
+          exact_verification_general_run: 37785183646
+          exact_verification_general_conclusion: success
+          combined_synthetic_ui_browser_passed: 282
           author_evidence: reports/playwright/portal-br3-home-recovery-author-20261008
+          independent_evidence: reports/playwright/portal-br3-final-source-r3b-independent-20261008/REVIEW.md
+          product_source_changed: false
           owner_acceptance: pending
           deployment: not_requested
         - id: R3A
-          candidate_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
-          independent_review: approved_on_9bf5d9a6_pending_final_combined_sha
-          independent_review_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
-          independent_review_evidence: reports/playwright/portal-compact-settings-r3-independent-20261008/REVIEW.md
+          status: technical_accepted
+          integrated_sha: 9bf5d9a603c15e9fdadf1da6246982ef7b7ef961
+          verification_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_review: approved
+          independent_review_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_evidence: reports/playwright/portal-final-source-r3b-independent-20261008/REVIEW.md
           composition_browser_passed: 16
-          linux_geometry_receipts_verified: 16
-          source_sha256: fd44b91974ed21e8969be8e1865769eb3d29690dec0d979aeb22d00e6ff35819
+          local_intrinsic_width_receipts_verified: 16
+          linux_intrinsic_width_receipts_verified: 16
+          exact_verification_general_run: 37785183646
+          exact_verification_general_conclusion: success
           author_evidence: reports/playwright/portal-r3a-intrinsic-width-author-20261008
+          product_source_changed: false
           owner_acceptance: pending
           deployment: not_requested
-      completed_slices:
+        - id: R3B
+          status: technical_accepted
+          integrated_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_review: approved
+          independent_review_sha: 40ff8fa649f3ccd8e70c4612cfcd75c92e179090
+          independent_evidence: reports/playwright/portal-final-source-r3b-independent-20261008/REVIEW.md
+          repair_scope: open_info_hint_owner_visibility_lifecycle_only
+          original_causal_browser_failed: 4
+          original_causal_new_units_failed: 7
+          new_lifecycle_unit_tests_passed: 8
+          native_account_seat_back_forward_passed: 4
+          local_after_back_receipts_verified: 4
+          linux_after_back_receipts_verified: 4
+          author_affected_units_passed: 90
+          author_focused_browser_passed: 83
+          author_web_nx_tasks_executed_uncached: 8
+          historical_originals_preserved: 7701
+          historical_originals_deleted: 0
+          exact_head_general_run: 37785183646
+          exact_head_general_conclusion: success
+          author_source_set_sha256: 13462fd31356707844cd959c46b92cc2b4271dac16bad7e302dcb112f66da7d5
+          author_evidence: reports/playwright/portal-r3b-hint-lifecycle-author-20261008
+          exact_ci_evidence: reports/playwright/portal-final-source-r3b-exact-ci-20261008
+          owner_acceptance: pending
+          deployment: not_requested
         - id: R2
           status: technical_accepted
           product_sha: 50301ced2cb52c29d5fc4831a0d0e2aa774aa015
@@ -1361,33 +1377,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: PORTAL-HOME-CAPTURE-BASELINE
-    kind: acceptance_blocker
-    lane: admin-auth
-    task_id: TASK-PORTAL-SHELL-UX-001
-    blocks: [technical_acceptance, owner_acceptance, release_claim, close_issue]
-    allows: [bounded_implementation, focused_verification, baseline_diagnosis]
-    reason: >-
-      Home fixture has independent focused5 approval and exact9bf all-green CI,
-      but combined R3 acceptance remains pending: independent review reproduced
-      a new pinned-hint navigation defect. R3B may repair only that lifecycle;
-      final-SHA combined review and full CI are still required before closure.
-      Runtime recovery, deployment, MAX and database remain unchanged.
-    evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/37761366272
-  - id: PORTAL-INFO-HINT-HIDDEN-NAVIGATION
-    kind: acceptance_blocker
-    lane: admin-auth
-    task_id: TASK-PORTAL-SHELL-UX-001
-    blocks: [technical_acceptance, owner_acceptance, release_claim, close_issue]
-    allows: [bounded_implementation, focused_verification, baseline_diagnosis]
-    reason: >-
-      Independent exact9bf diagnostic reproduces a click-pinned notification
-      tooltip remaining visible under BODY after native Back hides its owner
-      form. R3B must dismiss it on accepted navigation/anchor visibility loss,
-      retain notification drafts and all existing hint/actor/draft behavior,
-      and prove the cause closed with new exact-SHA independent review and CI.
-      Green9bf CI did not cover or close this reproduced lifecycle cause.
-    evidence: reports/playwright/portal-compact-settings-r3-independent-20261008/REVIEW.md
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
     lane: visual-programming
