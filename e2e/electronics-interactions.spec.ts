@@ -499,6 +499,152 @@ test.describe('interaction: document integrity', () => {
     await expect(part(page, 'pot')).toHaveAttribute('data-hole-bindings', '3');
   });
 
+  test('one board carries a rigid wired part once with or without joint selection', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    let fixture = addComponentToDocument(
+      documentFixture(),
+      'resistor-axial',
+      { x: 250, y: 300 },
+      'mounted-resistor',
+    ).document;
+    const board = fixture.components.find((item) => item.id === 'board')!;
+    const resistor = fixture.components.find((item) => item.id === 'mounted-resistor')!;
+    const hole = productionBreadboard('breadboard-medium')!.holes.find((item) => item.id === 'J8')!;
+    const target = componentPointPosition(board, board.position, hole)!;
+    const pin = terminalPosition(resistor, resistor.position, 'lead-1')!;
+    fixture = snapComponentToBreadboard(
+      moveComponentInDocument(fixture, 'mounted-resistor', {
+        x: resistor.position.x + target.x - pin.x,
+        y: resistor.position.y + target.y - pin.y,
+      }),
+      'mounted-resistor',
+    );
+    const bindings = structuredClone(
+      fixture.components.find((item) => item.id === 'mounted-resistor')!.holeBindings,
+    );
+    expect(Object.keys(bindings ?? {})).toHaveLength(2);
+    fixture = {
+      ...fixture,
+      connections: [
+        {
+          id: 'rigid-external-wire',
+          from: { componentId: 'mounted-resistor', terminal: 'lead-2' },
+          to: { componentId: 'led', terminal: 'anode' },
+          vertices: [],
+        },
+      ],
+    };
+    const original = structuredClone(fixture);
+    const { readDocument, readEditorDocument, errors } = await openEditor(page, fixture);
+    const wire = page.locator('[data-testid="schematic-wire"][data-wire-id="rigid-external-wire"]');
+    const selectedIds = () =>
+      page
+        .locator('[data-testid="schematic-component"].workbench-component-selected')
+        .evaluateAll((nodes) =>
+          nodes.map((node) => (node as SVGElement).dataset['componentId']).sort(),
+        );
+    const boardGrab = () =>
+      part(page, 'board')
+        .locator('.workbench-part')
+        .evaluate((element) => {
+          const box = element.getBoundingClientRect();
+          return { x: box.x + box.width * 0.7, y: box.y + 2 };
+        });
+    const assertTopology = (document: SchematicDocument) => {
+      expect(document.components.map((item) => item.id)).toEqual(
+        original.components.map((item) => item.id),
+      );
+      expect(document.connections).toEqual(original.connections);
+      expect(
+        document.components.find((item) => item.id === 'mounted-resistor')?.holeBindings,
+      ).toEqual(bindings);
+      const nets = buildNetlist(document);
+      const mountedLead1 = terminalKey('mounted-resistor', 'lead-1');
+      const mountedHole = terminalKey('board', bindings!['lead-1']!.holeId);
+      const mountedLead2 = terminalKey('mounted-resistor', 'lead-2');
+      const externalLed = terminalKey('led', 'anode');
+      for (const key of [mountedLead1, mountedHole, mountedLead2, externalLed]) {
+        expect(nets.nodeOf.has(key), `missing netlist terminal ${key}`).toBe(true);
+      }
+      expect(nets.nodeOf.get(mountedLead1)).toBe(nets.nodeOf.get(mountedHole));
+      expect(nets.nodeOf.get(mountedLead2)).toBe(nets.nodeOf.get(externalLed));
+    };
+    const dragBoard = async () => {
+      const before = structuredClone(await readEditorDocument());
+      const beforeBoard = before.components.find((item) => item.id === 'board')!.position;
+      const beforeResistor = before.components.find(
+        (item) => item.id === 'mounted-resistor',
+      )!.position;
+      const beforeLed = before.components.find((item) => item.id === 'led')!.position;
+      const beforeBox = (await part(page, 'mounted-resistor').boundingBox())!;
+      const grab = await boardGrab();
+      await page.mouse.move(grab.x, grab.y);
+      await page.mouse.down();
+      await page.mouse.move(grab.x + 60, grab.y + 30, { steps: 15 });
+      await frames(page);
+      const preview = (await part(page, 'mounted-resistor').boundingBox())!;
+      expect(preview.x - beforeBox.x).toBeCloseTo(60, 0);
+      expect(preview.y - beforeBox.y).toBeCloseTo(30, 0);
+      const previewWire = await wire.getAttribute('d');
+      expect(previewWire).toBeTruthy();
+      expect(await readEditorDocument()).toEqual(before);
+      await page.mouse.up();
+      await expect
+        .poll(
+          async () =>
+            (await readEditorDocument()).components.find((item) => item.id === 'board')?.position,
+        )
+        .not.toEqual(beforeBoard);
+      const moved = structuredClone(await readEditorDocument());
+      const movedBoard = moved.components.find((item) => item.id === 'board')!.position;
+      const movedResistor = moved.components.find(
+        (item) => item.id === 'mounted-resistor',
+      )!.position;
+      expect(movedResistor.x - beforeResistor.x).toBeCloseTo(movedBoard.x - beforeBoard.x, 3);
+      expect(movedResistor.y - beforeResistor.y).toBeCloseTo(movedBoard.y - beforeBoard.y, 3);
+      expect(moved.components.find((item) => item.id === 'led')!.position).toEqual(beforeLed);
+      expect((await part(page, 'mounted-resistor').boundingBox())!.x).toBeCloseTo(preview.x, 0);
+      const committedWire = await wire.getAttribute('d');
+      expect(committedWire).toBeTruthy();
+      expect(committedWire?.replace(/-?\d+(?:\.\d+)?/g, '#')).toBe(
+        previewWire?.replace(/-?\d+(?:\.\d+)?/g, '#'),
+      );
+      const pathNumbers = (path: string | null) =>
+        [...(path?.matchAll(/-?\d+(?:\.\d+)?/g) ?? [])].map((match) => Number(match[0]));
+      const committedPoints = pathNumbers(committedWire);
+      const previewPoints = pathNumbers(previewWire);
+      expect(committedPoints).toHaveLength(previewPoints.length);
+      committedPoints.forEach((value, index) =>
+        expect(value).toBeCloseTo(previewPoints[index]!, 2),
+      );
+      assertTopology(moved);
+      await page.getByRole('button', { name: /Отменить/ }).click();
+      await expect.poll(readEditorDocument).toEqual(before);
+      await page.getByRole('button', { name: /Повторить/ }).click();
+      await expect.poll(readEditorDocument).toEqual(moved);
+      return moved;
+    };
+
+    await dragBoard();
+    await page.mouse.click((await boardGrab()).x, (await boardGrab()).y);
+    await page.keyboard.down('Shift');
+    const partGrab = await pointOnBody(page, 'mounted-resistor');
+    await page.mouse.click(partGrab.x, partGrab.y);
+    await page.keyboard.up('Shift');
+    await expect.poll(selectedIds).toEqual(['board', 'mounted-resistor']);
+    const final = await dragBoard();
+    await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+    await expect.poll(readDocument).toEqual(final);
+    await page.reload();
+    await expect(part(page, 'mounted-resistor')).toHaveAttribute('data-hole-bindings', '2');
+    const reopened = await readEditorDocument();
+    expect(reopened).toEqual(final);
+    assertTopology(reopened);
+    expect(errors).toEqual([]);
+  });
+
   test('wire bend previews without writing and commits only once', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const doc = documentFixture();
