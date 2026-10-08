@@ -18,6 +18,9 @@
   flex-wrap: wrap;
   gap: 8px;
 }
+.admin-logs-actions button {
+  width: auto;
+}
 .admin-logs-filters {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -34,7 +37,7 @@
   box-sizing: border-box;
   width: 100%;
   min-width: 0;
-  min-height: 42px;
+  min-height: 44px;
   padding: 8px;
   border: 1px solid var(--border-color, #d1d5db);
   border-radius: 8px;
@@ -42,7 +45,17 @@
   color: inherit;
 }
 .admin-logs-search {
-  grid-column: span 2;
+  grid-column: span 3;
+}
+.admin-logs-filter-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.admin-logs-filter-actions button {
+  width: auto;
+  min-width: 160px;
 }
 .admin-logs-coverage {
   padding: 14px;
@@ -114,6 +127,9 @@
   .admin-logs-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .admin-logs-search {
+    grid-column: auto;
+  }
 }
 @media (max-width: 480px) {
   .admin-logs-filters {
@@ -125,6 +141,17 @@
   .admin-logs-actions {
     display: grid;
     width: 100%;
+  }
+  .admin-logs-actions button {
+    width: 100%;
+  }
+  .admin-logs-filter-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-logs-filter-actions button {
+    width: 100%;
+    min-width: 0;
   }
   .admin-log-entry {
     padding: 10px;

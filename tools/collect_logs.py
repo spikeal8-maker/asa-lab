@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import gzip
 import hashlib
 import io
 import json
@@ -14,10 +15,13 @@ import sys
 import tempfile
 import time
 import uuid
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 UTC = timezone.utc
+SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
+RETIRE_SECONDS = 180  # Longer than the API's 120-second export snapshot.
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
 
 
@@ -36,7 +40,10 @@ def clean(value):
     value = re.sub(r"(?i)(bearer\s+)[^\s\"',;]+", r"\1[redacted]", value)
     value = re.sub(r"(?i)(://[^\s:/]+:)[^\s@]+(@)", r"\1[redacted]\2", value)
     value = re.sub(r"(?i)((?:password|passwd|secret|cookie|authorization|student[_-]?code|(?:access[_-]?|refresh[_-]?|bot[_-]?)?token|api[_-]?key|signing[_-]?key)[\"']?\s*[=:]\s*[\"']?)[^\s\"',;&}]+", r"\1[redacted]", value)
-    value = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[email]", value)
+    # Start only at a token boundary: retrying at every character of a long
+    # identifier makes the usual email regex quadratic when there is no '@'.
+    if "@" in value:
+        value = re.sub(r"(?<![\w.+-])[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "[email]", value)
     return value
 
 
@@ -51,18 +58,57 @@ def timestamp(value: str, fallback: str) -> str:
         return fallback
 
 
+def file_timestamp(raw: str, fallback: str) -> tuple[str, str]:
+    """Only file adapters infer time; container/DB/Windows timestamps stay authoritative."""
+    match = re.match(r"(?:\[)?(\d{4}[-/]\d\d[-/]\d\d[T ]\d\d:\d\d:\d\d(?:[.,]\d+)?(?:Z|[+-]\d\d:\d\d)?)", raw)
+    value = match[1].replace("/", "-").replace(",", ".") if match else None
+    if value is None:
+        try:
+            payload = json.loads(raw)
+            if isinstance(payload, dict):
+                value = next((payload[k] for k in ("time", "timestamp", "ts") if k in payload), None)
+        except ValueError:
+            pass
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        try:
+            # Unix seconds and milliseconds are explicit, bounded formats.
+            value = datetime.fromtimestamp(value / 1000 if value >= 1e12 else value, UTC).isoformat()
+        except (ValueError, OverflowError, OSError):
+            value = None
+    parsed = timestamp(value, "") if isinstance(value, str) else ""
+    if parsed and datetime.fromisoformat(parsed.replace("Z", "+00:00")) > datetime.now(UTC) + timedelta(minutes=5): parsed = ""
+    return (parsed, "event") if parsed else (timestamp(fallback, fallback), "file_mtime")
+
+
+def log_level(payload, raw: str) -> str:
+    if isinstance(payload, dict):
+        value = payload.get("level", payload.get("severity"))
+        if isinstance(value, str):
+            levels = {"fatal": "error", "critical": "error", "panic": "error", "error": "error", "err": "error", "warn": "warn", "warning": "warn", "info": "info", "information": "info", "debug": "info", "trace": "info"}
+            if value.lower() in levels: return levels[value.lower()]
+        if type(value) is int and value in (10, 20, 30, 40, 50, 60):
+            return "error" if value >= 50 else "warn" if value == 40 else "info"
+        code = payload.get("status", payload.get("statusCode"))
+        if type(code) is int:
+            return "error" if code >= 500 else "warn" if code >= 400 else "info"
+        # Search human text, not keys, route names or exception-counter fields.
+        raw = str(payload.get("msg", payload.get("message", "")))
+    if re.search(r"\b(error|fatal|panic|exception|failed|failure|blocked)\b|\[E\]", raw, re.I): return "error"
+    if re.search(r"\b(warn|warning)\b|\[W\]", raw, re.I): return "warn"
+    return "info"
+
+
+def unpack_payload(value) -> str:
+    return gzip.decompress(value).decode("utf-8") if isinstance(value, bytes) else value
+
+
 def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -> dict:
     payload = None
     try:
         payload = json.loads(raw)
     except ValueError:
         pass
-    code = payload.get("status") if isinstance(payload, dict) else None
-    level = "error" if isinstance(code, int) and code >= 500 else "warn" if isinstance(code, int) and code >= 400 else "info"
-    if re.search(r"\b(error|fatal|panic|exception|failed|failure|blocked)\b|\[E\]", raw, re.I):
-        level = "error"
-    elif level == "info" and re.search(r"\b(warn|warning)\b|\[W\]", raw, re.I):
-        level = "warn"
+    level = log_level(payload, raw)
     module = "scratch" if source == "scratch" else "auth" if source == "auth" else "system"
     request_id = revision = None
     if isinstance(payload, dict):
@@ -82,13 +128,15 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     else:
         message = clean(raw)
     truncated = len(message) > 16384
-    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated)
+    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
 
 
 class Collector:
     def __init__(self, root: Path, config: dict):
         self.root = root.resolve()
         self.config = config
+        self.reader_format = 1
+        self.reader_formats = {}
         self.base = self.root / ".asa" / "diagnostics"
         self.store = self.base / "store"
         self.private = self.base / "private"
@@ -100,10 +148,67 @@ class Collector:
         self.db = sqlite3.connect(self.private / "index.sqlite", timeout=5)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript("""CREATE TABLE IF NOT EXISTS events(seq INTEGER PRIMARY KEY AUTOINCREMENT,id TEXT UNIQUE,time TEXT,source TEXT,payload TEXT,published INTEGER DEFAULT 0);
-            CREATE INDEX IF NOT EXISTS event_time ON events(time);
-            CREATE INDEX IF NOT EXISTS event_unpublished ON events(published,seq);
             CREATE TABLE IF NOT EXISTS state(key TEXT PRIMARY KEY,value TEXT);
             CREATE TABLE IF NOT EXISTS sources(name TEXT PRIMARY KEY,payload TEXT);""")
+        # Published JSONL is the durable payload. Keep only a binary digest and
+        # sequence in its duplicate index, rather than a second copy of every log.
+        try:
+            self.upgrade_index()
+        except Exception:
+            self.db.close()
+            raise
+
+    def upgrade_index(self):
+        if self.state("index:version") == 2: return
+        # Verify the actual immutable payload before discarding its private copy.
+        # A filename range alone is not proof that a record survived publication.
+        self.db.execute("CREATE TEMP TABLE verified_payloads(id BLOB PRIMARY KEY) WITHOUT ROWID")
+        for file in self.store.glob("seg-*.jsonl*"):
+            if not SEGMENT_PATTERN.fullmatch(file.name): continue
+            try:
+                opener = gzip.open if file.name.endswith(".gz") else open
+                with opener(file, "rb") as stream:
+                    raw = stream.read(4 * 1024 * 1024 + 1)
+                if len(raw) > 4 * 1024 * 1024 or not raw.endswith(b"\n"): raise ValueError("Invalid segment size or termination")
+                events = [json.loads(line) for line in raw.splitlines()]
+                if not events or any(not isinstance(e, dict) or not re.fullmatch(r"[a-f0-9]{64}", str(e.get("id", ""))) for e in events): raise ValueError("Invalid segment identity")
+                self.db.executemany("INSERT OR IGNORE INTO verified_payloads VALUES(?)", [(bytes.fromhex(e["id"]),) for e in events])
+            except (ValueError, OSError, EOFError) as exc:
+                self.db.rollback()
+                raise RuntimeError("Diagnostic segment verification failed; private payloads were preserved") from exc
+        self.db.commit()
+        old_sequence = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()
+        self.db.execute("BEGIN IMMEDIATE")
+        self.db.execute("CREATE TABLE events_upgrade(seq INTEGER PRIMARY KEY AUTOINCREMENT,id BLOB UNIQUE,time TEXT,source TEXT,payload BLOB,published INTEGER DEFAULT 0)")
+        after = 0
+        while True:
+            rows = self.db.execute("SELECT seq,id,time,source,payload,published FROM events WHERE seq>? ORDER BY seq LIMIT 1000", (after,)).fetchall()
+            if not rows: break
+            changes = []
+            for seq, identity, at, source, payload, published in rows:
+                digest = bytes.fromhex(identity) if isinstance(identity, str) else identity
+                covered = self.db.execute("SELECT 1 FROM verified_payloads WHERE id=?", (digest,)).fetchone()
+                if published and covered:
+                    changes.append((seq, digest, None, None, None, 1))
+                else:
+                    if payload is None: raise RuntimeError("Diagnostic index references a missing payload; restore its diagnostic snapshot")
+                    changes.append((seq, digest, at, source, gzip.compress(payload.encode(), compresslevel=1, mtime=0) if isinstance(payload, str) else payload, 0))
+            self.db.executemany("INSERT INTO events_upgrade VALUES(?,?,?,?,?,?)", changes)
+            after = rows[-1][0]
+        # Swap the complete compact index atomically, keeping the old payload
+        # table intact if conversion is interrupted. Avoid rewriting its large
+        # payload pages and secondary indexes one record at a time.
+        self.db.execute("DROP TABLE events")
+        self.db.execute("ALTER TABLE events_upgrade RENAME TO events")
+        if old_sequence:
+            new_sequence = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()
+            self.db.execute("DELETE FROM sqlite_sequence WHERE name='events'")
+            self.db.execute("INSERT INTO sqlite_sequence(name,seq) VALUES('events',?)", (max(old_sequence[0], new_sequence[0] if new_sequence else 0),))
+        self.db.execute("CREATE INDEX event_unpublished ON events(seq) WHERE published=0")
+        self.db.execute("DROP TABLE verified_payloads")
+        self.set_state("index:version", 2)
+        self.db.commit()
+        self.db.execute("VACUUM")
 
     def state(self, key: str, default=None):
         row = self.db.execute("SELECT value FROM state WHERE key=?", (key,)).fetchone()
@@ -121,7 +226,8 @@ class Collector:
     def add(self, event):
         cutoff = (datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         if event["time"] < cutoff: return
-        self.db.execute("INSERT OR IGNORE INTO events(id,time,source,payload) VALUES(?,?,?,?)", (event["id"], event["time"], event["source"], json.dumps(event, ensure_ascii=False, separators=(",", ":"))))
+        encoded = json.dumps(event, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        self.db.execute("INSERT OR IGNORE INTO events(id,time,source,payload) VALUES(?,?,?,?)", (bytes.fromhex(event["id"]), event["time"], event["source"], gzip.compress(encoded, compresslevel=1, mtime=0)))
 
     def command(self, args, *, sql=None, timeout=60, merge_errors=False):
         # Spool subprocess output instead of buffering an unbounded pipe in RAM.
@@ -157,6 +263,14 @@ class Collector:
                     raise RuntimeError("Mixed installation roots; collection stopped")
                 service = labels.get("com.docker.compose.service", "unknown")
                 cid = container["Id"]
+                if service == "api":
+                    if cid not in self.reader_formats:
+                        try:
+                            result = self.command(["docker", "exec", cid, "node", "-e", "process.stdout.write(String(require('/app/dist/admin-logs.worker.js').LOG_STORE_FORMAT || 1))"])
+                            self.reader_formats[cid] = int(result.decode().strip())
+                        except Exception:
+                            self.reader_formats[cid] = 1
+                    self.reader_format = self.reader_formats[cid]
                 created = datetime.fromisoformat(container["Created"].replace("Z", "+00:00"))
                 for recent in (True, False):
                     key = "docker:" + cid + (":recent" if recent else "")
@@ -239,13 +353,21 @@ class Collector:
                     if not file.is_file() or not re.search(r"\.log(?:\.|$)|\.out\.", file.name, re.I): continue
                     stat = file.stat()
                     if stat.st_mtime < cutoff: continue
-                    key = "file:" + str(file.resolve())
-                    previous = self.state(key, {"offset": 0, "head": "", "generation": uuid.uuid4().hex})
+                    # File IDs survive rename rotation on Windows and Linux. Copies
+                    # remain different occurrences; equal adjacent lines remain distinct.
+                    identity = f"{stat.st_dev}:{stat.st_ino}" if stat.st_ino else str(file.resolve())
+                    key = "file:v2:" + source + ":" + identity
+                    legacy = self.state("file:" + str(file.resolve()))
+                    previous = self.state(key, legacy or {"offset": 0, "head": "", "generation": uuid.uuid4().hex})
                     with file.open("rb") as stream:
-                        head = hashlib.sha256(stream.read(min(128, stat.st_size))).hexdigest()
-                        # An initially short, appended file has a changing head.
-                        offset = previous["offset"] if previous["offset"] <= stat.st_size and (previous.get("headSize", 128) < 128 or previous["head"] == head) else 0
-                        generation = previous.get("generation", uuid.uuid4().hex) if offset else uuid.uuid4().hex
+                        prefix = stream.read(min(128, stat.st_size))
+                        head = hashlib.sha256(prefix).hexdigest()
+                        # Compare the prior prefix length so both append and an
+                        # in-place rewrite of a short file are recognized.
+                        unchanged = previous["head"] == hashlib.sha256(prefix[:previous.get("headSize", 128)]).hexdigest()
+                        resumed = previous["offset"] <= stat.st_size and unchanged
+                        offset = previous["offset"] if resumed else 0
+                        generation = previous.get("generation", uuid.uuid4().hex) if resumed else uuid.uuid4().hex
                         stream.seek(offset)
                         data = stream.read(8 * 1024 * 1024)
                     consumed = data.rfind(b"\n") + 1
@@ -258,9 +380,10 @@ class Collector:
                     byte_offset = offset
                     for raw_line in data[:consumed].splitlines(keepends=True):
                         line = raw_line.decode("utf-8-sig", errors="replace").rstrip("\r\n")
-                        match = re.match(r"(?:\[)?(\d{4}[-/]\d\d[-/]\d\d[T ]\d\d:\d\d:\d\d(?:[.,]\d+)?(?:Z|[+-]\d\d:\d\d)?)", line)
-                        event_at = timestamp(match[1].replace("/", "-").replace(",", "."), at) if match else timestamp(at, at)
-                        self.add(normalize(source, line, event_at, generation + ":" + str(byte_offset), file.name))
+                        event_at, basis = file_timestamp(line, at)
+                        entry = normalize(source, line, event_at, generation + ":" + str(byte_offset), file.name)
+                        entry["timeBasis"] = basis
+                        self.add(entry)
                         byte_offset += len(raw_line)
                     self.set_state(key, {"offset": offset + consumed, "head": head, "headSize": min(128, stat.st_size), "generation": generation})
                 self.status(source, "ok")
@@ -284,7 +407,9 @@ class Collector:
                 source = "windows:" + event["channel"]
                 entry = normalize(source, event["message"], event["time"], str(event["recordId"]) + ":" + event["time"], event.get("provider", ""))
                 entry["level"] = "error" if event["level"] in (1, 2) else "warn" if event["level"] == 3 else "info"
-                entry["truncated"] = event.get("truncated", False)
+                entry["truncated"] = entry["truncated"] or event.get("truncated", False)
+                entry["windowsRecordId"] = str(event["recordId"])
+                if type(event.get("eventId")) is int: entry["windowsEventId"] = event["eventId"]
                 self.add(entry)
             for status in value.get("sources", []): self.status("windows:" + status["channel"], status["state"], status.get("detail", ""), status.get("collectedThrough"))
             self.set_state("windows:cursors", value.get("cursors", {}))
@@ -293,82 +418,211 @@ class Collector:
         except Exception as exc:
             self.status("windows", "error", str(exc))
 
+    @staticmethod
+    def host_segment(meta):
+        return all(s == "docker-desktop" or s.startswith("windows:") for s in meta["sources"])
+
+    @staticmethod
+    def source_ranges(events):
+        result = {}
+        for event in events:
+            span = result.setdefault(event["source"], {"first": event["time"], "last": event["time"]})
+            span["first"] = min(span["first"], event["time"])
+            span["last"] = max(span["last"], event["time"])
+        return result
+
+    def write_segment(self, name, events):
+        raw = ("\n".join(json.dumps(e, ensure_ascii=False, separators=(",", ":")) for e in events) + "\n").encode("utf-8")
+        compressed = self.reader_format >= 2
+        file = name + (".gz" if compressed else "")
+        data = gzip.compress(raw, compresslevel=6, mtime=0) if compressed else raw
+        temp = self.store / (file + ".tmp")
+        temp.write_bytes(data)
+        if os.name != "nt": os.chmod(temp, 0o640)
+        os.replace(temp, self.store / file)
+        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+
+    def upgrade_file_event(self, entry):
+        if entry.get("normalizationVersion") == 2: return entry
+        file_sources = {"updates", "docker-desktop", *(s["source"] for s in self.config.get("fileSources", []))}
+        if entry["source"] in file_sources:
+            entry["time"], entry["timeBasis"] = file_timestamp(entry["message"], entry["time"])
+        if not entry["source"].startswith("windows:") and not entry.get("truncated"):
+            try: payload = json.loads(entry["message"])
+            except ValueError: payload = None
+            entry["level"] = "error" if isinstance(payload, dict) and payload.get("kind") == "client_diagnostic" else log_level(payload, entry["message"])
+        entry["normalizationVersion"] = 2
+        return entry
+
+    def import_history(self, path: Path):
+        """Operator-only recovery from an existing, normalized ASA diagnostic ZIP."""
+        digest = hashlib.sha256()
+        with path.open("rb") as stream:
+            for block in iter(lambda: stream.read(1024 * 1024), b""): digest.update(block)
+        receipt = "history-import:" + digest.hexdigest()
+        if self.state(receipt): return self.state(receipt)
+        count = 0
+        with zipfile.ZipFile(path) as archive:
+            if sum(info.file_size for info in archive.infolist()) > 64 * 1024 ** 3: raise RuntimeError("Diagnostic archive exceeds import limit")
+            if archive.getinfo("manifest.json").file_size > 16 * 1024 ** 2: raise RuntimeError("Diagnostic archive manifest is too large")
+            manifest = json.loads(archive.read("manifest.json"))
+            if manifest.get("normalized") is not True: raise RuntimeError("Only normalized ASA diagnostic archives can be imported")
+            self.db.execute("SAVEPOINT history_import")
+            try:
+                for info in archive.infolist():
+                    if not re.fullmatch(r"records/part-\d{5}\.jsonl", info.filename): continue
+                    with archive.open(info) as stream:
+                        while True:
+                            line = stream.readline(256 * 1024 + 1)
+                            if not line: break
+                            if len(line) > 256 * 1024: raise RuntimeError("Diagnostic archive record is too large")
+                            entry = json.loads(line)
+                            if (not isinstance(entry, dict) or not re.fullmatch(r"[a-f0-9]{64}", str(entry.get("id", ""))) or
+                                entry.get("module") not in ("system", "portal", "scratch", "electronics", "auth") or entry.get("level") not in ("info", "warn", "error") or
+                                not isinstance(entry.get("source"), str) or not 1 <= len(entry["source"]) <= 200 or
+                                not isinstance(entry.get("message"), str) or len(entry["message"]) > 16384 or not timestamp(entry.get("time"), "")):
+                                raise RuntimeError("Diagnostic archive contains an invalid record")
+                            entry = {k: v for k, v in entry.items() if k in ("id", "time", "source", "module", "level", "message", "requestId", "revision", "origin", "truncated", "timeBasis", "windowsRecordId", "windowsEventId", "normalizationVersion")}
+                            entry["time"] = timestamp(entry["time"], "")
+                            entry["message"] = clean(entry["message"])
+                            entry["origin"] = clean(str(entry.get("origin", "")))[:500]
+                            entry["requestId"] = entry.get("requestId") if isinstance(entry.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", entry["requestId"]) else None
+                            entry["revision"] = entry.get("revision") if isinstance(entry.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", entry["revision"]) else None
+                            entry["truncated"] = entry.get("truncated") is True
+                            if entry.get("timeBasis") not in ("event", "file_mtime"): entry.pop("timeBasis", None)
+                            if re.fullmatch(r"\d{1,20}", str(entry.get("windowsRecordId", ""))): entry["windowsRecordId"] = str(entry["windowsRecordId"])
+                            else: entry.pop("windowsRecordId", None)
+                            if type(entry.get("windowsEventId")) is not int or not 0 <= entry["windowsEventId"] <= 65535: entry.pop("windowsEventId", None)
+                            if type(entry.get("normalizationVersion")) is not int or entry["normalizationVersion"] != 2: entry.pop("normalizationVersion", None)
+                            self.add(self.upgrade_file_event(entry))
+                            count += 1
+                if count != manifest.get("count"): raise RuntimeError("Diagnostic archive count does not match its manifest")
+                result = dict(count=count, importedAt=now(), archive=path.name)
+                self.set_state(receipt, result)
+                self.db.execute("RELEASE history_import"); self.db.commit()
+            except Exception:
+                self.db.execute("ROLLBACK TO history_import"); self.db.execute("RELEASE history_import")
+                raise
+        self.status("history-import", "ok", f"Восстановлена история из сохранённого архива: {count} записей")
+        return result
+
     def publish(self):
         self.db.commit()
+        retired = self.state("retired:segments", {})
+        catalog_path = self.store / "catalog.json"
+        # A previous crash may have committed retirement before replacing the
+        # catalog. Never remove a file still named by the published snapshot.
+        protected = {s["file"] for s in json.loads(catalog_path.read_text(encoding="utf-8"))["segments"]} if catalog_path.exists() else set()
+        for name, at in list(retired.items()):
+            if name in protected:
+                # A committed retirement is not proof that catalog replacement
+                # completed. Start the grace clock only after exclusion is observed.
+                retired[name] = None
+            elif at is None:
+                retired[name] = time.time()
+            elif SEGMENT_PATTERN.fullmatch(name) and time.time() - at >= RETIRE_SECONDS:
+                (self.store / name).unlink(missing_ok=True)
+                retired.pop(name)
+        previous = self.state("segments", {})
         while True:
             fetched = self.db.execute("SELECT seq,payload FROM events WHERE published=0 ORDER BY seq LIMIT 1000").fetchall()
-            rows = []
-            byte_count = 0
+            rows, events, byte_count = [], [], 0
             for row in fetched:
-                size = len(row[1].encode("utf-8")) + 1
-                if rows and byte_count + size > 1024 * 1024: break
-                rows.append(row); byte_count += size
+                text = unpack_payload(row[1])
+                event = json.loads(text)
+                size = len(text.encode("utf-8")) + 1
+                # Keep application logs separate from verbose host telemetry so
+                # physical-budget eviction cannot discard both in one segment.
+                if rows and (byte_count + size > 1024 * 1024 or self.host_segment({"sources": [events[0]["source"]]}) != self.host_segment({"sources": [event["source"]]})): break
+                rows.append(row); events.append(event); byte_count += size
             if not rows: break
             name = f"seg-{rows[0][0]:016d}-{rows[-1][0]:016d}.jsonl"
-            dest = self.store / name
-            data = "\n".join(row[1] for row in rows) + "\n"
-            temp = dest.with_suffix(".tmp")
-            temp.write_text(data, encoding="utf-8")
-            if os.name != "nt": os.chmod(temp, 0o640)
-            os.replace(temp, dest)
-            self.db.executemany("UPDATE events SET published=1 WHERE seq=?", [(r[0],) for r in rows])
+            written = self.write_segment(name, events)
+            previous[written["file"]] = written
+            self.db.executemany("UPDATE events SET published=1,payload=NULL,time=NULL,source=NULL WHERE seq=?", [(r[0],) for r in rows])
             self.db.commit()
         cutoff = (datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))).isoformat(timespec="milliseconds").replace("+00:00", "Z")
         segments = []
-        previous = self.state("segments", {})
-        for file in sorted(self.store.glob("seg-*.jsonl")):
-            meta = previous.get(file.name)
-            if not meta:
-                events = [json.loads(line) for line in file.read_text(encoding="utf-8").splitlines()]
-                meta = dict(file=file.name, bytes=file.stat().st_size, count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+        files = {p.name: p for p in self.store.glob("seg-*.jsonl*") if SEGMENT_PATTERN.fullmatch(p.name) and p.name not in retired}
+        for name, file in sorted(files.items()):
+            if not name.endswith(".gz") and name + ".gz" in files:
+                retired.setdefault(name, None)
+                continue
+            meta = previous.get(name)
+            if self.reader_format >= 2 and not name.endswith(".gz"):
+                events = [self.upgrade_file_event(json.loads(line)) for line in file.read_text(encoding="utf-8").splitlines()]
+                meta = self.write_segment(name, events)
+                retired.setdefault(name, None)
+            elif not meta or "sourceRanges" not in meta:
+                raw = file.read_bytes()
+                if name.endswith(".gz"): raw = gzip.decompress(raw)
+                events = [json.loads(line) for line in raw.decode("utf-8").splitlines()]
+                meta = dict(file=name, bytes=file.stat().st_size, rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+                if all(e.get("normalizationVersion") == 2 for e in events):
+                    meta.update(schema=2, sha256=hashlib.sha256(raw).hexdigest())
+            segments.append(meta)
+        # A crash after immutable file publication, before SQLite commit, can
+        # leave an older prefix of a subsequently replayed batch. Keep the
+        # superset only after verifying that all of the prefix IDs are present.
+        canonical = []
+        def bounds(meta): return tuple(map(int, meta["file"].split(".")[0].split("-")[1:]))
+        def identities(meta):
+            content = (self.store / meta["file"]).read_bytes()
+            if meta["file"].endswith(".gz"): content = gzip.decompress(content)
+            return {json.loads(line)["id"] for line in content.decode("utf-8").splitlines()}
+        for segment in sorted(segments, key=lambda s: (bounds(s)[0], -bounds(s)[1])):
+            if canonical and bounds(segment)[0] <= bounds(canonical[-1])[1]:
+                if bounds(segment)[1] > bounds(canonical[-1])[1] or not identities(segment).issubset(identities(canonical[-1])):
+                    raise RuntimeError("Overlapping diagnostic segments; originals were preserved")
+                retired.setdefault(segment["file"], None)
+            else: canonical.append(segment)
+        segments = []
+        for meta in canonical:
             if meta["last"] < cutoff:
-                file.unlink()
-                start_seq, end_seq = map(int, file.stem.split("-")[1:])
-                self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", (start_seq, end_seq))
-            else:
-                segments.append(meta)
+                retired.setdefault(meta["file"], None)
+                self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", bounds(meta))
+            else: segments.append(meta)
         total = sum(s["bytes"] for s in segments)
         limit = self.config.get("maxBytes", 1024 * 1024 * 1024)
         trimmed = False
-        while total > max(1024 * 1024, limit // 3) and segments:
-            oldest = min(segments, key=lambda s: s["last"])
-            (self.store / oldest["file"]).unlink()
-            segments.remove(oldest)
-            total -= oldest["bytes"]
-            start_seq, end_seq = map(int, Path(oldest["file"]).stem.split("-")[1:])
-            self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", (start_seq, end_seq))
+        evicted = self.state("evicted:sources", {})
+        def evict():
+            nonlocal total, trimmed
+            oldest = min(segments, key=lambda s: (0 if self.host_segment(s) else 1, s["last"]))
+            retired.setdefault(oldest["file"], None)
+            segments.remove(oldest); total -= oldest["bytes"]
+            first, last = map(int, oldest["file"].split(".")[0].split("-")[1:])
+            self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", (first, last))
+            for source in oldest["sources"]: evicted[source] = True
             trimmed = True
-        retained_first = min((s["first"] for s in segments), default=cutoff)
-        self.db.execute("DELETE FROM events WHERE time < ?", (max(cutoff, retained_first),))
-        self.set_state("segments", {s["file"]: s for s in segments})
+        while total > max(1024 * 1024, limit * 3 // 4) and segments: evict()
         self.db.commit()
-        # SQLite free pages are reused; a bound on retained segments is not claimed
-        # as an exact bound on total disk use (the private index is also counted).
         self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         if trimmed or self.state("vacuum:day") != datetime.now(UTC).date().isoformat():
             self.db.execute("VACUUM")
-            self.set_state("vacuum:day", datetime.now(UTC).date().isoformat())
-            self.db.commit()
-        sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
-        if trimmed: self.set_state("trimmedAt", now()); self.db.commit()
-        self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-        storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
-        while storage_bytes > limit and segments:
+            self.set_state("vacuum:day", datetime.now(UTC).date().isoformat()); self.db.commit()
+        def active_bytes():
+            # Retired immutable files protect in-flight 120-second readers;
+            # their temporary 180-second overlap is reported separately.
+            return sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file() and p.name not in retired)
+        while active_bytes() > limit and segments:
             target = total * 0.9
-            while segments and total > target:
-                oldest = min(segments, key=lambda s: s["last"])
-                (self.store / oldest["file"]).unlink()
-                segments.remove(oldest)
-                total -= oldest["bytes"]
-                start_seq, end_seq = map(int, Path(oldest["file"]).stem.split("-")[1:])
-                self.db.execute("DELETE FROM events WHERE seq BETWEEN ? AND ?", (start_seq, end_seq))
-            self.set_state("segments", {s["file"]: s for s in segments})
-            self.set_state("trimmedAt", now())
-            self.db.commit()
-            self.db.execute("VACUUM")
-            self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
-        catalog = dict(version=1, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, storageBytes=storage_bytes, trimmed=bool(self.state("trimmedAt")), sources=sources, segments=segments)
+            while segments and total > target: evict()
+            self.db.commit(); self.db.execute("VACUUM"); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
+        for source in sources:
+            event_source = source["source"].removesuffix(":recent")
+            matching = [s for s in segments if event_source in s["sources"]]
+            source["retainedFrom"] = min((s["sourceRanges"][event_source]["first"] for s in matching), default=None)
+            source["retainedTo"] = max((s["sourceRanges"][event_source]["last"] for s in matching), default=None)
+            source["trimmed"] = bool(evicted.get(event_source))
+        self.set_state("segments", {s["file"]: s for s in segments})
+        self.set_state("retired:segments", retired)
+        self.set_state("evicted:sources", evicted)
+        if trimmed: self.set_state("trimmedAt", now())
+        self.db.commit(); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+        storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
+        catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), sources=sources, segments=segments)
         temp = self.store / "catalog.tmp"
         temp.write_text(json.dumps(catalog, ensure_ascii=False), encoding="utf-8")
         if os.name != "nt": os.chmod(temp, 0o640)
@@ -386,6 +640,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parent.parent)
     parser.add_argument("--once", action="store_true")
+    parser.add_argument("--import-history", type=Path, help="Recover retained history from an existing normalized ASA log ZIP")
     args = parser.parse_args()
     config_path = args.root / ".asa" / "log-collector.json"
     config = json.loads(config_path.read_text(encoding="utf-8-sig")) if config_path.exists() else {}
@@ -394,10 +649,11 @@ def main():
     for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):
         if key in config and (type(config[key]) is not int or not lower <= config[key] <= upper):
             raise SystemExit(f"Invalid collector setting: {key}")
-    collector = Collector(args.root, config)
     script_version = Path(__file__).stat().st_mtime_ns
     # Only one collector may publish the installation's catalog at a time.
-    lock = collector.private / "collector.lock"
+    private = args.root / ".asa" / "diagnostics" / "private"
+    private.mkdir(parents=True, exist_ok=True)
+    lock = private / "collector.lock"
     stream = lock.open("a+b")
     try:
         if os.name == "nt":
@@ -409,6 +665,8 @@ def main():
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         raise SystemExit("Another log collector is already running")
+    collector = Collector(args.root, config)
+    if args.import_history: collector.import_history(args.import_history)
     while True:
         try:
             collector.cycle()

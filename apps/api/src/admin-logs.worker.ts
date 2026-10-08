@@ -1,9 +1,12 @@
 import { parentPort, workerData } from 'node:worker_threads';
-import { createReadStream } from 'node:fs';
 import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createInterface } from 'node:readline';
-import { deflateRawSync } from 'node:zlib';
+import { deflateRawSync, gunzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+
+export const LOG_STORE_FORMAT = 2;
+const MAX_SEGMENT_BYTES = 4 * 1024 * 1024;
+const MAX_EXPORT_BYTES = 3584 * 1024 * 1024;
 
 export interface LogEntry {
   readonly id: string;
@@ -16,6 +19,10 @@ export interface LogEntry {
   readonly revision: string | null;
   readonly origin: string;
   readonly truncated: boolean;
+  readonly timeBasis?: 'event' | 'file_mtime';
+  readonly windowsEventId?: number;
+  readonly windowsRecordId?: string;
+  readonly normalizationVersion?: number;
 }
 
 export interface LogFilter {
@@ -37,6 +44,9 @@ interface Segment {
   readonly sources: readonly string[];
   readonly modules: readonly string[];
   readonly levels: readonly string[];
+  readonly rawBytes?: number;
+  readonly schema?: number;
+  readonly sha256?: string;
 }
 
 export interface LogCatalog {
@@ -102,30 +112,61 @@ function matches(event: LogEntry, filter: LogFilter): boolean {
   );
 }
 
-async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry> {
-  if (!/^seg-\d{16}-\d{16}\.jsonl$/.test(segment.file)) throw new Error('LOG_SEGMENT_INVALID');
+function segmentRange(segment: Segment): readonly [bigint, bigint] {
+  const match = /^seg-(\d{16})-(\d{16})\.jsonl(?:\.gz)?$/.exec(segment.file);
+  if (!match || BigInt(match[1]!) > BigInt(match[2]!)) throw new Error('LOG_SEGMENT_INVALID');
+  return [BigInt(match[1]!), BigInt(match[2]!)];
+}
+
+async function segmentData(root: string, segment: Segment) {
+  segmentRange(segment);
   const path = join(root, segment.file);
-  const size = (await stat(path)).size;
-  if (size > 4 * 1024 * 1024 || size !== segment.bytes) throw new Error('LOG_SEGMENT_INVALID');
-  const stream = createReadStream(path, { encoding: 'utf8' });
-  const lines = createInterface({ input: stream, crlfDelay: Infinity });
   try {
-    for await (const line of lines) {
-      if (line.length > 65536) throw new Error('LOG_SEGMENT_INVALID');
-      const entry = JSON.parse(line) as LogEntry;
-      if (
-        !/^[a-f0-9]{64}$/.test(entry.id) ||
-        typeof entry.message !== 'string' ||
-        Array.from(entry.message).length > 16384 ||
-        !Number.isFinite(Date.parse(entry.time))
-      ) {
-        throw new Error('LOG_SEGMENT_INVALID');
-      }
-      yield entry;
-    }
-  } finally {
-    lines.close();
-    stream.destroy();
+    const size = (await stat(path)).size;
+    if (size > MAX_SEGMENT_BYTES || size !== segment.bytes) throw new Error('LOG_SEGMENT_INVALID');
+    const stored = await readFile(path);
+    const raw = segment.file.endsWith('.gz')
+      ? gunzipSync(stored, { maxOutputLength: MAX_SEGMENT_BYTES })
+      : stored;
+    if (segment.rawBytes !== undefined && raw.length !== segment.rawBytes)
+      throw new Error('LOG_SEGMENT_INVALID');
+    if (
+      segment.sha256 !== undefined &&
+      createHash('sha256').update(raw).digest('hex') !== segment.sha256
+    )
+      throw new Error('LOG_SEGMENT_INVALID');
+    return { raw, stored };
+  } catch (failure) {
+    if ((failure as NodeJS.ErrnoException).code === 'ENOENT')
+      throw new Error('LOG_SNAPSHOT_CHANGED', { cause: failure });
+    if (failure instanceof Error && failure.message.startsWith('LOG_')) throw failure;
+    throw new Error('LOG_SEGMENT_INVALID', { cause: failure });
+  }
+}
+
+function parseEntry(line: string): LogEntry {
+  if (line.length > 65536) throw new Error('LOG_SEGMENT_INVALID');
+  let entry: LogEntry;
+  try {
+    entry = JSON.parse(line) as LogEntry;
+  } catch {
+    throw new Error('LOG_SEGMENT_INVALID');
+  }
+  if (
+    !entry ||
+    !/^[a-f0-9]{64}$/.test(entry.id) ||
+    typeof entry.message !== 'string' ||
+    Array.from(entry.message).length > 16384 ||
+    !Number.isFinite(Date.parse(entry.time))
+  )
+    throw new Error('LOG_SEGMENT_INVALID');
+  return entry;
+}
+
+async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry> {
+  const { raw } = await segmentData(root, segment);
+  for (const line of raw.toString('utf8').split('\n')) {
+    if (line) yield parseEntry(line);
   }
 }
 
@@ -185,15 +226,19 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
   let batchBytes = 0;
   let part = 0;
   const write = async (data: Buffer): Promise<void> => {
-    if (offset + data.length > 64 * 1024 * 1024) throw new Error('LOG_EXPORT_TOO_LARGE');
+    if (offset + data.length > MAX_EXPORT_BYTES) throw new Error('LOG_EXPORT_TOO_LARGE');
     await handle.writeFile(data);
     offset += data.length;
   };
-  const add = async (name: string, text: string): Promise<void> => {
-    const raw = Buffer.from(text);
-    const compressed = deflateRawSync(raw);
+  const add = async (
+    name: string,
+    raw: Buffer,
+    prepared?: { deflate: Buffer; crc: number },
+  ): Promise<void> => {
+    if (central.length >= 65533) throw new Error('LOG_EXPORT_TOO_LARGE');
+    const compressed = prepared?.deflate ?? deflateRawSync(raw);
     const filename = Buffer.from(name);
-    const crc = crc32(raw);
+    const crc = prepared?.crc ?? crc32(raw);
     const local = Buffer.alloc(30);
     local.writeUInt32LE(0x04034b50);
     local.writeUInt16LE(20, 4);
@@ -221,40 +266,85 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
     await write(compressed);
   };
   try {
-    const seen = new Set<string>();
-    let scanned = 0;
-    for (const segment of candidates(catalog, { ...filter, before: null })) {
-      for await (const event of entries(root, segment)) {
-        scanned += 1;
-        if (scanned > 1000000) throw new Error('LOG_EXPORT_TOO_LARGE');
-        if (!matches(event, { ...filter, before: null }) || seen.has(event.id)) continue;
-        seen.add(event.id);
-        const line = `${JSON.stringify(event)}\n`;
-        batch += line;
-        const lineBytes = Buffer.byteLength(line);
-        batchBytes += lineBytes;
-        count += 1;
-        uncompressed += lineBytes;
-        if (uncompressed > 256 * 1024 * 1024) throw new Error('LOG_EXPORT_TOO_LARGE');
-        if (batchBytes >= 1024 * 1024) {
-          await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, batch);
-          batch = '';
-          batchBytes = 0;
+    const selected = candidates(catalog, { ...filter, before: null });
+    // The collector's unique binary digest index and disjoint sequence ranges
+    // guarantee occurrences are exported once, without an unbounded in-memory ID set.
+    const ranges = selected.map(segmentRange).sort((a, b) => (a[0] < b[0] ? -1 : 1));
+    for (let n = 1; n < ranges.length; n += 1) {
+      if (ranges[n]![0] <= ranges[n - 1]![1]) throw new Error('LOG_CATALOG_INVALID');
+    }
+    const flush = async (): Promise<void> => {
+      if (!batch) return;
+      await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, Buffer.from(batch));
+      batch = '';
+      batchBytes = 0;
+    };
+    for (const segment of selected) {
+      const whole =
+        segment.file.endsWith('.gz') &&
+        segment.schema === 2 &&
+        typeof segment.sha256 === 'string' &&
+        /^[a-f0-9]{64}$/.test(segment.sha256) &&
+        Number.isSafeInteger(segment.count) &&
+        segment.count > 0 &&
+        segment.first >= filter.from &&
+        segment.last <= filter.to &&
+        !filter.search &&
+        (!filter.source || segment.sources.every((s) => s === filter.source)) &&
+        (!filter.module || segment.modules.every((s) => s === filter.module)) &&
+        (!filter.level || segment.levels.every((s) => s === filter.level));
+      if (whole) {
+        const { raw, stored } = await segmentData(root, segment);
+        // Python's canonical gzip output is a single member with no optional header.
+        // Reuse its validated deflate stream inside ZIP: extracted files stay JSONL.
+        if (
+          stored[0] !== 31 ||
+          stored[1] !== 139 ||
+          stored[2] !== 8 ||
+          stored[3] !== 0 ||
+          stored.readUInt32LE(stored.length - 4) !== raw.length
+        )
+          throw new Error('LOG_SEGMENT_INVALID');
+        let lines = 0;
+        for (const byte of raw) if (byte === 10) lines += 1;
+        if (lines !== segment.count) throw new Error('LOG_SEGMENT_INVALID');
+        await flush();
+        await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, raw, {
+          deflate: stored.subarray(10, stored.length - 8),
+          crc: stored.readUInt32LE(stored.length - 8),
+        });
+        count += segment.count;
+        uncompressed += raw.length;
+      } else {
+        for await (const event of entries(root, segment)) {
+          if (!matches(event, { ...filter, before: null })) continue;
+          const line = `${JSON.stringify(event)}\n`;
+          const lineBytes = Buffer.byteLength(line);
+          batch += line;
+          batchBytes += lineBytes;
+          uncompressed += lineBytes;
+          count += 1;
+          if (batchBytes >= 1024 * 1024) await flush();
         }
       }
+      if (uncompressed > 64 * 1024 * 1024 * 1024) throw new Error('LOG_EXPORT_TOO_LARGE');
     }
-    if (batch) await add(`records/part-${String(++part).padStart(5, '0')}.jsonl`, batch);
+    await flush();
     await add(
       'manifest.json',
-      JSON.stringify(
-        { filter, count, catalog, exportedAt: new Date().toISOString(), normalized: true },
-        null,
-        2,
+      Buffer.from(
+        JSON.stringify(
+          { filter, count, catalog, exportedAt: new Date().toISOString(), normalized: true },
+          null,
+          2,
+        ),
       ),
     );
     await add(
       'README.txt',
-      'Журналы ASA Lab\nЗаписи JSONL: одна строка — одно событие. В каждой записи указаны время UTC, источник, модуль, уровень и сообщение.\nЭто сохранённые диагностические записи с очисткой известных секретов. Полнота, ограничения источников и фильтры указаны в manifest.json.\ntruncated=true означает ограничение длины исходного сообщения. Отсутствие событий не доказывает отсутствие сбоев.\n',
+      Buffer.from(
+        'Журналы ASA Lab\nЗаписи JSONL: одна строка — одно событие. В каждой записи указаны время UTC, источник, модуль, уровень и сообщение.\nЭто сохранённые диагностические записи с очисткой известных секретов. Полнота, ограничения источников и фильтры указаны в manifest.json.\ntruncated=true означает ограничение длины исходного сообщения. Отсутствие событий не доказывает отсутствие сбоев.\ntimeBasis=file_mtime означает время изменения файла, если собственное время события не распознано.\n',
+      ),
     );
     const centralOffset = offset;
     for (const dir of central) await write(dir);
@@ -285,5 +375,18 @@ if (parentPort) {
       : exportLogs(task.root, task.filter, task.output);
   void run
     .then((result) => parentPort!.postMessage({ ok: true, result }))
-    .catch(() => parentPort!.postMessage({ ok: false, error: 'LOG_READ_OR_EXPORT_FAILED' }));
+    .catch((failure: unknown) => {
+      const code = failure instanceof Error ? failure.message : '';
+      const allowed = [
+        'LOG_COLLECTOR_UNAVAILABLE',
+        'LOG_SEGMENT_INVALID',
+        'LOG_CATALOG_INVALID',
+        'LOG_EXPORT_TOO_LARGE',
+        'LOG_SNAPSHOT_CHANGED',
+      ];
+      parentPort!.postMessage({
+        ok: false,
+        error: allowed.includes(code) ? code : 'LOG_READ_OR_EXPORT_FAILED',
+      });
+    });
 }

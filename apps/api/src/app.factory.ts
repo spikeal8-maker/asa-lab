@@ -13,6 +13,7 @@ import pg from 'pg';
 import type { RuntimeMetrics } from '@asa-lab/observability';
 import { AppModule } from './app.module.js';
 import { TOKENS } from './tokens.js';
+import { runtimeBuildMetadata } from './build-metadata.js';
 import {
   isAllowedMutationOrigin,
   resolveAdditionalWebOrigins,
@@ -242,6 +243,7 @@ export async function createApiApp(
 
   const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
   const logRequests = shouldLogRequests(options.logRequests);
+  const logRevision = runtimeBuildMetadata().revision;
   const mutationAbuseProtection = new MutationAbuseProtection();
   const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
@@ -258,6 +260,7 @@ export async function createApiApp(
         `${JSON.stringify({
           time: new Date().toISOString(),
           requestId: request.id,
+          revision: logRevision,
           method: request.method,
           path,
           status: reply.statusCode,
