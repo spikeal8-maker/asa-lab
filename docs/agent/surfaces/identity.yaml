@@ -13,6 +13,9 @@ surfaces:
   implementation:
     files:
     - apps/web/src/components/PortalHeader.tsx
+    - apps/web/src/components/LearningInbox.tsx
+    - apps/web/src/components/learning-inbox-poller.ts
+    - apps/web/src/components/learning-notifications.css
     - apps/web/src/components/AvatarDialog.tsx
     - apps/web/src/components/use-avatar-module.ts
     - apps/web/public/vite-preload-recovery.js
@@ -38,6 +41,23 @@ surfaces:
   - TST-ASA-ACCESS-A-E2E-001
   - TST-ACCOUNT-SETTINGS-UI-001
   controls:
+  - id: CTRL-PORTAL-LEARNING-INBOX
+    label: Actor-scoped learning inbox preserves reads and polls only visible sessions with single-flight refresh
+    change_class: L1_UI_BEHAVIOR
+    files:
+    - apps/web/src/components/LearningInbox.tsx
+    - apps/web/src/components/learning-inbox-poller.ts
+    - apps/web/src/components/learning-notifications.css
+    - apps/web/src/components/PortalHeader.tsx
+    commands: []
+    invariants:
+    - IDA-AUTH-001
+    - IDA-CTX-001
+    - IDA-MAX-001
+    tests:
+    - TST-ASA-ACCESS-A-CORE-001
+    - TST-ASA-ACCESS-A-E2E-001
+    - TST-ACCOUNT-SETTINGS-UI-001
   - id: CTRL-PORTAL-NAVIGATION
     label: Public top navigation and scoped personal drawer preserve native links and settings guards
     change_class: L1_UI_BEHAVIOR

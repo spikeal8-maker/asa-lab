@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
+import type { LearningNotification } from '../apps/web/src/api';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
@@ -37,6 +38,7 @@ async function fixture(
     presentationSaveFailure?: boolean;
     presentationLongContent?: boolean;
     unreadCount?: number;
+    inboxItems?: LearningNotification[];
   } = {},
 ) {
   const mutations: string[] = [];
@@ -45,6 +47,10 @@ async function fixture(
   let educator = options.educator ?? false;
   let awardsFailure = options.awardsFailure ?? false;
   let notificationFailure = options.notificationFailure ?? false;
+  let inboxFailure = false;
+  let unreadCount = options.unreadCount ?? 0;
+  let inboxItems = options.inboxItems ?? [];
+  const notificationReads: { ids: string[] | null; asOf: string }[] = [];
   let presentationFailure = options.presentationFailure ?? false;
   let presentationSaveFailure = options.presentationSaveFailure ?? false;
   let presentationActorChanged = false;
@@ -233,11 +239,34 @@ async function fixture(
       });
     if (path === '/api/learning/notifications/classes/class-1/reminders')
       return reply({ revision: 0, due: true, overdue: true });
+    if (path === '/api/learning/notifications/read') {
+      const input = request.postDataJSON();
+      notificationReads.push(input);
+      let count = 0;
+      inboxItems = inboxItems.map((item) => {
+        if (item.readAt || (input.ids && !input.ids.includes(item.id))) return item;
+        count += 1;
+        return { ...item, readAt: input.asOf };
+      });
+      unreadCount = input.ids === null ? 0 : Math.max(0, unreadCount - count);
+      return reply({ count });
+    }
+    if (path === '/api/learning/notifications' && inboxFailure)
+      return reply(
+        {
+          error: {
+            code: 'unavailable',
+            message:
+              'Оповещения временно недоступны — повторите проверку позже или обратитесь к преподавателю.',
+          },
+        },
+        503,
+      );
     if (path === '/api/learning/notifications')
       return reply({
-        items: [],
+        items: inboxItems,
         snapshot: '2026-01-01T00:00:00Z',
-        unread: options.unreadCount ?? 0,
+        unread: unreadCount,
       });
     if (path === '/api/learning/notifications/preferences') {
       if (notificationFailure)
@@ -339,6 +368,13 @@ async function fixture(
   });
   return {
     mutations,
+    notificationReads,
+    setInboxUnread: (count: number) => {
+      unreadCount = count;
+    },
+    failInbox: (fail: boolean) => {
+      inboxFailure = fail;
+    },
     changePresentationActor: () => {
       presentationActorChanged = true;
     },
@@ -370,6 +406,409 @@ async function fixture(
 
 const panel = (page: Page, name: string) =>
   page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
+
+const inboxEvidence = 'reports/playwright/settings-ui/portal-inbox-s3-20261008';
+const inboxItems: LearningNotification[] = [
+  {
+    id: 'notification-1',
+    kind: 'NF01',
+    category: 'NC01',
+    classroomId: 'class-1',
+    classroomTitle: 'Класс с очень длинным названием для проверки учебных оповещений',
+    title: 'Назначена работа с длинным названием и подробным описанием учебной задачи',
+    assignmentId: 'assignment-1',
+    seatId: 'seat-1',
+    attemptId: null,
+    courseRunId: null,
+    joinRequestId: null,
+    recipientKind: 'learner',
+    createdAt: '2026-01-01T00:00:00Z',
+    readAt: null,
+  },
+  {
+    id: 'notification-2',
+    kind: 'NF06',
+    category: 'NC08',
+    classroomId: 'class-2',
+    classroomTitle: 'Другой учебный класс с длинным названием',
+    title: 'Заявка на доступ к классу',
+    assignmentId: null,
+    seatId: null,
+    attemptId: null,
+    courseRunId: null,
+    joinRequestId: 'join-1',
+    recipientKind: 'teacher',
+    createdAt: '2026-01-01T00:00:00Z',
+    readAt: null,
+  },
+];
+async function stressInboxFont(page: Page) {
+  await page.addStyleTag({
+    content: `
+    .learning-inbox-dialog, .learning-inbox-dialog *, .learning-inbox-badge {
+      font-family: monospace !important;
+      font-size: 16px !important;
+    }
+  `,
+  });
+}
+async function assertInboxGeometry(page: Page, width: number, stateName: string) {
+  const metrics = await page.locator('.learning-inbox-button').evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const badge = button.querySelector('.learning-inbox-badge')?.getBoundingClientRect();
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      badgeFits:
+        !badge ||
+        (badge.left >= rect.left &&
+          badge.right <= rect.right &&
+          badge.top >= rect.top &&
+          badge.bottom <= rect.bottom),
+    };
+  });
+  expect(metrics.width).toBe(44);
+  expect(metrics.height).toBe(44);
+  expect(metrics.badgeFits).toBe(true);
+  await assertShellGeometry(page, width);
+  writeFileSync(`${inboxEvidence}/${stateName}-${width}-button.json`, JSON.stringify(metrics));
+  return metrics;
+}
+async function assertInboxDialog(page: Page, width: number, name: string) {
+  const metrics = await page.locator('.learning-inbox-dialog').evaluate((dialog) => {
+    const rect = dialog.getBoundingClientRect();
+    const controls = [...dialog.querySelectorAll('button, select, a, input')]
+      .filter((element) => element.checkVisibility())
+      .map((element) => {
+        const r = element.getBoundingClientRect();
+        return {
+          label: element.textContent,
+          x: r.x,
+          y: r.y,
+          right: r.right,
+          width: r.width,
+          height: r.height,
+          isCheckbox: element instanceof HTMLInputElement && element.type === 'checkbox',
+        };
+      });
+    return {
+      x: rect.x,
+      right: rect.right,
+      y: rect.y,
+      bottom: rect.bottom,
+      width: rect.width,
+      clientWidth: dialog.clientWidth,
+      scrollWidth: dialog.scrollWidth,
+      controls,
+      pageOverflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(metrics.x).toBeGreaterThanOrEqual(0);
+  expect(metrics.right).toBeLessThanOrEqual(width);
+  expect(metrics.y).toBeGreaterThanOrEqual(0);
+  expect(metrics.bottom).toBeLessThanOrEqual(568);
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  expect(metrics.pageOverflow).toBe(false);
+  for (const control of metrics.controls) {
+    expect(control.x, control.label ?? '').toBeGreaterThanOrEqual(metrics.x);
+    expect(control.right, control.label ?? '').toBeLessThanOrEqual(metrics.right);
+    if (!control.isCheckbox) expect(control.height, control.label ?? '').toBeGreaterThanOrEqual(44);
+  }
+  writeFileSync(`${inboxEvidence}/${name}-${width}-dialog.json`, JSON.stringify(metrics));
+  await page.screenshot({ path: `${inboxEvidence}/${name}-${width}.png` });
+}
+
+for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1023])
+  test(`inbox keeps a 44px slot and bounded badge across counts and a future third link at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    const state = await fixture(page, {
+      educator: true,
+      author: true,
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/interface');
+    const trigger = page.locator('.learning-inbox-button');
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    await stressInboxFont(page);
+    const original = await assertInboxGeometry(page, width, 'empty');
+    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    for (const count of [1, 99, 100, 999999]) {
+      state.setInboxUnread(count);
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-label', `Оповещения: непрочитанных ${count}`);
+      await expect(trigger.locator('.learning-inbox-badge')).toHaveText(
+        count > 99 ? '99+' : String(count),
+      );
+      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      const next = await assertInboxGeometry(page, width, `count-${count}`);
+      expect(next.x).toBe(original.x);
+      expect(next.y).toBe(original.y);
+    }
+    await page.getByLabel('Разделы ASA Lab').evaluate((nav) => {
+      const third = nav.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
+      third.href = '/#/ai-fixture';
+      third.removeAttribute('aria-current');
+      third.querySelector('span')!.textContent = 'ИИ';
+      nav.append(third);
+    });
+    await assertInboxGeometry(page, width, 'third-link');
+    await page.screenshot({ path: `${inboxEvidence}/third-link-${width}.png` });
+    state.failInbox(true);
+    await trigger.click();
+    await expect(dialog.getByRole('alert')).toContainText('Оповещения временно недоступны');
+    await assertInboxDialog(page, width, 'error');
+    await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    const failed = await assertInboxGeometry(page, width, 'error');
+    expect(failed.x).toBe(original.x);
+    expect(failed.y).toBe(original.y);
+    expect(await trigger.innerText()).toBe('99+');
+  });
+
+for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
+  test(`inbox preserves ${role} filtering, snapshot reads, native destinations and preferences`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    for (const width of [1440, 1024, 390, 320]) {
+      const state = await fixture(page, {
+        seat: role === 'seat',
+        educator: role === 'teacher',
+        author: role === 'author',
+        platformAdmin: role === 'admin',
+        unreadCount: 2,
+        inboxItems,
+      });
+      await page.setViewportSize({ width, height: 568 });
+      // Each viewport gets a fresh fixture document, rather than a same-hash
+      // navigation that correctly preserves the previous inbox component.
+      await page.goto(`/?inbox-fixture=${role}-${width}#/account`);
+      const trigger = page.locator('.learning-inbox-button');
+      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 2');
+      await trigger.click();
+      await stressInboxFont(page);
+      const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(2);
+      await assertInboxDialog(page, width, `${role}-populated`);
+      await expect(dialog.getByRole('link', { name: 'Открыть' }).nth(0)).toHaveAttribute(
+        'href',
+        '#/learning?assignment=assignment-1&learner=seat-1',
+      );
+      await expect(dialog.getByRole('link', { name: 'Открыть' }).nth(1)).toHaveAttribute(
+        'href',
+        '#/classrooms/class-2?joinRequest=join-1',
+      );
+      await dialog.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('NC01');
+      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(1);
+      await dialog.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('class-2');
+      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(0);
+      await expect(dialog.getByRole('button', { name: 'Отметить прочитанными' })).toBeDisabled();
+      await dialog.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('');
+      await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 1');
+      expect(state.notificationReads).toEqual([
+        { ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' },
+      ]);
+      await dialog.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('');
+      await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+      expect(state.notificationReads[1]).toEqual({ ids: null, asOf: '2026-01-01T00:00:00Z' });
+      await dialog.getByRole('button', { name: 'Настроить', exact: true }).click();
+      await expect(dialog.getByLabel('Получать учебные оповещения')).toBeEnabled();
+      await expect(dialog.getByLabel('Работы на проверку', { exact: true })).toHaveCount(
+        role === 'teacher' ? 1 : 0,
+      );
+      await expect(dialog.getByLabel('Заявки и приглашения', { exact: true })).toHaveCount(
+        role === 'seat' ? 0 : 1,
+      );
+      await assertInboxDialog(page, width, `${role}-preferences`);
+      await dialog.getByLabel('Получать учебные оповещения').uncheck();
+      await dialog.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+      await expect(dialog.getByRole('status')).toHaveText('Настройки сохранены.');
+      expect(
+        state.mutations.filter((path) => path === '/api/learning/notifications/preferences'),
+      ).toHaveLength(1);
+      await dialog.getByRole('button', { name: 'К событиям', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await assertInboxGeometry(page, width, `${role}-saved`);
+    }
+  });
+
+test('compiled inbox pauses hidden polling and coalesces visible and focus activation', async ({
+  page,
+}) => {
+  mkdirSync(inboxEvidence, { recursive: true });
+  await fixture(page, { unreadCount: 7 });
+  await page.addInitScript(() => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibility,
+    });
+    window.addEventListener('inbox-fixture-visibility', (event) => {
+      visibility = (event as CustomEvent<DocumentVisibilityState>).detail;
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+  });
+  await page.clock.install({ time: new Date('2026-10-08T00:00:00Z') });
+  let requests = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/learning/notifications') requests += 1;
+  });
+  await page.goto('/#/account');
+  const trigger = page.locator('.learning-inbox-button');
+  await expect(trigger).toBeVisible();
+  await page.clock.fastForward(120000);
+  expect(requests).toBe(0);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('inbox-fixture-visibility', { detail: 'visible' }));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.clock.runFor(100);
+  await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 7');
+  expect(requests).toBe(1);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.runFor(200);
+  expect(requests).toBe(1);
+  await page.clock.runFor(18100);
+  await expect.poll(() => requests).toBe(2);
+  await page.evaluate(() =>
+    window.dispatchEvent(new CustomEvent('inbox-fixture-visibility', { detail: 'hidden' })),
+  );
+  await page.clock.fastForward(300000);
+  expect(requests).toBe(2);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('inbox-fixture-visibility', { detail: 'visible' }));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.clock.runFor(100);
+  await expect.poll(() => requests).toBe(3);
+  await trigger.click();
+  await expect.poll(() => requests).toBe(4);
+  writeFileSync(
+    `${inboxEvidence}/compiled-visibility.json`,
+    JSON.stringify({ requests, initiallyHiddenRequests: 0, hiddenPeriodicRequests: 0 }),
+  );
+});
+
+for (const seat of [false, true])
+  test(`compiled ${seat ? 'Seat' : 'Account'} read invalidates an older GET and preserves native read-one navigation`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    await fixture(page, { seat, unreadCount: 1, inboxItems: [inboxItems[0]] });
+    await page.goto('/#/account');
+    const trigger = page.locator('.learning-inbox-button');
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 1');
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    let getCount = 0,
+      activeGets = 0,
+      maximumGets = 0,
+      unread = 1;
+    const writes: { ids: string[] | null; asOf: string }[] = [];
+    await page.route('**/api/learning/notifications', async (route) => {
+      getCount += 1;
+      activeGets += 1;
+      maximumGets = Math.max(maximumGets, activeGets);
+      const old = getCount === 1;
+      if (old) await gate;
+      await route.fulfill({
+        json: {
+          snapshot: '2026-01-01T00:00:00Z',
+          unread: old ? 999 : unread,
+          items: [inboxItems[0]],
+        },
+      });
+      activeGets -= 1;
+    });
+    await page.route('**/api/learning/notifications/read', async (route) => {
+      writes.push(route.request().postDataJSON());
+      unread = 0;
+      await route.fulfill({ json: { count: 1 } });
+    });
+    await trigger.evaluate((button) => {
+      const seen: string[] = [];
+      (window as typeof window & { inboxFixtureSeen: string[] }).inboxFixtureSeen = seen;
+      new MutationObserver(() => seen.push(button.getAttribute('aria-label') ?? '')).observe(
+        button,
+        { attributes: true, attributeFilter: ['aria-label'] },
+      );
+    });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    await expect.poll(() => getCount).toBe(1);
+    await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+    await expect.poll(() => writes.length).toBe(1);
+    expect(getCount).toBe(1);
+    release();
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    expect(getCount).toBe(2);
+    expect(maximumGets).toBe(1);
+    expect(writes[0]).toEqual({ ids: null, asOf: '2026-01-01T00:00:00Z' });
+    expect(
+      await page.evaluate(
+        () => (window as typeof window & { inboxFixtureSeen: string[] }).inboxFixtureSeen,
+      ),
+    ).not.toContain('Оповещения: непрочитанных 999');
+    await dialog.getByRole('link', { name: 'Открыть', exact: true }).click();
+    await expect(page).toHaveURL(/#\/learning\?assignment=assignment-1&learner=seat-1$/);
+    await expect.poll(() => writes.length).toBe(2);
+    expect(writes[1]).toEqual({ ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' });
+    await expect(dialog).not.toBeVisible();
+    writeFileSync(
+      `${inboxEvidence}/compiled-read-race-${seat ? 'seat' : 'account'}.json`,
+      JSON.stringify({ getCount, maximumGets, writes }),
+    );
+  });
+
+for (const width of [1440, 1024, 390, 320])
+  test(`inbox loading, failure and explicit retry keep usable geometry at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    await fixture(page);
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    let requests = 0;
+    await page.route('**/api/learning/notifications', async (route) => {
+      requests += 1;
+      await gate;
+      await route.fulfill({
+        status: 503,
+        json: { error: { code: 'unavailable', message: 'Временно недоступно' } },
+      });
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account');
+    const trigger = page.locator('.learning-inbox-button');
+    await trigger.click();
+    await stressInboxFont(page);
+    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    await expect(dialog.getByText('Загружаем события…')).toBeVisible();
+    await assertInboxDialog(page, width, 'loading');
+    expect(requests).toBe(1);
+    release();
+    await expect(dialog.getByRole('alert')).toContainText('Временно недоступно');
+    await page.unroute('**/api/learning/notifications');
+    await dialog.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect(dialog.getByText('Нет доставленных оповещений в этом списке.')).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    await assertInboxDialog(page, width, 'retry-empty');
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeFocused();
+    await assertInboxGeometry(page, width, 'retry');
+  });
 
 async function traverse(page: Page, direction: 'back' | 'forward') {
   // Wait for the requested browser entry change before asserting restoration;

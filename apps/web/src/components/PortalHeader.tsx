@@ -421,6 +421,7 @@ export function PortalHeader({
         </nav>
         <QuickCreateMenu />
         <LearningInbox
+          key={avatarActorKey}
           seat={seatLearner}
           teaching={
             session.navigation.classroomManagement ||

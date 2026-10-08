@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api, type LearningNotification, type NotificationCategory } from '../api';
 import {
   LearningNotificationPreferences,
   notificationCategories,
 } from './LearningNotificationPreferences';
+import { BellGlyph } from './portal-icons';
+import { createLearningInboxPoller, type LearningInboxSnapshot } from './learning-inbox-poller';
 
 const titles: Record<string, string> = {
   NF01: 'Назначено обучение',
@@ -38,40 +40,53 @@ export function LearningInbox({
   teaching?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const [data, setData] = useState<{
-      snapshot: string;
-      unread: number;
-      items: LearningNotification[];
-    } | null>(null),
-    [error, setError] = useState<string | null>(null);
+  const poller = useRef<ReturnType<typeof createLearningInboxPoller> | null>(null);
+  const marking = useRef(false);
+  const [data, setData] = useState<LearningInboxSnapshot | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [readError, setReadError] = useState<string | null>(null);
+  const error = readError ?? loadError;
   const [settings, setSettings] = useState(false),
     [category, setCategory] = useState(''),
     [classId, setClassId] = useState(''),
     [busy, setBusy] = useState(false);
-  const refresh = useCallback(async () => {
-    const result = await api.learningNotifications();
-    if (result.ok) {
-      setData(result.data);
-      setError(null);
-    } else setError(result.error.message);
-  }, []);
   useEffect(() => {
-    void refresh();
-    const timer = window.setInterval(() => void refresh(), 15000);
-    const focus = () => void refresh();
-    window.addEventListener('focus', focus);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener('focus', focus);
-    };
-  }, [refresh]);
+    const current = createLearningInboxPoller({
+      load: api.learningNotifications,
+      onResult: (result) => {
+        if (result.ok) {
+          setData(result.data);
+          setLoadError(null);
+        } else setLoadError(result.error.message);
+      },
+    });
+    poller.current = current;
+    return () => current.stop();
+  }, []);
+  function refresh() {
+    setReadError(null);
+    void poller.current?.refresh();
+  }
   async function mark(ids: string[] | null) {
-    if (!data) return;
+    const current = poller.current;
+    if (!data || !current || marking.current) return;
+    marking.current = true;
+    const finished = current.beginMutation();
     setBusy(true);
-    const result = await api.readLearningNotifications(ids, data.snapshot);
-    setBusy(false);
-    if (!result.ok) setError(result.error.message);
-    else await refresh();
+    setReadError(null);
+    try {
+      const result = await api.readLearningNotifications(ids, data.snapshot);
+      if (!current.isActive()) return;
+      if (!result.ok) setReadError(result.error.message);
+    } catch {
+      if (current.isActive()) setReadError('Не удалось отметить оповещения прочитанными.');
+    } finally {
+      if (current.isActive()) {
+        marking.current = false;
+        setBusy(false);
+        finished();
+      }
+    }
   }
   const shown =
     data?.items.filter(
@@ -83,20 +98,21 @@ export function LearningInbox({
       <button
         className="btn-secondary learning-inbox-button"
         aria-label={`Оповещения${data ? `: непрочитанных ${data.unread}` : ''}`}
+        title="Оповещения"
         onClick={() => {
           setSettings(false);
           dialog.current?.showModal();
-          void refresh();
+          refresh();
         }}
       >
-        <span className="learning-inbox-label">Оповещения</span>
         <span className="learning-inbox-icon" aria-hidden="true">
-          🔔
+          <BellGlyph />
         </span>
         {data && data.unread > 0 ? (
-          <span className="learning-inbox-badge">{data.unread}</span>
+          <span className="learning-inbox-badge" aria-hidden="true">
+            {data.unread > 99 ? '99+' : data.unread}
+          </span>
         ) : null}
-        {error ? ' !' : ''}
       </button>
       <dialog ref={dialog} className="learning-inbox-dialog" aria-label="Учебные оповещения">
         <header>
@@ -111,12 +127,14 @@ export function LearningInbox({
         {settings ? (
           <LearningNotificationPreferences seat={seat} teaching={teaching} />
         ) : (
-          <>
+          <div className="learning-inbox-events">
             {error ? (
-              <p role="alert">
+              <div className="learning-inbox-error" role="alert">
                 {error}
-                <button onClick={() => void refresh()}>Повторить</button>
-              </p>
+                <button className="btn-secondary" onClick={refresh}>
+                  Повторить
+                </button>
+              </div>
             ) : null}
             {!data && !error ? <p>Загружаем события…</p> : null}
             <p>
@@ -181,7 +199,7 @@ export function LearningInbox({
                 </li>
               ))}
             </ul>
-          </>
+          </div>
         )}
       </dialog>
     </>
