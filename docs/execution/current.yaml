@@ -319,8 +319,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: blocked
-      checkpoint: late_publication_candidate_portal_general_ci_blocked
+      status: in_progress
+      checkpoint: verified_main_final_convergence_and_verification_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -347,42 +347,45 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 0a327ad75db5c2d81873d5e7355e34135b241249
+      convergence_baseline_sha: ecdb13d36ca51b447f34bd5e319ad642860ccef5
       head_sha: null
-      observed_at: '2026-10-08T04:18:11Z'
+      observed_at: '2026-10-08T04:48:20Z'
       main:
         branch: main
-        sha: 0a327ad75db5c2d81873d5e7355e34135b241249
+        sha: ecdb13d36ca51b447f34bd5e319ad642860ccef5
       observation_note: >-
-        Dated main 0a327ad7 before this blocker checkpoint; exact general
-        37723523140 is successful. Fetch main and read exact-head CI before
-        further writes; preserve Portal and every other lane. Candidate
-        cd405c23b1e165bbbbe18b1cddd7b3adf55c4def is immutable on branch
-        codex/electronics-517-late-publication-repair-20261008. It preserves
-        dd912 early-event repair and adds the separately proved late-permanent
-        failure publication fix. Exact Electronics 37724762306 succeeds:
-        focused1007 and browser117 of117, including native and late scenarios.
-        Required general37724260365 fails independent Portal pagination at
-        90000ms and pool.end at10000ms; Gov, Code and Data succeed. The same
-        Portal case passes40739ms in Data. CategoryC occurrence is outside
-        the candidate diff; underlying product versus DB/infra cause UNKNOWN.
-        NEW final independent review REQUEST_CHANGES solely for required
-        general failure, with no actionable Electronics source or evidence
-        fixture finding. See evidence/ordinary-image-517-final-review-20261008.md.
-        Executor and reviewer STOP. Do not modify the tested candidate, repair
-        Portal inside it or rerun identical code hoping for green. Route a
-        separate Portal diagnosis after explicit cross-chat messaging approval,
-        then obtain required successful verification and NEW bounded review
-        of the actual final integration candidate before integration or closure.
-        No passing late-case raw JSON/trace exists; actual exact-source strict
-        assertions and terminal browser PASS suffice for observable regression
-        per independent review, without reconstructing raw evidence. Historical
-        short native cause, plain background GET attribution and classroom
-        frequency remain unproved. Preserve suspended516 and505/PR506350d2442
-        and their acceptance blockers. Accepted523/521/513/509/510/500 stay
-        intact. T3 remains pending real student-device evidence, not dev-PC or
-        runner substitution. No full hygiene checkpoint, owner acceptance,
-        release or deployment is claimed. No next product slice is activated.
+        Fetch main and read exact-head CI before writes. Dated checked
+        main ecdb13d3 before this final verification selection;
+        exact general37727033749 is SUCCESS, all four jobs. Portal d2000451
+        is already its ancestor, with exact general37699858213 SUCCESS.
+        Issues523 and521 are already technically accepted and CLOSED:
+        integrated e99e08fb has exact general37706607927 and
+        Electronics37706609957 SUCCESS and NEW independent APPROVE.
+        Both523 candidate blobs are preserved; no new unpublished523 repair
+        exists to integrate. Do not repeat its repair or matched measurements.
+        Select one bounded final convergence/verification of preserved517
+        candidate cd405c23b1e165bbbbe18b1cddd7b3adf55c4def with this checked
+        canonical main and its new selection metadata. Preserve all five
+        candidate source/report/test blobs; no product, fixture, dependency,
+        workflow or other-module edits are authorized. Earlier exact
+        Electronics37724762306 passed focused1007 and full browser117.
+        Earlier general37724260365 failed independent Portal pagination;
+        underlying product versus DB/infra cause remains UNKNOWN despite
+        checked current-main PASS. Existing acceptance blocker stays until
+        required successful verification and NEW independent review of the
+        actual final candidate; do not use old approval or local tests as
+        acceptance. One normal convergence, exact final registered focused,
+        full browser and general verification on locked dependencies, then
+        executor STOP and NEW independent reviewer STOP. No repeat matched
+        measurements or diagnostic scenarios; no hopeful same-SHA reruns.
+        If current final CI has a new Portal failure, route only that concrete
+        saved failure to its executor under direct owner messaging authorization,
+        not a competing Electronics repair. Preserve516 and505/PR506350d2442
+        and their blockers until ordered dependency acceptance. Historical
+        native cause and school-device frequency remain unproved; passing raw
+        late-case attachment remains absent and explicitly qualified. T3 is
+        pending actual student-device evidence. No full hygiene checkpoint,
+        next product slice, owner acceptance, release or deployment is claimed.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
