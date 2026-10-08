@@ -428,40 +428,39 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-006
-      issue: 524
+      id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
+      issue: 525
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mandatory_hygiene_checkpoint_selected
+      checkpoint: instrument_mirror_readability_selected
       owner_acceptance: pending
     suspended_slices: []
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 5d57f0eb2e4dcc6ff49c3c1ab08ed9951d0eded8
+      convergence_baseline_sha: 7fea63d0f95e4ed5e668e2b11ea97fe5cf0fc65a
       head_sha: null
-      observed_at: '2026-10-08T07:30:53Z'
+      observed_at: '2026-10-08T08:48:48Z'
       main:
         branch: main
-        sha: 5d57f0eb2e4dcc6ff49c3c1ab08ed9951d0eded8
-      observation_note:
-        'Fetch main and read exact-head CI before writes. Dated main5d57 contains accepted
-        505/PR506 candidate2c76, normal mergea05 and postintegration verified74bc. NEW candidate and published-state
-        reviewers APPROVE/STOP; executor STOP. Required exact74bc General37740061575 and AFTER-integration
-        full37741016763 are terminalSUCCESS:1007focused/118browser,166+159freshNx/0hits. Only the original146-line
-        test was added; no product defect or repair was proved. Resolve only Electronics505 acceptance blocker
-        from this actual evidence and record controller technical closeout. Fixture persistence and absent
-        passing rawtrace are qualified; no owner/class acceptance, release or deployment. Foreign Portal7464
-        General37741353378 failed account-settings-ui Missingbutton and was separately owner-coordinated.
-        Portal5d57 contains only its test repair; General37743003531 was pending at this selection snapshot,
-        so latest-main readiness is not claimed. All Electronics/current/deps/workflows are unchanged by
-        those foreign commits. Select only documentation checkpoint524: hygiene is due since490;518 single-file
-        review was not full checkpoint. Use existing baseline/deltas and report seven required categories
-        without another broad capability inventory, product/asset/decomposition work or repeat measurements.
-        Preserve accepted500/513/509/516/517/523/521. T3 remains pending actual pupil device evidence;465/452
-        remain open for their remaining boundaries. No next product slice is selected.'
+        sha: 7fea63d0f95e4ed5e668e2b11ea97fe5cf0fc65a
+      observation_note: 'Fetch main and read actual exact-head CI before writes. Accepted hygiene524 candidate24ddd
+        received NEW independent APPROVE/STOP and exact General37749589533 terminalSUCCESS/all4:166freshNx/0hits.
+        The seven categories were independently recomputed; only checkpoint003 was added, baseline unchanged,
+        no product/test/artwork/generated/dependency/workflow change or removal. Source facts remain dated
+        reviewed32f;518 was only a one-file review. Original d216 GeneralFAIL was foreignPortalC, separately
+        corrected by verifiedb4General37747264717. Normal integration7fea preserved every3696 newer main271
+        tracked entry and foreign Portal recovery acceptance/R2 selection; actual published CP PASS. Integration7fea
+        General37751733517 was pending at this snapshot, not relabeled PASS from candidateCI. Full hygiene
+        checkpoint resolves the due interval before the next production slice. Preserve accepted 505/PR506/516/517/523/521/500/513/509
+        and prior observations; do not repeat them without a concrete cause. Select only525 existing runtime-readout
+        mirror readability from466: first prove the defect in the built production browser, then repair only
+        the causal existing rendering path. Ordinary-rotation horizontalness and other section7 choices remain
+        owner decisions. No next wire-layer/rim/mechanics cleanup is selected. T3 remains pending actual pupil-computer
+        evidence, not dev-PC/runner. Classroom/owner acceptance, release/deployment and programme452 completion
+        remain separate.'
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -482,6 +481,22 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-006
+        issue: 524
+        accepted_candidate_sha: 24ddd7c5f88cb1d672df448a5f9e9fa658b81772
+        integrated_sha: 7fea63d0f95e4ed5e668e2b11ea97fe5cf0fc65a
+        independent_review: approved
+        independent_review_sha: 24ddd7c5f88cb1d672df448a5f9e9fa658b81772
+        exact_candidate_general_run: 37749589533
+        exact_candidate_general_conclusion: success
+        nx_fresh_executions: 166
+        full_hygiene_checkpoint: true
+        production_source_changed: false
+        checkpoint_evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-003.yaml
+        status: maintenance_accepted
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
         issue: 505
         pr: 506
