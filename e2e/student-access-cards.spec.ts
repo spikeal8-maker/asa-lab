@@ -264,8 +264,8 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       const sheet = document.querySelector<HTMLElement>('.student-access-print-sheet')!;
       const cards = Array.from(sheet.querySelectorAll<HTMLElement>('.student-access-card'));
       for (const card of cards) {
-        card.querySelector<HTMLElement>('.student-access-card-copy > header span')!.textContent =
-          printedHost;
+        card.classList.toggle('is-long-site', printedHost.length > 22);
+        card.querySelector<HTMLElement>('.student-access-site')!.textContent = printedHost;
         card.querySelector<HTMLElement>('.student-access-instruction')!.textContent =
           `Вручную: ${printedHost} → код класса → код ученика.`;
       }
@@ -279,9 +279,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
           const bounds = card.getBoundingClientRect();
           const copy = card.querySelector<HTMLElement>('.student-access-card-copy')!;
           const instruction = card.querySelector<HTMLElement>('.student-access-instruction')!;
-          const hostLabel = card.querySelector<HTMLElement>(
-            '.student-access-card-copy > header span',
-          )!;
+          const hostLabel = card.querySelector<HTMLElement>('.student-access-site')!;
           const qr = card.querySelector<HTMLElement>('.class-qr')!;
           return {
             left: bounds.left,
@@ -344,8 +342,8 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   }
   await page.evaluate((host) => {
     for (const card of document.querySelectorAll<HTMLElement>('.student-access-card')) {
-      card.querySelector<HTMLElement>('.student-access-card-copy > header span')!.textContent =
-        host;
+      card.classList.toggle('is-long-site', host.length > 22);
+      card.querySelector<HTMLElement>('.student-access-site')!.textContent = host;
       card.querySelector<HTMLElement>('.student-access-instruction')!.textContent =
         `Вручную: ${host} → код класса → код ученика.`;
     }

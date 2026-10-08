@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
@@ -27,8 +27,14 @@ const seat = (index: number, label = `Ученик ${String(index + 1).padStart(
 async function fixture(
   page: Page,
   count = 0,
-  options: { account?: boolean; lostResponse?: boolean } = {},
+  options: {
+    account?: boolean;
+    lostResponse?: boolean;
+    origin?: string;
+    classroomTitle?: string;
+  } = {},
 ) {
+  const origin = options.origin ?? 'http://127.0.0.1:4612';
   const dist = resolve('apps/web/dist');
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
@@ -48,7 +54,7 @@ async function fixture(
   let loseResponse = options.lostResponse ?? false;
   const classroom = () => ({
     id: classId,
-    title: '7А Робототехника',
+    title: options.classroomTitle ?? '7А Робототехника',
     status: 'active',
     ageBand: 'mixed',
     topicKeys: [],
@@ -274,6 +280,10 @@ test.describe('Classroom owner fixes', () => {
       await expect(cards.getByTestId('class-join-qr')).toHaveCount(count);
       await page.emulateMedia({ media: 'print' });
       await page.evaluate(() => document.body.classList.add('student-access-printing'));
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
       const first = page.locator('.student-access-print-page').first();
       const geometry = await first.evaluate((element) => ({
         width: element.getBoundingClientRect().width,
@@ -369,4 +379,205 @@ test.describe('Classroom owner fixes', () => {
     expect(state.mutations[1]!.body).toEqual({ code: classCode });
     expect(state.errors).toEqual([]);
   });
+});
+
+test.describe('Printed access-card composition', () => {
+  const output = 'reports/playwright/settings-ui/card-composition';
+  const demoOrigin = 'https://demo.asa.test';
+  test('brand and class occupy opposite corners; name is centered above aligned codes', async ({
+    browser,
+  }) => {
+    mkdirSync(output, { recursive: true });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+      deviceScaleFactor: 3,
+    });
+    try {
+      const page = await context.newPage();
+      const state = await fixture(page, 20, { origin: demoOrigin });
+      await page.goto(`${demoOrigin}/#/classrooms/${classId}`);
+      await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+      await expect(page.getByTestId('class-join-qr')).toHaveCount(20);
+      await page.emulateMedia({ media: 'print' });
+      await page.evaluate(() => document.body.classList.add('student-access-printing'));
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      });
+      const card = page.locator('.student-access-card').first();
+      const result = await card.evaluate((element) => {
+        const box = (selector: string) =>
+          element.querySelector<HTMLElement>(selector)!.getBoundingClientRect();
+        const main = box('.student-access-card-copy');
+        const name = box('h3');
+        const identity = box('.student-access-identity');
+        const brand = box('.student-access-brand');
+        const group = box('.student-access-class');
+        const codes = box('.student-access-codes');
+        const labels = [...element.querySelectorAll('.student-access-codes span')].map(
+          (el) => el.getBoundingClientRect().top,
+        );
+        return {
+          nameCenterError: Math.abs((name.left + name.right - main.left - main.right) / 2),
+          identityCenterError: Math.abs(
+            (identity.left + identity.right - main.left - main.right) / 2,
+          ),
+          nameBelowHeader: name.top >= Math.max(brand.bottom, group.bottom),
+          nameAboveCodes: name.bottom <= codes.top,
+          brandLeftOfClass: brand.right < group.left,
+          labelsAligned: Math.abs(labels[0]! - labels[1]!) <= 1,
+          nameFont: parseFloat(getComputedStyle(element.querySelector('h3')!).fontSize),
+          studentCodeFont: parseFloat(
+            getComputedStyle(element.querySelector('.student-access-student-code code')!).fontSize,
+          ),
+          classCodeFont: parseFloat(
+            getComputedStyle(element.querySelector('.student-access-codes code')!).fontSize,
+          ),
+          labelFont: parseFloat(
+            getComputedStyle(element.querySelector('.student-access-codes span')!).fontSize,
+          ),
+        };
+      });
+      expect(result.nameCenterError).toBeLessThanOrEqual(1);
+      expect(result.identityCenterError).toBeLessThanOrEqual(1);
+      expect(result.nameBelowHeader).toBe(true);
+      expect(result.nameAboveCodes).toBe(true);
+      expect(result.brandLeftOfClass).toBe(true);
+      expect(result.labelsAligned).toBe(true);
+      expect(result.nameFont).toBeGreaterThanOrEqual(18.6);
+      expect(result.studentCodeFont).toBeGreaterThanOrEqual(25.3);
+      expect(result.classCodeFont).toBeGreaterThanOrEqual(16);
+      expect(result.labelFont).toBeGreaterThanOrEqual(10.6);
+      const png = PNG.sync.read(await card.getByTestId('class-join-qr').screenshot());
+      expect(jsQR(new Uint8ClampedArray(png.data), png.width, png.height)?.data).toBe(
+        `${demoOrigin}/#/join-class?code=ABC%20DEF%20234`,
+      );
+      await card.screenshot({ path: `${output}/card-detail.png` });
+      await page
+        .locator('.student-access-print-page')
+        .first()
+        .screenshot({ path: `${output}/sheet-20.png` });
+      const pdf = await page.pdf({
+        path: `${output}/cards-20.pdf`,
+        preferCSSPageSize: true,
+        displayHeaderFooter: false,
+      });
+      expect(pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)).toHaveLength(1);
+      writeFileSync(`${output}/geometry.json`, JSON.stringify(result, null, 2));
+      expect(state.errors).toEqual([]);
+      expect(state.mutations.filter((mutation) => !mutation.path.endsWith('/resolve'))).toEqual([]);
+    } finally {
+      await context.close();
+    }
+  });
+
+  for (const longSite of [false, true]) {
+    test(`long names and class remain complete, ${longSite ? 'long' : 'regular'} site`, async ({
+      browser,
+    }) => {
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 900 },
+        deviceScaleFactor: 3,
+      });
+      const page = await context.newPage();
+      try {
+        mkdirSync(output, { recursive: true });
+        const portal = longSite
+          ? 'https://classroom-really-long-installation-name.example.org'
+          : demoOrigin;
+        const state = await fixture(page, 20, {
+          origin: portal,
+          classroomTitle: '7А — Очень длинное название синтетического класса для проверки печати',
+        });
+        state.students()[0]!.displayLabel =
+          'Александра Очень-Длинная-Фамилия-Составная Для Проверки Карточки';
+        state.students()[1]!.displayLabel = 'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW';
+        state.students()[2]!.studentCode = 'Ab123456';
+        await page.goto(`${portal}/#/classrooms/${classId}`);
+        await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+        await expect(page.getByTestId('class-join-qr')).toHaveCount(20);
+        await page.emulateMedia({ media: 'print' });
+        await page.evaluate(() => document.body.classList.add('student-access-printing'));
+        await page.evaluate(async () => {
+          await document.fonts.ready;
+          await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+        });
+        const problems = await page.locator('.student-access-card').evaluateAll((cards) => {
+          return cards.flatMap((card, index) => {
+            const bounds = card.getBoundingClientRect();
+            const codes = card.querySelector('.student-access-codes')!.getBoundingClientRect();
+            const header = card.querySelector('.student-access-topline')!.getBoundingClientRect();
+            const name = card.querySelector('h3')!.getBoundingClientRect();
+            const defects: string[] = [];
+            if (name.top < header.bottom - 1 || name.bottom > codes.top + 1)
+              defects.push(
+                `${index}: identity overlaps: top=${name.top}/${header.bottom} bottom=${name.bottom}/${codes.top}`,
+              );
+            for (const selector of [
+              '.student-access-brand',
+              '.student-access-class',
+              'h3',
+              '.student-access-codes',
+              '.student-access-site',
+              '.class-qr',
+              '.student-access-student-code code',
+            ]) {
+              const el = card.querySelector<HTMLElement>(selector)!;
+              const rect = el.getBoundingClientRect();
+              if (
+                rect.left < bounds.left - 1 ||
+                rect.right > bounds.right + 1 ||
+                rect.top < bounds.top - 1 ||
+                rect.bottom > bounds.bottom + 1
+              )
+                defects.push(`${index}: ${selector} outside ticket`);
+              if (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1)
+                defects.push(
+                  `${index}: ${selector} clipped: width=${el.scrollWidth}/${el.clientWidth}; height=${el.scrollHeight}/${el.clientHeight}`,
+                );
+            }
+            return defects;
+          });
+        });
+        await page
+          .locator('.student-access-card')
+          .first()
+          .screenshot({ path: `${output}/long-${longSite ? 'site' : 'name'}.png` });
+        expect(problems).toEqual([]);
+        const png = PNG.sync.read(await page.getByTestId('class-join-qr').first().screenshot());
+        expect(jsQR(new Uint8ClampedArray(png.data), png.width, png.height)?.data).toBe(
+          `${portal}/#/join-class?code=ABC%20DEF%20234`,
+        );
+        expect(state.errors).toEqual([]);
+      } finally {
+        await context.close();
+      }
+    });
+  }
+
+  for (const width of [320, 390, 768]) {
+    test(`access-card dialog has no clipped codes at ${width}px`, async ({ page }) => {
+      const state = await fixture(page, 2);
+      state.students()[0]!.studentCode = 'Ab123456';
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/#/classrooms/${classId}`);
+      await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+      await expect(dialog).toBeVisible();
+      const overflows = await dialog
+        .locator('.student-access-card')
+        .evaluateAll((cards) =>
+          cards.flatMap((card) =>
+            [...card.querySelectorAll<HTMLElement>('code,h3,.student-access-class')]
+              .filter((el) => el.scrollWidth > el.clientWidth + 1)
+              .map((el) => el.textContent),
+          ),
+        );
+      expect(overflows).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+      expect(state.errors).toEqual([]);
+    });
+  }
 });

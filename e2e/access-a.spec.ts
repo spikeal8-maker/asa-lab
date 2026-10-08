@@ -249,6 +249,7 @@ test('G, I, J: Account learner owns learning, forbidden staff link, mixed contex
   ]);
   const staff = await staffContext.newPage();
   await staff.goto(`${origin}/#/classrooms/${classId}`);
+  await staff.getByRole('button', { name: 'Заявки', exact: true }).click();
   await staff.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
   await staff.getByRole('button', { name: 'Принять заявку', exact: true }).click();
   await expect(staff.locator('.learning-join-requests')).toContainText('Принята');

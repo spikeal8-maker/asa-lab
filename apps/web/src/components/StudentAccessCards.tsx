@@ -160,17 +160,27 @@ export function StudentAccessCards({
               </h3>
               {page.map((student) => (
                 <article
-                  className="student-access-card"
+                  className={[
+                    'student-access-card',
+                    student.displayLabel.length > 28 ? 'is-long-name' : '',
+                    classroomTitle.length > 36 ? 'is-long-class' : '',
+                    (entry?.label.length ?? 0) > 22 ? 'is-long-site' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
                   key={student.id}
                   data-qr-url={classJoinUrl ?? undefined}
                 >
                   <div className="student-access-card-copy">
-                    <header>
-                      <strong>ASA Lab</strong>
-                      <span>{entry?.label ?? 'Адрес недоступен'}</span>
+                    <header className="student-access-topline">
+                      <strong className="student-access-brand">ASA Lab</strong>
+                      <p className="student-access-class" title={classroomTitle}>
+                        {classroomTitle}
+                      </p>
                     </header>
-                    <h3>{student.displayLabel}</h3>
-                    <p className="student-access-class">{classroomTitle}</p>
+                    <div className="student-access-identity">
+                      <h3 title={student.displayLabel}>{student.displayLabel}</h3>
+                    </div>
                     <div className="student-access-codes">
                       <div>
                         <span>Код класса</span>
@@ -189,7 +199,9 @@ export function StudentAccessCards({
                     {classJoinUrl ? (
                       <ClassJoinQr url={classJoinUrl} label={`Войти в класс ${classroomTitle}`} />
                     ) : null}
-                    {classJoinUrl ? <strong>Войти в класс</strong> : null}
+                    <span className="student-access-site">
+                      {entry?.label ?? 'Адрес недоступен'}
+                    </span>
                   </aside>
                 </article>
               ))}
