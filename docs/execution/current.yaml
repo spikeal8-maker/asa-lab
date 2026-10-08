@@ -320,7 +320,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: late_consumer_head_protocol_correction_selected
+      checkpoint: late_permanent_failure_publication_repair_selected
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -347,15 +347,15 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 13574212df0f266c9e02f365d13fc26ab4af9f56
+      convergence_baseline_sha: 76386dade0ec4908fc9394d36997e4734f4b0c7c
       head_sha: null
-      observed_at: '2026-10-08T03:01:11Z'
+      observed_at: '2026-10-08T03:33:49Z'
       main:
         branch: main
-        sha: 13574212df0f266c9e02f365d13fc26ab4af9f56
+        sha: 76386dade0ec4908fc9394d36997e4734f4b0c7c
       observation_note: >-
-        Dated main 13574212 before this evidence/confirmation selection; fetch
-        main and read exact-head CI before writes. Its general 37718816537 is
+        Dated main 76386dad before this evidence/confirmation selection; fetch
+        main and read exact-head CI before writes. Its general 37720838189 is
         successful; preserve Portal S4 and every other lane. Preserved Issue 517
         candidate dd912b2f (original 2d4654f2, product blob ab292c4a) is not
         accepted: exact general 37709690202 and required focused 1005 tests are
@@ -388,7 +388,21 @@ parallel_lanes:
         robust partial capture, no HEAD body-finished dependency. All timing
         budgets and product semantics stay intact. New exact archive and
         controller ACK precede ONE directed case; restore all temp paths to
-        dd912. Original candidate and restored 30443e25 whole tree stay intact.
+        dd912. Its bf6ef9e0/run37722090739 receives NEW independent evidence-only
+        APPROVE: actual retained A5 is active/permanent, new B38 trusted native
+        and React error returns at permanent guard with failed=false; no badge
+        after original 5000ms and full 65s. All seven full documents match and
+        A remains honest, buffer57/256. Ordinary retry12 and HEAD2 cease; an
+        extra plain GET exists with unknown initiator, not global zero-network.
+        See evidence/ordinary-image-late-consumer-proof-517-20261008.md.
+        Restoration 1b10954b whole tree equals dd912, clean. Select a separate
+        bounded product repair of failure publication in the ordinary image
+        hook, preserving permanent retry termination, lifecycle/resource/stale
+        semantics and prior early-event repair. Add meaningful production unit
+        and built-browser regressions with unchanged existing timeouts. Remove
+        all temporary diagnostics; final exact focused/full-browser/general
+        gates and NEW independent product review precede acceptance. Preserve
+        candidate dd912 and suspended 516/505; no solver or other asset repair.
         No repeat native/full-suite run without a new hypothesis. Preserve
         suspended Issue 516 and Issue 505 PR 506 and their acceptance blockers.
         Issue 523 and Issue 521 remain technically closed, without repeated
