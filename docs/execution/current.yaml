@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_avatar_s2_selected
+      checkpoint: portal_inbox_s3_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -121,9 +121,9 @@ parallel_lanes:
     programme:
       document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
       owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
-      selected_slice: S2
+      selected_slice: S3
       dependency_order: [S1, S2, S3, S4]
-      remaining_slices: [S2, S3, S4]
+      remaining_slices: [S3, S4]
       deployment_authorized: false
       working_database_actions_authorized: false
       completed_slices:
@@ -139,6 +139,20 @@ parallel_lanes:
           web_nx_tasks_executed_uncached: 8
           browser_build_nx_tasks_executed_uncached: 27
           visual_evidence: reports/playwright/portal-shell-s1-geometry-20261008
+          owner_acceptance: pending
+          deployment: not_requested
+        - id: S2
+          status: technical_accepted
+          integrated_sha: 5799eeec1b000fd780af371563eeb5e27d5638f4
+          independent_review: approved
+          exact_head_general_run: 37704256108
+          exact_head_general_conclusion: success
+          focused_gate_conclusion: success
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 173
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          visual_evidence: reports/playwright/settings-ui/portal-avatar-s2-pending-font-repair-20261008
           owner_acceptance: pending
           deployment: not_requested
     accepted_result:
