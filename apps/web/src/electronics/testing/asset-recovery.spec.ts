@@ -563,4 +563,42 @@ describe('ordinary image mount lifecycle', () => {
     expect(fixture.probes).toHaveLength(3);
     expect(fixture.host.childNodes).toHaveLength(0);
   });
+  it.each(['before passive setup', 'after passive setup'])(
+    'publishes a late consumer error %s after shared recovery permanently stops without restarting requests',
+    async (delivery) => {
+      const asset = `/assets/electronics/late-permanent-${delivery.replaceAll(' ', '-')}.svg`;
+      const first = mount();
+      const fetch = vi.fn().mockResolvedValue({ status: 404 });
+      vi.stubGlobal('fetch', fetch);
+      await first.render(asset, ['error']);
+      await first.advance(140_000);
+      expect(first.probes).toHaveLength(12);
+      expect(fetch).toHaveBeenCalledTimes(2);
+      const witness = subscribeSharedQuietAssetRecovery(
+        `image:${asset}`,
+        async () => false,
+        () => {},
+      );
+      expect(witness.permanent()).toBe(true);
+      witness.cancel();
+
+      const late = mount();
+      await late.render(asset, delivery === 'before passive setup' ? ['error'] : []);
+      if (delivery === 'after passive setup') {
+        expect(late.host.querySelector('[role="status"]')).toBeNull();
+        await act(async () => late.host.querySelector('image')!.dispatchEvent(new Event('error')));
+      }
+      expect(late.host.querySelector('image')!.getAttribute('href')).toBe(asset);
+      expect(late.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(late.host.querySelector('[role="status"]')?.getAttribute('aria-label')).toBe(
+        'Изображение детали не загрузилось',
+      );
+      await late.advance(65_000);
+      expect(first.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(late.host.querySelector('[data-owner-image-status="failed"]')).not.toBeNull();
+      expect(first.probes).toHaveLength(12);
+      expect(late.probes).toHaveLength(0);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
 });

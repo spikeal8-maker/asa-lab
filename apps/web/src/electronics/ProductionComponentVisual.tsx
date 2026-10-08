@@ -421,7 +421,17 @@ function useOwnerImageHref(asset: string): {
       });
     };
     const recover = (): void => {
-      if (!active || pending || recovery.permanent()) return;
+      if (!active || pending) return;
+      if (recovery.permanent()) {
+        // A late mounted image still owns its error indication after shared
+        // recovery stops. Publish the error without starting another request.
+        setLoaded({
+          asset,
+          href: current.current.asset === asset ? current.current.href : asset,
+          failed: true,
+        });
+        return;
+      }
       if (current.current.asset === asset && current.current.failed && failedOwnerImages.has(asset))
         return;
       if (

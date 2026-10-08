@@ -1767,6 +1767,155 @@ test.describe('asset recovery in the built editor', () => {
     expect(errors).toEqual([]);
   });
 
+  test('a late ordinary image error stays visible after shared permanent recovery stops', async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(300_000);
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    let headRequests = 0;
+    let recoveryRequests = 0;
+    const headResponses: { status: number; at: number }[] = [];
+    page.on('response', (response) => {
+      if (new URL(response.url()).pathname === asset && response.request().method() === 'HEAD')
+        headResponses.push({ status: response.status(), at: Date.now() });
+    });
+    // Test-only observation of the browser's actual error ingress; no synthetic
+    // delivery or production recovery state is exposed or changed.
+    await page.addInitScript((targetAsset) => {
+      const errors: { target: Element; trusted: boolean; at: number }[] = [];
+      (window as unknown as { __asaLateImageErrors: typeof errors }).__asaLateImageErrors = errors;
+      window.addEventListener(
+        'error',
+        (event) => {
+          if (
+            event.target instanceof Element &&
+            event.target.tagName.toLowerCase() === 'image' &&
+            event.target.getAttribute('href') === targetAsset
+          )
+            errors.push({ target: event.target, trusted: event.isTrusted, at: performance.now() });
+        },
+        true,
+      );
+    }, asset);
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        const request = route.request();
+        if (request.method() === 'HEAD') {
+          headRequests += 1;
+          return route.fulfill({ status: 404, body: '' });
+        }
+        if (request.resourceType() !== 'image') return route.continue();
+        if (new URL(request.url()).searchParams.has('asa-image-retry')) recoveryRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const { readDocument, readEditorDocument, requests, errors } = await openEditor(page, doc);
+    const initial = structuredClone(readDocument());
+    const initialEditor = structuredClone(await readEditorDocument());
+    const a = part(page, 'holder');
+    const aImage = await a.locator('image[href="' + asset + '"]').elementHandle();
+    if (!aImage) throw new Error('Missing retained stage image');
+    const category = page.getByRole('combobox', { name: 'Категория компонентов' });
+    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+    const oldCatalogImage = await card.locator('image').elementHandle();
+    if (!oldCatalogImage) throw new Error('Missing original catalog image');
+    await expect(a.getByRole('status', { name: 'Изображение детали не загрузилось' })).toBeVisible({
+      timeout: 10_000,
+    });
+    await category.selectOption('semiconductors');
+    await expect(category).toHaveValue('semiconductors');
+    await expect(card).toHaveCount(0);
+    expect(await oldCatalogImage.evaluate((image) => image.isConnected)).toBe(false);
+    expect(await aImage.evaluate((image) => image.isConnected)).toBe(true);
+    const secondResponse = page.waitForResponse(
+      (response) =>
+        new URL(response.url()).pathname === asset &&
+        response.request().method() === 'HEAD' &&
+        headRequests >= 2,
+      { timeout: 210_000 },
+    );
+    await expect.poll(() => headRequests, { timeout: 210_000 }).toBe(2);
+    expect((await secondResponse).status()).toBe(404);
+    expect(headResponses).toHaveLength(2);
+    expect(headResponses.every((response) => response.status === 404)).toBe(true);
+    expect(headResponses[1]!.at - headResponses[0]!.at).toBeGreaterThanOrEqual(30_000);
+    const recoveryAtConfirmation = recoveryRequests;
+    expect(recoveryAtConfirmation).toBe(12);
+    // Received HEAD headers are transport evidence, not an exposed internal
+    // permanent-state witness. The real lifecycle unit regression proves that
+    // terminal branch; this built editor case checks the student's observables.
+    await category.selectOption('power');
+    await expect(category).toHaveValue('power');
+    await expect(card).toHaveCount(1);
+    await expect(card).toHaveAttribute('data-selected-variant', 'battery-holder-aa-2');
+    await card.scrollIntoViewIfNeeded();
+    const bImage = await card.locator('image').elementHandle();
+    if (!bImage) throw new Error('Missing fresh catalog image');
+    expect(await oldCatalogImage.evaluate((old, fresh) => old !== fresh, bImage)).toBe(true);
+    await expect
+      .poll(() =>
+        bImage.evaluate((image) =>
+          (
+            window as unknown as {
+              __asaLateImageErrors: { target: Element; trusted: boolean }[];
+            }
+          ).__asaLateImageErrors.some((event) => event.target === image && event.trusted),
+        ),
+      )
+      .toBe(true);
+    const bNativeErrors = await bImage.evaluate((image) =>
+      (
+        window as unknown as {
+          __asaLateImageErrors: { target: Element; trusted: boolean; at: number }[];
+        }
+      ).__asaLateImageErrors
+        .filter((event) => event.target === image)
+        .map((event) => ({ trusted: event.trusted, at: event.at, connected: image.isConnected })),
+    );
+    await expect(
+      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible({ timeout: 5_000 });
+    await expect(card.locator('[data-owner-image-status="failed"]')).toBeVisible();
+    await page.waitForTimeout(65_000);
+    await expect(
+      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible();
+    await expect(
+      a.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+    ).toBeVisible();
+    expect(await aImage.evaluate((image) => image.isConnected)).toBe(true);
+    expect(headRequests).toBe(2);
+    expect(recoveryRequests).toBe(recoveryAtConfirmation);
+    const final = readDocument();
+    const finalEditor = await readEditorDocument();
+    expect(final).toEqual(initial);
+    expect(finalEditor).toEqual(initialEditor);
+    expect(requests).toHaveLength(0);
+    expect(errors).toEqual([]);
+    await testInfo.attach('late-ordinary-image-regression', {
+      body: JSON.stringify({
+        headResponses,
+        recoveryRequests,
+        bNativeErrors,
+        initial,
+        final,
+        initialEditor,
+        finalEditor,
+      }),
+      contentType: 'application/json',
+    });
+    // Plain image GETs from other asset consumers are not recovery-query or
+    // HEAD traffic, and this test makes no global zero-network claim.
+  });
+
   test('a failed rotated DO-35 image keeps its error badge inside the visible component', async ({
     page,
   }) => {
