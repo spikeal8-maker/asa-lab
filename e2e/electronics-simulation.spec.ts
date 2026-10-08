@@ -4951,9 +4951,27 @@ test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings'
           .locator('.workbench-regulated-supply-reading')
           .first(),
       ).toHaveText('5.00 V');
-      await expect(
-        component(page, 'oscilloscope').locator('.workbench-oscilloscope-trace'),
-      ).toHaveCount(1);
+      const scope = component(page, 'oscilloscope').getByTestId('oscilloscope-runtime');
+      await expect(scope).toHaveAttribute('data-display-enabled', 'true');
+      await expect(scope.locator('.workbench-oscilloscope-status')).toHaveText(
+        '1.00 kHz · 5.00 Vpp',
+      );
+      await expect(scope.locator('.workbench-oscilloscope-scale')).toHaveText(
+        '1.00 V/div · 1.00 ms/div',
+      );
+      const generator = component(page, 'signal-generator').getByTestId('signal-generator-runtime');
+      await expect(generator).toHaveAttribute('data-waveform', 'sine');
+      await expect(generator).toHaveAttribute('data-output-enabled', 'true');
+      await expect(generator.locator('.workbench-signal-generator-readings text')).toHaveText([
+        '1.00 kHz',
+        '5.00 Vpp',
+        '-0.25 V',
+      ]);
+      // The unchanged canonical live route suppresses waveform samples. Preserve
+      // this separate, unfulfilled #466 requirement; count0 is not an approved
+      // permanent policy or acceptance of complete generator/scope functionality.
+      await expect(scope.locator('.workbench-oscilloscope-trace')).toHaveCount(0);
+      const baselineScopeTraceCount = await scope.locator('.workbench-oscilloscope-trace').count();
       const readings = await page.evaluate(
         ({ instrumentIds, mirror, connections }) => {
           const readoutSelectors: Record<string, string> = {
@@ -5022,7 +5040,7 @@ test('ELECTRONICS-525 mirror readout matrix preserves signed committed readings'
         },
         { instrumentIds, mirror, connections: document.connections },
       );
-      observations.push({ rotation, mirror, ...readings });
+      observations.push({ rotation, mirror, baselineScopeTraceCount, ...readings });
       writeFileSync(
         `${diagnosticDir}/instrument-mirror-525-matrices.json`,
         JSON.stringify(observations, null, 2),
