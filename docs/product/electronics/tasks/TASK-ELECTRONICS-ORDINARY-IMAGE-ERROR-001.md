@@ -50,6 +50,16 @@ The corrected built-browser regression must demonstrate actual React error deliv
 
 Expected additional write paths are the two already named test files and one dated causal evidence report. Temporary CI probes and diagnostics remain outside the final diff. Run local type and selected-card checks before expensive browser evidence, then final exact-SHA gates and a NEW independent review. The implementer reports and STOP; no automatic follow-up slice.
 
+## Selected separate late-consumer confirmation after qualified native diagnosis
+
+The controller keeps this task `in_progress` and selects one new bounded diagnostic of the NEW independent review finding on preserved `dd912b2f69b055cffd661721fa5656a5951684b4`. The original native failure remains unproved: one passive diagnostic `f6588bc08b545fc993edad1b56119acbb0afc7f7` / run `37713526540` received independent evidence-only APPROVE, not product acceptance. See [qualified native report](../evidence/ordinary-image-native-diagnostic-517-20261008.md). Do not repeat that scenario or the full suite without a new hypothesis.
+
+Confirm only this separate path in the built editor: consumer A remains mounted while the ordinary image reaches two genuinely spaced missing-HEAD confirmations; mount consumer B for the same asset through a catalog interaction, observe its actual native image error, and require its existing accessible failure badge. A must retain its honest error; the permanent missing asset must not resume recovery requests. Preserve the student document. Use ordinary-image recovery, not the interactive SVG hook, and distinguish normal B image loading from prohibited recovery retries.
+
+The executor first reads existing permanent-404 coverage and source, then chooses one directed scenario. Use real browser events and unchanged production delays, retry budgets and HEAD confirmation rules. Existing timeouts and assertions may not increase or weaken; a new directed scenario may use the existing permanent-confirmation scenario's 300000 ms overall budget because the same real confirmation and 65000 ms cessation observation are required. This is a scenario budget for that protocol, not a relaxation of the failing native 5000 ms assertion. No timer acceleration or synthetic error delivery. Temporary passive diagnostics and the existing isolated workflow's one-scenario selection require a before-execution source archive and controller acknowledgement before ONE dispatch.
+
+No product repair is authorized in this diagnostic cycle. Preserve the candidate source, original branch, #516 and #505/PR #506. Local type/lint/list checks precede the browser dispatch. Cache original evidence once, qualify instrumentation and baseline differences, restore temporary files byte-exact, report and STOP. A NEW independent reviewer checks exact source and raw observations. Only a confirmed path permits the controller to select a separate bounded product repair; native historical causality and classroom frequency remain separate limits.
+
 ## Acceptance and STOP
 
 - Establish the exact cause with saved evidence plus the smallest directed scenario needed.

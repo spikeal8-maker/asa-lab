@@ -320,7 +320,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: preserved_candidate_final_convergence_after_523
+      checkpoint: native_diagnosis_qualified_late_consumer_confirmation
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -347,34 +347,36 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
+      convergence_baseline_sha: 6ac83dba22e63fe886f5f14f1133b949661f97dd
       head_sha: null
-      observed_at: '2026-10-08T00:38:06Z'
+      observed_at: '2026-10-08T02:00:10Z'
       main:
         branch: main
-        sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
+        sha: 6ac83dba22e63fe886f5f14f1133b949661f97dd
       observation_note: >-
-        Dated main e0143d0f before this closeout/selection; fetch main
-        and read exact-head CI before writes. Preserve the unrelated Portal S3
-        changes and its exact-head CI. Independently APPROVED Issue 523
-        candidate 0ced518f integrates the identical two blobs at e99e08fb.
-        Exact integrated required focused job in 37706609957 and general
-        37706607927 are successful; the full focused workflow including browser is also
-        successful, but does not substitute for Issue 517 final exact-head gates. The existing 5000 ms guard, full coverage and physics stay
-        unchanged. One matched pair supports this runner allocation; it does
-        not prove every historical slow run or guarantee future runtime.
-        Resolve Issue 521 runtime dependency through this separately accepted
-        maintenance, without claiming its evidence-only report repaired code.
-        Select preserved Issue 517 candidate 2d4654f207f41e5d3712b3071af05e6d3830fa31 for one controlled final
-        convergence, exact focused/browser/general gates and NEW independent
-        review. Keep product blob ab292c4a and existing original causal evidence;
-        no repeat measurement or product change without a new proven defect.
-        Preserve Issue 516 and Issue 505 PR 506, other lanes and foreign work.
-        Historical independent Learning ordering failure remains unproved and
-        is not declared fixed by a green run. T3 is pending real school-device
-        evidence, with exact hardware/software/power/scenario/metrics recorded
-        at first measurement; no dev-PC or runner substitution. No full hygiene
-        checkpoint, owner acceptance, release or deployment is claimed.
+        Dated main 6ac83dba before this evidence/confirmation selection; fetch
+        main and read exact-head CI before writes. Its general 37714366323 is
+        successful; preserve Portal S4 and every other lane. Preserved Issue 517
+        candidate dd912b2f (original 2d4654f2, product blob ab292c4a) is not
+        accepted: exact general 37709690202 and required focused 1005 tests are
+        successful, but full browser 37709699955 failed the native catalog badge
+        at its unchanged 5000 ms assertion. NEW review REQUEST_CHANGES also
+        identifies a separate late-permanent subscriber path. ONE passive
+        diagnostic f6588bc0/run 37713526540 is independently APPROVED as evidence
+        only: all consumers receive error after setup and publish failure;
+        historical native cause remains unknown. Its source archive was verified
+        before execution; four temporary paths were restored byte-exact. See
+        evidence/ordinary-image-native-diagnostic-517-20261008.md. Select ONE
+        separate directed late/permanent consumer confirmation within this
+        card, preserving source and normal timings; no product repair until
+        that specific path is proved and a separate repair cycle is selected.
+        No repeat native/full-suite run without a new hypothesis. Preserve
+        suspended Issue 516 and Issue 505 PR 506 and their acceptance blockers.
+        Issue 523 and Issue 521 remain technically closed, without repeated
+        measurements. Historical Learning ordering failure remains unproved.
+        T3 stays pending real school-device evidence; no dev-PC or runner
+        substitution. No full hygiene checkpoint, owner acceptance, release
+        or deployment is claimed.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
