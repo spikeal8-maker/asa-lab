@@ -38,7 +38,6 @@ concurrency:
 
 jobs:
   focused:
-    if: ${{ false }}
     name: Shared solver, editor contracts and build
     runs-on: ubuntu-24.04
     timeout-minutes: 25
@@ -73,7 +72,6 @@ jobs:
         run: pnpm gate:electronics-m1
 
   benchmark:
-    if: ${{ false }}
     name: Electronics E-OPT benchmark integrity
     needs: focused
     runs-on: ubuntu-24.04
@@ -124,7 +122,8 @@ jobs:
           retention-days: 14
 
   browser:
-    name: Actual editor late ordinary subscriber confirmation
+    name: Actual editor live simulation journey
+    needs: focused
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -174,8 +173,7 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm exec playwright test e2e/electronics-interactions.spec.ts --workers=1 --trace=on
-          --grep 'late ordinary image subscriber after confirmed permanent HEAD failure'
+          pnpm gate:electronics-m1:browser
 
       - name: Show isolated stack state
         if: always()
@@ -199,7 +197,6 @@ jobs:
           down -v --remove-orphans
 
   review-images:
-    if: ${{ false }}
     name: Package exact-head review images
     needs: [focused, benchmark, browser]
     runs-on: ubuntu-24.04
