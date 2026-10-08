@@ -581,39 +581,57 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
-      issue: 525
+      id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+      issue: 526
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: instrument_mirror_readability_selected
+      checkpoint: owner_e01_save_recovery_selected
       owner_acceptance: pending
-    suspended_slices: []
+    suspended_slices:
+      - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
+        issue: 525
+        status: suspended_by_owner_priority
+        checkpoint: local_candidate_preserved_before_final_convergence
+        preserved_candidate_sha: ed4ee96949c5dd5a2fde035e2f7d9e61d5ba88df
+        preserved_branch: codex/electronics-instrument-mirror-525-final
+        preserved_tree: 07a125e6f06859e5721201e323119ee74fd7aaf6
+        before_browser_sha: ee7d5eca4388f9404c12b2a23ee6aff8c12c42e7
+        before_browser_run: 37757863776
+        local_focused_tests: 1009
+        local_nx_fresh_executions: 70
+        final_convergence: not_run
+        final_browser_after: not_run
+        independent_review: pending
+        owner_acceptance: pending
+        reason: Owner programme452 input6066364541 selects P0 E01 before P2 E05; preserve candidate and original evidence without redo or acceptance.
+        resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 7fea63d0f95e4ed5e668e2b11ea97fe5cf0fc65a
+      convergence_baseline_sha: e2352a99d602c05c42c99be9dea22bb593accdc9
       head_sha: null
-      observed_at: '2026-10-08T08:48:48Z'
+      observed_at: '2026-10-08T18:24:04Z'
       main:
         branch: main
-        sha: 7fea63d0f95e4ed5e668e2b11ea97fe5cf0fc65a
-      observation_note: 'Fetch main and read actual exact-head CI before writes. Accepted hygiene524 candidate24ddd
-        received NEW independent APPROVE/STOP and exact General37749589533 terminalSUCCESS/all4:166freshNx/0hits.
-        The seven categories were independently recomputed; only checkpoint003 was added, baseline unchanged,
-        no product/test/artwork/generated/dependency/workflow change or removal. Source facts remain dated
-        reviewed32f;518 was only a one-file review. Original d216 GeneralFAIL was foreignPortalC, separately
-        corrected by verifiedb4General37747264717. Normal integration7fea preserved every3696 newer main271
-        tracked entry and foreign Portal recovery acceptance/R2 selection; actual published CP PASS. Integration7fea
-        General37751733517 was pending at this snapshot, not relabeled PASS from candidateCI. Full hygiene
-        checkpoint resolves the due interval before the next production slice. Preserve accepted 505/PR506/516/517/523/521/500/513/509
-        and prior observations; do not repeat them without a concrete cause. Select only525 existing runtime-readout
-        mirror readability from466: first prove the defect in the built production browser, then repair only
-        the causal existing rendering path. Ordinary-rotation horizontalness and other section7 choices remain
-        owner decisions. No next wire-layer/rim/mechanics cleanup is selected. T3 remains pending actual pupil-computer
-        evidence, not dev-PC/runner. Classroom/owner acceptance, release/deployment and programme452 completion
-        remain separate.'
+        sha: e2352a99d602c05c42c99be9dea22bb593accdc9
+      observation_note: >-
+        Fetch main and read actual exact-head GitHub CI before writes; this is a dated snapshot, not a live HEAD claim.
+        Owner programme452 input6066364541 adopts priority registry3.0 E01-E35/K0-K8.
+        Actual baseline e235 General37790598431 terminalSUCCESS/all4 independently
+        checked before selection. Earlier Portal875 S4 capture failure was separately
+        repaired; old red CI is history, not a current execution blocker. Preserve
+        accepted523/521/517/516/505/PR506/524/500/513/509 and their original evidence.
+        Suspend525 exact published ed4 candidate with no combined-head/AFTER/review
+        acceptance; its original workflow is canonical and diagnostic refs/artifacts
+        remain preserved. Select only526 E01 latest-work save recovery and truthful
+        local durability, retaining minute cadence/manual save/CAS/scope isolation.
+        Parallel K0 E27/E35 is read-only; missing school installation/backup identity
+        does not stop the isolated product repair. Frozen exact-head CI, real browser
+        before/after and NEW independent review are required. No owner/classroom
+        acceptance, release/deployment, working DB, backup/restore or network action
+        follows from this selection. T3 remains pending actual pupil-device evidence.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned

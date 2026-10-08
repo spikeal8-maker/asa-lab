@@ -1,5 +1,7 @@
 # Электроника: стабилизация для уроков — уточнённое ТЗ по результатам анализа кода
 
+> **Priority clarification, owner input 08.10.2026:** [registry3.0](ASA_ELECTRONICS_OWNER_REPAIR_PRIORITY_20261008.md) continues programme #452 with E01 save recovery first and parallel read-only K0. Preserve this specification and accepted repairs; concrete execution remains selected only in current.yaml.
+
 **Редакция:** 2.1, 1 октября 2026 года.
 **Репозиторий:** spikeal8-maker/asa-lab.
 **Изученный снимок:** c945a048200855e65a433813e79f18e6dc6a38e4.

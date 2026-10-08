@@ -106,10 +106,13 @@ components:
     - apps/web/src/electronics/use-workbench-project-state.ts
     - apps/web/src/electronics/electronics-document-merge.ts
     - apps/web/src/electronics/workbench-autosave.ts
+    - apps/web/src/modules/project-local-draft.ts
     tests:
     - apps/web/src/electronics/testing/workbench-project-state.spec.ts
     - apps/web/src/electronics/testing/workbench-autosave.spec.ts
     - apps/web/src/electronics/testing/electronics-document-merge.spec.ts
+    - apps/web/src/modules/testing/project-local-draft.spec.ts
+    - e2e/electronics-simulation.spec.ts
     dependencies:
     - electronics.engine.document
     - electronics.worker.live-controller
