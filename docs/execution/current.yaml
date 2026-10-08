@@ -588,7 +588,18 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_resume_after_accepted_sketch_dependency
+      checkpoint: r3_bounded_crash_and_scope_evidence_repair
+      r2_candidate_sha: 520bc45afaad32b89d142fbcf313561c1170d72d
+      r2_candidate_tree: ec3e6483cbaa73c4bf3ff7a217e0889dbb86d855
+      r2_candidate_branch: codex/electronics-save-recovery-526-review-r2
+      r2_general_run: 37859012428
+      r2_general_conclusion: success
+      r2_electronics_run: 37859024247
+      r2_electronics_conclusion: failure
+      r2_browser_passed: 125
+      r2_browser_failed: 2
+      r2_independent_review: request_changes
+      r2_independent_evidence: docs/product/electronics/evidence/save-526-r2-independent-review-520bc45a.md
       preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
       preserved_candidate_branch: codex/electronics-save-recovery-526-review-r1
       preserved_candidate_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
@@ -618,12 +629,12 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+      convergence_baseline_sha: c920c5c0921498d8872d3914b7f627ca98db85b2
       head_sha: null
-      observed_at: '2026-10-08T23:02:00Z'
+      observed_at: '2026-10-08T23:47:15Z'
       main:
         branch: main
-        sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        sha: c920c5c0921498d8872d3914b7f627ca98db85b2
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
         Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
@@ -637,6 +648,15 @@ parallel_lanes:
         without weakening behavior; complete original crash/SAV10 evidence on the final combined candidate.
         Old526 review/CI and local tests are not combined-candidate acceptance; NEW reviewer and all exact gates required.
         Suspended525 and all other accepted results/lanes remain unchanged. Next E04 only after E01 technical acceptance.
+        Exact R2 candidate520bc45a remains published and unaccepted: General37859012428 SUCCESS/all4;
+        ordinary37859024247 focused/benchmark SUCCESS, browser125PASS/2FAIL, review-images SKIPPED.
+        NEW independent reviewer REQUEST_CHANGES: crash injection did not demonstrate renderer termination;
+        SAV10 changes only hash while canonical first-project pathname wins, so no actual project switch occurred.
+        No product scope leak is proved by that fixture; original traces/receipts are preserved without rerun.
+        Select only R3 bounded evidence repair of these two existing browser scenarios and canonical digest.
+        No product edits, timeout increase, weakened assertions, auth/physics/dependency/workflow baseline changes.
+        One root-reviewed temporary directed diagnostic ref may exercise exactly these two cases in existing isolated CI;
+        restore canonical workflow before final exact candidate, ordinary gates and NEW independent review.
         School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
         no deployment, DB, network, backup or protected-artwork operation is authorized.
     execution_lease:
