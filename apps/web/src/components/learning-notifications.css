@@ -1,6 +1,6 @@
 .learning-notification-settings {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   max-width: 760px;
   text-align: left;
   color: var(--text, #263248);
@@ -8,6 +8,47 @@
 .learning-notification-settings h3,
 .learning-notification-settings p {
   margin: 0;
+}
+.notification-setting-heading {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.notification-setting-heading h4 {
+  margin: 0;
+}
+.notification-setting-heading > label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.notification-setting-row {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.notification-setting-row > label {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.notification-setting-field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.learning-notification-settings .notification-setting-field > select {
+  width: 100%;
+  min-height: 44px;
+  max-width: 420px;
+}
+.notification-class-settings > label:has(input[type='search']) {
+  display: grid;
+  gap: 4px;
+  max-width: 360px;
+}
+.notification-class-settings input[type='search'] {
+  width: 100%;
+  min-height: 44px;
 }
 details.learning-notification-settings:not([open]) > :not(summary) {
   display: none;
@@ -48,13 +89,13 @@ details.learning-notification-settings:not([open]) > :not(summary) {
 .learning-category-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  padding: 12px 0;
+  gap: 4px 12px;
+  padding: 4px 0;
 }
 .learning-notification-settings fieldset {
-  border: 1px solid #dbe3ed;
-  border-radius: 8px;
-  padding: 12px;
+  border: 0;
+  border-top: 1px solid #dbe3ed;
+  padding: 12px 0;
   margin: 12px 0;
   min-width: 0;
 }
@@ -69,8 +110,8 @@ details.learning-notification-settings:not([open]) > :not(summary) {
   flex-wrap: wrap;
 }
 .learning-notification-settings > .learning-notification-actions {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  display: flex;
+  flex-wrap: wrap;
   max-width: 520px;
   padding-top: 12px;
   border-top: 1px solid #dbe3ed;

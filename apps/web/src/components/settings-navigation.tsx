@@ -5,10 +5,10 @@ export const settingsPanels = {
   profile: 'Профиль',
   interface: 'Интерфейс',
   notifications: 'Уведомления',
-  security: 'Вход и безопасность',
+  security: 'Безопасность',
   privacy: 'Данные и приватность',
-  capabilities: 'Материалы и преподавание',
-  school: 'Рабочие пространства',
+  capabilities: 'Материалы и классы',
+  school: 'Школы',
   requests: 'Приглашения и запросы',
 } as const;
 export type SettingsPanel = keyof typeof settingsPanels;

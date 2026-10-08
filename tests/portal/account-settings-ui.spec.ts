@@ -154,9 +154,11 @@ async function click(text: string, within?: ParentNode) {
   await act(async () => button(text, within).click());
 }
 function input(label: string) {
-  const found = [...container.querySelectorAll('label')]
-    .find((element) => element.textContent?.includes(label))
-    ?.querySelector('input');
+  const element = [...container.querySelectorAll('label')].find((element) =>
+    element.textContent?.includes(label),
+  );
+  const found = element?.control;
+  if (!(found instanceof HTMLInputElement)) throw new Error(`Missing input ${label}`);
   if (!found) throw new Error(`Missing input ${label}`);
   return found;
 }
@@ -169,31 +171,33 @@ async function fill(element: HTMLInputElement, value: string) {
 
 describe('account settings composition', () => {
   it.each([
-    ['privacy', 'security', 'Данные и приватность', '#/help'],
-    ['requests', 'school', 'Приглашения на обучение', '#/attending'],
-  ])(
-    'keeps the %s deep link as an expanded information block in %s',
-    async (alias, destination, label, href) => {
-      window.history.replaceState(null, '', `/#/account/${alias}`);
-      await renderAccount();
-      expect(container.querySelectorAll('[aria-label="Разделы настроек"] button')).toHaveLength(6);
-      expect(
-        container.querySelector<HTMLSelectElement>('[aria-label="Выбрать раздел настроек"]')?.value,
-      ).toBe(destination);
-      const disclosure = container.querySelector<HTMLDetailsElement>(
-        '.account-settings-information',
-      )!;
-      expect(disclosure.open).toBe(true);
-      expect(disclosure.querySelector('summary')?.textContent).toBe(label);
-      expect(disclosure.querySelector('a')?.getAttribute('href')).toBe(href);
-      expect(container.querySelector('[aria-current="page"]')?.textContent).toBe(
-        destination === 'security' ? 'Вход и безопасность' : 'Рабочие пространства',
+    ['privacy', 'security'],
+    ['requests', 'school'],
+  ])('keeps the %s deep link in the corresponding flat section %s', async (alias, destination) => {
+    window.history.replaceState(null, '', `/#/account/${alias}`);
+    await renderAccount();
+    expect(container.querySelectorAll('[aria-label="Разделы настроек"] button')).toHaveLength(6);
+    expect(
+      container.querySelector<HTMLSelectElement>('[aria-label="Выбрать раздел настроек"]')?.value,
+    ).toBe(destination);
+    expect(container.querySelector('.account-settings-information')).toBeNull();
+    if (destination === 'security') {
+      expect(container.querySelector('.account-private-facts')?.textContent).toContain(
+        profile.email,
       );
-      expect(window.location.hash).toBe(`#/account/${alias}`);
-      // Opening an informational alias must not activate capabilities or mutate a profile.
-      expect(container.querySelectorAll('[aria-label="Разделы настроек"] svg')).toHaveLength(0);
-    },
-  );
+      expect(container.querySelector('.account-password-form')).not.toBeNull();
+    } else {
+      expect(container.querySelector('.account-invitation-row a')?.getAttribute('href')).toBe(
+        '#/attending',
+      );
+    }
+    expect(container.querySelector('[aria-current="page"]')?.textContent).toBe(
+      destination === 'security' ? 'Безопасность' : 'Школы',
+    );
+    expect(window.location.hash).toBe(`#/account/${alias}`);
+    // Opening an informational alias must not activate capabilities or mutate a profile.
+    expect(container.querySelectorAll('[aria-label="Разделы настроек"] svg')).toHaveLength(0);
+  });
   it('addresses every existing panel and keeps the historical account route', () => {
     for (const id of [
       'profile',
@@ -208,13 +212,18 @@ describe('account settings composition', () => {
       expect(creatorViewFromHash(`#/account/${id}`)).toEqual({ kind: 'account' });
     expect(creatorViewFromHash('#/account')).toEqual({ kind: 'account' });
   });
-  it('shows a public-only draft preview and cancelling restores server values', async () => {
+  it('keeps the profile draft without a duplicate preview and cancelling restores server values', async () => {
     await renderAccount();
     await fill(input('Отображаемое имя'), 'Мой черновик');
     const preview = container.querySelector('[aria-label="Предпросмотр публичного профиля"]');
-    expect(preview?.textContent).toContain('Мой черновик');
-    expect(preview?.textContent).not.toContain(profile.email);
-    expect(preview?.textContent).not.toContain(profile.birthDate);
+    expect(preview).toBeNull();
+    expect(input('Отображаемое имя').value).toBe('Мой черновик');
+    expect(container.querySelector('.account-profile-form')?.textContent).not.toContain(
+      profile.email,
+    );
+    expect(container.querySelector('.account-profile-form')?.textContent).not.toContain(
+      profile.birthDate,
+    );
     await click('Отменить');
     expect(input('Отображаемое имя').value).toBe(profile.displayName);
   });

@@ -86,8 +86,8 @@ describe('presentation canonical shell state', () => {
     const call = vi.mocked(client.call);
     await mount();
     const form = container.querySelector('form[aria-label="Оформление"]')!;
-    expect(form.querySelector('label')?.textContent).toContain('Анимации');
-    expect(form.textContent).toContain('Боковая панель на компьютере');
+    expect(form.querySelector('label')?.textContent).toContain('Анимация');
+    expect(form.textContent).toContain('Боковое меню');
     expect(form.querySelector('[aria-label="Сохранить оформление"]')).not.toBeNull();
     expect(form.querySelector('[aria-label="Отменить изменения оформления"]')).not.toBeNull();
     const reset = form.querySelector<HTMLButtonElement>('[aria-label="Сбросить оформление"]')!;

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef, useState, type MutableRefObject } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type MutableRefObject } from 'react';
 import type { SettingsDraft } from './settings-navigation';
+import { InfoHint } from './InfoHint';
 import {
   api,
   type LearningNotificationPreferences as Preferences,
@@ -17,6 +18,16 @@ export const notificationCategories: Record<NotificationCategory, string> = {
   NC08: 'Заявки и приглашения',
 };
 
+const categoryHints: Record<NotificationCategory, string> = {
+  NC01: 'Новые назначения и изменения условий задания. Само задание останется в обучении, даже если оповещение выключено.',
+  NC02: 'Работы, которые поступили вам на проверку. Настройка не меняет очередь работ и доступ преподавателя.',
+  NC03: 'Проверка работы и её результаты. Оценки и комментарии остаются в журнале.',
+  NC04: 'Напоминания о приближении срока. Выключение не переносит срок задания.',
+  NC05: 'Напоминания о пропущенном сроке. Статус задания не меняется.',
+  NC06: 'События выполнения работ и курсов. Прогресс обучения сохраняется независимо от оповещений.',
+  NC08: 'Заявки и приглашения на обучение. Ответить на приглашение или заявку можно в соответствующем разделе.',
+};
+
 export function LearningNotificationPreferences({
   classroomId,
   seat = false,
@@ -30,6 +41,7 @@ export function LearningNotificationPreferences({
   controlRef?: MutableRefObject<SettingsDraft | null>;
   onDirtyChange?: (dirty: boolean) => void;
 }) {
+  const formId = useId();
   const [saved, setSaved] = useState<Preferences | null>(null),
     [draft, setDraft] = useState<Preferences | null>(null);
   const [error, setError] = useState<string | null>(null),
@@ -106,16 +118,24 @@ export function LearningNotificationPreferences({
     else rules[id] = { ...rules[id], mode: mode as 'off' | 'custom' };
     editDraft({ ...draft, classOverrides: rules });
   }
+  const visibleClasses = draft?.classes.filter(
+    (c) =>
+      (!classroomId || c.id === classroomId) &&
+      c.title.toLowerCase().includes(search.toLowerCase()),
+  );
   return (
     <section
       className="learning-notification-settings"
       aria-label="Учебные оповещения — только для меня"
     >
-      <h3>Учебные оповещения — только для меня</h3>
-      <p>
-        Уведомления других участников не изменятся. Работы, сроки и результаты останутся в обучении
-        и журнале.
-      </p>
+      <div className="notification-setting-heading">
+        <h3>Доставка</h3>
+        <InfoHint label="О доставке оповещений">
+          Эти настройки меняют только ваши учебные оповещения. Уведомления других участников, работы
+          и журнал не изменятся. Обязательные сообщения безопасности здесь не отключаются. Изменения
+          применяются после сохранения.
+        </InfoHint>
+      </div>
       {error ? (
         <p role="alert">
           {error}{' '}
@@ -129,120 +149,151 @@ export function LearningNotificationPreferences({
         <p>Загружаем настройки…</p>
       ) : draft ? (
         <>
-          <label>
-            <input
-              type="checkbox"
-              checked={draft.masterEnabled}
-              disabled={busy}
-              onChange={(e) => {
-                editDraft({ ...draft, masterEnabled: e.target.checked });
-              }}
-            />
-            Получать учебные оповещения
-          </label>
+          <div className="notification-setting-row">
+            <label>
+              <input
+                type="checkbox"
+                checked={draft.masterEnabled}
+                disabled={busy}
+                onChange={(e) => {
+                  editDraft({ ...draft, masterEnabled: e.target.checked });
+                }}
+              />
+              Получать учебные оповещения
+            </label>
+            <InfoHint label="О получении учебных оповещений">
+              Общий выключатель останавливает доставку всех выбранных учебных категорий. Выбор
+              категорий и правила классов сохраняются; при включении доставка возобновится по ним.
+            </InfoHint>
+          </div>
           {!draft.masterEnabled ? (
             <p>Доставка остановлена общим выключателем. Выбранные категории сохранены.</p>
           ) : null}
           {!classroomId ? (
             <div className="learning-category-grid">
               {keys.map((key) => (
-                <label key={key}>
-                  <input
-                    type="checkbox"
-                    disabled={busy}
-                    checked={draft.categories[key]}
-                    onChange={(e) => {
-                      editDraft({
-                        ...draft,
-                        categories: { ...draft.categories, [key]: e.target.checked },
-                      });
-                    }}
-                  />
-                  {notificationCategories[key]}
-                </label>
+                <div className="notification-setting-row" key={key}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      disabled={busy}
+                      checked={draft.categories[key]}
+                      onChange={(e) => {
+                        editDraft({
+                          ...draft,
+                          categories: { ...draft.categories, [key]: e.target.checked },
+                        });
+                      }}
+                    />
+                    {notificationCategories[key]}
+                  </label>
+                  <InfoHint label={`О категории «${notificationCategories[key]}»`}>
+                    {categoryHints[key]}
+                  </InfoHint>
+                </div>
               ))}
             </div>
           ) : null}
           {draft.classes.length > 0 ? (
-            <details open={classroomId ? true : undefined}>
-              <summary>По классам</summary>
+            <section className="notification-class-settings" aria-label="По классам">
+              <div className="notification-setting-heading">
+                <h4>По классам</h4>
+                <InfoHint label="О настройках по классам">
+                  Для каждого класса можно наследовать общие категории, выключить доставку или
+                  выбрать отдельные категории. Общий выключатель имеет приоритет. Сброс для класса
+                  возвращает наследование, не меняя настройки других классов.
+                </InfoHint>
+              </div>
               {!classroomId ? (
                 <label>
                   Найти класс{' '}
                   <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
                 </label>
               ) : null}
-              {draft.classes
-                .filter(
-                  (c) =>
-                    (!classroomId || c.id === classroomId) &&
-                    c.title.toLowerCase().includes(search.toLowerCase()),
-                )
-                .map((c) => {
-                  const rule = draft.classOverrides[c.id];
-                  return (
-                    <fieldset key={c.id} disabled={busy}>
-                      <legend>{c.title}</legend>
-                      <label>
-                        Мои оповещения об этом классе{' '}
-                        <select
-                          value={rule?.mode ?? 'inherit'}
-                          onChange={(e) => classRule(c.id, e.target.value)}
-                        >
-                          <option value="inherit">Как в общих настройках</option>
-                          <option value="off">Выключить для меня</option>
-                          <option value="custom">Настроить категории</option>
-                        </select>
-                      </label>
-                      {rule?.mode === 'custom' ? (
-                        <div className="learning-category-grid">
-                          {keys.map((key) => (
-                            <label key={key}>
-                              {notificationCategories[key]}
-                              <select
-                                value={rule.categories?.[key] ?? 'inherit'}
-                                onChange={(e) =>
-                                  editDraft({
-                                    ...draft,
-                                    classOverrides: {
-                                      ...draft.classOverrides,
-                                      [c.id]: {
-                                        ...rule,
-                                        categories: {
-                                          ...rule.categories,
-                                          [key]: e.target.value as 'inherit' | 'on' | 'off',
-                                        },
+              {visibleClasses?.length === 0 ? <p>Классы не найдены.</p> : null}
+              {visibleClasses?.map((c) => {
+                const rule = draft.classOverrides[c.id];
+                return (
+                  <fieldset key={c.id} disabled={busy}>
+                    <legend>{c.title}</legend>
+                    <div className="notification-setting-field">
+                      <div className="notification-setting-heading">
+                        <label htmlFor={`${formId}-${c.id}-mode`}>
+                          Мои оповещения об этом классе
+                        </label>
+                        <InfoHint label={`О доставке в классе «${c.title}»`}>
+                          «Как в общих настройках» наследует ваши категории. «Выключить для меня»
+                          останавливает доставку этого класса. «Настроить категории» позволяет
+                          выбрать исключения; общий выключатель продолжает действовать.
+                        </InfoHint>
+                      </div>
+                      <select
+                        id={`${formId}-${c.id}-mode`}
+                        value={rule?.mode ?? 'inherit'}
+                        onChange={(e) => classRule(c.id, e.target.value)}
+                      >
+                        <option value="inherit">Как в общих настройках</option>
+                        <option value="off">Выключить для меня</option>
+                        <option value="custom">Настроить категории</option>
+                      </select>
+                    </div>
+                    {rule?.mode === 'custom' ? (
+                      <div className="learning-category-grid">
+                        {keys.map((key) => (
+                          <div className="notification-setting-field" key={key}>
+                            <div className="notification-setting-heading">
+                              <label htmlFor={`${formId}-${c.id}-${key}`}>
+                                {notificationCategories[key]}
+                              </label>
+                              <InfoHint
+                                label={`О категории «${notificationCategories[key]}» в классе «${c.title}»`}
+                              >
+                                {categoryHints[key]} Наследование использует общий выбор этой
+                                категории; включение или выключение создаёт исключение для класса.
+                              </InfoHint>
+                            </div>
+                            <select
+                              id={`${formId}-${c.id}-${key}`}
+                              value={rule.categories?.[key] ?? 'inherit'}
+                              onChange={(e) =>
+                                editDraft({
+                                  ...draft,
+                                  classOverrides: {
+                                    ...draft.classOverrides,
+                                    [c.id]: {
+                                      ...rule,
+                                      categories: {
+                                        ...rule.categories,
+                                        [key]: e.target.value as 'inherit' | 'on' | 'off',
                                       },
                                     },
-                                  })
-                                }
-                              >
-                                <option value="inherit">
-                                  Наследовать — {draft.categories[key] ? 'включено' : 'выключено'}
-                                </option>
-                                <option value="on">Включено</option>
-                                <option value="off">Выключено</option>
-                              </select>
-                            </label>
-                          ))}
-                        </div>
-                      ) : null}
-                      {rule ? (
-                        <button type="button" onClick={() => classRule(c.id, 'inherit')}>
-                          Сбросить для класса
-                        </button>
-                      ) : null}
-                    </fieldset>
-                  );
-                })}
-            </details>
+                                  },
+                                })
+                              }
+                            >
+                              <option value="inherit">
+                                Наследовать — {draft.categories[key] ? 'включено' : 'выключено'}
+                              </option>
+                              <option value="on">Включено</option>
+                              <option value="off">Выключено</option>
+                            </select>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                    {rule ? (
+                      <button type="button" onClick={() => classRule(c.id, 'inherit')}>
+                        Сбросить для класса
+                      </button>
+                    ) : null}
+                  </fieldset>
+                );
+              })}
+            </section>
           ) : (
             <p>Нет доступных классов для отдельных настроек.</p>
           )}
-          <p>
-            Обязательные сообщения безопасности не отключаются здесь. MAX используется для входа, а
-            не для рассылки.
-          </p>
+          {busy ? <p role="status">Сохраняем оповещения…</p> : null}
           <div className="learning-notification-actions">
             <button className="btn-primary" disabled={busy} onClick={() => void save()}>
               Сохранить оповещения

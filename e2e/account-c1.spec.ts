@@ -163,15 +163,15 @@ test('owner completes Account C1 and existing project modules remain available',
       (grant: { capability: string }) => grant.capability === 'educator',
     ),
   ).toBe(false);
-  await settingsPanel('Материалы и преподавание').click();
+  await settingsPanel('Материалы и классы').click();
   await page
     .getByRole('article')
-    .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })
+    .filter({ has: page.getByRole('heading', { name: 'Классы', exact: true }) })
     .getByRole('button', { name: 'Подключить', exact: true })
     .click();
-  await settingsPanel('Рабочие пространства').click();
+  await settingsPanel('Школы').click();
   await expect(settingsContent.getByText('Owner Preview School', { exact: true })).toBeVisible();
-  await settingsPanel('Вход и безопасность').click();
+  await settingsPanel('Безопасность').click();
   // The session summary carries the platform of whatever machine runs the
   // browser, so pinning it to Linux made the spec pass only on CI.
   await expect(settingsContent.getByText(/Chrome · \S+/)).toBeVisible();
@@ -195,7 +195,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await secondPage.close();
 
   await openAccountSettings(page);
-  await settingsPanel('Вход и безопасность').click();
+  await settingsPanel('Безопасность').click();
   await settingsContent.getByRole('button', { name: 'Завершить', exact: true }).first().click();
   await expect(settingsContent.getByText('Выбранный вход завершён.')).toBeVisible();
   const revokedSession = await secondContext.request.get('/api/auth/me');
@@ -224,7 +224,7 @@ test('owner completes Account C1 and existing project modules remain available',
   await expect(page.getByText('Account C1 3D')).toBeVisible();
 
   await openAccountSettings(page);
-  await settingsPanel('Вход и безопасность').click();
+  await settingsPanel('Безопасность').click();
   const currentPasswordInput = settingsContent.getByLabel('Текущий пароль', { exact: true });
   const newPasswordInput = settingsContent.getByLabel('Новый пароль', { exact: true });
   const confirmPasswordInput = settingsContent.getByLabel('Повторите новый пароль', {
@@ -383,7 +383,7 @@ test('migrated teacher changes password through organization browser login', asy
   await openAccountSettings(page);
   const settingsPanel = (name: string) =>
     page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
-  await settingsPanel('Вход и безопасность').click();
+  await settingsPanel('Безопасность').click();
   const settingsContent = page.locator('.account-settings-content');
   const currentPasswordInput = settingsContent.getByLabel('Текущий пароль', { exact: true });
   const newPasswordInput = settingsContent.getByLabel('Новый пароль', { exact: true });
@@ -517,26 +517,26 @@ test('Account presentation persists through reload, cancels only display preview
   }
   await page.setViewportSize({ width: 1440, height: 900 });
   await registerInBrowser(page, 'prefsone');
-  await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
-  await page.getByLabel('Боковая панель', { exact: false }).selectOption('collapsed');
+  await page.getByLabel('Анимация', { exact: false }).selectOption('reduce');
+  await page.getByLabel('Боковое меню', { exact: false }).selectOption('collapsed');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
     .getByRole('button', { name: 'Сохранить оформление', exact: true })
     .click();
   await expect(page.getByText('Оформление сохранено в аккаунте.', { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
   await expect(page.locator('#portal-sidebar')).toHaveClass(/collapsed/);
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
     .getByRole('button', { name: 'Сбросить оформление', exact: true })
     .click();
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('system');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
     .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
     .click();
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
   // A concurrent server writer is real; the stale browser draft must be retained.
   const origin = new URL(page.url()).origin;
   const accountId = (await (await page.request.get('/api/auth/me')).json()).user.id as string;
@@ -555,7 +555,7 @@ test('Account presentation persists through reload, cancels only display preview
     },
   });
   expect(changed.status()).toBe(200);
-  await page.getByLabel('Боковая панель', { exact: false }).selectOption('expanded');
+  await page.getByLabel('Боковое меню', { exact: false }).selectOption('expanded');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
     .getByRole('button', { name: 'Сохранить оформление', exact: true })
@@ -563,21 +563,21 @@ test('Account presentation persists through reload, cancels only display preview
   await expect(page.locator('.account-presentation').getByRole('alert')).toContainText(
     'Оформление изменено в другом окне',
   );
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
     .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
     .click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('system');
   await expectNoHorizontalOverflow(page);
   const other = await browser.newContext({ baseURL: origin });
   try {
     const second = await other.newPage();
     await second.setViewportSize({ width: 390, height: 844 });
     await registerInBrowser(second, 'prefstwo');
-    await expect(second.getByLabel('Анимации', { exact: false })).toHaveValue('system');
-    await expect(second.getByLabel('Боковая панель', { exact: false })).toHaveValue('expanded');
+    await expect(second.getByLabel('Анимация', { exact: false })).toHaveValue('system');
+    await expect(second.getByLabel('Боковое меню', { exact: false })).toHaveValue('expanded');
     await expectNoHorizontalOverflow(second);
   } finally {
     await other.close();
@@ -630,8 +630,8 @@ test('mounted Account A cannot read or save Account B presentation after shared 
     expect(beforeB.revision).toBe(0);
     await openAccountSettings(page);
     await page.getByRole('button', { name: 'Интерфейс', exact: true }).click();
-    await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
-    await page.getByLabel('Боковая панель', { exact: false }).selectOption('collapsed');
+    await page.getByLabel('Анимация', { exact: false }).selectOption('reduce');
+    await page.getByLabel('Боковое меню', { exact: false }).selectOption('collapsed');
     // A real login through the shared browser cookie jar. No navigation, mocked
     // auth, session event or actor-prop update is performed on the mounted A page.
     const userAgent = await page.evaluate(() => navigator.userAgent);
@@ -660,7 +660,7 @@ test('mounted Account A cannot read or save Account B presentation after shared 
     });
     expect(login.status()).toBe(200);
     expect((await login.json()).user.id).toBe(b.accountId);
-    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+    await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
     const rejection = page.waitForResponse(
       (response) =>
         response.url().endsWith('/api/account/presentation') &&
@@ -690,8 +690,8 @@ test('mounted Account A cannot read or save Account B presentation after shared 
       await (await page.request.get('/api/account/presentation', { headers: headersB })).json(),
     ).toEqual(beforeB);
     await page.getByRole('button', { name: 'Обновить страницу', exact: true }).click();
-    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
-    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
+    await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
+    await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('system');
     await expect(page.locator('.account-presentation').getByRole('alert')).toHaveCount(0);
   } finally {
     await ownA.dispose();

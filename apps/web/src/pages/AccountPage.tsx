@@ -19,7 +19,6 @@ import {
   PROFILE_AVATAR_CHANGED_EVENT,
 } from '../creator-portal/default-avatars';
 import '../components/seat-avatar.css';
-import { ClassesIcon } from '../electronics/workbench-icons';
 import { deviceTimeZone, timeZoneLabel } from '../components/school-time';
 import {
   requestSettingsNavigation,
@@ -39,16 +38,10 @@ const SETTINGS_PANELS: ReadonlyArray<{
   { id: 'profile', label: 'Профиль' },
   { id: 'interface', label: 'Интерфейс' },
   { id: 'notifications', label: 'Уведомления' },
-  { id: 'security', label: 'Вход и безопасность' },
-  { id: 'capabilities', label: 'Материалы и преподавание' },
-  { id: 'school', label: 'Рабочие пространства' },
+  { id: 'security', label: 'Безопасность' },
+  { id: 'capabilities', label: 'Материалы и классы' },
+  { id: 'school', label: 'Школы' },
 ];
-const SETTINGS_GROUPS = [
-  { label: 'Личное', ids: ['profile', 'interface', 'notifications'] },
-  { label: 'Безопасность', ids: ['security'] },
-  { label: 'Работа и доступы', ids: ['capabilities', 'school'] },
-];
-
 /** Sign-in history reads in the account's own zone, like everything else. */
 function formatDate(value: string, timeZone: string): string {
   return new Intl.DateTimeFormat('ru-RU', {
@@ -104,7 +97,6 @@ export function AccountPage({
   const loadGeneration = useRef(0);
   const [resourceErrors, setResourceErrors] = useState<string[]>([]);
   const [schoolTitle, setSchoolTitle] = useState('');
-  const [classroomCount, setClassroomCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -289,30 +281,11 @@ export function AccountPage({
     };
   }, [maxPairingToken, onSessionChanged, refresh]);
 
-  useEffect(() => {
-    if (!session.navigation.classroomManagement) {
-      setClassroomCount(null);
-      return;
-    }
-    let cancelled = false;
-    void api.listClassrooms().then((result) => {
-      if (!cancelled) setClassroomCount(result.ok ? result.data.meta.total : null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [session.activeWorkspace.workspaceId, session.navigation.classroomManagement]);
-
   const isEducator = educatorEnabled(profile);
   const schoolWorkspaces = useMemo(
     () => profile?.workspaces.filter((workspace) => workspace.kind === 'organization') ?? [],
     [profile],
   );
-  const activeSchool = schoolWorkspaces.find(
-    (workspace) => workspace.workspaceId === session.activeWorkspace.workspaceId,
-  );
-  const activeSchoolIsAdmin =
-    activeSchool?.role === 'school_admin' || activeSchool?.role === 'owner';
   const defaultAvatar = defaultAvatarForAccount(session.user.id);
   const effectiveAvatarUrl = avatarDataUrl ?? defaultAvatar.src;
 
@@ -452,7 +425,7 @@ export function AccountPage({
       setBusyAction(null);
       setError(
         result.error.code === 'educator_required'
-          ? 'Сначала подключите преподавание в разделе «Возможности».'
+          ? 'Сначала подключите преподавание в разделе «Материалы и классы».'
           : result.error.message,
       );
       return;
@@ -652,34 +625,25 @@ export function AccountPage({
             value={selectedPanel}
             onChange={(event) => changePanel(event.target.value as SettingsPanel)}
           >
-            {SETTINGS_GROUPS.map((group) => (
-              <optgroup key={group.label} label={group.label}>
-                {SETTINGS_PANELS.filter((item) => group.ids.includes(item.id)).map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
-              </optgroup>
+            {SETTINGS_PANELS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
             ))}
           </select>
         </label>
         <aside className="account-settings-navigation" aria-label="Разделы настроек">
           <nav>
-            {SETTINGS_GROUPS.map((group) => (
-              <div className="account-settings-group" key={group.label}>
-                <h2>{group.label}</h2>
-                {SETTINGS_PANELS.filter((item) => group.ids.includes(item.id)).map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    className={selectedPanel === item.id ? 'active' : undefined}
-                    aria-current={selectedPanel === item.id ? 'page' : undefined}
-                    onClick={() => changePanel(item.id)}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
+            {SETTINGS_PANELS.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={selectedPanel === item.id ? 'active' : undefined}
+                aria-current={selectedPanel === item.id ? 'page' : undefined}
+                onClick={() => changePanel(item.id)}
+              >
+                {item.label}
+              </button>
             ))}
           </nav>
         </aside>
@@ -710,7 +674,7 @@ export function AccountPage({
 
           {panel === 'profile' ? (
             <section className="account-settings-section" aria-labelledby="profile-settings-title">
-              <h2 id="profile-settings-title" className="account-panel-title">
+              <h2 id="profile-settings-title" className="account-panel-title sr-only">
                 Профиль
               </h2>
 
@@ -730,11 +694,20 @@ export function AccountPage({
                 </InfoHint>
               </div>
 
-              <form className="account-profile-form" onSubmit={(event) => void saveProfile(event)}>
-                <label>
-                  Имя пользователя
-                  <small>Короткое уникальное имя для профиля, например @ivan.petrov.</small>
+              <form
+                className="account-profile-form account-profile-fields"
+                onSubmit={(event) => void saveProfile(event)}
+              >
+                <div className="account-field">
+                  <div className="account-field-heading">
+                    <label htmlFor="account-username">Имя пользователя</label>
+                    <InfoHint label="О логине профиля">
+                      Уникальное имя от 3 до 40 символов: латинские буквы, цифры, точка, дефис и
+                      подчёркивание. Сохраняется вместе с полями профиля.
+                    </InfoHint>
+                  </div>
                   <input
+                    id="account-username"
                     value={username}
                     required
                     minLength={3}
@@ -747,11 +720,17 @@ export function AccountPage({
                       setUsername(event.target.value);
                     }}
                   />
-                </label>
-                <label>
-                  Отображаемое имя
-                  <small>Это имя увидят другие пользователи в проектах и классах.</small>
+                </div>
+                <div className="account-field">
+                  <div className="account-field-heading">
+                    <label htmlFor="account-display-name">Отображаемое имя</label>
+                    <InfoHint label="О публичном имени">
+                      Это имя видно рядом с опубликованными проектами и в классах. От 2 до 255
+                      символов. Email и дата рождения остаются закрытыми.
+                    </InfoHint>
+                  </div>
                   <input
+                    id="account-display-name"
                     value={displayName}
                     required
                     minLength={2}
@@ -763,14 +742,20 @@ export function AccountPage({
                       setDisplayName(event.target.value);
                     }}
                   />
-                </label>
-                <label>
-                  О себе
-                  <small>Расскажите о своих интересах, предметах или проектах.</small>
+                </div>
+                <div className="account-field account-field-wide">
+                  <div className="account-field-heading">
+                    <label htmlFor="account-bio">О себе</label>
+                    <InfoHint label="О личном описании">
+                      Короткое описание интересов и занятий, до 960 символов. Оно видно другим
+                      пользователям после сохранения профиля.
+                    </InfoHint>
+                  </div>
                   <textarea
+                    id="account-bio"
                     value={bio}
                     maxLength={960}
-                    rows={4}
+                    rows={3}
                     placeholder="Например: преподаю технологию, собираю роботов и создаю учебные модели."
                     disabled={busyAction === 'profile'}
                     onChange={(event) => {
@@ -779,19 +764,6 @@ export function AccountPage({
                     }}
                   />
                   <span className="account-character-count">{bio.length} / 960</span>
-                </label>
-                <div
-                  className="account-profile-preview"
-                  role="region"
-                  aria-label="Предпросмотр публичного профиля"
-                >
-                  <img src={effectiveAvatarUrl} alt="" />
-                  <div>
-                    <h3>Предпросмотр профиля</h3>
-                    <strong>{displayName || 'Отображаемое имя'}</strong>
-                    <span>@{username || 'имя.пользователя'}</span>
-                    <p>{bio || 'Здесь появится описание профиля.'}</p>
-                  </div>
                 </div>
                 <div className="account-form-actions">
                   <button
@@ -822,17 +794,23 @@ export function AccountPage({
 
           {panel === 'interface' ? (
             <section className="account-settings-section" aria-label="Интерфейс">
-              <h2 className="account-panel-title">Интерфейс</h2>
+              <h2 className="account-panel-title sr-only">Интерфейс</h2>
               <PresentationControls />
               <form
                 className="account-profile-form account-time-zone"
                 aria-label="Часовой пояс"
                 onSubmit={(event) => void saveTimeZone(event)}
               >
-                <label>
-                  Часовой пояс
-                  <small>Даты и время в классах показываются в выбранном часовом поясе.</small>
+                <div className="account-field">
+                  <div className="account-field-heading">
+                    <label htmlFor="account-time-zone">Часовой пояс</label>
+                    <InfoHint label="Информация о часовом поясе">
+                      Меняет отображение дат и времени для вас. Время занятий и сроки не
+                      переносятся. Сохраняется отдельно от вида интерфейса кнопкой «Сохранить» ниже.
+                    </InfoHint>
+                  </div>
                   <select
+                    id="account-time-zone"
                     value={timeZone}
                     disabled={busyAction !== null}
                     onChange={(event) => setTimeZone(event.target.value)}
@@ -843,7 +821,7 @@ export function AccountPage({
                       </option>
                     ))}
                   </select>
-                </label>
+                </div>
                 <p className="account-hint">
                   Пример времени: {formatDate(new Date().toISOString(), timeZone)}
                 </p>
@@ -883,12 +861,17 @@ export function AccountPage({
           ) : null}
 
           {panel === 'capabilities' ? (
-            <section className="account-settings-section" aria-label="Материалы и преподавание">
-              <h2 className="account-panel-title">Материалы и преподавание</h2>
+            <section className="account-settings-section" aria-label="Материалы и классы">
+              <h2 className="account-panel-title sr-only">Материалы и классы</h2>
               <article className="account-capability-card">
                 <div>
-                  <h3>Создавать материалы</h3>
-                  <p>Личная библиотека учебных материалов. Без управления классами и учениками.</p>
+                  <div className="account-field-heading">
+                    <h3>Материалы</h3>
+                    <InfoHint label="Информация о материалах">
+                      Подключает создание учебных материалов в личной библиотеке. Не даёт управление
+                      классами и учениками. Ваши проекты и обучение сохраняются.
+                    </InfoHint>
+                  </div>
                 </div>
                 {session.navigation.contentAuthoring ? (
                   <a className="btn-secondary" href="#/challenges">
@@ -907,12 +890,15 @@ export function AccountPage({
               </article>
               <article className="account-capability-card">
                 <div>
-                  <h3>Преподавание</h3>
-                  <p>
-                    {isEducator
-                      ? 'Подключено. Личные проекты и обучение остаются доступны.'
-                      : 'Создавайте классы и проводите занятия. Школа для подключения не требуется.'}
-                  </p>
+                  <div className="account-field-heading">
+                    <h3>Классы</h3>
+                    <InfoHint label="Информация о преподавании">
+                      Подключает создание классов и проведение занятий. Школа не обязательна.
+                      Создание материалов подключается отдельно; личные проекты и обучение
+                      сохраняются.
+                    </InfoHint>
+                  </div>
+                  {isEducator ? <span className="account-hint">Подключено</span> : null}
                 </div>
                 {isEducator && session.navigation.classes ? (
                   <button type="button" className="btn-primary" onClick={onOpenClasses}>
@@ -936,8 +922,7 @@ export function AccountPage({
 
           <div hidden={panel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
-              <h2 className="account-panel-title">Уведомления</h2>
-              <p>Подключение MAX для входа само по себе не включает рассылку сообщений.</p>
+              <h2 className="account-panel-title sr-only">Уведомления</h2>
               {selectedPanel === 'notifications' ? (
                 <LearningInbox
                   key={`account:${session.user.id}:${session.activeWorkspace.workspaceId}`}
@@ -956,180 +941,133 @@ export function AccountPage({
 
           {selectedPanel === 'school' ? (
             <section className="account-settings-section" aria-labelledby="school-settings-title">
-              <div className="account-section-heading">
-                <h2 id="school-settings-title" className="account-panel-title">
-                  Рабочие пространства
-                </h2>
-                <p>
-                  Ваши рабочие пространства. Доступ к каждому классу и материалу проверяется
-                  отдельно.
-                </p>
-              </div>
-              <ul>
-                {profile.workspaces.map((workspace) => (
-                  <li key={workspace.workspaceId}>
-                    {workspace.title} ·{' '}
-                    {workspace.kind === 'personal'
-                      ? 'Личное пространство'
-                      : schoolRoleLabel(workspace.role)}
-                  </li>
-                ))}
-              </ul>
-
-              {!isEducator ? (
-                <div className="account-school-empty">
-                  <ClassesIcon />
-                  <div>
-                    <h3>Личное пространство</h3>
-                    <p>Проекты и обучение доступны без подключения преподавания.</p>
-                  </div>
-                </div>
+              <h2 id="school-settings-title" className="account-panel-title sr-only">
+                Школы
+              </h2>
+              {schoolWorkspaces.length ? (
+                <ul className="account-school-memberships">
+                  {schoolWorkspaces.map((workspace) => (
+                    <li key={workspace.workspaceId}>
+                      <div>
+                        <strong>{workspace.title}</strong>
+                        <span>{schoolRoleLabel(workspace.role)}</span>
+                      </div>
+                      {isEducator ? (
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          disabled={busyAction !== null}
+                          onClick={() =>
+                            requestSettingsNavigation(() => void openSchoolClasses(workspace))
+                          }
+                        >
+                          {busyAction === `school:${workspace.workspaceId}`
+                            ? 'Открываем…'
+                            : 'Открыть классы'}
+                        </button>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
               ) : (
-                <>
-                  {activeSchool ? (
-                    <div className="account-school-dashboard">
-                      <div className="account-school-dashboard-heading">
-                        <div>
-                          <span>
-                            {activeSchoolIsAdmin ? 'Администрирование школы' : 'Текущая школа'}
-                          </span>
-                          <h3>{activeSchool.title}</h3>
-                        </div>
-                        <strong>{schoolRoleLabel(activeSchool.role)}</strong>
-                      </div>
-                      <div className="account-school-metrics">
-                        <div>
-                          <strong>{classroomCount ?? '—'}</strong>
-                          <span>Классы</span>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-primary"
-                        onClick={onOpenClasses}
-                        disabled={!session.navigation.classroomManagement}
-                      >
-                        Управлять классами
-                      </button>
-                    </div>
-                  ) : null}
-
-                  {schoolWorkspaces.length > 0 ? (
-                    <div className="account-school-list">
-                      <h3>Мои школы</h3>
-                      {schoolWorkspaces.map((workspace) => {
-                        const active = workspace.workspaceId === activeSchool?.workspaceId;
-                        return (
-                          <article key={workspace.workspaceId} className={active ? 'active' : ''}>
-                            <div>
-                              <strong>{workspace.title}</strong>
-                              <span>{schoolRoleLabel(workspace.role)}</span>
-                            </div>
-                            <button
-                              type="button"
-                              className={active ? 'btn-primary' : 'btn-secondary'}
-                              disabled={busyAction !== null}
-                              onClick={() =>
-                                requestSettingsNavigation(() => void openSchoolClasses(workspace))
-                              }
-                            >
-                              {busyAction === `school:${workspace.workspaceId}`
-                                ? 'Открываем…'
-                                : 'Открыть классы'}
-                            </button>
-                          </article>
-                        );
-                      })}
-                    </div>
-                  ) : null}
-
-                  <form
-                    className="account-create-school"
-                    onSubmit={(event) => void createSchool(event)}
-                  >
-                    <div>
-                      <h3>
-                        {schoolWorkspaces.length > 0 ? 'Создать ещё одну школу' : 'Создать школу'}
-                      </h3>
-                      <p>Школа появится в списке сразу после создания.</p>
-                    </div>
-                    <label>
-                      Название школы
-                      <input
-                        value={schoolTitle}
-                        minLength={2}
-                        maxLength={120}
-                        required
-                        placeholder="Например: Школа №1580"
-                        onChange={(event) => setSchoolTitle(event.target.value)}
-                      />
-                    </label>
-                    <button
-                      type="submit"
-                      className="btn-primary"
-                      disabled={busyAction !== null || schoolTitle.trim().length < 2}
-                    >
-                      {busyAction === 'create-school' ? 'Создаём…' : 'Создать школу'}
-                    </button>
-                  </form>
-                </>
+                <p className="account-hint">Вы не состоите в школе.</p>
               )}
-              <details
-                className="account-settings-information"
-                open={panel === 'requests' || undefined}
-              >
-                <summary>Приглашения на обучение</summary>
-                <p>
-                  Откройте адрес приглашения, полученный от преподавателя. Общий список приглашений
-                  пока недоступен.
-                </p>
+              {isEducator ? (
+                <form
+                  className="account-create-school"
+                  onSubmit={(event) => void createSchool(event)}
+                >
+                  <div className="account-field">
+                    <div className="account-field-heading">
+                      <label htmlFor="new-school-title">Название школы</label>
+                      <InfoHint label="Информация о создании школы">
+                        Создайте школу, если нужно общее пространство для преподавателей и классов.
+                        Вы станете её администратором. Личный аккаунт и преподавание доступны без
+                        школы.
+                      </InfoHint>
+                    </div>
+                    <input
+                      id="new-school-title"
+                      value={schoolTitle}
+                      minLength={2}
+                      maxLength={120}
+                      required
+                      placeholder="Например: Школа №1580"
+                      onChange={(event) => setSchoolTitle(event.target.value)}
+                    />
+                  </div>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={busyAction !== null || schoolTitle.trim().length < 2}
+                  >
+                    {busyAction === 'create-school' ? 'Создаём…' : 'Создать школу'}
+                  </button>
+                </form>
+              ) : null}
+              <div className="account-invitation-row">
+                <div className="account-field-heading">
+                  <span>Приглашения</span>
+                  <InfoHint label="Информация о приглашениях">
+                    Для вступления в класс откройте адрес приглашения, полученный от преподавателя.
+                    Ваши занятия доступны по ссылке «Моё обучение с преподавателем».
+                  </InfoHint>
+                </div>
                 <a className="btn-secondary" href="#/attending">
                   Моё обучение с преподавателем
                 </a>
-              </details>
+              </div>
             </section>
           ) : null}
 
           {selectedPanel === 'security' ? (
             <section className="account-settings-section" aria-labelledby="security-settings-title">
-              <div className="account-section-heading">
-                <h2 id="security-settings-title" className="account-panel-title">
-                  Вход и безопасность
-                </h2>
-                <p>Пароль, MAX, закрытые данные и устройства, на которых открыт ASA Lab.</p>
-              </div>
+              <h2 id="security-settings-title" className="account-panel-title sr-only">
+                Безопасность
+              </h2>
 
               <div className="account-private-facts">
                 <div>
-                  <span>Email</span>
+                  <div className="account-field-heading">
+                    <span>Email</span>
+                    <InfoHint label="Информация: Email">
+                      Контактный адрес закрыт от других пользователей. Здесь он доступен только для
+                      просмотра.
+                    </InfoHint>
+                  </div>
                   <strong>
                     {maxManagedProfile ? 'Не требуется — вход через MAX' : profile.email}
                   </strong>
-                  <small>
-                    {maxManagedProfile
-                      ? 'Не нужен для входа через MAX'
-                      : 'Контактный адрес аккаунта'}
-                  </small>
                 </div>
                 <div>
-                  <span>Дата рождения</span>
+                  <div className="account-field-heading">
+                    <span>Дата рождения</span>
+                    <InfoHint label="Информация: Дата рождения">
+                      Дата рождения закрыта от других пользователей. Это поле не публикуется в
+                      проектах и классах.
+                    </InfoHint>
+                  </div>
                   <strong>{maxManagedProfile ? 'Не указана' : profile.birthDate}</strong>
-                  <small>
-                    {maxManagedProfile
-                      ? 'Не запрашивается при входе через MAX'
-                      : 'Не показывается другим пользователям'}
-                  </small>
                 </div>
                 <div>
-                  <span>Страна</span>
+                  <div className="account-field-heading">
+                    <span>Страна</span>
+                    <InfoHint label="Информация: Страна">
+                      Страна из данных аккаунта доступна здесь только для просмотра. Часовой пояс
+                      выбирается отдельно в разделе «Интерфейс».
+                    </InfoHint>
+                  </div>
                   <strong>{profile.country}</strong>
-                  <small>Используется для правил аккаунта</small>
                 </div>
-              </div>
 
-              <div className="account-private-facts">
                 <div>
-                  <span>MAX</span>
+                  <div className="account-field-heading">
+                    <span>MAX</span>
+                    <InfoHint label="Информация о MAX">
+                      Подключённый MAX используется для подтверждения аккаунта и входа без пароля.
+                      Действие подключения доступно, когда MAX настроен для этого портала.
+                    </InfoHint>
+                  </div>
                   <strong>
                     {maxStatus === null
                       ? 'Статус недоступен'
@@ -1137,11 +1075,9 @@ export function AccountPage({
                         ? 'Подтверждён'
                         : 'Не подключён'}
                   </strong>
-                  <small>
-                    {maxStatus?.verifiedAt
-                      ? `Связан ${formatDate(maxStatus.verifiedAt, timeZone)}`
-                      : 'Для подтверждения аккаунта и входа без пароля'}
-                  </small>
+                  {maxStatus?.verifiedAt ? (
+                    <small>Связан {formatDate(maxStatus.verifiedAt, timeZone)}</small>
+                  ) : null}
                   {maxStatus?.linked ? (
                     <button
                       type="button"
@@ -1152,26 +1088,25 @@ export function AccountPage({
                       {busyAction === 'max-unlink' ? 'Отключаем…' : 'Отключить MAX'}
                     </button>
                   ) : null}
+                  {maxStatus && !maxStatus.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
+                    <div className="account-max-connect">
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        disabled={busyAction !== null}
+                        onClick={() => void startMaxPairing()}
+                      >
+                        {maxPairingToken ? 'Ждём MAX…' : 'Подключить MAX'}
+                      </button>
+                      <small>Откройте бота MAX и нажмите «Начать»</small>
+                      {maxPairingUrl && maxPairingToken ? (
+                        <a href={maxPairingUrl} target="_blank" rel="noreferrer">
+                          Открыть MAX ещё раз
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
-                {maxStatus && !maxStatus.linked && maxConfig?.enabled && maxConfig.launchUrl ? (
-                  <div>
-                    <span>Подтверждение</span>
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      disabled={busyAction !== null}
-                      onClick={() => void startMaxPairing()}
-                    >
-                      {maxPairingToken ? 'Ждём MAX…' : 'Подключить MAX'}
-                    </button>
-                    <small>Откройте бота MAX и нажмите «Начать»</small>
-                    {maxPairingUrl && maxPairingToken ? (
-                      <a href={maxPairingUrl} target="_blank" rel="noreferrer">
-                        Открыть MAX ещё раз
-                      </a>
-                    ) : null}
-                  </div>
-                ) : null}
               </div>
 
               {passwordStatus ? (
@@ -1179,16 +1114,18 @@ export function AccountPage({
                   className="account-password-form"
                   onSubmit={(event) => void changePassword(event)}
                 >
-                  <div className="account-section-heading">
+                  <div className="account-field-heading account-field-wide">
                     <h3>{passwordStatus?.configured ? 'Изменить пароль' : 'Создать пароль'}</h3>
-                    <p>
+                    <InfoHint label="Информация о пароле">
+                      Не меньше 10 символов. После сохранения остальные активные входы будут
+                      завершены.
                       {passwordStatus?.canResetWithoutCurrent
-                        ? 'Вы вошли через MAX, поэтому текущий пароль не требуется.'
-                        : 'После изменения все остальные активные входы будут завершены.'}
-                    </p>
+                        ? ' Вход через MAX подтверждён: текущий пароль не требуется.'
+                        : ' Укажите текущий пароль, чтобы подтвердить изменение.'}
+                    </InfoHint>
                   </div>
                   {!passwordStatus?.canResetWithoutCurrent ? (
-                    <label>
+                    <label className="account-field-wide">
                       Текущий пароль
                       <input
                         type="password"
@@ -1279,23 +1216,6 @@ export function AccountPage({
                   </li>
                 ))}
               </ul>
-              <details
-                className="account-settings-information"
-                open={panel === 'privacy' || undefined}
-              >
-                <summary>Данные и приватность</summary>
-                <p>
-                  Email и дата рождения не показываются другим пользователям. Видимость проектов
-                  задаётся отдельно в каждом проекте.
-                </p>
-                <p>
-                  Самостоятельное удаление аккаунта и выгрузка архива пока недоступны. Для запроса
-                  обратитесь через справку.
-                </p>
-                <a className="btn-secondary" href="#/help">
-                  Справка
-                </a>
-              </details>
             </section>
           ) : null}
         </div>

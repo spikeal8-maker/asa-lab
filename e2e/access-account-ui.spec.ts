@@ -4,6 +4,8 @@ import { resolve, sep } from 'node:path';
 import type { LearningNotification } from '../apps/web/src/api';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
+const r3Evidence = 'reports/playwright/portal-compact-settings-r3-20261008';
+const r3Visual = `${r3Evidence}/candidate-final-own-fix`;
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
 async function serveBuiltApp(page: Page) {
   const dist = resolve('apps/web/dist');
@@ -22,6 +24,473 @@ async function serveBuiltApp(page: Page) {
   });
 }
 test.beforeEach(async ({ page }) => serveBuiltApp(page));
+
+for (const width of [1440, 390, 320]) {
+  test(`R3 compact settings first surfaces at ${width}`, async ({ page }) => {
+    mkdirSync(r3Visual, { recursive: true });
+    await page.setViewportSize({ width, height: 568 });
+    await fixture(page, { educator: true, organization: true, presentationLongContent: true });
+    for (const panel of ['profile', 'interface', 'security']) {
+      await page.goto(`/#/account/${panel}`);
+      await expect(page.getByRole('heading', { name: 'Настройки', exact: true })).toBeVisible();
+      await expect(
+        page.getByLabel(
+          panel === 'profile'
+            ? 'Имя пользователя'
+            : panel === 'interface'
+              ? 'Анимация'
+              : 'Новый пароль',
+          { exact: true },
+        ),
+      ).toBeVisible();
+      await expect
+        .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
+        .toBe(true);
+      await page.screenshot({
+        path: `${r3Visual}/early-account-${panel}-${width}.png`,
+        fullPage: true,
+      });
+      await page.screenshot({ path: `${r3Visual}/early-account-${panel}-${width}-viewport.png` });
+    }
+  });
+}
+
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true])
+    for (const enlarged of [false, true])
+      test(`R3 ${seat ? 'Seat' : 'Account'} compact composition ${width}px ${enlarged ? 'font150' : 'normal'}`, async ({
+        page,
+      }) => {
+        mkdirSync(r3Visual, { recursive: true });
+        await page.setViewportSize({ width, height: 568 });
+        const state = await fixture(page, {
+          seat,
+          educator: !seat,
+          organization: !seat,
+          presentationLongContent: true,
+        });
+        const panels = seat
+          ? ['profile', 'interface', 'notifications']
+          : ['profile', 'interface', 'notifications', 'security', 'capabilities', 'school'];
+        for (const panelId of panels) {
+          await page.goto(`/#/account/${panelId}`);
+          const main = page.locator('main.account-settings-page');
+          await expect(main.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
+          await expect(
+            main.locator('.account-settings-section').filter({ visible: true }).first(),
+          ).toBeVisible();
+          if (panelId === 'interface')
+            await expect(main.getByLabel('Анимация', { exact: true })).toBeEnabled();
+          if (panelId === 'notifications')
+            await expect(main.getByLabel('Получать учебные оповещения')).toBeVisible();
+          if (enlarged) {
+            await main.evaluate((element) => {
+              for (const node of element.querySelectorAll<HTMLElement>('[style]'))
+                node.style.removeProperty('font-size');
+              const sizes = [
+                ...element.querySelectorAll<HTMLElement>(
+                  'h1,h2,h3,h4,p,label,input,textarea,select,button,a,strong,small,legend,span:not(.info-hint-trigger > span)',
+                ),
+              ]
+                .filter((node) => !node.classList.contains('info-hint-trigger'))
+                .map((node) => [node, parseFloat(getComputedStyle(node).fontSize) * 1.5] as const);
+              for (const [node, size] of sizes) node.style.fontSize = `${size}px`;
+            });
+          }
+          const geometry = await page.evaluate(() => ({
+            viewport: innerWidth,
+            width: document.documentElement.scrollWidth,
+            offenders: [...document.querySelectorAll<HTMLElement>('main.account-settings-page *')]
+              .filter((element) => element.getBoundingClientRect().right > innerWidth)
+              .map((element) => ({
+                tag: element.tagName,
+                class: element.className,
+                text: element.textContent?.slice(0, 80),
+                right: element.getBoundingClientRect().right,
+                width: element.getBoundingClientRect().width,
+              })),
+          }));
+          if (geometry.width > geometry.viewport) {
+            await page.screenshot({
+              path: `${r3Visual}/overflow-${seat ? 'seat' : 'account'}-${panelId}-${width}.png`,
+              fullPage: true,
+            });
+          }
+          expect(
+            geometry.width,
+            `${panelId} overflow: ${JSON.stringify(geometry)}`,
+          ).toBeLessThanOrEqual(geometry.viewport);
+          await expect(main.locator('label .info-hint-trigger')).toHaveCount(0);
+          await expect(
+            main.locator(
+              '.account-settings-group, .account-profile-preview, .account-settings-information',
+            ),
+          ).toHaveCount(0);
+          const picker = main.getByLabel('Выбрать раздел настроек');
+          if (width <= 900) {
+            await expect(picker).toBeVisible();
+            await expect(main.getByLabel('Разделы настроек')).toBeHidden();
+          } else {
+            await expect(picker).toBeHidden();
+            await expect(main.getByLabel('Разделы настроек').getByRole('button')).toHaveCount(
+              seat ? 3 : 6,
+            );
+          }
+          for (const hint of await main.locator('.info-hint-trigger:visible').all()) {
+            const bounds = (await hint.boundingBox())!;
+            expect(bounds.width).toBeGreaterThanOrEqual(44);
+            expect(bounds.height).toBeGreaterThanOrEqual(44);
+          }
+          if (panelId === 'security') {
+            const facts = await main
+              .locator('.account-private-facts > div')
+              .evaluateAll((elements) =>
+                elements.map((e) => ({
+                  x: e.getBoundingClientRect().x,
+                  y: e.getBoundingClientRect().y,
+                })),
+              );
+            expect(facts).toHaveLength(4);
+            expect(new Set(facts.map((fact) => fact.x)).size).toBe(
+              width === 1440 ? 4 : width === 1024 ? 2 : 1,
+            );
+            const current = (await main.getByLabel('Текущий пароль').boundingBox())!;
+            const next = (await main.getByLabel('Новый пароль', { exact: true }).boundingBox())!;
+            const confirm = (await main.getByLabel('Повторите новый пароль').boundingBox())!;
+            expect(current.y + current.height).toBeLessThan(next.y);
+            expect(current.width).toBeLessThanOrEqual(600);
+            if (width > 560) expect(next.y).toBe(confirm.y);
+            else expect(next.y + next.height).toBeLessThan(confirm.y);
+          }
+          if (panelId === 'notifications') {
+            const prefs = main.getByRole('region', {
+              name: 'Учебные оповещения — только для меня',
+              exact: true,
+            });
+            await expect(
+              prefs.getByRole('region', { name: 'По классам', exact: true }),
+            ).toBeVisible();
+            await expect(prefs.locator('details')).toHaveCount(0);
+            for (const row of await prefs.locator('.notification-setting-row').all()) {
+              const label = (await row.locator('label').boundingBox())!;
+              const hint = (await row.locator('.info-hint-trigger').boundingBox())!;
+              expect(hint.x - label.x - label.width).toBeLessThanOrEqual(8);
+              expect(hint.x - label.x - label.width).toBeGreaterThanOrEqual(-1);
+            }
+            expect(
+              (await prefs.getByLabel('Мои оповещения об этом классе').boundingBox())!.width,
+            ).toBeLessThanOrEqual(420);
+            expect(
+              (await prefs
+                .getByRole('button', { name: 'Сохранить оповещения', exact: true })
+                .boundingBox())!.width,
+            ).toBeLessThanOrEqual(enlarged ? 350 : 260);
+          }
+          if (panelId === 'school') {
+            expect(
+              (await main
+                .getByRole('button', { name: 'Создать школу', exact: true })
+                .boundingBox())!.width,
+            ).toBeLessThanOrEqual(260);
+          }
+          await page.screenshot({
+            path: `${r3Visual}/${seat ? 'seat' : 'account'}-${panelId}-${width}-${enlarged ? 'font150' : 'normal'}.png`,
+            fullPage: true,
+          });
+        }
+        expect(state.mutations).toEqual([]);
+      });
+
+test('R3 stationary pointer after avatar modal close cannot obstruct reopening the avatar', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  const opener = page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true });
+  await opener.click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
+  const publicNameInfo = page.getByRole('button', { name: 'О публичном имени', exact: true });
+  const anchor = (await publicNameInfo.boundingBox())!;
+  await page.mouse.move(anchor.x + anchor.width / 2, anchor.y + anchor.height / 2);
+  await page.keyboard.press('Escape');
+  await expect(opener).toBeFocused();
+  await expect(publicNameInfo).toHaveAttribute('aria-expanded', 'false');
+  await expect(page.getByRole('tooltip')).toHaveCount(0);
+  const hit = await opener.evaluate((button) => {
+    const bounds = button.getBoundingClientRect();
+    const x = bounds.x + bounds.width / 2;
+    const y = bounds.y + bounds.height / 2;
+    return {
+      x,
+      y,
+      visible: bounds.top >= 0 && bounds.bottom <= innerHeight,
+      nativeHit: button.contains(document.elementFromPoint(x, y)),
+    };
+  });
+  expect(hit.visible).toBe(true);
+  expect(hit.nativeHit).toBe(true);
+  await page.mouse.click(hit.x, hit.y);
+  await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
+  await expect(page.locator('body > .info-hint-popup')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  expect(state.mutations).toHaveLength(0);
+});
+
+test('R3 organization membership is visible without educator actions or redundant class dashboard reads', async ({
+  page,
+}) => {
+  const state = await fixture(page, { organization: true });
+  const classReads: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/classrooms') classReads.push(request.url());
+  });
+  await page.goto('/#/account/school');
+  await expect(
+    page
+      .locator('.account-school-memberships')
+      .getByText('Организация с длинным названием для проверки списка доступов', { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.locator('.account-school-memberships').getByText('Администратор школы', { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('.account-school-memberships').getByRole('button')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Создать школу', exact: true })).toHaveCount(0);
+  await expect(page.locator('.account-school-memberships')).not.toContainText(
+    'Личное пространство',
+  );
+  await expect(
+    page.getByRole('link', { name: 'Моё обучение с преподавателем', exact: true }),
+  ).toBeVisible();
+  expect(classReads).toEqual([]);
+  expect(state.mutations).toEqual([]);
+});
+
+for (const touch of [false, true])
+  test(`R3 adjacent hints coordinate ${touch ? 'touch' : 'pointer and focus'} without toggling preferences`, async ({
+    page,
+    browser,
+  }) => {
+    const context = touch
+      ? await browser.newContext({
+          baseURL: 'http://127.0.0.1:4612',
+          hasTouch: true,
+          viewport: { width: 390, height: 568 },
+        })
+      : null;
+    const target = context ? await context.newPage() : page;
+    if (context) await serveBuiltApp(target);
+    try {
+      const state = await fixture(target);
+      await target.goto('/#/account/notifications');
+      const prefs = target.getByRole('region', {
+        name: 'Учебные оповещения — только для меня',
+        exact: true,
+      });
+      const first = prefs.getByRole('button', {
+        name: 'О категории «Назначения и условия»',
+        exact: true,
+      });
+      const second = prefs.getByRole('button', {
+        name: 'О категории «Проверка и результаты»',
+        exact: true,
+      });
+      const activate = async (hint: ReturnType<Page['getByRole']>) =>
+        touch ? hint.tap() : hint.click();
+      await activate(first);
+      await expect(target.getByRole('tooltip')).toHaveCount(1);
+      if (touch) await activate(second);
+      else await second.hover();
+      await expect(target.getByRole('tooltip')).toHaveCount(1);
+      await expect(target.getByRole('tooltip')).toContainText('Оценки и комментарии');
+      if (!touch) {
+        await target.getByRole('tooltip').hover();
+        await expect(target.getByRole('tooltip')).toHaveCount(1);
+        await second.focus();
+        await expect(target.getByRole('tooltip')).toContainText('Оценки и комментарии');
+        await first.focus();
+        await expect(target.getByRole('tooltip')).toHaveCount(1);
+        await expect(target.getByRole('tooltip')).toContainText('Новые назначения');
+      }
+      const popup = (await target.getByRole('tooltip').boundingBox())!;
+      expect(popup.x).toBeGreaterThanOrEqual(0);
+      expect(popup.x + popup.width).toBeLessThanOrEqual(target.viewportSize()!.width);
+      expect(popup.y + popup.height).toBeLessThanOrEqual(target.viewportSize()!.height);
+      await expect(prefs.getByLabel('Назначения и условия', { exact: true })).toBeChecked();
+      await expect(prefs.getByLabel('Проверка и результаты', { exact: true })).toBeChecked();
+      await target.keyboard.press('Escape');
+      await expect(target.getByRole('tooltip')).toHaveCount(0);
+      await activate(first);
+      await target.getByRole('heading', { name: 'Настройки', exact: true }).click();
+      await expect(target.getByRole('tooltip')).toHaveCount(0);
+      expect(state.mutations).toEqual([]);
+    } finally {
+      await context?.close();
+    }
+  });
+
+for (const trustedMax of [false, true])
+  test(`R3 password flow trusts only existing server allowance ${trustedMax}`, async ({ page }) => {
+    await fixture(page);
+    const writes: unknown[] = [];
+    let release!: () => void;
+    const pending = new Promise<void>((resolvePending) => {
+      release = resolvePending;
+    });
+    let fail = true;
+    await page.route('**/api/account/password', async (route) => {
+      if (route.request().method() === 'GET')
+        return route.fulfill({ json: { configured: true, canResetWithoutCurrent: trustedMax } });
+      writes.push(route.request().postDataJSON());
+      if (fail) {
+        await pending;
+        return route.fulfill({
+          status: 400,
+          json: { error: { code: 'current_password_invalid', message: 'Wrong current password' } },
+        });
+      }
+      return route.fulfill({ json: { changed: true } });
+    });
+    await page.goto('/#/account/security');
+    const current = page.getByLabel('Текущий пароль');
+    await expect(current).toHaveCount(trustedMax ? 0 : 1);
+    const next = page.getByLabel('Новый пароль', { exact: true });
+    const confirm = page.getByLabel('Повторите новый пароль');
+    await expect(next).toHaveAttribute('autocomplete', 'new-password');
+    await expect(next).toHaveAttribute('minlength', '10');
+    await expect(next).toHaveAttribute('maxlength', '200');
+    const save = page.getByRole('button', { name: 'Сохранить пароль', exact: true });
+    await next.fill('short');
+    await confirm.fill('short');
+    await expect(save).toBeDisabled();
+    await next.fill('new-password-strong');
+    await confirm.fill('different-password');
+    await expect(save).toBeDisabled();
+    await confirm.fill('new-password-strong');
+    if (!trustedMax) {
+      await expect(save).toBeDisabled();
+      await current.fill('wrong-password');
+      await expect(current).toHaveAttribute('autocomplete', 'current-password');
+    }
+    await save.click();
+    await expect(page.getByRole('button', { name: 'Сохраняем…', exact: true })).toBeDisabled();
+    await expect.poll(() => writes.length).toBe(1);
+    expect(writes).toEqual([
+      { currentPassword: trustedMax ? '' : 'wrong-password', newPassword: 'new-password-strong' },
+    ]);
+    release();
+    await expect(page.getByRole('alert')).toContainText('Текущий пароль указан неверно.');
+    await expect(next).toHaveValue('new-password-strong');
+    fail = false;
+    await save.click();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Пароль изменён. Остальные входы завершены.' }),
+    ).toBeVisible();
+    await expect(next).toHaveValue('');
+    await expect(confirm).toHaveValue('');
+    await expect(current).toHaveCount(1);
+    expect(writes).toHaveLength(2);
+  });
+
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true])
+    test(`R3 ${seat ? 'Seat' : 'Account'} visible notification loading busy error and class scope at ${width}px`, async ({
+      page,
+    }) => {
+      mkdirSync(r3Visual, { recursive: true });
+      const state = await fixture(page, { seat });
+      await page.setViewportSize({ width, height: 568 });
+      let releaseLoad!: () => void, releaseSave!: () => void;
+      const loading = new Promise<void>((resolveLoad) => {
+        releaseLoad = resolveLoad;
+      });
+      const saving = new Promise<void>((resolveSave) => {
+        releaseSave = resolveSave;
+      });
+      let holdLoad = true,
+        failSave = true;
+      const writes: {
+        categories: Record<string, boolean>;
+        classOverrides: Record<string, { mode: string; categories?: Record<string, string> }>;
+      }[] = [];
+      await page.route('**/api/learning/notifications/preferences', async (route) => {
+        if (route.request().method() === 'GET') {
+          if (holdLoad) await loading;
+          return route.fallback();
+        }
+        writes.push(route.request().postDataJSON());
+        if (failSave) {
+          await saving;
+          return route.fulfill({
+            status: 503,
+            json: { error: { code: 'unavailable', message: 'Доставка временно недоступна.' } },
+          });
+        }
+        return route.fallback();
+      });
+      await page.goto('/#/account/notifications');
+      const prefs = page.getByRole('region', {
+        name: 'Учебные оповещения — только для меня',
+        exact: true,
+      });
+      await expect(prefs.getByText('Загружаем настройки…')).toBeVisible();
+      await page.screenshot({
+        path: `${r3Visual}/notifications-${seat ? 'seat' : 'account'}-${width}-loading.png`,
+        fullPage: true,
+      });
+      holdLoad = false;
+      releaseLoad();
+      await expect(prefs.getByLabel('Скоро срок', { exact: true })).toBeChecked();
+      await expect(prefs.getByLabel('Работы на проверку', { exact: true })).toHaveCount(0);
+      if (seat)
+        await expect(prefs.getByLabel('Заявки и приглашения', { exact: true })).toHaveCount(0);
+      const search = prefs.getByLabel('Найти класс');
+      await search.fill('не существующий класс');
+      await expect(prefs.getByText('Классы не найдены.', { exact: true })).toBeVisible();
+      await search.fill('Длинное название');
+      const mode = prefs.getByLabel('Мои оповещения об этом классе');
+      await mode.selectOption('off');
+      await expect(mode).toHaveValue('off');
+      await mode.selectOption('custom');
+      await prefs
+        .getByRole('combobox', { name: 'Назначения и условия', exact: true })
+        .selectOption('off');
+      await prefs.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+      await expect(prefs.getByRole('status')).toHaveText('Сохраняем оповещения…');
+      await expect(mode).toBeDisabled();
+      await expect.poll(() => writes.length).toBe(1);
+      expect(writes[0]!.categories.NC02).toBe(true);
+      expect(writes[0]!.categories.NC08).toBe(true);
+      expect(writes[0]!.classOverrides['class-1']).toEqual({
+        mode: 'custom',
+        categories: { NC01: 'off' },
+      });
+      await page.screenshot({
+        path: `${r3Visual}/notifications-${seat ? 'seat' : 'account'}-${width}-busy.png`,
+        fullPage: true,
+      });
+      releaseSave();
+      await expect(prefs.getByRole('alert')).toContainText('Доставка временно недоступна.');
+      await expect(mode).toHaveValue('custom');
+      await expect(
+        prefs.getByRole('combobox', { name: 'Назначения и условия', exact: true }),
+      ).toHaveValue('off');
+      await page.screenshot({
+        path: `${r3Visual}/notifications-${seat ? 'seat' : 'account'}-${width}-error.png`,
+        fullPage: true,
+      });
+      await prefs.getByRole('button', { name: 'Сбросить для класса', exact: true }).click();
+      await expect(mode).toHaveValue('inherit');
+      failSave = false;
+      await prefs.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+      await expect(prefs.getByRole('status')).toHaveText('Настройки сохранены.');
+      expect(writes[1]!.classOverrides).toEqual({});
+      expect(state.mutations).toContain('/api/learning/notifications/preferences');
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+        true,
+      );
+    });
 
 async function fixture(
   page: Page,
@@ -899,9 +1368,7 @@ for (const navigationApi of [true, false]) {
         return;
       }
       await expect(page).toHaveURL(/#\/account\/security$/);
-      await expect(
-        page.getByRole('heading', { name: 'Вход и безопасность', exact: true }),
-      ).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Безопасность', exact: true })).toBeVisible();
       await traverse(page, 'back');
       await expect(page).toHaveURL(/#\/account\/profile$/);
       await expect(name).toHaveValue(
@@ -1178,12 +1645,12 @@ for (const persona of ['personal', 'author', 'teacher-learner', 'organization'] 
     if (persona === 'teacher-learner' || persona === 'organization')
       await expect(staff).toBeVisible();
     else await expect(staff).toHaveCount(0);
-    await panel(page, 'Материалы и преподавание').click();
+    await panel(page, 'Материалы и классы').click();
     if (persona === 'author')
       await expect(page.getByRole('link', { name: 'Открыть материалы' })).toBeVisible();
     if (persona === 'teacher-learner' || persona === 'organization')
       await expect(page.getByRole('button', { name: 'Открыть классы', exact: true })).toBeVisible();
-    await panel(page, 'Рабочие пространства').click();
+    await panel(page, 'Школы').click();
     await expect(page.getByText('Активна', { exact: true })).toHaveCount(0);
     await expect(page.getByText('Полный', { exact: true })).toHaveCount(0);
     if (persona === 'organization')
@@ -1302,10 +1769,10 @@ test('unknown MAX is not disconnected; teaching is a separate explicit action', 
 }) => {
   const state = await fixture(page, { secondaryFailure: true });
   await page.goto('/#/account');
-  await panel(page, 'Вход и безопасность').click();
+  await panel(page, 'Безопасность').click();
   await expect(page.getByText('Статус недоступен', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Подключить MAX', exact: true })).toHaveCount(0);
-  await panel(page, 'Материалы и преподавание').click();
+  await panel(page, 'Материалы и классы').click();
   await page.getByRole('button', { name: 'Подключить', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Открыть классы', exact: true })).toBeVisible();
   expect(
@@ -1325,10 +1792,10 @@ for (const width of [1440, 1024, 390, 320])
     else await expect(page.getByLabel('Разделы настроек').getByRole('button')).toHaveCount(6);
     for (const name of [
       'Профиль',
-      'Вход и безопасность',
+      'Безопасность',
       'Интерфейс',
-      'Материалы и преподавание',
-      'Рабочие пространства',
+      'Материалы и классы',
+      'Школы',
       'Уведомления',
     ]) {
       if (width <= 900)
@@ -1338,7 +1805,7 @@ for (const width of [1440, 1024, 390, 320])
         () => document.documentElement.scrollWidth > innerWidth + 1,
       );
       expect(overflow, `${width}px ${name}`).toBe(false);
-      if (name === 'Материалы и преподавание') {
+      if (name === 'Материалы и классы') {
         const textWidths = await page
           .locator('.account-capability-card > div')
           .evaluateAll((elements) =>
@@ -1359,10 +1826,23 @@ for (const width of [1440, 1024, 390, 320])
           const layout = await row.evaluate((label) => {
             const input = label.querySelector('input')!.getBoundingClientRect();
             const bounds = label.getBoundingClientRect();
-            return { checkboxWidth: input.width, rowWidth: bounds.width, rowHeight: bounds.height };
+            const style = getComputedStyle(label);
+            const context = document.createElement('canvas').getContext('2d')!;
+            context.font = style.font;
+            const naturalTextWidth = context.measureText(label.textContent!.trim()).width;
+            return {
+              checkboxWidth: input.width,
+              captionWidth: bounds.width - input.width - 10,
+              naturalTextWidth,
+              rowHeight: bounds.height,
+            };
           });
           expect(layout.checkboxWidth).toBeLessThanOrEqual(24);
-          expect(layout.rowWidth).toBeGreaterThan(150);
+          // Short captions and their i form a natural group. Long captions still
+          // retain a readable text slot; a stretched label is not a layout goal.
+          expect(layout.captionWidth).toBeGreaterThanOrEqual(
+            Math.min(150, layout.naturalTextWidth) - 1,
+          );
           expect(layout.rowHeight).toBeLessThan(90);
         }
         const actions = page.locator(
@@ -1374,7 +1854,13 @@ for (const width of [1440, 1024, 390, 320])
         const cancel = await actions
           .getByRole('button', { name: 'Отменить', exact: true })
           .boundingBox();
-        expect(primary?.y).toBe(cancel?.y);
+        const footer = (await actions.boundingBox())!;
+        if (primary!.width + cancel!.width + 8 <= footer.width + 1)
+          expect(primary!.y).toBe(cancel!.y);
+        else {
+          expect(cancel!.y).toBeGreaterThanOrEqual(primary!.y + primary!.height);
+          expect(cancel!.x).toBe(primary!.x);
+        }
       }
       await capture(page, `${evidence}/account-${width}-${name}.png`);
     }
@@ -1392,12 +1878,11 @@ for (const width of [1440, 1024, 390, 320])
     await page.setViewportSize({ width, height: 900 });
     for (const route of ['/#/attending', '/#/classrooms/class-1']) {
       await page.goto(route);
-      const summary = page.getByText(
-        route.includes('attending')
-          ? 'Мои оповещения об этом классе'
-          : 'Настройки учебных оповещений',
-        { exact: true },
-      );
+      const summary = page.locator('summary').filter({
+        hasText: route.includes('attending')
+          ? /^Мои оповещения об этом классе$/
+          : /^Настройки учебных оповещений$/,
+      });
       await summary.click();
       const form = page.getByRole('region', {
         name: 'Учебные оповещения — только для меня',
@@ -1442,10 +1927,10 @@ async function assertCompactSettings(page: Page, width: number) {
   await expect(main.getByRole('heading', { name: 'Настройки', level: 1 })).toBeVisible();
   await expect(main.locator('.portal-eyebrow')).toHaveCount(0);
   await expect(main.locator('.account-settings-navigation > strong')).toHaveCount(0);
-  await expect(main.getByRole('heading', { name: 'Оформление' })).toHaveCount(1);
+  await expect(main.getByRole('heading', { name: 'Оформление' })).toHaveCount(0);
   // The first actual setting fits near the top even on a narrow phone. This
   // catches the repeated headings and context strip shown in the owner report.
-  const firstControl = await main.getByLabel('Анимации', { exact: false }).boundingBox();
+  const firstControl = await main.getByLabel('Анимация', { exact: false }).boundingBox();
   expect(firstControl).not.toBeNull();
   // Between the picker breakpoint and tablet width, the scope hint may wrap
   // once inside the desktop settings column; it must still fit above 320px.
@@ -1458,8 +1943,7 @@ async function assertCompactSettings(page: Page, width: number) {
   const sectionHeading = await main
     .getByRole('heading', { name: 'Интерфейс', level: 2 })
     .boundingBox();
-  if (width <= 900) expect(sectionHeading!.height).toBeLessThanOrEqual(1);
-  else expect(sectionHeading!.height).toBeGreaterThan(1);
+  expect(sectionHeading!.height).toBeLessThanOrEqual(1);
   console.log(
     `Settings density ${width}px: H2 y=${sectionHeading!.y.toFixed(1)}, first control y=${firstControl!.y.toFixed(1)}, bottom=${(firstControl!.y + firstControl!.height).toFixed(1)}`,
   );
@@ -1601,7 +2085,7 @@ for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1
     });
     await page.setViewportSize({ width, height: 568 });
     await page.goto('/#/account/interface');
-    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
     const publicNav = page.getByLabel('Разделы ASA Lab');
     await expect(publicNav.getByRole('link')).toHaveCount(2);
     await expect(publicNav.getByRole('link', { name: 'ИИ', exact: true })).toHaveCount(0);
@@ -1706,7 +2190,7 @@ for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 
     await fixture(page, { educator: true, author: true, unreadCount: 9999 });
     await page.setViewportSize({ width, height: 568 });
     await page.goto('/#/account/interface');
-    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
     await expect(page.locator('.learning-inbox-button')).toHaveCount(0);
     // A deterministic wider font plus text-spacing stress exposes the brand's
     // old 120px minimum on Windows too, instead of depending on Linux fonts.
@@ -1937,7 +2421,7 @@ test('plain native links still protect settings drafts and modified or middle cl
 
 for (const navigationApi of [true, false])
   for (const decision of ['Сохранить и перейти', 'Отменить изменения и перейти'])
-    test(`Seat native Help completes one ${decision} decision ${navigationApi ? 'with' : 'without'} Navigation API`, async ({
+    test(`Seat navigation Help completes one ${decision} decision ${navigationApi ? 'with' : 'without'} Navigation API`, async ({
       page,
     }) => {
       if (!navigationApi)
@@ -1946,20 +2430,25 @@ for (const navigationApi of [true, false])
         );
       const state = await fixture(page, { seat: true });
       await page.goto('/#/account/interface');
-      await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
-      const help = page.locator('main').getByRole('link', { name: 'Помощь', exact: true });
-      await expect(help).not.toHaveAttribute('data-portal-navigation', 'managed');
+      await page.getByLabel('Анимация', { exact: false }).selectOption('reduce');
+      await expect(
+        page.locator('main').getByRole('link', { name: 'Помощь', exact: true }),
+      ).toHaveCount(0);
+      const help = page
+        .locator('#portal-sidebar')
+        .getByRole('link', { name: 'Помощь', exact: true });
+      await expect(help).toHaveAttribute('href', '/#/help');
       await help.click();
       await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
       await page.getByRole('button', { name: 'Остаться', exact: true }).click();
-      await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+      await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
       await help.click();
       await page.getByRole('button', { name: decision, exact: true }).click();
       await expect(page).toHaveURL(/#\/help$/);
       await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
       await traverse(page, 'back');
       await expect(page).toHaveURL(/#\/account\/interface$/);
-      await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue(
+      await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue(
         decision === 'Сохранить и перейти' ? 'reduce' : 'system',
       );
       expect(state.mutations).not.toContain('/api/account/presentation');
@@ -1972,7 +2461,7 @@ for (const width of [560, 561, 900, 901])
     await fixture(page);
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
     await assertCompactSettings(page, width);
     await expect(page.getByLabel('Выбрать раздел настроек')).toBeVisible({
       visible: width <= 900,
@@ -1984,9 +2473,9 @@ for (const width of [560, 561, 900, 901])
   });
 
 for (const navigationApi of [true, false])
-  for (const [alias, destination, label] of [
-    ['privacy', 'security', 'Данные и приватность'],
-    ['requests', 'school', 'Приглашения на обучение'],
+  for (const [alias, destination] of [
+    ['privacy', 'security'],
+    ['requests', 'school'],
   ])
     test(`legacy ${alias} remains guarded through Back and Forward ${navigationApi ? 'with' : 'without'} Navigation API`, async ({
       page,
@@ -1997,12 +2486,16 @@ for (const navigationApi of [true, false])
         );
       const state = await fixture(page);
       await page.goto(`/#/account/${alias}`);
-      const info = page.locator('.account-settings-information');
-      await expect(info.locator('summary')).toHaveText(label);
-      await expect(info).toHaveAttribute('open', '');
+      await expect(page.locator('.account-settings-information')).toHaveCount(0);
+      if (destination === 'security')
+        await expect(page.getByLabel('Новый пароль', { exact: true })).toBeVisible();
+      else
+        await expect(
+          page.getByRole('link', { name: 'Моё обучение с преподавателем', exact: true }),
+        ).toBeVisible();
       await expect(page.getByLabel('Выбрать раздел настроек')).toHaveValue(destination);
       await expect(page.getByLabel('Разделы настроек').locator('[aria-current="page"]')).toHaveText(
-        destination === 'security' ? 'Вход и безопасность' : 'Рабочие пространства',
+        destination === 'security' ? 'Безопасность' : 'Школы',
       );
       await panel(page, 'Профиль').click();
       await page.getByLabel('Отображаемое имя').fill('Черновик перед старым адресом');
@@ -2020,7 +2513,13 @@ for (const navigationApi of [true, false])
         .getByRole('button', { name: 'Отменить изменения и перейти', exact: true })
         .click();
       await expect(page).toHaveURL(new RegExp(`#/account/${alias}$`));
-      await expect(info).toHaveAttribute('open', '');
+      await expect(page.getByLabel('Выбрать раздел настроек')).toHaveValue(destination);
+      if (destination === 'security')
+        await expect(page.getByLabel('Новый пароль', { exact: true })).toBeVisible();
+      else
+        await expect(
+          page.getByRole('link', { name: 'Моё обучение с преподавателем', exact: true }),
+        ).toBeVisible();
       await page.evaluate(() => window.history.forward());
       await expect(page).toHaveURL(/#\/account\/profile$/);
       await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Проверочный профиль');
@@ -2087,14 +2586,14 @@ test('narrow time-zone action pair tolerates wider 16px font metrics', async ({ 
     );
   };
   await assertPairs('fresh');
-  await form.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+  await form.getByLabel('Анимация', { exact: false }).selectOption('reduce');
   await zone.selectOption('UTC');
   await assertPairs('dirty');
   await zoneForm
     .getByRole('button', { name: 'Отменить изменения часового пояса', exact: true })
     .click();
   await expect(zone).toHaveValue('Europe/Moscow');
-  await expect(form.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(form.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
   await zone.selectOption('UTC');
   await form.getByRole('button', { name: 'Сохранить оформление', exact: true }).click();
   await expect(form.getByRole('alert')).toBeVisible();
@@ -2104,7 +2603,7 @@ test('narrow time-zone action pair tolerates wider 16px font metrics', async ({ 
   );
   await assertPairs('partial-error');
   expect(state.mutations.filter((path) => path === '/api/account/time-zone')).toHaveLength(1);
-  await expect(form.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(form.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
 });
 
 for (const width of [1440, 1024, 390, 320])
@@ -2116,10 +2615,10 @@ for (const width of [1440, 1024, 390, 320])
     await page.goto('/#/account/interface');
     const form = page.getByRole('form', { name: 'Оформление', exact: true });
     const zoneForm = page.getByRole('form', { name: 'Часовой пояс', exact: true });
-    const motion = form.getByLabel('Анимации', { exact: false });
+    const motion = form.getByLabel('Анимация', { exact: false });
     const zone = zoneForm.getByRole('combobox', { name: /^Часовой пояс/ });
     await expect(motion).toBeEnabled();
-    await expect(form.getByLabel('Боковая панель на компьютере')).toBeVisible();
+    await expect(form.getByLabel('Боковое меню')).toBeVisible();
     const zonePrimary = await zoneForm
       .getByRole('button', { name: 'Сохранить часовой пояс', exact: true })
       .boundingBox();
@@ -2202,8 +2701,8 @@ for (const width of [1440, 1024, 390, 320]) {
     });
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    const motion = page.getByLabel('Анимации', { exact: false }),
-      sidebar = page.getByLabel('Боковая панель', { exact: false });
+    const motion = page.getByLabel('Анимация', { exact: false }),
+      sidebar = page.getByLabel('Боковое меню', { exact: false });
     await expect(motion).toBeEnabled();
     await motion.selectOption('reduce');
     await sidebar.selectOption('collapsed');
@@ -2311,7 +2810,7 @@ for (const width of [1440, 1024, 390, 320]) {
     const state = await fixture(page, { seat: true });
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+    await page.getByLabel('Анимация', { exact: false }).selectOption('reduce');
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
       .getByRole('button', { name: 'Сохранить оформление', exact: true })
@@ -2321,8 +2820,23 @@ for (const width of [1440, 1024, 390, 320]) {
     ).toBeVisible();
     await expect(
       page.locator('main').getByRole('link', { name: 'Помощь', exact: true }),
+    ).toHaveCount(0);
+    await page
+      .getByRole('button', { name: 'Информация о часовом поясе класса', exact: true })
+      .click();
+    await expect(page.getByRole('tooltip')).toContainText('преподаватель');
+    await page.keyboard.press('Escape');
+    if (width <= 1023)
+      await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await expect(
+      page.locator('#portal-sidebar').getByRole('link', { name: 'Помощь', exact: true }),
     ).toBeVisible();
-    await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveCount(0);
+    if (width <= 1023)
+      await page
+        .locator('#portal-sidebar')
+        .getByRole('button', { name: 'Закрыть меню', exact: true })
+        .click();
+    await expect(page.getByLabel('Боковое меню', { exact: false })).toHaveCount(0);
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
       .toBe(true);
@@ -2343,7 +2857,7 @@ for (const width of [1440, 1024, 390, 320]) {
     });
     await page.screenshot({ path: `${evidence}/settings-usability-seat-${width}.png` });
     await page.reload();
-    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+    await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
     await page.evaluate(() => window.dispatchEvent(new Event('asa-session-logout')));
     await expect
       .poll(() => page.evaluate(() => sessionStorage.getItem('asa-seat-presentation-session')))
@@ -2357,26 +2871,26 @@ test('old backend leaves preferences unavailable but navigation and profile stil
   const state = await fixture(page, { presentationFailure: true });
   await page.goto('/#/account/interface');
   await expect(page.getByRole('alert')).toContainText('Не удалось загрузить оформление');
-  await expect(page.getByLabel('Анимации', { exact: false })).toBeDisabled();
+  await expect(page.getByLabel('Анимация', { exact: false })).toBeDisabled();
   await panel(page, 'Профиль').click();
   await expect(page.getByLabel('Отображаемое имя')).toBeEnabled();
   state.recoverPresentation();
   await panel(page, 'Интерфейс').click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
-  await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+  await expect(page.getByLabel('Анимация', { exact: false })).toBeEnabled();
 });
 test('failed save preserves preview and conflict requires explicit cancellation and reload', async ({
   page,
 }) => {
   const state = await fixture(page, { presentationSaveFailure: true });
   await page.goto('/#/account/interface');
-  await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+  await page.getByLabel('Анимация', { exact: false }).selectOption('reduce');
   await page
     .getByRole('form', { name: 'Оформление', exact: true })
     .getByRole('button', { name: 'Сохранить оформление', exact: true })
     .click();
   await expect(page.getByRole('alert')).toContainText('не сохранено');
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('reduce');
   state.recoverPresentation();
   state.externalPresentation();
   await page
@@ -2389,8 +2903,8 @@ test('failed save preserves preview and conflict requires explicit cancellation 
     .getByRole('button', { name: 'Отменить изменения оформления', exact: true })
     .click();
   await page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }).click();
-  await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
-  await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveValue('collapsed');
+  await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('system');
+  await expect(page.getByLabel('Боковое меню', { exact: false })).toHaveValue('collapsed');
 });
 test('dirty independent profile blocks header preference writes without storing a cross-user browser preference', async ({
   page,
@@ -2416,7 +2930,7 @@ for (const width of [1440, 1024, 390, 320]) {
     const state = await fixture(page);
     await page.setViewportSize({ width, height: 900 });
     await page.goto('/#/account/interface');
-    await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+    await page.getByLabel('Анимация', { exact: false }).selectOption('reduce');
     state.changePresentationActor();
     await page
       .getByRole('form', { name: 'Оформление', exact: true })
@@ -2431,8 +2945,8 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('button', { name: 'Загрузить сохранённое оформление', exact: true }),
     ).toHaveCount(0);
-    await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('system');
-    await expect(page.getByLabel('Анимации', { exact: false })).toBeDisabled();
+    await expect(page.getByLabel('Анимация', { exact: false })).toHaveValue('system');
+    await expect(page.getByLabel('Анимация', { exact: false })).toBeDisabled();
     await expect(
       page
         .getByRole('form', { name: 'Оформление', exact: true })
@@ -3237,11 +3751,11 @@ test('S2 quick avatar access keeps routes and dirty drafts, returns focus to liv
   await page.getByRole('button', { name: 'Интерфейс', exact: true }).click();
   const guard = page.getByRole('dialog', { name: 'Несохранённые изменения' });
   await guard.getByRole('button', { name: 'Отменить изменения и перейти' }).click();
-  await page.getByLabel('Анимации').selectOption('reduce');
+  await page.getByLabel('Анимация').selectOption('reduce');
   await page.locator('.portal-sidebar-avatar').click();
   await dialog.getByRole('button', { name: 'Выбрать: Аватар 5', exact: true }).click();
   await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
-  await expect(page.getByLabel('Анимации')).toHaveValue('reduce');
+  await expect(page.getByLabel('Анимация')).toHaveValue('reduce');
   expect(state.mutations).not.toContain('/api/account/presentation');
   await expect(page).toHaveURL(/#\/account\/interface$/);
 });
@@ -4237,14 +4751,15 @@ for (const seat of [false, true])
       name: 'Учебные оповещения — только для меня',
       exact: true,
     });
-    await expect(prefs.getByLabel('Скоро срок', { exact: true })).toBeChecked();
+    const dueSoon = prefs.getByRole('checkbox', { name: 'Скоро срок', exact: true });
+    await expect(dueSoon).toBeChecked();
     await prefs.evaluate(
       (element) =>
         ((window as typeof window & { r2PreferencesElement: Element }).r2PreferencesElement =
           element),
     );
-    await prefs.getByLabel('Скоро срок', { exact: true }).uncheck();
-    await prefs.locator('summary').click();
+    await dueSoon.uncheck();
+    await expect(prefs.getByRole('region', { name: 'По классам', exact: true })).toBeVisible();
     await prefs.getByLabel('Мои оповещения об этом классе').selectOption('custom');
     await prefs
       .getByRole('combobox', { name: 'Назначения и условия', exact: true })
@@ -4253,7 +4768,7 @@ for (const seat of [false, true])
     const guard = page.getByRole('dialog', { name: 'Несохранённые изменения' });
     await expect(guard).toBeVisible();
     await guard.getByRole('button', { name: 'Остаться', exact: true }).click();
-    await expect(prefs.getByLabel('Скоро срок', { exact: true })).not.toBeChecked();
+    await expect(dueSoon).not.toBeChecked();
     await expect(prefs.getByLabel('Мои оповещения об этом классе')).toHaveValue('custom');
     await expect(
       prefs.getByRole('combobox', { name: 'Назначения и условия', exact: true }),
@@ -4273,17 +4788,17 @@ for (const seat of [false, true])
     ).toBe(true);
     expect(preferenceLoads).toBe(1);
     expect(eventLoads).toBe(2);
-    await expect(prefs.getByLabel('Скоро срок', { exact: true })).not.toBeChecked();
+    await expect(dueSoon).not.toBeChecked();
     await expect(
       prefs.getByRole('combobox', { name: 'Назначения и условия', exact: true }),
     ).toHaveValue('off');
-    await prefs.getByLabel('Скоро срок', { exact: true }).check();
+    await dueSoon.check();
     await panel(page, 'Интерфейс').click();
     await expect(guard).toBeVisible();
     await guard.getByRole('button', { name: 'Отменить изменения и перейти', exact: true }).click();
     await expect(page).toHaveURL(/#\/account\/interface$/);
     await panel(page, 'Уведомления').click();
-    await expect(prefs.getByLabel('Скоро срок', { exact: true })).not.toBeChecked();
+    await expect(dueSoon).not.toBeChecked();
   });
 test('R2 short admin drawer scrolls navigation independently while profile, close and footer remain reachable', async ({
   page,

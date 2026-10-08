@@ -1,4 +1,13 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { InfoHint } from './InfoHint';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import { call } from '../api-call';
 import { onSessionLoggedOut } from '../session-fetch';
 import { hasSettingsDraft, type SettingsDraft } from './settings-navigation';
@@ -316,6 +325,7 @@ export function PresentationProvider({
 }
 export function PresentationControls() {
   const p = usePresentation();
+  const id = useId();
   return (
     <form
       className="account-profile-form account-presentation"
@@ -325,41 +335,57 @@ export function PresentationControls() {
       }}
       aria-label="Оформление"
     >
-      <h3 className="account-operation-title">Оформление</h3>
-      <p className="account-hint">
-        {p.seat
-          ? 'До выхода из этого учебного сеанса, только в этом браузере.'
-          : 'Сохраняется в аккаунте и применяется на других устройствах.'}
-      </p>
       {!p.loaded && !p.error ? <p role="status">Загружаем оформление…</p> : null}
-      <label>
-        Анимации
-        <select
-          value={p.draft.motion}
-          disabled={!p.loaded || p.busy}
-          onChange={(e) =>
-            p.preview({ ...p.draft, motion: e.target.value as Presentation['motion'] })
-          }
-        >
-          <option value="system">Как в системе</option>
-          <option value="reduce">Уменьшить движение</option>
-        </select>
-      </label>
-      {!p.seat ? (
-        <label>
-          Боковая панель на компьютере
+      <div className="account-presentation-fields">
+        <div className="account-field">
+          <div className="account-field-heading">
+            <label htmlFor={`${id}-motion`}>Анимация</label>
+            <InfoHint label="Информация об анимации">
+              «Как в системе» учитывает настройку уменьшения движения на вашем устройстве. «Меньше
+              анимации» сокращает переходы портала.
+              {p.seat
+                ? ' Выбор действует до выхода из этого учебного сеанса, только в этом браузере.'
+                : ' Выбор хранится в аккаунте и применяется на других устройствах.'}
+              Изменение видно сразу; подтвердите кнопкой «Сохранить» или верните прежнее кнопкой
+              «Отменить».
+            </InfoHint>
+          </div>
           <select
-            value={p.draft.sidebar}
+            id={`${id}-motion`}
+            value={p.draft.motion}
             disabled={!p.loaded || p.busy}
             onChange={(e) =>
-              p.preview({ ...p.draft, sidebar: e.target.value as Presentation['sidebar'] })
+              p.preview({ ...p.draft, motion: e.target.value as Presentation['motion'] })
             }
           >
-            <option value="expanded">Полная</option>
-            <option value="collapsed">Свёрнутая</option>
+            <option value="system">Как в системе</option>
+            <option value="reduce">Меньше анимации</option>
           </select>
-        </label>
-      ) : null}
+        </div>
+        {!p.seat ? (
+          <div className="account-field">
+            <div className="account-field-heading">
+              <label htmlFor={`${id}-sidebar`}>Боковое меню</label>
+              <InfoHint label="Информация о боковом меню">
+                На компьютере меню показывает подписи разделов или только значки. На телефоне оно
+                открывается кнопкой меню; этот выбор изменит вид на компьютере. Подтвердите кнопкой
+                «Сохранить». Разделы и ваши доступы сохраняются.
+              </InfoHint>
+            </div>
+            <select
+              id={`${id}-sidebar`}
+              value={p.draft.sidebar}
+              disabled={!p.loaded || p.busy}
+              onChange={(e) =>
+                p.preview({ ...p.draft, sidebar: e.target.value as Presentation['sidebar'] })
+              }
+            >
+              <option value="expanded">С подписями</option>
+              <option value="collapsed">Только значки</option>
+            </select>
+          </div>
+        ) : null}
+      </div>
       {p.dirty && !p.error ? (
         <p role="status" className="account-hint">
           Предпросмотр только здесь; изменения ещё не сохранены.

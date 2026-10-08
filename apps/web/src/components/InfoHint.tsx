@@ -19,6 +19,7 @@ export function InfoHint({
   const delay = useRef<ReturnType<typeof setTimeout>>();
   function keep(): void {
     clearTimeout(delay.current);
+    window.dispatchEvent(new CustomEvent('asa-info-hint-open', { detail: id }));
     setOpen(true);
   }
   function close(): void {
@@ -31,7 +32,16 @@ export function InfoHint({
     clearTimeout(delay.current);
     delay.current = setTimeout(close, 150);
   }
-  useEffect(() => () => clearTimeout(delay.current), []);
+  useEffect(() => {
+    const otherOpened = (event: Event) => {
+      if ((event as CustomEvent<string>).detail !== id) close();
+    };
+    window.addEventListener('asa-info-hint-open', otherOpened);
+    return () => {
+      clearTimeout(delay.current);
+      window.removeEventListener('asa-info-hint-open', otherOpened);
+    };
+  }, [id]);
   useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
@@ -87,7 +97,9 @@ export function InfoHint({
         aria-label={label}
         aria-expanded={open}
         aria-describedby={open ? id : undefined}
-        onPointerEnter={(event) => {
+        // Require pointer movement: removing a modal can uncover this icon
+        // beneath a stationary pointer without the user asking for a hint.
+        onPointerMove={(event) => {
           if (event.pointerType !== 'touch') keep();
         }}
         onPointerLeave={leave}

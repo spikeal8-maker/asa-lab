@@ -120,7 +120,7 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
         <div className="account-settings-content">
           <div hidden={selectedPanel !== 'notifications'}>
             <section className="account-settings-section" aria-label="Уведомления">
-              <h2 className="account-panel-title">Уведомления</h2>
+              <h2 className="account-panel-title sr-only">Уведомления</h2>
               {selectedPanel === 'notifications' ? (
                 <LearningInbox
                   key={`seat:${seat.student.seatId}:${seat.classroom.id}:${seat.expiresAt}`}
@@ -136,17 +136,20 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
           </div>
           {selectedPanel === 'interface' ? (
             <section className="account-settings-section" aria-label="Интерфейс">
-              <h2 className="account-panel-title">Интерфейс</h2>
+              <h2 className="account-panel-title sr-only">Интерфейс</h2>
               <PresentationControls />
-              <p>Дата и время показаны в часовом поясе класса. Его настраивает преподаватель.</p>
-              <a className="btn-secondary" href="#/help">
-                Помощь
-              </a>
+              <div className="account-field-heading seat-time-zone-information">
+                <span>Часовой пояс класса</span>
+                <InfoHint label="Информация о часовом поясе класса">
+                  Даты и время показаны в часовом поясе вашего класса. Его настраивает
+                  преподаватель; изменение анимации не меняет время занятий.
+                </InfoHint>
+              </div>
             </section>
           ) : null}
           <div hidden={selectedPanel !== 'profile'}>
             <section className="account-settings-section" aria-labelledby="seat-profile-title">
-              <h2 id="seat-profile-title" className="account-panel-title">
+              <h2 id="seat-profile-title" className="account-panel-title sr-only">
                 Профиль
               </h2>
 
@@ -173,7 +176,13 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
 
               <dl className="seat-account-facts">
                 <div>
-                  <dt>Имя в классе</dt>
+                  <dt className="account-field-heading">
+                    Имя в классе
+                    <InfoHint label="Информация об имени в классе">
+                      Имя и вход ученика задаёт преподаватель в списке класса. Чтобы изменить их,
+                      обратитесь к нему.
+                    </InfoHint>
+                  </dt>
                   <dd>{seat.student.displayName}</dd>
                 </div>
                 <div>
@@ -189,19 +198,19 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
                   <dd>{seat.student.safeMode ? 'Включён' : 'Выключен'}</dd>
                 </div>
               </dl>
-              <p className="account-hint">
-                Чтобы изменить имя или вход, попросите преподавателя — он делает это в списке
-                класса.
-              </p>
             </section>
 
             {/* What the teacher has noticed. First on the page after the picture,
               because it is the reason a child opens this at all. */}
             <section className="account-settings-section" aria-labelledby="seat-awards-heading">
               <div className="account-section-heading">
-                <p className="account-card-kicker">Достижения</p>
-                <h2 id="seat-awards-heading">Мои значки</h2>
-                <p>Их выдаёт преподаватель за то, что у вас получилось.</p>
+                <div className="account-field-heading">
+                  <h2 id="seat-awards-heading">Мои значки</h2>
+                  <InfoHint label="Информация о значках">
+                    Преподаватель выдаёт значки за работы, идеи и помощь другим. Полученные значки
+                    остаются здесь.
+                  </InfoHint>
+                </div>
               </div>
               {awardsError ? (
                 <div role="alert">
