@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve, sep } from 'node:path';
+import type { LearningNotification } from '../apps/web/src/api';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
@@ -36,6 +37,8 @@ async function fixture(
     presentationFailure?: boolean;
     presentationSaveFailure?: boolean;
     presentationLongContent?: boolean;
+    unreadCount?: number;
+    inboxItems?: LearningNotification[];
   } = {},
 ) {
   const mutations: string[] = [];
@@ -44,9 +47,15 @@ async function fixture(
   let educator = options.educator ?? false;
   let awardsFailure = options.awardsFailure ?? false;
   let notificationFailure = options.notificationFailure ?? false;
+  let inboxFailure = false;
+  let unreadCount = options.unreadCount ?? 0;
+  let inboxItems = options.inboxItems ?? [];
+  const notificationReads: { ids: string[] | null; asOf: string }[] = [];
   let presentationFailure = options.presentationFailure ?? false;
   let presentationSaveFailure = options.presentationSaveFailure ?? false;
   let presentationActorChanged = false;
+  let avatarDataUrl: string | null = null;
+  let seatAvatarKey: string | null = null;
   let timeZone = 'Europe/Moscow';
   let presentation = { motion: 'system', sidebar: 'expanded', revision: 0 };
   let preferences = {
@@ -166,7 +175,7 @@ async function fixture(
                 seatId: 'seat-1',
                 displayName: 'Ученик с длинным именем',
                 safeMode: true,
-                avatarKey: null,
+                avatarKey: seatAvatarKey,
               },
               classroom: {
                 id: 'class-1',
@@ -177,6 +186,20 @@ async function fixture(
             }
           : { authenticated: false },
       );
+    if (path === '/api/class-join/me/avatar') {
+      seatAvatarKey = request.postDataJSON().avatarKey;
+      return reply({
+        authenticated: true,
+        student: {
+          seatId: 'seat-1',
+          displayName: 'Ученик с длинным именем',
+          safeMode: true,
+          avatarKey: seatAvatarKey,
+        },
+        classroom: { id: 'class-1', title: 'Учебный класс', teacherDisplayName: 'Преподаватель' },
+        expiresAt: '2030-01-01T00:00:00Z',
+      });
+    }
     if (path === '/api/class-join/me/awards')
       return awardsFailure
         ? reply({ error: { code: 'unavailable', message: 'Unavailable' } }, 503)
@@ -216,8 +239,35 @@ async function fixture(
       });
     if (path === '/api/learning/notifications/classes/class-1/reminders')
       return reply({ revision: 0, due: true, overdue: true });
+    if (path === '/api/learning/notifications/read') {
+      const input = request.postDataJSON();
+      notificationReads.push(input);
+      let count = 0;
+      inboxItems = inboxItems.map((item) => {
+        if (item.readAt || (input.ids && !input.ids.includes(item.id))) return item;
+        count += 1;
+        return { ...item, readAt: input.asOf };
+      });
+      unreadCount = input.ids === null ? 0 : Math.max(0, unreadCount - count);
+      return reply({ count });
+    }
+    if (path === '/api/learning/notifications' && inboxFailure)
+      return reply(
+        {
+          error: {
+            code: 'unavailable',
+            message:
+              'Оповещения временно недоступны — повторите проверку позже или обратитесь к преподавателю.',
+          },
+        },
+        503,
+      );
     if (path === '/api/learning/notifications')
-      return reply({ items: [], snapshot: '2026-01-01T00:00:00Z', unread: 0 });
+      return reply({
+        items: inboxItems,
+        snapshot: '2026-01-01T00:00:00Z',
+        unread: unreadCount,
+      });
     if (path === '/api/learning/notifications/preferences') {
       if (notificationFailure)
         return reply(
@@ -265,10 +315,12 @@ async function fixture(
       if (method === 'PATCH') profile = { ...profile, ...request.postDataJSON() };
       return reply({ ...profile, capabilities: capabilities(), workspaces });
     }
-    if (path === '/api/account/avatar')
-      return secondaryFailure
-        ? reply({ error: { code: 'unavailable', message: 'avatar unavailable' } }, 503)
-        : reply({ avatarDataUrl: null });
+    if (path === '/api/account/avatar') {
+      if (secondaryFailure)
+        return reply({ error: { code: 'unavailable', message: 'avatar unavailable' } }, 503);
+      if (method === 'PATCH') avatarDataUrl = request.postDataJSON().avatarDataUrl;
+      return reply({ avatarDataUrl });
+    }
     if (path === '/api/account/sessions')
       return secondaryFailure
         ? reply({ error: { code: 'unavailable', message: 'sessions unavailable' } }, 503)
@@ -316,6 +368,13 @@ async function fixture(
   });
   return {
     mutations,
+    notificationReads,
+    setInboxUnread: (count: number) => {
+      unreadCount = count;
+    },
+    failInbox: (fail: boolean) => {
+      inboxFailure = fail;
+    },
     changePresentationActor: () => {
       presentationActorChanged = true;
     },
@@ -347,6 +406,409 @@ async function fixture(
 
 const panel = (page: Page, name: string) =>
   page.getByLabel('Разделы настроек').getByRole('button', { name, exact: true });
+
+const inboxEvidence = 'reports/playwright/settings-ui/portal-inbox-s3-20261008';
+const inboxItems: LearningNotification[] = [
+  {
+    id: 'notification-1',
+    kind: 'NF01',
+    category: 'NC01',
+    classroomId: 'class-1',
+    classroomTitle: 'Класс с очень длинным названием для проверки учебных оповещений',
+    title: 'Назначена работа с длинным названием и подробным описанием учебной задачи',
+    assignmentId: 'assignment-1',
+    seatId: 'seat-1',
+    attemptId: null,
+    courseRunId: null,
+    joinRequestId: null,
+    recipientKind: 'learner',
+    createdAt: '2026-01-01T00:00:00Z',
+    readAt: null,
+  },
+  {
+    id: 'notification-2',
+    kind: 'NF06',
+    category: 'NC08',
+    classroomId: 'class-2',
+    classroomTitle: 'Другой учебный класс с длинным названием',
+    title: 'Заявка на доступ к классу',
+    assignmentId: null,
+    seatId: null,
+    attemptId: null,
+    courseRunId: null,
+    joinRequestId: 'join-1',
+    recipientKind: 'teacher',
+    createdAt: '2026-01-01T00:00:00Z',
+    readAt: null,
+  },
+];
+async function stressInboxFont(page: Page) {
+  await page.addStyleTag({
+    content: `
+    .learning-inbox-dialog, .learning-inbox-dialog *, .learning-inbox-badge {
+      font-family: monospace !important;
+      font-size: 16px !important;
+    }
+  `,
+  });
+}
+async function assertInboxGeometry(page: Page, width: number, stateName: string) {
+  const metrics = await page.locator('.learning-inbox-button').evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const badge = button.querySelector('.learning-inbox-badge')?.getBoundingClientRect();
+    return {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      badgeFits:
+        !badge ||
+        (badge.left >= rect.left &&
+          badge.right <= rect.right &&
+          badge.top >= rect.top &&
+          badge.bottom <= rect.bottom),
+    };
+  });
+  expect(metrics.width).toBe(44);
+  expect(metrics.height).toBe(44);
+  expect(metrics.badgeFits).toBe(true);
+  await assertShellGeometry(page, width);
+  writeFileSync(`${inboxEvidence}/${stateName}-${width}-button.json`, JSON.stringify(metrics));
+  return metrics;
+}
+async function assertInboxDialog(page: Page, width: number, name: string) {
+  const metrics = await page.locator('.learning-inbox-dialog').evaluate((dialog) => {
+    const rect = dialog.getBoundingClientRect();
+    const controls = [...dialog.querySelectorAll('button, select, a, input')]
+      .filter((element) => element.checkVisibility())
+      .map((element) => {
+        const r = element.getBoundingClientRect();
+        return {
+          label: element.textContent,
+          x: r.x,
+          y: r.y,
+          right: r.right,
+          width: r.width,
+          height: r.height,
+          isCheckbox: element instanceof HTMLInputElement && element.type === 'checkbox',
+        };
+      });
+    return {
+      x: rect.x,
+      right: rect.right,
+      y: rect.y,
+      bottom: rect.bottom,
+      width: rect.width,
+      clientWidth: dialog.clientWidth,
+      scrollWidth: dialog.scrollWidth,
+      controls,
+      pageOverflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(metrics.x).toBeGreaterThanOrEqual(0);
+  expect(metrics.right).toBeLessThanOrEqual(width);
+  expect(metrics.y).toBeGreaterThanOrEqual(0);
+  expect(metrics.bottom).toBeLessThanOrEqual(568);
+  expect(metrics.scrollWidth).toBeLessThanOrEqual(metrics.clientWidth);
+  expect(metrics.pageOverflow).toBe(false);
+  for (const control of metrics.controls) {
+    expect(control.x, control.label ?? '').toBeGreaterThanOrEqual(metrics.x);
+    expect(control.right, control.label ?? '').toBeLessThanOrEqual(metrics.right);
+    if (!control.isCheckbox) expect(control.height, control.label ?? '').toBeGreaterThanOrEqual(44);
+  }
+  writeFileSync(`${inboxEvidence}/${name}-${width}-dialog.json`, JSON.stringify(metrics));
+  await page.screenshot({ path: `${inboxEvidence}/${name}-${width}.png` });
+}
+
+for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1023])
+  test(`inbox keeps a 44px slot and bounded badge across counts and a future third link at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    const state = await fixture(page, {
+      educator: true,
+      author: true,
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/interface');
+    const trigger = page.locator('.learning-inbox-button');
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    await stressInboxFont(page);
+    const original = await assertInboxGeometry(page, width, 'empty');
+    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    for (const count of [1, 99, 100, 999999]) {
+      state.setInboxUnread(count);
+      await trigger.click();
+      await expect(trigger).toHaveAttribute('aria-label', `Оповещения: непрочитанных ${count}`);
+      await expect(trigger.locator('.learning-inbox-badge')).toHaveText(
+        count > 99 ? '99+' : String(count),
+      );
+      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      const next = await assertInboxGeometry(page, width, `count-${count}`);
+      expect(next.x).toBe(original.x);
+      expect(next.y).toBe(original.y);
+    }
+    await page.getByLabel('Разделы ASA Lab').evaluate((nav) => {
+      const third = nav.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
+      third.href = '/#/ai-fixture';
+      third.removeAttribute('aria-current');
+      third.querySelector('span')!.textContent = 'ИИ';
+      nav.append(third);
+    });
+    await assertInboxGeometry(page, width, 'third-link');
+    await page.screenshot({ path: `${inboxEvidence}/third-link-${width}.png` });
+    state.failInbox(true);
+    await trigger.click();
+    await expect(dialog.getByRole('alert')).toContainText('Оповещения временно недоступны');
+    await assertInboxDialog(page, width, 'error');
+    await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+    const failed = await assertInboxGeometry(page, width, 'error');
+    expect(failed.x).toBe(original.x);
+    expect(failed.y).toBe(original.y);
+    expect(await trigger.innerText()).toBe('99+');
+  });
+
+for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
+  test(`inbox preserves ${role} filtering, snapshot reads, native destinations and preferences`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    for (const width of [1440, 1024, 390, 320]) {
+      const state = await fixture(page, {
+        seat: role === 'seat',
+        educator: role === 'teacher',
+        author: role === 'author',
+        platformAdmin: role === 'admin',
+        unreadCount: 2,
+        inboxItems,
+      });
+      await page.setViewportSize({ width, height: 568 });
+      // Each viewport gets a fresh fixture document, rather than a same-hash
+      // navigation that correctly preserves the previous inbox component.
+      await page.goto(`/?inbox-fixture=${role}-${width}#/account`);
+      const trigger = page.locator('.learning-inbox-button');
+      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 2');
+      await trigger.click();
+      await stressInboxFont(page);
+      const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(2);
+      await assertInboxDialog(page, width, `${role}-populated`);
+      await expect(dialog.getByRole('link', { name: 'Открыть' }).nth(0)).toHaveAttribute(
+        'href',
+        '#/learning?assignment=assignment-1&learner=seat-1',
+      );
+      await expect(dialog.getByRole('link', { name: 'Открыть' }).nth(1)).toHaveAttribute(
+        'href',
+        '#/classrooms/class-2?joinRequest=join-1',
+      );
+      await dialog.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('NC01');
+      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(1);
+      await dialog.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('class-2');
+      await expect(dialog.locator('.learning-inbox-list > li')).toHaveCount(0);
+      await expect(dialog.getByRole('button', { name: 'Отметить прочитанными' })).toBeDisabled();
+      await dialog.getByRole('combobox', { name: 'Класс', exact: true }).selectOption('');
+      await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 1');
+      expect(state.notificationReads).toEqual([
+        { ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' },
+      ]);
+      await dialog.getByRole('combobox', { name: 'Категория', exact: true }).selectOption('');
+      await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+      await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+      expect(state.notificationReads[1]).toEqual({ ids: null, asOf: '2026-01-01T00:00:00Z' });
+      await dialog.getByRole('button', { name: 'Настроить', exact: true }).click();
+      await expect(dialog.getByLabel('Получать учебные оповещения')).toBeEnabled();
+      await expect(dialog.getByLabel('Работы на проверку', { exact: true })).toHaveCount(
+        role === 'teacher' ? 1 : 0,
+      );
+      await expect(dialog.getByLabel('Заявки и приглашения', { exact: true })).toHaveCount(
+        role === 'seat' ? 0 : 1,
+      );
+      await assertInboxDialog(page, width, `${role}-preferences`);
+      await dialog.getByLabel('Получать учебные оповещения').uncheck();
+      await dialog.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+      await expect(dialog.getByRole('status')).toHaveText('Настройки сохранены.');
+      expect(
+        state.mutations.filter((path) => path === '/api/learning/notifications/preferences'),
+      ).toHaveLength(1);
+      await dialog.getByRole('button', { name: 'К событиям', exact: true }).click();
+      await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+      await assertInboxGeometry(page, width, `${role}-saved`);
+    }
+  });
+
+test('compiled inbox pauses hidden polling and coalesces visible and focus activation', async ({
+  page,
+}) => {
+  mkdirSync(inboxEvidence, { recursive: true });
+  await fixture(page, { unreadCount: 7 });
+  await page.addInitScript(() => {
+    let visibility: DocumentVisibilityState = 'hidden';
+    Object.defineProperty(document, 'visibilityState', {
+      configurable: true,
+      get: () => visibility,
+    });
+    window.addEventListener('inbox-fixture-visibility', (event) => {
+      visibility = (event as CustomEvent<DocumentVisibilityState>).detail;
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+  });
+  await page.clock.install({ time: new Date('2026-10-08T00:00:00Z') });
+  let requests = 0;
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname === '/api/learning/notifications') requests += 1;
+  });
+  await page.goto('/#/account');
+  const trigger = page.locator('.learning-inbox-button');
+  await expect(trigger).toBeVisible();
+  await page.clock.fastForward(120000);
+  expect(requests).toBe(0);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('inbox-fixture-visibility', { detail: 'visible' }));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.clock.runFor(100);
+  await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 7');
+  expect(requests).toBe(1);
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.clock.runFor(200);
+  expect(requests).toBe(1);
+  await page.clock.runFor(18100);
+  await expect.poll(() => requests).toBe(2);
+  await page.evaluate(() =>
+    window.dispatchEvent(new CustomEvent('inbox-fixture-visibility', { detail: 'hidden' })),
+  );
+  await page.clock.fastForward(300000);
+  expect(requests).toBe(2);
+  await page.evaluate(() => {
+    window.dispatchEvent(new CustomEvent('inbox-fixture-visibility', { detail: 'visible' }));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await page.clock.runFor(100);
+  await expect.poll(() => requests).toBe(3);
+  await trigger.click();
+  await expect.poll(() => requests).toBe(4);
+  writeFileSync(
+    `${inboxEvidence}/compiled-visibility.json`,
+    JSON.stringify({ requests, initiallyHiddenRequests: 0, hiddenPeriodicRequests: 0 }),
+  );
+});
+
+for (const seat of [false, true])
+  test(`compiled ${seat ? 'Seat' : 'Account'} read invalidates an older GET and preserves native read-one navigation`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    await fixture(page, { seat, unreadCount: 1, inboxItems: [inboxItems[0]] });
+    await page.goto('/#/account');
+    const trigger = page.locator('.learning-inbox-button');
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 1');
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    let getCount = 0,
+      activeGets = 0,
+      maximumGets = 0,
+      unread = 1;
+    const writes: { ids: string[] | null; asOf: string }[] = [];
+    await page.route('**/api/learning/notifications', async (route) => {
+      getCount += 1;
+      activeGets += 1;
+      maximumGets = Math.max(maximumGets, activeGets);
+      const old = getCount === 1;
+      if (old) await gate;
+      await route.fulfill({
+        json: {
+          snapshot: '2026-01-01T00:00:00Z',
+          unread: old ? 999 : unread,
+          items: [inboxItems[0]],
+        },
+      });
+      activeGets -= 1;
+    });
+    await page.route('**/api/learning/notifications/read', async (route) => {
+      writes.push(route.request().postDataJSON());
+      unread = 0;
+      await route.fulfill({ json: { count: 1 } });
+    });
+    await trigger.evaluate((button) => {
+      const seen: string[] = [];
+      (window as typeof window & { inboxFixtureSeen: string[] }).inboxFixtureSeen = seen;
+      new MutationObserver(() => seen.push(button.getAttribute('aria-label') ?? '')).observe(
+        button,
+        { attributes: true, attributeFilter: ['aria-label'] },
+      );
+    });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    await expect.poll(() => getCount).toBe(1);
+    await dialog.getByRole('button', { name: 'Отметить прочитанными' }).click();
+    await expect.poll(() => writes.length).toBe(1);
+    expect(getCount).toBe(1);
+    release();
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    expect(getCount).toBe(2);
+    expect(maximumGets).toBe(1);
+    expect(writes[0]).toEqual({ ids: null, asOf: '2026-01-01T00:00:00Z' });
+    expect(
+      await page.evaluate(
+        () => (window as typeof window & { inboxFixtureSeen: string[] }).inboxFixtureSeen,
+      ),
+    ).not.toContain('Оповещения: непрочитанных 999');
+    await dialog.getByRole('link', { name: 'Открыть', exact: true }).click();
+    await expect(page).toHaveURL(/#\/learning\?assignment=assignment-1&learner=seat-1$/);
+    await expect.poll(() => writes.length).toBe(2);
+    expect(writes[1]).toEqual({ ids: ['notification-1'], asOf: '2026-01-01T00:00:00Z' });
+    await expect(dialog).not.toBeVisible();
+    writeFileSync(
+      `${inboxEvidence}/compiled-read-race-${seat ? 'seat' : 'account'}.json`,
+      JSON.stringify({ getCount, maximumGets, writes }),
+    );
+  });
+
+for (const width of [1440, 1024, 390, 320])
+  test(`inbox loading, failure and explicit retry keep usable geometry at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(inboxEvidence, { recursive: true });
+    await fixture(page);
+    let release!: () => void;
+    const gate = new Promise<void>((done) => {
+      release = done;
+    });
+    let requests = 0;
+    await page.route('**/api/learning/notifications', async (route) => {
+      requests += 1;
+      await gate;
+      await route.fulfill({
+        status: 503,
+        json: { error: { code: 'unavailable', message: 'Временно недоступно' } },
+      });
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account');
+    const trigger = page.locator('.learning-inbox-button');
+    await trigger.click();
+    await stressInboxFont(page);
+    const dialog = page.getByRole('dialog', { name: 'Учебные оповещения', exact: true });
+    await expect(dialog.getByText('Загружаем события…')).toBeVisible();
+    await assertInboxDialog(page, width, 'loading');
+    expect(requests).toBe(1);
+    release();
+    await expect(dialog.getByRole('alert')).toContainText('Временно недоступно');
+    await page.unroute('**/api/learning/notifications');
+    await dialog.getByRole('button', { name: 'Повторить', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    await expect(dialog.getByText('Нет доставленных оповещений в этом списке.')).toBeVisible();
+    await expect(trigger).toHaveAttribute('aria-label', 'Оповещения: непрочитанных 0');
+    await assertInboxDialog(page, width, 'retry-empty');
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeFocused();
+    await assertInboxGeometry(page, width, 'retry');
+  });
 
 async function traverse(page: Page, direction: 'back' | 'forward') {
   // Wait for the requested browser entry change before asserting restoration;
@@ -772,8 +1234,9 @@ test('avatar dialog contains keyboard focus and restores the opener on Escape', 
   await opener.click();
   const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
   await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Загрузить своё изображение' })).toBeEnabled();
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.getByRole('button', { name: 'Загрузить своё изображение' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -1063,8 +1526,12 @@ async function assertCompactSettings(page: Page, width: number) {
   expect(firstControl).not.toBeNull();
   // Between the picker breakpoint and tablet width, the scope hint may wrap
   // once inside the desktop settings column; it must still fit above 320px.
-  expect(firstControl!.y).toBeLessThan(width <= 900 ? 370 : width < 1024 ? 320 : 300);
-  expect(firstControl!.y + firstControl!.height).toBeLessThan(width <= 900 ? 410 : 350);
+  // The approved mobile shell has a second 44px public-navigation row. Measure
+  // settings density below the shell so this still catches extra page banners.
+  const header = (await page.locator('.portal-header').boundingBox())!;
+  const belowHeader = firstControl!.y - (header.y + header.height);
+  expect(belowHeader).toBeLessThan(width <= 900 ? 314 : width < 1024 ? 264 : 244);
+  expect(belowHeader + firstControl!.height).toBeLessThan(width <= 900 ? 354 : 294);
   const sectionHeading = await main
     .getByRole('heading', { name: 'Интерфейс', level: 2 })
     .boundingBox();
@@ -1096,6 +1563,437 @@ async function assertCompactSettings(page: Page, width: number) {
     `Settings actions ${width}px: presentation=${actions!.height.toFixed(1)}px, time-zone=${zoneActions?.height.toFixed(1) ?? 'n/a'}px`,
   );
 }
+
+const shellEvidence = 'reports/playwright/settings-ui/portal-shell-s1';
+
+async function assertShellGeometry(page: Page, width: number) {
+  const metrics = await page.locator('.portal-header').evaluate((header) => {
+    const bounds = (element: Element) => {
+      const r = element.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const selectors = [
+      '.portal-menu-toggle',
+      '.portal-brand',
+      '.portal-global-nav a',
+      '.portal-quick-create > summary',
+      '.learning-inbox-button',
+      '.portal-account > summary',
+    ];
+    return {
+      header: bounds(header),
+      controls: selectors.flatMap((selector) =>
+        [...header.querySelectorAll(selector)]
+          .filter((element) => element.checkVisibility())
+          .map((element) => ({
+            label: element.getAttribute('aria-label') ?? element.textContent,
+            ...bounds(element),
+          })),
+      ),
+      links: [...header.querySelectorAll('.portal-global-nav a')].map(bounds),
+      main: bounds(document.querySelector('.portal-shell > main')!),
+      overflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(metrics.overflow, `${width}px page overflow`).toBe(false);
+  for (const control of metrics.controls) {
+    expect(control.x, `${width}px ${control.label} left`).toBeGreaterThanOrEqual(0);
+    expect(control.right, `${width}px ${control.label} right`).toBeLessThanOrEqual(width);
+    expect(control.bottom, `${width}px ${control.label} below header`).toBeLessThanOrEqual(
+      metrics.header.bottom + 1,
+    );
+  }
+  for (let i = 0; i < metrics.controls.length; i++)
+    for (let j = i + 1; j < metrics.controls.length; j++) {
+      const a = metrics.controls[i]!,
+        b = metrics.controls[j]!;
+      const intersectionWidth = Math.min(a.right, b.right) - Math.max(a.x, b.x);
+      const intersectionHeight = Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y);
+      expect(
+        intersectionWidth > 1 && intersectionHeight > 1,
+        `${width}px overlap: ${a.label} / ${b.label}`,
+      ).toBe(false);
+    }
+  for (const link of metrics.links) expect(link.height).toBeGreaterThanOrEqual(44);
+  if (width <= 1023) {
+    expect(metrics.header.height).toBeGreaterThanOrEqual(100);
+    for (const link of metrics.links) expect(link.y).toBeGreaterThanOrEqual(metrics.header.y + 56);
+    // A hidden desktop sidebar must not leave its 264px content offset behind.
+    expect(metrics.main.x).toBeLessThanOrEqual(24);
+    expect(metrics.main.right).toBeLessThanOrEqual(width);
+  } else expect(metrics.header.height).toBeLessThan(60);
+}
+
+for (const width of [1440, 1024, 390, 320, 349, 350, 600, 601, 820, 821, 1022, 1023])
+  test(`portal shell has distinct non-overlapping slots and room for a third public link at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(shellEvidence, { recursive: true });
+    const state = await fixture(page, {
+      educator: true,
+      author: true,
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/interface');
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    const publicNav = page.getByLabel('Разделы ASA Lab');
+    await expect(publicNav.getByRole('link')).toHaveCount(2);
+    await expect(publicNav.getByRole('link', { name: 'ИИ', exact: true })).toHaveCount(0);
+    await assertShellGeometry(page, width);
+    await page.screenshot({ path: `${shellEvidence}/shell-${width}.png` });
+    // Layout-only fixture: the real product exposes no placeholder AI feature.
+    await publicNav.evaluate((nav) => {
+      const third = nav.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
+      third.href = '/#/ai-fixture';
+      third.dataset.layoutFixture = 'future-ai';
+      third.removeAttribute('aria-current');
+      third.querySelector('span')!.textContent = 'ИИ';
+      nav.append(third);
+    });
+    await assertShellGeometry(page, width);
+    await page.screenshot({ path: `${shellEvidence}/third-link-fixture-${width}.png` });
+    await publicNav.locator('[data-layout-fixture]').evaluate((element) => element.remove());
+    const sidebar = page.locator('#portal-sidebar');
+    const settings = sidebar.getByRole('link', {
+      name: 'Настройки',
+      exact: true,
+      includeHidden: true,
+    });
+    await expect(sidebar.locator('a[href="/#/gallery"], a[href="/#/knowledge"]')).toHaveCount(0);
+    await expect(
+      sidebar.getByRole('link', { name: 'Мои проекты', exact: true, includeHidden: true }),
+    ).toHaveCount(1);
+    await expect(settings).toHaveCount(1);
+    await expect(
+      sidebar.getByRole('link', { name: 'Курсы и задания', exact: true, includeHidden: true }),
+    ).toHaveCount(1);
+    if (width <= 1023) {
+      const toggle = page.getByRole('button', { name: 'Открыть меню', exact: true });
+      await toggle.click();
+      await expect(sidebar).toHaveAttribute('role', 'dialog');
+      await expect(page.locator('.portal-header')).toHaveAttribute('inert', '');
+      const order = await sidebar.evaluate((element) => {
+        const nav = element.querySelector('.portal-nav')!,
+          footer = element.querySelector('.portal-sidebar-footer')!;
+        const links = [...footer.querySelectorAll('a, button')].map((child) => {
+          const r = child.getBoundingClientRect();
+          return { top: r.top, bottom: r.bottom, height: r.height };
+        });
+        return {
+          navBottom: nav.getBoundingClientRect().bottom,
+          links,
+          navOrder: getComputedStyle(nav).order,
+          footerBottomMargin: getComputedStyle(footer).marginBottom,
+        };
+      });
+      expect(order.navOrder).toBe('0');
+      expect(order.footerBottomMargin).toBe('0px');
+      expect(order.links[0]!.top).toBeGreaterThanOrEqual(order.navBottom);
+      for (let i = 1; i < order.links.length; i++)
+        expect(order.links[i]!.top).toBeGreaterThanOrEqual(order.links[i - 1]!.bottom);
+      for (const link of order.links) expect(link.height).toBeGreaterThanOrEqual(44);
+      await page.screenshot({ path: `${shellEvidence}/drawer-${width}-short.png` });
+      const exit = sidebar.getByRole('button', { name: 'Выход', exact: true });
+      await exit.scrollIntoViewIfNeeded();
+      expect(
+        (await exit.boundingBox())!.y + (await exit.boundingBox())!.height,
+      ).toBeLessThanOrEqual(568);
+      await page.screenshot({ path: `${shellEvidence}/drawer-${width}-logout.png` });
+      // Tab wraps from the last action to Close; Escape restores the trigger.
+      await exit.focus();
+      await page.keyboard.press('Tab');
+      await expect(
+        sidebar.getByRole('button', { name: 'Закрыть меню', exact: true }),
+      ).toBeFocused();
+      await page.keyboard.press('Escape');
+      await expect(toggle).toBeFocused();
+      await expect(page.locator('.portal-header')).not.toHaveAttribute('inert', '');
+    } else {
+      const collapse = sidebar.getByRole('button', {
+        name: 'Свернуть боковую панель',
+        exact: true,
+      });
+      await collapse.scrollIntoViewIfNeeded();
+      const size = await collapse.boundingBox();
+      expect(size!.width).toBe(44);
+      expect(size!.height).toBe(44);
+      await expect(collapse).toHaveCSS('border-radius', '50%');
+      await page.screenshot({ path: `${shellEvidence}/expanded-control-${width}.png` });
+      await collapse.click();
+      await expect(sidebar).toHaveClass(/collapsed/);
+      await page.screenshot({ path: `${shellEvidence}/collapsed-${width}.png` });
+      expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(
+        1,
+      );
+      await page.reload();
+      await expect(sidebar).toHaveClass(/collapsed/);
+    }
+  });
+
+for (const width of [1440, 1024, 1023, 1022, 821, 820, 601, 600, 390, 350, 349, 320])
+  test(`portal shell reserves intrinsic brand and inbox width under wide text metrics at ${width}px`, async ({
+    page,
+  }) => {
+    mkdirSync(shellEvidence, { recursive: true });
+    await fixture(page, { educator: true, author: true, unreadCount: 9999 });
+    await page.setViewportSize({ width, height: 568 });
+    await page.goto('/#/account/interface');
+    await expect(page.getByLabel('Анимации', { exact: false })).toBeEnabled();
+    await expect(
+      page.getByRole('button', { name: 'Оповещения: непрочитанных 9999' }),
+    ).toBeVisible();
+    // A deterministic wider font plus text-spacing stress exposes the brand's
+    // old 120px minimum on Windows too, instead of depending on Linux fonts.
+    await page.addStyleTag({
+      content: `
+        .portal-header, .portal-header * {
+          font-family: monospace !important;
+          letter-spacing: 2px !important;
+        }
+        .portal-header button, .portal-header a, .portal-header summary {
+          font-size: 16px !important;
+        }
+      `,
+    });
+    await assertShellGeometry(page, width);
+    const nav = page.getByLabel('Разделы ASA Lab');
+    await nav.evaluate((element) => {
+      const third = element.querySelector('a')!.cloneNode(true) as HTMLAnchorElement;
+      third.href = '/#/ai-fixture';
+      third.removeAttribute('aria-current');
+      third.querySelector('span')!.textContent = 'ИИ';
+      element.append(third);
+    });
+    await assertShellGeometry(page, width);
+    await page.screenshot({ path: `${shellEvidence}/wide-text-third-link-${width}.png` });
+  });
+
+for (const role of ['account', 'seat', 'teacher', 'author', 'admin'] as const)
+  test(`short mobile drawer preserves ${role} navigation projections and one settings destination`, async ({
+    page,
+  }) => {
+    await fixture(page, {
+      seat: role === 'seat',
+      educator: role === 'teacher',
+      author: role === 'author',
+      platformAdmin: role === 'admin',
+      presentationLongContent: true,
+    });
+    await page.setViewportSize({ width: 390, height: 568 });
+    await page.goto('/#/account');
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    const sidebar = page.locator('#portal-sidebar');
+    await expect(
+      sidebar.getByRole('link', {
+        name: role === 'seat' ? 'Настройки учебного профиля' : 'Настройки',
+        exact: true,
+      }),
+    ).toHaveCount(1);
+    await expect(sidebar.locator('a[href="/#/account"]')).toHaveCount(1);
+    await expect(sidebar.getByRole('link', { name: 'Классы', exact: true })).toHaveCount(
+      role === 'teacher' ? 1 : 0,
+    );
+    await expect(sidebar.getByRole('link', { name: 'Курсы и задания', exact: true })).toHaveCount(
+      ['teacher', 'author'].includes(role) ? 1 : 0,
+    );
+    await expect(sidebar.getByRole('button', { name: 'Админ', exact: true })).toHaveCount(
+      role === 'admin' ? 1 : 0,
+    );
+    await expect(
+      sidebar.getByRole('link', {
+        name: role === 'seat' ? 'Мои учебные работы' : 'Мои проекты',
+        exact: true,
+      }),
+    ).toBeVisible();
+    const help = sidebar.getByRole('link', {
+      name: role === 'seat' ? 'Помощь' : 'Справка',
+      exact: true,
+    });
+    await help.scrollIntoViewIfNeeded();
+    await expect(help).toHaveAttribute('href', '/#/help');
+    await page.screenshot({ path: `${shellEvidence}/drawer-${role}-390-short.png` });
+    await help.click();
+    await expect(page).toHaveURL(/#\/help$/);
+    await expect(sidebar).not.toHaveClass(/mobile-open/);
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await page.locator('.portal-menu-backdrop').click({ position: { x: 385, y: 300 } });
+    await expect(sidebar).not.toHaveClass(/mobile-open/);
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await page.setViewportSize({ width: 1023, height: 568 });
+    await expect(sidebar).toHaveClass(/mobile-open/);
+    await page.setViewportSize({ width: 1024, height: 568 });
+    await expect(sidebar).not.toHaveClass(/mobile-open/);
+    await expect(sidebar).not.toHaveAttribute('role', 'dialog');
+    await expect(page.locator('.portal-header')).not.toHaveAttribute('inert', '');
+    await expect(page.locator('.portal-shell > main')).not.toHaveAttribute('inert', '');
+    expect(await page.locator('body').evaluate((element) => element.style.overflow)).not.toBe(
+      'hidden',
+    );
+    await page.setViewportSize({ width: 1023, height: 568 });
+    const toggle = page.getByRole('button', { name: 'Открыть меню', exact: true });
+    await toggle.click();
+    await page.keyboard.press('Escape');
+    await expect(toggle).toBeFocused();
+  });
+
+for (const width of [1440, 1024, 1023, 821, 390, 320])
+  test(`public and personal routes retain shell, active section, native links and dirty guard at ${width}px`, async ({
+    page,
+  }) => {
+    const state = await fixture(page);
+    await page.setViewportSize({ width, height: 900 });
+    for (const hash of [
+      'home',
+      'projects',
+      'gallery',
+      'knowledge',
+      'learning',
+      'help',
+      'account',
+    ]) {
+      await page.goto(`/#/${hash}`);
+      await expect(page.getByLabel('Разделы ASA Lab').getByRole('link')).toHaveCount(2);
+      await assertShellGeometry(page, width);
+      const active = page.locator('.portal-global-nav [aria-current="page"]');
+      await expect(active).toHaveCount(['gallery', 'knowledge'].includes(hash) ? 1 : 0);
+      if (['gallery', 'knowledge'].includes(hash)) {
+        await expect(active).toHaveAttribute('href', `/#/${hash}`);
+        await expect(page.locator('.portal-sidebar a[aria-current="page"]')).toHaveCount(0);
+      }
+    }
+    const projects = page
+      .getByLabel('Разделы ASA Lab')
+      .getByRole('link', { name: 'Проекты', exact: true });
+    await expect(projects).toHaveAttribute('href', '/#/gallery');
+    await page.getByLabel('Отображаемое имя').fill('Несохранённый профиль');
+    // A modified click follows the native destination; it must not dispatch a
+    // guarded same-tab navigation or discard this tab's profile draft.
+    const prevented = await projects.evaluate((element) => {
+      const click = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+      element.dispatchEvent(click);
+      return click.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    await expect(page).toHaveURL(/#\/account$/);
+    await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+    for (const hash of ['gallery', 'knowledge', 'help']) {
+      if (hash !== 'gallery') {
+        await page.goto('/#/account');
+        await page.getByLabel('Отображаемое имя').fill('Несохранённый профиль');
+      }
+      const target =
+        hash === 'help'
+          ? page.locator('#portal-sidebar a[href="/#/help"]')
+          : page.locator(`.portal-global-nav a[href="/#/${hash}"]`);
+      const follow = async () => {
+        if (hash === 'help' && width <= 1023)
+          await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+        await target.click();
+      };
+      await follow();
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+      await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+      await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Несохранённый профиль');
+      await follow();
+      await page.getByRole('button', { name: 'Отменить изменения и перейти', exact: true }).click();
+      await expect(page).toHaveURL(new RegExp(`#/${hash}$`));
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+    }
+    await page
+      .getByLabel('Разделы ASA Lab')
+      .getByRole('link', { name: 'Проекты', exact: true })
+      .click();
+    await page
+      .getByLabel('Разделы ASA Lab')
+      .getByRole('link', { name: 'Знания', exact: true })
+      .click();
+    await expect(page).toHaveURL(/#\/knowledge$/);
+    await traverse(page, 'back');
+    await expect(page).toHaveURL(/#\/gallery$/);
+    await traverse(page, 'forward');
+    await expect(page).toHaveURL(/#\/knowledge$/);
+    expect(state.mutations).not.toContain('/api/account/profile');
+  });
+
+test('plain native links still protect settings drafts and modified or middle clicks stay native', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  await page.getByLabel('Отображаемое имя').fill('Черновик обычной ссылки');
+  await page.locator('main').evaluate((main) => {
+    const link = document.createElement('a');
+    link.href = '/#/help';
+    link.textContent = 'Обычная ссылка проверки';
+    main.append(link);
+  });
+  const plain = page.getByRole('link', { name: 'Обычная ссылка проверки', exact: true });
+  await plain.click();
+  await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+  await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+  const projects = page
+    .getByLabel('Разделы ASA Lab')
+    .getByRole('link', { name: 'Проекты', exact: true });
+  for (const options of [{ button: 1 }, { metaKey: true }, { shiftKey: true }, { altKey: true }])
+    expect(
+      await projects.evaluate((element, input) => {
+        const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...input });
+        let observed = false,
+          prevented = true;
+        document.addEventListener(
+          'click',
+          (click) => {
+            observed = true;
+            prevented = click.defaultPrevented;
+            // The fixture observes whether the app retained native behavior,
+            // then suppresses a real new tab/download from this synthetic click.
+            click.preventDefault();
+          },
+          { once: true },
+        );
+        element.dispatchEvent(event);
+        return { observed, prevented };
+      }, options),
+    ).toEqual({ observed: true, prevented: false });
+  await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик обычной ссылки');
+  expect(state.mutations).not.toContain('/api/account/profile');
+  await plain.click();
+  await page.getByRole('button', { name: 'Отменить изменения и перейти', exact: true }).click();
+  await expect(page).toHaveURL(/#\/help$/);
+  await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+});
+
+for (const navigationApi of [true, false])
+  for (const decision of ['Сохранить и перейти', 'Отменить изменения и перейти'])
+    test(`Seat native Help completes one ${decision} decision ${navigationApi ? 'with' : 'without'} Navigation API`, async ({
+      page,
+    }) => {
+      if (!navigationApi)
+        await page.addInitScript(() =>
+          Object.defineProperty(window, 'navigation', { value: undefined, configurable: true }),
+        );
+      const state = await fixture(page, { seat: true });
+      await page.goto('/#/account/interface');
+      await page.getByLabel('Анимации', { exact: false }).selectOption('reduce');
+      const help = page.locator('main').getByRole('link', { name: 'Помощь', exact: true });
+      await expect(help).not.toHaveAttribute('data-portal-navigation', 'managed');
+      await help.click();
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toBeVisible();
+      await page.getByRole('button', { name: 'Остаться', exact: true }).click();
+      await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue('reduce');
+      await help.click();
+      await page.getByRole('button', { name: decision, exact: true }).click();
+      await expect(page).toHaveURL(/#\/help$/);
+      await expect(page.getByRole('dialog', { name: 'Несохранённые изменения' })).toHaveCount(0);
+      await traverse(page, 'back');
+      await expect(page).toHaveURL(/#\/account\/interface$/);
+      await expect(page.getByLabel('Анимации', { exact: false })).toHaveValue(
+        decision === 'Сохранить и перейти' ? 'reduce' : 'system',
+      );
+      expect(state.mutations).not.toContain('/api/account/presentation');
+    });
 
 for (const width of [560, 561, 900, 901])
   test(`settings heading and picker switch without layout drift at ${width}px boundary`, async ({
@@ -1445,7 +2343,9 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByText('Сохранено до выхода из этого учебного сеанса.', { exact: true }),
     ).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Помощь', exact: true })).toBeVisible();
+    await expect(
+      page.locator('main').getByRole('link', { name: 'Помощь', exact: true }),
+    ).toBeVisible();
     await expect(page.getByLabel('Боковая панель', { exact: false })).toHaveCount(0);
     await expect
       .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth))
@@ -1577,3 +2477,886 @@ for (const width of [1440, 1024, 390, 320]) {
     expect(state.mutations.filter((path) => path === '/api/account/presentation')).toHaveLength(1);
   });
 }
+
+const avatarEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-20261008';
+const avatarRepairEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-repair-20261008';
+const avatarFontEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-font-repair-20261008';
+const avatarLifecycleEvidence =
+  'reports/playwright/settings-ui/portal-avatar-s2-lifecycle-repair-20261008';
+const avatarPendingFontEvidence =
+  'reports/playwright/settings-ui/portal-avatar-s2-pending-font-repair-20261008';
+
+async function delayedAvatarWrite(page: Page, seat: boolean) {
+  let release!: () => void;
+  const gate = new Promise<void>((done) => (release = done));
+  let writes = 0;
+  let fail = false;
+  let saved: string | null = null;
+  await page.route(
+    seat ? '**/api/class-join/me/avatar' : '**/api/account/avatar',
+    async (route) => {
+      if (route.request().method() === 'GET')
+        return route.fulfill({ json: { avatarDataUrl: saved } });
+      writes += 1;
+      const body = route.request().postDataJSON();
+      if (writes === 1) await gate;
+      if (fail)
+        return route.fulfill({
+          status: 503,
+          json: {
+            error: { code: 'unavailable', message: 'Проверочная ошибка отправленного запроса' },
+          },
+        });
+      saved = seat ? body.avatarKey : body.avatarDataUrl;
+      return route.fulfill({
+        json: seat
+          ? {
+              authenticated: true,
+              student: {
+                seatId: 'seat-1',
+                displayName: 'Ученик с длинным именем',
+                safeMode: true,
+                avatarKey: saved,
+              },
+              classroom: {
+                id: 'class-1',
+                title: 'Учебный класс',
+                teacherDisplayName: 'Преподаватель',
+              },
+              expiresAt: '2030-01-01T00:00:00Z',
+            }
+          : { avatarDataUrl: saved },
+      });
+    },
+  );
+  return {
+    release,
+    fail: (value: boolean) => (fail = value),
+    writes: () => writes,
+    saved: () => saved,
+  };
+}
+
+for (const width of [1440, 320])
+  for (const seat of [false, true])
+    for (const close of ['Escape', 'Close'])
+      test(`S2 lifecycle sent save reconciles after ${close} ${seat ? 'seat' : 'account'} ${width}`, async ({
+        page,
+      }) => {
+        mkdirSync(avatarLifecycleEvidence, { recursive: true });
+        await page.setViewportSize({ width, height: 568 });
+        const state = await fixture(page, { seat });
+        const write = await delayedAvatarWrite(page, seat);
+        await page.goto('/#/account');
+        if (!seat) await page.getByLabel('Отображаемое имя').fill('Независимый черновик');
+        const opener = page
+          .locator('main')
+          .getByRole('button', { name: 'Выбрать аватар', exact: true });
+        await opener.click();
+        const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+        await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+        await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+        await expect.poll(write.writes).toBe(1);
+        await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
+        if (close === 'Escape') await page.keyboard.press('Escape');
+        else await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(opener).toBeFocused();
+        write.release();
+        const headerAvatar = page.locator('.portal-user-avatar img');
+        if (seat) await expect(headerAvatar).toHaveAttribute('src', /avatar-07.webp$/);
+        else {
+          await expect(headerAvatar).toHaveAttribute('src', /^data:image\/webp;base64,/);
+          await expect(headerAvatar).toHaveAttribute('src', write.saved()!);
+          await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Независимый черновик');
+          const profileAvatar = await page
+            .locator('.account-avatar-preview-button img')
+            .boundingBox();
+          expect(profileAvatar!.width).toBe(width <= 560 ? 64 : 96);
+          expect(profileAvatar!.height).toBe(profileAvatar!.width);
+        }
+        await opener.click();
+        await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+          'src',
+          (await headerAvatar.getAttribute('src'))!,
+        );
+        if (width <= 600)
+          await expect(dialog.getByRole('combobox', { name: 'Вариант аватара' })).toHaveValue(
+            'current',
+          );
+        else
+          await expect(
+            dialog.getByRole('button', { name: 'Текущий аватар', exact: true }),
+          ).toHaveAttribute('aria-pressed', 'true');
+        await assertAvatarGeometry(page);
+        await page.screenshot({
+          path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-${width}-${close}-reconciled.png`,
+        });
+        expect(write.writes()).toBe(1);
+        expect(state.mutations).not.toContain('/api/account/profile');
+        await page.keyboard.press('Escape');
+      });
+
+for (const seat of [false, true])
+  test(`S2 lifecycle pending reopen blocks duplicate save and displays late error ${seat ? 'seat' : 'account'}`, async ({
+    page,
+  }) => {
+    mkdirSync(avatarLifecycleEvidence, { recursive: true });
+    await page.setViewportSize({ width: 320, height: 568 });
+    await fixture(page, { seat });
+    const write = await delayedAvatarWrite(page, seat);
+    await page.goto('/#/account');
+    const opener = page
+      .locator('main')
+      .getByRole('button', { name: 'Выбрать аватар', exact: true });
+    await opener.click();
+    const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+    await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await expect.poll(write.writes).toBe(1);
+    await page.keyboard.press('Escape');
+    await opener.click();
+    await expect(
+      dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
+    ).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeDisabled();
+    await expect(dialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeEnabled();
+    await assertAvatarGeometry(page);
+    await page.screenshot({
+      path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-320-reopened-pending.png`,
+    });
+    expect(write.writes()).toBe(1);
+    write.fail(true);
+    write.release();
+    await expect(dialog.getByRole('alert')).toHaveText('Проверочная ошибка отправленного запроса');
+    await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeEnabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
+    ).toBeEnabled();
+    await page.screenshot({
+      path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-320-reopened-error.png`,
+    });
+    await dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toHaveCount(0);
+    write.fail(false);
+    await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    expect(write.writes()).toBe(2);
+    await opener.click();
+    const headerAvatar = page.locator('.portal-user-avatar img');
+    await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+      'src',
+      (await headerAvatar.getAttribute('src'))!,
+    );
+    if (seat) await expect(headerAvatar).toHaveAttribute('src', /avatar-08.webp$/);
+  });
+
+for (const width of [320, 600, 601])
+  for (const { seat, letterSpacing } of [
+    ...[false, true].map((seat) => ({ seat, letterSpacing: 1 })),
+    ...(width === 320 ? [false, true].map((seat) => ({ seat, letterSpacing: 2 })) : []),
+  ])
+    test(`S2 avatar action row tolerates ${letterSpacing === 2 ? 'pending-label wider' : 'wider'} 16px font ${seat ? 'seat' : 'account'} ${width}`, async ({
+      page,
+    }) => {
+      const fontEvidence = letterSpacing === 2 ? avatarPendingFontEvidence : avatarFontEvidence;
+      mkdirSync(fontEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      await fixture(page, { seat, presentationLongContent: true });
+      let releaseSave!: () => void;
+      let sentWrites = 0;
+      const saveGate = new Promise<void>((resolve) => (releaseSave = resolve));
+      await page.route(
+        seat ? '**/api/class-join/me/avatar' : '**/api/account/avatar',
+        async (route) => {
+          if (route.request().method() === 'GET')
+            return route.fulfill({ json: { avatarDataUrl: null } });
+          sentWrites += 1;
+          await saveGate;
+          return route.fulfill({
+            status: 503,
+            json: {
+              error: {
+                code: 'unavailable',
+                message: 'Не удалось сохранить выбранный аватар. Повторите попытку позднее.',
+              },
+            },
+          });
+        },
+      );
+      await page.goto('/#/account');
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      // Keep the original six fallback-font cases. Two extra narrow cases widen
+      // glyph advance enough to expose the longer sent-save label on Windows too.
+      await page.addStyleTag({
+        content: `.avatar-chooser-dialog .avatar-chooser-actions button {
+          font-family: monospace;
+          font-size: 16px;
+          letter-spacing: 1px;
+        }
+        .avatar-chooser-dialog .avatar-chooser-actions button:first-child {
+          letter-spacing: ${letterSpacing}px;
+        }`,
+      });
+      const samples: unknown[] = [];
+      const assertActions = async (state: string) => {
+        const metrics = await dialog.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          const preview = element
+            .querySelector('img[alt="Предпросмотр аватара"]')!
+            .getBoundingClientRect();
+          const actions = [...element.querySelectorAll('.avatar-chooser-actions button')].map(
+            (button) => {
+              const r = button.getBoundingClientRect();
+              const style = getComputedStyle(button);
+              const text = document.createRange();
+              text.selectNodeContents(button);
+              const textBounds = text.getBoundingClientRect();
+              return {
+                top: r.top,
+                bottom: r.bottom,
+                width: r.width,
+                height: r.height,
+                left: r.left,
+                right: r.right,
+                text: button.textContent,
+                textWidth: textBounds.width,
+                contentWidth:
+                  r.width -
+                  parseFloat(style.paddingLeft) -
+                  parseFloat(style.paddingRight) -
+                  parseFloat(style.borderLeftWidth) -
+                  parseFloat(style.borderRightWidth),
+                textFits:
+                  textBounds.left >= r.left &&
+                  textBounds.right <= r.right &&
+                  button.scrollWidth <= button.clientWidth,
+                fontSize: style.fontSize,
+                fontFamily: style.fontFamily,
+                padding: style.padding,
+              };
+            },
+          );
+          return {
+            actions,
+            previewWidth: preview.width,
+            dialogWidth: bounds.width,
+            dialogOverflow: element.scrollWidth > element.clientWidth,
+            pageOverflow: document.documentElement.scrollWidth > innerWidth,
+          };
+        });
+        samples.push({ state, ...metrics });
+        writeFileSync(
+          `${fontEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
+          JSON.stringify(samples, null, 2),
+        );
+        await page.screenshot({
+          path: `${fontEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}.png`,
+        });
+        expect(metrics.actions).toHaveLength(2);
+        expect(Math.abs(metrics.actions[0]!.top - metrics.actions[1]!.top)).toBeLessThan(1);
+        expect(Math.abs(metrics.actions[0]!.bottom - metrics.actions[1]!.bottom)).toBeLessThan(1);
+        expect(metrics.actions[0]!.right).toBeLessThanOrEqual(metrics.actions[1]!.left);
+        for (const action of metrics.actions) {
+          expect(action.textFits).toBe(true);
+          expect(action.fontSize).toBe('16px');
+          expect(action.fontFamily).toContain('monospace');
+          expect(action.width).toBeGreaterThanOrEqual(44);
+          expect(action.height).toBeGreaterThanOrEqual(44);
+          expect(action.top).toBeGreaterThanOrEqual(0);
+          expect(action.bottom).toBeLessThanOrEqual(568);
+        }
+        expect(metrics.previewWidth).toBeGreaterThanOrEqual(240);
+        expect(metrics.dialogOverflow).toBe(false);
+        expect(metrics.pageOverflow).toBe(false);
+      };
+      try {
+        const use = dialog.getByRole('button', { name: 'Использовать', exact: true });
+        await expect(use).toBeDisabled();
+        await assertActions('current');
+        await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+        await expect(use).toBeEnabled();
+        await assertActions('selected');
+        await use.click();
+        await expect.poll(() => sentWrites).toBe(1);
+        await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
+        await expect(dialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeEnabled();
+        await expect(use).toBeDisabled();
+        await assertActions('busy');
+        releaseSave();
+        await expect(dialog.getByRole('alert')).toContainText(
+          'Не удалось сохранить выбранный аватар',
+        );
+        await expect(use).toBeEnabled();
+        await assertActions('error');
+        await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+          'src',
+          /avatar-07.webp$/,
+        );
+        await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+        await expect(dialog).toHaveCount(0);
+      } finally {
+        releaseSave();
+      }
+    });
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true])
+    test(`S2 repair avatar action row ${seat ? 'seat' : 'account'} ${width} short screen`, async ({
+      page,
+    }) => {
+      mkdirSync(avatarRepairEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      await fixture(page, { seat, presentationLongContent: true });
+      await page.goto('/#/account');
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      const samples = [];
+      for (const state of ['current', 'selected']) {
+        if (state === 'selected')
+          await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+        const actions = await dialog
+          .locator('.avatar-chooser-actions button')
+          .evaluateAll((buttons) =>
+            buttons.map((button) => {
+              const r = button.getBoundingClientRect();
+              return {
+                top: r.top,
+                bottom: r.bottom,
+                width: r.width,
+                height: r.height,
+                textFits: button.scrollWidth <= button.clientWidth,
+              };
+            }),
+          );
+        samples.push({ state, actions });
+        writeFileSync(
+          `${avatarRepairEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
+          JSON.stringify(samples, null, 2),
+        );
+        expect(actions).toHaveLength(2);
+        expect(Math.abs(actions[0]!.top - actions[1]!.top)).toBeLessThan(1);
+        expect(Math.abs(actions[0]!.bottom - actions[1]!.bottom)).toBeLessThan(1);
+        for (const action of actions) {
+          expect(action.height).toBeGreaterThanOrEqual(44);
+          expect(action.width).toBeGreaterThanOrEqual(44);
+          expect(action.textFits).toBe(true);
+        }
+        await expect(
+          dialog.getByRole('button', { name: 'Использовать', exact: true }),
+        ).toBeInViewport();
+        await page.screenshot({
+          path: `${avatarRepairEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}-short.png`,
+        });
+      }
+    });
+async function assertAvatarGeometry(page: Page) {
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  const metrics = await dialog.evaluate((element) => {
+    const preview = element
+      .querySelector('img[alt="Предпросмотр аватара"]')!
+      .getBoundingClientRect();
+    const bounds = element.getBoundingClientRect();
+    const tiles = [...element.querySelectorAll('.avatar-selection-grid button')].map((tile) => {
+      const r = tile.getBoundingClientRect();
+      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    });
+    return {
+      preview: { width: preview.width, height: preview.height },
+      bounds: { x: bounds.x, right: bounds.right, top: bounds.top, bottom: bounds.bottom },
+      tiles,
+      pageOverflow: document.documentElement.scrollWidth > innerWidth,
+    };
+  });
+  expect(metrics.preview.width).toBeGreaterThanOrEqual(240);
+  expect(metrics.preview.width).toBeLessThanOrEqual(320);
+  expect(metrics.preview.height).toBe(metrics.preview.width);
+  expect(metrics.pageOverflow).toBe(false);
+  expect(metrics.bounds.x).toBeGreaterThanOrEqual(0);
+  expect(metrics.bounds.right).toBeLessThanOrEqual(page.viewportSize()!.width);
+  expect(metrics.bounds.top).toBeGreaterThanOrEqual(0);
+  expect(metrics.bounds.bottom).toBeLessThanOrEqual(page.viewportSize()!.height);
+  for (const tile of metrics.tiles) expect(Math.abs(tile.width - tile.height)).toBeLessThan(1);
+  for (let i = 0; i < metrics.tiles.length; i++)
+    for (let j = i + 1; j < metrics.tiles.length; j++) {
+      const a = metrics.tiles[i]!,
+        b = metrics.tiles[j]!;
+      expect(
+        Math.min(a.right, b.right) - Math.max(a.x, b.x) > 1 &&
+          Math.min(a.bottom, b.bottom) - Math.max(a.y, b.y) > 1,
+      ).toBe(false);
+    }
+  await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeInViewport();
+  await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeInViewport();
+}
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true]) {
+    test(`S2 avatar chooser geometry ${seat ? 'seat' : 'account'} ${width} short screen`, async ({
+      page,
+    }) => {
+      mkdirSync(avatarEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      const state = await fixture(page, { seat, presentationLongContent: true });
+      await page.goto('/#/account');
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      await assertAvatarGeometry(page);
+      if (seat) await expect(dialog.locator('input[type="file"]')).toHaveCount(0);
+      await page.screenshot({
+        path: `${avatarEvidence}/${seat ? 'seat' : 'account'}-${width}-short.png`,
+      });
+      const firstTile = dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true });
+      await firstTile.scrollIntoViewIfNeeded();
+      const reachability = await dialog.locator('.avatar-selection-grid').evaluate((grid) => {
+        const r = grid.getBoundingClientRect(),
+          parent = grid.closest('.avatar-selection')!.getBoundingClientRect();
+        return {
+          height: grid.clientHeight,
+          visibleHeight: Math.min(r.bottom, parent.bottom) - Math.max(r.top, parent.top),
+          contentHeight: grid.scrollHeight,
+        };
+      });
+      expect(reachability.height).toBeGreaterThanOrEqual(80);
+      expect(reachability.visibleHeight).toBeGreaterThanOrEqual(60);
+      await dialog
+        .getByRole('button', { name: 'Выбрать: Аватар 67', exact: true })
+        .scrollIntoViewIfNeeded();
+      await expect(
+        dialog.getByRole('button', { name: 'Выбрать: Аватар 67', exact: true }),
+      ).toBeInViewport();
+      await firstTile.scrollIntoViewIfNeeded();
+      await page.screenshot({
+        path: `${avatarEvidence}/${seat ? 'seat' : 'account'}-${width}-catalogue.png`,
+      });
+      writeFileSync(
+        `${avatarEvidence}/${seat ? 'seat' : 'account'}-${width}-reachability.json`,
+        JSON.stringify(reachability),
+      );
+
+      await dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true }).click();
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+        'src',
+        /avatar-01.webp$/,
+      );
+      expect(state.mutations).not.toContain(
+        seat ? '/api/class-join/me/avatar' : '/api/account/avatar',
+      );
+      await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(
+        state.mutations.filter(
+          (path) => path === (seat ? '/api/class-join/me/avatar' : '/api/account/avatar'),
+        ),
+      ).toHaveLength(1);
+      await page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true })
+        .click();
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+        'src',
+        seat ? /avatar-01.webp$/ : /^data:image\/webp;base64,/,
+      );
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+    });
+  }
+test('S2 quick avatar access keeps routes and dirty drafts, returns focus to live account control', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  await page.getByLabel('Отображаемое имя').fill('Черновик имени');
+  const menu = page.locator('.portal-account > summary');
+  await menu.click();
+  await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/#\/account$/);
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 3', exact: true }).click();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeFocused();
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик имени');
+  expect(state.mutations).not.toContain('/api/account/avatar');
+  expect(state.mutations).not.toContain('/api/account/profile');
+  await page.locator('.portal-sidebar-avatar').click();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 4', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик имени');
+  expect(state.mutations).not.toContain('/api/account/profile');
+  await page.getByRole('button', { name: 'Интерфейс', exact: true }).click();
+  const guard = page.getByRole('dialog', { name: 'Несохранённые изменения' });
+  await guard.getByRole('button', { name: 'Отменить изменения и перейти' }).click();
+  await page.getByLabel('Анимации').selectOption('reduce');
+  await page.locator('.portal-sidebar-avatar').click();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 5', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(page.getByLabel('Анимации')).toHaveValue('reduce');
+  expect(state.mutations).not.toContain('/api/account/presentation');
+  await expect(page).toHaveURL(/#\/account\/interface$/);
+});
+test('S2 mobile drawer avatar opens above the current page and cancels without mutation', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 568 });
+  const state = await fixture(page, { seat: true });
+  await page.goto('/#/home');
+  await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+  await page.locator('.portal-sidebar-avatar').click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog).toBeVisible();
+  await expect(page).toHaveURL(/#\/home$/);
+  await expect(page.locator('.portal-sidebar')).not.toHaveClass(/mobile-open/);
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Открыть меню', exact: true })).toBeFocused();
+  expect(state.mutations).not.toContain('/api/class-join/me/avatar');
+});
+test('S2 upload is transformed for preview, explicit save and reopen retain current data URL', async ({
+  page,
+}) => {
+  const state = await fixture(page);
+  await page.goto('/#/account');
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await dialog
+    .getByLabel('Загрузить свой аватар')
+    .setInputFiles('apps/web/public/assets/avatars/default/avatar-02.webp');
+  const preview = dialog.getByRole('img', { name: 'Предпросмотр аватара' });
+  await expect(preview).toHaveAttribute('src', /^data:image\/webp;base64,/);
+  expect(
+    await preview.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]),
+  ).toEqual([320, 320]);
+  expect(state.mutations).not.toContain('/api/account/avatar');
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await page
+    .locator('main')
+    .getByRole('button', { name: 'Увеличить и выбрать аватар', exact: true })
+    .click();
+  await expect(preview).toHaveAttribute('src', /^data:image\/webp;base64,/);
+  await page.keyboard.press('Escape');
+});
+test('S2 save error stays visible, retry retains selected preview and Escape works after busy', async ({
+  page,
+}) => {
+  await fixture(page);
+  let failure = true;
+  let saves = 0;
+  await page.route('**/api/account/avatar', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { avatarDataUrl: null } });
+    saves++;
+    return failure
+      ? route.fulfill({
+          status: 503,
+          json: { error: { code: 'unavailable', message: 'Проверочная ошибка сохранения' } },
+        })
+      : route.fulfill({ json: route.request().postDataJSON() });
+  });
+  await page.goto('/#/account');
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toHaveText('Проверочная ошибка сохранения');
+  await page.screenshot({ path: `${avatarEvidence}/account-error-retry.png` });
+  await expect(
+    dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  expect(saves).toBe(1);
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toBeVisible();
+  failure = false;
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(saves).toBe(3);
+});
+for (const width of [1440, 1024, 390, 320])
+  test(`S2 teacher avatar preview stages in narrow parent modal ${width}`, async ({ page }) => {
+    mkdirSync(avatarEvidence, { recursive: true });
+    mkdirSync(avatarRepairEvidence, { recursive: true });
+    await page.setViewportSize({ width, height: 568 });
+    await fixture(page, { educator: true });
+    const student = {
+      id: 'seat-1',
+      displayLabel: 'Ученица с длинным именем',
+      studentCode: 'AbC123',
+      loginHandle: 'AbC123',
+      safeMode: true,
+      status: 'issued',
+      avatarKey: null,
+      lastActiveAt: null,
+      createdAt: '2026-01-01T00:00:00Z',
+    };
+    const writes: unknown[] = [];
+    await page.route('**/api/classrooms/class-1/roster', (route) =>
+      route.fulfill({ json: { items: [student] } }),
+    );
+    await page.route('**/api/classrooms/class-1/seats/seat-1', (route) => {
+      writes.push(route.request().postDataJSON());
+      return route.fulfill({
+        json: { student: { ...student, ...route.request().postDataJSON() } },
+      });
+    });
+    await page.goto('/#/classrooms/class-1');
+    await expect(
+      page.getByRole('button', { name: 'Действия: Ученица с длинным именем', exact: true }),
+    ).toBeVisible();
+    const baselineLayout = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      clientWidth: innerWidth,
+    }));
+    const baselineOverflow = baselineLayout.scrollWidth > baselineLayout.clientWidth;
+    await page
+      .getByRole('button', { name: 'Действия: Ученица с длинным именем', exact: true })
+      .click();
+    await page.getByRole('button', { name: 'Изменить данные', exact: true }).click();
+    const parent = page.locator('.classroom-student-dialog');
+    await parent
+      .getByRole('textbox', { name: 'Имя в списке класса' })
+      .fill('Изменённое имя ученика');
+    await parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
+    await parent.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+    expect(writes).toHaveLength(0);
+    const geometry = await parent.evaluate((element) => {
+      const r = element.getBoundingClientRect();
+      const content = element.querySelector('.avatar-selection')!.getBoundingClientRect();
+      return {
+        parentWidth: r.width,
+        contentWidth: content.width,
+        overflow: document.documentElement.scrollWidth > innerWidth,
+      };
+    });
+    expect(geometry.contentWidth).toBeLessThan(geometry.parentWidth);
+    expect(geometry.overflow).toBe(baselineOverflow);
+    writeFileSync(
+      `${avatarEvidence}/teacher-${width}-layout.json`,
+      JSON.stringify({ baseline: baselineLayout, chooser: geometry }),
+    );
+    await parent.getByRole('img', { name: 'Предпросмотр аватара' }).scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${avatarEvidence}/teacher-${width}-short.png` });
+    await parent.getByRole('button', { name: 'Использовать аватар', exact: true }).click();
+    const labelOpener = parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true });
+    await expect(labelOpener).toBeFocused();
+    mkdirSync(avatarRepairEvidence, { recursive: true });
+    const focusSamples = [{ trigger: 'label', action: 'use' }];
+    for (const [trigger, action] of [
+      ['preview', 'cancel'],
+      ['label', 'cancel'],
+      ['preview', 'use'],
+    ] as const) {
+      const opener =
+        trigger === 'preview'
+          ? parent.getByRole('button', { name: 'Увеличить и выбрать аватар ученика', exact: true })
+          : labelOpener;
+      await opener.click();
+      await parent
+        .getByRole('button', {
+          name: action === 'cancel' ? 'Выбрать: Аватар 8' : 'Выбрать: Аватар 7',
+          exact: true,
+        })
+        .click();
+      await parent
+        .getByRole('button', {
+          name: action === 'cancel' ? 'Отменить выбор аватара' : 'Использовать аватар',
+          exact: true,
+        })
+        .click();
+      await expect(parent.locator('.seat-avatar-staged-selection')).toHaveCount(0);
+      await expect(opener).toBeFocused();
+      await expect(parent.getByRole('img', { name: 'Текущий аватар ученика' })).toHaveAttribute(
+        'src',
+        /avatar-07.webp$/,
+      );
+      await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
+        'Изменённое имя ученика',
+      );
+      expect(writes).toHaveLength(0);
+      focusSamples.push({ trigger, action });
+      await page.screenshot({
+        path: `${avatarRepairEvidence}/teacher-${width}-${trigger}-${action}-focus.png`,
+      });
+      await page.keyboard.press('Tab');
+      expect(await parent.evaluate((element) => element.contains(document.activeElement))).toBe(
+        true,
+      );
+    }
+    writeFileSync(
+      `${avatarRepairEvidence}/teacher-${width}-focus.json`,
+      JSON.stringify(focusSamples, null, 2),
+    );
+    expect(writes).toHaveLength(0);
+    await parent.getByRole('button', { name: 'Сохранить', exact: true }).click();
+    await expect(parent).toHaveCount(0);
+    expect(writes).toHaveLength(1);
+    expect(writes[0]).toMatchObject({
+      avatarKey: 'asa-avatar-07',
+      displayLabel: 'Изменённое имя ученика',
+    });
+  });
+
+test('S2 late initial avatar GET cannot overwrite a confirmed save', async ({ page }) => {
+  await fixture(page);
+  let reads = 0;
+  let release!: () => void;
+  let staleDone!: () => void;
+  const staleComplete = new Promise<void>((resolve) => {
+    staleDone = resolve;
+  });
+  await page.route('**/api/account/avatar', async (route) => {
+    if (route.request().method() !== 'GET')
+      return route.fulfill({ json: route.request().postDataJSON() });
+    reads++;
+    if (reads === 1) {
+      await new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await route.fulfill({ json: { avatarDataUrl: null } });
+      staleDone();
+      return;
+    }
+    return route.fulfill({ json: { avatarDataUrl: null } });
+  });
+  await page.goto('/#/account');
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(
+    dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
+  ).toBeEnabled();
+  await dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.portal-sidebar-avatar img')).toHaveAttribute(
+    'src',
+    /^data:image\/webp;base64,/,
+  );
+  release();
+  await staleComplete;
+  await expect(page.locator('.portal-sidebar-avatar img')).toHaveAttribute(
+    'src',
+    /^data:image\/webp;base64,/,
+  );
+  await expect(page.getByRole('img', { name: 'Текущий аватар', exact: true })).toHaveAttribute(
+    'src',
+    /^data:image\/webp;base64,/,
+  );
+});
+test('S2 lazy chooser failure keeps drafts, retries locally and leaves unrelated recovery alone', async ({
+  page,
+}) => {
+  await fixture(page);
+  let fail = true;
+  await page.route('**/AvatarChooser-*.js', (route) => (fail ? route.abort() : route.fallback()));
+  await page.goto('/#/account');
+  await page.getByLabel('Отображаемое имя').fill('Черновик пережил загрузку');
+  await page.locator('.portal-account > summary').click();
+  await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+  await expect(dialog.getByRole('alert')).toContainText('Не удалось открыть выбор аватара');
+  await expect(page).toHaveURL(/#\/account$/);
+  expect(await page.evaluate(() => sessionStorage.getItem('asa-vite-preload-recovery'))).toBeNull();
+  fail = false;
+  await dialog.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  const unrelated = await page.evaluate(() => {
+    sessionStorage.setItem('asa-vite-preload-recovery', String(Date.now()));
+    let delivered = false;
+    const listener = () => {
+      delivered = true;
+    };
+    window.addEventListener('vite:preloadError', listener);
+    const event = new Event('vite:preloadError', { cancelable: true }) as Event & {
+      payload: Error;
+    };
+    event.payload = new Error('Failed to fetch OtherChunk-test.js');
+    window.dispatchEvent(event);
+    window.removeEventListener('vite:preloadError', listener);
+    return { delivered, handledByGlobal: event.defaultPrevented };
+  });
+  expect(unrelated).toEqual({ delivered: true, handledByGlobal: true });
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.locator('.portal-account > summary')).toBeFocused();
+  const afterUnmount = await page.evaluate(() => {
+    const event = new Event('vite:preloadError', { cancelable: true }) as Event & {
+      payload: Error;
+    };
+    event.payload = new Error(
+      `Failed to fetch dynamically imported module: ${location.origin}/assets/AvatarChooser-test.js`,
+    );
+    window.dispatchEvent(event);
+    return event.defaultPrevented;
+  });
+  expect(afterUnmount).toBe(true);
+  await expect(page.getByLabel('Отображаемое имя')).toHaveValue('Черновик пережил загрузку');
+});
+
+test('S2 teacher optional catalogue failure preserves parent draft and retries locally', async ({
+  page,
+}) => {
+  await fixture(page, { educator: true });
+  let fail = true;
+  const student = {
+    id: 'seat-1',
+    displayLabel: 'Ученица',
+    studentCode: 'AbC123',
+    loginHandle: 'AbC123',
+    safeMode: true,
+    status: 'issued',
+    avatarKey: null,
+    lastActiveAt: null,
+    createdAt: '2026-01-01T00:00:00Z',
+  };
+  await page.route('**/api/classrooms/class-1/roster', (route) =>
+    route.fulfill({ json: { items: [student] } }),
+  );
+  await page.route('**/AvatarChooser-*.js*', (route) => (fail ? route.abort() : route.fallback()));
+  await page.goto('/#/classrooms/class-1');
+  await page.getByRole('button', { name: 'Действия: Ученица', exact: true }).click();
+  await page.getByRole('button', { name: 'Изменить данные', exact: true }).click();
+  const parent = page.locator('.classroom-student-dialog');
+  await parent.getByRole('textbox', { name: 'Имя в списке класса' }).fill('Черновик преподавателя');
+  await parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true }).click();
+  await expect(parent.getByRole('alert')).toContainText('Не удалось открыть выбор аватара');
+  expect(await page.evaluate(() => sessionStorage.getItem('asa-vite-preload-recovery'))).toBeNull();
+  fail = false;
+  await parent.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(parent.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
+    'Черновик преподавателя',
+  );
+  await parent.getByRole('button', { name: 'Отменить выбор аватара', exact: true }).click();
+  await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
+    'Черновик преподавателя',
+  );
+  await parent.getByRole('button', { name: 'Отмена', exact: true }).click();
+});
+test('S2 avatar library code is requested only when opening the chooser', async ({ page }) => {
+  await fixture(page);
+  const requests: string[] = [];
+  page.on('request', (request) => {
+    if (/AvatarChooser-/.test(request.url())) requests.push(request.url());
+  });
+  await page.goto('/#/home');
+  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  expect(requests).toHaveLength(0);
+  await page.locator('.portal-account > summary').click();
+  await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  expect(requests.length).toBeGreaterThan(0);
+});

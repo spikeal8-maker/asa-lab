@@ -882,7 +882,8 @@ button.portal-account-identity:hover:not(:disabled) {
   background: #f8fbfc;
 }
 
-.account-avatar-editor > img {
+.account-avatar-editor > img,
+.account-avatar-editor > .account-avatar-preview-button > img {
   width: 96px;
   height: 96px;
   border: 4px solid #fff;
@@ -1557,7 +1558,8 @@ button.portal-account-identity:hover:not(:disabled) {
     gap: 10px;
   }
 
-  .account-avatar-editor > img {
+  .account-avatar-editor > img,
+  .account-avatar-editor > .account-avatar-preview-button > img {
     width: 64px;
     height: 64px;
   }

@@ -2,7 +2,10 @@ import { usePresentation } from './PresentationPreferences';
 import { hasSettingsDraft } from './settings-navigation';
 import { useEffect, useRef, useState } from 'react';
 import { requestSettingsNavigation } from './settings-navigation';
-import { api, type SessionPayload } from '../api';
+import { api, type ClassroomStudentSession, type SessionPayload } from '../api';
+import { AvatarDialog } from './AvatarDialog';
+import { useAvatarSave } from './use-avatar-save';
+import { OPEN_AVATAR_CHOOSER_EVENT, type AvatarActor } from './avatar-chooser-events';
 import type { AdminNavigationItem, AdminSection } from '../admin/admin-navigation';
 import { AsaLabWordmark } from '../brand/AsaLabBrand';
 import {
@@ -70,6 +73,7 @@ export function PortalHeader({
   seatLearner = false,
   classroomBadge,
   seatAvatarUrl,
+  onSeatChanged,
   unfinishedCount = 0,
   maxVerificationDue = false,
   adminNavigation,
@@ -82,6 +86,8 @@ export function PortalHeader({
   canTeach: boolean;
   /** The picture a class seat chose; an account has none and uploads instead. */
   seatAvatarUrl?: string | undefined;
+  seatSession?: ClassroomStudentSession | undefined;
+  onSeatChanged?: ((seat: ClassroomStudentSession) => void) | undefined;
   /** Assignments a learner has not handed in; 0 hides the dot. */
   unfinishedCount?: number;
   /** Ненавязчивый индикатор после 24 часов без подтверждённого MAX. */
@@ -110,6 +116,24 @@ export function PortalHeader({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [avatarDataUrl, setAvatarDataUrl] = useState<string | null>(null);
+  const [avatarLoaded, setAvatarLoaded] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarOpenRef = useRef(false);
+  const avatarReturnFocus = useRef<HTMLElement | null>(null);
+  const avatarVersion = useRef(0);
+  const avatarActor: AvatarActor = { kind: seatLearner ? 'seat' : 'account', id: session.user.id };
+  const avatarActorKey = `${avatarActor.kind}:${avatarActor.id}`;
+  const currentActorKey = useRef(avatarActorKey);
+  currentActorKey.current = avatarActorKey;
+  const avatarSave = useAvatarSave({
+    actor: avatarActor,
+    onAccountSaved: (url) => {
+      avatarVersion.current += 1;
+      setAvatarDataUrl(url);
+      setAvatarLoaded(true);
+    },
+    onSeatSaved: onSeatChanged,
+  });
   const presentation = usePresentation();
   const [settingsDirty, setSettingsDirty] = useState(hasSettingsDraft);
   useEffect(() => {
@@ -141,7 +165,8 @@ export function PortalHeader({
     document.body.style.overflow = 'hidden';
     sidebar.current?.querySelector<HTMLButtonElement>('button')?.focus();
     const closeOnResize = (): void => {
-      if (window.innerWidth > 820) setMobileOpen(false);
+      // Keep the drawer transition aligned with portal-workspace.css.
+      if (window.innerWidth > 1023) setMobileOpen(false);
     };
     const handleKey = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') setMobileOpen(false);
@@ -198,7 +223,10 @@ export function PortalHeader({
     contentAuthoring: session.navigation.contentAuthoring === true,
     seat: seatLearner,
   });
-  const primaryNavigation = navigationItems.filter((item) => item.section !== 'help');
+  const primaryNavigation = navigationItems.filter(
+    (item) => item.section !== 'help' && item.section !== 'account',
+  );
+  const settingsNavigation = navigationItems.find((item) => item.section === 'account');
   const helpNavigation = navigationItems.find((item) => item.section === 'help');
 
   useEffect(() => {
@@ -210,9 +238,19 @@ export function PortalHeader({
     // is a guaranteed 401. The generated avatar below covers it.
     if (seatLearner) return;
     let cancelled = false;
-    void api.accountAvatar().then((result) => {
-      if (!cancelled && result.ok) setAvatarDataUrl(result.data.avatarDataUrl);
-    });
+    const version = avatarVersion.current;
+    setAvatarLoaded(false);
+    void api
+      .accountAvatar()
+      .then((result) => {
+        if (!cancelled && version === avatarVersion.current && result.ok) {
+          setAvatarDataUrl(result.data.avatarDataUrl);
+          setAvatarLoaded(true);
+        }
+      })
+      .catch(() => {
+        /* The chooser offers an explicit retry. */
+      });
     return () => {
       cancelled = true;
     };
@@ -220,12 +258,50 @@ export function PortalHeader({
 
   useEffect(() => {
     function updateAvatarFromPage(event: Event): void {
+      if (seatLearner) return;
+      avatarVersion.current += 1;
       setAvatarDataUrl((event as CustomEvent<string | null>).detail);
+      setAvatarLoaded(true);
     }
 
     window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
     return () => window.removeEventListener(PROFILE_AVATAR_CHANGED_EVENT, updateAvatarFromPage);
-  }, []);
+  }, [seatLearner]);
+
+  useEffect(() => {
+    function openRequested(event: Event): void {
+      const actor = (event as CustomEvent<AvatarActor>).detail;
+      if (actor?.kind === avatarActor.kind && actor.id === avatarActor.id) openAvatar();
+    }
+    window.addEventListener(OPEN_AVATAR_CHOOSER_EVENT, openRequested);
+    return () => window.removeEventListener(OPEN_AVATAR_CHOOSER_EVENT, openRequested);
+  }, [avatarActorKey]);
+
+  useEffect(() => {
+    avatarOpenRef.current = false;
+    setAvatarOpen(false);
+    return () => {
+      avatarOpenRef.current = false;
+    };
+  }, [avatarActorKey]);
+
+  function openAvatar(): void {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    avatarReturnFocus.current = accountMenu.current?.open
+      ? (accountMenu.current.querySelector<HTMLElement>('summary') ?? opener)
+      : mobileOpen
+        ? menuButton.current
+        : opener;
+    closeAccountMenu();
+    setMobileOpen(false);
+    avatarOpenRef.current = true;
+    setAvatarOpen(true);
+  }
+
+  function closeAvatar(): void {
+    avatarOpenRef.current = false;
+    setAvatarOpen(false);
+  }
 
   useEffect(() => {
     function closeAccountMenu(event: PointerEvent): void {
@@ -326,17 +402,26 @@ export function PortalHeader({
           ) : null}
         </button>
         <nav className="portal-global-nav" aria-label="Разделы ASA Lab">
-          <PortalLink href={sectionHref('gallery')} onNavigate={() => onNavigate('gallery')}>
+          <PortalLink
+            href={sectionHref('gallery')}
+            aria-current={active === 'gallery' ? 'page' : undefined}
+            onNavigate={() => onNavigate('gallery')}
+          >
             <GalleryGlyph />
             <span>Проекты</span>
           </PortalLink>
-          <PortalLink href={sectionHref('knowledge')} onNavigate={() => onNavigate('knowledge')}>
+          <PortalLink
+            href={sectionHref('knowledge')}
+            aria-current={active === 'knowledge' ? 'page' : undefined}
+            onNavigate={() => onNavigate('knowledge')}
+          >
             <LearningGlyph />
             <span>Знания</span>
           </PortalLink>
         </nav>
         <QuickCreateMenu />
         <LearningInbox
+          key={avatarActorKey}
           seat={seatLearner}
           teaching={
             session.navigation.classroomManagement ||
@@ -368,9 +453,9 @@ export function PortalHeader({
                 type="button"
                 className="portal-account-profile-avatar"
                 aria-label="Открыть выбор аватара"
-                title="Выбрать или загрузить аватар"
+                title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
                 disabled={busy !== null}
-                onClick={() => navigateFromAccount('account')}
+                onClick={openAvatar}
               >
                 <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
                 <span className="portal-account-avatar-edit" aria-hidden="true">
@@ -541,18 +626,21 @@ export function PortalHeader({
           Закрыть <span aria-hidden="true">×</span>
         </button>
         <div className="portal-sidebar-profile">
-          <div className="portal-sidebar-avatar">
+          <button
+            type="button"
+            className="portal-sidebar-avatar"
+            aria-label="Выбрать аватар в меню"
+            title={seatLearner ? 'Выбрать аватар' : 'Выбрать или загрузить аватар'}
+            onClick={openAvatar}
+          >
             <AvatarVisual avatarDataUrl={effectiveAvatarUrl} initials={initials} />
-          </div>
+          </button>
           <span className="portal-sidebar-profile-copy">
             <strong>{session.user.displayName}</strong>
-            {/* Учащемуся под именем показываем класс, а не ссылку на смену
-                аватара: аватар меняется в настройках, а лишняя строка здесь
-                только занимала место. */}
             <small>{activeWorkspace?.title ?? 'Личные проекты'}</small>
           </span>
         </div>
-        <nav className="portal-nav">
+        <nav className="portal-nav" aria-label="Личные и рабочие разделы">
           {primaryNavigation.map((item) => (
             <PortalLink
               href={sectionHref(item.section)}
@@ -622,34 +710,44 @@ export function PortalHeader({
             </div>
           ) : null}
         </nav>
-        <div className="portal-mobile-account">
-          <button type="button" className="portal-nav-item" onClick={() => go('account')}>
-            Настройки
-          </button>
-          <button
-            type="button"
-            className="portal-nav-item"
-            disabled={busy !== null}
-            onClick={() => requestSettingsNavigation(() => void logout())}
-          >
-            Выход
-          </button>
-        </div>
-        {helpNavigation ? (
-          <div className="portal-sidebar-footer">
-            <button
-              type="button"
+        <div className="portal-sidebar-footer">
+          {settingsNavigation ? (
+            <PortalLink
+              href={sectionHref('account')}
+              className={active === 'account' ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-label={settingsNavigation.label}
+              aria-current={active === 'account' ? 'page' : undefined}
+              onNavigate={() => go('account')}
+            >
+              <span className="portal-nav-glyph" aria-hidden="true">
+                {sectionIcon('account')}
+              </span>
+              <span className="portal-nav-label">{settingsNavigation.label}</span>
+            </PortalLink>
+          ) : null}
+          {helpNavigation ? (
+            <PortalLink
+              href={sectionHref('help')}
               className={active === 'help' ? 'portal-nav-item active' : 'portal-nav-item'}
+              aria-label={helpNavigation.label}
               aria-current={active === 'help' ? 'page' : undefined}
-              onClick={() => go('help')}
+              onNavigate={() => go('help')}
             >
               <span className="portal-nav-glyph" aria-hidden="true">
                 {sectionIcon('help')}
               </span>
               <span className="portal-nav-label">{helpNavigation.label}</span>
-            </button>
-          </div>
-        ) : null}
+            </PortalLink>
+          ) : null}
+          <button
+            type="button"
+            className="portal-nav-item portal-mobile-logout"
+            disabled={busy !== null}
+            onClick={() => requestSettingsNavigation(() => void logout())}
+          >
+            <span className="portal-nav-label">Выход</span>
+          </button>
+        </div>
         {!seatLearner ? (
           <button
             type="button"
@@ -678,6 +776,26 @@ export function PortalHeader({
         <p className="portal-global-error" role="alert">
           {error}
         </p>
+      ) : null}
+      {avatarOpen ? (
+        <AvatarDialog
+          key={avatarActorKey}
+          actor={avatarActor}
+          currentUrl={effectiveAvatarUrl}
+          accountAvatarLoaded={avatarLoaded}
+          saving={avatarSave.saving}
+          saveError={avatarSave.error}
+          onSave={avatarSave.save}
+          onClearSaveError={avatarSave.clearError}
+          isCurrent={() => avatarOpenRef.current && currentActorKey.current === avatarActorKey}
+          onAccountLoaded={(url) => {
+            avatarVersion.current += 1;
+            setAvatarDataUrl(url);
+            setAvatarLoaded(true);
+          }}
+          onClose={closeAvatar}
+          returnFocus={avatarReturnFocus.current}
+        />
       ) : null}
     </>
   );

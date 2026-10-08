@@ -99,13 +99,40 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   await page.getByLabel(/^Отображаемое имя/).fill('Имя без смены прав');
   await page.getByRole('button', { name: 'Сохранить изменения', exact: true }).click();
   await expect(page.getByText('Изменения сохранены.', { exact: true })).toBeVisible();
+  const avatarWrites: string[] = [];
+  page.on('request', (request) => {
+    if (request.url().endsWith('/api/account/avatar') && request.method() === 'PATCH')
+      avatarWrites.push(request.url());
+  });
   await page.getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
-  await page
-    .getByRole('dialog')
+  const avatarDialog = page.getByRole('dialog', { name: 'Выберите аватар', exact: true });
+  await avatarDialog
     .getByRole('button', { name: /^Выбрать:/ })
     .nth(1)
     .click();
-  await expect(page.getByRole('dialog')).toBeHidden();
+  await expect(avatarDialog).toBeVisible();
+  const avatarBefore = await page.request.get('/api/account/avatar');
+  expect(avatarBefore.ok(), await avatarBefore.text()).toBeTruthy();
+  expect((await avatarBefore.json()).avatarDataUrl).toBeNull();
+  expect(avatarWrites).toHaveLength(0);
+  const avatarSaved = page.waitForResponse(
+    (response) =>
+      response.url().endsWith('/api/account/avatar') && response.request().method() === 'PATCH',
+  );
+  await avatarDialog.getByRole('button', { name: 'Использовать', exact: true }).click();
+  const avatarResponse = await avatarSaved;
+  expect(avatarResponse.ok(), await avatarResponse.text()).toBeTruthy();
+  const savedAvatar = (await avatarResponse.json()).avatarDataUrl;
+  expect(savedAvatar).toMatch(/^data:image\/webp;base64,/);
+  await expect(avatarDialog).toBeHidden();
+  expect(avatarWrites).toHaveLength(1);
+  await expect(page.getByRole('img', { name: 'Текущий аватар', exact: true })).toHaveAttribute(
+    'src',
+    savedAvatar,
+  );
+  const avatarStored = await page.request.get('/api/account/avatar');
+  expect(avatarStored.ok(), await avatarStored.text()).toBeTruthy();
+  expect((await avatarStored.json()).avatarDataUrl).toBe(savedAvatar);
   const unchanged = await (await page.request.get('/api/auth/me')).json();
   expect(
     unchanged.capabilities.some((c: { capability: string }) => c.capability === 'educator'),
@@ -446,7 +473,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     await page.getByRole('button', { name: 'Войти', exact: true }).click();
     await page.setViewportSize({ width: 1366, height: 900 });
     await expect(portalSection(page, 'Главная')).toBeVisible();
-    await expect(portalSection(page, 'Мой учебный профиль')).toBeVisible();
+    await expect(portalSection(page, 'Настройки учебного профиля')).toBeVisible();
   }
   await enter(first.student.studentCode, 390);
   await openPortalSection(page, 'Главная');
@@ -474,7 +501,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   });
   await openPortalSection(page, 'Мои учебные работы');
   await expect(page.getByText('Секретная работа первого', { exact: true }).first()).toBeVisible();
-  await openPortalSection(page, 'Мой учебный профиль');
+  await openPortalSection(page, 'Настройки учебного профиля');
   await expect(page.getByText(privateTeacherNote, { exact: true })).toBeVisible();
   await shot(page, 'H-first-seat-profile');
   await page.evaluate(() => {
@@ -506,7 +533,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   expect([403, 404]).toContain(
     (await page.request.get(`/api/projects/${work.project.id}`)).status(),
   );
-  await openPortalSection(page, 'Мой учебный профиль');
+  await openPortalSection(page, 'Настройки учебного профиля');
   await expect(page.getByText('Первый ученик', { exact: true })).toHaveCount(0);
   await expect(page.getByText(privateTeacherNote, { exact: true })).toHaveCount(0);
   const secondAwards = await page.request.get('/api/class-join/me/awards');

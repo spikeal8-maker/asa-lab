@@ -104,18 +104,57 @@ parallel_lanes:
       - docs/execution/ADMIN_AUTH_MAX_EXECUTION_PLAN.md
       - docs/execution/ASA_ACCESS_A.md
     task:
-      id: TASK-ACCOUNT-SETTINGS-UX-002
-      issue: 173
+      id: TASK-PORTAL-SHELL-UX-001
+      issue: 520
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_review
-      checkpoint: owner_visual_review_pending
+      status: in_progress
+      checkpoint: portal_inbox_s3_selected
       owner_acceptance: pending
       normative_refs:
         - document: IDENTITY-ACCESS-V22
           revision: '2.2'
+        - document: PORTAL-SHELL-UX-ETZ
+          revision: '1.0'
+    programme:
+      document: docs/product/ASA_PORTAL_SHELL_AND_AVATAR_ETZ.md
+      owner_authorization: implement_reviewed_portal_shell_avatar_and_frontend_load_programme
+      selected_slice: S3
+      dependency_order: [S1, S2, S3, S4]
+      remaining_slices: [S3, S4]
+      deployment_authorized: false
+      working_database_actions_authorized: false
+      completed_slices:
+        - id: S1
+          status: technical_accepted
+          integrated_sha: 9f93d884a32ec7399a3ff6d475b5bef9bff364c3
+          independent_review: approved
+          exact_head_general_run: 37689682628
+          exact_head_general_conclusion: success
+          focused_tests_passed: 591
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 127
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          visual_evidence: reports/playwright/portal-shell-s1-geometry-20261008
+          owner_acceptance: pending
+          deployment: not_requested
+        - id: S2
+          status: technical_accepted
+          integrated_sha: 5799eeec1b000fd780af371563eeb5e27d5638f4
+          independent_review: approved
+          exact_head_general_run: 37704256108
+          exact_head_general_conclusion: success
+          focused_gate_conclusion: success
+          real_access_browser_passed: 10
+          synthetic_ui_browser_passed: 173
+          web_nx_tasks_executed_uncached: 8
+          browser_build_nx_tasks_executed_uncached: 27
+          visual_evidence: reports/playwright/settings-ui/portal-avatar-s2-pending-font-repair-20261008
+          owner_acceptance: pending
+          deployment: not_requested
     accepted_result:
       id: ASA-ACCESS-A
       status: OWNER_ACCEPTED
@@ -206,6 +245,18 @@ parallel_lanes:
           - pnpm gate:repository
 
     accepted_slices:
+      - task_id: TASK-ACCOUNT-SETTINGS-UX-002
+        status: technical_accepted
+        issue: 173
+        integrated_sha: 6e17a64eb1e5fb00d54f72833193097aabd6c7eb
+        independent_review: approved
+        exact_head_general_run: 37670104301
+        exact_head_general_conclusion: success
+        synthetic_ui_browser_passed: 87
+        real_access_browser_passed: 10
+        owner_acceptance: pending
+        deployment: not_requested
+
       - task_id: TASK-ACCOUNT-SETTINGS-UX-001
         integrated_sha: 50693c743169c2472faee6a2b8f21e015c03b651
         independent_review: approved
@@ -258,7 +309,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: ordinary_image_test_findings_repair_resumed_after_518
+      checkpoint: preserved_candidate_final_convergence_after_523
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
@@ -285,29 +336,34 @@ parallel_lanes:
         resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 095a09498ad4c2338f53f0ffcb555dbfc6a496e0
+      convergence_baseline_sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
       head_sha: null
-      observed_at: '2026-10-07T19:47:09Z'
+      observed_at: '2026-10-08T00:38:06Z'
       main:
         branch: main
-        sha: 095a09498ad4c2338f53f0ffcb555dbfc6a496e0
+        sha: e0143d0f8aa3495e8d91eed33e9ae08eeef30fd1
       observation_note: >-
-        Dated remote main 095a0949 before this closeout. Separately selected
-        documentation-only maintenance Issue 518 candidate eca543478669e84ad80f3b43c612084f03ad3d42
-        received NEW independent APPROVE, exact local governance/routing/control-plane
-        and exact remote governance job 112979830082 SUCCESS in run 37676083221.
-        Its two reviewed documents are integrated by this closeout; no product source
-        changed and no full hygiene checkpoint is claimed. Resume Issue 517 in a
-        separate bounded test repair after independent REQUEST_CHANGES on d6a78196.
-        Preserve published successor 21f2da70 and clean local merge 6c19c659;
-        product blob ab292c4a remains unaccepted. Correct actual typed fixture and
-        prove actual React early-error delivery before lifecycle setup in the built
-        editor, with valid before/after badge assertions and unchanged timeouts.
-        Historical native failure ordering and school frequency remain unproved.
-        Settings-owned 6e17a64e has exact general 37670104301 SUCCESS; unrelated main
-        da4e3746 general 37673222807 was cancelled, not PASS or product FAIL.
-        Preserve suspended Issue 516 and Issue 505 PR 506; no integrated product
-        acceptance, owner acceptance, release or deployment is claimed. Fetch main and read exact-head CI before writes.
+        Dated main e0143d0f before this closeout/selection; fetch main
+        and read exact-head CI before writes. Preserve the unrelated Portal S3
+        changes and its exact-head CI. Independently APPROVED Issue 523
+        candidate 0ced518f integrates the identical two blobs at e99e08fb.
+        Exact integrated required focused job in 37706609957 and general
+        37706607927 are successful; the full focused workflow including browser is also
+        successful, but does not substitute for Issue 517 final exact-head gates. The existing 5000 ms guard, full coverage and physics stay
+        unchanged. One matched pair supports this runner allocation; it does
+        not prove every historical slow run or guarantee future runtime.
+        Resolve Issue 521 runtime dependency through this separately accepted
+        maintenance, without claiming its evidence-only report repaired code.
+        Select preserved Issue 517 candidate 2d4654f207f41e5d3712b3071af05e6d3830fa31 for one controlled final
+        convergence, exact focused/browser/general gates and NEW independent
+        review. Keep product blob ab292c4a and existing original causal evidence;
+        no repeat measurement or product change without a new proven defect.
+        Preserve Issue 516 and Issue 505 PR 506, other lanes and foreign work.
+        Historical independent Learning ordering failure remains unproved and
+        is not declared fixed by a green run. T3 is pending real school-device
+        evidence, with exact hardware/software/power/scenario/metrics recorded
+        at first measurement; no dev-PC or runner substitution. No full hygiene
+        checkpoint, owner acceptance, release or deployment is claimed.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -328,6 +384,57 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-CONFORMANCE-WORKER-ALLOCATION-001
+        issue: 523
+        accepted_candidate_sha: 0ced518f8c154f1c80a4ea3d2d9fd839233f76f5
+        integrated_sha: e99e08fb056fd00991a9bcefc1b698c9a0ef5436
+        independent_review: approved
+        exact_candidate_general_run: 37694439764
+        exact_candidate_focused_run: 37694431775
+        exact_main_general_run: 37706607927
+        exact_main_focused_run: 37706609957
+        exact_main_required_focused_job_conclusion: success
+        matching_diagnostic_sha: af726c6d6ea217545c8b022180a1675b8dd2475d
+        matching_diagnostic_run: 37693429149
+        evidence: docs/product/electronics/evidence/conformance-worker-allocation-20261008.md
+        status: maintenance_accepted
+        historical_cause: qualified_not_unique
+        product_repair: none
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-CONFORMANCE-RUNTIME-001
+        issue: 521
+        report_candidate_sha: 38ca0bcb43312c74d9f8a1795abad9190f9eec98
+        report_independent_review: approve_for_evidence_only
+        evidence: docs/product/electronics/evidence/conformance-runtime-521-20261007.md
+        status: runtime_dependency_resolved_by_separate_523
+        repair_issue: 523
+        historical_cause: qualified_not_unique
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-CONFORMANCE-CI-DIAGNOSIS-001
+        issue: 522
+        accepted_candidate_sha: d2b2b14271f27ddcaa194141d8aadafa0db12eae
+        integrated_sha: 0d345e0f7684267c33ce13ccc652b70a4ff1276d
+        integrated_report_blob: 5cffaa7711f29f9ae28817c75712057ea8c0a5e8
+        independent_review: approved
+        exact_candidate_general_run: 37690274396
+        exact_candidate_general_conclusion: success
+        matching_diagnostic_sha: b98000b66fadd30237ab07b5090af8d1b0a9be7e
+        matching_diagnostic_run: 37688305656
+        matching_diagnostic_artifact: 11511064962
+        evidence: docs/product/electronics/evidence/conformance-ci-diagnosis-522-20261008.md
+        status: diagnostic_accepted
+        historical_cause: unresolved
+        product_repair: not_created
+        nx_fresh_executions:
+          general_code: 96
+          isolated_build: 43
+          browser_build: 27
+        followups:
+          - 523
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-ASSET-RECOVERY-001
         issue: 453
         accepted_candidate_sha: a17026f6906854a3b433e99e1e510d7ca6c48750

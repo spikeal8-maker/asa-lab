@@ -51,7 +51,7 @@ tests:
     suite: authorization
     level: system
     phase_available: PHASE-12
-    required_for: [TASK-ACCOUNT-SETTINGS-UX-002]
+    required_for: []
     command: pnpm test:owner-admin
     timeout_seconds: 120
     owner: admin-auth

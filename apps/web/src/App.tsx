@@ -876,6 +876,19 @@ export function App(): JSX.Element {
               maxVerificationDue={!isSeatLearner && maxVerificationDue}
               {...(session.kind === 'student'
                 ? {
+                    seatSession: session.session,
+                    onSeatChanged: (updated: ClassroomStudentSession) => {
+                      const seatId = session.session.student.seatId;
+                      const expiresAt = session.session.expiresAt;
+                      setSession((current) =>
+                        current.kind === 'student' &&
+                        current.session.student.seatId === seatId &&
+                        current.session.expiresAt === expiresAt &&
+                        updated.student.seatId === seatId
+                          ? { kind: 'student', session: updated }
+                          : current,
+                      );
+                    },
                     seatAvatarUrl: seatAvatar(
                       session.session.student.seatId,
                       session.session.student.avatarKey,
@@ -1188,10 +1201,7 @@ export function App(): JSX.Element {
                   />
                 ) : null}
                 {view.kind === 'account' && session.kind === 'student' ? (
-                  <SeatAccountPage
-                    seat={session.session}
-                    onSeatChanged={(updated) => setSession({ kind: 'student', session: updated })}
-                  />
+                  <SeatAccountPage seat={session.session} />
                 ) : null}
               </Suspense>
             )}

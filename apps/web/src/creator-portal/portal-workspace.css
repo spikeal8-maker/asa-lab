@@ -1,5 +1,6 @@
 /* Personal workspace layout; editor canvases and public entry are unaffected. */
-.portal-nav a {
+.portal-nav a,
+.portal-sidebar a.portal-nav-item {
   text-decoration: none;
 }
 .portal-global-nav a {
@@ -10,8 +11,12 @@
   text-decoration: none;
   border-bottom: 3px solid transparent;
 }
-.portal-global-nav a:hover {
+.portal-global-nav a:hover,
+.portal-global-nav a[aria-current='page'] {
   border-bottom-color: #fff;
+}
+.portal-global-nav a[aria-current='page'] {
+  background: #002d4b2e;
 }
 .project-search-form,
 .project-pagination {
@@ -34,7 +39,9 @@
   --portal-sidebar-width: 240px;
 }
 .portal-shell .portal-header {
-  grid-template-columns: minmax(160px, 220px) minmax(0, 1fr) auto auto 44px;
+  /* Slots follow the DOM: brand | public navigation | create | inbox | account.
+     The public area keeps its content width, including a future third link. */
+  grid-template-columns: minmax(max-content, 220px) minmax(max-content, 1fr) auto auto 44px;
   min-height: var(--portal-header-height);
 }
 .portal-shell .portal-sidebar {
@@ -54,7 +61,8 @@
 .portal-menu-toggle,
 .portal-menu-close,
 .portal-mobile-account,
-.portal-mobile-public {
+.portal-mobile-public,
+.portal-mobile-logout {
   display: none;
 }
 .portal-quick-create {
@@ -161,13 +169,71 @@
   font-size: 21px;
 }
 
-@media (max-width: 820px) {
+/* Change structure before brand, three public links and inbox exhaust a row.
+   The same boundary governs drawer resize in PortalHeader. */
+@media (max-width: 1023px) {
+  .portal-shell {
+    --portal-header-height: 100px;
+  }
+  .portal-shell > .portal-content,
+  .portal-shell > .account-page,
+  .portal-shell:has(.portal-sidebar.collapsed) > .portal-content,
+  .portal-shell:has(.portal-sidebar.collapsed) > .account-page {
+    width: calc(100% - 24px);
+    margin-right: auto;
+    margin-left: auto;
+  }
+  .portal-global-error {
+    margin-left: 0;
+  }
+  .portal-shell > .creator-home {
+    width: calc(100% - 24px) !important;
+  }
   .portal-shell .portal-header {
-    grid-template-columns: 44px auto minmax(0, 1fr) auto 44px;
+    grid-template-columns: 44px minmax(0, 1fr) auto 44px;
+    grid-template-rows: 56px 44px;
+    grid-template-areas:
+      'menu brand inbox account'
+      'public public public public';
+    gap: 6px;
+    row-gap: 0;
+    padding: 0 8px;
+    height: var(--portal-header-height);
+  }
+  .portal-header .portal-brand {
+    grid-area: brand;
+    min-height: 44px;
+  }
+  .portal-header .portal-global-nav {
+    grid-area: public;
+    display: flex;
+    gap: 0;
+    justify-content: stretch;
+    min-width: 0;
+  }
+  .portal-header .portal-global-nav a {
+    flex: 1 1 0;
+    justify-content: center;
+    min-height: 44px;
     gap: 6px;
     padding: 0 8px;
+    font-size: 14px;
+  }
+  .portal-header .portal-global-nav a svg {
+    display: none;
+  }
+  .portal-header .learning-inbox-button {
+    grid-area: inbox;
+  }
+  .portal-header .portal-account {
+    grid-area: account;
+    display: block;
+  }
+  .portal-header .portal-quick-create {
+    display: none;
   }
   .portal-menu-toggle {
+    grid-area: menu;
     display: grid;
     place-items: center;
     width: 44px;
@@ -182,8 +248,14 @@
     font-size: 18px;
   }
   .portal-header .asa-brand-mark {
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
+  }
+  .portal-header .asa-brand-lockup {
+    gap: 5px;
+  }
+  .portal-header .asa-brand-copy {
+    display: flex;
   }
   .portal-header .portal-brand {
     min-width: 0;
@@ -236,9 +308,32 @@
     font-size: 26px;
   }
   .portal-sidebar .portal-sidebar-profile {
-    display: none;
+    display: flex;
+    flex-direction: row;
+    min-height: 72px;
+    gap: 12px;
+    margin: 0 0 8px;
+    padding: 12px 4px;
+  }
+  .portal-sidebar .portal-sidebar-avatar,
+  .portal-sidebar.collapsed .portal-sidebar-avatar {
+    flex: 0 0 auto;
+    width: 44px;
+    height: 44px;
+  }
+  .portal-sidebar .portal-sidebar-profile-copy,
+  .portal-sidebar.collapsed .portal-sidebar-profile-copy {
+    display: grid;
+    text-align: left;
+  }
+  .portal-sidebar .portal-sidebar-profile strong {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
   .portal-sidebar .portal-nav {
+    /* The base portal's horizontal menu gives nav order:3 below 900px. The
+       drawer follows DOM order at every mobile width. */
+    order: 0;
     flex: 1 0 auto;
     display: flex;
     flex-direction: column;
@@ -253,6 +348,15 @@
     padding: 8px 14px;
     border-radius: 10px;
     justify-content: flex-start;
+  }
+  .portal-sidebar .portal-nav-item.active::before {
+    top: auto;
+    right: 8px;
+    bottom: 0;
+    left: 8px;
+    width: auto;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
   }
   .portal-sidebar .portal-nav-glyph,
   .portal-sidebar.collapsed .portal-nav-label {
@@ -272,24 +376,19 @@
   .portal-sidebar .portal-admin-subnav-item {
     min-height: 44px;
   }
-  .portal-mobile-account,
-  .portal-mobile-public {
-    display: block;
-  }
-  .portal-sidebar .portal-mobile-public {
+  .portal-sidebar .portal-mobile-logout {
     display: flex;
   }
-  .portal-mobile-account {
-    padding-top: 12px;
-    border-top: 1px solid #dce7ef;
-  }
   .portal-sidebar .portal-sidebar-footer {
-    display: block;
-    margin-top: 8px;
+    display: grid;
+    margin: 8px 0 0;
+    padding: 8px 0 0;
   }
   .portal-sidebar-collapse {
     display: none;
   }
+}
+@media (max-width: 820px) {
   .creator-home .project-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
