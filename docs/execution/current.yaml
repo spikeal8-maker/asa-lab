@@ -111,7 +111,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: portal_owner_revision_r3_verification_pending_br3_selected
+      checkpoint: portal_owner_revision_r3_br3_verification_pending_r3a_selected
       owner_acceptance: changes_requested
       normative_refs:
         - document: IDENTITY-ACCESS-V22
@@ -124,9 +124,9 @@ parallel_lanes:
       status: in_progress
       verified_revision: '1.1'
       target_revision: '2.0'
-      selected_slice: BR3
-      dependency_order: [R1, BR1, BR2, R2, R3, BR3]
-      remaining_slices: [R3, BR3]
+      selected_slice: R3A
+      dependency_order: [R1, BR1, BR2, R2, R3, BR3, R3A]
+      remaining_slices: [R3, BR3, R3A]
       deployment_authorized: false
       working_database_actions_authorized: false
       verification_pending_slices:
@@ -140,6 +140,20 @@ parallel_lanes:
           canonical_browser_total: 278
           canonical_browser_conclusion: success
           acceptance_dependency: BR3
+          test_fixture_repair_dependency: R3A
+          observed_exact_ci_sha: a0f1c989bc60742a18711745e6cc35083e719701
+          observed_exact_ci_run: 37769873589
+          observed_exact_ci_conclusion: failure
+          observed_own_failure_category: A
+          observed_own_failure_count: 4
+          selected_repair_scope: notification_save_intrinsic_width_assertion_only
+          selected_repair_product_changes_authorized: false
+          repair_diagnosis: >-
+            Linux enlarged-font composition cases measure a natural Save button
+            at 364.8125px while the fixture assumes a fixed350px cap. The four
+            failures share this assertion. R3A must measure intrinsic content
+            width, parent fit and absence of stretch/clipping instead of raising
+            an arbitrary pixel cap or shrinking accessible enlarged text.
           source_set_sha256: 836575f77ffaeaaf72a312a0585d1bd282b12af7582cb382b5864b9115449baa
           author_evidence: reports/playwright/portal-compact-settings-r3-20261008
           entry_js_raw_bytes: 296159
@@ -150,6 +164,19 @@ parallel_lanes:
           initial_canonical_browser_total: 277
           initial_failure_category: A
           owner_acceptance: changes_requested
+          deployment: not_requested
+        - id: BR3
+          candidate_sha: c45a9f26ee00b893439b084f23cd789c7df49136
+          independent_review: pending_combined_final_sha
+          focused_browser_passed: 5
+          canonical_browser_passed: 278
+          canonical_browser_total: 278
+          canonical_browser_conclusion: success
+          web_nx_tasks_executed_uncached: 0
+          web_build: reused_verified_r3_compiled_build
+          source_sha256: 2691b13a18db3b2215dc52119678d163876758676571084443c2092e51b1b825
+          author_evidence: reports/playwright/portal-br3-home-recovery-author-20261008
+          owner_acceptance: pending
           deployment: not_requested
       completed_slices:
         - id: R2
@@ -325,8 +352,9 @@ parallel_lanes:
       known_baseline_issues:
         - id: s4_home_recovery_capture_navigation
           classification: independent_baseline_defect
-          status: correction_selected
+          status: correction_candidate_pending_verification
           repair_slice: BR3
+          repair_candidate_sha: c45a9f26ee00b893439b084f23cd789c7df49136
           affected_path: e2e/access-account-ui.spec.ts
           repair_scope: existing_home_delivery_error_fixture_only
           product_change_authorized: false
@@ -1307,11 +1335,13 @@ blocking:
     allows: [bounded_implementation, focused_verification, baseline_diagnosis]
     reason: >-
       Saved trace establishes the unchanged Home fixture capture during automatic
-      recovery navigation. R3 candidate 838b4d30 has passed local canonical278,
-      but remains verification-pending. Separate BR3 may correct only the proven
-      fixture synchronization cause; technical closure still requires independent
-      final-SHA R3/BR3 review and full exact-SHA CI. A green rerun alone does not
-      resolve this dependency. Runtime, deployment and database are unchanged.
+      recovery navigation. BR3 candidate c45a9f26 synchronizes the replacement
+      document and has local focused5/full278 evidence. R3 also has four Linux
+      enlarged-font failures in a rigid Save-button test bound on exact a0f1c989.
+      Selected R3A is limited to that assertion, preserving readable intrinsic
+      button sizing and the BR3 Home body. Technical closure requires independent
+      final-SHA R3/BR3/R3A review and full exact-SHA CI; green reruns alone do not
+      resolve proven causes. Runtime, deployment and database remain unchanged.
     evidence: https://github.com/spikeal8-maker/asa-lab/actions/runs/37761366272
   - id: VSCR-470-FOCUSED-BROWSER
     kind: acceptance_blocker
