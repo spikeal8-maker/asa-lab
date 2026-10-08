@@ -38,3 +38,9 @@ In the built browser editor, reproduce a single board with a rigid mounted two-p
 ## Stop
 
 The implementer handles this one slice, self-reviews, reports an exact candidate SHA and STOP. The controller checks independently, assigns a new reviewer, integrates an accepted result and continues the authorized program under `AGENTS.md` §2.1.
+
+## Selected final convergence of preserved test-only candidate
+
+Dependency #516 is technically accepted on exact-main `dd97aea620e37b270b969213f9d3812e2e029cae` with required General `37732525782`, full Electronics `37732936127` and NEW independent APPROVE. Preserve accepted #500 and PR506 candidate `350d2442d044d8992374ca4deef2758b6c95c61f`. This candidate adds only the existing146-line board-transfer browser scenario; runtime repair is not selected without a proved defect.
+
+A NEW bounded executor restores actual main/PR/current.yaml and selected-card entry, converges once with the current checked main and canonical selection, preserving the entire candidate test body and all main source/dependencies/foreign state. Before pushing the new exact candidate, provide a scoped actual-source archive and controller plus NEW reviewer acknowledgement; PR synchronize may automatically run registered General/full Electronics, so do not dispatch duplicates. Require final exact-SHA gates and a NEW independent review; old review/local tests are history only. Confirmed findings need a separate bounded repair/review. Report and STOP. Controller owns integration and closeout; this selection does not itself remove Draft or merge the PR. The postintegration exact-main browser repeat above remains mandatory. T3 remains pending a real student device; do not repeat old cadence/load probes.

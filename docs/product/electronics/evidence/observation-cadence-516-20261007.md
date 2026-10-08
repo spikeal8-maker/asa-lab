@@ -42,3 +42,9 @@ Ordinary integration `4bad8a7f1eb3543097c397f05df7805e9024e342` preserves indepe
 - [Electronics 37662037546](https://github.com/spikeal8-maker/asa-lab/actions/runs/37662037546): focused and benchmark PASS, browser 114/115. Original Arduino Reset PASS; sole failure is the permanent ordinary-image catalog error badge. That scenario has no running simulation and unchanged asset/test source, category C relative to #516. Separate bounded [#517](https://github.com/spikeal8-maker/asa-lab/issues/517) investigates and repairs the proven cause.
 
 No #516 integrated technical acceptance, release claim, owner acceptance or deployment follows from the earlier green candidate. Do not repair either independent blocker inside #516 or PR #506. Preserve #505 candidate `350d2442d044d8992374ca4deef2758b6c95c61f` while these dependencies are resolved.
+
+## Accepted preserved exact-main result after baseline dependency repairs
+
+Exact-main verification `dd97aea620e37b270b969213f9d3812e2e029cae` preserves all three approved `ba05381` blobs. General `37732525782` and registered full Electronics `37732936127` are terminal SUCCESS, all four jobs each:1007focused/117browser,166General+159Electronics fresh Nx tasks with literal cache bypass. The verification executor STOP; [NEW independent exact-main review](observation-cadence-516-final-review-20261008.md) APPROVE/STOP. Saved normal/load raw data were independently checked without new measurements; full runtime-state parity and all prior limitations remain.
+
+Current main subsequently moved to `3ff8fc33` with unrelated Portal documents only; those changes and the new Portal lane are preserved in closeout. CI for that different SHA is not claimed by these dd97 results. Technical blocker516 is resolved by actual required evidence and NEW review; owner/classroom acceptance, deployment and real student-device T3 remain separate. Controller resumes only preserved #505/PR506.

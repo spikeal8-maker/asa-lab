@@ -315,56 +315,51 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
-      issue: 516
+      id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
+      issue: 505
       branch: main
       base_branch: main
-      pr: null
-      pr_draft: false
+      pr: 506
+      pr_draft: true
       status: in_progress
-      checkpoint: dependency_repairs_accepted_exact_main_review_selected
+      checkpoint: preserved_test_candidate_final_convergence_selected
       owner_acceptance: pending
-    suspended_slices:
-      - task_id: TASK-ELECTRONICS-BREADBOARD-RIGID-MOVE-001
-        issue: 505
-        status: blocked
-        pr: 506
-        candidate_sha: 350d2442d044d8992374ca4deef2758b6c95c61f
-        independent_review: approved
-        exact_candidate_general_run: 37506449481
-        exact_candidate_browser_run: 37506449432
-        resume_after: Accept observation cadence repair Issue 516, then obtain full exact-head Electronics browser PASS before technical acceptance or merge; preserve PR 506 candidate 350d2442d044d8992374ca4deef2758b6c95c61f.
+    suspended_slices: []
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 29da6bfb151907b8c6835ed79299e54b11edfd68
+      convergence_baseline_sha: 3ff8fc3369538280928a519b7d58e2df6e52043a
       head_sha: null
-      observed_at: '2026-10-08T05:25:29Z'
+      observed_at: '2026-10-08T06:03:34Z'
       main:
         branch: main
-        sha: 29da6bfb151907b8c6835ed79299e54b11edfd68
+        sha: 3ff8fc3369538280928a519b7d58e2df6e52043a
       observation_note: >-
-        Fetch main and read exact-head CI before writes. Dated main29da is
-        the same tested and normally fast-forward published final517 SHA.
-        Required general37729828726 and fullElectronics37729984165 are
-        terminalSUCCESS, all four jobs each;1007focused and117browser PASS.
-        NEW independent product and published-state reviewers APPROVE/STOP;
-        executor STOP. Five517 blobs and three516 blobs are preserved.
-        The517 general acceptance blocker condition is fulfilled by actual
-        evidence, then reconciled in this closeout; not by text deletion.
-        Automatic sameSHA main-push general37731966803 was still pending
-        at the published review snapshot; its PASS is not claimed.
-        Formally resume only516 acceptance after separately accepted517 and
-        Settings baseline; preserve approvedba05381 and integrated4bad8a7f
-        product bytes and existing normal/load measurements. No product,
-        timeout, physics, solver, Arduino or dependency edit is selected.
-        Obtain required exact-main verification and a NEW bounded independent
-        review of the preserved cadence result before516 closure. Its
-        acceptance blocker and505/PR506 remain until their own evidence.
-        No repeated causal or CPU-load measurements without a new reason.
-        Historical native cause, extra plainGET attribution and school-device
-        frequency remain unproved; passinglate raw is absent and qualified.
-        T3 remains pending actual student-device evidence. No full hygiene
-        checkpoint, owner acceptance, class acceptance, release or deployment.
+        Fetch main and read exact-head CI before writes. Dated actualmain3ff8fc33
+        is a normal Portal-only documentation descendant of accepted516 dd97;
+        preserve its new Portal lane, registry and normative revision2.0.
+        NEW independent516 review APPROVE/STOP and verification executor STOP;
+        required General37732525782 and fullElectronics37732936127 both
+        terminalSUCCESS on exactdd97,1007focused/117browser,166+159freshNx.
+        Allthree516 blobs are unchanged; savednormal/load evidence was
+        independently checked without repeating measurements. Its technical
+        acceptance blocker condition is fulfilled by actualevidence.
+        Formally select only preserved505/PR506 candidate350d2442 for one
+        final convergence with checked currentmain and new selection metadata,
+        then actual exact-final requiredgates and NEW independentreview.
+        Preserve the entire146-line rigid-board test body and every currentmain
+        change. Productcode is not selected for editing without a proved defect.
+        PR506 remains OPEN/DRAFT at the observed350d2442 until this bounded
+        convergence; do not call oldreview or localtests newcandidateacceptance.
+        Before normalcandidatepush supply exactsource/archive for controller
+        and NEWreviewer ACK; existingPR synchronize can automatically start
+        registered General/Electronics, so do not add duplicate dispatches.
+        The505 acceptance blocker stays until its own actualgates/review;
+        postintegration exact-main browser repeat remains required by itscard.
+        Draft removal/PRmerge follow owner decision under AGENTS2; owner/class
+        acceptance, release and deployment remain separate. Keep500/513/509
+        accepted and unchanged. T3 is pending actualstudentdevice evidence;
+        no devPC/runner substitute, no repeatedcadence/loadmeasurement or
+        fullhygiene/solver/assetcleanup/unrelatedproduct slice is selected.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -385,6 +380,30 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
+        issue: 516
+        accepted_candidate_sha: ba05381af8e95ad26ee04f9d501625b7a3154681
+        initial_integrated_sha: 4bad8a7f1eb3543097c397f05df7805e9024e342
+        integrated_sha: dd97aea620e37b270b969213f9d3812e2e029cae
+        independent_review: approved
+        independent_exact_main_review: approved
+        exact_candidate_general_run: 37657279859
+        exact_candidate_focused_run: 37658060110
+        exact_main_general_run: 37732525782
+        exact_main_focused_run: 37732936127
+        saved_normal_probe_run: 37657708620
+        saved_loaded_probe_run: 37657469486
+        browser_scenarios_passed: 117
+        nx_fresh_executions:
+          general: 166
+          focused_workflow: 159
+        evidence: docs/product/electronics/evidence/observation-cadence-516-20261007.md
+        independent_evidence: docs/product/electronics/evidence/observation-cadence-516-final-review-20261008.md
+        independent_review_original_sha256: 1f99b510f8959e9111e3489f11bb7453dbd9205a0714670cd82a9e8a5a531871
+        status: technical_accepted
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-ERROR-001
         issue: 517
         accepted_candidate_sha: 29da6bfb151907b8c6835ed79299e54b11edfd68
@@ -1064,21 +1083,6 @@ integration:
     - docs/testing/**
 
 blocking:
-  - id: ELECTRONICS-516-INTEGRATION-BASELINE
-    kind: acceptance_blocker
-    lane: electronics
-    task_id: TASK-ELECTRONICS-OBSERVATION-CADENCE-001
-    blocks:
-      - technical_acceptance
-      - owner_acceptance
-      - release_claim
-      - close_issue
-    allows:
-      - bounded_repair
-      - documentation_update
-      - focused_verification
-    reason: Approved candidate ba05381a is integrated at 4bad8a7f, but new independent exact-main review REQUEST_CHANGES because general 37661992911 fails independent Settings test labels and Electronics 37662037546 passes 114 of 115 with an unrelated ordinary-image catalog error badge failure. Settings-owned repair 6b93059e and separately selected Issue 517 must receive required evidence before returning to Issue 516 acceptance. No Issue 516 product defect was identified; preserve its three approved blobs and Issue 505 PR 506.
-    evidence: docs/product/electronics/evidence/observation-cadence-516-20261007.md
   - id: ELECTRONICS-505-BROWSER-BASELINE
     kind: acceptance_blocker
     lane: electronics
