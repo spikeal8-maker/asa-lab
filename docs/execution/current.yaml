@@ -581,31 +581,24 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-SKETCH-DRAFT-COMMIT-001
-      issue: 529
+      id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+      issue: 526
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: inherited_fast_exit_sketch_loss_bounded_repair
+      checkpoint: r2_resume_after_accepted_sketch_dependency
+      preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
+      preserved_candidate_branch: codex/electronics-save-recovery-526-review-r1
+      preserved_candidate_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
+      preserved_candidate_general_run: 37845048256
+      preserved_candidate_general_conclusion: success
+      preserved_candidate_electronics_run: 37845156460
+      preserved_candidate_browser_conclusion: failure
+      preserved_candidate_independent_review: request_changes
       owner_acceptance: pending
     suspended_slices:
-      - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
-        issue: 526
-        status: suspended_for_baseline_dependency
-        checkpoint: r1_exact_head_independent_request_changes
-        preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
-        preserved_branch: codex/electronics-save-recovery-526-review-r1
-        preserved_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
-        exact_general_run: 37845048256
-        exact_general_conclusion: success
-        exact_electronics_run: 37845156460
-        exact_browser_conclusion: failure
-        independent_review: request_changes
-        dependency_issue: 529
-        reason: Independent review proved inherited 260ms sketch commit cancellation on genuine exit; separate baseline repair before E01 acceptance. New JSON CTA clipping remains a separate current-diff repair in526.
-        resume_after: Technical acceptance of529, then fresh canonical526 selection and bounded CTA/readiness repair with new final-SHA review.
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
         status: suspended_by_owner_priority
@@ -625,26 +618,25 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1e2ce7a94be4c8e5a1a14d2db259ec693892fe8b
+      convergence_baseline_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
       head_sha: null
-      observed_at: '2026-10-08T21:45:50Z'
+      observed_at: '2026-10-08T23:02:00Z'
       main:
         branch: main
-        sha: af5a012cfd5ddd387d7226e88888f8a94fe36d98
+        sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
-        Fresh main af5a012cfd5ddd387d7226e88888f8a94fe36d98 General37843167580 terminalSUCCESS.
-        Published526R1 c15e6e13dab91f72619c28ba0adc552a96fa2d77 received NEW independent REQUEST_CHANGES.
-        Exact General37845048256 SUCCESS all4/166fresh0hits; ordinary37845156460 focused and benchmarkSUCCESS,
-        browser122PASS3FAIL, review-imagesSKIPPED. Original logs/traces cached once and preserved.
-        Actual fast genuine-exit PUT returned200 with oldsketch despite visible newtext; ArduinoCodePanel260ms
-        commit is cancelled on unmount. Same source blob in main and candidate proves inherited baseline defect.
-        Select only529 sketch-input-to-canonical commit repair from main, no unaccepted526 product integration.
-        Closing the panel alone does not unmount it. Do not hide fast-exit loss with waits or weaker assertions.
-        Crash/SAV10 evidence remains incomplete before injection/scope change;526 also has proved JSON CTA77px clipping.
-        Keep526c15 and525ed4 published and preserved, prior accepted results and foreign lanes unchanged.
-        New bounded implementer and NEW independent final-SHA review plus required exact gates before529 closure.
-        Then reselect526 for its narrow current-diff repair and remaining evidence, no reuse of old acceptance.
+        Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
+        NEW independent reviewer APPROVE; General37854813209 and ordinaryElectronics37854826793 terminalSUCCESS/all4.
+        Original raw AFTER manualSave63.1ms/genuineexit67.5ms inside260ms; complete local/PUT/server documents equal,
+        fresh sketch and resistor333.3 preserved, actual reopen assertions PASS; browser120PASS/focused633+379PASS.
+        This accepts only529 visible-text canonical handoff, not broader E01/E14/class/owner/deployment.
+        Resume only526 bounded R2 from preservedc15e6e13 with accepted529 source and current canonical state.
+        Preserve original branches/commits/evidence, no rewrite of published history or foreign unfinished work.
+        Repair proved current-diff JSON CTA clipping; adapt accepted529 test consumers to verified scoped identity
+        without weakening behavior; complete original crash/SAV10 evidence on the final combined candidate.
+        Old526 review/CI and local tests are not combined-candidate acceptance; NEW reviewer and all exact gates required.
+        Suspended525 and all other accepted results/lanes remain unchanged. Next E04 only after E01 technical acceptance.
         School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
         no deployment, DB, network, backup or protected-artwork operation is authorized.
     execution_lease:
@@ -667,6 +659,30 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-SKETCH-DRAFT-COMMIT-001
+        issue: 529
+        accepted_candidate_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        integrated_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        independent_review: approved
+        independent_review_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        exact_candidate_general_run: 37854813209
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37854826793
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 120
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          browser_images: 49
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/sketch-529-acceptance-20261008.md
+        independent_evidence: docs/product/electronics/evidence/sketch-529-independent-review-20261008.md
+        independent_review_original_sha256: 16c4b90ce376a1776838c4ffdc900b925bb6f06525760e72caa6ad95c22e7c15
+        independent_review_git_sha256: b2521eb923da787b4ee9790e0a83395d58dffbcd599f56eb664a3153e51547a2
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-LOGIN-FIXTURE-001
         issue: 528
         accepted_candidate_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d
