@@ -1282,10 +1282,9 @@ export function useElectronicsWorkbench(projectId: string) {
     componentId: string,
     properties: Readonly<Record<string, ProductionStateValue>>,
   ): void {
-    // Arduino text is persisted after a short debounce. Always merge it into
-    // the newest document instead of the render snapshot captured when the
-    // timer was created; otherwise switching between two boards can restore
-    // the previous source of the first board.
+    // Merge input into the newest document, including edits made before this
+    // render commits. The panel's render snapshot must not restore an older
+    // source or overwrite another component's latest edit.
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
     const component = currentDocument.components.find((item) => item.id === componentId);

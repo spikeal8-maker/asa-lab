@@ -1256,7 +1256,6 @@ export function ArduinoCodePanel({
   const [commandReferenceOpen, setCommandReferenceOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<ArduinoCodeMode | null>(null);
   const modeMenuRef = useRef<HTMLDetailsElement>(null);
-  const persistTimersRef = useRef<Map<string, number>>(new Map());
 
   const activateBoard = useCallback((board: SchematicComponent): void => {
     const nextProgram = readArduinoProgramState(board.stateProperties);
@@ -1277,14 +1276,6 @@ export function ArduinoCodePanel({
   useEffect(() => {
     if (preferredBoard?.id && preferredBoard.id !== boardId) activateBoard(preferredBoard);
   }, [activateBoard, boardId, preferredBoard]);
-
-  useEffect(
-    () => () => {
-      for (const timer of persistTimersRef.current.values()) window.clearTimeout(timer);
-      persistTimersRef.current.clear();
-    },
-    [],
-  );
 
   useEffect(() => {
     localStorage.setItem(ARDUINO_FLYOUT_STORAGE_KEY, String(preferredFlyoutWidth));
@@ -1308,21 +1299,16 @@ export function ArduinoCodePanel({
 
   function persist(next: ArduinoProgramState): void {
     if (!selectedBoard) return;
-    const selectedBoardId = selectedBoard.id;
-    const currentTimer = persistTimersRef.current.get(selectedBoardId);
-    if (currentTimer !== undefined) window.clearTimeout(currentTimer);
-    const timer = window.setTimeout(() => {
-      persistTimersRef.current.delete(selectedBoardId);
-      const properties: Readonly<Record<string, ProductionStateValue>> = {
-        arduinoCodeMode: next.mode,
-        arduinoWorkspace: next.workspaceJson,
-        arduinoSource: next.source,
-        arduinoSerialOpen: next.serialOpen,
-        arduinoBaudRate: next.baudRate,
-      };
-      c.updateArduinoProgram(selectedBoardId, properties);
-    }, 260);
-    persistTimersRef.current.set(selectedBoardId, timer);
+    // Input is already visible. Commit it before Save or navigation can read
+    // the document; expensive block generation keeps its separate debounce.
+    const properties: Readonly<Record<string, ProductionStateValue>> = {
+      arduinoCodeMode: next.mode,
+      arduinoWorkspace: next.workspaceJson,
+      arduinoSource: next.source,
+      arduinoSerialOpen: next.serialOpen,
+      arduinoBaudRate: next.baudRate,
+    };
+    c.updateArduinoProgram(selectedBoard.id, properties);
   }
 
   function updateProgram(patch: Partial<ArduinoProgramState>): void {

@@ -113,6 +113,7 @@ components:
     tests:
     - apps/web/src/electronics/testing/workbench-project-state.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+    - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
     - apps/web/src/electronics/testing/workbench-autosave.spec.ts
     - apps/web/src/electronics/testing/electronics-document-merge.spec.ts
     - apps/web/src/modules/testing/project-local-draft.spec.ts

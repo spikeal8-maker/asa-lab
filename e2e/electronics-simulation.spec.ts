@@ -3978,6 +3978,170 @@ async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void>
   await page.goto('/#/projects');
 }
 
+for (const action of ['manual Save', 'genuine departure'] as const) {
+  test(`Arduino sketch durability: fast input followed by ${action}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await loginWithOrganization(page, teacher);
+    const projectId = await createProject(page, `Sketch durability ${action}`);
+    const fixture = arduinoInputDocument('button', '2');
+    await saveDocument(page, projectId, fixture);
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+
+    const puts: SchematicDocument[] = [];
+    page.on('request', (request) => {
+      if (
+        request.method() === 'PUT' &&
+        new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+      ) {
+        puts.push((request.postDataJSON() as { document: SchematicDocument }).document);
+      }
+    });
+    // Make Save enabled before the source edit. Otherwise Playwright could
+    // wait for the old 260ms commit and conceal the input-to-document defect.
+    await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+    const resistance = page
+      .locator('.workbench-inspector label')
+      .filter({ hasText: 'Сопротивление' })
+      .locator('input[type="number"]');
+    await resistance.fill('333.3');
+    await expect(resistance).toHaveValue('333.3');
+    const base = await page.evaluate((id) => {
+      const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
+      if (!raw) throw new Error('The preparatory resistor edit has no local document');
+      return (JSON.parse(raw) as { document: SchematicDocument }).document;
+    }, projectId);
+    expect(base.components.find((entry) => entry.id === 'resistor')?.value).toBe(333.3);
+    const changedSource = `// latest sketch before ${action}\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n`;
+    const expected = {
+      ...base,
+      components: base.components.map((entry) =>
+        entry.id === 'uno'
+          ? {
+              ...entry,
+              stateProperties: {
+                ...entry.stateProperties,
+                arduinoCodeMode: 'text',
+                arduinoWorkspace: '',
+                arduinoSource: changedSource,
+                arduinoSerialOpen: false,
+                arduinoBaudRate: 9600,
+              },
+            }
+          : entry,
+      ),
+    };
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
+    await expect(editor).toHaveValue(
+      String(
+        fixture.components.find((entry) => entry.id === 'uno')?.stateProperties?.['arduinoSource'],
+      ),
+    );
+    const actionLabel = action === 'manual Save' ? 'Сохранить проект' : 'ASA Lab';
+    await expect(page.getByRole('button', { name: actionLabel, exact: true })).toBeEnabled();
+    expect(puts).toHaveLength(0);
+    await page.evaluate(
+      ({ id, label }) => {
+        const receipt = {
+          inputAt: null as number | null,
+          actionAt: null as number | null,
+          inputLocal: null as { document: SchematicDocument } | null,
+          actionLocal: null as { document: SchematicDocument } | null,
+        };
+        const local = () => {
+          const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
+          return raw ? (JSON.parse(raw) as { document: SchematicDocument }) : null;
+        };
+        Object.assign(window, { __sketchDurability529: receipt });
+        document.addEventListener('input', (event) => {
+          if (!(event.target instanceof HTMLTextAreaElement)) return;
+          if (event.target.getAttribute('aria-label') !== 'Код Arduino C++') return;
+          // At document bubble phase React has handled the real text input.
+          receipt.inputAt = performance.now();
+          receipt.inputLocal = local();
+        });
+        document.addEventListener(
+          'click',
+          (event) => {
+            const button = event.target instanceof Element ? event.target.closest('button') : null;
+            if (button?.getAttribute('aria-label') !== label) return;
+            receipt.actionAt = performance.now();
+            receipt.actionLocal = local();
+          },
+          true,
+        );
+      },
+      { id: projectId, label: actionLabel },
+    );
+    const saved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}/draft`,
+    );
+    // No sketch-readiness poll, sleep, panel close or extra edit before action.
+    await editor.fill(changedSource);
+    await page.getByRole('button', { name: actionLabel, exact: true }).click();
+    const response = await saved;
+    expect(response.status()).toBe(200);
+    const receipt = await page.evaluate(() => {
+      return Reflect.get(window, '__sketchDurability529') as {
+        inputAt: number | null;
+        actionAt: number | null;
+        inputLocal: { document: SchematicDocument } | null;
+        actionLocal: { document: SchematicDocument } | null;
+      };
+    });
+    expect(receipt.inputAt).not.toBeNull();
+    expect(receipt.actionAt).not.toBeNull();
+    const elapsedMs = receipt.actionAt! - receipt.inputAt!;
+    expect(
+      elapsedMs,
+      'The fast-input scenario must act inside the inherited 260ms window',
+    ).toBeLessThan(260);
+    expect(elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(receipt.inputLocal?.document).toEqual(expected);
+    expect(receipt.actionLocal?.document).toEqual(expected);
+    expect(puts).toEqual([expected]);
+    const opened = await page.context().request.get(`/api/projects/${projectId}`, {
+      headers: { origin: new URL(page.url()).origin },
+    });
+    expect(opened.status()).toBe(200);
+    const server = (await opened.json()) as {
+      draft: { document: SchematicDocument; revision: number };
+    };
+    expect(server.draft.document).toEqual(expected);
+    if (action === 'manual Save') {
+      await expect(page.locator('.workbench-main')).toHaveAttribute(
+        'data-project-save-status',
+        'saved',
+      );
+      await page.getByRole('button', { name: 'ASA Lab', exact: true }).click();
+    }
+    await expect(page.locator('.workbench-main')).toHaveCount(0);
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Код Arduino C++', exact: true })).toHaveValue(
+      changedSource,
+    );
+    await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+    await expect(resistance).toHaveValue('333.3');
+    expect(
+      await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
+    ).toBeNull();
+    const report = { projectId, action, elapsedMs, receipt, expected, puts, server };
+    await test.info().attach(`sketch-529-${action.replaceAll(' ', '-')}.json`, {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    });
+    failures.assertEmpty();
+  });
+}
+
 test('real API autosave sends the edited draft after one minute', async ({ page }) => {
   test.setTimeout(120_000);
   await page.setViewportSize({ width: 1440, height: 900 });
