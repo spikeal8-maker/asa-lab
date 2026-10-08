@@ -388,7 +388,7 @@ export function WorkbenchHeader({
           {c.saveStatus === 'error' || (c.saveStatus !== 'saved' && !c.localCopySaved) ? (
             <button
               type="button"
-              className="workbench-pill"
+              className="workbench-pill emergency-copy"
               onClick={c.exportEmergencyCopy}
               aria-label="Получить аварийную копию проекта"
               title="Скачать всю схему и скетчи Arduino в JSON"

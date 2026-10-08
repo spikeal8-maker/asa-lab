@@ -2276,6 +2276,10 @@
   width: 77px;
   padding: 0 6px;
 }
+.workbench-toolbar-group.right .workbench-pill.emergency-copy {
+  width: auto;
+  flex: 0 0 auto;
+}
 .workbench-toolbar-group.right .workbench-pill:first-child svg,
 .workbench-toolbar-group.right .workbench-pill.simulate svg {
   width: 17px;

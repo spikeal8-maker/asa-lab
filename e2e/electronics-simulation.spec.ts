@@ -4178,6 +4178,22 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
       .getByRole('button', { name: 'Получить аварийную копию проекта' })
       .evaluate((button) => {
         const box = button.getBoundingClientRect();
+        const style = getComputedStyle(button);
+        const label = document.createRange();
+        label.selectNodeContents(button);
+        const labelBox = label.getBoundingClientRect();
+        const toolbarButtons = Array.from(button.parentElement!.querySelectorAll('button'))
+          .filter((entry) => entry.getClientRects().length > 0)
+          .map((entry) => {
+            const bounds = entry.getBoundingClientRect();
+            return {
+              label: entry.getAttribute('aria-label'),
+              text: entry.textContent?.trim(),
+              x: bounds.x,
+              right: bounds.right,
+              width: bounds.width,
+            };
+          });
         const indicatorBox = document
           .querySelector('.workbench-save-state')!
           .getBoundingClientRect();
@@ -4186,6 +4202,16 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
           viewport: innerWidth,
           pageWidth: document.documentElement.scrollWidth,
           box: { x: box.x, y: box.y, width: box.width, height: box.height },
+          label: {
+            text: button.textContent?.trim(),
+            x: labelBox.x,
+            right: labelBox.right,
+            contentLeft:
+              box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+            contentRight:
+              box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+          },
+          toolbarButtons,
           unobstructed: hit !== null && button.contains(hit),
           indicatorOverlap:
             Math.min(box.right, indicatorBox.right) > Math.max(box.left, indicatorBox.left) &&
@@ -4199,6 +4225,14 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
     expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewport);
     expect(layout.unobstructed).toBe(true);
     expect(layout.indicatorOverlap).toBe(false);
+    expect(layout.label.text).toBe('Копия JSON');
+    expect(layout.label.x).toBeGreaterThanOrEqual(layout.label.contentLeft - 0.5);
+    expect(layout.label.right).toBeLessThanOrEqual(layout.label.contentRight + 0.5);
+    for (const [index, button] of layout.toolbarButtons.entries()) {
+      expect(button.width).toBeGreaterThan(0);
+      if (index > 0)
+        expect(button.x).toBeGreaterThanOrEqual(layout.toolbarButtons[index - 1]!.right);
+    }
     layouts.push({ width, ...layout });
     await page.screenshot({
       path: `${evidenceDir}/after-local-denial-${width}.png`,
@@ -4895,6 +4929,219 @@ test('ELECTRONICS-E01 SAV06 does not clear a real two-tab conflict by editing ag
   );
   await other.close();
 });
+
+for (const action of ['manual Save', 'genuine departure'] as const) {
+  test(`Arduino sketch durability: fast input followed by ${action}`, async ({ page }) => {
+    test.setTimeout(90_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    await page.setViewportSize({ width: 1600, height: 1000 });
+    await loginWithOrganization(page, teacher);
+    const sessionResponse = await page.context().request.get('/api/auth/me');
+    expect(sessionResponse.status()).toBe(200);
+    const session = (await sessionResponse.json()) as {
+      authenticated: boolean;
+      user: { id: string };
+    };
+    expect(session.authenticated).toBe(true);
+    const userId = session.user.id;
+    const projectId = await createProject(page, `Sketch durability ${action}`);
+    const localKey = `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`;
+    const fixture = arduinoInputDocument('button', '2');
+    await saveDocument(page, projectId, fixture);
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+
+    const puts: SchematicDocument[] = [];
+    page.on('request', (request) => {
+      if (
+        request.method() === 'PUT' &&
+        new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+      ) {
+        puts.push((request.postDataJSON() as { document: SchematicDocument }).document);
+      }
+    });
+    // Make Save enabled before the source edit. Otherwise Playwright could
+    // wait for the old 260ms commit and conceal the input-to-document defect.
+    await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+    const resistance = page
+      .locator('.workbench-inspector label')
+      .filter({ hasText: 'Сопротивление' })
+      .locator('input[type="number"]');
+    await resistance.fill('333.3');
+    await expect(resistance).toHaveValue('333.3');
+    const base = await page.evaluate(
+      ({ key, id, userId }) => {
+        const raw = localStorage.getItem(key);
+        if (!raw) throw new Error('The preparatory resistor edit has no local document');
+        const record = JSON.parse(raw) as {
+          schemaVersion: number;
+          identityKind: string;
+          userId: string;
+          projectId: string;
+          moduleKey: string;
+          document: SchematicDocument;
+        };
+        if (
+          record.schemaVersion !== 3 ||
+          record.identityKind !== 'account' ||
+          record.userId !== userId ||
+          record.projectId !== id ||
+          record.moduleKey !== 'electronics'
+        )
+          throw new Error('The preparatory local document belongs to another identity or scope');
+        return record.document;
+      },
+      { key: localKey, id: projectId, userId },
+    );
+    expect(base.components.find((entry) => entry.id === 'resistor')?.value).toBe(333.3);
+    const changedSource = `// latest sketch before ${action}\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n`;
+    const expected = {
+      ...base,
+      components: base.components.map((entry) =>
+        entry.id === 'uno'
+          ? {
+              ...entry,
+              stateProperties: {
+                ...entry.stateProperties,
+                arduinoCodeMode: 'text',
+                arduinoWorkspace: '',
+                arduinoSource: changedSource,
+                arduinoSerialOpen: false,
+                arduinoBaudRate: 9600,
+              },
+            }
+          : entry,
+      ),
+    };
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    const editor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
+    await expect(editor).toHaveValue(
+      String(
+        fixture.components.find((entry) => entry.id === 'uno')?.stateProperties?.['arduinoSource'],
+      ),
+    );
+    const actionLabel = action === 'manual Save' ? 'Сохранить проект' : 'ASA Lab';
+    await expect(page.getByRole('button', { name: actionLabel, exact: true })).toBeEnabled();
+    expect(puts).toHaveLength(0);
+    await page.evaluate(
+      ({ key, id, userId, label }) => {
+        const receipt = {
+          inputAt: null as number | null,
+          actionAt: null as number | null,
+          inputLocal: null as { document: SchematicDocument } | null,
+          actionLocal: null as { document: SchematicDocument } | null,
+        };
+        const local = () => {
+          const raw = localStorage.getItem(key);
+          if (!raw) return null;
+          const record = JSON.parse(raw) as {
+            schemaVersion: number;
+            identityKind: string;
+            userId: string;
+            projectId: string;
+            moduleKey: string;
+            document: SchematicDocument;
+          };
+          if (
+            record.schemaVersion !== 3 ||
+            record.identityKind !== 'account' ||
+            record.userId !== userId ||
+            record.projectId !== id ||
+            record.moduleKey !== 'electronics'
+          )
+            throw new Error('The input/action local document belongs to another identity or scope');
+          return record;
+        };
+        Object.assign(window, { __sketchDurability529: receipt });
+        document.addEventListener('input', (event) => {
+          if (!(event.target instanceof HTMLTextAreaElement)) return;
+          if (event.target.getAttribute('aria-label') !== 'Код Arduino C++') return;
+          // At document bubble phase React has handled the real text input.
+          receipt.inputAt = performance.now();
+          receipt.inputLocal = local();
+        });
+        document.addEventListener(
+          'click',
+          (event) => {
+            const button = event.target instanceof Element ? event.target.closest('button') : null;
+            if (button?.getAttribute('aria-label') !== label) return;
+            receipt.actionAt = performance.now();
+            receipt.actionLocal = local();
+          },
+          true,
+        );
+      },
+      { key: localKey, id: projectId, userId, label: actionLabel },
+    );
+    const saved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname === `/api/projects/${projectId}/draft`,
+    );
+    // No sketch-readiness poll, sleep, panel close or extra edit before action.
+    await editor.fill(changedSource);
+    await page.getByRole('button', { name: actionLabel, exact: true }).click();
+    const response = await saved;
+    expect(response.status()).toBe(200);
+    const receipt = await page.evaluate(() => {
+      return Reflect.get(window, '__sketchDurability529') as {
+        inputAt: number | null;
+        actionAt: number | null;
+        inputLocal: { document: SchematicDocument } | null;
+        actionLocal: { document: SchematicDocument } | null;
+      };
+    });
+    expect(receipt.inputAt).not.toBeNull();
+    expect(receipt.actionAt).not.toBeNull();
+    const elapsedMs = receipt.actionAt! - receipt.inputAt!;
+    expect(
+      elapsedMs,
+      'The fast-input scenario must act inside the inherited 260ms window',
+    ).toBeLessThan(260);
+    expect(elapsedMs).toBeGreaterThanOrEqual(0);
+    expect(receipt.inputLocal?.document).toEqual(expected);
+    expect(receipt.actionLocal?.document).toEqual(expected);
+    expect(puts).toEqual([expected]);
+    const opened = await page.context().request.get(`/api/projects/${projectId}`, {
+      headers: { origin: new URL(page.url()).origin },
+    });
+    expect(opened.status()).toBe(200);
+    const server = (await opened.json()) as {
+      draft: { document: SchematicDocument; revision: number };
+    };
+    expect(server.draft.document).toEqual(expected);
+    if (action === 'manual Save') {
+      await expect(page.locator('.workbench-main')).toHaveAttribute(
+        'data-project-save-status',
+        'saved',
+      );
+      await page.getByRole('button', { name: 'ASA Lab', exact: true }).click();
+    }
+    await expect(page.locator('.workbench-main')).toHaveCount(0);
+    await page.goto(`/#/home/${projectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Код Arduino C++', exact: true })).toHaveValue(
+      changedSource,
+    );
+    await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+    await expect(resistance).toHaveValue('333.3');
+    expect(await page.evaluate((key) => localStorage.getItem(key), localKey)).toBeNull();
+    const report = { projectId, action, elapsedMs, receipt, expected, puts, server };
+    await test.info().attach(`sketch-529-${action.replaceAll(' ', '-')}.json`, {
+      body: Buffer.from(JSON.stringify(report, null, 2)),
+      contentType: 'application/json',
+    });
+    failures.assertEmpty();
+    const reportDirectory = 'reports/playwright/sketch-529';
+    mkdirSync(reportDirectory, { recursive: true });
+    writeFileSync(
+      `${reportDirectory}/after-${action === 'manual Save' ? 'manual-Save' : 'genuine-departure'}.json`,
+      JSON.stringify(report, null, 2),
+    );
+  });
+}
 
 test('real API autosave sends the edited draft after one minute', async ({ page }) => {
   test.setTimeout(120_000);

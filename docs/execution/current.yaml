@@ -588,7 +588,15 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: independent_review_requests_fixture_and_sav10
+      checkpoint: r2_resume_after_accepted_sketch_dependency
+      preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
+      preserved_candidate_branch: codex/electronics-save-recovery-526-review-r1
+      preserved_candidate_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
+      preserved_candidate_general_run: 37845048256
+      preserved_candidate_general_conclusion: success
+      preserved_candidate_electronics_run: 37845156460
+      preserved_candidate_browser_conclusion: failure
+      preserved_candidate_independent_review: request_changes
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
@@ -610,26 +618,27 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1e2ce7a94be4c8e5a1a14d2db259ec693892fe8b
+      convergence_baseline_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
       head_sha: null
-      observed_at: '2026-10-08T20:54:10Z'
+      observed_at: '2026-10-08T23:02:00Z'
       main:
         branch: main
-        sha: 4f6b677e08975680e9b3222778b11b8738ed0227
+        sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
-        Published candidate74928374ce93a41fd59ec8cc0b1fb96a5b55b290 received NEW independent REQUEST_CHANGES.
-        Controller independently confirmed registered interactions fixture1035 still reads legacy unscoped draft key,
-        so strict detach assertion361 observes stale server bindings after the scoped-key product change.
-        SAV10 real production user/project isolation evidence is also incomplete. Select only bounded review repair
-        of the existing fixture reader and missing SAV10 browser journey; do not weaken assertions/timeouts,
-        restore legacy adoption, or change accepted product code without a newly proved defect and controller scope ACK.
-        General37839211753 terminalSUCCESS on749. Ordinary37839235069 focused/benchmarkSUCCESS, browserFAIL25/99PASS, review-imagesSKIPPED. Raw AFTER independently shows a valid older scoped50draft predating injected write denial, latestUI166.7 and truthful memory-only warning; test4119 incorrectly expects null. Crash4315 received no crash event; cached trace records pending Page.crash until teardown, not proof of crash recovery. Bounded R1 may correct these existing evidence fixtures after concrete setup diagnosis without weakening content/durability checks. Main4f6 General37840144460 terminalSUCCESS; preserve independent admin-logs changes.
-        Localfocused timeout on untouched697asset hash case remains FAIL despite directed standalone PASS;
-        timing cause provisional, no gate or acceptance claim. Preserve original BEFORE and suspended525ed4.
-        Corrected final SHA requires ordinary exact gates and another NEW independent review before technical closure.
-        School K0/version/backup, actual-device T3 and owner/class acceptance remain separate pending evidence;
-        no deployment, DB, network or backup operation is authorized.
+        Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
+        NEW independent reviewer APPROVE; General37854813209 and ordinaryElectronics37854826793 terminalSUCCESS/all4.
+        Original raw AFTER manualSave63.1ms/genuineexit67.5ms inside260ms; complete local/PUT/server documents equal,
+        fresh sketch and resistor333.3 preserved, actual reopen assertions PASS; browser120PASS/focused633+379PASS.
+        This accepts only529 visible-text canonical handoff, not broader E01/E14/class/owner/deployment.
+        Resume only526 bounded R2 from preservedc15e6e13 with accepted529 source and current canonical state.
+        Preserve original branches/commits/evidence, no rewrite of published history or foreign unfinished work.
+        Repair proved current-diff JSON CTA clipping; adapt accepted529 test consumers to verified scoped identity
+        without weakening behavior; complete original crash/SAV10 evidence on the final combined candidate.
+        Old526 review/CI and local tests are not combined-candidate acceptance; NEW reviewer and all exact gates required.
+        Suspended525 and all other accepted results/lanes remain unchanged. Next E04 only after E01 technical acceptance.
+        School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
+        no deployment, DB, network, backup or protected-artwork operation is authorized.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -650,6 +659,30 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-SKETCH-DRAFT-COMMIT-001
+        issue: 529
+        accepted_candidate_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        integrated_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        independent_review: approved
+        independent_review_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+        exact_candidate_general_run: 37854813209
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37854826793
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 120
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          browser_images: 49
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/sketch-529-acceptance-20261008.md
+        independent_evidence: docs/product/electronics/evidence/sketch-529-independent-review-20261008.md
+        independent_review_original_sha256: 16c4b90ce376a1776838c4ffdc900b925bb6f06525760e72caa6ad95c22e7c15
+        independent_review_git_sha256: b2521eb923da787b4ee9790e0a83395d58dffbcd599f56eb664a3153e51547a2
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-LOGIN-FIXTURE-001
         issue: 528
         accepted_candidate_sha: f0113e9ff28cfccfe372e8b0c456990f43256e0d

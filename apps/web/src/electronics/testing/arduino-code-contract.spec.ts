@@ -241,7 +241,7 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('`arduino-code-toolbar mode-${program.mode}`');
     expect(panelSource).toContain("if (program.mode === 'blocks' && commandReferenceOpen)");
     expect(panelSource).toContain("open={commandReferenceOpen && program.mode !== 'blocks'}");
-    expect(panelSource).toContain('persistTimersRef.current.get(selectedBoardId)');
+    expect(panelSource).toContain('c.updateArduinoProgram(selectedBoard.id, properties)');
     expect(panelSource).toContain('programRef.current = next');
     expect(panelSource).toContain('const activateBoard = useCallback');
     expect(panelSource).toContain('preferredBoard.id !== boardId');
