@@ -43,6 +43,58 @@ export function InfoHint({
     };
   }, [id]);
   useLayoutEffect(() => {
+    if (!open || !trigger.current) return;
+    const anchor = trigger.current;
+    let observed: HTMLElement[] = [];
+    const observer = new MutationObserver(checkOwner);
+    function checkOwner(): void {
+      if (!anchor.isConnected) {
+        close();
+        return;
+      }
+      const ancestors: HTMLElement[] = [];
+      for (let owner: HTMLElement | null = anchor; owner; owner = owner.parentElement) {
+        ancestors.push(owner);
+        const style = getComputedStyle(owner);
+        if (
+          owner.hidden ||
+          style.display === 'none' ||
+          style.contentVisibility === 'hidden' ||
+          (owner instanceof HTMLDialogElement && !owner.open)
+        ) {
+          close();
+          return;
+        }
+      }
+      const visibility = getComputedStyle(anchor).visibility;
+      if (visibility === 'hidden' || visibility === 'collapse') {
+        close();
+        return;
+      }
+      // The popup can live outside a mounted-but-hidden settings panel. Watch
+      // only this open hint's owner chain, including detach/visible reparenting.
+      if (
+        ancestors.length !== observed.length ||
+        ancestors.some((owner, index) => owner !== observed[index])
+      ) {
+        observer.disconnect();
+        for (const owner of ancestors)
+          observer.observe(owner, {
+            attributes: true,
+            attributeFilter: ['hidden', 'style', 'class', 'open'],
+            childList: true,
+          });
+        observed = ancestors;
+      }
+    }
+    checkOwner();
+    window.addEventListener('resize', checkOwner);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', checkOwner);
+    };
+  }, [open]);
+  useLayoutEffect(() => {
     if (!open) return;
     const place = () => {
       const anchor = trigger.current?.getBoundingClientRect();

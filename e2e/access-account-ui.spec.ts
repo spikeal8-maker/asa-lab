@@ -25,6 +25,66 @@ async function serveBuiltApp(page: Page) {
 }
 test.beforeEach(async ({ page }) => serveBuiltApp(page));
 
+for (const seat of [false, true])
+  for (const width of [1440, 390])
+    test(`R3B pinned hint follows native Back and Forward ${seat ? 'Seat' : 'Account'} ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 568 });
+      const state = await fixture(page, { seat });
+      await page.goto('/#/account/interface');
+      await expect(page.getByLabel('Анимация', { exact: true })).toBeVisible();
+      if (width > 600) await panel(page, 'Уведомления').click();
+      else await page.getByLabel('Выбрать раздел настроек').selectOption('notifications');
+      const preferences = page.getByRole('region', {
+        name: 'Учебные оповещения — только для меня',
+        exact: true,
+        includeHidden: true,
+      });
+      const hint = preferences.getByRole('button', {
+        name: 'О доставке оповещений',
+        exact: true,
+        includeHidden: true,
+      });
+      await expect(hint).toBeVisible();
+      await hint.click();
+      await expect(hint).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.getByRole('tooltip')).toHaveCount(1);
+      mkdirSync(test.info().outputDir, { recursive: true });
+      await page.screenshot({ path: test.info().outputPath('before-back.png') });
+      await traverse(page, 'back');
+      await expect(page).toHaveURL(/#\/account\/interface$/);
+      await expect(page.getByLabel('Анимация', { exact: true })).toBeVisible();
+      await expect(preferences).toHaveCount(1);
+      await expect(preferences).toBeHidden();
+      const afterBack = await page.evaluate(() => ({
+        href: location.href,
+        tooltips: [...document.querySelectorAll('[role="tooltip"]')].map((element) => ({
+          text: element.textContent,
+          parentTag: element.parentElement?.tagName,
+        })),
+        hiddenExpandedHints: [...document.querySelectorAll('[hidden] .info-hint-trigger')].filter(
+          (element) => element.getAttribute('aria-expanded') === 'true',
+        ).length,
+      }));
+      writeFileSync(test.info().outputPath('after-back.json'), JSON.stringify(afterBack, null, 2));
+      await page.screenshot({ path: test.info().outputPath('after-back.png') });
+      await expect(page.getByRole('tooltip', { includeHidden: true })).toHaveCount(0);
+      await expect(hint).toHaveAttribute('aria-expanded', 'false');
+      await expect(hint).not.toHaveAttribute('aria-describedby');
+      await traverse(page, 'forward');
+      await expect(page).toHaveURL(/#\/account\/notifications$/);
+      await expect(preferences).toBeVisible();
+      await expect(hint).toHaveAttribute('aria-expanded', 'false');
+      await hint.click();
+      await expect(page.getByRole('tooltip')).toHaveCount(1);
+      await expect(hint).toHaveAttribute('aria-expanded', 'true');
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('tooltip')).toHaveCount(0);
+      await expect(hint).toHaveAttribute('aria-expanded', 'false');
+      expect(state.mutations).toEqual([]);
+    });
+
 for (const width of [1440, 390, 320]) {
   test(`R3 compact settings first surfaces at ${width}`, async ({ page }) => {
     mkdirSync(r3Visual, { recursive: true });
