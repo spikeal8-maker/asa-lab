@@ -12,6 +12,7 @@ import {
   type WorkspaceRef,
 } from '../api';
 import { requestAvatarChooser } from '../components/avatar-chooser-events';
+import { InfoHint } from '../components/InfoHint';
 import {
   defaultAvatarForAccount,
   PROFILE_AVATAR_CHANGED_EVENT,
@@ -708,37 +709,24 @@ export function AccountPage({
 
           {panel === 'profile' ? (
             <section className="account-settings-section" aria-labelledby="profile-settings-title">
-              <div className="account-section-heading">
-                <h2 id="profile-settings-title">Как вас видят другие</h2>
-                <p>
-                  Эти данные будут показаны рядом с вашими опубликованными проектами и в классах.
-                  Email и дата рождения остаются закрытыми.
-                </p>
-              </div>
+              <h2 id="profile-settings-title" className="account-panel-title">
+                Профиль
+              </h2>
 
               <div className="account-avatar-editor">
                 <button
                   type="button"
                   className="account-avatar-preview-button"
-                  aria-label="Увеличить и выбрать аватар"
+                  aria-label="Выбрать аватар"
                   onClick={() => requestAvatarChooser({ kind: 'account', id: session.user.id })}
                 >
-                  <img src={effectiveAvatarUrl} alt="Текущий аватар" />
+                  <img src={effectiveAvatarUrl} alt="Аватар" />
                 </button>
-                <div>
-                  <strong>Аватар</strong>
-                  <span>Выберите готовый аватар ASA Lab или загрузите своё изображение.</span>
-                  <span>Выбор сохраняется кнопкой «Использовать», отдельно от полей профиля.</span>
-                  <div className="account-avatar-buttons">
-                    <button
-                      type="button"
-                      className="btn-secondary"
-                      onClick={() => requestAvatarChooser({ kind: 'account', id: session.user.id })}
-                    >
-                      Выбрать аватар
-                    </button>
-                  </div>
-                </div>
+                <InfoHint label="Информация об аватаре">
+                  Выберите изображение и подтвердите «Использовать». Можно загрузить PNG, JPEG или
+                  WebP до 8 МБ. Изображение обрезается по центру до квадрата. Поля профиля
+                  сохраняются отдельно.
+                </InfoHint>
               </div>
 
               <form className="account-profile-form" onSubmit={(event) => void saveProfile(event)}>

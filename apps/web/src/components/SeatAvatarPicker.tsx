@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAvatarModule } from './use-avatar-module';
 import { seatAvatar } from '../creator-portal/default-avatars';
+import { CloseIcon } from '../electronics/workbench-icons';
+import { InfoHint } from './InfoHint';
 import './seat-avatar.css';
 
 /** Teacher editing: Use stages a key; only the enclosing form persists it. */
@@ -18,9 +20,13 @@ export function SeatAvatarPicker({
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState('current');
   const opener = useRef<HTMLButtonElement | null>(null);
+  const dismiss = useRef<HTMLButtonElement | null>(null);
   const { module, failed, canRetry, retry } = useAvatarModule(open);
   const AvatarSelection = module?.AvatarSelection;
   const current = seatAvatar(seatId, value);
+  useEffect(() => {
+    if (open) dismiss.current?.focus();
+  }, [open]);
   function close(): void {
     setOpen(false);
     if (opener.current?.isConnected) opener.current.focus();
@@ -31,7 +37,7 @@ export function SeatAvatarPicker({
         <button
           type="button"
           className="account-avatar-preview-button"
-          aria-label="Увеличить и выбрать аватар ученика"
+          aria-label="Выбрать аватар ученика"
           disabled={busy}
           onClick={(event) => {
             opener.current = event.currentTarget;
@@ -39,27 +45,40 @@ export function SeatAvatarPicker({
             setOpen(true);
           }}
         >
-          <img src={current.src} alt="Текущий аватар ученика" width={72} height={72} />
+          <img src={current.src} alt="Аватар ученика" width={72} height={72} />
         </button>
-        <button
-          type="button"
-          className="btn-secondary"
-          disabled={busy}
-          onClick={(event) => {
-            opener.current = event.currentTarget;
-            setSelected('current');
-            setOpen(true);
-          }}
-        >
-          Выбрать аватар ученика
-        </button>
+        <InfoHint label="Информация об аватаре ученика">
+          Выберите готовую картинку и нажмите «Использовать». Выбор войдёт в изменения ученика; он
+          сохранится только после кнопки «Сохранить» в этой форме. Загрузка своего изображения для
+          профиля ученика недоступна.
+        </InfoHint>
       </div>
       {open ? (
-        <div className="seat-avatar-staged-selection">
+        <div
+          className="seat-avatar-staged-selection"
+          role="region"
+          aria-label="Выбор аватара ученика"
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') {
+              event.preventDefault();
+              event.stopPropagation();
+              close();
+            }
+          }}
+        >
+          <div className="seat-avatar-selection-heading">
+            <button
+              ref={dismiss}
+              type="button"
+              aria-label="Закрыть выбор аватара ученика"
+              onClick={close}
+            >
+              <CloseIcon />
+            </button>
+          </div>
           {AvatarSelection ? (
             <AvatarSelection
-              current={{ src: current.src, label: 'Текущий аватар' }}
-              automatic={{ src: seatAvatar(seatId, null).src, label: 'Автоматический аватар' }}
+              current={{ src: current.src, label: 'Аватар' }}
               selected={selected}
               busy={busy}
               onSelect={setSelected}
@@ -75,22 +94,18 @@ export function SeatAvatarPicker({
             <p role="status">Открываем аватары…</p>
           )}
           <div className="avatar-chooser-actions">
-            <button type="button" className="btn-secondary" onClick={close}>
-              Отменить выбор аватара
-            </button>
             <button
               type="button"
               className="btn-primary"
               disabled={busy || selected === 'current'}
               onClick={() => {
-                onChange(selected === 'automatic' ? null : selected);
+                onChange(selected);
                 close();
               }}
             >
-              Использовать аватар
+              Использовать
             </button>
           </div>
-          <p className="account-hint">Аватар изменится после сохранения настроек ученика.</p>
         </div>
       ) : null}
     </div>

@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { DEFAULT_AVATARS } from '../creator-portal/default-avatars';
 import './avatar-chooser.css';
 
@@ -6,97 +7,89 @@ export interface AvatarPreview {
   readonly label: string;
 }
 
-/** Slots: fixed-size preview | independently scrolling, naturally sized catalogue. */
+/** The catalogue comes first. Enlarging a picture never confirms the choice. */
 export function AvatarSelection({
   current,
-  automatic,
   uploaded,
   selected,
   busy = false,
   onSelect,
-  uploadAction,
 }: {
   readonly current: AvatarPreview;
-  readonly automatic: AvatarPreview;
   readonly uploaded?: AvatarPreview | undefined;
   readonly selected: string;
   readonly busy?: boolean;
   readonly onSelect: (key: string) => void;
-  readonly uploadAction?: JSX.Element | undefined;
 }): JSX.Element {
+  const [enlarged, setEnlarged] = useState(false);
+  const opener = useRef<HTMLButtonElement | null>(null);
+  const back = useRef<HTMLButtonElement | null>(null);
+  useEffect(() => {
+    if (selected === 'uploaded') setEnlarged(true);
+  }, [selected, uploaded?.src]);
+  useEffect(() => {
+    if (enlarged) back.current?.focus();
+    else opener.current?.focus();
+  }, [enlarged]);
   const preview =
-    selected === 'current'
-      ? current
-      : selected === 'automatic'
-        ? automatic
-        : selected === 'uploaded'
-          ? (uploaded ?? current)
-          : (DEFAULT_AVATARS.find((avatar) => avatar.id === selected) ?? current);
+    selected === 'uploaded'
+      ? (uploaded ?? current)
+      : (DEFAULT_AVATARS.find((avatar) => avatar.id === selected) ?? current);
+  function show(key: string, button: HTMLButtonElement): void {
+    opener.current = button;
+    onSelect(key);
+    setEnlarged(true);
+  }
   return (
     <div className="avatar-selection">
-      <figure className="avatar-selection-preview">
-        <img src={preview.src} alt="Предпросмотр аватара" width={240} height={240} />
-        <figcaption>{preview.label}</figcaption>
-      </figure>
-      <div className="avatar-selection-library">
-        <select
-          className="avatar-selection-menu"
-          aria-label="Вариант аватара"
+      <div className="avatar-selection-grid" aria-label="Аватары" hidden={enlarged}>
+        <button
+          type="button"
+          aria-label="Посмотреть свой аватар"
+          aria-pressed={selected === 'current'}
           disabled={busy}
-          value={selected}
-          onChange={(event) => onSelect(event.target.value)}
+          onClick={(event) => show('current', event.currentTarget)}
         >
-          <option value="current">Текущий аватар</option>
-          <option value="automatic">Автоматический аватар</option>
-          {uploaded ? <option value="uploaded">Загруженный аватар</option> : null}
-          {DEFAULT_AVATARS.some((avatar) => avatar.id === selected) ? (
-            <option value={selected}>{preview.label}</option>
-          ) : null}
-        </select>
-        <div className="avatar-selection-options">
+          <img src={current.src} alt="" width={56} height={56} />
+        </button>
+        {uploaded ? (
           <button
             type="button"
+            aria-label="Посмотреть загруженное изображение"
+            aria-pressed={selected === 'uploaded'}
             disabled={busy}
-            aria-pressed={selected === 'current'}
-            onClick={() => onSelect('current')}
+            onClick={(event) => show('uploaded', event.currentTarget)}
           >
-            Текущий аватар
+            <img src={uploaded.src} alt="" width={56} height={56} />
           </button>
+        ) : null}
+        {DEFAULT_AVATARS.map((avatar) => (
           <button
             type="button"
+            key={avatar.id}
+            aria-label={`Выбрать: ${avatar.label}`}
+            aria-pressed={selected === avatar.id}
             disabled={busy}
-            aria-pressed={selected === 'automatic'}
-            onClick={() => onSelect('automatic')}
+            onClick={(event) => show(avatar.id, event.currentTarget)}
           >
-            Автоматический аватар
+            <img src={avatar.src} alt="" width={56} height={56} loading="lazy" />
           </button>
-          {uploaded ? (
-            <button
-              type="button"
-              disabled={busy}
-              aria-pressed={selected === 'uploaded'}
-              onClick={() => onSelect('uploaded')}
-            >
-              Загруженный аватар
-            </button>
-          ) : null}
-        </div>
-        <div className="avatar-selection-grid" aria-label="Стандартные аватары">
-          {DEFAULT_AVATARS.map((avatar) => (
-            <button
-              type="button"
-              key={avatar.id}
-              aria-label={`Выбрать: ${avatar.label}`}
-              aria-pressed={selected === avatar.id}
-              disabled={busy}
-              onClick={() => onSelect(avatar.id)}
-            >
-              <img src={avatar.src} alt="" width={64} height={64} loading="lazy" />
-            </button>
-          ))}
-        </div>
-        {uploadAction}
+        ))}
       </div>
+      {enlarged ? (
+        <div className="avatar-selection-preview">
+          <button
+            ref={back}
+            type="button"
+            className="avatar-selection-back"
+            aria-label="Вернуться к аватарам"
+            onClick={() => setEnlarged(false)}
+          >
+            <span aria-hidden="true">←</span>
+          </button>
+          <img src={preview.src} alt="Предпросмотр аватара" width={240} height={240} />
+        </div>
+      ) : null}
     </div>
   );
 }

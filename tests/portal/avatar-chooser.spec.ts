@@ -87,13 +87,18 @@ function OwnedChooser({
     onAccountSaved: input.onAccountLoaded,
     onSeatSaved,
   });
-  return createElement(AvatarChooser, {
-    ...input,
-    onSave: write.save,
-    saving: write.saving,
-    saveError: write.error,
-    onClearSaveError: write.clearError,
-  });
+  return createElement(
+    'div',
+    {},
+    createElement('button', { 'aria-label': 'Закрыть выбор аватара', onClick: input.onClose }),
+    createElement(AvatarChooser, {
+      ...input,
+      onSave: write.save,
+      saving: write.saving,
+      saveError: write.error,
+      onClearSaveError: write.clearError,
+    }),
+  );
 }
 async function render(input = props, onSeatSaved = vi.fn()) {
   await act(async () => root.render(createElement(OwnedChooser, { input, onSeatSaved })));
@@ -103,6 +108,50 @@ async function click(name: string) {
 }
 
 describe('avatar confirmation and actor isolation', () => {
+  it('starts with a caption-free catalogue; enlarging the current face is a no-op', async () => {
+    await render();
+    expect(container.querySelector('img[alt="Предпросмотр аватара"]')).toBeNull();
+    expect(container.querySelector('select, figcaption, .avatar-selection-options')).toBeNull();
+    expect(container.textContent).not.toMatch(/Текущий аватар|Автоматический аватар/);
+    await click('Посмотреть свой аватар');
+    expect(container.querySelector('img[alt="Предпросмотр аватара"]')?.getAttribute('src')).toBe(
+      props.currentUrl,
+    );
+    expect(button('Использовать').disabled).toBe(true);
+    await click('Вернуться к аватарам');
+    expect(container.querySelector('img[alt="Предпросмотр аватара"]')).toBeNull();
+    expect(api.updateAccountAvatar).not.toHaveBeenCalled();
+  });
+  it('returning to the catalogue retains selection without downloading or saving', async () => {
+    await render();
+    await click('Выбрать: Аватар 7');
+    await click('Вернуться к аватарам');
+    expect(button('Выбрать: Аватар 7').getAttribute('aria-pressed')).toBe('true');
+    expect(button('Использовать').disabled).toBe(false);
+    expect(defaultAvatarFile).not.toHaveBeenCalled();
+    expect(createAvatarDataUrl).not.toHaveBeenCalled();
+    expect(api.updateAccountAvatar).not.toHaveBeenCalled();
+  });
+  it('cancelling while an upload is processing prevents any later mutation', async () => {
+    let resolve!: (url: string) => void;
+    vi.mocked(createAvatarDataUrl).mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done;
+        }),
+    );
+    await render();
+    const input = container.querySelector('input[type="file"]')!;
+    Object.defineProperty(input, 'files', {
+      value: [new File(['avatar'], 'own.webp', { type: 'image/webp' })],
+    });
+    await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
+    expect(button('Использовать').disabled).toBe(true);
+    await act(async () => root.render(null));
+    await act(async () => resolve('data:image/webp;base64,late'));
+    expect(api.updateAccountAvatar).not.toHaveBeenCalled();
+    expect(props.onAccountLoaded).not.toHaveBeenCalled();
+  });
   it('ignores a modal opening read after a newer avatar arrives from the shell', async () => {
     let resolve!: (value: Awaited<ReturnType<typeof api.accountAvatar>>) => void;
     vi.spyOn(api, 'accountAvatar').mockImplementation(
@@ -121,22 +170,26 @@ describe('avatar confirmation and actor isolation', () => {
       resolve({ ok: true, status: 200, data: { avatarDataUrl: 'data:image/webp;base64,old' } }),
     );
     expect(props.onAccountLoaded).not.toHaveBeenCalled();
-    expect(container.querySelector('img[alt="Предпросмотр аватара"]')?.getAttribute('src')).toBe(
-      'data:image/webp;base64,newer',
-    );
+    expect(
+      container
+        .querySelector('button[aria-label="Посмотреть свой аватар"] img')
+        ?.getAttribute('src'),
+    ).toBe('data:image/webp;base64,newer');
   });
   it('keeps opaque current data URL and selecting a thumbnail only changes preview', async () => {
     await render();
-    expect(container.querySelector('img[alt="Предпросмотр аватара"]')?.getAttribute('src')).toBe(
-      props.currentUrl,
-    );
+    expect(
+      container
+        .querySelector('button[aria-label="Посмотреть свой аватар"] img')
+        ?.getAttribute('src'),
+    ).toBe(props.currentUrl);
     await click('Выбрать: Аватар 1');
     expect(
       container.querySelector('img[alt="Предпросмотр аватара"]')?.getAttribute('src'),
     ).toContain('avatar-01.webp');
     expect(defaultAvatarFile).not.toHaveBeenCalled();
     expect(api.updateAccountAvatar).not.toHaveBeenCalled();
-    await click('Отмена');
+    await click('Закрыть выбор аватара');
     expect(props.onClose).toHaveBeenCalledOnce();
     expect(api.updateAccountAvatar).not.toHaveBeenCalled();
   });
@@ -208,7 +261,7 @@ describe('avatar confirmation and actor isolation', () => {
     window.addEventListener(PROFILE_AVATAR_CHANGED_EVENT, broadcast);
     try {
       await render();
-      await click('Автоматический аватар');
+      await click('Выбрать: Аватар 1');
       await click('Использовать');
       active = false;
       await render({ ...props, actor: { kind: 'account', id: 'account-2' } });
@@ -265,7 +318,7 @@ describe('avatar confirmation and actor isolation', () => {
     await click('Выбрать аватар ученика');
     await click('Выбрать: Аватар 1');
     expect(changed).not.toHaveBeenCalled();
-    await click('Использовать аватар');
+    await click('Использовать');
     expect(changed).toHaveBeenCalledExactlyOnceWith('asa-avatar-01');
     expect(api.setClassroomSeatAvatar).not.toHaveBeenCalled();
     expect(api.updateAccountAvatar).not.toHaveBeenCalled();

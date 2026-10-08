@@ -5,7 +5,7 @@ import type { LearningNotification } from '../apps/web/src/api';
 
 const evidence = 'e2e/artifacts/owner-preview/access-a-ui';
 test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
-test.beforeEach(async ({ page }) => {
+async function serveBuiltApp(page: Page) {
   const dist = resolve('apps/web/dist');
   // Serve only committed-build artifacts inside dist; no real API or server is
   // contacted. The fixture's more-specific API handler is installed afterwards.
@@ -20,7 +20,8 @@ test.beforeEach(async ({ page }) => {
     if (!file.startsWith(`${dist}${sep}`) || !existsSync(file)) return route.abort();
     return route.fulfill({ path: file });
   });
-});
+}
+test.beforeEach(async ({ page }) => serveBuiltApp(page));
 
 async function fixture(
   page: Page,
@@ -1234,9 +1235,13 @@ test('avatar dialog contains keyboard focus and restores the opener on Escape', 
   await opener.click();
   const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
   await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
-  await expect(dialog.getByRole('button', { name: 'Загрузить своё изображение' })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: 'Загрузить', exact: true })).toBeEnabled();
   await page.keyboard.press('Shift+Tab');
-  await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Информация о выборе аватара' })).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Загрузить', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Информация о выборе аватара' })).toBeFocused();
   await page.keyboard.press('Tab');
   await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
   await page.keyboard.press('Escape');
@@ -2478,6 +2483,244 @@ for (const width of [1440, 1024, 390, 320]) {
   });
 }
 
+const compactAvatarEvidence = 'reports/playwright/portal-compact-avatar-r1-20261008';
+for (const width of [1440, 1024, 390, 320])
+  for (const seat of [false, true])
+    test(`R1 compact catalogue and click enlargement ${seat ? 'seat' : 'account'} ${width}`, async ({
+      page,
+    }) => {
+      mkdirSync(compactAvatarEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      const state = await fixture(page, { seat });
+      await page.goto('/#/account');
+      const opener = page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true });
+      await expect(opener.locator('img')).toBeVisible();
+      await expect(
+        page.locator('.account-avatar-editor, .seat-avatar-current').getByRole('button'),
+      ).toHaveCount(2);
+      await opener.click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveCount(0);
+      await expect(dialog.locator('select, figcaption, .avatar-selection-options')).toHaveCount(0);
+      await expect(dialog).not.toContainText(
+        /Текущий аватар|Автоматический аватар|Загруженный аватар/,
+      );
+      await assertAvatarGeometry(page);
+      const initial = await dialog.evaluate((element) => {
+        const r = element.getBoundingClientRect();
+        const grid = element.querySelector<HTMLElement>('.avatar-selection-grid')!;
+        return {
+          width: r.width,
+          height: r.height,
+          gridHeight: grid.clientHeight,
+          columns: getComputedStyle(grid).gridTemplateColumns.split(' ').length,
+        };
+      });
+      expect(initial.height).toBeLessThanOrEqual(420);
+      expect(initial.gridHeight).toBeGreaterThanOrEqual(250);
+      expect(initial.columns).toBe(width > 600 ? 8 : 4);
+      writeFileSync(
+        `${compactAvatarEvidence}/${seat ? 'seat' : 'account'}-${width}-catalogue.json`,
+        JSON.stringify(initial, null, 2),
+      );
+      await page.screenshot({
+        path: `${compactAvatarEvidence}/${seat ? 'seat' : 'account'}-${width}-catalogue.png`,
+      });
+      const tile = dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true });
+      await tile.click();
+      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+        'src',
+        /avatar-07.webp$/,
+      );
+      await expect(dialog.locator('.avatar-selection-grid')).toBeHidden();
+      await expect(dialog.getByRole('button', { name: 'Вернуться к аватарам' })).toBeFocused();
+      await assertAvatarGeometry(page);
+      const enlargedBounds = await dialog.boundingBox();
+      expect(enlargedBounds!.width).toBeLessThanOrEqual(304);
+      const imageBounds = await dialog
+        .getByRole('img', { name: 'Предпросмотр аватара' })
+        .boundingBox();
+      expect(enlargedBounds!.width - imageBounds!.width).toBeLessThanOrEqual(48);
+      await expect(dialog.getByRole('button', { name: 'Загрузить', exact: true })).toHaveCount(0);
+      await expect(dialog.getByRole('button', { name: 'Информация о выборе аватара' })).toHaveCount(
+        0,
+      );
+      await page.screenshot({
+        path: `${compactAvatarEvidence}/${seat ? 'seat' : 'account'}-${width}-enlarged.png`,
+      });
+      await dialog.getByRole('button', { name: 'Вернуться к аватарам' }).click();
+      await expect(tile).toBeFocused();
+      await expect(tile).toHaveAttribute('aria-pressed', 'true');
+      await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeEnabled();
+      await dialog.getByRole('button', { name: 'Посмотреть свой аватар' }).click();
+      await expect(
+        dialog.getByRole('button', { name: 'Использовать', exact: true }),
+      ).toBeDisabled();
+      await dialog.getByRole('button', { name: 'Закрыть выбор аватара' }).click();
+      await expect(opener).toBeFocused();
+      expect(state.mutations).not.toContain(
+        seat ? '/api/class-join/me/avatar' : '/api/account/avatar',
+      );
+    });
+
+for (const width of [1440, 390, 320])
+  for (const seat of [false, true])
+    test(`R1 avatar information ${width > 600 ? 'pointer keyboard' : 'touch'} ${seat ? 'seat' : 'account'} ${width}`, async ({
+      browser,
+    }) => {
+      const context = await browser.newContext({
+        baseURL: 'http://127.0.0.1:4612',
+        viewport: { width, height: 568 },
+        hasTouch: width <= 600,
+      });
+      const page = await context.newPage();
+      try {
+        mkdirSync(compactAvatarEvidence, { recursive: true });
+        await serveBuiltApp(page);
+        await fixture(page, { seat });
+        await page.goto('/#/account');
+        const info = page.getByRole('button', { name: 'Информация об аватаре', exact: true });
+        const tip = page.getByRole('tooltip');
+        await expect(tip).toHaveCount(0);
+        if (width > 600) await info.hover();
+        else await info.tap();
+        await expect(tip).toContainText('Использовать');
+        await expect(tip).toContainText(seat ? 'готовые аватары' : '8 МБ');
+        const box = await tip.boundingBox();
+        expect(box!.x).toBeGreaterThanOrEqual(12);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(width - 12);
+        expect(box!.y).toBeGreaterThanOrEqual(12);
+        expect(box!.y + box!.height).toBeLessThanOrEqual(556);
+        const anchor = (await info.boundingBox())!;
+        expect(box!.y + box!.height <= anchor.y || box!.y >= anchor.y + anchor.height).toBe(true);
+        expect(await info.evaluate((button) => button.getBoundingClientRect().width)).toBe(44);
+        await page.screenshot({
+          path: `${compactAvatarEvidence}/${seat ? 'seat' : 'account'}-${width}-information.png`,
+        });
+        if (width > 600) {
+          await tip.hover();
+          await page.waitForTimeout(200);
+          await expect(tip).toBeVisible();
+          await page.locator('.portal-header').hover({ position: { x: width / 2, y: 2 } });
+          await expect(tip).toHaveCount(0);
+          await info.focus();
+          await expect(tip).toBeVisible();
+          await page.keyboard.press('Escape');
+          await expect(tip).toHaveCount(0);
+          await expect(info).toBeFocused();
+        } else {
+          const row = page.locator('main .account-avatar-editor, main .seat-avatar-current');
+          const rowBox = (await row.boundingBox())!;
+          expect(
+            await row.evaluate((element) => {
+              const rect = element.getBoundingClientRect();
+              return (
+                document.elementFromPoint(rect.right - 4, rect.top + rect.height / 2) === element
+              );
+            }),
+          ).toBe(true);
+          await row.tap({ position: { x: rowBox.width - 4, y: rowBox.height / 2 } });
+          await expect(page).toHaveURL(/#\/account$/);
+          await expect(tip).toHaveCount(0);
+          await info.tap();
+          await expect(tip).toBeVisible();
+          await info.tap();
+          await expect(tip).toHaveCount(0);
+        }
+        await page
+          .locator('main')
+          .getByRole('button', { name: 'Выбрать аватар', exact: true })
+          .click();
+        const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+        await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
+        await dialog.getByRole('button', { name: 'Информация о выборе аватара' }).click();
+        await expect(tip).toBeVisible();
+        await expect(dialog.getByRole('tooltip')).toBeVisible();
+        const dialogTip = (await tip.boundingBox())!;
+        const dialogInfo = (await dialog
+          .getByRole('button', { name: 'Информация о выборе аватара' })
+          .boundingBox())!;
+        expect(
+          dialogTip.y + dialogTip.height <= dialogInfo.y ||
+            dialogTip.y >= dialogInfo.y + dialogInfo.height,
+        ).toBe(true);
+        await page.keyboard.press('Escape');
+        await expect(tip).toHaveCount(0);
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(
+          false,
+        );
+      } finally {
+        await context.close();
+      }
+    });
+
+for (const width of [1440, 320])
+  for (const seat of [false, true])
+    test(`R1 enlarged avatar 150 percent text ${seat ? 'seat' : 'account'} ${width}`, async ({
+      page,
+    }) => {
+      mkdirSync(compactAvatarEvidence, { recursive: true });
+      await page.setViewportSize({ width, height: 568 });
+      const state = await fixture(page, { seat });
+      await page.goto('/#/account');
+      const opener = page
+        .locator('main')
+        .getByRole('button', { name: 'Выбрать аватар', exact: true });
+      await opener.click();
+      const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
+      await dialog.getByRole('button', { name: 'Выбрать: Аватар 7', exact: true }).click();
+      await page.addStyleTag({ content: '.avatar-chooser-dialog button { font-size: 21px; }' });
+      await assertAvatarGeometry(page);
+      const metrics = await dialog.evaluate((element) => {
+        const image = element
+          .querySelector('img[alt="Предпросмотр аватара"]')!
+          .getBoundingClientRect();
+        const buttons = [...element.querySelectorAll('button')]
+          .filter((button) => button.getClientRects().length)
+          .map((button) => {
+            const box = button.getBoundingClientRect();
+            return {
+              width: box.width,
+              height: box.height,
+              top: box.top,
+              bottom: box.bottom,
+              textFits: button.scrollWidth <= button.clientWidth,
+              fontSize: getComputedStyle(button).fontSize,
+            };
+          });
+        return { gutter: element.getBoundingClientRect().width - image.width, buttons };
+      });
+      expect(metrics.gutter).toBeLessThanOrEqual(48);
+      expect(metrics.buttons).toHaveLength(3);
+      for (const button of metrics.buttons) {
+        expect(button.width).toBeGreaterThanOrEqual(44);
+        expect(button.height).toBeGreaterThanOrEqual(44);
+        expect(button.textFits).toBe(true);
+        expect(button.fontSize).toBe('21px');
+        expect(button.top).toBeGreaterThanOrEqual(0);
+        expect(button.bottom).toBeLessThanOrEqual(568);
+      }
+      await expect(dialog.getByRole('button', { name: 'Вернуться к аватарам' })).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(dialog.getByRole('button', { name: 'Закрыть выбор аватара' })).toBeFocused();
+      await page.screenshot({
+        path: `${compactAvatarEvidence}/${seat ? 'seat' : 'account'}-${width}-150-text.png`,
+      });
+      await page.keyboard.press('Escape');
+      await expect(opener).toBeFocused();
+      expect(state.mutations).not.toContain(
+        seat ? '/api/class-join/me/avatar' : '/api/account/avatar',
+      );
+    });
+
 const avatarEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-20261008';
 const avatarRepairEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-repair-20261008';
 const avatarFontEvidence = 'reports/playwright/settings-ui/portal-avatar-s2-font-repair-20261008';
@@ -2559,7 +2802,8 @@ for (const width of [1440, 320])
         await expect.poll(write.writes).toBe(1);
         await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
         if (close === 'Escape') await page.keyboard.press('Escape');
-        else await dialog.getByRole('button', { name: 'Закрыть', exact: true }).click();
+        else
+          await dialog.getByRole('button', { name: 'Закрыть выбор аватара', exact: true }).click();
         await expect(dialog).toHaveCount(0);
         await expect(opener).toBeFocused();
         write.release();
@@ -2576,18 +2820,14 @@ for (const width of [1440, 320])
           expect(profileAvatar!.height).toBe(profileAvatar!.width);
         }
         await opener.click();
-        await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
-          'src',
-          (await headerAvatar.getAttribute('src'))!,
-        );
-        if (width <= 600)
-          await expect(dialog.getByRole('combobox', { name: 'Вариант аватара' })).toHaveValue(
-            'current',
-          );
-        else
-          await expect(
-            dialog.getByRole('button', { name: 'Текущий аватар', exact: true }),
-          ).toHaveAttribute('aria-pressed', 'true');
+        await expect(
+          dialog.getByRole('button', { name: 'Посмотреть свой аватар' }).locator('img'),
+        ).toHaveAttribute('src', (await headerAvatar.getAttribute('src'))!);
+        await expect(
+          dialog.getByRole('button', { name: 'Посмотреть свой аватар' }),
+        ).toHaveAttribute('aria-pressed', 'true');
+        await expect(dialog.locator('select')).toHaveCount(0);
+        await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveCount(0);
         await assertAvatarGeometry(page);
         await page.screenshot({
           path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-${width}-${close}-reconciled.png`,
@@ -2620,7 +2860,9 @@ for (const seat of [false, true])
       dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
     ).toBeDisabled();
     await expect(dialog.getByRole('button', { name: 'Использовать', exact: true })).toBeDisabled();
-    await expect(dialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeEnabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Закрыть выбор аватара', exact: true }),
+    ).toBeEnabled();
     await assertAvatarGeometry(page);
     await page.screenshot({
       path: `${avatarLifecycleEvidence}/${seat ? 'seat' : 'account'}-320-reopened-pending.png`,
@@ -2629,7 +2871,9 @@ for (const seat of [false, true])
     write.fail(true);
     write.release();
     await expect(dialog.getByRole('alert')).toHaveText('Проверочная ошибка отправленного запроса');
-    await expect(dialog.getByRole('button', { name: 'Отмена', exact: true })).toBeEnabled();
+    await expect(
+      dialog.getByRole('button', { name: 'Закрыть выбор аватара', exact: true }),
+    ).toBeEnabled();
     await expect(
       dialog.getByRole('button', { name: 'Выбрать: Аватар 8', exact: true }),
     ).toBeEnabled();
@@ -2644,10 +2888,9 @@ for (const seat of [false, true])
     expect(write.writes()).toBe(2);
     await opener.click();
     const headerAvatar = page.locator('.portal-user-avatar img');
-    await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
-      'src',
-      (await headerAvatar.getAttribute('src'))!,
-    );
+    await expect(
+      dialog.getByRole('button', { name: 'Посмотреть свой аватар' }).locator('img'),
+    ).toHaveAttribute('src', (await headerAvatar.getAttribute('src'))!);
     if (seat) await expect(headerAvatar).toHaveAttribute('src', /avatar-08.webp$/);
   });
 
@@ -2690,16 +2933,13 @@ for (const width of [320, 600, 601])
         .getByRole('button', { name: 'Выбрать аватар', exact: true })
         .click();
       const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
-      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
       // Keep the original six fallback-font cases. Two extra narrow cases widen
-      // glyph advance enough to expose the longer sent-save label on Windows too.
+      // glyph advance in the compact catalogue and confirmation states.
       await page.addStyleTag({
         content: `.avatar-chooser-dialog .avatar-chooser-actions button {
           font-family: monospace;
           font-size: 16px;
-          letter-spacing: 1px;
-        }
-        .avatar-chooser-dialog .avatar-chooser-actions button:first-child {
           letter-spacing: ${letterSpacing}px;
         }`,
       });
@@ -2708,10 +2948,11 @@ for (const width of [320, 600, 601])
         const metrics = await dialog.evaluate((element) => {
           const bounds = element.getBoundingClientRect();
           const preview = element
-            .querySelector('img[alt="Предпросмотр аватара"]')!
-            .getBoundingClientRect();
-          const actions = [...element.querySelectorAll('.avatar-chooser-actions button')].map(
-            (button) => {
+            .querySelector('img[alt="Предпросмотр аватара"]')
+            ?.getBoundingClientRect();
+          const actions = [...element.querySelectorAll('.avatar-chooser-actions button')]
+            .filter((button) => button.getClientRects().length)
+            .map((button) => {
               const r = button.getBoundingClientRect();
               const style = getComputedStyle(button);
               const text = document.createRange();
@@ -2740,11 +2981,10 @@ for (const width of [320, 600, 601])
                 fontFamily: style.fontFamily,
                 padding: style.padding,
               };
-            },
-          );
+            });
           return {
             actions,
-            previewWidth: preview.width,
+            previewWidth: preview?.width ?? 0,
             dialogWidth: bounds.width,
             dialogOverflow: element.scrollWidth > element.clientWidth,
             pageOverflow: document.documentElement.scrollWidth > innerWidth,
@@ -2758,10 +2998,12 @@ for (const width of [320, 600, 601])
         await page.screenshot({
           path: `${fontEvidence}/${seat ? 'seat' : 'account'}-${width}-${state}.png`,
         });
-        expect(metrics.actions).toHaveLength(2);
-        expect(Math.abs(metrics.actions[0]!.top - metrics.actions[1]!.top)).toBeLessThan(1);
-        expect(Math.abs(metrics.actions[0]!.bottom - metrics.actions[1]!.bottom)).toBeLessThan(1);
-        expect(metrics.actions[0]!.right).toBeLessThanOrEqual(metrics.actions[1]!.left);
+        expect(metrics.actions).toHaveLength(!seat && state === 'current' ? 2 : 1);
+        if (!seat && state === 'current') {
+          expect(Math.abs(metrics.actions[0]!.top - metrics.actions[1]!.top)).toBeLessThan(1);
+          expect(Math.abs(metrics.actions[0]!.bottom - metrics.actions[1]!.bottom)).toBeLessThan(1);
+          expect(metrics.actions[0]!.right).toBeLessThanOrEqual(metrics.actions[1]!.left);
+        }
         for (const action of metrics.actions) {
           expect(action.textFits).toBe(true);
           expect(action.fontSize).toBe('16px');
@@ -2771,7 +3013,7 @@ for (const width of [320, 600, 601])
           expect(action.top).toBeGreaterThanOrEqual(0);
           expect(action.bottom).toBeLessThanOrEqual(568);
         }
-        expect(metrics.previewWidth).toBeGreaterThanOrEqual(240);
+        expect(metrics.previewWidth).toBe(state === 'current' ? 0 : 240);
         expect(metrics.dialogOverflow).toBe(false);
         expect(metrics.pageOverflow).toBe(false);
       };
@@ -2785,7 +3027,9 @@ for (const width of [320, 600, 601])
         await use.click();
         await expect.poll(() => sentWrites).toBe(1);
         await expect(dialog.getByRole('status')).toContainText('Закрытие окна не отменяет');
-        await expect(dialog.getByRole('button', { name: 'Закрыть', exact: true })).toBeEnabled();
+        await expect(
+          dialog.getByRole('button', { name: 'Закрыть выбор аватара', exact: true }),
+        ).toBeEnabled();
         await expect(use).toBeDisabled();
         await assertActions('busy');
         releaseSave();
@@ -2798,7 +3042,7 @@ for (const width of [320, 600, 601])
           'src',
           /avatar-07.webp$/,
         );
-        await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+        await dialog.getByRole('button', { name: 'Закрыть выбор аватара', exact: true }).click();
         await expect(dialog).toHaveCount(0);
       } finally {
         releaseSave();
@@ -2818,7 +3062,7 @@ for (const width of [1440, 1024, 390, 320])
         .getByRole('button', { name: 'Выбрать аватар', exact: true })
         .click();
       const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
-      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
       const samples = [];
       for (const state of ['current', 'selected']) {
         if (state === 'selected')
@@ -2826,25 +3070,29 @@ for (const width of [1440, 1024, 390, 320])
         const actions = await dialog
           .locator('.avatar-chooser-actions button')
           .evaluateAll((buttons) =>
-            buttons.map((button) => {
-              const r = button.getBoundingClientRect();
-              return {
-                top: r.top,
-                bottom: r.bottom,
-                width: r.width,
-                height: r.height,
-                textFits: button.scrollWidth <= button.clientWidth,
-              };
-            }),
+            buttons
+              .filter((button) => button.getClientRects().length)
+              .map((button) => {
+                const r = button.getBoundingClientRect();
+                return {
+                  top: r.top,
+                  bottom: r.bottom,
+                  width: r.width,
+                  height: r.height,
+                  textFits: button.scrollWidth <= button.clientWidth,
+                };
+              }),
           );
         samples.push({ state, actions });
         writeFileSync(
           `${avatarRepairEvidence}/${seat ? 'seat' : 'account'}-${width}-actions.json`,
           JSON.stringify(samples, null, 2),
         );
-        expect(actions).toHaveLength(2);
-        expect(Math.abs(actions[0]!.top - actions[1]!.top)).toBeLessThan(1);
-        expect(Math.abs(actions[0]!.bottom - actions[1]!.bottom)).toBeLessThan(1);
+        expect(actions).toHaveLength(!seat && state === 'current' ? 2 : 1);
+        if (!seat && state === 'current') {
+          expect(Math.abs(actions[0]!.top - actions[1]!.top)).toBeLessThan(1);
+          expect(Math.abs(actions[0]!.bottom - actions[1]!.bottom)).toBeLessThan(1);
+        }
         for (const action of actions) {
           expect(action.height).toBeGreaterThanOrEqual(44);
           expect(action.width).toBeGreaterThanOrEqual(44);
@@ -2862,29 +3110,50 @@ async function assertAvatarGeometry(page: Page) {
   const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
   const metrics = await dialog.evaluate((element) => {
     const preview = element
-      .querySelector('img[alt="Предпросмотр аватара"]')!
-      .getBoundingClientRect();
+      .querySelector('img[alt="Предпросмотр аватара"]')
+      ?.getBoundingClientRect();
     const bounds = element.getBoundingClientRect();
-    const tiles = [...element.querySelectorAll('.avatar-selection-grid button')].map((tile) => {
-      const r = tile.getBoundingClientRect();
-      return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
-    });
+    const grid = element.querySelector<HTMLElement>('.avatar-selection-grid')!;
+    const tiles = [...grid.querySelectorAll('button')]
+      .filter((tile) => tile.getClientRects().length)
+      .map((tile) => {
+        const r = tile.getBoundingClientRect();
+        return {
+          x: r.x,
+          y: r.y,
+          right: r.right,
+          bottom: r.bottom,
+          width: r.width,
+          height: r.height,
+        };
+      });
     return {
-      preview: { width: preview.width, height: preview.height },
-      bounds: { x: bounds.x, right: bounds.right, top: bounds.top, bottom: bounds.bottom },
+      preview: preview ? { width: preview.width, height: preview.height } : null,
+      bounds: {
+        width: bounds.width,
+        x: bounds.x,
+        right: bounds.right,
+        top: bounds.top,
+        bottom: bounds.bottom,
+      },
       tiles,
       pageOverflow: document.documentElement.scrollWidth > innerWidth,
     };
   });
-  expect(metrics.preview.width).toBeGreaterThanOrEqual(240);
-  expect(metrics.preview.width).toBeLessThanOrEqual(320);
-  expect(metrics.preview.height).toBe(metrics.preview.width);
+  if (metrics.preview) {
+    expect(metrics.preview.width).toBe(240);
+    expect(metrics.preview.height).toBe(metrics.preview.width);
+  } else expect(metrics.tiles).toHaveLength(68);
+  expect(metrics.bounds.width).toBeLessThanOrEqual(560);
   expect(metrics.pageOverflow).toBe(false);
   expect(metrics.bounds.x).toBeGreaterThanOrEqual(0);
   expect(metrics.bounds.right).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(metrics.bounds.top).toBeGreaterThanOrEqual(0);
   expect(metrics.bounds.bottom).toBeLessThanOrEqual(page.viewportSize()!.height);
-  for (const tile of metrics.tiles) expect(Math.abs(tile.width - tile.height)).toBeLessThan(1);
+  for (const tile of metrics.tiles) {
+    expect(Math.abs(tile.width - tile.height)).toBeLessThan(1);
+    expect(tile.width).toBeGreaterThanOrEqual(44);
+  }
   for (let i = 0; i < metrics.tiles.length; i++)
     for (let j = i + 1; j < metrics.tiles.length; j++) {
       const a = metrics.tiles[i]!,
@@ -2911,7 +3180,7 @@ for (const width of [1440, 1024, 390, 320])
         .getByRole('button', { name: 'Выбрать аватар', exact: true })
         .click();
       const dialog = page.getByRole('dialog', { name: 'Выберите аватар' });
-      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+      await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
       await assertAvatarGeometry(page);
       if (seat) await expect(dialog.locator('input[type="file"]')).toHaveCount(0);
       await page.screenshot({
@@ -2964,10 +3233,9 @@ for (const width of [1440, 1024, 390, 320])
         .locator('main')
         .getByRole('button', { name: 'Выбрать аватар', exact: true })
         .click();
-      await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
-        'src',
-        seat ? /avatar-01.webp$/ : /^data:image\/webp;base64,/,
-      );
+      await expect(
+        dialog.getByRole('button', { name: 'Посмотреть свой аватар' }).locator('img'),
+      ).toHaveAttribute('src', seat ? /avatar-01.webp$/ : /^data:image\/webp;base64,/);
       await page.keyboard.press('Escape');
       await expect(dialog).toHaveCount(0);
     });
@@ -3019,7 +3287,7 @@ test('S2 mobile drawer avatar opens above the current page and cancels without m
   await expect(page).toHaveURL(/#\/home$/);
   await expect(page.locator('.portal-sidebar')).not.toHaveClass(/mobile-open/);
   await dialog.getByRole('button', { name: 'Выбрать: Аватар 1', exact: true }).click();
-  await dialog.getByRole('button', { name: 'Отмена', exact: true }).click();
+  await dialog.getByRole('button', { name: 'Закрыть выбор аватара', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Открыть меню', exact: true })).toBeFocused();
   expect(state.mutations).not.toContain('/api/class-join/me/avatar');
 });
@@ -3041,10 +3309,11 @@ test('S2 upload is transformed for preview, explicit save and reopen retain curr
   expect(state.mutations).not.toContain('/api/account/avatar');
   await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await page
-    .locator('main')
-    .getByRole('button', { name: 'Увеличить и выбрать аватар', exact: true })
-    .click();
+  await page.locator('main').getByRole('button', { name: 'Выбрать аватар', exact: true }).click();
+  await expect(
+    dialog.getByRole('button', { name: 'Посмотреть свой аватар' }).locator('img'),
+  ).toHaveAttribute('src', /^data:image\/webp;base64,/);
+  await dialog.getByRole('button', { name: 'Посмотреть свой аватар' }).click();
   await expect(preview).toHaveAttribute('src', /^data:image\/webp;base64,/);
   await page.keyboard.press('Escape');
 });
@@ -3071,6 +3340,11 @@ test('S2 save error stays visible, retry retains selected preview and Escape wor
   await dialog.getByRole('button', { name: 'Использовать', exact: true }).click();
   await expect(dialog.getByRole('alert')).toHaveText('Проверочная ошибка сохранения');
   await page.screenshot({ path: `${avatarEvidence}/account-error-retry.png` });
+  await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toHaveAttribute(
+    'src',
+    /avatar-06.webp$/,
+  );
+  await dialog.getByRole('button', { name: 'Вернуться к аватарам' }).click();
   await expect(
     dialog.getByRole('button', { name: 'Выбрать: Аватар 6', exact: true }),
   ).toHaveAttribute('aria-pressed', 'true');
@@ -3150,36 +3424,35 @@ for (const width of [1440, 1024, 390, 320])
     );
     await parent.getByRole('img', { name: 'Предпросмотр аватара' }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${avatarEvidence}/teacher-${width}-short.png` });
-    await parent.getByRole('button', { name: 'Использовать аватар', exact: true }).click();
+    await parent.getByRole('button', { name: 'Использовать', exact: true }).click();
     const labelOpener = parent.getByRole('button', { name: 'Выбрать аватар ученика', exact: true });
     await expect(labelOpener).toBeFocused();
     mkdirSync(avatarRepairEvidence, { recursive: true });
-    const focusSamples = [{ trigger: 'label', action: 'use' }];
+    const focusSamples = [{ trigger: 'avatar', action: 'use' }];
     for (const [trigger, action] of [
-      ['preview', 'cancel'],
-      ['label', 'cancel'],
-      ['preview', 'use'],
+      ['avatar', 'cancel'],
+      ['avatar', 'escape'],
+      ['avatar', 'use'],
     ] as const) {
-      const opener =
-        trigger === 'preview'
-          ? parent.getByRole('button', { name: 'Увеличить и выбрать аватар ученика', exact: true })
-          : labelOpener;
+      const opener = labelOpener;
       await opener.click();
       await parent
         .getByRole('button', {
-          name: action === 'cancel' ? 'Выбрать: Аватар 8' : 'Выбрать: Аватар 7',
+          name: action !== 'use' ? 'Выбрать: Аватар 8' : 'Выбрать: Аватар 7',
           exact: true,
         })
         .click();
-      await parent
-        .getByRole('button', {
-          name: action === 'cancel' ? 'Отменить выбор аватара' : 'Использовать аватар',
-          exact: true,
-        })
-        .click();
+      if (action === 'escape') await page.keyboard.press('Escape');
+      else
+        await parent
+          .getByRole('button', {
+            name: action === 'cancel' ? 'Закрыть выбор аватара ученика' : 'Использовать',
+            exact: true,
+          })
+          .click();
       await expect(parent.locator('.seat-avatar-staged-selection')).toHaveCount(0);
       await expect(opener).toBeFocused();
-      await expect(parent.getByRole('img', { name: 'Текущий аватар ученика' })).toHaveAttribute(
+      await expect(parent.getByRole('img', { name: 'Аватар ученика' })).toHaveAttribute(
         'src',
         /avatar-07.webp$/,
       );
@@ -3201,6 +3474,25 @@ for (const width of [1440, 1024, 390, 320])
       JSON.stringify(focusSamples, null, 2),
     );
     expect(writes).toHaveLength(0);
+    const teacherInfo = parent.getByRole('button', { name: 'Информация об аватаре ученика' });
+    const teacherTip = page.getByRole('tooltip');
+    await expect(teacherInfo).toBeFocused();
+    await expect(teacherTip).toBeVisible();
+    await page.keyboard.press('Enter');
+    await expect(teacherTip).toBeVisible();
+    await page.keyboard.press('Tab');
+    await expect(teacherTip).toHaveCount(0);
+    await teacherInfo.focus();
+    await page.keyboard.press('Escape');
+    await expect(teacherTip).toHaveCount(0);
+    await expect(parent).toBeVisible();
+    await teacherInfo.click();
+    await expect(teacherTip).toBeVisible();
+    const hint = (await teacherTip.boundingBox())!;
+    const hintTrigger = (await teacherInfo.boundingBox())!;
+    expect(
+      hint.y + hint.height <= hintTrigger.y || hint.y >= hintTrigger.y + hintTrigger.height,
+    ).toBe(true);
     await parent.getByRole('button', { name: 'Сохранить', exact: true }).click();
     await expect(parent).toHaveCount(0);
     expect(writes).toHaveLength(1);
@@ -3251,7 +3543,7 @@ test('S2 late initial avatar GET cannot overwrite a confirmed save', async ({ pa
     'src',
     /^data:image\/webp;base64,/,
   );
-  await expect(page.getByRole('img', { name: 'Текущий аватар', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('img', { name: 'Аватар', exact: true })).toHaveAttribute(
     'src',
     /^data:image\/webp;base64,/,
   );
@@ -3272,7 +3564,7 @@ test('S2 lazy chooser failure keeps drafts, retries locally and leaves unrelated
   expect(await page.evaluate(() => sessionStorage.getItem('asa-vite-preload-recovery'))).toBeNull();
   fail = false;
   await dialog.getByRole('button', { name: 'Повторить', exact: true }).click();
-  await expect(dialog.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  await expect(dialog.locator('.avatar-selection-grid')).toBeVisible();
   const unrelated = await page.evaluate(() => {
     sessionStorage.setItem('asa-vite-preload-recovery', String(Date.now()));
     let delivered = false;
@@ -3336,11 +3628,11 @@ test('S2 teacher optional catalogue failure preserves parent draft and retries l
   expect(await page.evaluate(() => sessionStorage.getItem('asa-vite-preload-recovery'))).toBeNull();
   fail = false;
   await parent.getByRole('button', { name: 'Повторить', exact: true }).click();
-  await expect(parent.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  await expect(parent.locator('.avatar-selection-grid')).toBeVisible();
   await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
     'Черновик преподавателя',
   );
-  await parent.getByRole('button', { name: 'Отменить выбор аватара', exact: true }).click();
+  await parent.getByRole('button', { name: 'Закрыть выбор аватара ученика', exact: true }).click();
   await expect(parent.getByRole('textbox', { name: 'Имя в списке класса' })).toHaveValue(
     'Черновик преподавателя',
   );
@@ -3357,7 +3649,7 @@ test('S2 avatar library code is requested only when opening the chooser', async 
   expect(requests).toHaveLength(0);
   await page.locator('.portal-account > summary').click();
   await page.getByRole('button', { name: 'Открыть выбор аватара', exact: true }).click();
-  await expect(page.getByRole('img', { name: 'Предпросмотр аватара' })).toBeVisible();
+  await expect(page.locator('.avatar-selection-grid')).toBeVisible();
   expect(requests.length).toBeGreaterThan(0);
 });
 

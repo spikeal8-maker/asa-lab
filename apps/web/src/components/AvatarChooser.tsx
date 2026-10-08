@@ -161,26 +161,10 @@ export function AvatarChooser({
     <>
       {loading ? <p role="status">Загружаем текущий аватар…</p> : null}
       <AvatarSelection
-        current={{ src: current, label: 'Текущий аватар' }}
-        automatic={{ src: automatic.src, label: 'Автоматический аватар' }}
-        {...(uploaded ? { uploaded: { src: uploaded, label: 'Загруженный аватар' } } : {})}
+        current={{ src: current, label: 'Аватар' }}
+        {...(uploaded ? { uploaded: { src: uploaded, label: 'Аватар' } } : {})}
         selected={selected}
         busy={busy || saving || loading}
-        uploadAction={
-          actor.kind === 'account' ? (
-            <div className="avatar-chooser-upload">
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busy || saving || loading}
-                onClick={() => input.current?.click()}
-              >
-                Загрузить своё изображение
-              </button>
-              <p className="avatar-chooser-file-hint">PNG, JPEG или WebP · до 8 МБ</p>
-            </div>
-          ) : undefined
-        }
         onSelect={(key) => {
           setSelected(key);
           setError(null);
@@ -192,7 +176,7 @@ export function AvatarChooser({
           <p role="status">
             {saving
               ? 'Сохраняем аватар… Закрытие окна не отменяет отправленный запрос.'
-              : 'Подготавливаем и сохраняем аватар…'}
+              : 'Подготавливаем аватар…'}
           </p>
         ) : null}
         {error || saveError ? <p role="alert">{error || saveError}</p> : null}
@@ -203,9 +187,16 @@ export function AvatarChooser({
         ) : null}
       </div>
       <footer className="avatar-chooser-actions">
-        <button type="button" className="btn-secondary" onClick={onClose}>
-          {saving ? 'Закрыть' : 'Отмена'}
-        </button>
+        {actor.kind === 'account' ? (
+          <button
+            type="button"
+            className="avatar-chooser-upload"
+            disabled={busy || saving || loading}
+            onClick={() => input.current?.click()}
+          >
+            Загрузить
+          </button>
+        ) : null}
         <button
           type="button"
           className="btn-primary"

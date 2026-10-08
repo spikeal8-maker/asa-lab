@@ -26,6 +26,8 @@ surfaces:
     - apps/web/src/components/AvatarChooser.tsx
     - apps/web/src/components/use-avatar-save.ts
     - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/InfoHint.tsx
+    - apps/web/src/components/info-hint.css
     - apps/web/src/components/avatar-chooser-events.ts
     - apps/web/src/components/avatar-chooser.css
     - apps/web/src/components/PortalLink.tsx
@@ -141,6 +143,8 @@ surfaces:
     - apps/web/src/components/AvatarChooser.tsx
     - apps/web/src/components/use-avatar-save.ts
     - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/InfoHint.tsx
+    - apps/web/src/components/info-hint.css
     - apps/web/src/components/avatar-chooser-events.ts
     - apps/web/src/components/avatar-chooser.css
     - apps/web/src/api.ts
@@ -169,6 +173,8 @@ surfaces:
     change_class: L2_DOMAIN_MUTATION
     files:
     - apps/web/src/components/AvatarChooser.tsx
+    - apps/web/src/components/InfoHint.tsx
+    - apps/web/src/components/info-hint.css
     - apps/web/src/components/use-avatar-save.ts
     - apps/web/src/components/PortalHeader.tsx
     - apps/web/src/pages/AccountPage.tsx
@@ -454,6 +460,8 @@ surfaces:
     - apps/web/public/vite-preload-recovery.js
     - apps/web/src/components/AvatarChooser.tsx
     - apps/web/src/components/AvatarSelection.tsx
+    - apps/web/src/components/InfoHint.tsx
+    - apps/web/src/components/info-hint.css
     - apps/web/src/components/avatar-chooser-events.ts
     - apps/web/src/components/avatar-chooser.css
     - apps/web/src/components/SeatAvatarPicker.tsx
@@ -476,6 +484,8 @@ surfaces:
     change_class: L2_DOMAIN_MUTATION
     files:
     - apps/web/src/pages/SeatAccountPage.tsx
+    - apps/web/src/components/InfoHint.tsx
+    - apps/web/src/components/info-hint.css
     - apps/web/src/api.ts
     - apps/api/src/classroom-join.controller.ts
     commands:

@@ -9,6 +9,7 @@ import {
 } from '../components/settings-navigation';
 import { api, type ClassroomStudentSession, type SeatAward } from '../api';
 import { requestAvatarChooser } from '../components/avatar-chooser-events';
+import { InfoHint } from '../components/InfoHint';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { awardOf } from '../components/SeatAwards';
@@ -139,32 +140,29 @@ export function SeatAccountPage({ seat }: { readonly seat: ClassroomStudentSessi
           ) : null}
           <div hidden={selectedPanel !== 'profile'}>
             <section className="account-settings-section" aria-labelledby="seat-profile-title">
-              <div className="account-section-heading">
-                <h2 id="seat-profile-title">Как вас видят в классе</h2>
-                <p>Аватар появится в списке класса и рядом с вашими работами.</p>
-              </div>
+              <h2 id="seat-profile-title" className="account-panel-title">
+                Профиль
+              </h2>
 
               <div className="seat-avatar-current">
                 <button
                   type="button"
                   className="account-avatar-preview-button"
-                  aria-label="Увеличить и выбрать аватар"
+                  aria-label="Выбрать аватар"
                   onClick={() => requestAvatarChooser({ kind: 'seat', id: seat.student.seatId })}
                 >
                   <img
                     src={seatAvatar(seat.student.seatId, seat.student.avatarKey).src}
-                    alt="Текущий аватар"
+                    alt="Аватар"
                     width={72}
                     height={72}
                   />
                 </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => requestAvatarChooser({ kind: 'seat', id: seat.student.seatId })}
-                >
-                  Выбрать аватар
-                </button>
+                <InfoHint label="Информация об аватаре">
+                  Нажмите на аватар, выберите картинку и подтвердите кнопкой «Использовать». Её
+                  увидят в вашем классе и рядом с вашими работами. Для профиля ученика доступны
+                  готовые аватары; загрузка своего изображения недоступна.
+                </InfoHint>
               </div>
 
               <dl className="seat-account-facts">

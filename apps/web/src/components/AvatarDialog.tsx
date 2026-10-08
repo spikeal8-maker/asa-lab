@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { useAvatarModule } from './use-avatar-module';
 import { CloseIcon } from '../electronics/workbench-icons';
+import { InfoHint } from './InfoHint';
 import type { AvatarChooserProps } from './AvatarChooser';
 import './avatar-chooser.css';
 
@@ -14,7 +15,9 @@ export function AvatarDialog(
   useEffect(() => {
     const element = dialog.current;
     element?.showModal();
-    element?.querySelector<HTMLButtonElement>('button')?.focus();
+    element
+      ?.querySelector<HTMLButtonElement>('.avatar-chooser-heading > button:last-child')
+      ?.focus();
     const focusable = () =>
       [
         ...(element?.querySelectorAll<HTMLElement>(
@@ -76,6 +79,12 @@ export function AvatarDialog(
     >
       <header className="avatar-chooser-heading">
         <h2 id="avatar-chooser-title">Выберите аватар</h2>
+        <InfoHint label="Информация о выборе аватара">
+          Нажмите на картинку, чтобы рассмотреть её. «Использовать» подтверждает выбор.
+          {props.actor.kind === 'account'
+            ? ' Можно загрузить PNG, JPEG или WebP до 8 МБ. Изображение обрезается по центру до квадрата.'
+            : ' Для профиля ученика доступны только готовые изображения.'}
+        </InfoHint>
         <button type="button" aria-label="Закрыть выбор аватара" onClick={props.onClose}>
           <CloseIcon />
         </button>

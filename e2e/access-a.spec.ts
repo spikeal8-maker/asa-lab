@@ -126,7 +126,7 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
   expect(savedAvatar).toMatch(/^data:image\/webp;base64,/);
   await expect(avatarDialog).toBeHidden();
   expect(avatarWrites).toHaveLength(1);
-  await expect(page.getByRole('img', { name: 'Текущий аватар', exact: true })).toHaveAttribute(
+  await expect(page.getByRole('img', { name: 'Аватар', exact: true })).toHaveAttribute(
     'src',
     savedAvatar,
   );

@@ -94,11 +94,16 @@
 }
 
 /* The teacher picker lives in a narrow parent modal even on wide desktops. */
-.seat-avatar-staged-selection .avatar-selection {
-  grid-template-columns: minmax(0, 1fr);
-}
 .seat-avatar-staged-selection .avatar-selection-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   max-height: 190px;
+}
+.seat-avatar-selection-heading {
+  display: flex;
+  justify-content: flex-end;
+}
+.seat-avatar-staged-selection .avatar-selection-back {
+  top: -44px;
 }
 .account-avatar-preview-button {
   flex: 0 0 auto;
