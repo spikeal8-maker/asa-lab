@@ -26,13 +26,23 @@ Fresh actual main/current/CI/foreign worktree snapshot, normal preflight and sel
 
 In one built production-editor scenario, prove the actual affected mirrored runtime readout and its rendering cause before changing product code. Static source hypothesis is not a browser proof. If an instrument already obeys the requirement, retain it and record actual evidence rather than speculative repair. Use existing supported circuits and real committed result values; no generated electrical result or guessed instrument semantics.
 
+### Temporary directed diagnostic ref
+
+The registered `electronics-r4-m1-focused.yml` dispatch has no test filter input and normally runs the full suite. For this one BEFORE investigation only, the controller permits a temporary diagnostic-ref change to that existing workflow, after checking the actual test and workflow diff. Invoke the existing browser gate with the forwarded filter `pnpm gate:electronics-m1:browser --grep 'ELECTRONICS-525 mirror readout matrix'`; first confirm that `--list` selects exactly one scenario. This is a directed probe, not a full gate or acceptance run.
+
+On that diagnostic ref only, explicitly skip the focused, benchmark and review-images jobs and remove the browser job's dependency on the skipped focused job. Retain the existing browser job's isolated Compose stack, build and migration steps, exact revision selection/labels, frozen dependency installation, literal `NX_SKIP_NX_CACHE=true`, environment, origins/ports, permissions, timeouts, artifact retention and cleanup. Do not replace this recipe with a local stack or working-installation update. Report omitted jobs as SKIPPED, never PASS.
+
+Save actual per-observation JSON and applicable screenshots before the expected orientation assertions, and retain the registered browser trace/error evidence. Record the exact diagnostic SHA and GitHub run; an expected assertion failure is useful only when the preceding real editor/committed-value checks succeeded and the raw evidence proves the rendering cause. Diagnose an earlier scenario or infrastructure failure separately; no hopeful whole-suite rerun or timeout/assertion weakening.
+
+Before the final product candidate, restore the workflow byte-for-byte to its canonical pre-diagnostic baseline and verify its Git blob identity. No workflow change may enter main or the accepted product diff. The final exact candidate still requires all ordinary registered focused, browser and repository gates plus NEW independent review. This exception grants no permanent CI change, dependency update, product decision or deployment permission.
+
 ## Bounded repair
 
 Expected write budget: `apps/web/src/electronics/ProductionComponentVisual.tsx`; `apps/web/src/electronics/production-asset-contracts.ts` only if the built-browser cause requires adjusting existing runtime readout markup; at most two focused regression files selected from the mapped presentation/geometry tests and the existing Electronics browser journey. Treat stage/model transforms as preserved premises, not speculative edit targets. Add a third test only after naming the separate necessary invariant to the controller.
 
 Correct only proved mirror-related readability of existing runtime values/labels in the instrument rendering path. Preserve existing body rotation/mirror placement, terminal/hit coordinates, display window location, value/sign/mode and interactive controls. Include0/90/180/270 with none/X/Y/XY mirror checks for affected supported instruments without changing ordinary-rotation-horizontalness policy. No all-scene/global transform workaround.
 
-No new or modified protected owner artwork, newly drawn/runtime replacement artwork, solver/Arduino/canonical time/physical accuracy, persistence/schema/IDs, parameters, authorization, dependency/workflow, gesture/selection-rim/wire-layer/decomposition/asset cleanup or deployment/DB/network changes. Flexible/multiple board mechanics and T3 are separate; do not repeat accepted startup/cadence/resource measurements. Baseline changes require a separately selected responsibility review if a real threshold is crossed.
+No new or modified protected owner artwork, newly drawn/runtime replacement artwork, solver/Arduino/canonical time/physical accuracy, persistence/schema/IDs, parameters, authorization, dependency or permanent workflow, gesture/selection-rim/wire-layer/decomposition/asset cleanup or deployment/DB/network changes. The sole temporary workflow exception is the directed diagnostic ref above. Flexible/multiple board mechanics and T3 are separate; do not repeat accepted startup/cadence/resource measurements. Baseline changes require a separately selected responsibility review if a real threshold is crossed.
 
 ## Acceptance
 
