@@ -587,7 +587,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: harness_r1_mobile_native_auth_setup_only_preserve_proven_psu_stop_failure
+      checkpoint: harness_r2_mobile_native_catalog_collapse_only_preserve_psu_product
       kind: repair
       owner_acceptance: pending
       selected_at: '2026-10-09T20:49:58Z'
@@ -598,12 +598,12 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       - docs/product/electronics/components/engine-worker-clock.yaml
-      repair_scope: 'Supporting harness R1 only common simulation browser spec and generated
-        digest: authenticate via unchanged real desktop organization login then apply
-        target viewport before every Electronics action; 1024/390/320 previously failed
-        hidden desktop banner login before product. Preserve all four full scenarios/assertions/timeouts
-        and exact043a product. No Portal or product edit; AFTER directed and final gates/review
-        mandatory.'
+      repair_scope: Supporting harness R2 only simulation browser spec and generated digest. Native collapse of open Catalog details at390/320 before initial inspector and after cookies-only reopen. Keep exact043a product, four full scenarios, fixture/sketch, native inputs, all assertions and original timeouts. No product/CSS/Portal/helper changes. Retain proven1440/1024 directed PASS; new mobile AFTER and final ordinary exact gates/NEW review required.
+      harness_r1_candidate_sha: f3f23ae0ce754b6369bd9a9130f4d1f0c70d96ac
+      directed_after_probe_sha: 592c1e9b144cae2735f032143f146d396a9d83f9
+      directed_after_run: 37999511262
+      directed_review: REQUEST_CHANGES mobile setup only;1440/1024 full Save/reopen/continuity independently PASS;390/320 fail before Run because open catalog hides inspector via existing max980 CSS.
+      directed_review_original_sha256: ede22f6c53ca0ea461de4556c2d37a6b96b353c91465467b145095959fff2422
       preserved_candidate_sha: 043a2af92c7bac3aadb10b59fa108315e166b30e
       preserved_candidate_tree: 4e889681234b8e242e1536c0a9b5ce91705844f6
       candidate_publication: unpublished
@@ -2716,7 +2716,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r1_correct_native_before_harness_target_and_event_retention_no_product_edit
+      checkpoint: proven_root_pointer_noop_minimal_stage_repair_only
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
       repair_scope: Only Stage pointer routing and existing interactions browser spec.
@@ -2728,6 +2728,12 @@ parallel_lanes:
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
+      corrected_harness_sha: a4d115a4ecd84ba729c5a16cb000bd42ad6d800f
+      causal_before_sha: 5627d90081aa548f36f304f1ee45f839636e41db
+      causal_before_run: 37998566920
+      causal_before_raw_sha256: 8b5d0d51d77c5d627fb31debe9a4f044c657644558441d7e483e5a4e79ca6e1b
+      causal_before_result: Full authenticated schema equal at revision2; native trusted left down-move-up on opaque alpha255 owner body targets SVG root outside fixed grid; component and viewport unchanged, original5000ms position assertion fails.
+      supporting_auth_setup: Existing organization-login desktop banner prerequisite proven separately in543; authenticate at1440 then restore original target width before all editor actions. No Portal/helper edit or timeout change.
       before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
       before_probe_run: 37996438894
       before_probe_conclusion: harness_precondition_failure_not_product_proof
