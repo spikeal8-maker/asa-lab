@@ -19,13 +19,14 @@ export interface LogEntry {
   readonly revision: string | null;
   readonly origin: string;
   readonly truncated: boolean;
-  readonly timeBasis?: 'event' | 'file_mtime';
+  readonly timeBasis?: 'event' | 'file_mtime' | 'transcript';
   readonly windowsEventId?: number;
   readonly windowsRecordId?: string;
   readonly normalizationVersion?: number;
 }
 
 export interface LogFilter {
+  readonly scope?: 'all' | 'application' | 'host';
   readonly from: string;
   readonly to: string;
   readonly source: string;
@@ -33,6 +34,13 @@ export interface LogFilter {
   readonly level: string;
   readonly search: string;
   readonly before: { readonly time: string; readonly id: string } | null;
+}
+
+export interface LogScanState {
+  readonly catalog: LogCatalog;
+  readonly offset: number;
+  readonly matches: readonly LogEntry[];
+  readonly scanned: number;
 }
 
 interface Segment {
@@ -92,11 +100,18 @@ function candidates(catalog: LogCatalog, filter: LogFilter): readonly Segment[] 
     .filter((s) => !filter.source || s.sources.includes(filter.source))
     .filter((s) => !filter.module || s.modules.includes(filter.module))
     .filter((s) => !filter.level || s.levels.includes(filter.level))
+    .filter((s) => s.sources.some((source) => inScope(source, filter.scope)))
     .sort((a, b) => b.last.localeCompare(a.last));
+}
+
+function inScope(source: string, scope: LogFilter['scope']): boolean {
+  const host = source.startsWith('windows:') || source === 'docker-desktop' || source === 'metrics';
+  return !scope || scope === 'all' || (scope === 'host' ? host : !host);
 }
 
 function matches(event: LogEntry, filter: LogFilter): boolean {
   return (
+    inScope(event.source, filter.scope) &&
     event.time >= filter.from &&
     event.time <= filter.to &&
     (!filter.source || event.source === filter.source) &&
@@ -170,14 +185,23 @@ async function* entries(root: string, segment: Segment): AsyncGenerator<LogEntry
   }
 }
 
-export async function queryLogs(root: string, filter: LogFilter, limit: number) {
-  const catalog = await readLogCatalog(root);
+export async function queryLogs(
+  root: string,
+  filter: LogFilter,
+  limit: number,
+  resume?: LogScanState,
+) {
+  const catalog = resume?.catalog ?? (await readLogCatalog(root));
   if (!catalog) return { items: [], next: null, partial: false, scanned: 0 };
-  const sorted: LogEntry[] = [];
+  const sorted: LogEntry[] = [...(resume?.matches ?? [])];
   let scanned = 0;
-  const seen = new Set<string>();
+  const seen = new Set<string>(sorted.map((e) => e.id));
   let partial = false;
-  for (const segment of candidates(catalog, filter)) {
+  const segments = candidates(catalog, filter);
+  let offset = resume?.offset ?? 0;
+  const started = performance.now();
+  for (; offset < segments.length; offset++) {
+    const segment = segments[offset]!;
     if (sorted.length > limit && segment.last < sorted[limit]!.time) break;
     for await (const event of entries(root, segment)) {
       scanned += 1;
@@ -188,18 +212,34 @@ export async function queryLogs(root: string, filter: LogFilter, limit: number) 
     }
     sorted.sort((a, b) => b.time.localeCompare(a.time) || b.id.localeCompare(a.id));
     sorted.splice(limit + 1);
-    if (scanned >= 200000) {
-      partial = true;
+    if (scanned >= 200000 || performance.now() - started > 8000) {
+      offset++;
+      partial =
+        offset < segments.length &&
+        !(sorted.length > limit && segments[offset]!.last < sorted[limit]!.time);
       break;
     }
   }
-  const items = sorted.slice(0, limit);
+  // Until the remaining time frontier is known, these matches are provisional.
+  // Keep them privately for the next bounded scan; never show an incomplete
+  // chronological page as an empty/final search result.
+  const items = partial ? [] : sorted.slice(0, limit);
   const last = items.at(-1);
   return {
     items,
     next: sorted.length > limit && last ? { time: last.time, id: last.id } : null,
     partial,
-    scanned,
+    scanned: (resume?.scanned ?? 0) + scanned,
+    ...(partial
+      ? {
+          scanState: {
+            catalog,
+            offset,
+            matches: sorted,
+            scanned: (resume?.scanned ?? 0) + scanned,
+          } satisfies LogScanState,
+        }
+      : {}),
   };
 }
 
@@ -290,6 +330,7 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
         segment.first >= filter.from &&
         segment.last <= filter.to &&
         !filter.search &&
+        segment.sources.every((source) => inScope(source, filter.scope)) &&
         (!filter.source || segment.sources.every((s) => s === filter.source)) &&
         (!filter.module || segment.modules.every((s) => s === filter.module)) &&
         (!filter.level || segment.levels.every((s) => s === filter.level));
@@ -368,10 +409,11 @@ if (parentPort) {
     kind: 'query' | 'export';
     limit: number;
     output: string;
+    scanState?: LogScanState;
   };
   const run =
     task.kind === 'query'
-      ? queryLogs(task.root, task.filter, task.limit)
+      ? queryLogs(task.root, task.filter, task.limit, task.scanState)
       : exportLogs(task.root, task.filter, task.output);
   void run
     .then((result) => parentPort!.postMessage({ ok: true, result }))

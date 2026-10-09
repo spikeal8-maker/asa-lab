@@ -133,6 +133,38 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
+  it('detects missing child heartbeats, reports recovery, and ignores hidden tabs', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(async () => jsonResponse(session()));
+    vi.stubGlobal('fetch', fetchMock);
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(post)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    const codes = () =>
+      fetchMock.mock.calls
+        .filter((call) => (call as unknown[])[0] === '/api/diagnostics/client')
+        .map(
+          (call) =>
+            JSON.parse(((call as unknown[])[1] as RequestInit).body as string).code as string,
+        );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(75_000);
+    });
+    expect(codes()).toContain('editor_unresponsive');
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'runtime-heartbeat',
+    });
+    expect(codes()).toContain('editor_recovered');
+    const count = codes().filter((c) => c === 'editor_unresponsive').length;
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(120_000);
+    });
+    expect(codes().filter((c) => c === 'editor_unresponsive')).toHaveLength(count);
+  });
   it('shows the ASA loading overlay on first render without raw runtime status UI', async () => {
     vi.stubGlobal(
       'fetch',
@@ -289,10 +321,13 @@ describe('BlocksEditor runtime session bootstrap', () => {
   });
 
   it('requests a new capability after retry instead of reusing a failed session', async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce(jsonResponse({}, 503))
-      .mockResolvedValueOnce(jsonResponse(session('fresh.runtime.token')));
+    let sessions = 0;
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url === '/api/diagnostics/client') return jsonResponse({}, 202);
+      return ++sessions === 1
+        ? jsonResponse({}, 503)
+        : jsonResponse(session('fresh.runtime.token'));
+    });
     vi.stubGlobal('fetch', fetchMock);
     const firstIframe = await renderEditor();
     const firstPostMessage = spyOnPostMessage(firstIframe);
@@ -316,7 +351,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     const secondPostMessage = spyOnPostMessage(secondIframe);
     await fireLoad(secondIframe);
 
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(sessions).toBe(2);
     expect(initCalls(secondPostMessage)).toHaveLength(1);
     expect(initCalls(secondPostMessage)[0]?.[0]).toMatchObject({
       runtimeToken: 'fresh.runtime.token',

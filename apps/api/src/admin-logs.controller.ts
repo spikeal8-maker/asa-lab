@@ -57,6 +57,8 @@ export function logFilter(input: unknown): LogFilter {
   const source = text('source', 200);
   const module = text('module', 20);
   const level = text('level', 10);
+  const scope = text('scope', 20) || 'all';
+  if (!['all', 'application', 'host'].includes(scope)) fail('validation_error', 400);
   if (module && !['scratch', 'electronics', 'auth', 'portal', 'system'].includes(module))
     fail('validation_error', 400);
   if (level && !['error', 'warn', 'info'].includes(level)) fail('validation_error', 400);
@@ -70,6 +72,7 @@ export function logFilter(input: unknown): LogFilter {
   )
     fail('validation_error', 400);
   return {
+    scope: scope as NonNullable<LogFilter['scope']>,
     from,
     to,
     source,
@@ -136,10 +139,19 @@ export class AdminLogsController {
     @Query() query: unknown,
     @Res({ passthrough: true }) reply: FastifyReply,
   ) {
-    await this.allow(request);
+    const owner = await this.allow(request);
     reply.header('Cache-Control', 'no-store');
     const filter = logFilter(query);
-    return this.response(() => this.logs.query(filter));
+    const cursor = (query as Record<string, unknown>)['scanCursor'];
+    if (cursor !== undefined && (typeof cursor !== 'string' || !/^[a-f0-9-]{36}$/.test(cursor)))
+      fail('validation_error', 400);
+    const value = query as Record<string, unknown>;
+    return this.response(() =>
+      this.logs.query(filter, owner, cursor as string | undefined, {
+        from: !value['from'],
+        to: !value['to'],
+      }),
+    );
   }
 
   @Post('exports')
