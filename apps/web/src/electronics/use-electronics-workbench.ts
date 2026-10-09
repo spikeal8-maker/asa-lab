@@ -591,12 +591,14 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       STAGE_WIDTH,
       STAGE_HEIGHT,
     );
-    const bounds = drag.bounds;
-    if (!bounds) return { x: 0, y: 0 };
-    return {
-      x: clamp(world.x - drag.offset.x - drag.startedAt.x, -980 - bounds.minX, 4980 - bounds.maxX),
-      y: clamp(world.y - drag.offset.y - drag.startedAt.y, -980 - bounds.minY, 3980 - bounds.maxY),
+    if (!drag.bounds) return { x: 0, y: 0 };
+    // The panned field can contain saved parts outside the original grid.
+    // Translate by the pointer motion without snapping them back into that grid.
+    const delta = {
+      x: world.x - drag.offset.x - drag.startedAt.x,
+      y: world.y - drag.offset.y - drag.startedAt.y,
     };
+    return Number.isFinite(delta.x) && Number.isFinite(delta.y) ? delta : { x: 0, y: 0 };
   }
 
   function previewWire(
