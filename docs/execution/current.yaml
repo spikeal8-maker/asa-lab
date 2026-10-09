@@ -581,20 +581,105 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-007
-      issue: 535
+      id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+      issue: 532
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: full_hygiene_checkpoint_004_technically_accepted
-      dependency_for_issue: 532
+      status: in_progress
+      checkpoint: r4_owner_approved_convergence_and_short_text_segments
+      dependency_for_issue: 530
+      upstream_readiness_issue: 531
       owner_acceptance: pending
-      accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
-      independent_review: approved
-      evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-acceptance-20261009.md
+      first_candidate_sha: 0340d9be50ac04caf34f49206c8f18fab9fc5f9a
+      first_candidate_tree: c6220bd80d74679dfd112090c7e106ecda0ba3f6
+      first_candidate_branch: codex/electronics-compact-controls-532
+      first_independent_review: request_changes
+      first_independent_evidence: docs/product/electronics/evidence/compact-controls-532-independent-review-0340d9be.md
+      first_general_run: 37888088058
+      first_general_conclusion: success
+      first_electronics_run: 37888099694
+      first_electronics_conclusion: failure
+      first_browser_passed: 120
+      first_browser_failed: 1
+      r1_candidate_sha: 823796169da09dd3e8683bd5a3b3af5b1007b7de
+      r1_candidate_tree: b67ae45c5c2c854cdd9d07cf085f1fda8e392241
+      r1_candidate_branch: codex/electronics-compact-controls-532-r1
+      r1_independent_review: request_changes
+      r1_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r1-independent-review-82379616.md
+      r1_general_run: 37891874071
+      r1_general_status: in_progress
+      r1_general_conclusion: pending
+      r1_directed_sha: 189c424495e8b50ce5d165cf6303fad94b1e516d
+      r1_directed_run: 37891915974
+      r1_directed_conclusion: failure
+      r1_directed_completed_phases: 8
+      r1_ordinary_electronics: not_run
+      r2_candidate_sha: 07a396785ea73d06394d29b66917428c0fa23521
+      r2_candidate_tree: 5f5a910a8591caa4823692daa0dee088c43df005
+      r2_candidate_branch: codex/electronics-compact-controls-532-r2
+      r2_independent_review: request_changes
+      r2_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r2-independent-review-07a39678.md
+      r2_general_run: 37893847140
+      r2_general_status: in_progress
+      r2_general_conclusion: pending
+      r2_directed_sha: 383d60177f68f5b26d618cf1a45480722901a885
+      r2_directed_run: 37893883609
+      r2_directed_conclusion: failure
+      r2_directed_completed_phases: 75
+      r2_directed_recorded_rows: 76
+      r2_ordinary_electronics: not_run
+      r3_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+      r3_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+      r3_candidate_branch: codex/electronics-compact-controls-532-r3
+      r3_independent_review: request_changes
+      r3_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
+      r3_general_run: 37896979603
+      r3_general_conclusion: success
+      r3_directed_sha: 7a79fa5194dac7a075cc591d0499e9c46f100303
+      r3_directed_run: 37897059035
+      r3_directed_conclusion: failure
+      r3_recorded_rows: 94
+      r3_completed_before_timeout: 88
+      r3_text_completed_before_timeout: 45
+      r3_ordinary_electronics: not_run
+      r4_preserved_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+      r4_preserved_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+      r4_base_main_sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
+      accepted_media_dependency_issue: 533
+      accepted_noop_dependency_issue: 534
+      accepted_hygiene_dependency_issue: 535
+      owner_conflict_agreement: 2026-10-09 explicit continue and resolve both scenario
+        conflicts; preserve all checks and accepted work
+      general_baseline_observation:
+        sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
+        run: 37920212460
+        conclusion: failure
+        failed_job: 113788080706
+        failed_step: Run pnpm test:access-a
+        classification: independent baseline timeout; precise cause under separate read-only
+          diagnosis
+        repair_inside_532: false
     suspended_slices:
+    - task_id: TASK-ELECTRONICS-GOVERNANCE-007
+      issue: 535
+      status: technical_accepted
+      completion_observed_at: '2026-10-09T15:13:16Z'
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-GOVERNANCE-007
+        issue: 535
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: full_hygiene_checkpoint_004_technically_accepted
+        dependency_for_issue: 532
+        owner_acceptance: pending
+        accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        independent_review: approved
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-acceptance-20261009.md
     - task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
       issue: 533
       status: technical_accepted_after_dependency
@@ -728,7 +813,7 @@ parallel_lanes:
         evidence: docs/product/electronics/evidence/blockly-media-533-final-acceptance-20261009.md
     - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
       issue: 532
-      status: waiting_separate_media_dependency
+      status: resumed_for_bounded_r4_test_packaging
       checkpoint: r3_candidate_preserved_after_independent_request_changes
       observed_at: '2026-10-09T07:23:04Z'
       preserved_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
@@ -808,6 +893,8 @@ parallel_lanes:
         r3_completed_before_timeout: 88
         r3_text_completed_before_timeout: 45
         r3_ordinary_electronics: not_run
+      r4_resumed_at: '2026-10-09T15:13:16Z'
+      r4_owner_conflict_agreement: true
     - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
       issue: 525
       status: suspended_by_owner_priority
@@ -952,17 +1039,18 @@ parallel_lanes:
       compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+      convergence_baseline_sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
       head_sha: null
-      observed_at: '2026-10-09T10:50:28Z'
+      observed_at: '2026-10-09T15:13:16Z'
       main:
         branch: main
-        sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
       observation_note: >-
-        Dated snapshot; fetch main and actual exact CI before writing. Technical535 full checkpoint004 accepted on unchanged abe4b02a after NEW independent APPROVE and General37918283928 all4SUCCESS. Seven mandatory categories inspected against full524 reviewed32f to selected8bc; baseline unchanged, no removals or product changes.
-        Full hygiene resolves three counted production slices529,534,533; test-only528,531 excluded. Next controller dependency is preserved532 shorter text viewport packaging with all52text/95total/full intent per segment/unchanged30s, then530 and526full56. No product task is activated by this closeout; fresh canonical selection and applicable conflict guards remain required.
-        All accepted results and full533/R3 snapshots, suspended525/unaccepted532/530/526,505/506 and foreign state preserved. Large sources below20percent; legacy callers and active late media refresh retained with concrete removal proof boundaries. No repeated accepted browser/load/device measurement or cleanup/decomposition/artwork operation.
-        SchoolK0 version/full backups NOT_VERIFIED; pupilT3 awaits class access. Owner/class/release/deployment remain separate. No working installation/DB/container restart/network/backup/restore action.
+        Dated snapshot; fetch main and actual exact CI before writing. Owner explicitly approved resolving the two actual532 convergence conflicts and continuing programme452. Technical535 full checkpoint004 is closed and preserved; accepted533/534/529/531/528 remain unchanged.
+        R4 selects only preserved532bd4074fe causal compact CSS plus test packaging. NEW author performs ordinary convergence with canonical selected main, manually preserves BOTH accepted533media and532compact scenarios at their shared append anchor, and regenerates only canonical browser digest. CSS has no reported conflict. No published-history rewrite or automatic choice of one scenario over the other.
+        Only NEW532 test region changes: shorter independent text viewport segments retaining all52text/95total phases, all assertions and original PNG/raw requirements, full final server/document/revision/local intent per segment, unchanged default30000ms and all other limits. Preserve original122 main browser scenarios, accepted533media/534no-op/529publication, existing canonical workflows/dependencies and repaired532CSS. No solver/Arduino/runtime/save/auth/Portal product change or test weakening.
+        Fresh main43 General37920212460 G/C/D SUCCESS but Access test:access-a fails tests/portal/project-transactions.spec.ts large mixed library90s plus teardown10s. Diff43 is controllerdocs only; separate read-only diagnosis owns precise C/D classification, not a repair inside532. No hopeful full-suite retry or timeout increase; final combined exact General and ordinary Electronics all8 plus NEW independent review required before technical acceptance.
+        Author one bounded candidate/self-review/report then STOP. Controller actual source/raw, one changed-cause directed NEW532 diagnostic outside source ancestry, then canonical exact gates/review/closeout. Continue530 then526full56 only after actual532 acceptance. Preserve525 and all other candidates/foreign state. SchoolK0 NOT_VERIFIED/T3 pendingclassaccess; no installation/DB/container/network/backup/restore or owner/class/release claim.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
