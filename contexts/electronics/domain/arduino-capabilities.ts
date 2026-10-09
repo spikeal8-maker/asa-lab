@@ -151,22 +151,6 @@ export const ARDUINO_TEXT_COMMAND_SUPPORT = {
   'Servo.write': LIMITED('Задаёт 0..180° через canonical servo pulse width 544..2400 us.'),
   'Servo.read': LIMITED('Возвращает последний commanded Servo angle.'),
   'Servo.detach': LIMITED('Отключает Servo object и оставляет GPIO LOW.'),
-  bit: SUPPORTED('Возвращает unsigned long маску 1UL << index; index от 0 до 31.'),
-  bitRead: SUPPORTED(
-    'Читает бит целого числа после integer promotion Uno; индекс внутри ширины типа.',
-  ),
-  bitSet: SUPPORTED(
-    'Устанавливает бит изменяемой целочисленной переменной маской 1UL; индекс от 0 до 31.',
-  ),
-  bitClear: SUPPORTED(
-    'Сбрасывает бит изменяемой целочисленной переменной маской 1UL; индекс от 0 до 31.',
-  ),
-  bitToggle: SUPPORTED(
-    'Инвертирует бит изменяемой целочисленной переменной маской 1UL; индекс от 0 до 31.',
-  ),
-  bitWrite: SUPPORTED(
-    'Изменяет бит целочисленной переменной по нулевому или ненулевому значению; индекс от 0 до 31.',
-  ),
   map: SUPPORTED(
     'Целочисленный map Arduino: аргументы и результат long; деление усекается к нулю.',
   ),
@@ -244,13 +228,6 @@ export const ARDUINO_LANGUAGE_FEATURE_SUPPORT = {
   'logical-and': SUPPORTED('Логическое И &&: правая часть не вычисляется при ложной левой.'),
   'logical-or': SUPPORTED('Логическое ИЛИ ||: правая часть не вычисляется при истинной левой.'),
   'logical-not': SUPPORTED('Логическое НЕ ! поддерживается.'),
-  bitwise: SUPPORTED('&, |, ^ и ~ используют integer promotions и ширину целочисленных типов Uno.'),
-  shift: SUPPORTED(
-    '<< и >> сохраняют promoted тип левого операнда; недопустимый индекс или знаковый сдвиг вызывает явную ошибку.',
-  ),
-  'bitwise-assignment': SUPPORTED(
-    '&=, |=, ^=, <<=, >>= преобразуют результат к типу изменяемой переменной.',
-  ),
   arithmetic: SUPPORTED(
     'Арифметика учитывает типы Uno и целочисленное деление; деление на ноль и знаковое переполнение дают явную ошибку.',
   ),
@@ -266,13 +243,6 @@ export function arduinoTextCommandSupport(command: string): ArduinoBlockSupport 
 }
 
 const SUPPORTED_CALLS = new Set([
-  'bit',
-  'bitread',
-  'bitset',
-  'bitclear',
-  'bittoggle',
-  'bitwrite',
-
   'setup',
   'loop',
   'pinmode',
