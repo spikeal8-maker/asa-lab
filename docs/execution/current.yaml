@@ -588,7 +588,18 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_bounded_crash_and_scope_evidence_repair
+      checkpoint: r4_bounded_affected_toolbar_ui_repair
+      r3_candidate_sha: 0c8a0d5e606e037078e7d8a5bff47b70d299ab23
+      r3_candidate_tree: 33825fb81e99188ba992ca21c2d590b8b68355a4
+      r3_candidate_branch: codex/electronics-save-recovery-526-review-r3
+      r3_general_run: 37865142075
+      r3_general_conclusion: success
+      r3_electronics_run: 37865154341
+      r3_electronics_conclusion: success
+      r3_browser_passed: 127
+      r3_browser_failed: 0
+      r3_independent_review: request_changes
+      r3_independent_evidence: docs/product/electronics/evidence/save-526-r3-independent-review-0c8a0d5e.md
       r2_candidate_sha: 520bc45afaad32b89d142fbcf313561c1170d72d
       r2_candidate_tree: ec3e6483cbaa73c4bf3ff7a217e0889dbb86d855
       r2_candidate_branch: codex/electronics-save-recovery-526-review-r2
@@ -629,12 +640,12 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c920c5c0921498d8872d3914b7f627ca98db85b2
+      convergence_baseline_sha: 3d38faf6a26ee210caf4ea8583c8a049aa5192a0
       head_sha: null
-      observed_at: '2026-10-08T23:47:15Z'
+      observed_at: '2026-10-09T00:57:15Z'
       main:
         branch: main
-        sha: c920c5c0921498d8872d3914b7f627ca98db85b2
+        sha: 3d38faf6a26ee210caf4ea8583c8a049aa5192a0
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
         Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
@@ -659,6 +670,14 @@ parallel_lanes:
         restore canonical workflow before final exact candidate, ordinary gates and NEW independent review.
         School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
         no deployment, DB, network, backup or protected-artwork operation is authorized.
+        Exact R3 candidate0c8a0d5e remains published/unaccepted: General37865142075 and ordinary37865154341 SUCCESS/all4;
+        browser127PASS and original full-document crash/recovery/user-isolation/529 receipts are preserved.
+        NEW independent HIGH reviewer REQUEST_CHANGES: the new JSON action clips the adjacent active Run label at1024.
+        Historical c15/520 clipping is earlier E01 candidate evidence, not the canonical main baseline.
+        Select only R4 bounded affected-toolbar repair, preserving all accepted persistence/sketch semantics and evidence.
+        Scope: minimal causal WorkbenchHeader/workbench.css layout and existing browser affected-action regression;
+        no whole-editor redesign, unrelated disabled-Send cleanup, timeout/assertion weakening or physics/auth change.
+        Final combined candidate requires ordinary exact gates and a NEW independent review before technical526 closure.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
