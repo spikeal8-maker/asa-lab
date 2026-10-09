@@ -4875,7 +4875,7 @@ test.describe('owner D3-D6 acceptance', () => {
 });
 
 // Unlike openEditor above, these journeys use the real isolated API and server draft.
-// The fixed centre of the resistor's opaque body is used at every boundary; no
+// The fixed centre of the battery holder's opaque owner-image body is used; no
 // alpha-pixel/DOM-target search chooses a point that happens to pass the product.
 test.describe('ELECTRONICS-E03 native field boundary real API', () => {
   test.use({ hasTouch: true });
@@ -4997,7 +4997,9 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
             return raw === null ? null : (JSON.parse(raw).document as SchematicDocument);
           }, draftKey);
         const observeInput = async (target: Page) => {
-          await target.addInitScript(() => {
+          const install = () => {
+            if (Array.isArray((window as unknown as { fieldEvents?: unknown[] }).fieldEvents))
+              return;
             const events: unknown[] = [];
             (window as unknown as { fieldEvents: unknown[] }).fieldEvents = events;
             for (const type of [
@@ -5022,23 +5024,35 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
                     x: pointer.clientX,
                     y: pointer.clientY,
                     button: pointer.button,
+                    buttons: pointer.buttons,
+                    pointerId: pointer.pointerId,
                     pointerType: pointer.pointerType,
                     shift: pointer.shiftKey,
                     target: node.localName,
                     targetClass: node.getAttribute('class'),
-                    path: event
-                      .composedPath()
-                      .flatMap((item) =>
-                        item instanceof Element
-                          ? [item.getAttribute('class') ?? item.localName]
-                          : [],
-                      ),
+                    path: event.composedPath().flatMap((item) =>
+                      item instanceof Element
+                        ? [
+                            {
+                              tag: item.localName,
+                              class: item.getAttribute('class'),
+                              componentId: item.getAttribute('data-component-id'),
+                              testId: item.getAttribute('data-testid'),
+                              pointerEvents: getComputedStyle(item).pointerEvents,
+                            },
+                          ]
+                        : [],
+                    ),
                     viewBox: node.closest('svg.workbench-canvas')?.getAttribute('viewBox'),
                   });
                 },
                 true,
               );
-          });
+          };
+          await target.addInitScript(install);
+          // Hash navigation may retain this document; addInitScript alone then
+          // never runs. Install the same read-only observer in the current one.
+          await target.evaluate(install);
         };
         const receipts: unknown[] = [];
         const requests: unknown[] = [];
@@ -5062,6 +5076,7 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
               selected: element.classList.contains('workbench-component-selected'),
             })),
             events: (window as unknown as { fieldEvents: unknown[] }).fieldEvents,
+            documentUrl: location.href,
             pageWidth: document.documentElement.scrollWidth,
             viewportWidth: innerWidth,
           }));
@@ -5073,14 +5088,15 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
           );
           await target.screenshot({ path: info.outputPath(`${phase}.png`), fullPage: true });
         };
-        const resistorAsset = catalogEntry('resistor-axial')!.asset;
+        const grabbedId = 'field-source';
+        const grabbedAsset = catalogEntry('battery-holder-aa-2')!.asset;
         const bodyPoint = async (target: Page) =>
-          part(target, 'field-resistor')
+          part(target, grabbedId)
             .locator('.workbench-part')
             .evaluate(async (element, asset) => {
               const body = element.querySelector<SVGRectElement>('.workbench-component-body-hit')!;
               const matrix = (element as SVGGraphicsElement).getScreenCTM();
-              if (!matrix) throw new Error('Resistor has no real screen CTM');
+              if (!matrix) throw new Error('Battery holder has no real screen CTM');
               const local = { x: body.width.baseVal.value / 2, y: body.height.baseVal.value / 2 };
               const point = new DOMPoint(local.x, local.y).matrixTransform(matrix);
               const hit = document.elementFromPoint(point.x, point.y);
@@ -5093,8 +5109,8 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
               image.src = asset;
               await image.decode();
               const canvas = document.createElement('canvas');
-              canvas.width = 106;
-              canvas.height = 282;
+              canvas.width = image.naturalWidth;
+              canvas.height = image.naturalHeight;
               const context = canvas.getContext('2d')!;
               context.drawImage(image, 0, 0, canvas.width, canvas.height);
               return {
@@ -5103,25 +5119,41 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
                 local,
                 matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
                 stageScale: stageMatrix.a,
-                opaqueCentreAlpha: context.getImageData(53, 141, 1, 1).data[3],
+                opaqueCentreAlpha: context.getImageData(
+                  Math.floor(canvas.width / 2),
+                  Math.floor(canvas.height / 2),
+                  1,
+                  1,
+                ).data[3],
+                assetSize: { width: canvas.width, height: canvas.height },
                 target: hit?.localName,
                 targetClass: hit?.getAttribute('class'),
+                targetAncestry: (() => {
+                  const ancestors = [];
+                  for (let node = hit; node; node = node.parentElement)
+                    ancestors.push({
+                      tag: node.localName,
+                      class: node.getAttribute('class'),
+                      componentId: node.getAttribute('data-component-id'),
+                      testId: node.getAttribute('data-testid'),
+                      path: node.getAttribute('d'),
+                      pointerEvents: getComputedStyle(node).pointerEvents,
+                    });
+                  return ancestors;
+                })(),
                 world: new DOMPoint(point.x, point.y)
                   .matrixTransform(stageMatrix.inverse())
                   .toJSON(),
               };
-            }, resistorAsset);
+            }, grabbedAsset);
         const requireReady = async (target: Page) => {
-          await expect(part(target, 'field-resistor')).toHaveAttribute(
-            'data-hit-mask-status',
-            'ready',
-          );
+          await expect(part(target, grabbedId)).toHaveAttribute('data-hit-mask-status', 'ready');
           await expect(target.getByTestId('schematic-component')).toHaveCount(4);
         };
         const drag = async (target: Page, phase: string, touch = false) => {
           const before = {
-            x: Number(await part(target, 'field-resistor').getAttribute('data-x')),
-            y: Number(await part(target, 'field-resistor').getAttribute('data-y')),
+            x: Number(await part(target, grabbedId).getAttribute('data-x')),
+            y: Number(await part(target, grabbedId).getAttribute('data-y')),
           };
           const point = await bodyPoint(target);
           const viewBox = await target.locator('.workbench-canvas').getAttribute('viewBox');
@@ -5131,6 +5163,9 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
           expect(point.target).toBe('svg');
           expect(point.targetClass).toContain('workbench-canvas');
           expect(point.opaqueCentreAlpha).toBeGreaterThan(0);
+          const eventStart = await target.evaluate(
+            () => (window as unknown as { fieldEvents: unknown[] }).fieldEvents.length,
+          );
           if (touch) {
             const cdp = await target.context().newCDPSession(target);
             try {
@@ -5153,21 +5188,45 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
             await target.mouse.up();
           }
           await frames(target);
-          await capture(target, `${phase}-after`, { before, point, viewBox, touch });
-          await expect(part(target, 'field-resistor')).not.toHaveAttribute(
-            'data-x',
-            String(before.x),
+          const events = await target.evaluate(
+            (offset) =>
+              (
+                window as unknown as {
+                  fieldEvents: {
+                    type: string;
+                    trusted: boolean;
+                    pointerType: string;
+                    target: string;
+                    targetClass: string | null;
+                  }[];
+                }
+              ).fieldEvents.slice(offset),
+            eventStart,
           );
+          await capture(target, `${phase}-after`, { before, point, viewBox, touch, events });
+          expect(events.length).toBeGreaterThan(0);
+          expect(events.every((event) => event.trusted)).toBe(true);
+          const down = events.findIndex((event) => event.type === 'pointerdown');
+          const up = events.findIndex((event) => event.type === 'pointerup');
+          expect(down).toBeGreaterThanOrEqual(0);
+          expect(up).toBeGreaterThan(down);
+          expect(events.slice(down + 1, up).some((event) => event.type === 'pointermove')).toBe(
+            true,
+          );
+          expect(events[down].pointerType).toBe(touch ? 'touch' : 'mouse');
+          expect(events[down].target).toBe('svg');
+          expect(events[down].targetClass).toContain('workbench-canvas');
+          await expect(part(target, grabbedId)).not.toHaveAttribute('data-x', String(before.x));
           await expect(target.locator('.workbench-canvas')).toHaveAttribute('viewBox', viewBox!);
           const expected = {
             x: before.x + Math.round((24 / point.stageScale) * 1000) / 1000,
             y: before.y + Math.round((18 / point.stageScale) * 1000) / 1000,
           };
-          expect(Number(await part(target, 'field-resistor').getAttribute('data-x'))).toBeCloseTo(
+          expect(Number(await part(target, grabbedId).getAttribute('data-x'))).toBeCloseTo(
             expected.x,
             4,
           );
-          expect(Number(await part(target, 'field-resistor').getAttribute('data-y'))).toBeCloseTo(
+          expect(Number(await part(target, grabbedId).getAttribute('data-y'))).toBeCloseTo(
             expected.y,
             4,
           );
@@ -5192,21 +5251,40 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
           );
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
           await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
-          const point = await bodyPoint(page);
+          // The resistor legitimately has a native painted path. Keep Shift/
+          // right-button controls on it, separate from the owner-image probe.
+          const point = await part(page, 'field-resistor')
+            .locator('.workbench-part')
+            .evaluate((element) => {
+              const body = element.querySelector<SVGRectElement>('.workbench-component-body-hit')!;
+              const matrix = (element as SVGGraphicsElement).getScreenCTM()!;
+              const point = new DOMPoint(
+                body.width.baseVal.value / 2,
+                body.height.baseVal.value / 2,
+              ).matrixTransform(matrix);
+              return { x: point.x, y: point.y };
+            });
           await page.keyboard.down('Shift');
           await page.mouse.click(point.x, point.y);
           await page.keyboard.up('Shift');
+          await expect(part(page, 'field-resistor')).toHaveClass(/workbench-component-selected/);
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
           await page.mouse.click(point.x, point.y, { button: 'right' });
           expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          await page.keyboard.press('Escape');
+          await expect(
+            page.locator('[data-testid="schematic-component"].workbench-component-selected'),
+          ).toHaveCount(0);
+          expect((await local(page)) ?? fixture).toEqual(fixture);
           const moved = await drag(page, 'closed-panel-mouse');
           const expected = await local(page);
           expect(expected).not.toBeNull();
-          expect(expected!.components).toEqual(
-            fixture.components.map((component) =>
-              component.id === 'field-resistor' ? { ...component, position: moved } : component,
+          expect(expected).toEqual({
+            ...fixture,
+            components: fixture.components.map((component) =>
+              component.id === grabbedId ? { ...component, position: moved } : component,
             ),
-          );
+          });
           expect(expected!.connections).toEqual(fixture.connections);
           const response = page.waitForResponse(
             (reply) =>
@@ -5249,8 +5327,14 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
               sketch,
             );
             await reopened.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
-            await drag(reopened, 'open-panel-reopened', width <= 390);
+            const movedAgain = await drag(reopened, 'open-panel-reopened', width <= 390);
             const final = await local(reopened);
+            expect(final).toEqual({
+              ...confirmed.draft.document,
+              components: confirmed.draft.document.components.map((component) =>
+                component.id === grabbedId ? { ...component, position: movedAgain } : component,
+              ),
+            });
             expect(final!.connections).toEqual(fixture.connections);
             expect(final!.components.find((component) => component.id === 'field-uno')).toEqual(
               fixture.components.find((component) => component.id === 'field-uno'),
