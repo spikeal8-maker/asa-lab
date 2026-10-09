@@ -4029,6 +4029,164 @@ async function e01EditSketch(page: Page, source: string) {
   await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
 }
 
+async function e01AffectedToolbarLayouts(
+  page: Page,
+  evidenceDir: string,
+  state: { emergencyCopy: boolean; running: boolean; name: string },
+  widths = [1440, 1024, 390, 320, 980, 981, 1280, 1281, 1536, 1537],
+) {
+  const indicator = page.locator('.workbench-save-state');
+  const emergency = page.getByRole('button', { name: 'Получить аварийную копию проекта' });
+  const code = page.getByRole('button', { name: 'Закрыть редактор кода', exact: true });
+  const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+  const simulationLabel = state.running ? 'Остановить моделирование' : 'Начать моделирование';
+  const simulation = page.getByRole('button', { name: simulationLabel, exact: true });
+  await expect(code).toHaveAttribute('aria-pressed', 'true');
+  await expect(simulation).toHaveAttribute('aria-pressed', String(state.running));
+  if (state.emergencyCopy) await expect(emergency).toBeVisible();
+  else await expect(emergency).toHaveCount(0);
+  const anchor = state.emergencyCopy ? emergency : save;
+  const layouts: unknown[] = [];
+  // Include both sides of the desktop/mobile and conditional desktop row boundaries.
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect(indicator).toBeVisible();
+    if (state.emergencyCopy) await expect(save).toBeEnabled();
+    else await expect(save).toBeDisabled();
+    await anchor.scrollIntoViewIfNeeded();
+    await expect(anchor).toBeVisible();
+    const layout = await anchor.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      const label = document.createRange();
+      label.selectNodeContents(button);
+      const labelBox = label.getBoundingClientRect();
+      const toolbarButtons = Array.from(button.parentElement!.querySelectorAll('button'))
+        .filter((entry) => entry.getClientRects().length > 0)
+        .map((entry) => {
+          const bounds = entry.getBoundingClientRect();
+          const entryStyle = getComputedStyle(entry);
+          const caption = document.createRange();
+          caption.selectNodeContents(entry);
+          const captionBox = caption.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+          );
+          return {
+            label: entry.getAttribute('aria-label'),
+            text: entry.textContent?.trim(),
+            disabled: entry.disabled,
+            x: bounds.x,
+            y: bounds.y,
+            right: bounds.right,
+            bottom: bounds.bottom,
+            width: bounds.width,
+            height: bounds.height,
+            unobstructed: hit !== null && entry.contains(hit),
+            captionVisible: parseFloat(entryStyle.fontSize) > 0,
+            caption: { x: captionBox.x, right: captionBox.right },
+            contentLeft:
+              bounds.left +
+              parseFloat(entryStyle.borderLeftWidth) +
+              parseFloat(entryStyle.paddingLeft),
+            contentRight:
+              bounds.right -
+              parseFloat(entryStyle.borderRightWidth) -
+              parseFloat(entryStyle.paddingRight),
+          };
+        });
+      const indicatorBox = document.querySelector('.workbench-save-state')!.getBoundingClientRect();
+      const toolbarBox = button.closest('[role="toolbar"]')!.getBoundingClientRect();
+      const mainBox = document.querySelector('.workbench-main')!.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return {
+        viewport: innerWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        label: {
+          text: button.textContent?.trim(),
+          x: labelBox.x,
+          right: labelBox.right,
+          contentLeft: box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+          contentRight:
+            box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+        },
+        toolbarButtons,
+        scene: { top: mainBox.top, bottom: mainBox.bottom, toolbarBottom: toolbarBox.bottom },
+        unobstructed: hit !== null && button.contains(hit),
+        indicatorOverlap:
+          Math.min(box.right, indicatorBox.right) > Math.max(box.left, indicatorBox.left) &&
+          Math.min(box.bottom, indicatorBox.bottom) > Math.max(box.top, indicatorBox.top),
+      };
+    });
+    layouts.push({ width, state: state.name, ...layout });
+    writeFileSync(
+      `${evidenceDir}/after-toolbar-${state.name}.json`,
+      JSON.stringify(layouts, null, 2),
+    );
+    if ([1440, 1024, 390, 320].includes(width))
+      await page.screenshot({
+        path: `${evidenceDir}/after-local-denial-${state.name === 'error-run' ? '' : `${state.name}-`}${width}.png`,
+        fullPage: true,
+      });
+    expect(layout.box.width).toBeGreaterThan(0);
+    expect(layout.box.height).toBeGreaterThan(0);
+    expect(layout.box.x).toBeGreaterThanOrEqual(0);
+    expect(layout.box.x + layout.box.width).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.unobstructed).toBe(true);
+    expect(layout.indicatorOverlap).toBe(false);
+    expect(layout.scene.top).toBeGreaterThanOrEqual(layout.scene.toolbarBottom);
+    expect(layout.scene.top).toBeLessThanOrEqual(layout.scene.toolbarBottom + 1);
+    expect(layout.scene.bottom).toBeLessThanOrEqual(902);
+    expect(layout.label.text).toBe(state.emergencyCopy ? 'Копия JSON' : 'Сохранить');
+    if (state.emergencyCopy || width > 980) {
+      expect(layout.label.x).toBeGreaterThanOrEqual(layout.label.contentLeft - 0.5);
+      expect(layout.label.right).toBeLessThanOrEqual(layout.label.contentRight + 0.5);
+    }
+    for (const [index, button] of layout.toolbarButtons.entries()) {
+      expect(button.width).toBeGreaterThan(0);
+      if (index > 0)
+        expect(button.x).toBeGreaterThanOrEqual(layout.toolbarButtons[index - 1]!.right);
+    }
+    for (const [label, caption] of [
+      ['Закрыть редактор кода', 'Код'],
+      ['Сохранить проект', 'Сохранить'],
+      [simulationLabel, simulationLabel],
+      ...(state.emergencyCopy ? [['Получить аварийную копию проекта', 'Копия JSON']] : []),
+    ]) {
+      const action = layout.toolbarButtons.find((button) => button.label === label);
+      expect(action, `${label} at ${width} in ${state.name}`).toBeDefined();
+      expect(action!.text).toBe(caption);
+      expect(action!.x).toBeGreaterThanOrEqual(0);
+      expect(action!.right).toBeLessThanOrEqual(layout.viewport);
+      expect(action!.y).toBeGreaterThanOrEqual(0);
+      expect(action!.height).toBeGreaterThan(0);
+      expect(action!.bottom).toBeLessThanOrEqual(900);
+      expect(action!.unobstructed).toBe(true);
+      // Existing mobile actions intentionally show icons and retain full accessible names.
+      if (width > 980 || label === 'Получить аварийную копию проекта') {
+        expect(action!.captionVisible).toBe(true);
+        expect(action!.caption.x).toBeGreaterThanOrEqual(action!.contentLeft - 0.5);
+        expect(action!.caption.right).toBeLessThanOrEqual(action!.contentRight + 0.5);
+      }
+      if (!action!.disabled)
+        await page.getByRole('button', { name: label, exact: true }).click({ trial: true });
+    }
+    const wireSummary = page.locator('summary[aria-label="Цвет провода"]');
+    if (width > 980 && (await wireSummary.count()) > 0) {
+      const swatch = page.getByRole('menuitemradio', { name: 'Цвет провода: Фиолетовый' });
+      await wireSummary.click();
+      await expect(page.getByRole('menu').filter({ has: swatch })).toBeVisible();
+      await swatch.click({ trial: true });
+      await wireSummary.click();
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  return layouts;
+}
+
 test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local copy', async ({
   page,
 }) => {
@@ -4065,6 +4223,34 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   expect(
     olderCopy.document.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
   ).toBe(E01_SKETCH);
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  const savedRunLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    emergencyCopy: false,
+    running: false,
+    name: 'saved-run',
+  });
+  const savedAffectedViewLayouts: unknown[] = [];
+  for (const view of ['Схемы', 'Компоненты']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    savedAffectedViewLayouts.push(
+      ...(await e01AffectedToolbarLayouts(
+        page,
+        evidenceDir,
+        { emergencyCopy: false, running: false, name: `saved-${view}-run` },
+        [1440, 1024, 390, 320],
+      )),
+    );
+  }
+  await page.getByRole('button', { name: 'Цепи', exact: true }).click();
+  await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+  const savedStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    emergencyCopy: false,
+    running: true,
+    name: 'saved-stop',
+  });
+  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  expect(await e01LocalDraft(page, projectId)).toBe(beforeDenialLocal);
   await page.evaluate(() => {
     const original = Storage.prototype.setItem;
     Storage.prototype.setItem = function (key, value) {
@@ -4164,81 +4350,33 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   );
   expect(copy.connections).toEqual(e01Document().connections);
   expect(copy).toEqual(beforeAttemptCopy);
-  const layouts: unknown[] = [];
-  for (const width of [1440, 1024, 390, 320]) {
-    await page.setViewportSize({ width, height: 900 });
-    await expect(indicator).toBeVisible();
-    await page
-      .getByRole('button', { name: 'Получить аварийную копию проекта' })
-      .scrollIntoViewIfNeeded();
-    await expect(
-      page.getByRole('button', { name: 'Получить аварийную копию проекта' }),
-    ).toBeVisible();
-    const layout = await page
-      .getByRole('button', { name: 'Получить аварийную копию проекта' })
-      .evaluate((button) => {
-        const box = button.getBoundingClientRect();
-        const style = getComputedStyle(button);
-        const label = document.createRange();
-        label.selectNodeContents(button);
-        const labelBox = label.getBoundingClientRect();
-        const toolbarButtons = Array.from(button.parentElement!.querySelectorAll('button'))
-          .filter((entry) => entry.getClientRects().length > 0)
-          .map((entry) => {
-            const bounds = entry.getBoundingClientRect();
-            return {
-              label: entry.getAttribute('aria-label'),
-              text: entry.textContent?.trim(),
-              x: bounds.x,
-              right: bounds.right,
-              width: bounds.width,
-            };
-          });
-        const indicatorBox = document
-          .querySelector('.workbench-save-state')!
-          .getBoundingClientRect();
-        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
-        return {
-          viewport: innerWidth,
-          pageWidth: document.documentElement.scrollWidth,
-          box: { x: box.x, y: box.y, width: box.width, height: box.height },
-          label: {
-            text: button.textContent?.trim(),
-            x: labelBox.x,
-            right: labelBox.right,
-            contentLeft:
-              box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
-            contentRight:
-              box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
-          },
-          toolbarButtons,
-          unobstructed: hit !== null && button.contains(hit),
-          indicatorOverlap:
-            Math.min(box.right, indicatorBox.right) > Math.max(box.left, indicatorBox.left) &&
-            Math.min(box.bottom, indicatorBox.bottom) > Math.max(box.top, indicatorBox.top),
-        };
-      });
-    expect(layout.box.width).toBeGreaterThan(0);
-    expect(layout.box.height).toBeGreaterThan(0);
-    expect(layout.box.x).toBeGreaterThanOrEqual(0);
-    expect(layout.box.x + layout.box.width).toBeLessThanOrEqual(layout.viewport);
-    expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewport);
-    expect(layout.unobstructed).toBe(true);
-    expect(layout.indicatorOverlap).toBe(false);
-    expect(layout.label.text).toBe('Копия JSON');
-    expect(layout.label.x).toBeGreaterThanOrEqual(layout.label.contentLeft - 0.5);
-    expect(layout.label.right).toBeLessThanOrEqual(layout.label.contentRight + 0.5);
-    for (const [index, button] of layout.toolbarButtons.entries()) {
-      expect(button.width).toBeGreaterThan(0);
-      if (index > 0)
-        expect(button.x).toBeGreaterThanOrEqual(layout.toolbarButtons[index - 1]!.right);
-    }
-    layouts.push({ width, ...layout });
-    await page.screenshot({
-      path: `${evidenceDir}/after-local-denial-${width}.png`,
-      fullPage: true,
-    });
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  const layouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    emergencyCopy: true,
+    running: false,
+    name: 'error-run',
+  });
+  const errorAffectedViewLayouts: unknown[] = [];
+  for (const view of ['Схемы', 'Компоненты']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    errorAffectedViewLayouts.push(
+      ...(await e01AffectedToolbarLayouts(
+        page,
+        evidenceDir,
+        { emergencyCopy: true, running: false, name: `error-${view}-run` },
+        [1440, 1024, 390, 320],
+      )),
+    );
   }
+  await page.getByRole('button', { name: 'Цепи', exact: true }).click();
+  await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+  const errorStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    emergencyCopy: true,
+    running: true,
+    name: 'error-stop',
+  });
+  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
   await expect(value).toHaveValue('166.7');
   await expect(indicator).not.toHaveAttribute(
     'title',
@@ -4249,7 +4387,21 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   ) as Record<string, unknown>;
   writeFileSync(
     `${evidenceDir}/after-local-denial.json`,
-    JSON.stringify({ ...receipt, emergencyCopy: copy, layouts }, null, 2),
+    JSON.stringify(
+      {
+        ...receipt,
+        requests,
+        emergencyCopy: copy,
+        layouts,
+        savedRunLayouts,
+        savedStopLayouts,
+        errorStopLayouts,
+        savedAffectedViewLayouts,
+        errorAffectedViewLayouts,
+      },
+      null,
+      2,
+    ),
   );
 });
 
