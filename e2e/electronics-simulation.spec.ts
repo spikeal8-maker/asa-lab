@@ -2957,8 +2957,8 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
       blocks: {
         languageVersion: 0,
         blocks: [
-          { type: 'asa_setup', id: 'setup-533', x: 330, y: 120 },
-          { type: 'asa_loop', id: 'loop-533', x: 330, y: 280 },
+          { type: 'asa_setup', id: 'setup-533', x: 400, y: 120 },
+          { type: 'asa_loop', id: 'loop-533', x: 400, y: 280 },
         ],
       },
     });
@@ -2978,7 +2978,17 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
                 arduinoBaudRate: 9600,
               },
             }
-          : item,
+          : item.id === 'resistor'
+            ? {
+                ...item,
+                stateProperties: { ...item.stateProperties, powerRatingWatt: 0.25 },
+              }
+            : item.id === 'button-0'
+              ? {
+                  ...item,
+                  stateProperties: { ...item.stateProperties, contactState: 'released' },
+                }
+              : item,
       ),
     };
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -3219,6 +3229,8 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
       )
       .toEqual(new Set(mediaNames));
     const localBefore = await readLocal();
+    expect(localBefore).not.toBeNull();
+    expect(localBefore).toEqual(before.draft.document);
     const initialScale = await scale();
     await record('initial');
     await svg.locator('.blocklyZoomIn').click();
