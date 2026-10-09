@@ -2646,8 +2646,40 @@ paths:
     patch:
       operationId: patchClassroomStudentSeat
       summary: Rename, protect, suspend or reactivate a StudentSeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [displayLabel, safeMode, status]
+              properties:
+                displayLabel: { type: string, minLength: 1, maxLength: 120 }
+                safeMode: { type: boolean }
+                status: { type: string, enum: [issued, active, suspended] }
+                avatarKey: { type: [string, 'null'] }
+                loginHandle:
+                  type: [string, 'null']
+                  deprecated: true
+                  pattern: '^[A-Za-z0-9]{4,10}$'
+                  description: Optional compatibility assertion of the existing Student Code. Omit for settings changes; null also leaves the stored handle unchanged. Code rotation is a separate action.
       responses:
-        '200': { description: Updated StudentSeat }
+        '200':
+          description: Updated StudentSeat
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [student]
+                properties:
+                  student: { $ref: '#/components/schemas/ClassroomStudentSeat' }
+        '400': { description: Invalid settings }
+        '403': { description: Classroom roster management is not allowed }
+        '404': { description: StudentSeat is not in this classroom }
+        '409': { description: Changing a code requires the separate Student Code action }
+        '503': { description: Protected Student Code keyring or storage unavailable }
     delete:
       operationId: deleteClassroomStudentSeat
       summary: Remove a StudentSeat and revoke its active sessions
@@ -6062,6 +6094,8 @@ components:
           displayLabel,
           studentCode,
           loginHandle,
+          loginMethod,
+          avatarKey,
           safeMode,
           status,
           lastActiveAt,
@@ -6074,13 +6108,18 @@ components:
         id: { type: string, format: uuid }
         displayLabel: { type: string }
         studentCode:
-          type: string
+          type: [string, 'null']
           pattern: '^[A-Za-z0-9]{4,10}$'
-          description: Current teacher-visible Student Code used with the class code.
+          description: Current teacher-visible Student Code used with the class code. Null for Account-only admission; linking a code-based Seat to an Account preserves its code.
         loginHandle:
-          type: string
+          type: [string, 'null']
           deprecated: true
           description: Case-preserving storage compatibility alias for studentCode.
+        loginMethod:
+          type: string
+          enum: [account, student_code]
+          description: Server projection of the existing Seat admission method. account identifies Account-only admission; student_code does not exclude an additional linked Account login. Internal acc handles are never credentials and are not returned.
+        avatarKey: { type: [string, 'null'] }
         safeMode: { type: boolean }
         status:
           type: string
@@ -6099,6 +6138,18 @@ components:
           type: integer
           minimum: 0
           description: Count of canonical waiting_review states only.
+      allOf:
+        - if:
+            properties:
+              loginMethod: { const: account }
+          then:
+            properties:
+              studentCode: { type: 'null' }
+              loginHandle: { type: 'null' }
+          else:
+            properties:
+              studentCode: { type: string, pattern: '^[A-Za-z0-9]{4,10}$' }
+              loginHandle: { type: string, pattern: '^[A-Za-z0-9]{4,10}$' }
     ClassroomEnvelope:
       type: object
       additionalProperties: false

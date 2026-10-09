@@ -256,6 +256,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   // substitutes a representative portable ingress host while keeping the twenty-card grid.
   await page.emulateMedia({ media: 'print' });
   await page.evaluate(() => document.body.classList.add('student-access-printing'));
+  expect(await decodeRenderedQr(firstCard.getByTestId('class-join-qr'))).toBe(decodedA);
   for (const host of [
     new URL(portalOrigin).host,
     'classroom-really-long-installation-name.example.org',
@@ -482,10 +483,144 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   expect(decodedB).not.toBe(decodedA);
   for (const student of students) expect(decodedB).not.toContain(student.studentCode);
 
+  // Exercise the UI rotation path repeatedly: new actual server-generated codes,
+  // production-rendered SVG pixels, ordinary and monochrome decoding at screen
+  // and print sizes. No encoder matrix or data-qr-url is used as decoder input.
+  const decodedRotations = [decodedA, decodedB];
+  let currentCode = classCodeB;
+  for (let rotation = 0; rotation < 3; rotation += 1) {
+    await cards.getByRole('button', { name: 'Закрыть', exact: true }).last().click();
+    await page.getByRole('button', { name: 'Поделиться классом', exact: true }).click();
+    const share = page.getByRole('dialog', { name: /^Вход в класс/ });
+    const rotating = page.waitForResponse((response) =>
+      response.url().endsWith(`/api/classrooms/${classroomId}/join-code/rotate`),
+    );
+    await share.getByRole('button', { name: 'Сменить код', exact: true }).click();
+    const rotatedResponse = await rotating;
+    expect(rotatedResponse.status(), await rotatedResponse.text()).toBe(201);
+    const nextCode = (await rotatedResponse.json()).classroom.joinCode as string;
+    expect(nextCode).not.toBe(currentCode);
+    cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+    await expect(cards).toBeVisible();
+    const square = cards.getByTestId('class-join-qr').first();
+    await expect(square).toBeVisible();
+    const decoded = await decodeRenderedQr(square, `${evidence}/qr-rotation-${rotation}.png`);
+    const parsed = new URL(decoded);
+    expect(parsed.origin).toBe(portalOrigin);
+    expect(parsed.hash.split('?')[0]).toBe('#/join-class');
+    expect(new URLSearchParams(parsed.hash.split('?')[1] ?? '').get('code')).toBe(nextCode);
+    expect(decodedRotations).not.toContain(decoded);
+    for (const student of students) expect(decoded).not.toContain(student.studentCode);
+    await page.emulateMedia({ media: 'print' });
+    await page.evaluate(() => document.body.classList.add('student-access-printing'));
+    expect(await decodeRenderedQr(square)).toBe(decoded);
+    await page.evaluate(() => document.body.classList.remove('student-access-printing'));
+    await page.emulateMedia({ media: 'screen' });
+    const obsolete = await page.request.post('/api/class-join/resolve', {
+      headers: { origin },
+      data: { code: currentCode },
+    });
+    expect(obsolete.status()).toBe(404);
+    decodedRotations.push(decoded);
+    currentCode = nextCode;
+  }
+
   writeFileSync(
     `${evidence}/decoded-urls.json`,
-    JSON.stringify({ classCodeA, decodedA, classCodeB, decodedB }, null, 2),
+    JSON.stringify({ classCodeA, decodedA, classCodeB, decodedB, decodedRotations }, null, 2),
   );
+});
+
+test('classroom settings refuse failed saves, recover busy and retry through the real API', async ({
+  page,
+}) => {
+  await registerTeacher(page);
+  const created = await page.request.post('/api/classrooms', {
+    headers: { origin, 'idempotency-key': crypto.randomUUID() },
+    data: {
+      title: 'Класс проверки отказов настроек',
+      ageBand: 'mixed',
+      topicKeys: [],
+      safeModeDefault: true,
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const classroom = (await created.json()).classroom as { id: string; title: string };
+  const errors: string[] = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/#/classrooms/${classroom.id}`);
+  await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
+  const safeMode = page.getByRole('checkbox', { name: 'Безопасный режим для всех', exact: true });
+  await expect(safeMode).toBeChecked();
+  let policyAttempts = 0;
+  await page.route(`**/api/classrooms/${classroom.id}/policies`, async (route) => {
+    policyAttempts += 1;
+    // Deliberate browser failure injection; the successful retry reaches the real API.
+    if (policyAttempts === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: { code: 'temporary_refusal', message: 'Безопасный режим не сохранён.' } },
+      });
+    if (policyAttempts === 2) return route.abort('failed');
+    return route.continue();
+  });
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await safeMode.click();
+    await expect(page.getByRole('alert').filter({ hasText: /Повторите попытку/ })).toBeVisible();
+    await expect(safeMode).toBeEnabled();
+    await expect(safeMode).toBeChecked();
+    const state = await page.request.get(`/api/classrooms/${classroom.id}`);
+    expect(state.status(), await state.text()).toBe(200);
+    expect((await state.json()).classroom.safeModeDefault).toBe(true);
+  }
+  await safeMode.click();
+  await expect(safeMode).not.toBeChecked();
+  await expect(safeMode).toBeEnabled();
+  await expect(page.getByRole('alert').filter({ hasText: /Повторите попытку/ })).toHaveCount(0);
+  expect(policyAttempts).toBe(3);
+  expect(
+    (await (await page.request.get(`/api/classrooms/${classroom.id}`)).json()).classroom
+      .safeModeDefault,
+  ).toBe(false);
+
+  let propertyAttempts = 0;
+  await page.route(`**/api/classrooms/${classroom.id}`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.continue();
+    propertyAttempts += 1;
+    if (propertyAttempts === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: { code: 'temporary_refusal', message: 'Свойства класса не сохранены.' } },
+      });
+    if (propertyAttempts === 2) return route.abort('failed');
+    return route.continue();
+  });
+  await page.getByRole('button', { name: 'Название и свойства класса', exact: true }).click();
+  const properties = page.getByRole('dialog', { name: 'Свойства класса', exact: true });
+  const title = properties.getByLabel('Название класса', { exact: true });
+  const save = properties.getByRole('button', { name: 'Сохранить', exact: true });
+  await title.fill('Подтверждённое сервером новое название');
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await save.click();
+    await expect(properties.getByRole('alert')).toBeVisible();
+    await expect(save).toBeEnabled();
+    await expect(title).toHaveValue('Подтверждённое сервером новое название');
+    expect(
+      (await (await page.request.get(`/api/classrooms/${classroom.id}`)).json()).classroom.title,
+    ).toBe(classroom.title);
+    await expect(page.locator('.classroom-head')).toContainText(classroom.title);
+  }
+  await save.click();
+  await expect(properties).toHaveCount(0);
+  await expect(page.locator('.classroom-head')).toContainText(
+    'Подтверждённое сервером новое название',
+  );
+  expect(propertyAttempts).toBe(3);
+  expect(
+    (await (await page.request.get(`/api/classrooms/${classroom.id}`)).json()).classroom.title,
+  ).toBe('Подтверждённое сервером новое название');
+  expect(errors).toEqual([]);
 });
 
 test('owner classroom flow: one-click batch, exact retry and existing Account approval', async ({
@@ -597,6 +732,160 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
         (item: { classroomId: string }) => item.classroomId === classroom.id,
       ),
     ).toBe(true);
+
+    // Real Account-only admission and real StudentSeat codes in the same class.
+    // Account settings use the stored DB identity without transporting its handle.
+    const accountSeat = approvedRoster.items.find(
+      (item: { loginMethod: string }) => item.loginMethod === 'account',
+    );
+    expect(accountSeat).toBeDefined();
+    expect(accountSeat).toMatchObject({ studentCode: null, loginHandle: null });
+    const stored = await admin.query(
+      'SELECT login_handle FROM classroom_student_seats WHERE id=$1',
+      [accountSeat.id],
+    );
+    expect(stored.rows[0].login_handle).toMatch(/^acc:/);
+    const longAccountName = 'Александра Константиновна Иванова-Петрова — участник через аккаунт';
+    const updated = await page.request.patch(
+      `/api/classrooms/${classroom.id}/seats/${accountSeat.id}`,
+      {
+        headers: { origin },
+        data: { displayLabel: longAccountName, safeMode: false, status: 'active', avatarKey: null },
+      },
+    );
+    expect(updated.status(), await updated.text()).toBe(200);
+    expect((await updated.json()).student).toMatchObject({
+      loginMethod: 'account',
+      studentCode: null,
+      loginHandle: null,
+      displayLabel: longAccountName,
+    });
+    const mixed = await (await page.request.get(`/api/classrooms/${classroom.id}/roster`)).json();
+    expect(mixed.items).toHaveLength(31);
+    expect(
+      mixed.items.filter((item: { loginMethod: string }) => item.loginMethod === 'student_code'),
+    ).toHaveLength(30);
+    expect(JSON.stringify(mixed)).not.toContain('acc:');
+    const longCodeSeat = mixed.items.find(
+      (item: { loginMethod: string }) => item.loginMethod === 'student_code',
+    );
+    const renamed = await page.request.patch(
+      `/api/classrooms/${classroom.id}/seats/${longCodeSeat.id}`,
+      {
+        headers: { origin },
+        data: {
+          displayLabel: 'Константин Александрович Очень-Длинная-Составная-Фамилия',
+          safeMode: true,
+          status: 'active',
+          avatarKey: null,
+        },
+      },
+    );
+    expect(renamed.status(), await renamed.text()).toBe(200);
+    expect((await renamed.json()).student.studentCode).toBe(longCodeSeat.studentCode);
+    await page.goto(`/#/classrooms/${classroom.id}`);
+    const copyLog: string[] = [];
+    await page.exposeFunction('captureClassroomCopy', (value: string) => copyLog.push(value));
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: (value: string) =>
+            (
+              window as unknown as { captureClassroomCopy(value: string): Promise<void> }
+            ).captureClassroomCopy(value),
+        },
+      });
+    });
+    const accountRow = page.locator('.classroom-roster-row').filter({ hasText: longAccountName });
+    await expect(accountRow).toContainText('Вход через аккаунт');
+    await expect(accountRow.locator('.classroom-login-handle')).toHaveCount(0);
+    await accountRow.getByText('Вход через аккаунт', { exact: true }).click();
+    expect(copyLog).toEqual([]);
+    const codeRow = page
+      .locator('.classroom-roster-row')
+      .filter({ hasText: longCodeSeat.studentCode });
+    await codeRow.locator('.classroom-login-handle').click();
+    await expect.poll(() => copyLog).toEqual([longCodeSeat.studentCode]);
+    await expect(page.locator('.classroom-roster-table')).not.toContainText('acc:');
+    await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+    const mixedCards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+    await mixedCards.locator('.student-access-selection summary').click();
+    const accountCard = mixedCards.locator('.student-access-card.is-account-entry');
+    await expect(accountCard).toHaveCount(1);
+    await expect(accountCard).toContainText('Вход через аккаунт');
+    await expect(accountCard.locator('.student-access-student-code code')).toHaveCount(0);
+    await expect(accountCard).toContainText(
+      'Войдите в свой аккаунт ASA Lab → Моё обучение → этот класс.',
+    );
+    await expect(mixedCards.locator('.student-access-selector')).toContainText(
+      'Вход через аккаунт',
+    );
+    await expect(mixedCards).not.toContainText('acc:');
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.evaluate(() => document.fonts.ready);
+      const geometry = await mixedCards.evaluate((dialog) => {
+        const bounds = dialog.getBoundingClientRect();
+        return {
+          left: bounds.left,
+          right: bounds.right,
+          overflow: dialog.scrollWidth - dialog.clientWidth,
+          escaped: [...dialog.querySelectorAll<HTMLElement>('*')]
+            .filter((element) => {
+              const box = element.getBoundingClientRect();
+              return box.left < bounds.left - 1 || box.right > bounds.right + 1;
+            })
+            .map((element) => element.className || element.tagName),
+        };
+      });
+      expect(geometry.left).toBeGreaterThanOrEqual(0);
+      expect(geometry.right).toBeLessThanOrEqual(width);
+      expect(geometry.overflow).toBeLessThanOrEqual(1);
+      expect(geometry.escaped).toEqual([]);
+      await expect(accountCard.locator('.student-access-instruction')).toBeVisible();
+      for (const card of [
+        accountCard,
+        mixedCards.locator('.student-access-card').filter({ hasText: longCodeSeat.studentCode }),
+      ]) {
+        const decoded = await decodeRenderedQr(card.getByTestId('class-join-qr'));
+        expect(decoded).toBe(
+          `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
+        );
+        expect(decoded).not.toContain(longCodeSeat.studentCode);
+        expect(decoded).not.toContain('acc:');
+      }
+    }
+    const beforePrint = await classState(classroom.id);
+    await page.emulateMedia({ media: 'print' });
+    await page.evaluate(() => document.body.classList.add('student-access-printing'));
+    await expect(mixedCards.locator('.student-access-print-page')).toHaveCount(2);
+    expect(
+      await mixedCards
+        .locator('.student-access-print-page')
+        .evaluateAll((pages) =>
+          pages.map((sheet) => sheet.querySelectorAll('.student-access-card').length),
+        ),
+    ).toEqual([20, 11]);
+    const accountPrint = await accountCard.evaluate((card) => ({
+      overflowX: card.scrollWidth - card.clientWidth,
+      overflowY: card.scrollHeight - card.clientHeight,
+      instructionDisplay: getComputedStyle(card.querySelector('.student-access-instruction')!)
+        .display,
+      text: card.textContent,
+    }));
+    expect(accountPrint.overflowX).toBeLessThanOrEqual(1);
+    expect(accountPrint.overflowY).toBeLessThanOrEqual(1);
+    expect(accountPrint.instructionDisplay).not.toBe('none');
+    expect(accountPrint.text).toContain('Вход через аккаунт');
+    expect(accountPrint.text).not.toContain('acc:');
+    expect(await decodeRenderedQr(accountCard.getByTestId('class-join-qr'))).toBe(
+      `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
+    );
+    await page.evaluate(() => document.body.classList.remove('student-access-printing'));
+    await page.emulateMedia({ media: 'screen' });
+    expect(await classState(classroom.id)).toEqual(beforePrint);
+    expect(copyLog).toEqual([longCodeSeat.studentCode]);
   } finally {
     await accountContext.close();
   }

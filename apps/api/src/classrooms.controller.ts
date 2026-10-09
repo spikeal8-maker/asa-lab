@@ -33,6 +33,7 @@ import {
   type ListClassroomsUseCase,
 } from '@asa-lab/classroom';
 import { classroomCodeSecret } from './classroom-code-secret.js';
+import { classroomSeatAccess } from './classroom-seat-access.js';
 import { teacherHomeAttention } from './teacher-home-attention.js';
 import {
   decryptStudentCode,
@@ -241,9 +242,7 @@ function seatView(row: StudentSeatRow) {
   return {
     id: row.id,
     displayLabel: row.display_label,
-    studentCode: row.login_handle,
-    // Legacy alias kept temporarily for older clients; new UI calls this Student Code.
-    loginHandle: row.login_handle,
+    ...classroomSeatAccess(row.login_handle),
     // Сколько заданий выдано классу, сколько этот человек сдал и сколько из
     // сданного ещё ждёт ответа. Преподаватель видит это в списке, а не после
     // того, как откроет каждого по очереди.
@@ -594,6 +593,8 @@ export class ClassroomsController {
     ).rows as ProtectedStudentCodeRow[];
     const bySeat = new Map(protectedRows.map((row) => [row.seat_id, row]));
     return rows.map((row) => {
+      // Account admission has no Student Code to decrypt, even in enforced mode.
+      if (classroomSeatAccess(row.login_handle).loginMethod === 'account') return row;
       const protectedRow = bySeat.get(row.id);
       if (!protectedRow) {
         if (config.mode === 'enforced') {
@@ -1512,8 +1513,8 @@ export class ClassroomsController {
       typeof displayLabel !== 'string' ||
       displayLabel.trim().length < 1 ||
       displayLabel.trim().length > 120 ||
-      typeof loginHandle !== 'string' ||
-      !STUDENT_CODE_PATTERN.test(loginHandle.trim()) ||
+      (loginHandle != null &&
+        (typeof loginHandle !== 'string' || !STUDENT_CODE_PATTERN.test(loginHandle.trim()))) ||
       typeof safeMode !== 'boolean' ||
       typeof status !== 'string' ||
       !SEAT_STATUSES.includes(status as (typeof SEAT_STATUSES)[number]) ||
@@ -1528,7 +1529,8 @@ export class ClassroomsController {
     if (!current.rows[0]) {
       throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
     }
-    if (String(current.rows[0].login_handle) !== loginHandle.trim()) {
+    const storedHandle = String(current.rows[0].login_handle);
+    if (typeof loginHandle === 'string' && storedHandle !== loginHandle.trim()) {
       throw new HttpException(
         error('student_code_endpoint_required', 'Код ученика изменяется отдельным действием.'),
         409,
@@ -1543,13 +1545,18 @@ export class ClassroomsController {
           classroomId,
           seatId,
           displayLabel.trim(),
-          loginHandle.trim(),
+          storedHandle,
           safeMode,
           status,
           avatarKey,
         ],
       );
-      return { student: seatView(result.rows[0] as StudentSeatRow) };
+      const [student] = await this.protectedReadback(
+        context.accountId,
+        classroomId,
+        result.rows as StudentSeatRow[],
+      );
+      return { student: seatView(student) };
     } catch (failure) {
       const message = failure instanceof Error ? failure.message : '';
       if (message.includes('unique') || message.includes('duplicate')) {

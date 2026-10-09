@@ -197,7 +197,14 @@ export function ClassroomStudentPage({
           <p className="portal-eyebrow">Ученик класса</p>
           <h1>{student.displayLabel}</h1>
           <p>
-            Вход: <code>{student.loginHandle}</code> · последний раз{' '}
+            {student.loginMethod === 'account' ? (
+              'Вход через аккаунт'
+            ) : (
+              <>
+                Вход: <code>{student.studentCode}</code>
+              </>
+            )}{' '}
+            · последний раз{' '}
             {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не заходил'}
           </p>
 

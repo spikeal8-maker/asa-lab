@@ -19,9 +19,9 @@ export function sortClassroomRoster(
       key === 'name'
         ? names.compare(a.displayLabel, b.displayLabel)
         : key === 'code'
-          ? a.studentCode < b.studentCode
+          ? (a.studentCode ?? '') < (b.studentCode ?? '')
             ? -1
-            : a.studentCode > b.studentCode
+            : (a.studentCode ?? '') > (b.studentCode ?? '')
               ? 1
               : 0
           : key === 'submitted'

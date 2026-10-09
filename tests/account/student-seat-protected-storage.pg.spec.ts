@@ -169,6 +169,160 @@ async function addSeat(cookie: string, classroomId: string, label: string) {
 }
 
 describe('E1-FIX-02B protected Student Code storage foundation', () => {
+  it('enforced mixed roster keeps Account-only admission and both linked Seat access paths without rotating storage', async () => {
+    const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const { teacher, classroomId, classCode } = await teacherClass();
+      const codeSeat = await addSeat(
+        teacher.cookie,
+        classroomId,
+        'Связанный ученик с коротким кодом',
+      );
+      const accountOnly = await account();
+      const requested = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/account',
+        headers: { cookie: accountOnly.cookie },
+        payload: { code: classCode },
+      });
+      expect(requested.statusCode, requested.body).toBe(200);
+      expect(requested.json().status).toBe('pending');
+      const decided = await inject(app, {
+        method: 'POST',
+        url: `/api/class-join/requests/${classroomId}/${requested.json().requestId}/decision`,
+        headers: { cookie: teacher.cookie },
+        payload: { decision: 'approved' },
+      });
+      expect(decided.statusCode, decided.body).toBe(201);
+      const linkedAccount = await account();
+      const linkedSession = await inject(app, {
+        method: 'GET',
+        url: '/api/auth/me',
+        headers: { cookie: linkedAccount.cookie },
+      });
+      expect(linkedSession.statusCode, linkedSession.body).toBe(200);
+      // Seed the existing Account+Seat relation in this disposable database.
+      // This is a credential-preservation test, not a claim of a new linking journey.
+      await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+        linkedSession.json().account.id,
+        codeSeat.id,
+      ]);
+      const before = await admin.query(
+        'SELECT * FROM classroom_student_code_protected WHERE seat_id=$1',
+        [codeSeat.id],
+      );
+      const readRoster = () =>
+        inject(app, {
+          method: 'GET',
+          url: `/api/classrooms/${classroomId}/roster`,
+          headers: { cookie: teacher.cookie },
+        });
+      const roster = await readRoster();
+      expect(roster.statusCode, roster.body).toBe(200);
+      expect(roster.body).not.toContain('acc:');
+      const codeRow = roster.json().items.find((row: { id: string }) => row.id === codeSeat.id);
+      const accountRow = roster
+        .json()
+        .items.find((row: { loginMethod: string }) => row.loginMethod === 'account');
+      expect(codeRow).toMatchObject({
+        studentCode: codeSeat.studentCode,
+        loginHandle: codeSeat.studentCode,
+        loginMethod: 'student_code',
+      });
+      expect(accountRow).toMatchObject({
+        studentCode: null,
+        loginHandle: null,
+        loginMethod: 'account',
+      });
+      const accountStored = await admin.query(
+        'SELECT login_handle FROM classroom_student_seats WHERE id=$1',
+        [accountRow.id],
+      );
+      expect(accountStored.rows[0].login_handle).toMatch(/^acc:/);
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+            accountRow.id,
+          ])
+        ).rowCount,
+      ).toBe(0);
+      const changed = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/seats/${accountRow.id}`,
+        headers: { cookie: teacher.cookie },
+        payload: {
+          displayLabel: 'Участник через аккаунт',
+          safeMode: false,
+          status: 'active',
+          avatarKey: null,
+        },
+      });
+      expect(changed.statusCode, changed.body).toBe(200);
+      expect(changed.json().student).toMatchObject({
+        studentCode: null,
+        loginHandle: null,
+        loginMethod: 'account',
+        safeMode: false,
+      });
+      const linkedChanged = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/seats/${codeSeat.id}`,
+        headers: { cookie: teacher.cookie },
+        payload: {
+          displayLabel: 'Связанный ученик',
+          safeMode: true,
+          status: 'active',
+          avatarKey: null,
+        },
+      });
+      expect(linkedChanged.statusCode, linkedChanged.body).toBe(200);
+      expect(linkedChanged.json().student.studentCode).toBe(codeSeat.studentCode);
+      const codeLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: codeSeat.studentCode },
+      });
+      expect(codeLogin.statusCode, codeLogin.body).toBe(200);
+      const linkedClasses = await inject(app, {
+        method: 'GET',
+        url: '/api/class-join/account/classes',
+        headers: { cookie: linkedAccount.cookie },
+      });
+      expect(linkedClasses.statusCode, linkedClasses.body).toBe(200);
+      expect(
+        linkedClasses
+          .json()
+          .items.some((row: { classroomId: string }) => row.classroomId === classroomId),
+      ).toBe(true);
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+            codeSeat.id,
+          ])
+        ).rows,
+      ).toEqual(before.rows);
+      const originalTag = before.rows[0].encryption_tag;
+      await admin.query(
+        'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+        [Buffer.alloc(16), codeSeat.id],
+      );
+      try {
+        const corruptRoster = await readRoster();
+        expect(corruptRoster.statusCode, corruptRoster.body).toBe(503);
+        expect(corruptRoster.body).toContain('credential_storage_unavailable');
+      } finally {
+        await admin.query(
+          'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+          [originalTag, codeSeat.id],
+        );
+      }
+      expect((await readRoster()).statusCode).toBe(200);
+    } finally {
+      if (previousMode === undefined) delete process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+      else process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = previousMode;
+    }
+  });
   it('compat dual-writes protected envelope, decrypts current readback, and signs in by HMAC lookup', async () => {
     const { teacher, classroomId, classCode } = await teacherClass();
     const seat = await addSeat(teacher.cookie, classroomId, 'Protected learner');

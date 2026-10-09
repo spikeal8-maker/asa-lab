@@ -142,7 +142,11 @@ export function StudentAccessCards({
                   }}
                 />
                 <span>{student.displayLabel}</span>
-                <code>{student.studentCode}</code>
+                {student.loginMethod === 'account' ? (
+                  <span className="student-access-account-label">Вход через аккаунт</span>
+                ) : (
+                  <code>{student.studentCode}</code>
+                )}
               </label>
             ))}
           </div>
@@ -162,6 +166,7 @@ export function StudentAccessCards({
                 <article
                   className={[
                     'student-access-card',
+                    student.loginMethod === 'account' ? 'is-account-entry' : '',
                     student.displayLabel.length > 28 ? 'is-long-name' : '',
                     classroomTitle.length > 36 ? 'is-long-class' : '',
                     (entry?.label.length ?? 0) > 22 ? 'is-long-site' : '',
@@ -182,18 +187,33 @@ export function StudentAccessCards({
                       <h3 title={student.displayLabel}>{student.displayLabel}</h3>
                     </div>
                     <div className="student-access-codes">
-                      <div>
-                        <span>Код класса</span>
-                        <code>{classCode ?? '—'}</code>
-                      </div>
+                      {student.loginMethod !== 'account' ? (
+                        <div>
+                          <span>Код класса</span>
+                          <code>{classCode ?? '—'}</code>
+                        </div>
+                      ) : null}
                       <div className="student-access-student-code">
-                        <span>Код ученика</span>
-                        <code>{student.studentCode}</code>
+                        {student.loginMethod === 'account' ? (
+                          <>
+                            <span className="student-access-account-label">Вход через аккаунт</span>
+                            <p className="student-access-instruction">
+                              Войдите в свой аккаунт ASA Lab → Моё обучение → этот класс.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <span>Код ученика</span>
+                            <code>{student.studentCode}</code>
+                          </>
+                        )}
                       </div>
                     </div>
-                    <p className="student-access-instruction">
-                      Вручную: {entry?.label ?? 'адрес портала'} → код класса → код ученика.
-                    </p>
+                    {student.loginMethod !== 'account' ? (
+                      <p className="student-access-instruction">
+                        {`Вручную: ${entry?.label ?? 'адрес портала'} → код класса → код ученика.`}
+                      </p>
+                    ) : null}
                   </div>
                   <aside className="student-access-qr" aria-label="QR для входа в класс">
                     {classJoinUrl ? (

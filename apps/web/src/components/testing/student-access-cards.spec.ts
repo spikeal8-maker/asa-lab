@@ -9,6 +9,7 @@ const student = {
   id: '11111111-1111-4111-8111-111111111111',
   displayLabel: 'Синтетический ученик',
   studentCode,
+  loginMethod: 'student_code' as const,
   loginHandle: studentCode,
   safeMode: true,
   status: 'active' as const,
@@ -73,6 +74,34 @@ describe('StudentAccessCards class-only QR contract', () => {
 });
 
 describe('twenty-card A4 pagination', () => {
+  it('describes Account admission honestly alongside a real Student Code', () => {
+    vi.stubGlobal('window', {
+      location: { origin: 'https://portal.example.org', protocol: 'https:' },
+    });
+    const html = renderToStaticMarkup(
+      createElement(StudentAccessCards, {
+        classroomTitle: 'Смешанный класс',
+        classCode,
+        onClose: vi.fn(),
+        students: [
+          student,
+          {
+            ...student,
+            id: 'account',
+            loginMethod: 'account',
+            studentCode: null,
+            loginHandle: null,
+          },
+        ],
+      }),
+    );
+    expect(html).toContain(studentCode);
+    expect(html).toContain('Вход через аккаунт');
+    expect(html).toContain('Войдите в свой аккаунт ASA Lab → Моё обучение → этот класс.');
+    expect(html).not.toContain('acc:');
+    expect(html.match(/data-qr-url=/g)).toHaveLength(2);
+    expect(html.match(/data-card-count="2"/g)).toHaveLength(1);
+  });
   it.each([
     [0, 0],
     [1, 1],

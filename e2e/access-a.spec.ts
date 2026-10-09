@@ -375,6 +375,35 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   const teacherPage = await teacherContext.newPage();
   await teacherPage.setViewportSize({ width: 1440, height: 900 });
   await teacherPage.goto(`${origin}/#/classrooms/${classId}`);
+  const mixedRosterResponse = await teacherPage.request.get(`/api/classrooms/${classId}/roster`);
+  expect(mixedRosterResponse.status(), await mixedRosterResponse.text()).toBe(200);
+  const mixedRoster = (await mixedRosterResponse.json()).items as Array<{
+    id: string;
+    displayLabel: string;
+    loginMethod: 'account' | 'student_code';
+    studentCode: string | null;
+    loginHandle: string | null;
+  }>;
+  const accountOnly = mixedRoster.find((student) => student.loginMethod === 'account');
+  expect(
+    accountOnly,
+    'earlier Account admission must be present in this mixed class',
+  ).toBeDefined();
+  expect(accountOnly!.studentCode).toBeNull();
+  expect(accountOnly!.loginHandle).toBeNull();
+  expect(JSON.stringify(mixedRoster)).not.toContain('acc:');
+  const accountRow = teacherPage
+    .locator('.classroom-roster-row')
+    .filter({ hasText: accountOnly!.displayLabel });
+  await expect(accountRow).toContainText('Вход через аккаунт');
+  await expect(accountRow.locator('.classroom-login-handle')).toHaveCount(0);
+  await expect(
+    accountRow.getByRole('button', {
+      name: 'Изменить код ученика',
+      exact: true,
+      includeHidden: true,
+    }),
+  ).toBeDisabled();
   await teacherPage.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
   const cards = teacherPage.getByRole('dialog').filter({
     has: teacherPage.getByRole('heading', { name: 'Карточки доступа', exact: true }),
@@ -384,6 +413,16 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   await expect(cards).toContainText(first.student.studentCode);
   await expect(cards).toContainText(second.student.studentCode);
   await expect(cards).toContainText(classCode);
+  await expect(cards).not.toContainText('acc:');
+  const accountCard = cards
+    .locator('.student-access-card.is-account-entry')
+    .filter({ hasText: accountOnly!.displayLabel });
+  await expect(accountCard).toContainText('Вход через аккаунт');
+  await expect(accountCard).toContainText('Войдите в свой аккаунт ASA Lab');
+  await expect(accountCard.locator('.student-access-student-code code')).toHaveCount(0);
+  await cards.locator('.student-access-selection summary').click();
+  await expect(cards.locator('.student-access-selector')).not.toContainText('acc:');
+  await expect(cards.locator('.student-access-selector')).toContainText('Вход через аккаунт');
   const portalOrigin = await teacherPage.evaluate(() => window.location.origin);
   const portalHost = new URL(portalOrigin).host;
   await expect(cards).toContainText(portalHost);

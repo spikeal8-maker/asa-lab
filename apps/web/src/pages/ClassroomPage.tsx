@@ -31,6 +31,7 @@ import { useSchoolTime } from '../components/school-time';
 import { defaultAvatarForAccount, seatAvatar } from '../creator-portal/default-avatars';
 import { StudentAccessCards } from '../components/StudentAccessCards';
 import { StudentCodeDialog } from '../components/StudentCodeDialog';
+import { confirmedClassroomResult, runClassroomAction } from '../components/classroom-action';
 
 type ClassroomTab =
   | 'students'
@@ -169,9 +170,14 @@ function StudentDialog({
       return;
     }
     setBusy(true);
-    const message = await onSaved({ displayLabel: label, safeMode, avatarKey });
-    setBusy(false);
-    if (message) setError(message);
+    setError(null);
+    try {
+      setError(await onSaved({ displayLabel: label, safeMode, avatarKey }));
+    } catch {
+      setError('Не удалось сохранить данные ученика. Повторите попытку.');
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -296,6 +302,8 @@ function BatchDialog({
       }
       await onCommitted(created.length, skipped);
       onOpenCards(created.flatMap((row) => (row.seatId ? [row.seatId] : [])));
+    } catch {
+      setError('Не удалось получить подтверждение добавления. Повторите попытку с тем же списком.');
     } finally {
       inFlight.current = false;
       setBusy(false);
@@ -435,13 +443,24 @@ export function ClassroomPage({
   const [awards, setAwards] = useState<Readonly<Record<string, string[]>>>({});
 
   const reload = useCallback(async () => {
-    const [classroom, roster] = await Promise.all([
-      api.getClassroom(classroomId),
-      api.listClassroomRoster(classroomId),
-    ]);
-    if (classroom.ok && roster.ok)
+    try {
+      const [classroom, roster] = await Promise.all([
+        api.getClassroom(classroomId),
+        api.listClassroomRoster(classroomId),
+      ]);
+      if (!classroom.ok || !roster.ok) throw new Error('load failed');
       setPage({ kind: 'ready', classroom: classroom.data.classroom, students: roster.data.items });
-    else setPage({ kind: 'error', message: 'Не удалось открыть класс.' });
+    } catch {
+      setPage((current) =>
+        current.kind === 'ready'
+          ? current
+          : {
+              kind: 'error',
+              message: 'Не удалось открыть класс. Повторите попытку.',
+            },
+      );
+      setActionError('Не удалось обновить данные класса. Повторите загрузку.');
+    }
   }, [classroomId]);
 
   useEffect(() => {
@@ -483,17 +502,16 @@ export function ClassroomPage({
 
   const reloadTeacherTeam = useCallback(async () => {
     setTeacherTeam({ kind: 'loading' });
-    const result = await api.listClassroomTeachers(classroomId);
-    if (result.ok) {
-      setTeacherTeam({
-        kind: 'ready',
-        teachers: result.data.items,
-        invitations: result.data.invitations,
-      });
-    } else {
+    try {
+      const result = confirmedClassroomResult(
+        await api.listClassroomTeachers(classroomId),
+        'Не удалось загрузить преподавателей класса.',
+      );
+      setTeacherTeam({ kind: 'ready', teachers: result.items, invitations: result.invitations });
+    } catch {
       setTeacherTeam({
         kind: 'error',
-        message: result.error.message || 'Не удалось загрузить преподавателей класса.',
+        message: 'Не удалось загрузить преподавателей класса. Повторите попытку.',
       });
     }
   }, [classroomId]);
@@ -512,20 +530,54 @@ export function ClassroomPage({
     }
   }
 
+  function action(
+    key: string,
+    fallback: string,
+    work: () => Promise<void>,
+  ): Promise<string | null> {
+    return runClassroomAction(work, fallback, {
+      start: () => {
+        setBusy(key);
+        setActionError(null);
+        setNotice(null);
+      },
+      fail: setActionError,
+      finish: () => setBusy(null),
+    });
+  }
+
+  function confirmClassroom(classroom: Classroom): void {
+    setPage((current) => (current.kind === 'ready' ? { ...current, classroom } : current));
+  }
+
   async function updateStudent(student: ClassroomStudentSeat): Promise<string | null> {
-    setBusy(`seat:${student.id}`);
-    const result = await api.updateClassroomSeat(classroomId, student);
-    setBusy(null);
-    if (!result.ok) {
-      const message = result.error.message || 'Не удалось сохранить настройки.';
-      setActionError(message);
-      return message;
-    }
-    setActionError(null);
-    setEditing(null);
-    setNotice(`Настройки «${result.data.student.displayLabel}» сохранены.`);
-    await reload();
-    return null;
+    return action(`seat:${student.id}`, 'Не удалось сохранить настройки ученика.', async () => {
+      const result = confirmedClassroomResult(
+        await api.updateClassroomSeat(classroomId, student),
+        'Не удалось сохранить настройки ученика.',
+      );
+      setPage((current) =>
+        current.kind === 'ready'
+          ? {
+              ...current,
+              students: current.students.map((row) =>
+                row.id === student.id
+                  ? {
+                      ...result.student,
+                      // Settings responses do not carry the canonical learning counters.
+                      assignedCount: row.assignedCount ?? 0,
+                      submittedCount: row.submittedCount ?? 0,
+                      awaitingReview: row.awaitingReview ?? 0,
+                    }
+                  : row,
+              ),
+            }
+          : current,
+      );
+      setEditing(null);
+      setNotice(`Настройки «${result.student.displayLabel}» сохранены.`);
+      await reload();
+    });
   }
 
   if (page.kind === 'loading')
@@ -566,7 +618,7 @@ export function ClassroomPage({
       : students.filter(
           (student) =>
             student.displayLabel.toLocaleLowerCase('ru-RU').includes(needle) ||
-            student.studentCode.toLocaleLowerCase('en-US').includes(needle),
+            (student.studentCode ?? '').toLocaleLowerCase('en-US').includes(needle),
         );
 
   /**
@@ -630,15 +682,17 @@ export function ClassroomPage({
               className="portal-create-button"
               disabled={busy === 'status'}
               onClick={async () => {
-                setBusy('status');
-                const result = await api.setClassroomStatus(classroomId, 'active');
-                setBusy(null);
-                if (result.ok) {
+                await action('status', 'Не удалось вернуть класс из архива.', async () => {
+                  const result = confirmedClassroomResult(
+                    await api.setClassroomStatus(classroomId, 'active'),
+                    'Не удалось вернуть класс из архива.',
+                  );
+                  if (result.classroom) confirmClassroom(result.classroom);
                   setNotice(
                     'Класс вернулся из архива. Выдайте новый код, чтобы впустить учеников.',
                   );
                   await reload();
-                }
+                });
               }}
             >
               Вернуть из архива
@@ -698,7 +752,9 @@ export function ClassroomPage({
           </span>
           <span className={progress.behindCount > 0 ? 'is-behind' : undefined}>
             <strong>{progress.behindCount}</strong>
-            <em title="Учащиеся без сданных работ">Без работ</em>
+            <em title="Учащиеся, которые ещё ничего не сдали, хотя классу выданы задания">
+              Без сдач
+            </em>
           </span>
         </div>
       ) : null}
@@ -747,6 +803,17 @@ export function ClassroomPage({
       {actionError ? (
         <p className="form-error" role="alert">
           {actionError}
+          <button
+            type="button"
+            className="btn-ghost"
+            disabled={Boolean(busy)}
+            onClick={() => {
+              setActionError(null);
+              void reload();
+            }}
+          >
+            Повторить загрузку
+          </button>
         </p>
       ) : null}
       {tab === 'requests' ? (
@@ -774,19 +841,26 @@ export function ClassroomPage({
             <input
               type="checkbox"
               checked={classroom.safeModeDefault}
-              disabled={busy === 'policy' || archived}
+              disabled={Boolean(busy) || archived}
               onChange={async (event) => {
-                setBusy('policy');
-                const result = await api.updateClassroomPolicy(classroomId, event.target.checked);
-                setBusy(null);
-                if (result.ok) {
-                  setNotice(
-                    event.target.checked
-                      ? 'Безопасный режим включён для класса.'
-                      : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
-                  );
-                  await reload();
-                }
+                const safeMode = event.currentTarget.checked;
+                await action(
+                  'policy',
+                  'Не удалось сохранить безопасный режим класса.',
+                  async () => {
+                    const result = confirmedClassroomResult(
+                      await api.updateClassroomPolicy(classroomId, safeMode),
+                      'Не удалось сохранить безопасный режим класса.',
+                    );
+                    confirmClassroom(result.classroom);
+                    setNotice(
+                      result.classroom.safeModeDefault
+                        ? 'Безопасный режим включён для класса.'
+                        : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
+                    );
+                    await reload();
+                  },
+                );
               }}
             />
             <i aria-hidden="true" />
@@ -800,7 +874,8 @@ export function ClassroomPage({
         <ClassroomPropertiesModal
           classroom={classroom}
           onClose={() => setPropertiesOpen(false)}
-          onSaved={() => {
+          onSaved={(saved) => {
+            confirmClassroom(saved);
             setPropertiesOpen(false);
             void reload();
           }}
@@ -980,15 +1055,23 @@ export function ClassroomPage({
                       </span>
                     </button>
                     <div className="classroom-row-details">
-                      <button
-                        type="button"
-                        className="classroom-login-handle"
-                        onClick={() =>
-                          void copy(student.studentCode, `Код «${student.studentCode}» скопирован.`)
-                        }
-                      >
-                        {student.studentCode}
-                      </button>
+                      {student.loginMethod === 'account' ? (
+                        <span className="classroom-account-entry">Вход через аккаунт</span>
+                      ) : (
+                        <button
+                          type="button"
+                          className="classroom-login-handle"
+                          onClick={() =>
+                            student.studentCode &&
+                            void copy(
+                              student.studentCode,
+                              `Код «${student.studentCode}» скопирован.`,
+                            )
+                          }
+                        >
+                          {student.studentCode}
+                        </button>
+                      )}
                       {/* Сколько сдано из выданного и ждёт ли что-то ответа.
                       Преподаватель видел «ждут проверки» в списке классов,
                       заходил внутрь — и не мог понять, кто именно ждёт. */}
@@ -1061,7 +1144,9 @@ export function ClassroomPage({
                           </button>
                           <button
                             type="button"
-                            disabled={archived || Boolean(busy)}
+                            disabled={
+                              archived || Boolean(busy) || student.loginMethod === 'account'
+                            }
                             onClick={() => {
                               close();
                               setCodeEditor(student);
@@ -1096,13 +1181,18 @@ export function ClassroomPage({
                                 )
                               )
                                 return;
-                              setBusy(`remove:${student.id}`);
-                              const result = await api.removeClassroomSeat(classroomId, student.id);
-                              setBusy(null);
-                              if (result.ok) {
-                                setNotice(`${student.displayLabel} удалён из класса.`);
-                                await reload();
-                              }
+                              await action(
+                                `remove:${student.id}`,
+                                'Не удалось удалить ученика из класса.',
+                                async () => {
+                                  confirmedClassroomResult(
+                                    await api.removeClassroomSeat(classroomId, student.id),
+                                    'Не удалось удалить ученика из класса.',
+                                  );
+                                  setNotice(`${student.displayLabel} удалён из класса.`);
+                                  await reload();
+                                },
+                              );
                             }}
                           >
                             Удалить из класса
@@ -1184,21 +1274,17 @@ export function ClassroomPage({
                 className="portal-create-button"
                 disabled={busy === 'teacher-invite'}
                 onClick={async () => {
-                  setBusy('teacher-invite');
-                  const result = await api.createClassroomTeacherInvitation(classroomId);
-                  setBusy(null);
-                  if (!result.ok) {
-                    setTeacherTeam({
-                      kind: 'error',
-                      message: result.error.message || 'Не удалось создать приглашение.',
-                    });
-                    return;
-                  }
-                  const link = new URL(result.data.invitation.invitePath, window.location.origin)
-                    .href;
-                  setTeacherInviteLink(link);
-                  setNotice('Ссылка для коллеги создана и действует 7 дней.');
-                  await reloadTeacherTeam();
+                  await action('teacher-invite', 'Не удалось создать приглашение.', async () => {
+                    const result = confirmedClassroomResult(
+                      await api.createClassroomTeacherInvitation(classroomId),
+                      'Не удалось создать приглашение.',
+                    );
+                    setTeacherInviteLink(
+                      new URL(result.invitation.invitePath, window.location.origin).href,
+                    );
+                    setNotice('Ссылка для коллеги создана и действует 7 дней.');
+                    await reloadTeacherTeam();
+                  });
                 }}
               >
                 <PlusIcon /> Пригласить коллегу
@@ -1292,18 +1378,18 @@ export function ClassroomPage({
                             !window.confirm(`Закрыть ${teacher.displayName} доступ к этому классу?`)
                           )
                             return;
-                          setBusy(`teacher:${teacher.accountId}`);
-                          const result = await api.removeClassroomTeacher(
-                            classroomId,
-                            teacher.accountId,
+                          await action(
+                            `teacher:${teacher.accountId}`,
+                            'Не удалось удалить преподавателя.',
+                            async () => {
+                              confirmedClassroomResult(
+                                await api.removeClassroomTeacher(classroomId, teacher.accountId),
+                                'Не удалось удалить преподавателя.',
+                              );
+                              setNotice('Коллега удалён из класса.');
+                              await reloadTeacherTeam();
+                            },
                           );
-                          setBusy(null);
-                          if (result.ok) {
-                            setNotice(`${teacher.displayName} больше не имеет доступа к классу.`);
-                            await reloadTeacherTeam();
-                          } else {
-                            setTeacherTeam({ kind: 'error', message: result.error.message });
-                          }
                         }}
                       >
                         Удалить
@@ -1327,19 +1413,22 @@ export function ClassroomPage({
                         className="btn-ghost"
                         disabled={busy === `invitation:${invitation.id}`}
                         onClick={async () => {
-                          setBusy(`invitation:${invitation.id}`);
-                          const result = await api.revokeClassroomTeacherInvitation(
-                            classroomId,
-                            invitation.id,
+                          await action(
+                            `invitation:${invitation.id}`,
+                            'Не удалось отозвать приглашение.',
+                            async () => {
+                              confirmedClassroomResult(
+                                await api.revokeClassroomTeacherInvitation(
+                                  classroomId,
+                                  invitation.id,
+                                ),
+                                'Не удалось отозвать приглашение.',
+                              );
+                              setTeacherInviteLink(null);
+                              setNotice('Приглашение отозвано.');
+                              await reloadTeacherTeam();
+                            },
                           );
-                          setBusy(null);
-                          if (result.ok) {
-                            setTeacherInviteLink(null);
-                            setNotice('Приглашение отозвано.');
-                            await reloadTeacherTeam();
-                          } else {
-                            setTeacherTeam({ kind: 'error', message: result.error.message });
-                          }
                         }}
                       >
                         Отозвать
@@ -1366,31 +1455,32 @@ export function ClassroomPage({
           joinCode={classroom.joinCode}
           joinUrl={classLink}
           busy={busy === 'code'}
+          error={actionError}
           onCopyCode={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
           onCopyLink={() => void copy(classLink as string, 'Ссылка скопирована.')}
           onRotate={async () => {
-            setBusy('code');
-            const result = await api.rotateClassroomJoinCode(classroomId);
-            setBusy(null);
-            if (result.ok) {
+            await action('code', 'Не удалось сменить код класса.', async () => {
+              const result = confirmedClassroomResult(
+                await api.rotateClassroomJoinCode(classroomId),
+                'Не удалось сменить код класса.',
+              );
+              confirmClassroom(result.classroom);
               setNotice(
                 'Код класса обновлён. Старые карточки больше не подходят — распечатайте новые.',
               );
-              await reload();
               setSharing(false);
               setAccessCardIds([]);
-              setActionError(null);
-            } else setActionError(result.error.message || 'Не удалось сменить код класса.');
+            });
           }}
           onRevoke={async () => {
-            setBusy('code');
-            const result = await api.revokeClassroomJoinCode(classroomId);
-            setBusy(null);
-            if (result.ok) {
+            await action('code', 'Не удалось закрыть вход.', async () => {
+              const result = confirmedClassroomResult(
+                await api.revokeClassroomJoinCode(classroomId),
+                'Не удалось закрыть вход.',
+              );
+              confirmClassroom(result.classroom);
               setNotice('Вход по коду закрыт.');
-              setActionError(null);
-              await reload();
-            } else setActionError(result.error.message || 'Не удалось закрыть вход.');
+            });
           }}
           onClose={() => setSharing(false)}
         />

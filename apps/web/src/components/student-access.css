@@ -1,5 +1,41 @@
 .student-access-dialog {
   max-width: min(980px, calc(100vw - 2rem));
+  min-width: 0;
+}
+.student-access-heading > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.student-access-heading > button {
+  flex: 0 0 auto;
+}
+.student-access-selector label > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.student-access-account-label {
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.student-access-selector .student-access-account-label {
+  grid-column: 2 / -1;
+}
+.student-access-card.is-account-entry .student-access-codes {
+  grid-template-columns: 1fr;
+}
+.student-access-card.is-account-entry .student-access-student-code {
+  padding-left: 0;
+  border-left: 0;
+}
+.student-access-card.is-account-entry .student-access-instruction {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+  margin: 0;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .student-access-heading,
@@ -235,6 +271,14 @@
 .student-access-qr .class-qr-failed {
   margin: 0;
   font-size: 11px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.student-access-qr .class-qr-failed button {
+  max-width: 100%;
+  padding-inline: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .student-access-instruction {
   position: absolute;
@@ -458,9 +502,14 @@
   }
 }
 
-@media screen and (max-width: 380px) {
+@media screen and (max-width: 700px) {
   .student-access-card {
     min-height: 225px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .student-access-qr {
+    padding-left: 0;
+    border-left: 0;
   }
   .student-access-codes {
     grid-template-columns: 1fr;
@@ -469,6 +518,12 @@
     padding-left: 0;
     padding-top: 6px;
     border-left: 0;
+  }
+}
+@media print {
+  body.student-access-printing .student-access-card.is-account-entry .student-access-instruction {
+    display: block;
+    font-size: 8pt;
   }
 }
 @media screen and (min-width: 701px) and (max-width: 900px) {
