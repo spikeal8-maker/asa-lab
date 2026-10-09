@@ -5283,7 +5283,9 @@ test.describe('ELECTRONICS-E03 native field boundary real API', () => {
           expect(expected).toEqual({
             ...fixture,
             components: fixture.components.map((component) =>
-              component.id === grabbedId ? { ...component, position: moved } : component,
+              component.id === grabbedId
+                ? { ...component, position: moved, holeBindings: {} }
+                : component,
             ),
           });
           expect(expected!.connections).toEqual(fixture.connections);
