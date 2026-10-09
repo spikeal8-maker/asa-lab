@@ -32,6 +32,12 @@ import { defaultAvatarForAccount, seatAvatar } from '../creator-portal/default-a
 import { StudentAccessCards } from '../components/StudentAccessCards';
 import { StudentCodeDialog } from '../components/StudentCodeDialog';
 import { confirmedClassroomResult, runClassroomAction } from '../components/classroom-action';
+import { participantsApi, type ParticipantRoster } from '../classroom-participants-api';
+import {
+  ClassroomRatingSettings,
+  ClassroomStaffProfile,
+  ClassroomParticipantManagers,
+} from '../components/ClassroomParticipantPanels';
 
 type ClassroomTab =
   | 'students'
@@ -67,6 +73,10 @@ const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
 ];
 
 const MOBILE_ROSTER_SORTS = [
+  { value: 'works:desc', key: 'works', direction: 'desc', label: 'Больше работ' },
+  { value: 'works:asc', key: 'works', direction: 'asc', label: 'Меньше работ' },
+  { value: 'rating:desc', key: 'rating', direction: 'desc', label: 'Выше рейтинг' },
+  { value: 'rating:asc', key: 'rating', direction: 'asc', label: 'Ниже рейтинг' },
   {
     value: 'name:asc',
     key: 'name',
@@ -383,6 +393,25 @@ function ClassroomPageContent({
 }: ClassroomPageProps): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
   const loadScope = useRef({ active: false, request: 0 });
+  const [participants, setParticipants] = useState<ParticipantRoster | null>(null);
+  const [participantsError, setParticipantsError] = useState<string | null>(null);
+  const [staffProfile, setStaffProfile] = useState<string | null>(null);
+  const participantGeneration = useRef(0);
+  const reloadParticipants = useCallback(async () => {
+    const token = ++participantGeneration.current;
+    setParticipants(null);
+    setParticipantsError(null);
+    const result = await participantsApi.roster(classroomId);
+    if (token !== participantGeneration.current) return;
+    if (result.ok) setParticipants(result.data);
+    else setParticipantsError(result.error.message);
+  }, [classroomId]);
+  useEffect(
+    () => () => {
+      participantGeneration.current++;
+    },
+    [classroomId],
+  );
   const [tab, setTab] = useState<ClassroomTab>('students');
   const [dialog, setDialog] = useState<'single' | 'batch' | null>(null);
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
@@ -465,6 +494,7 @@ function ClassroomPageContent({
       if (classroom.data.classroom.id !== classroomId) throw new Error('classroom mismatch');
       setPage({ kind: 'ready', classroom: classroom.data.classroom, students: roster.data.items });
       setActionError(null);
+      void reloadParticipants();
     } catch {
       if (!currentRequest()) return;
       setPage((current) =>
@@ -477,7 +507,7 @@ function ClassroomPageContent({
       );
       setActionError('Не удалось обновить данные класса. Повторите загрузку.');
     }
-  }, [classroomId]);
+  }, [classroomId, reloadParticipants]);
 
   useEffect(() => {
     loadScope.current.active = true;
@@ -647,7 +677,13 @@ function ClassroomPageContent({
    * отвечают на вопрос «кем заняться сейчас»: кто ждёт ответа, кто сдал больше
    * всех, кто давно не заходил.
    */
-  const sortedStudents = sortClassroomRoster(visibleStudents, rosterSort, sortDirection);
+  const participantMetrics = new Map(participants?.items.map((item) => [item.seatId, item]));
+  const sortedStudents = sortClassroomRoster(
+    visibleStudents,
+    rosterSort,
+    sortDirection,
+    participantMetrics,
+  );
 
   if (openStudent !== null) {
     return (
@@ -849,6 +885,11 @@ function ClassroomPageContent({
       {tab === 'settings' ? (
         <section className="classroom-tab-panel classroom-settings-panel">
           <h2>Настройки класса</h2>
+          <ClassroomRatingSettings
+            classroomId={classroomId}
+            readOnly={archived}
+            onSaved={() => void reloadParticipants()}
+          />
           <button
             type="button"
             className="btn-secondary"
@@ -904,6 +945,14 @@ function ClassroomPageContent({
       ) : null}
       {tab === 'students' ? (
         <section className="classroom-roster-panel">
+          {participantsError ? (
+            <p role="alert">
+              Показатели участников: {participantsError}{' '}
+              <button type="button" onClick={() => void reloadParticipants()}>
+                Повторить
+              </button>
+            </p>
+          ) : null}
           {/* Actions on the left, finding on the right: the two things a
               teacher does to a register, in the order they do them. */}
           <div className="classroom-roster-toolbar">
@@ -1034,6 +1083,20 @@ function ClassroomPageContent({
                     Безопасный режим{sortMark('safe')}
                   </button>
                   <span className="sr-only">Действия</span>
+                  <button
+                    type="button"
+                    className="classroom-roster-sort participant-column"
+                    onClick={() => selectRosterSort('works')}
+                  >
+                    Всего работ{sortMark('works')}
+                  </button>
+                  <button
+                    type="button"
+                    className="classroom-roster-sort participant-column"
+                    onClick={() => selectRosterSort('rating')}
+                  >
+                    Рейтинг{sortMark('rating')}
+                  </button>
                 </div>
                 {sortedStudents.length === 0 ? (
                   <p className="classroom-search-empty" role="status">
@@ -1054,7 +1117,10 @@ function ClassroomPageContent({
                     >
                       <img
                         className="classroom-seat-avatar"
-                        src={seatAvatar(student.id, student.avatarKey).src}
+                        src={
+                          participantMetrics.get(student.id)?.avatarUrl ??
+                          seatAvatar(student.id, student.avatarKey).src
+                        }
                         alt=""
                         width={38}
                         height={38}
@@ -1076,6 +1142,42 @@ function ClassroomPageContent({
                       </span>
                     </button>
                     <div className="classroom-row-details">
+                      <span className="participant-roster-numbers" role="cell">
+                        <span
+                          title="Всего работ, включая архив"
+                          aria-label={`Всего работ: ${student.displayLabel}`}
+                        >
+                          <small>Работы</small>{' '}
+                          <strong>
+                            {participantMetrics.get(student.id)?.totalWorks ??
+                              (participantsError ? 'Ошибка' : participants ? '—' : '…')}
+                          </strong>
+                        </span>
+                        <span
+                          aria-label={`Рейтинг: ${student.displayLabel}`}
+                          title="Рейтинг активности класса, не школьная оценка"
+                        >
+                          <small>Рейтинг</small>{' '}
+                          {participantMetrics.get(student.id)?.score == null ? (
+                            participants ? (
+                              participantMetrics.has(student.id) ? (
+                                'Выключен'
+                              ) : (
+                                'Недоступен'
+                              )
+                            ) : participantsError ? (
+                              'Ошибка'
+                            ) : (
+                              '…'
+                            )
+                          ) : (
+                            <strong>
+                              {participantMetrics.get(student.id)?.score}{' '}
+                              <small>#{participantMetrics.get(student.id)?.rank}</small>
+                            </strong>
+                          )}
+                        </span>
+                      </span>
                       {student.loginMethod === 'account' ? (
                         <span className="classroom-account-entry">Вход через аккаунт</span>
                       ) : (
@@ -1367,6 +1469,14 @@ function ClassroomPageContent({
           ) : null}
           {teacherTeam.kind === 'ready' ? (
             <>
+              {staffProfile ? (
+                <ClassroomStaffProfile
+                  classroomId={classroomId}
+                  accountId={staffProfile}
+                  onClose={() => setStaffProfile(null)}
+                />
+              ) : null}
+              <ClassroomParticipantManagers classroomId={classroomId} onOpen={setStaffProfile} />
               <div className="classroom-teacher-list" aria-label="Преподаватели класса">
                 {teacherTeam.teachers.map((teacher) => (
                   <article className="classroom-teacher-card" key={teacher.accountId}>
@@ -1379,7 +1489,13 @@ function ClassroomPageContent({
                       />
                     </span>
                     <div>
-                      <strong>{teacher.displayName}</strong>
+                      <button
+                        type="button"
+                        className="participant-staff-name"
+                        onClick={() => setStaffProfile(teacher.accountId)}
+                      >
+                        <strong>{teacher.displayName}</strong>
+                      </button>
                       <span>
                         {teacher.role === 'owner'
                           ? 'Основной преподаватель'

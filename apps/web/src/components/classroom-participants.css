@@ -1,0 +1,244 @@
+.participant-settings,
+.participant-recognition > section,
+.participant-grades,
+.participant-staff-profile {
+  padding: 12px;
+  border: 1px solid var(--border, #dde4ea);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  min-width: 0;
+}
+.participant-settings h3,
+.participant-recognition h3 {
+  margin: 0 0 10px;
+}
+.participant-settings fieldset {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  margin: 0 0 10px;
+  border: 0;
+  padding: 0;
+}
+.participant-settings label {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0;
+}
+.participant-rating summary,
+.participant-settings summary {
+  cursor: pointer;
+  min-height: 28px;
+}
+.participant-rating ul {
+  margin: 8px 0;
+}
+.participant-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  max-width: 100%;
+  padding: 8px 0;
+  margin-bottom: 12px;
+}
+.participant-tabs button {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 7px 12px;
+  border: 1px solid var(--border, #dde4ea);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+.participant-tabs button[aria-pressed='true'] {
+  background: #e4f2fc;
+  border-color: #609ed5;
+}
+.participant-hero {
+  padding: 16px;
+  gap: 12px;
+  align-items: center;
+}
+.participant-hero h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.participant-hero .classroom-student-identity {
+  min-width: 0;
+  flex: 1;
+}
+.participant-main-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  align-items: flex-start;
+}
+.participant-role {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+}
+.participant-role-hint,
+.participant-visibility-note {
+  color: var(--ink-muted);
+  margin: 8px 0;
+}
+.participant-recognition {
+  display: grid;
+  gap: 12px;
+}
+.participant-recognition fieldset {
+  min-width: 0;
+  margin-top: 12px;
+}
+.participant-recognition label {
+  display: grid;
+  gap: 4px;
+}
+.participant-recognition input,
+.participant-recognition textarea,
+.participant-recognition select {
+  max-width: 100%;
+  min-width: 0;
+}
+.participant-recognition label:has(input[type='checkbox']) {
+  display: flex;
+  gap: 8px;
+}
+.participant-avatar-grid,
+.participant-merits {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  list-style: none;
+  padding: 0;
+}
+.participant-avatar-grid > div {
+  width: 112px;
+  display: grid;
+  gap: 4px;
+  align-content: start;
+  overflow-wrap: anywhere;
+}
+.participant-avatar-grid img {
+  border-radius: 12px;
+  object-fit: cover;
+}
+.participant-avatar-grid button {
+  display: grid;
+  gap: 4px;
+  justify-items: center;
+  min-height: 44px;
+}
+.participant-avatar-grid button[aria-pressed='true'] {
+  outline: 2px solid #478bbf;
+}
+.participant-avatar-grid button:disabled img {
+  opacity: 0.5;
+}
+.participant-merits > li {
+  flex: 1 1 160px;
+  max-width: 260px;
+  padding: 10px;
+  border: 1px solid var(--border, #dde4ea);
+  border-radius: 10px;
+  overflow-wrap: anywhere;
+}
+.participant-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.participant-staff-name {
+  padding: 4px 0;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+}
+.participant-staff-profile header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.participant-staff-profile {
+  margin-bottom: 12px;
+}
+.participant-grades li {
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+}
+.participant-grades li button {
+  margin-left: 8px;
+}
+.participant-roster-numbers {
+  display: contents;
+  font-variant-numeric: tabular-nums;
+}
+.participant-roster-numbers > span {
+  white-space: nowrap;
+}
+@media (min-width: 1281px) {
+  .classroom-owner-workspace .classroom-roster-head,
+  .classroom-owner-workspace .classroom-roster-row {
+    grid-template-columns: 26px minmax(160px, 1.1fr) minmax(74px, 0.5fr) 78px 86px minmax(
+        80px,
+        0.5fr
+      ) minmax(100px, 0.6fr) 126px 34px;
+    gap: 6px;
+  }
+  .participant-roster-numbers > span:first-child,
+  .classroom-roster-head > .participant-column:nth-last-child(2) {
+    grid-column: 4;
+    grid-row: 1;
+  }
+  .participant-roster-numbers > span:last-child,
+  .classroom-roster-head > .participant-column:last-child {
+    grid-column: 5;
+    grid-row: 1;
+  }
+  .participant-roster-numbers > span > small {
+    display: none;
+  }
+}
+@media (max-width: 1280px) {
+  .classroom-roster-head .participant-column {
+    display: none;
+  }
+  .classroom-owner-workspace .participant-roster-numbers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 14px;
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .participant-roster-numbers small {
+    color: var(--ink-muted);
+  }
+}
+@media (max-width: 600px) {
+  .participant-hero {
+    flex-wrap: wrap;
+    padding: 10px;
+  }
+  .participant-hero .classroom-student-avatar {
+    width: 48px;
+    height: 48px;
+  }
+  .participant-hero .classroom-student-identity {
+    flex-basis: calc(100% - 70px);
+  }
+  .participant-role {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .participant-main-stats {
+    gap: 6px 12px;
+  }
+  .participant-settings,
+  .participant-recognition > section {
+    padding: 10px;
+  }
+}

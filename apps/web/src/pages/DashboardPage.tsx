@@ -8,6 +8,7 @@ import { Dropdown } from '../components/Dropdown';
 import { classroomWord, learnerWord, workWord } from '../plural';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
+import { participantsApi, type ParticipantSummary } from '../classroom-participants-api';
 
 type ListState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
@@ -88,6 +89,9 @@ export function DashboardPage({
   const [sort, setSort] = useState<SortKey>('created-desc');
   const [editing, setEditing] = useState<Classroom | null>(null);
   const [busy, setBusy] = useState(false);
+  const [participantSummary, setParticipantSummary] = useState<ParticipantSummary | null>(null);
+  const [participantSummaryError, setParticipantSummaryError] = useState<string | null>(null);
+  const [summaryRetry, setSummaryRetry] = useState(0);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const time = useSchoolTime();
@@ -150,6 +154,26 @@ export function DashboardPage({
   }, [list, roleView, sort]);
 
   const selectedItems = visibleItems.filter((item) => selected.has(item.id));
+  const summaryClassIds = visibleItems
+    .map((item) => item.id)
+    .sort()
+    .join(',');
+  useEffect(() => {
+    let active = true;
+    setParticipantSummary(null);
+    setParticipantSummaryError(null);
+    if (roleView === 'enrolled') return;
+    void participantsApi
+      .summary(summaryClassIds ? summaryClassIds.split(',') : [])
+      .then((result) => {
+        if (!active) return;
+        if (result.ok) setParticipantSummary(result.data);
+        else setParticipantSummaryError(result.error.message);
+      });
+    return () => {
+      active = false;
+    };
+  }, [summaryClassIds, roleView, summaryRetry]);
   const allSelected = visibleItems.length > 0 && selectedItems.length === visibleItems.length;
   const ownedSelection = selectedItems.filter((item) => item.teacherRole === 'owner');
 
@@ -233,6 +257,15 @@ export function DashboardPage({
               <span>
                 <strong>{totals.students}</strong> {learnerWord(totals.students)}
               </span>
+              <span title="Без повторного счёта проекта в нескольких классах. Включая архив; без игр и корзины.">
+                <strong>
+                  {participantSummary?.totalWorks ?? (participantSummaryError ? 'Ошибка' : '…')}
+                </strong>{' '}
+                всего работ
+                {participantSummary ? (
+                  <small> · в архиве {participantSummary.archivedWorks}</small>
+                ) : null}
+              </span>
               <span>
                 <strong>{totals.submitted}</strong> из {totals.assigned} {workWord(totals.assigned)}{' '}
                 сдано
@@ -246,6 +279,14 @@ export function DashboardPage({
             </section>
           ) : null}
         </div>
+        {participantSummaryError ? (
+          <p role="alert">
+            Не удалось загрузить число работ: {participantSummaryError}{' '}
+            <button type="button" onClick={() => setSummaryRetry((n) => n + 1)}>
+              Повторить
+            </button>
+          </p>
+        ) : null}
         {/* Преподаватель тоже учится: у коллеги, на курсах, ради себя. Вход в
             чужой класс лежит здесь же, а не в другом конце продукта. */}
         <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
