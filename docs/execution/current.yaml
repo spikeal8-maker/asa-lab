@@ -2475,6 +2475,66 @@ parallel_lanes:
         results and foreign work remain preserved. Root530 then526 stay priority. No school/DB/deployment/network/backup
         operations.'
 
+  - id: electronics-time
+    parent_lane: electronics
+    worktree_id: electronics-integer-time-541
+    owned_paths:
+    - apps/web/src/electronics/testing/workbench-header-time.spec.ts
+    - e2e/electronics-simulation-time.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001.md
+    task:
+      id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
+      issue: 541
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_ui_integer_seconds_without_canonical_clock_change
+      owner_acceptance: pending
+      selected_at: '2026-10-09T19:44:45Z'
+      integration_priority: E01/526 first, then mandatory compact hygiene checkpoint
+        before this integration.
+      repair_scope: Only WorkbenchHeader formatting; new meaningful mounted and dedicated
+        real browser tests plus existing command/workflow/map registration. Shared Header
+        stays advisory root scope; card authorizes this non-overlapping actual work
+        after526 author STOP, with explicit actual dirty-path checks. No engine/state/physics/persistence/CSS
+        changes.
+    execution_lease:
+      executor_id: electronics-integer-time-541
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 8955a8a9ef5e9df9e39a8a31f5e3a59984e80b2e
+      head_sha: null
+      observed_at: '2026-10-09T19:44:45Z'
+      main:
+        branch: main
+        sha: 8955a8a9ef5e9df9e39a8a31f5e3a59984e80b2e
+      observation_note: Dated snapshot; fetch main and actual exact-SHA CI before writes.
+        Owner explicitly approved integer seconds and parallel bounded fixes. E01 source185d
+        focusedPASS, General37981551177 and ordinary37981556181 pending; old results
+        not acceptance. Preserve root526 and539/537/538/525. No concurrent writer in
+        Header:526 author STOP, independent reviewer read-only; manually check all actual
+        dirty paths before writes. Hold integration until E01 and due hygiene. No school/DB/network/deployment
+        action.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
