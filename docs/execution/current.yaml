@@ -2710,7 +2710,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: harness_author_stop_pending_single_native_causal_before_no_product_edit
+      checkpoint: r1_correct_native_before_harness_target_and_event_retention_no_product_edit
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
       repair_scope: Only Stage pointer routing and existing interactions browser spec.
@@ -2722,6 +2722,11 @@ parallel_lanes:
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
+      before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
+      before_probe_run: 37996438894
+      before_probe_conclusion: harness_precondition_failure_not_product_proof
+      before_probe_detail: Actual fixed opaque body point returned path instead of SVG root before drag; observer events absent. Preserve complete fixture and existing assertions; new bounded author repairs only native setup/evidence in interactions before another single causal probe.
+      before_raw_sha256: 50cf338b1a57e7a5e908ce9933857470268522cf3c27bc4ad162dbb2395c5400
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
