@@ -1,0 +1,396 @@
+{
+  "task": "TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001",
+  "baseline_sha": "f9300d8b12627c01c27a77d037bac9ff2acefa15",
+  "observed_utc": "2026-10-09T21:05:15.709655+00:00",
+  "platform": {
+    "os": "linux",
+    "architecture": "amd64"
+  },
+  "boundary": "CI-only transport of identical official content; no production default or runtime changes",
+  "raw_provenance": {
+    "directory": "dockerhub-429-readonly-manifests",
+    "sha256sums": "e0227776a96193139618e18fb9784fe283c8572dcf291763e6adad8c3a478bc6",
+    "preparation_report_sha256": "324493d91418277672536e73acab23f01b960f3cde0adcee2b909454231f9f97",
+    "verification": "Actual tag-index, amd64 manifest and config bytes compared; ordered layer descriptors and rootfs diff_ids equal. Large layer blobs and signatures not independently downloaded/verified."
+  },
+  "residual_risk": "Google frontend cache direct immutable endpoint returned the identical content, but future cache retention/availability is not guaranteed. All transport fails closed; no daemon changes or alternate version fallback. GitHub builds and independent review are still required.",
+  "images": {
+    "node": {
+      "source": "registry-1.docker.io/library/node:22.23.2-bookworm-slim",
+      "reference": "public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+      "manifest_digest": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+      "source_identity": {
+        "index": "sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9",
+        "manifest": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+        "config": "sha256:c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
+      },
+      "transport_identity": {
+        "index": "sha256:48e4b67d85f87bd551df43704e24d252f56cc5f8e9718841aace50f19948f0f9",
+        "manifest": "sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2",
+        "config": "sha256:c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:c72861c6705868ed7f08e1cf22ef4f7ba07a82c19a54ba65d931c442d3575889",
+        "size": 6872
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:774043ccc8ccd0d0833a9ee0792142ab7ad93df971e59dd248fbf82db16d0150",
+          "size": 28238443
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:d456d1aa143e47912621240cd8e79286732dc069a35b0e02b03449f60df966df",
+          "size": 3311
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:60f37e2c93ec479af36bf1f7a41277e572d820f3b1abbea47d8073b1f01aa502",
+          "size": 49938232
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e53f92c42dd657487b7f7f027b206c996cd3760cda60adda79e44449b2753a29",
+          "size": 1713012
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:b571db164614a1290b74286b3e4f7ad934430b830515f81e922b39c75cf1dc7e",
+          "size": 447
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:34467cc93912af891dfee8a3902adf9b4f355a9bca4eaa46f658d1181a21de0d",
+        "sha256:fa308e2890c6e8792de63890c6311ed9fd21e6390db51e340b6085a1b23852e1",
+        "sha256:e05e1884319cd6aba2cbbc7a2afb655ca032bc83988020a9088439cac50dca76",
+        "sha256:c518045d8fcb97604685082962ab1cf5647e0baa5d33dd8e4c7ac5e05118a513",
+        "sha256:a483d4ed4858cfb9b72c8b6175ad924777e38b5695f4e26b860ace4d652273ad"
+      ],
+      "raw_source_prefix": "node-22.23.2-bookworm-slim-hub",
+      "raw_transport_prefix": "node-22.23.2-bookworm-slim-ecr"
+    },
+    "caddy": {
+      "source": "registry-1.docker.io/library/caddy:2.10.2-alpine",
+      "reference": "public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+      "manifest_digest": "sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+      "source_identity": {
+        "index": "sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+        "manifest": "sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+        "config": "sha256:aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510"
+      },
+      "transport_identity": {
+        "index": "sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d",
+        "manifest": "sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83",
+        "config": "sha256:aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:aac61abc4024c323602ccb9ee38bd68b147601f518626b2a055e06944e01c510",
+        "size": 6961
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:d49a2dee86fb12766dd648402d010ca105846a41bd58738454e53780d4bb8e97",
+          "size": 3804875
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:15dab9c579893913f1dde3163b96d3e03f06a907b3ddfe78f71ca73f5f5eceb4",
+          "size": 2765852
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:c108b7dc59eb05d618e1ee8803e793ce44eed9e2967c6cef39210d81d8a4b4fc",
+          "size": 7502
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:0f5b2460369730f1bee18fea5bf1b63d3d5f17fda1aabbdbbd86cf5ae49ab9f7",
+          "size": 15923972
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
+          "size": 32
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:cce92674e98722970ab3fdce76a2566f54db535beeb24f0b4397f070ab5f6987",
+        "sha256:140bf5211f1c52d6180d8e58e95c0010edc7237fc6744510a3c95fcd0955b1e0",
+        "sha256:f7ceed6effbebf7ab30f32d1d14fdb8790c01a08e4585239620caa9204fc35bd",
+        "sha256:0c3ed47d1e80ab755e312649e1777a324e85401671d88025b804c3a6c8685d35",
+        "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+      ],
+      "raw_source_prefix": "caddy-2.10.2-alpine-hub",
+      "raw_transport_prefix": "caddy-2.10.2-alpine-ecr"
+    },
+    "postgres": {
+      "source": "registry-1.docker.io/library/postgres:17.7-bookworm",
+      "reference": "public.ecr.aws/docker/library/postgres@sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "manifest_digest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+      "source_identity": {
+        "index": "sha256:86e0b703649d7a792bd9243ee28afc9d8f7c6b2b5638077c9d6882d4d472bbfd",
+        "manifest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "config": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "transport_identity": {
+        "index": "sha256:86e0b703649d7a792bd9243ee28afc9d8f7c6b2b5638077c9d6882d4d472bbfd",
+        "manifest": "sha256:e9243ab06e47223dedeb3c129fa9ece8d37f506bdc6ee943afb9335f98bb4854",
+        "config": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:52d5e34fcf5c882a859c1269963b35bdc7dcc2814ef0a0de6b8b408b2eb09db1",
+        "size": 10137
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:4831516dd0cb86845f5f902cb9b9d25b5c853152c337eb57e4737a9b7e2a2eb9",
+          "size": 28228487
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:badb97e81c14b81b2e2ea2912cb28b229bd2be4f4ee7b27a468f1621731ca29d",
+          "size": 1168
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:5a76629586bf0afd9ae5c4b8c3c8d7cfe34b6c806f3540d7b97188e53018a026",
+          "size": 4534276
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:53c3a76086712838cd89353d2fe77556798565d2b2c97013bb55587f2c20cb62",
+          "size": 1249555
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e89503f3fc88281c3edb3b6700fe95f1af1fcf27663b80bc81971f3ef58682d1",
+          "size": 8066462
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:0ad97e848d7bf5fc9fff15d6164f032a12f73c10a898b4e2b117528045b5587c",
+          "size": 1196381
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:acd32fbeaa7e64cde5974450d0da365dd0e569354f661b5fb0f50476f4695768",
+          "size": 116
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:175a5455594588f0126a154fd246bd3365a88e0836017cd979e581d9458f06d9",
+          "size": 3141
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:2862a781b6b96ce69cf5295d9a897914e1d6f45b6a0cf5a6bfaf170c3d163cb6",
+          "size": 112722862
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f24480079ff229803d6194c238a7af2cc06569014bdc288413b4e6ffb055b2cb",
+          "size": 10239
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:69908cc7142f4a0018e7014dba9c70d4e1e8a518bc43aacf8500acb67fa80ca0",
+          "size": 128
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:073fedf2a066795a9066be7970b45a6b7a8b720af86ec1b67614e86813b3ab4e",
+          "size": 167
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:f4d95e72779e8825021e0500e6f494d86131ef7a633d82e5a13ac43119e2ecbb",
+          "size": 5838
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:cd77705f6bb6ab7e90bb4c7c1175e7caea546538aa76befdd2f4ea22af7b8f81",
+          "size": 187
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:e48af84b2108a5d73effd9e16685b42ac33e7994e606398c46690918f5f3604a",
+        "sha256:287fb1f473b2e1923bc3281be892641447378d38b58af7a59293823a04dfe0f8",
+        "sha256:d04b5335b095eee01a408dcaadbc480201219107ccc4214ce3f96e43eaeeb521",
+        "sha256:fce3803060adb77c26ed905dd34539711c4df933d5a1123e2e2a18215d09609c",
+        "sha256:a20164dabfca37537c0d112767045692b36e03669611993e1048b264d7af0856",
+        "sha256:bb726e5d0dde0be979588961a94c60340032f71b724c82a79f0f5ae7b6f7f442",
+        "sha256:b8e0869aa786e888603af1febf8e4882885a321f6a25f1e24bd81e3d740968b0",
+        "sha256:f4255b2a14fa1625a8f6f1f643757dc963ec7691e658fecef2f3e05fa795cad1",
+        "sha256:896150bb028306fe64b50c81cf780c2e201a83b94a1a92fa1f71b88a4642558c",
+        "sha256:8867ba12ef286751e500edced6441c40e748934e1b2e0229ee676e0b826ae24f",
+        "sha256:def223b045fa4c8a20a31e2b7c7df9e72b04d1a46661c5e5089defa0fc86e1db",
+        "sha256:636a299207abc037c24b1c03304bb853c831d5661f26e3ce1105f2d33c4cf08e",
+        "sha256:9fc1d5047d06f700449c3f8e87f716930e73c220f34b59c281259f4d3df31fa7",
+        "sha256:09b37072635700e0a3fbd521bea5543f997e944df6363dd74aa5b69daeda97f1"
+      ],
+      "raw_source_prefix": "postgres-17.7-bookworm-hub",
+      "raw_transport_prefix": "postgres-17.7-bookworm-ecr"
+    },
+    "access_postgres": {
+      "source": "registry-1.docker.io/library/postgres:16",
+      "reference": "public.ecr.aws/docker/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166",
+      "manifest_digest": "sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166",
+      "source_identity": {
+        "index": "sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d",
+        "manifest": "sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166",
+        "config": "sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9"
+      },
+      "transport_identity": {
+        "index": "sha256:ca0bd484cb98bf4b24eb1010e73fb3fcbd6714d240fbc1a10eea5b7dbecb641d",
+        "manifest": "sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166",
+        "config": "sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:275447c94b11b151decd1f29877965301d5a77032037c46de93d990f739f00a9",
+        "size": 10147
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:ecc510c1e359bdc007b39802570bb7e4dec7d6ebccf357c3201a74299113e05e",
+          "size": 29843350
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:79faf13a8736cc85276c252c657415ec229badd35328e771b9447b357fb44315",
+          "size": 1170
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:6456bfbf35e735a2c92b50a1c403926d7f2f62829bbca1e55ed7a80857e2705a",
+          "size": 6442903
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:b353db459ed129ded9f45189427479e2260878da309b84b4315edeb454b84572",
+          "size": 1256711
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:99f49de4fe2b8389931fd8794183304b30e526405bf90b10cbb9bc5db890f177",
+          "size": 8203801
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:83d1a2a3917c6f8e93f6d096bca01ec240493099e4443428c0a04b02596e8b38",
+          "size": 1311673
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:715ea0948cb1abe40a34058279c45da462df3b324e5384f69dedb90c418b7583",
+          "size": 116
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:486e8305f56fa48ac84a13c60fa9a5fd15408ee1fd4bb3aa4973ce4de50bd545",
+          "size": 3144
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:e7d675f11dedb2e5d9c33041bf2244405dc986b821a66ac323080ef0d0a2e1b4",
+          "size": 113208369
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:c49864c27f35bb74740df2a811fe55ddea755a9159ca7b64e147c87a69d26e76",
+          "size": 10115
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:770ef8b308eade6d2207ac50e3b0380affb5dff1b5155d222608f5f984469e1e",
+          "size": 129
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:50c25daa03025778b6bb8e3ab1912a376d2d367d23754707a5d35b7b3281d106",
+          "size": 168
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:8309db3ae5b6d4c32962f9c7628cb17b0ca2086ed4a7df990949269485278c76",
+          "size": 6107
+        },
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:9731e27f254100b70ab982d90579b5e9b6d98e0a30296c05f696eb9bc9065977",
+          "size": 185
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:15f1c8eb1ab18eae260c7fb6296434cbe1ff0e1e30fd814ae92a80dd54005e62",
+        "sha256:a2aaf9f8ec4fa481e6d5555191319fc36169b88d1f26b32e20086c4646ffaa17",
+        "sha256:107a07e558c4ac5ac958b84cda655442d7d4f24994b8cf79df9ad92397374b5a",
+        "sha256:48d6495e2364e624faad944217595c6664c70a4755a4fdbd6c618e06fc07e8f6",
+        "sha256:5501bd379747e541948565b5d6af1e63106404ccb2ece95c621f16883217a544",
+        "sha256:c99d7ad948a95d054287e4c65d898a99b5da11f350777d0407bab4c3eda8891c",
+        "sha256:97b67cfa7e93ba7b718168b8eb3477a822580dd82ffc097feccc08505f0e8dae",
+        "sha256:3e4c80b15b2fe570859017af60e2d1f7ebc303d9b25bef51d3ae212bdccd8445",
+        "sha256:3c2ecbb88723e523c1c0a6c026721b3a5ffb039f97f1f23e79b6bf2f6ce5337b",
+        "sha256:2f5e9c1f37978de0e5401ce2412a42e52ee30642c5e4fd447528944f16b22fb9",
+        "sha256:3e2cfb88908753c04594e22efe9276265aea568cf58742a381004e27ecfc910e",
+        "sha256:d8f68f9922250f50c611996c9de08395f018defa54b05e56f767d8574e217e41",
+        "sha256:3e0eb748b0eb2b667c223eb4b472ccd0c9c00a99063831911045a12ad4d36708",
+        "sha256:2aaa88d0dc05f2c3715b7bd20aa391d433a2fd106e6abd05cbde9fceaae854b8"
+      ],
+      "raw_source_prefix": "postgres-16-hub",
+      "raw_transport_prefix": "postgres-16-ecr"
+    },
+    "frontend": {
+      "source": "registry-1.docker.io/docker/dockerfile:1.7",
+      "reference": "mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720",
+      "manifest_digest": "sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720",
+      "source_identity": {
+        "index": "sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e",
+        "manifest": "sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720",
+        "config": "sha256:68ebc061390d9a7d6e194f9d58309c754a53cb8b4e3b0d89593920f42f4a9da4"
+      },
+      "transport_identity": {
+        "index": "sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e",
+        "manifest": "sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720",
+        "config": "sha256:68ebc061390d9a7d6e194f9d58309c754a53cb8b4e3b0d89593920f42f4a9da4"
+      },
+      "config": {
+        "mediaType": "application/vnd.oci.image.config.v1+json",
+        "digest": "sha256:68ebc061390d9a7d6e194f9d58309c754a53cb8b4e3b0d89593920f42f4a9da4",
+        "size": 1256
+      },
+      "layers": [
+        {
+          "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
+          "digest": "sha256:96918c57e42509b97f10c074d80672ecdbd3bb7dcd38c1bd95960cf291207416",
+          "size": 11977434
+        }
+      ],
+      "rootfs_diff_ids": [
+        "sha256:327211ea034026032264266ca671642dba140d0d42af811bcc58a245c42b579b"
+      ],
+      "raw_source_prefix": "dockerfile-1.7-hub",
+      "raw_transport_prefix": "dockerfile-1.7-gcr"
+    }
+  },
+  "workflow_baseline_sha256": {
+    ".github/workflows/spec-validation.yml": "caa9ac13b2e67f84069ad0c370b5f49ba7a7fee276115b4261dab6d80d0aadad",
+    ".github/workflows/electronics-r4-m1-focused.yml": "3482c220dd41a3271b1b1dd0d1ab62cb550efc80cf91b700340c29aa4dafc042"
+  },
+  "production_defaults_sha256": {
+    "Dockerfile.api": "1f72a9372368091755f6c6afd824c99df518e18b40259c003592f4eed0824306",
+    "Dockerfile.web": "176a207ef31b0f909f524aa29c8779a435670ec244d4a38ba0c31e84be1ef3f0",
+    "compose.yaml": "4e72e45ec8406324e8f15a9dea4e52b14c41527f9327b2377c9cb8435f41f42a",
+    "compose.test.yaml": "1c58f77edce487445efdacf02e729cce825602cef217c0ad7de80c7365347789",
+    "package.json": "a65427eef73086f199054fb07f8104114f7bad77f9a55dc9f5b56e48fe573426",
+    "pnpm-lock.yaml": "452e1a53871abe1e8b6b231cfc5a15ae2a590484a410717f9fb8c4494aee50b1",
+    "tools/gate-governance.sh": "1606860ca226598028971bdf04affb2999bbda405bd3a136d71a74913c94aa4d"
+  }
+}

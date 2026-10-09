@@ -126,26 +126,32 @@ jobs:
         run: pnpm db:migrate:check
 
       - name: Validate test Compose configuration
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test config
+        run: |
+          python3 tools/test_ci_image_transport.py --compose-model-check
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test config
 
       - name: Build migration and test images
         env:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test build migration test-runner
+        run: |
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration test-runner
+          python3 tools/test_ci_image_transport.py --built-images
 
       - name: Start isolated PostgreSQL
         env:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test up -d postgres
+        run: |
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test up -d postgres
+          python3 tools/test_ci_image_transport.py --pulled-postgres
 
       - name: Apply migrations and provision runtime role
         env:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm migration
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm migration
 
       # One gate per result: `pnpm gate:data` is migrations, the complete Vitest
       # suite and the explicit RLS gate. Running it here as one command is what
@@ -155,13 +161,13 @@ jobs:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
 
       - name: Cleanup isolated test environment
         if: always()
         env:
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml --profile test down -v --remove-orphans
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test down -v --remove-orphans
 
   access-a-browser:
     name: Access A real browser journeys
@@ -170,7 +176,7 @@ jobs:
     timeout-minutes: 25
     services:
       postgres:
-        image: postgres:16
+        image: public.ecr.aws/docker/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166
         env:
           POSTGRES_DB: asa_access_a_test
           POSTGRES_USER: postgres
