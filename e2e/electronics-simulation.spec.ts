@@ -8236,9 +8236,12 @@ for (const width of [1440, 1024, 390, 320]) {
     const puts: Array<{ at: number; document: SchematicDocument; baseRevision: number }> = [];
     const snapshots: unknown[] = [];
     let profile: Awaited<ReturnType<typeof browser.newContext>> | null = null;
-    await page.setViewportSize({ width, height: 900 });
+    // The shared native organization login uses the desktop public banner.
+    await page.setViewportSize({ width: 1440, height: 900 });
     await observePsuPersistenceWorker(page);
     await loginWithOrganization(page, teacher);
+    // Every project/editor action still runs at the requested pupil viewport.
+    await page.setViewportSize({ width, height: 900 });
     const id = await createProject(page, `E04 pupil settings ${width}`);
     const source =
       '// E04 whole pupil sketch\nint cycles=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}\nvoid loop(){cycles++;delay(100);}\n';
