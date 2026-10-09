@@ -16,6 +16,7 @@ components:
     - apps/web/src/electronics/WorkbenchSidebars.tsx
     - apps/web/src/electronics/WorkbenchHeader.tsx
     - apps/web/src/electronics/workbench-geometry.ts
+    - apps/web/src/electronics/workbench-document.ts
     - apps/web/src/electronics/workbench-drag-preview.ts
     - apps/web/src/electronics/component-hit-testing.ts
     - apps/web/src/electronics/production-asset-contracts.ts
@@ -26,6 +27,7 @@ components:
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
     - apps/web/src/electronics/testing/workbench-geometry.spec.ts
+    - apps/web/src/electronics/testing/workbench-document.spec.ts
     - apps/web/src/electronics/testing/workbench-drag-preview.spec.ts
     - e2e/electronics-interactions.spec.ts
     - e2e/electronics-simulation.spec.ts
@@ -40,6 +42,7 @@ components:
     - warmProductionAsset
     - SchematicEditor
     - WorkbenchSidebars
+    - moveWireSegment
   electronics.ui.catalog:
     ownership: asa
     risk: medium

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { buildNetlist } from '@asa-lab/electronics/simulation';
 import type { SchematicDocument } from '../../api';
 import {
   configureProductionLibrary,
@@ -21,6 +22,7 @@ import {
   insertWireVertex,
   mirrorSelectionInDocument,
   moveComponentInDocument,
+  moveWireSegment,
   moveWireVertex,
   reconnectWireEndpoint,
   removeWireVertex,
@@ -68,6 +70,118 @@ beforeAll(() => {
   configureProductionLibrary(
     JSON.parse(readFileSync(resolve(root, 'catalog.json'), 'utf8')) as OwnerCatalogManifest,
   );
+});
+
+describe('saved legacy wire segment editing', () => {
+  function legacyDocument(): SchematicDocument {
+    return {
+      ...populated(),
+      connections: [
+        {
+          id: 'legacy-wire',
+          from: { componentId: 'source', terminal: 'BAT+' },
+          to: { componentId: 'resistor', terminal: 'lead-1' },
+          color: '#149447',
+        },
+        {
+          id: 'untouched-wire',
+          from: { componentId: 'resistor', terminal: 'lead-2' },
+          to: { componentId: 'led', terminal: 'anode' },
+          vertices: [{ x: 420, y: 340 }],
+        },
+      ],
+    };
+  }
+
+  it.each([0, 1, 2])('moves visible legacy segment %i without changing topology', (index) => {
+    const document = legacyDocument();
+    const before = structuredClone(document);
+    const wire = document.connections[0]!;
+    const from = terminalPositionInDocument(document, document.components[0]!, 'BAT+')!;
+    const to = terminalPositionInDocument(document, document.components[1]!, 'lead-1')!;
+    const route = wirePoints(from, to);
+    expect(route).toHaveLength(4);
+    expect(route[1]!.x).toBe(route[2]!.x);
+    const first = route[1]!;
+    const second = route[2]!;
+    const expected = [
+      [
+        { x: Math.round(from.x), y: Math.round(from.y + 35) },
+        { x: Math.round(first.x), y: Math.round(first.y + 35) },
+        second,
+      ],
+      [
+        { x: Math.round(first.x + 40), y: Math.round(first.y) },
+        { x: Math.round(second.x + 40), y: Math.round(second.y) },
+      ],
+      [
+        first,
+        { x: Math.round(second.x), y: Math.round(second.y + 35) },
+        { x: Math.round(to.x), y: Math.round(to.y + 35) },
+      ],
+    ][index];
+    const changed = moveWireSegment(document, wire.id, index, { x: 40, y: 35 });
+    expect(changed).toEqual({
+      ...document,
+      connections: [{ ...wire, vertices: expected }, document.connections[1]],
+    });
+    expect(changed.components).toBe(document.components);
+    expect(changed.connections[1]).toBe(document.connections[1]);
+    expect(buildNetlist(changed)).toEqual(buildNetlist(document));
+    expect(document).toEqual(before);
+    expect(wire).not.toHaveProperty('vertices');
+  });
+
+  it('keeps an explicitly straight wire straight until its only segment is dragged', () => {
+    const source = legacyDocument();
+    const wire = { ...source.connections[0]!, vertices: [] };
+    const document = { ...source, connections: [wire, source.connections[1]!] };
+    const from = terminalPositionInDocument(document, document.components[0]!, 'BAT+')!;
+    const to = terminalPositionInDocument(document, document.components[1]!, 'lead-1')!;
+    expect(wirePoints(from, to, wire.vertices)).toEqual([from, to]);
+    expect(moveWireSegment(document, wire.id, 1, { x: 40, y: 35 })).toBe(document);
+    const changed = moveWireSegment(document, wire.id, 0, { x: 0, y: 35 });
+    expect(changed).not.toBe(document);
+    expect(changed.connections[0]?.vertices).toHaveLength(2);
+    expect(buildNetlist(changed)).toEqual(buildNetlist(document));
+    expect(wire.vertices).toEqual([]);
+  });
+
+  it.each([
+    undefined,
+    [],
+    [
+      { x: 260, y: 180 },
+      { x: 260, y: 340 },
+    ],
+  ])('does not materialize or save a route for zero movement (%j)', (vertices) => {
+    const source = legacyDocument();
+    const wire = {
+      ...source.connections[0]!,
+      ...(vertices === undefined ? {} : { vertices }),
+    };
+    const document = { ...source, connections: [wire, source.connections[1]!] };
+    expect(moveWireSegment(document, wire.id, 0, { x: 0, y: 0 })).toBe(document);
+    expect(moveWireSegment(document, wire.id, -1, { x: 40, y: 35 })).toBe(document);
+    expect(moveWireSegment(document, wire.id, 49, { x: 40, y: 35 })).toBe(document);
+  });
+
+  it('preserves existing bends and the 48-vertex bound', () => {
+    const source = legacyDocument();
+    const vertices = Array.from({ length: 48 }, (_, index) => ({
+      x: 260 + index * 10,
+      y: index % 2 === 0 ? 180 : 340,
+    }));
+    const wire = { ...source.connections[0]!, vertices };
+    const document = { ...source, connections: [wire, source.connections[1]!] };
+    expect(moveWireSegment(document, wire.id, 0, { x: 40, y: 35 })).toBe(document);
+    const changed = moveWireSegment(document, wire.id, 1, { x: 40, y: 35 });
+    expect(changed.connections[0]?.vertices).toHaveLength(48);
+    expect(changed.connections[0]?.vertices?.slice(2)).toEqual(vertices.slice(2));
+    expect(changed.connections[0]?.vertices?.slice(0, 2)).not.toEqual(vertices.slice(0, 2));
+    expect(buildNetlist(changed)).toEqual(buildNetlist(document));
+    expect(document.connections[0]?.vertices).toBe(vertices);
+  });
 });
 
 function populated(): SchematicDocument {

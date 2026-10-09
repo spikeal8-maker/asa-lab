@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
@@ -19,6 +19,8 @@ import {
   snapComponentToBreadboard,
   terminalPositionInDocument,
 } from '../apps/web/src/electronics/workbench-document';
+import { loginWithOrganization } from './organization-login';
+import { e2eAdminPool, seedTeacher } from './seed';
 
 configureProductionLibrary(
   JSON.parse(
@@ -4849,4 +4851,356 @@ test.describe('owner D3-D6 acceptance', () => {
     expect(await cards.count()).toBeGreaterThan(0);
     await page.screenshot({ path: 'reports/interactions/d6-all-components-default.png' });
   });
+});
+
+test.describe('E07 saved legacy wire segments with the real API', () => {
+  let legacyAdmin: ReturnType<typeof e2eAdminPool>;
+
+  test.beforeAll(() => {
+    legacyAdmin = e2eAdminPool();
+  });
+  test.afterAll(async () => {
+    await legacyAdmin.end();
+  });
+
+  for (const input of ['mouse', 'touch'] as const) {
+    test.describe(input, () => {
+      test.use({ hasTouch: input === 'touch', viewport: { width: 1440, height: 1000 } });
+
+      test('visible middle and last segments survive drag, Undo/Redo and save/reopen', async ({
+        page,
+        browser,
+      }, testInfo) => {
+        const account = await seedTeacher(legacyAdmin, `e07-${input}-${testInfo.workerIndex}`);
+        await loginWithOrganization(page, account);
+        const origin = new URL(page.url()).origin;
+        const created = await page.context().request.post('/api/projects', {
+          headers: { origin, 'idempotency-key': `legacy-wire-${crypto.randomUUID()}` },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'electronics',
+            title: 'E07 legacy wire',
+          },
+        });
+        expect(created.status()).toBe(201);
+        const projectId = ((await created.json()) as { project: { id: string } }).project.id;
+        let fixture: SchematicDocument = {
+          schemaVersion: 4,
+          components: [],
+          connections: [],
+          viewport: { x: 0, y: 0, zoom: 1 },
+          simulation: { running: false, maxIterations: 24 },
+        };
+        fixture = addComponentToDocument(
+          fixture,
+          'battery-holder-aa-2',
+          { x: 450, y: 300 },
+          'source',
+        ).document;
+        fixture = addComponentToDocument(
+          fixture,
+          'resistor-axial',
+          { x: 1000, y: 600 },
+          'resistor',
+        ).document;
+        fixture = {
+          ...fixture,
+          connections: [
+            {
+              id: 'saved-legacy-wire',
+              from: { componentId: 'source', terminal: 'BAT+' },
+              to: { componentId: 'resistor', terminal: 'lead-1' },
+              color: '#149447',
+            },
+          ],
+        };
+        type SavedDraft = { document: SchematicDocument; revision: number; updatedAt: string };
+        const getDraft = async (target: Page): Promise<SavedDraft> => {
+          const response = await target
+            .context()
+            .request.get(`/api/projects/${projectId}`, { headers: { origin } });
+          expect(response.status()).toBe(200);
+          return ((await response.json()) as { draft: SavedDraft }).draft;
+        };
+        const empty = await getDraft(page);
+        const seeded = await page.context().request.put(`/api/projects/${projectId}/draft`, {
+          headers: { origin },
+          data: {
+            document: fixture,
+            baseRevision: empty.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seeded.status()).toBe(200);
+        const initial = await getDraft(page);
+        expect(initial.document).toEqual(fixture);
+        expect(initial.document.connections[0]).not.toHaveProperty('vertices');
+        const netlist = buildNetlist(initial.document);
+        const puts: unknown[] = [];
+        page.on('request', (request) => {
+          if (
+            request.method() === 'PUT' &&
+            new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+          )
+            puts.push(request.postDataJSON());
+        });
+        await page.addInitScript(() => {
+          const events: unknown[] = [];
+          Reflect.set(window, '__legacyWireInput538', events);
+          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
+            document.addEventListener(
+              type,
+              (event) => {
+                const pointer = event as PointerEvent;
+                const target = event.target instanceof Element ? event.target : null;
+                if (events.length === 128) events.shift();
+                events.push({
+                  type,
+                  trusted: event.isTrusted,
+                  pointerType: pointer.pointerType,
+                  x: pointer.clientX,
+                  y: pointer.clientY,
+                  atMs: performance.now(),
+                  targetClass: target?.getAttribute('class'),
+                  wireId: target?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
+                });
+              },
+              true,
+            );
+        });
+        await page.goto(`/#/home/${projectId}`, { waitUntil: 'domcontentloaded' });
+        await expect(page.locator('.workbench-stage')).toBeVisible();
+        const output = testInfo.outputPath('electronics-legacy-wire-538');
+        mkdirSync(output, { recursive: true });
+        const phases: unknown[] = [];
+        const localDocument = (target = page) =>
+          target.evaluate((id) => {
+            const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
+            return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
+          }, projectId);
+        const segments = (target = page) =>
+          target.locator('[data-testid="wire-segment"][data-wire-id="saved-legacy-wire"]');
+        const record = async (phase: string, target = page, server: SavedDraft | null = null) => {
+          const local = await localDocument(target);
+          phases.push({
+            phase,
+            localDocument: local,
+            server,
+            segments: await segments(target).evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                index: node.getAttribute('data-wire-segment-index'),
+                d: node.getAttribute('d'),
+              })),
+            ),
+            vertices: await target.getByTestId('wire-vertex').evaluateAll((nodes) =>
+              nodes.map((node) => ({
+                x: Number(node.getAttribute('cx')),
+                y: Number(node.getAttribute('cy')),
+              })),
+            ),
+            input: await target.evaluate(() => Reflect.get(window, '__legacyWireInput538') ?? []),
+            puts: structuredClone(puts),
+          });
+          writeFileSync(
+            resolve(output, 'journey.json'),
+            JSON.stringify(
+              { input, projectId, originalOwnerDocumentAvailable: false, initial, phases },
+              null,
+              2,
+            ) + '\n',
+          );
+          await target.screenshot({ path: resolve(output, `${phase}.png`) });
+          return local;
+        };
+        await record('initial', page, initial);
+        await expect(segments()).toHaveCount(3);
+        await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
+        const nativeTouch = input === 'touch' ? await page.context().newCDPSession(page) : null;
+        const drag = async (segmentIndex: number) => {
+          // Grab the geometric midpoint of the visible segment, without searching
+          // for a convenient pixel or sending events directly to a DOM element.
+          const geometry = await segments()
+            .nth(segmentIndex)
+            .evaluate((element) => {
+              const path = element as SVGPathElement;
+              const matrix = path.getScreenCTM();
+              if (!matrix) throw new Error('Saved wire has no screen transform');
+              const start = path.getPointAtLength(0);
+              const end = path.getPointAtLength(path.getTotalLength());
+              const middle = path
+                .getPointAtLength(path.getTotalLength() / 2)
+                .matrixTransform(matrix);
+              const horizontal = Math.abs(end.x - start.x) >= Math.abs(end.y - start.y);
+              const drop = {
+                x: middle.x + (horizontal ? 0 : 35),
+                y: middle.y + (horizontal ? 35 : 0),
+              };
+              const worldStart = middle.matrixTransform(matrix.inverse());
+              const worldEnd = new DOMPoint(drop.x, drop.y).matrixTransform(matrix.inverse());
+              return {
+                start: { x: start.x, y: start.y },
+                end: { x: end.x, y: end.y },
+                middle: { x: middle.x, y: middle.y },
+                drop,
+                delta: { x: worldEnd.x - worldStart.x, y: worldEnd.y - worldStart.y },
+              };
+            });
+          const { middle, drop } = geometry;
+          if (nativeTouch) {
+            await nativeTouch.send('Input.dispatchTouchEvent', {
+              type: 'touchStart',
+              touchPoints: [{ id: 1, ...middle }],
+            });
+            for (let step = 1; step <= 5; step++)
+              await nativeTouch.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [
+                  {
+                    id: 1,
+                    x: middle.x + ((drop.x - middle.x) * step) / 5,
+                    y: middle.y + ((drop.y - middle.y) * step) / 5,
+                  },
+                ],
+              });
+            await nativeTouch.send('Input.dispatchTouchEvent', {
+              type: 'touchEnd',
+              touchPoints: [],
+            });
+          } else {
+            await page.mouse.move(middle.x, middle.y);
+            await page.mouse.down();
+            await page.mouse.move(drop.x, drop.y, { steps: 5 });
+            await page.mouse.up();
+          }
+          return geometry;
+        };
+        try {
+          const middle = await drag(1);
+          const afterMiddle = await record('middle-drag');
+          const middleVertices = [middle.start, middle.end].map((point) => ({
+            x: Math.round(point.x + middle.delta.x),
+            y: Math.round(point.y + middle.delta.y),
+          }));
+          const middleDocument: SchematicDocument = {
+            ...initial.document,
+            connections: [{ ...initial.document.connections[0]!, vertices: middleVertices }],
+          };
+          expect(afterMiddle).toEqual(middleDocument);
+          expect(buildNetlist(afterMiddle!)).toEqual(netlist);
+          await expect(page.getByTestId('wire-vertex')).toHaveCount(2);
+          await page.getByRole('button', { name: /Отменить/ }).click();
+          const undone = await record('undo');
+          expect(undone).toEqual(initial.document);
+          await expect(segments()).toHaveCount(3);
+          await expect(page.getByTestId('wire-vertex')).toHaveCount(0);
+          await page.getByRole('button', { name: /Повторить/ }).click();
+          expect(await record('redo')).toEqual(middleDocument);
+          await expect(page.getByTestId('wire-vertex')).toHaveCount(2);
+          const last = await drag(2);
+          const afterLast = await record('last-drag');
+          const lastVertices = [
+            middleVertices[0]!,
+            ...[last.start, last.end].map((point) => ({
+              x: Math.round(point.x + last.delta.x),
+              y: Math.round(point.y + last.delta.y),
+            })),
+          ];
+          const expected: SchematicDocument = {
+            ...initial.document,
+            connections: [{ ...initial.document.connections[0]!, vertices: lastVertices }],
+          };
+          expect(afterLast).toEqual(expected);
+          expect(buildNetlist(afterLast!)).toEqual(netlist);
+          await expect(page.getByTestId('wire-vertex')).toHaveCount(3);
+          const presses = await page.evaluate(() => {
+            const events = Reflect.get(window, '__legacyWireInput538') as {
+              type: string;
+              trusted: boolean;
+              pointerType: string;
+              wireId: string | null;
+            }[];
+            return events.filter(
+              (event) => event.type === 'pointerdown' && event.wireId === 'saved-legacy-wire',
+            );
+          });
+          expect(presses).toHaveLength(2);
+          expect(presses.every((press) => press.trusted && press.pointerType === input)).toBe(true);
+          const savedResponse = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'PUT' &&
+              new URL(response.url()).pathname === `/api/projects/${projectId}/draft`,
+          );
+          await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+          const saved = await savedResponse;
+          expect(saved.status()).toBe(200);
+          expect(
+            (saved.request().postDataJSON() as { document: SchematicDocument }).document,
+          ).toEqual(expected);
+          const server = await getDraft(page);
+          await record('saved', page, server);
+          expect(server.document).toEqual(expected);
+          expect(server.revision).toBe(initial.revision + 1);
+          expect(puts).toHaveLength(1);
+          await page.getByRole('button', { name: 'ASA Lab', exact: true }).click();
+          await expect(page.locator('.workbench-stage')).toHaveCount(0);
+          expect(puts).toHaveLength(1);
+          const session = await page.context().storageState();
+          const cleanContext = await browser.newContext({
+            baseURL: origin,
+            viewport: { width: 1440, height: 1000 },
+            hasTouch: input === 'touch',
+            storageState: { cookies: session.cookies, origins: [] },
+          });
+          try {
+            const reopened = await cleanContext.newPage();
+            const loadedResponse = reopened.waitForResponse(
+              (response) =>
+                response.request().method() === 'GET' &&
+                new URL(response.url()).pathname === `/api/projects/${projectId}`,
+            );
+            await reopened.goto(`/#/home/${projectId}`, { waitUntil: 'domcontentloaded' });
+            await expect(reopened.locator('.workbench-stage')).toBeVisible();
+            const loaded = await loadedResponse;
+            expect(loaded.status()).toBe(200);
+            const reopenedServer = ((await loaded.json()) as { draft: SavedDraft }).draft;
+            const reopenedLocal = await record(
+              'reopened-without-local-storage',
+              reopened,
+              reopenedServer,
+            );
+            expect(reopenedServer.document).toEqual(expected);
+            expect(reopenedServer.revision).toBe(server.revision);
+            expect(reopenedServer.updatedAt).toBe(server.updatedAt);
+            // null proves absence of a local fallback, not the mounted document.
+            expect(reopenedLocal).toBeNull();
+            expect(buildNetlist(reopenedServer.document)).toEqual(netlist);
+            const reopenedWire = segments(reopened).first();
+            const point = await reopenedWire.evaluate((element) => {
+              const path = element as SVGPathElement;
+              const screen = path
+                .getPointAtLength(path.getTotalLength() / 2)
+                .matrixTransform(path.getScreenCTM()!);
+              return { x: screen.x, y: screen.y };
+            });
+            await reopened.mouse.click(point.x, point.y);
+            await expect(reopened.getByTestId('wire-vertex')).toHaveCount(3);
+            expect(
+              await reopened.getByTestId('wire-vertex').evaluateAll((nodes) =>
+                nodes.map((node) => ({
+                  x: Number(node.getAttribute('cx')),
+                  y: Number(node.getAttribute('cy')),
+                })),
+              ),
+            ).toEqual(lastVertices);
+            await record('reopened-visible-bends', reopened, reopenedServer);
+          } finally {
+            await cleanContext.close();
+          }
+        } finally {
+          await nativeTouch?.detach();
+        }
+      });
+    });
+  }
 });
