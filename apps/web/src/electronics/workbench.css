@@ -4816,8 +4816,8 @@ html.arduino-palette-resizing * {
   }
 }
 
-/* Keep the full primary caption and the running clock on the compact desktop. */
-@media (min-width: 981px) and (max-width: 1180px) {
+/* Full running tools + clock + actions, including group padding, need 1373.703125px. */
+@media (min-width: 981px) and (max-width: 1373px) {
   .workbench-shell {
     --wb-toolbar-height: 96px;
   }

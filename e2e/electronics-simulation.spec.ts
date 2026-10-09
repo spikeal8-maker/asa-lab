@@ -2963,6 +2963,16 @@ test('compact controls retain full desktop captions and usable Code controls at 
           clientWidth: document.documentElement.clientWidth,
         },
         primary: inspect(primary),
+        headerGroups: Array.from(toolbar.querySelectorAll('.workbench-toolbar-group'), (group) => {
+          const style = getComputedStyle(group);
+          return {
+            selector: `${group.tagName}.${group.className}`,
+            rect: bounds(group.getBoundingClientRect()),
+            paddingLeft: style.paddingLeft,
+            paddingRight: style.paddingRight,
+            gap: style.gap,
+          };
+        }),
         headerControls: Array.from(
           toolbar.querySelectorAll(
             '.workbench-toolbar-group > button, .workbench-toolbar-group > strong, .workbench-toolbar-group > details > summary',
@@ -3058,8 +3068,15 @@ test('compact controls retain full desktop captions and usable Code controls at 
       }
     }
     assertFits(observation.primary);
-    if ([1180, 1181].includes(observation.viewport.width)) {
-      expect(observation.toolbar.height).toBe(observation.viewport.width === 1180 ? 96 : 48);
+    if ([1180, 1181, 1373, 1374].includes(observation.viewport.width)) {
+      expect(observation.toolbar.height).toBe(observation.viewport.width <= 1373 ? 96 : 48);
+      expect(observation.headerGroups).toHaveLength(2);
+      for (const group of observation.headerGroups) {
+        expect(group.rect.left).toBeGreaterThanOrEqual(0);
+        expect(group.rect.right).toBeLessThanOrEqual(observation.viewport.width + 1);
+        expect(group.rect.top).toBeGreaterThanOrEqual(observation.toolbar.top);
+        expect(group.rect.bottom).toBeLessThanOrEqual(observation.toolbar.bottom);
+      }
       expect(observation.headerControls).toHaveLength(
         observation.view.includes('breadboard')
           ? 15
@@ -3109,7 +3126,7 @@ test('compact controls retain full desktop captions and usable Code controls at 
     }
   }
 
-  for (const width of [1440, 1181, 1180, 1024, 981, 980, 390, 320]) {
+  for (const width of [1440, 1374, 1373, 1181, 1180, 1024, 981, 980, 390, 320]) {
     const desktop = width > 980;
     await page.setViewportSize({ width, height: 900 });
     await record(`${width}-stopped`, desktop, false);
@@ -3254,10 +3271,10 @@ test('compact controls retain full desktop captions and usable Code controls at 
       const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
       return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
     }, modeProjectId);
-    for (const width of [1440, 1181, 1180, 1024, 981, 980, 390, 320]) {
+    for (const width of [1440, 1374, 1373, 1181, 1180, 1024, 981, 980, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await record(`${width}-${mode}`, width > 980, false, mode, blockSource);
-      if ([1180, 1181].includes(width)) {
+      if ([1180, 1181, 1373, 1374].includes(width)) {
         await run.click();
         await expect(run).toHaveAttribute('aria-pressed', 'true');
         await expect(run).toHaveAttribute('data-simulation-status', 'running');
@@ -3265,7 +3282,7 @@ test('compact controls retain full desktop captions and usable Code controls at 
         await run.click();
         await expect(run).toHaveAttribute('aria-pressed', 'false');
       }
-      if ([1440, 1180, 1181].includes(width)) {
+      if ([1440, 1180, 1181, 1373, 1374].includes(width)) {
         const widthHandle = page.getByRole('separator', {
           name: 'Изменить ширину редактора кода',
           exact: true,
@@ -3296,7 +3313,7 @@ test('compact controls retain full desktop captions and usable Code controls at 
         ).toBeLessThanOrEqual(1);
         if (mode === 'blocks-text') {
           await font.click();
-          const size = width === 1181 ? '14' : '20';
+          const size = [1181, 1374].includes(width) ? '14' : '20';
           if (size === '14') {
             await page.keyboard.press('Home');
             await page.keyboard.press('ArrowDown');
