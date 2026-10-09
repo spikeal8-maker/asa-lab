@@ -182,8 +182,8 @@ function writeLocalElectronicsViewport(projectId: string, viewport: Viewport): v
   }
 }
 
-export function useElectronicsWorkbench(projectId: string) {
-  const projectState = useWorkbenchProjectState(projectId);
+export function useElectronicsWorkbench(projectId: string, userId: string, seatLearner = false) {
+  const projectState = useWorkbenchProjectState(projectId, userId, seatLearner);
   const {
     project,
     document,
@@ -195,6 +195,9 @@ export function useElectronicsWorkbench(projectId: string) {
     saveStatus,
     saveError,
     saveIssue,
+    localCopySaved,
+    exportEmergencyCopy,
+    saveBeforeLeave,
     notice,
     setNotice,
     simulationRunning,
@@ -2792,6 +2795,9 @@ export function useElectronicsWorkbench(projectId: string) {
     saveStatus,
     saveError,
     saveIssue,
+    localCopySaved,
+    exportEmergencyCopy,
+    saveBeforeLeave,
     notice,
     setNotice,
     selection,

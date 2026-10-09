@@ -25,7 +25,7 @@ export interface DraftSaveState<TDocument> {
   readonly savedDocument: TDocument | null;
   /** Document carried by the request in flight, or null when nothing is in flight. */
   readonly savingDocument: TDocument | null;
-  /** The last save attempt failed and no edit has been made since. */
+  /** A failure remains unresolved; a new edit cannot resolve a conflict. */
   readonly failed: boolean;
 }
 
@@ -57,9 +57,16 @@ export function autosaveIsDue<TDocument>(state: DraftSaveState<TDocument>): bool
 
 export const AUTOSAVE_INTERVAL_MS = 60_000;
 
+/** At most one attempt per minute after the initial bounded backoff. */
+export function transientSaveRetryDelay(attempt: number): number {
+  return Math.min(AUTOSAVE_INTERVAL_MS, 5_000 * 2 ** Math.min(4, Math.max(0, attempt - 1)));
+}
+
 export interface TimedDraftSaveState<TDocument> extends DraftSaveState<TDocument> {
   /** A simulation is starting, so its first local Worker result has not arrived yet. */
   readonly paused: boolean;
+  /** Only transient failures may be retried. Null/absent means a hard stop. */
+  readonly retryAt?: number | null;
 }
 
 /**
@@ -80,11 +87,14 @@ export class WorkbenchAutosaveScheduler<TDocument> {
   update(): void {
     this.clearTimer();
     const state = this.readState();
-    if (state.failed || state.document === null || state.document === state.savedDocument) {
+    if (state.document === null || state.document === state.savedDocument) {
       this.deadline = null;
       return;
     }
-    if (state.document === state.savingDocument) return;
+    if (state.failed) {
+      this.deadline = state.retryAt ?? null;
+      if (this.deadline === null) return;
+    } else if (state.document === state.savingDocument) return;
     this.deadline ??= Date.now() + AUTOSAVE_INTERVAL_MS;
     if (state.savingDocument !== null || state.paused) return;
 
@@ -107,7 +117,9 @@ export class WorkbenchAutosaveScheduler<TDocument> {
     this.timer = null;
     const state = this.readState();
     if (
-      !autosaveIsDue(state) ||
+      (state.failed
+        ? state.document === null || state.savingDocument !== null || state.retryAt == null
+        : !autosaveIsDue(state)) ||
       state.paused ||
       this.deadline === null ||
       Date.now() < this.deadline

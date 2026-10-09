@@ -16,6 +16,7 @@ export const EDITOR_PERSISTENCE_TIMING = {
 export function editorPersistencePresentation(
   status: Exclude<EditorPersistenceStatus, 'dirty'>,
   issue: EditorPersistenceIssue | null,
+  localCopySaved = false,
 ): EditorPersistencePresentation {
   if (status === 'saving') {
     return { label: 'Сохраняем…', detail: 'Изменения проекта отправляются на сервер.' };
@@ -26,24 +27,32 @@ export function editorPersistencePresentation(
   if (issue === 'offline') {
     return {
       label: 'Нет связи',
-      detail: 'Работа сохранена на этом устройстве и будет отправлена после восстановления связи.',
+      detail: localCopySaved
+        ? 'Последние изменения сохранены в браузере. Повторим отправку после восстановления связи.'
+        : 'Последние изменения только в открытом редакторе. Получите аварийную копию перед закрытием.',
     };
   }
   if (issue === 'auth') {
     return {
       label: 'Нужно войти',
-      detail: 'Работа сохранена на этом устройстве. Войдите снова, чтобы синхронизировать её.',
+      detail: localCopySaved
+        ? 'Последние изменения сохранены в браузере. Войдите тем же пользователем для сохранения на сервере.'
+        : 'Последние изменения только в открытом редакторе. Получите аварийную копию перед повторным входом.',
     };
   }
   if (issue === 'conflict') {
     return {
       label: 'Не удалось сохранить',
-      detail: 'Изменения не потеряны. Попробуем сохранить их снова.',
+      detail: localCopySaved
+        ? 'Последние изменения сохранены в браузере. Сервер содержит другую версию; автоматическая отправка остановлена.'
+        : 'Сервер содержит другую версию. Последние изменения только в открытом редакторе; получите аварийную копию.',
     };
   }
   return {
     label: 'Не удалось сохранить',
-    detail: 'Изменения не потеряны. Попробуем сохранить их снова.',
+    detail: localCopySaved
+      ? 'Последние изменения сохранены в браузере. Серверное сохранение ещё не подтверждено.'
+      : 'Последние изменения только в открытом редакторе. Получите аварийную копию перед закрытием.',
   };
 }
 
@@ -51,10 +60,12 @@ export function EditorPersistenceIndicator({
   status,
   issue,
   className,
+  localCopySaved = false,
 }: {
   readonly status: EditorPersistenceStatus;
   readonly issue: EditorPersistenceIssue | null;
   readonly className: string;
+  readonly localCopySaved?: boolean;
 }): JSX.Element {
   const [visibleStatus, setVisibleStatus] = useState<'saved' | 'saving' | 'error' | null>(
     status === 'error' ? 'error' : null,
@@ -84,7 +95,9 @@ export function EditorPersistenceIndicator({
     };
   }, [status]);
 
-  const presentation = visibleStatus ? editorPersistencePresentation(visibleStatus, issue) : null;
+  const presentation = visibleStatus
+    ? editorPersistencePresentation(visibleStatus, issue, localCopySaved)
+    : null;
 
   return (
     <span

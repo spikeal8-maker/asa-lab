@@ -1,0 +1,13 @@
+# Техническая приёмка E01 / №526
+
+Принят исходный SHA `185d723b900b5e497bf1fc323ed64409c095d0f6`, tree `cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6`; обычная интеграция `1d7a14d780cefc555e78d8e65579723fcef291d5`. Все16 проверенных entries побайтно совпадают, остальные3755 entries актуальной базы2d0b сохранены. CI исходного SHA не выдаётся за CI поздней документационной композиции.
+
+Было: после временной ошибки без новой правки последний документ не восстанавливался на сервере; при отказе localStorage панель могла ложно обещать локальную копию. Стало: per-edit read-back подтверждает только действительно записанный scoped draft; очередь latest-document повторяет временные ошибки без новых правок, останавливается при auth/permanent/CAS; полная аварийная JSON-копия доступна при недолговечной памяти. Старые ответы не подтверждают новую работу, чужой actor/project не получает старый draft.
+
+Реальные production-browser действия: quiet recovery6017ms без reload/focus/edit, другой профиль/localnull, rendererSIGKILL24ms без pagehide/safetyPUT, отказ storage, emergency JSON, повторный вход, смена project/actor, две вкладки/CAS. Везде проверены целая схема И Arduino-скетч, серверные документы и повторное открытие. Ранее принятые normal toolbar48px при1374, native530, media533 и fast529 сохранены. Коррекция R6 затронула только3 CSS qualifiers, не ожидания тестов.
+
+NEW независимый APPROVE SHA256`2cb25cee5c1f224bf0c1645669ff90b70009a48bc51785f27b4c71ae824caa1d`. Контроллер отдельно прочитал фактический diff/GitHub/original raw56/native16 и PNG; все8 exact jobs General37981551177/ordinary37981556181 SUCCESS,135browser,633engine+404web, fullData3208+16, Access652+10+286,325freshNx0hits/literaltrue/frozen. Полные raw-hashes и ограничения — в соседних receipts и review.
+
+Остаточные границы: memory-only не обещает пережить смерть процесса при отказе localStorage; departure best-effort; identityGET→PUT не атомарный новый server protocol, существующие auth/RLS сохраняются. Исторические утраченные школьные работы автоматически не восстановлены, частота школьных отказов не измерена. K0 installed version/full backups NOT_VERIFIED; T3 на реальном школьном устройстве, класс15+15, owner acceptance и deployment ожидаются отдельно. Установка/БД/сеть/backup не изменялись.
+
+Это третий production slice после535:532/530/526. Следующее действие контроллера — компактный обязательный full hygiene checkpoint, затем независимые продуктовые ремонты существующей программы452. Все старые FAIL/candidates и параллельные537/538/539/540/541/525 сохранены. Приёмка №526 не означает устранение всех14 жалоб.

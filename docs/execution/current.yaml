@@ -593,8 +593,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: bounded_r6_preserve_compact_normal_toolbar_after_full_e01_pass
+      status: done
+      checkpoint: e01_full_schema_sketch_recovery_exact_head_technically_accepted
       r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
       r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
       r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
@@ -681,6 +681,30 @@ parallel_lanes:
         versus current96. Preserve all persistence code, full56/denial, all old532/530
         tests and widths/captions/native hits; no test/timeout change. NEW author then
         final exact gates and NEW independent reviewer.
+      candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
+      candidate_tree: cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6
+      candidate_branch: codex/electronics-save-recovery-526-r6
+      accepted_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
+      integrated_sha: 1d7a14d780cefc555e78d8e65579723fcef291d5
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/save-526-r6-independent-review-185d723b.md
+      evidence: docs/product/electronics/evidence/save-526-r6-acceptance-20261009.md
+      general_run: 37981551177
+      general_conclusion: success
+      electronics_run: 37981556181
+      electronics_conclusion: success
+      browser_passed: 135
+      browser_failed: 0
+      final_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
+      final_candidate_tree: cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6
+      final_independent_review: approved
+      final_independent_evidence: docs/product/electronics/evidence/save-526-r6-independent-review-185d723b.md
+      final_general_run: 37981551177
+      final_general_conclusion: success
+      final_electronics_run: 37981556181
+      final_electronics_conclusion: success
+      final_browser_passed: 135
+      final_browser_failed: 0
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1157,23 +1181,23 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d56dc2a11d8a2ebccc7f2af185eb339e5db5c859
+      convergence_baseline_sha: 1d7a14d780cefc555e78d8e65579723fcef291d5
       head_sha: null
-      observed_at: '2026-10-09T19:24:10Z'
+      observed_at: '2026-10-09T20:06:55Z'
       main:
         branch: main
-        sha: d56dc2a11d8a2ebccc7f2af185eb339e5db5c859
-      observation_note: 'Dated snapshot; fetch main and actual exact CI before writes.
-        NEW exactdda9 REQUEST_CHANGES after full56/denial/schema/sketch/quiet6020ms/SIGKILL29ms/reauth/scope/CAS/departure/529fast
-        PASS. General37976875849 all4SUCCESS, ordinary37976882424 focused/benchmarkSUCCESS
-        but132browserPASS3compactFAIL and imagesSKIPPED. Root and reviewer actual acceptedf3731374
-        running48 versus newdda9 normal96 in all3modes: current composition CSS1281..1536
-        time-only qualifier causes regression, categoryA. Select bounded R6 CSS-only repair,
-        preserve every persistence source/test/raw/priorcandidate and accepted532/530
-        criteria, no expectations/timeouts weakening. Parallel539R1 only controller/runtime,
-        no overlap. E01 remains priority; acceptance/full8 on new SHA required. This is
-        not acceptance3 or due-hygiene closeout yet; schoolK0/backups/T3/class/owner/deployment
-        pending.'
+        sha: 2d0b7557a34bf39fe9cef4876c43b83aed274698
+      observation_note: 'Dated snapshot; fetch main and actual GitHub/CI before writes. Technical526
+        source185d accepted after NEW independent APPROVE; General37981551177 and ordinary37981556181
+        all8SUCCESS,135browser/56E01/96compact/5wholeintents/native16/media2x7,325freshNx0hits.
+        Whole schema/sketch quiet6017ms, rendererSIGKILL24ms, denied storage, emergencyJSON,
+        reauth, scope isolation, CAS and fastSave/departure independently verified. Ordinary
+        integration1d7a14d preserves all16 accepted source entries and all late main2d0b
+        docs/foreign lanes. Source CI is not CI of later merge/closeout. This is counted
+        production slice3 after full535 (532,530,526): mandatory compact full hygiene
+        checkpoint before another production start/acceptance. Preserve537/539/540,538APPROVEheld,541candidate,525.
+        K0/backups NOT_VERIFIED; real schoolT3/class/owner/release/deployment pending;
+        no installation/DB/network/backup action.'
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -1194,6 +1218,132 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+        issue: 526
+        accepted_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
+        integrated_sha: 1d7a14d780cefc555e78d8e65579723fcef291d5
+        candidate_tree: cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6
+        independent_review: approved
+        independent_review_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
+        exact_candidate_general_run: 37981551177
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37981556181
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 135
+        e01_layout_phases: 56
+        original_compact_phases: 96
+        independent_real_project_intent_receipts: 5
+        native_menu_phases: 16
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          benchmark: 18
+          browser_images: 49
+          review_image_packaging: 22
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/save-526-r6-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/save-526-r6-independent-review-185d723b.md
+        raw_evidence: docs/product/electronics/evidence/save-526-r6-final-raw-receipts.json
+        independent_review_original_sha256: 2cb25cee5c1f224bf0c1645669ff90b70009a48bc51785f27b4c71ae824caa1d
+        prior_closeout_task_snapshot:
+          id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+          issue: 526
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_progress
+          checkpoint: bounded_r6_preserve_compact_normal_toolbar_after_full_e01_pass
+          r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
+          r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
+          r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
+          r4_general_run: 37869131311
+          r4_general_conclusion: success
+          r4_electronics_run: 37869145318
+          r4_electronics_conclusion: failure
+          r4_browser_passed: 125
+          r4_browser_failed: 2
+          r4_independent_review: request_changes
+          r4_independent_evidence: docs/product/electronics/evidence/save-526-r4-independent-review-c25dd582.md
+          r3_candidate_sha: 0c8a0d5e606e037078e7d8a5bff47b70d299ab23
+          r3_candidate_tree: 33825fb81e99188ba992ca21c2d590b8b68355a4
+          r3_candidate_branch: codex/electronics-save-recovery-526-review-r3
+          r3_general_run: 37865142075
+          r3_general_conclusion: success
+          r3_electronics_run: 37865154341
+          r3_electronics_conclusion: success
+          r3_browser_passed: 127
+          r3_browser_failed: 0
+          r3_independent_review: request_changes
+          r3_independent_evidence: docs/product/electronics/evidence/save-526-r3-independent-review-0c8a0d5e.md
+          r2_candidate_sha: 520bc45afaad32b89d142fbcf313561c1170d72d
+          r2_candidate_tree: ec3e6483cbaa73c4bf3ff7a217e0889dbb86d855
+          r2_candidate_branch: codex/electronics-save-recovery-526-review-r2
+          r2_general_run: 37859012428
+          r2_general_conclusion: success
+          r2_electronics_run: 37859024247
+          r2_electronics_conclusion: failure
+          r2_browser_passed: 125
+          r2_browser_failed: 2
+          r2_independent_review: request_changes
+          r2_independent_evidence: docs/product/electronics/evidence/save-526-r2-independent-review-520bc45a.md
+          preserved_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
+          preserved_candidate_branch: codex/electronics-save-recovery-526-review-r5
+          preserved_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
+          preserved_candidate_general_run: 37845048256
+          preserved_candidate_general_conclusion: success
+          preserved_candidate_electronics_run: 37845156460
+          preserved_candidate_browser_conclusion: failure
+          preserved_candidate_independent_review: request_changes
+          owner_acceptance: pending
+          r5_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
+          r5_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
+          r5_candidate_branch: codex/electronics-save-recovery-526-review-r5
+          r5_general_run: 37872258062
+          r5_general_conclusion: success
+          r5_electronics_run: 37872270511
+          r5_electronics_conclusion: failure
+          r5_browser_passed: 126
+          r5_browser_failed: 1
+          r5_independent_review: request_changes
+          r5_independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
+          dependencies_accepted:
+          - 529
+          - 531
+          - 532
+          - 533
+          - 534
+          - 530
+          final_convergence_baseline_sha: 9747d80d0e0d0f2b750ab1b88b88e08c673dd5a7
+          repair_scope: Preserve existing R5 product; ordinary merge accepted main, retain
+            all accepted and R5 scenarios; regenerate only derived canonical browser digest.
+            No new product repair without causal evidence.
+          required_full_normal_and_denied_layout_states: 56
+          new_independent_final_sha_review_required: true
+          owner_approved_conflict_paths:
+          - e2e/electronics-simulation.spec.ts
+          - docs/product/electronics/generated/component-coverage.json
+          post_530_candidate_sha: dda9fe1c6956ace5e009b14004fd83b606b8be3a
+          post_530_candidate_tree: 46b02ae8707f329d0abf3e9f529d4ea1c94765f7
+          post_530_candidate_branch: codex/electronics-save-recovery-526-post-530
+          post_530_independent_review: request_changes
+          post_530_independent_evidence: docs/product/electronics/evidence/save-526-post-530-independent-review-dda9fe1c.md
+          post_530_independent_review_original_sha256: bf5416b038e9f4b17fc46b98844fab262485bad88c472b8a771e5359a0cb4144
+          post_530_general_run: 37976875849
+          post_530_general_conclusion: success
+          post_530_electronics_run: 37976882424
+          post_530_electronics_conclusion: failure
+          post_530_browser_passed: 132
+          post_530_browser_failed: 3
+          post_530_e01_layout_phases_passed: 56
+          r6_repair_scope: Only causal CSS qualification for normal1374 running toolbar48
+            versus current96. Preserve all persistence code, full56/denial, all old532/530
+            tests and widths/captions/native hits; no test/timeout change. NEW author then
+            final exact gates and NEW independent reviewer.
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
         issue: 530
         accepted_candidate_sha: f37391b1a16d35c73f99b4b32dde8804644bc03f
