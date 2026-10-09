@@ -2832,13 +2832,33 @@ test.afterEach(async ({ page }) => {
   await page.context().request.post('/api/auth/logout', { headers: { origin } });
 });
 
-for (const mode of ['text', 'blocks-text', 'blocks'] as const) {
-  test(`compact controls retain full desktop captions and usable Code controls at actual drawer sizes — ${mode}`, async ({
+// Each segment keeps the original default test budget and owns a complete real
+// project/intent receipt. Splitting viewport observations does not change limits.
+const compactControlSegments = [
+  { mode: 'text', segment: 'desktop-wide', widths: [1440, 1374, 1373] },
+  { mode: 'text', segment: 'desktop-compact', widths: [1181, 1180, 1024, 981] },
+  { mode: 'text', segment: 'mobile', widths: [980, 390, 320] },
+  {
+    mode: 'blocks-text',
+    segment: 'all-widths',
+    widths: [1440, 1374, 1373, 1181, 1180, 1024, 981, 980, 390, 320],
+  },
+  {
+    mode: 'blocks',
+    segment: 'all-widths',
+    widths: [1440, 1374, 1373, 1181, 1180, 1024, 981, 980, 390, 320],
+  },
+] as const;
+for (const { mode, segment, widths } of compactControlSegments) {
+  test(`compact controls retain full desktop captions and usable Code controls at actual drawer sizes — ${mode} — ${segment}`, async ({
     page,
   }, testInfo) => {
     const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-    // Each registered mode owns its real saved project and Playwright output directory.
-    const evidenceDir = testInfo.outputPath('electronics-compact-controls-532');
+    // Each registered segment owns its real saved project and Playwright output directory.
+    const evidenceDir = testInfo.outputPath(
+      'electronics-compact-controls-532',
+      `${mode}-${segment}`,
+    );
     mkdirSync(evidenceDir, { recursive: true });
     const observations: unknown[] = [];
     const blockSource =
@@ -2847,12 +2867,25 @@ for (const mode of ['text', 'blocks-text', 'blocks'] as const) {
       blocks: {
         languageVersion: 0,
         blocks: [
-          { type: 'asa_setup', id: 'setup-532', x: 330, y: 120 },
-          { type: 'asa_loop', id: 'loop-532', x: 330, y: 280 },
+          { type: 'asa_setup', id: 'setup-532', x: 400, y: 120 },
+          { type: 'asa_loop', id: 'loop-532', x: 400, y: 280 },
         ],
       },
     });
-    const textFixture = arduinoInputDocument('button', '2');
+    const baseFixture = arduinoInputDocument('button', '2');
+    // These are the actual catalog defaults already proved by #533 receipts.
+    // Save canonical fixture state before observing, rather than accepting a
+    // load-induced default/Blockly-position publication as a layout change.
+    const textFixture = {
+      ...baseFixture,
+      components: baseFixture.components.map((item) =>
+        item.id === 'resistor'
+          ? { ...item, stateProperties: { ...item.stateProperties, powerRatingWatt: 0.25 } }
+          : item.id === 'button-0'
+            ? { ...item, stateProperties: { ...item.stateProperties, contactState: 'released' } }
+            : item,
+      ),
+    };
     const fixture =
       mode === 'text'
         ? textFixture
@@ -2876,7 +2909,10 @@ for (const mode of ['text', 'blocks-text', 'blocks'] as const) {
           };
     await page.setViewportSize({ width: 1440, height: 900 });
     await loginWithOrganization(page, teacher);
-    const projectId = await createProject(page, `Compact controls preserve pupil intent ${mode}`);
+    const projectId = await createProject(
+      page,
+      `Compact controls preserve pupil intent ${mode} ${segment}`,
+    );
     await saveDocument(page, projectId, fixture);
     const draftBefore = await page.context().request.get(`/api/projects/${projectId}`);
     expect(draftBefore.status()).toBe(200);
@@ -3190,7 +3226,7 @@ for (const mode of ['text', 'blocks-text', 'blocks'] as const) {
     }
 
     if (mode === 'text') {
-      for (const width of [1440, 1374, 1373, 1181, 1180, 1024, 981, 980, 390, 320]) {
+      for (const width of widths) {
         const desktop = width > 980;
         await page.setViewportSize({ width, height: 900 });
         await record(`${width}-stopped`, desktop, false);
@@ -3277,7 +3313,11 @@ for (const mode of ['text', 'blocks-text', 'blocks'] as const) {
       }, projectId);
       writeFileSync(
         resolve(evidenceDir, 'intent.json'),
-        JSON.stringify({ mode, projectId, before, after, localBefore, localAfter }, null, 2),
+        JSON.stringify(
+          { mode, segment, widths, projectId, before, after, localBefore, localAfter },
+          null,
+          2,
+        ),
         'utf8',
       );
       expect(after.draft.document).toEqual(before.draft.document);
@@ -3366,6 +3406,8 @@ for (const mode of ['text', 'blocks-text', 'blocks'] as const) {
         JSON.stringify(
           {
             mode,
+            segment,
+            widths,
             projectId,
             before,
             after: modeAfter,
