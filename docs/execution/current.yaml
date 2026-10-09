@@ -2117,11 +2117,19 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_confirmed_product_repair
+      checkpoint: bounded_canonical_fixture_acceptance_repair
       dependency_issue: 536
       owner_acceptance: pending
       dependency_status: technical_accepted
       selected_at: '2026-10-09T16:49:06Z'
+      preserved_candidate_sha: 89946bb1dd86883ee1374e0edce6e7d25000d205
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/arduino-bitwise-537-independent-review-89946bb1.md
+      independent_review_original_sha256: 9f0282b6c2872f574afa13552030d1f59f8413ef573d2547d2016b8f932a0e33
+      repair_scope: Only dedicated browser fixture canonical LED defaults. Keep full document
+        equality and all real Worker/GPIO/LED/Serial/save/reopen assertions; production
+        unchanged. Both failed probes stopped before Run and do not prove browser bitwise
+        behavior.
     execution_lease:
       executor_id: electronics-arduino-537
       holder: unassigned
@@ -2143,22 +2151,21 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      convergence_baseline_sha: a211875aff3e4452ee085109a282d5f72a33dcac
       head_sha: null
-      observed_at: '2026-10-09T16:49:06Z'
+      observed_at: '2026-10-09T17:31:58Z'
       main:
         branch: main
-        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
-        exact51361740 is technically accepted after remote Governance SUCCESS, final
-        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
-        or pupil acceptance claim. Owner explicitly authorizes the separately selected
-        E13/E07 product repairs. Each author owns only its exact card paths, checks
-        root programme/task/action blockers and actual dirty worktrees, returns one
-        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
-        acceptance still required. Root530 finalCI and preserved526 acceptance remain
-        priority, no competing changes in their paths. School/device/class/deployment
-        remain separate.
+        sha: a211875aff3e4452ee085109a282d5f72a33dcac
+      observation_note: 'Dated snapshot; fetch main and exact CI before writes.
+        NEW independent REQUEST_CHANGES on preserved candidate requires one bounded test-only
+        acceptance repair; product source must remain unchanged unless a new actual defect
+        is proved. Complete pupil browser acceptance and required exact gates remain missing.
+        Main General37963988429 is FAILURE from independent Portal/Scratch synthetic fixtures:
+        Governance/Code/Data SUCCESS, Access eight failures; transmitted to responsible
+        Portal executor, no Electronics scope expansion. All prior accepted/suspended
+        results and foreign work remain preserved. Root530 then526 stay priority. No school/DB/deployment/network/backup
+        operations.'
 
   - id: electronics-wire
     parent_lane: electronics
@@ -2177,11 +2184,19 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_confirmed_product_repair
+      checkpoint: bounded_native_observer_acceptance_repair
       dependency_issue: 536
       owner_acceptance: pending
       dependency_status: technical_accepted
       selected_at: '2026-10-09T16:49:06Z'
+      preserved_candidate_sha: 42c4e1f17634ffedbb955d16298b0f4f3a74dfc3
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-42c4e1f1.md
+      independent_review_original_sha256: 41decf335ee5b2d36d3a76f3b0e1c3f6d64df4341ad718f193101fc06e1d458e
+      repair_scope: Only existing interactions observer installation before first navigation
+        or actual-current-document setup plus explicit presence. Keep trusted native events,
+        full geometry/netlist/document, save/reopen and limits; causal product line unchanged.
+        Preserve proved browser BEFORE without repeat.
     execution_lease:
       executor_id: electronics-wire-538
       holder: unassigned
@@ -2203,22 +2218,21 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      convergence_baseline_sha: a211875aff3e4452ee085109a282d5f72a33dcac
       head_sha: null
-      observed_at: '2026-10-09T16:49:06Z'
+      observed_at: '2026-10-09T17:31:58Z'
       main:
         branch: main
-        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
-        exact51361740 is technically accepted after remote Governance SUCCESS, final
-        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
-        or pupil acceptance claim. Owner explicitly authorizes the separately selected
-        E13/E07 product repairs. Each author owns only its exact card paths, checks
-        root programme/task/action blockers and actual dirty worktrees, returns one
-        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
-        acceptance still required. Root530 finalCI and preserved526 acceptance remain
-        priority, no competing changes in their paths. School/device/class/deployment
-        remain separate.
+        sha: a211875aff3e4452ee085109a282d5f72a33dcac
+      observation_note: 'Dated snapshot; fetch main and exact CI before writes.
+        NEW independent REQUEST_CHANGES on preserved candidate requires one bounded test-only
+        acceptance repair; product source must remain unchanged unless a new actual defect
+        is proved. Complete pupil browser acceptance and required exact gates remain missing.
+        Main General37963988429 is FAILURE from independent Portal/Scratch synthetic fixtures:
+        Governance/Code/Data SUCCESS, Access eight failures; transmitted to responsible
+        Portal executor, no Electronics scope expansion. All prior accepted/suspended
+        results and foreign work remain preserved. Root530 then526 stay priority. No school/DB/deployment/network/backup
+        operations.'
 
 integration:
   owner_lane: visual-programming
