@@ -55,7 +55,12 @@ function clampArduinoDrawerWidth(width: number, viewportWidth = window.innerWidt
 }
 
 function initialArduinoDrawerWidth(): number {
-  const stored = Number(localStorage.getItem(ARDUINO_DRAWER_STORAGE_KEY));
+  let stored = 0;
+  try {
+    stored = Number(localStorage.getItem(ARDUINO_DRAWER_STORAGE_KEY));
+  } catch {
+    // Storage denial must not prevent opening the document or obtaining a copy.
+  }
   const preferred =
     Number.isFinite(stored) && stored > 0 ? stored : Math.min(1040, innerWidth * 0.58);
   return clampArduinoDrawerWidth(preferred);
@@ -168,7 +173,7 @@ export function SchematicEditor({
   user: PublicUser;
   seatLearner?: boolean;
 }): JSX.Element {
-  const controller = useElectronicsWorkbench(projectId);
+  const controller = useElectronicsWorkbench(projectId, user.id, seatLearner);
   const [view, setView] = useState<WorkbenchView>('breadboard');
   const [showGrid] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
@@ -183,10 +188,10 @@ export function SchematicEditor({
   const notesStorageKey = seatLearner
     ? `asa-seat-notes:${user.id}:${projectId}`
     : `asa-lab:electronics-notes:${projectId}`;
-  const notesStorage = seatLearner ? sessionStorage : localStorage;
+  const notesStorage = () => (seatLearner ? sessionStorage : localStorage);
   const [notes, setNotes] = useState(() => {
     try {
-      return notesStorage.getItem(notesStorageKey) ?? '';
+      return notesStorage().getItem(notesStorageKey) ?? '';
     } catch {
       return '';
     }
@@ -234,7 +239,11 @@ export function SchematicEditor({
   function updateCodePanelWidth(width: number): void {
     const next = clampArduinoDrawerWidth(width);
     setCodePanelWidth(next);
-    localStorage.setItem(ARDUINO_DRAWER_STORAGE_KEY, String(next));
+    try {
+      localStorage.setItem(ARDUINO_DRAWER_STORAGE_KEY, String(next));
+    } catch {
+      // The current drawer width remains usable without storage.
+    }
   }
 
   function toggleCodePanel(): void {
@@ -268,7 +277,7 @@ export function SchematicEditor({
   function updateNotes(value: string): void {
     setNotes(value);
     try {
-      notesStorage.setItem(notesStorageKey, value);
+      notesStorage().setItem(notesStorageKey, value);
     } catch {
       /* Notes remain in the open editor. */
     }
@@ -330,7 +339,9 @@ export function SchematicEditor({
     >
       <WorkbenchHeader
         controller={controller}
-        onBack={onBack}
+        onBack={() => {
+          void controller.saveBeforeLeave().then(onBack);
+        }}
         user={user}
         view={view}
         onViewChange={setView}

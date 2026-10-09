@@ -12,7 +12,11 @@ import { catalogEntry } from './component-catalog';
 import { defaultProductionType, productionBreadboard } from './production-manifest-adapter';
 import { snapComponentToBreadboard } from './workbench-document';
 import type { HistoryState } from './workbench-model';
-import { WorkbenchAutosaveScheduler, draftSaveStatus } from './workbench-autosave';
+import {
+  WorkbenchAutosaveScheduler,
+  draftSaveStatus,
+  transientSaveRetryDelay,
+} from './workbench-autosave';
 
 import {
   electronicsDocumentPayloadsEqual,
@@ -28,6 +32,16 @@ import {
 
 export type SimulationRuntimeStatus =
   'stopped' | 'validating' | 'starting' | 'running' | 'stopping';
+
+interface PersistenceScope {
+  readonly projectId: string;
+  readonly userId: string;
+  readonly identityKind: 'account' | 'seat';
+  active: boolean;
+  detachedRequested: boolean;
+  blocked: boolean;
+  confirmed: { revision: number; document: SchematicDocument } | null;
+}
 
 function isLocalSchematicDocument(value: unknown): value is SchematicDocument {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
@@ -143,7 +157,7 @@ export function normalizeLoadedDocument(document: SchematicDocument): SchematicD
   return normalized;
 }
 
-export function useWorkbenchProjectState(projectId: string) {
+export function useWorkbenchProjectState(projectId: string, userId: string, seatLearner = false) {
   const [project, setProject] = useState<Project | null>(null);
   const [document, setDocumentState] = useState<SchematicDocument | null>(null);
   const [savedDocument, setSavedDocument] = useState<SchematicDocument | null>(null);
@@ -153,6 +167,7 @@ export function useWorkbenchProjectState(projectId: string) {
   // user-facing fact and never exposes revision/CAS protocol language.
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveIssue, setSaveIssue] = useState<EditorPersistenceIssue | null>(null);
+  const [localDocument, setLocalDocument] = useState<SchematicDocument | null>(null);
   const [result, setResult] = useState<SolveResult | null>(null);
   const [versions, setVersions] = useState<ProjectVersion[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -183,9 +198,66 @@ export function useWorkbenchProjectState(projectId: string) {
   // A queued save can still be in flight when the hook is pointed at another
   // project. Its response describes the previous project and must not be
   // written into the new one's state.
-  const projectIdRef = useRef(projectId);
-  projectIdRef.current = projectId;
   const serverRevisionRef = useRef<number | null>(null);
+  const identityKind = seatLearner ? 'seat' : 'account';
+  const scopeRef = useRef<PersistenceScope>({
+    projectId,
+    userId,
+    identityKind,
+    active: true,
+    detachedRequested: false,
+    blocked: false,
+    confirmed: null,
+  });
+  if (
+    scopeRef.current.projectId !== projectId ||
+    scopeRef.current.userId !== userId ||
+    scopeRef.current.identityKind !== identityKind
+  ) {
+    scopeRef.current.active = false;
+    scopeRef.current = {
+      projectId,
+      userId,
+      identityKind,
+      active: true,
+      detachedRequested: false,
+      blocked: false,
+      confirmed: null,
+    };
+    documentRef.current = null;
+    savedDocumentRef.current = null;
+    savingDocumentRef.current = null;
+    serverDocumentRef.current = null;
+    serverRevisionRef.current = null;
+    saveQueueRef.current = Promise.resolve();
+    pendingSavesRef.current = 0;
+  }
+  const scope = scopeRef.current;
+  const loadedScopeRef = useRef<typeof scope | null>(null);
+  const loadGenerationRef = useRef(0);
+  const retryAtRef = useRef<number | null>(null);
+  const failureCountRef = useRef(0);
+  const saveIssueRef = useRef<EditorPersistenceIssue | null>(null);
+  const inScope = useCallback(() => scope.active && scopeRef.current === scope, [scope]);
+  const storeLocal = useCallback(
+    (next: SchematicDocument): void => {
+      if (!inScope()) return;
+      const baseRevision = serverRevisionRef.current;
+      const stored =
+        baseRevision !== null &&
+        writeLocalProjectDraft(() => window.localStorage, {
+          projectId,
+          userId,
+          identityKind,
+          moduleKey: 'electronics',
+          baseRevision,
+          ...(serverDocumentRef.current ? { baseDocument: serverDocumentRef.current } : {}),
+          document: next,
+        });
+      setLocalDocument(stored ? next : null);
+    },
+    [inScope, projectId, userId, identityKind],
+  );
 
   const saveStatus = draftSaveStatus({
     document,
@@ -200,28 +272,43 @@ export function useWorkbenchProjectState(projectId: string) {
   // together: no call site can change the document and forget to mark it unsaved.
   const setDocument = useCallback(
     (next: SchematicDocument): void => {
+      if (!inScope()) return;
       documentRef.current = next;
-      const baseRevision = serverRevisionRef.current;
-      if (baseRevision !== null) {
-        writeLocalProjectDraft(window.localStorage, {
-          projectId,
-          moduleKey: 'electronics',
-          baseRevision,
-          ...(serverDocumentRef.current ? { baseDocument: serverDocumentRef.current } : {}),
-          document: next,
-        });
-      }
-      saveFailedRef.current = false;
-      setSaveFailed(false);
-      setSaveError(null);
-      setSaveIssue(null);
+      storeLocal(next);
+      // A new document does not fix a failed transport, expired session or CAS conflict.
       autosaveSchedulerRef.current?.update();
       setDocumentState(next);
     },
-    [projectId],
+    [inScope, storeLocal],
   );
 
   const getCurrentDocument = useCallback((): SchematicDocument | null => documentRef.current, []);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent): void => {
+      if (!inScope() || (event.key !== null && !event.key.startsWith('asa-project-local-draft:')))
+        return;
+      const current = documentRef.current;
+      const local = readLocalProjectDraft(
+        () => window.localStorage,
+        projectId,
+        'electronics',
+        userId,
+        identityKind,
+      );
+      try {
+        setLocalDocument(
+          current && local && JSON.stringify(local.document) === JSON.stringify(current)
+            ? current
+            : null,
+        );
+      } catch {
+        setLocalDocument(null);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [inScope, projectId, userId, identityKind]);
 
   const initialiseHistory = useCallback((next: SchematicDocument) => {
     historyRef.current = { entries: [cloneJson(next)], cursor: 0 };
@@ -229,9 +316,32 @@ export function useWorkbenchProjectState(projectId: string) {
   }, []);
 
   const load = useCallback(async () => {
+    if (!inScope()) return;
+    const generation = ++loadGenerationRef.current;
+    saveFailedRef.current = false;
+    retryAtRef.current = null;
+    failureCountRef.current = 0;
+    saveIssueRef.current = null;
+    setLocalDocument(null);
+    setBusy(false);
     setStatus('loading');
+    const session = seatLearner ? await api.classroomStudentMe() : await api.me();
+    if (!inScope() || generation !== loadGenerationRef.current) return;
+    const identity =
+      session.ok && session.data.authenticated
+        ? 'student' in session.data
+          ? session.data.student.seatId
+          : session.data.user.id
+        : null;
+    if (identity !== userId) {
+      loadedScopeRef.current = scope;
+      setStatus('error');
+      return;
+    }
     const response = await api.openProject<SchematicDocument, SolveResult>(projectId);
+    if (!inScope() || generation !== loadGenerationRef.current) return;
     if (!response.ok) {
+      loadedScopeRef.current = scope;
       setStatus('error');
       return;
     }
@@ -242,7 +352,13 @@ export function useWorkbenchProjectState(projectId: string) {
       serverDocument,
       response.data.draft.document,
     );
-    const local = readLocalProjectDraft(window.localStorage, projectId, 'electronics');
+    const local = readLocalProjectDraft(
+      () => window.localStorage,
+      projectId,
+      'electronics',
+      userId,
+      identityKind,
+    );
     const localDocument =
       local && isLocalSchematicDocument(local.document)
         ? normalizeLoadedDocument(local.document)
@@ -259,6 +375,7 @@ export function useWorkbenchProjectState(projectId: string) {
     let nextDocument = restored ? (localDocument as SchematicDocument) : serverDocument;
     serverDocumentRef.current = serverDocument;
     serverRevisionRef.current = response.data.draft.revision;
+    scope.confirmed = { revision: response.data.draft.revision, document: serverDocument };
     if (restored && local && local.baseRevision !== response.data.draft.revision) {
       const merged = localBaseDocument
         ? mergeElectronicsDocuments(localBaseDocument, nextDocument, serverDocument)
@@ -266,13 +383,6 @@ export function useWorkbenchProjectState(projectId: string) {
       if (merged?.ok) {
         nextDocument = merged.document;
         mergedLocalDraft = true;
-        writeLocalProjectDraft(window.localStorage, {
-          projectId,
-          moduleKey: 'electronics',
-          baseRevision: response.data.draft.revision,
-          baseDocument: serverDocument,
-          document: nextDocument,
-        });
       } else {
         revisionConflict = true;
         // Keep the original base revision so the next edit cannot silently
@@ -283,6 +393,8 @@ export function useWorkbenchProjectState(projectId: string) {
       }
     }
     documentRef.current = nextDocument;
+    loadedScopeRef.current = scope;
+    if (restored || migrated) storeLocal(nextDocument);
     setSaveFailed(false);
     setSaveError(null);
     setSaveIssue(null);
@@ -299,10 +411,16 @@ export function useWorkbenchProjectState(projectId: string) {
     setSimulationRunning(nextDocument.simulation.running);
     setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
-    if (!restored || localMatchesServer) clearLocalProjectDraft(window.localStorage, projectId);
+    if (knownSavedDocument === nextDocument) {
+      clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind);
+      setLocalDocument(null);
+    }
     if (revisionConflict) {
+      scope.blocked = true;
       setSaveFailed(true);
-      setSaveError('Последние изменения сохранены в браузере.');
+      saveFailedRef.current = true;
+      saveIssueRef.current = 'conflict';
+      setSaveError('Не удалось сохранить последние изменения на сервере.');
       setSaveIssue('conflict');
       setNotice(null);
     } else if (mergedLocalDraft) {
@@ -311,11 +429,12 @@ export function useWorkbenchProjectState(projectId: string) {
       setNotice('Восстановлены несохранённые изменения из этого браузера.');
     }
     setStatus('ready');
-  }, [initialiseHistory, projectId, setDocument]);
+  }, [initialiseHistory, projectId, userId, identityKind, seatLearner, inScope, scope, storeLocal]);
 
   useEffect(() => {
+    scope.active = true;
     void load();
-  }, [load]);
+  }, [load, scope]);
 
   useEffect(() => {
     if (status !== 'ready' || simulationRunning) return;
@@ -336,6 +455,7 @@ export function useWorkbenchProjectState(projectId: string) {
         const response = await api.openProject<SchematicDocument, SolveResult>(projectId);
         if (
           !active ||
+          !inScope() ||
           !response.ok ||
           response.data.draft.revision <= (serverRevisionRef.current ?? -1) ||
           documentRef.current !== savedDocumentRef.current
@@ -345,6 +465,7 @@ export function useWorkbenchProjectState(projectId: string) {
         const remoteDocument = normalizeLoadedDocument(response.data.draft.document);
         serverRevisionRef.current = response.data.draft.revision;
         serverDocumentRef.current = remoteDocument;
+        scope.confirmed = { revision: response.data.draft.revision, document: remoteDocument };
         documentRef.current = remoteDocument;
         savedDocumentRef.current = remoteDocument;
         setProject(response.data.project);
@@ -353,7 +474,8 @@ export function useWorkbenchProjectState(projectId: string) {
         setSavedDocument(remoteDocument);
         setResult(response.data.result);
         setVersions(response.data.versions);
-        clearLocalProjectDraft(window.localStorage, projectId);
+        clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind);
+        setLocalDocument(null);
         initialiseHistory(remoteDocument);
         setNotice('Получены изменения общей схемы.');
       } finally {
@@ -368,7 +490,16 @@ export function useWorkbenchProjectState(projectId: string) {
       window.clearInterval(interval);
       window.removeEventListener('focus', onFocus);
     };
-  }, [initialiseHistory, projectId, simulationRunning, status]);
+  }, [
+    initialiseHistory,
+    projectId,
+    userId,
+    identityKind,
+    inScope,
+    scope,
+    simulationRunning,
+    status,
+  ]);
 
   const pushHistory = useCallback((next: SchematicDocument): void => {
     const state = historyRef.current;
@@ -412,24 +543,71 @@ export function useWorkbenchProjectState(projectId: string) {
     setNotice('Изменение повторено.');
   }
 
+  const failSave = useCallback(
+    (issue: EditorPersistenceIssue, transient: boolean): void => {
+      scope.blocked = !transient;
+      if (!inScope()) return;
+      if (documentRef.current) storeLocal(documentRef.current);
+      saveFailedRef.current = true;
+      saveIssueRef.current = issue;
+      retryAtRef.current = transient
+        ? Date.now() + transientSaveRetryDelay(++failureCountRef.current)
+        : null;
+      setSaveFailed(true);
+      setSaveError('Не удалось сохранить последние изменения на сервере.');
+      setSaveIssue(issue);
+      setNotice(null);
+      autosaveSchedulerRef.current?.update();
+    },
+    [inScope, scope, storeLocal],
+  );
+
   const sendDraft = useCallback(
     async (
       nextDocument: SchematicDocument,
       quiet: boolean,
       unloading = false,
+      detached = false,
     ): Promise<SolveResult | null> => {
       const sentForProject = projectId;
-      const baseRevision = serverRevisionRef.current;
+      const canSend = () => inScope() || (detached && scopeRef.current === scope);
+      if (!canSend()) return null;
+      // Genuine unmount uses only its own confirmed revision and captured document.
+      const baseRevision = detached
+        ? (scope.confirmed?.revision ?? null)
+        : serverRevisionRef.current;
       if (baseRevision === null) {
-        saveFailedRef.current = true;
-        setSaveFailed(true);
-        setSaveError('Не удалось определить сохранённую версию проекта.');
-        setSaveIssue('server');
+        failSave('server', false);
         return null;
       }
-      savingDocumentRef.current = nextDocument;
-      setSavingDocument(nextDocument);
+      if (inScope()) {
+        savingDocumentRef.current = nextDocument;
+        setSavingDocument(nextDocument);
+      }
       try {
+        // Server-issued session identity, not an assumed cookie after another tab logs in.
+        // Keepalive is best effort; it must not bypass the same identity check.
+        {
+          const session = seatLearner ? await api.classroomStudentMe() : await api.me();
+          if (!canSend()) return null;
+          if (!session.ok) {
+            failSave(
+              session.status === 401 || session.status === 403 ? 'auth' : 'offline',
+              session.status === 0 || session.status === 408 || session.status >= 500,
+            );
+            return null;
+          }
+          const identity = session.data.authenticated
+            ? 'student' in session.data
+              ? session.data.student.seatId
+              : session.data.user.id
+            : null;
+          if (identity !== userId) {
+            failSave('auth', false);
+            return null;
+          }
+        }
+        if (!canSend()) return null;
         const response = unloading
           ? await api.saveDraft<SchematicDocument, SolveResult>(
               sentForProject,
@@ -445,12 +623,22 @@ export function useWorkbenchProjectState(projectId: string) {
         // The editor moved to another project while this was in flight. The
         // response describes the previous one and says nothing about what is on
         // screen now.
-        if (projectIdRef.current !== sentForProject) return null;
+        if (response.ok) {
+          scope.confirmed = { revision: response.data.draft.revision, document: nextDocument };
+          scope.blocked = false;
+        } else {
+          scope.blocked = !(
+            response.status === 0 ||
+            response.status === 408 ||
+            response.status >= 500
+          );
+        }
+        if (!inScope()) return null;
         if (!response.ok) {
           if (response.error.code === 'project_revision_conflict') {
             const latest = await api.openProject<SchematicDocument, SolveResult>(sentForProject);
             const baseDocument = serverDocumentRef.current;
-            if (latest.ok && baseDocument && projectIdRef.current === sentForProject) {
+            if (latest.ok && baseDocument && inScope()) {
               const remoteDocument = normalizeLoadedDocument(latest.data.draft.document);
               const sentMerge = mergeElectronicsDocuments(
                 baseDocument,
@@ -465,6 +653,11 @@ export function useWorkbenchProjectState(projectId: string) {
                 const mergedDocument = liveMerge.document;
                 serverRevisionRef.current = latest.data.draft.revision;
                 serverDocumentRef.current = remoteDocument;
+                scope.confirmed = {
+                  revision: latest.data.draft.revision,
+                  document: remoteDocument,
+                };
+                scope.blocked = false;
                 savedDocumentRef.current = remoteDocument;
                 setSavedDocument(remoteDocument);
                 documentRef.current = mergedDocument;
@@ -476,43 +669,47 @@ export function useWorkbenchProjectState(projectId: string) {
                 );
                 setVersions(latest.data.versions);
                 saveFailedRef.current = false;
+                saveIssueRef.current = null;
+                retryAtRef.current = null;
+                failureCountRef.current = 0;
                 setSaveFailed(false);
                 setSaveError(null);
                 setSaveIssue(null);
                 initialiseHistory(mergedDocument);
                 if (electronicsDocumentsEqual(mergedDocument, remoteDocument)) {
-                  clearLocalProjectDraft(window.localStorage, sentForProject);
+                  clearLocalProjectDraft(
+                    () => window.localStorage,
+                    sentForProject,
+                    userId,
+                    identityKind,
+                  );
+                  setLocalDocument(null);
                 } else {
-                  writeLocalProjectDraft(window.localStorage, {
-                    projectId: sentForProject,
-                    moduleKey: 'electronics',
-                    baseRevision: latest.data.draft.revision,
-                    baseDocument: remoteDocument,
-                    document: mergedDocument,
-                  });
+                  storeLocal(mergedDocument);
                 }
                 setNotice('Параллельные независимые изменения автоматически совмещены.');
                 return null;
               }
             }
-            saveFailedRef.current = true;
-            setSaveFailed(true);
-            setSaveError('Последние изменения сохранены в браузере.');
-            setSaveIssue('conflict');
-            setNotice(null);
+            failSave('conflict', false);
             return null;
           }
-          saveFailedRef.current = true;
-          setSaveFailed(true);
-          setSaveError('Последние изменения сохранены в браузере.');
-          setSaveIssue(
-            response.status === 0 ? 'offline' : response.status === 401 ? 'auth' : 'server',
+          failSave(
+            response.status === 0
+              ? 'offline'
+              : response.status === 401 || response.status === 403
+                ? 'auth'
+                : 'server',
+            response.status === 0 || response.status === 408 || response.status >= 500,
           );
           reportClientDiagnostic('autosave_failed', 'electronics');
           setNotice(null);
           return null;
         }
         saveFailedRef.current = false;
+        saveIssueRef.current = null;
+        retryAtRef.current = null;
+        failureCountRef.current = 0;
         setSaveFailed(false);
         setSaveError(null);
         setSaveIssue(null);
@@ -525,46 +722,40 @@ export function useWorkbenchProjectState(projectId: string) {
         savedDocumentRef.current = nextDocument;
         setSavedDocument(nextDocument);
         if (documentRef.current === nextDocument) {
-          clearLocalProjectDraft(window.localStorage, sentForProject);
+          clearLocalProjectDraft(() => window.localStorage, sentForProject, userId, identityKind);
+          setLocalDocument(null);
         } else if (documentRef.current) {
-          writeLocalProjectDraft(window.localStorage, {
-            projectId: sentForProject,
-            moduleKey: 'electronics',
-            baseRevision: response.data.draft.revision,
-            baseDocument: nextDocument,
-            document: documentRef.current,
-          });
+          storeLocal(documentRef.current);
         }
         if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
         return response.data.result;
       } catch {
         reportClientDiagnostic('autosave_failed', 'electronics');
-        // A transport or request-construction exception must stop automatic
-        // retries just like an unsuccessful response. The local draft remains
-        // available, and the next edit starts a fresh minute.
-        if (projectIdRef.current === sentForProject) {
-          saveFailedRef.current = true;
-          setSaveFailed(true);
-          setSaveError('Последние изменения сохранены в браузере.');
-          setSaveIssue('server');
-          setNotice(null);
-        }
+        failSave('offline', true);
         return null;
       } finally {
         // Runs even if saveDraft throws instead of returning { ok: false }.
         // Leaving savingDocument set would pin the indicator on 'saving' and stop
         // autosave from ever firing again. Cleared only if this save is still the
         // one in flight, so a newer request is not disturbed.
-        setSavingDocument((current) => {
-          if (current === nextDocument) {
-            savingDocumentRef.current = null;
-            return null;
-          }
-          return current;
-        });
+        if (inScope() && savingDocumentRef.current === nextDocument) {
+          savingDocumentRef.current = null;
+          setSavingDocument(null);
+          autosaveSchedulerRef.current?.update();
+        }
       }
     },
-    [initialiseHistory, projectId],
+    [
+      initialiseHistory,
+      projectId,
+      userId,
+      identityKind,
+      seatLearner,
+      inScope,
+      failSave,
+      storeLocal,
+      scope,
+    ],
   );
 
   const persist = useCallback(
@@ -572,9 +763,20 @@ export function useWorkbenchProjectState(projectId: string) {
       nextDocument: SchematicDocument,
       quiet = false,
       unloading = false,
+      detached = false,
     ): Promise<SolveResult | null> => {
       autosaveSchedulerRef.current?.markSaveRequested(nextDocument);
       const send = (): Promise<SolveResult | null> => {
+        if (detached) {
+          if (
+            scopeRef.current !== scope ||
+            scope.blocked ||
+            scope.confirmed?.document === nextDocument
+          )
+            return Promise.resolve(null);
+          return sendDraft(nextDocument, quiet, unloading, true);
+        }
+        if (!inScope()) return Promise.resolve(null);
         // A preceding 409 may have replaced the live document with a merge.
         // Sending this older snapshot with the newly loaded revision would erase
         // the remote edit. The same check also drops superseded queued edits.
@@ -582,27 +784,33 @@ export function useWorkbenchProjectState(projectId: string) {
         // Paired visibilitychange/pagehide events can queue the same safety
         // write before savingDocumentRef moves. A failed or completed first
         // request must not cause another automatic write of that snapshot.
-        if (quiet && (saveFailedRef.current || savedDocumentRef.current === nextDocument)) {
+        if (
+          quiet &&
+          (savedDocumentRef.current === nextDocument ||
+            (saveFailedRef.current &&
+              (retryAtRef.current === null || Date.now() < retryAtRef.current)))
+        ) {
           return Promise.resolve(null);
         }
         return sendDraft(nextDocument, quiet, unloading);
       };
-      // No queued request: issue a keepalive PUT during pagehide itself. A
-      // Promise.then callback may never run after the document is destroyed.
+      // Start identity verification during the safety event. After a real browser
+      // shutdown either that check or the keepalive PUT may not finish; per-edit
+      // confirmed local storage is the recovery path, never a server-save claim.
       const idle = pendingSavesRef.current === 0;
       pendingSavesRef.current += 1;
       const queued = unloading && idle ? send() : saveQueueRef.current.then(send);
       saveQueueRef.current = queued.then(
         () => {
-          pendingSavesRef.current -= 1;
+          if (inScope()) pendingSavesRef.current -= 1;
         },
         () => {
-          pendingSavesRef.current -= 1;
+          if (inScope()) pendingSavesRef.current -= 1;
         },
       );
       return queued;
     },
-    [sendDraft],
+    [sendDraft, inScope, scope],
   );
 
   useEffect(() => {
@@ -613,6 +821,7 @@ export function useWorkbenchProjectState(projectId: string) {
         savedDocument: savedDocumentRef.current,
         savingDocument: savingDocumentRef.current,
         failed: saveFailedRef.current,
+        retryAt: retryAtRef.current,
         paused: simulationStatusRef.current === 'starting',
       }),
       (current) => void persist(current, true),
@@ -630,10 +839,10 @@ export function useWorkbenchProjectState(projectId: string) {
   }, [document, savedDocument, savingDocument, saveFailed, simulationStatus]);
 
   useEffect(() => {
-    const flush = (): void => {
+    const flush = (detached = false): void => {
       // A project switch must not send the new project's document through the
       // old route's save closure during effect cleanup.
-      if (projectIdRef.current !== projectId) return;
+      if (!inScope()) return;
       if (simulationStatusRef.current === 'starting') return;
       const current = documentRef.current;
       // Read the refs here: pagehide can follow an edit before React commits a
@@ -642,24 +851,28 @@ export function useWorkbenchProjectState(projectId: string) {
         !saveFailedRef.current &&
         current &&
         current !== savedDocumentRef.current &&
-        current !== savingDocumentRef.current
+        (detached || current !== savingDocumentRef.current)
       ) {
-        void persist(current, true, true);
+        if (detached && scope.detachedRequested) return;
+        if (detached) scope.detachedRequested = true;
+        void persist(current, true, true, detached);
       }
     };
     const onVisibility = (): void => {
       if (globalThis.document.visibilityState === 'hidden') flush();
     };
     globalThis.document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('pagehide', flush);
+    const onPageHide = (): void => flush();
+    window.addEventListener('pagehide', onPageHide);
     return () => {
       // SPA navigation does not fire pagehide. Leaving the editor still gets
       // the same immediate safety write while the browser remains alive.
-      flush();
+      flush(true);
+      scope.active = false;
       globalThis.document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('pagehide', flush);
+      window.removeEventListener('pagehide', onPageHide);
     };
-  }, [persist, projectId]);
+  }, [persist, inScope, scope]);
 
   const confirmSimulationStarted = useCallback((): void => {
     setSimulationStatus((current) => (current === 'starting' ? 'running' : current));
@@ -670,8 +883,15 @@ export function useWorkbenchProjectState(projectId: string) {
     if (!current || busy) return;
     setBusy(true);
     await persist(current);
-    setBusy(false);
+    if (inScope()) setBusy(false);
   }
+
+  const saveBeforeLeave = async (): Promise<void> => {
+    const current = documentRef.current;
+    if (!current || !inScope() || simulationStatusRef.current === 'starting') return;
+    if (current !== savedDocumentRef.current && !saveFailedRef.current)
+      await persist(current, true, true);
+  };
 
   async function toggleSimulation(): Promise<void> {
     if (!document || busy) return;
@@ -704,10 +924,12 @@ export function useWorkbenchProjectState(projectId: string) {
   }
 
   async function checkpoint(): Promise<void> {
-    if (!document || busy) return;
+    if (!document || busy || !inScope()) return;
     setBusy(true);
     const saved = await persist(document, true);
+    if (!inScope()) return;
     const response = saved ? await api.createCheckpoint(projectId) : null;
+    if (!inScope()) return;
     setBusy(false);
     if (response?.ok) {
       setVersions((current) => [response.data.version, ...current]);
@@ -740,16 +962,30 @@ export function useWorkbenchProjectState(projectId: string) {
   );
   return {
     project,
-    document,
+    document: loadedScopeRef.current === scope ? document : null,
     serverRevision: serverRevisionRef.current,
     setDocument,
     getCurrentDocument,
     result,
     versions,
-    status,
+    status: loadedScopeRef.current === scope ? status : 'loading',
     saveStatus,
     saveError,
     saveIssue,
+    localCopySaved:
+      document !== null && localDocument === document && loadedScopeRef.current === scope,
+    exportEmergencyCopy: () => {
+      const current = getCurrentDocument();
+      if (!current || !inScope()) return;
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(current, null, 2)], { type: 'application/json' }),
+      );
+      const link = globalThis.document.createElement('a');
+      link.href = url;
+      link.download = 'asa-electronics-emergency.json';
+      link.click();
+      window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    },
     notice,
     setNotice,
     simulationRunning,
@@ -765,6 +1001,7 @@ export function useWorkbenchProjectState(projectId: string) {
     pushHistory,
     commitDocument,
     saveNow,
+    saveBeforeLeave,
     toggleSimulation,
     resetSimulation,
     checkpoint,
