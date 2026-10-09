@@ -648,6 +648,7 @@ async function fixture(
   } = {},
 ) {
   const mutations: string[] = [];
+  const diagnostics: Record<string, unknown>[] = [];
   let failing = options.profileFailure ?? false;
   let secondaryFailure = options.secondaryFailure ?? false;
   let educator = options.educator ?? false;
@@ -723,6 +724,10 @@ async function fixture(
     const path = new URL(request.url()).pathname;
     const method = request.method();
     const reply = (data: unknown, status = 200) => route.fulfill({ json: data, status });
+    if (path === '/api/diagnostics/client' && method === 'POST') {
+      diagnostics.push(request.postDataJSON());
+      return reply({ accepted: true }, 202);
+    }
     if (!['GET', 'HEAD'].includes(method)) mutations.push(path);
     if (path === '/api/account/presentation') {
       if (presentationFailure)
@@ -974,6 +979,7 @@ async function fixture(
   });
   return {
     mutations,
+    diagnostics,
     notificationReads,
     setInboxUnread: (count: number) => {
       unreadCount = count;
@@ -1843,6 +1849,13 @@ for (const width of [1440, 1024, 390, 320])
     });
     await expect(personalPreferences.getByLabel('Работы на проверку')).toHaveCount(0);
     await expect(personalPreferences.getByLabel('Заявки и приглашения')).toHaveCount(0);
+    await expect
+      .poll(() =>
+        state.diagnostics.some(
+          (event) => event.code === 'request_failed' && event.httpStatus === 503,
+        ),
+      )
+      .toBe(true);
     expect(state.mutations).toEqual([]);
   });
 
@@ -4664,9 +4677,10 @@ for (const seat of [false, true])
     test(`S4 deferred host preserves ${seat ? 'Seat' : 'Account'} ${known ? 'known' : 'historical'} editor document and return route`, async ({
       page,
     }) => {
-      await fixture(page, { seat });
+      const state = await fixture(page, { seat });
       await page.setViewportSize({ width: seat ? 320 : 1024, height: 568 });
       const reads: string[] = [];
+      const diagnosticFrames: string[] = [];
       const projectJson = {
         targets: [
           {
@@ -4706,10 +4720,16 @@ for (const seat of [false, true])
       );
       // GUI is a protocol fixture, not a second Scratch runtime. The compiled ASA
       // host, Blocks adapter, actor props and real bridge execute unchanged.
-      await page.route('**/internal/blocks/?asaStatus=parent', (route) =>
-        route.fulfill({
-          contentType: 'text/html',
-          body: `<!doctype html><html><body><button id="fail">Ошибка среды</button><script>
+      await page.route(
+        (url) =>
+          url.pathname === '/internal/blocks/' && url.searchParams.get('asaStatus') === 'parent',
+        (route) => {
+          const instance = new URL(route.request().url()).searchParams.get('diagnosticInstance');
+          expect(instance).toMatch(/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/);
+          diagnosticFrames.push(instance!);
+          return route.fulfill({
+            contentType: 'text/html',
+            body: `<!doctype html><html><body><button id="fail">Ошибка среды</button><script>
       let init;
       window.addEventListener('message', (event) => {
         if (event.source !== parent || event.origin !== location.origin || event.data.messageType !== 'ASA_BLOCKS_INIT') return;
@@ -4718,7 +4738,8 @@ for (const seat of [false, true])
       });
       document.getElementById('fail').onclick = () => parent.postMessage({ protocolVersion: init.protocolVersion, projectId: init.projectId, sessionNonce: init.sessionNonce, messageType: 'ASA_BLOCKS_FATAL', code: 'runtime_error', message: 'Fixture error' }, location.origin);
     </script></body></html>`,
-        }),
+          });
+        },
       );
       const hostFile = startupChunks().host.file;
       const release = await holdStartupChunk(page, hostFile);
@@ -4738,6 +4759,14 @@ for (const seat of [false, true])
           'data-state',
           'ready',
         );
+        expect(diagnosticFrames).toHaveLength(1);
+        await expect
+          .poll(() =>
+            state.diagnostics.some(
+              (event) => event.code === 'editor_ready' && event.instanceId === diagnosticFrames[0],
+            ),
+          )
+          .toBe(true);
         const frame = page.frameLocator('iframe[title="Scratch runtime"]');
         const init = await frame
           .locator('body')
