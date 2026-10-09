@@ -80,6 +80,82 @@ async function registerTeacher(page: Page): Promise<void> {
   expect(attest.status(), await attest.text()).toBe(201);
 }
 
+async function assertPrintedTextZones(page: Page, scenario: string): Promise<void> {
+  const sheet = page.locator('.student-access-print-sheet');
+  await expect(sheet).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const count = await sheet.locator('.student-access-card').count();
+  expect(count).toBeGreaterThan(0);
+  await expect(sheet.locator('.class-qr')).toHaveCount(count);
+  const measurements = await sheet.evaluate((sheet) => {
+    const cards = [...sheet.querySelectorAll<HTMLElement>('.student-access-card')];
+    const intersects = (a: DOMRect, b: DOMRect) =>
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) > 0.5 &&
+      Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 0.5;
+    return cards.map((card, index) => {
+      const bounds = card.getBoundingClientRect();
+      const violations: string[] = [];
+      const blocks = [
+        ...card.querySelectorAll<HTMLElement>(
+          '.student-access-brand, .student-access-class, .student-access-identity h3, .student-access-codes span, .student-access-codes code, .student-access-instruction, .student-access-site',
+        ),
+      ].filter((node) => getComputedStyle(node).display !== 'none');
+      const texts = blocks.map((node) => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const textBounds = range.getBoundingClientRect();
+        const lines = [...range.getClientRects()].filter(
+          (rect) => rect.width > 0 && rect.height > 0,
+        );
+        const text = node.textContent?.trim() ?? '';
+        const name = `${node.className || node.tagName}: ${text}`;
+        if (!text || !lines.length || !textBounds.height) violations.push(`missing text: ${name}`);
+        const fullLabel = node.getAttribute('title');
+        if (fullLabel !== null && fullLabel !== text) violations.push(`incomplete label: ${name}`);
+        return { name, lines };
+      });
+      const qr = card.querySelector('.class-qr')!.getBoundingClientRect();
+      const regions = [...texts, { name: 'QR', lines: [qr] }];
+      for (const region of regions) {
+        for (const rect of region.lines) {
+          if (
+            rect.left < bounds.left - 0.5 ||
+            rect.right > bounds.right + 0.5 ||
+            rect.top < bounds.top - 0.5 ||
+            rect.bottom > bounds.bottom + 0.5
+          ) {
+            violations.push(`outside card: ${region.name}`);
+          }
+          for (const neighbor of cards) {
+            if (
+              neighbor !== card &&
+              neighbor.parentElement === card.parentElement &&
+              intersects(rect, neighbor.getBoundingClientRect())
+            ) {
+              violations.push(`inside neighboring card: ${region.name}`);
+            }
+          }
+        }
+      }
+      // Actual wrapped text lines, not h3's potentially undersized layout box.
+      // Checks header/name, name/labels/codes, side-by-side codes and text/QR.
+      for (let left = 0; left < regions.length; left += 1) {
+        for (let right = left + 1; right < regions.length; right += 1) {
+          const a = regions[left]!;
+          const b = regions[right]!;
+          if (a.lines.some((rect) => b.lines.some((other) => intersects(rect, other)))) {
+            violations.push(`text collision: ${a.name} / ${b.name}`);
+          }
+        }
+      }
+      return { index, name: card.querySelector('h3')?.textContent, violations };
+    });
+  });
+  for (const measurement of measurements) {
+    expect(measurement.violations, `${scenario}: ${JSON.stringify(measurement)}`).toEqual([]);
+  }
+}
+
 async function classState(classroomId: string) {
   const result = await admin.query(
     `SELECT
@@ -341,6 +417,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
       );
       expect(card.hostOverflow, `${host}: card ${index} complete host`).toBeLessThanOrEqual(1);
     }
+    await assertPrintedTextZones(page, `20 cards, long class and mixed name lengths, host=${host}`);
     if (host.startsWith('classroom-really')) {
       await page
         .locator('.student-access-card')
@@ -437,6 +514,7 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
         box.studentCodeFontSize > box.classCodeFontSize,
     ),
   ).toBe(true);
+  await assertPrintedTextZones(page, '20-card A4 PDF');
   await page.screenshot({ path: `${evidence}/print-sheet.png`, fullPage: true });
   await page.pdf({
     path: `${evidence}/cards-20-a4.pdf`,
@@ -840,7 +918,7 @@ test('confirmed Student Code rotation survives a failed roster reload in copy an
   );
   await cards.getByRole('button', { name: 'Распечатать (2)', exact: true }).click();
   await page.emulateMedia({ media: 'print' });
-  const sheet = cards.locator('.student-access-print-sheet');
+  const sheet = page.locator('.student-access-print-sheet');
   await expect(sheet).toContainText(newCode);
   await expect(sheet).not.toContainText(target.studentCode);
   expect(
@@ -1097,15 +1175,17 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     const beforePrint = await classState(classroom.id);
     await page.emulateMedia({ media: 'print' });
     await page.evaluate(() => document.body.classList.add('student-access-printing'));
-    await expect(mixedCards.locator('.student-access-print-page')).toHaveCount(2);
+    const printedSheet = page.locator('.student-access-print-sheet');
+    const printedAccount = printedSheet.locator('.student-access-card.is-account-entry');
+    await expect(printedSheet.locator('.student-access-print-page')).toHaveCount(2);
     expect(
-      await mixedCards
+      await printedSheet
         .locator('.student-access-print-page')
         .evaluateAll((pages) =>
           pages.map((sheet) => sheet.querySelectorAll('.student-access-card').length),
         ),
     ).toEqual([20, 11]);
-    const accountPrint = await accountCard.evaluate((card) => ({
+    const accountPrint = await printedAccount.evaluate((card) => ({
       overflowX: card.scrollWidth - card.clientWidth,
       overflowY: card.scrollHeight - card.clientHeight,
       instructionDisplay: getComputedStyle(card.querySelector('.student-access-instruction')!)
@@ -1117,9 +1197,37 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     expect(accountPrint.instructionDisplay).not.toBe('none');
     expect(accountPrint.text).toContain('Вход через аккаунт');
     expect(accountPrint.text).not.toContain('acc:');
-    expect(await decodeRenderedQr(accountCard.getByTestId('class-join-qr'))).toBe(
+    expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
       `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
     );
+    await assertPrintedTextZones(page, 'mixed Account/code cards with original class labels');
+    for (const host of [
+      new URL(origin).host,
+      'classroom-really-long-installation-name.example.org',
+    ]) {
+      // Same real mixed roster, with full long print labels as a layout fixture.
+      await printedSheet.evaluate((sheet, printedHost) => {
+        const title = '7А — Очень длинное название синтетического класса для проверки печати';
+        for (const card of sheet.querySelectorAll<HTMLElement>('.student-access-card')) {
+          card.classList.add('is-long-class');
+          card.classList.toggle('is-long-site', printedHost.length > 22);
+          const label = card.querySelector<HTMLElement>('.student-access-class')!;
+          label.textContent = title;
+          label.title = title;
+          card.querySelector<HTMLElement>('.student-access-site')!.textContent = printedHost;
+        }
+      }, host);
+      await assertPrintedTextZones(page, `mixed Account/code cards, long class, host=${host}`);
+      expect(await decodeRenderedQr(printedAccount.getByTestId('class-join-qr'))).toBe(
+        `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
+      );
+    }
+    await page.pdf({
+      path: `${evidence}/cards-mixed-long-labels-a4.pdf`,
+      format: 'A4',
+      preferCSSPageSize: true,
+      printBackground: true,
+    });
     await page.evaluate(() => document.body.classList.remove('student-access-printing'));
     await page.emulateMedia({ media: 'screen' });
     expect(await classState(classroom.id)).toEqual(beforePrint);

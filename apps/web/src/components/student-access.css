@@ -413,8 +413,8 @@
     height: 27mm;
     min-height: 27mm;
     grid-template-columns: minmax(0, 1fr) 22mm;
-    gap: 1.5mm;
-    padding: 1.5mm;
+    gap: 1mm;
+    padding: 0.4mm 1mm;
     border: 0.2mm dashed #79838b;
     border-radius: 0;
     box-shadow: none;
@@ -422,19 +422,23 @@
     color: #000;
   }
   body.student-access-printing .student-access-card-copy {
-    row-gap: 0.5mm;
+    /* Intrinsic text rows cannot surrender the name's height to the code block. */
+    grid-template-rows: max-content max-content max-content;
+    align-content: space-between;
+    row-gap: 0.15mm;
   }
   body.student-access-printing .student-access-topline {
-    gap: 2mm;
+    gap: 1mm;
   }
   body.student-access-printing .student-access-brand {
     font-size: 8.5pt;
-    line-height: 1.15;
+    line-height: 1.1;
   }
   body.student-access-printing .student-access-card .student-access-class {
-    max-width: 75%;
+    flex: 1;
+    max-width: none;
     font-size: 8.5pt;
-    line-height: 1.15;
+    line-height: 1.1;
     color: #333;
   }
   body.student-access-printing .student-access-card.is-long-class .student-access-class {
@@ -445,27 +449,27 @@
   }
   body.student-access-printing .student-access-card .student-access-identity h3 {
     font-size: 14pt;
-    line-height: 1.2;
+    line-height: 1.1;
   }
   body.student-access-printing .student-access-card.is-long-name .student-access-identity h3 {
     font-size: 9pt;
   }
   body.student-access-printing .student-access-codes {
     gap: 1.5mm;
-    padding-top: 0.8mm;
+    padding-top: 0.15mm;
     border-top: 0.2mm solid #abb5be;
   }
   body.student-access-printing .student-access-codes > div {
-    gap: 0.4mm;
+    gap: 0.15mm;
   }
   body.student-access-printing .student-access-codes span {
     font-size: 8pt;
-    line-height: 1.2;
+    line-height: 1.15;
     color: #333;
   }
   body.student-access-printing .student-access-codes code {
     font-size: 12pt;
-    line-height: 1.2;
+    line-height: 1.15;
   }
   body.student-access-printing .student-access-student-code {
     padding-left: 1.8mm;
@@ -524,6 +528,7 @@
   body.student-access-printing .student-access-card.is-account-entry .student-access-instruction {
     display: block;
     font-size: 8pt;
+    line-height: 1.15;
   }
 }
 @media screen and (min-width: 701px) and (max-width: 900px) {
@@ -532,7 +537,7 @@
   }
 }
 
-/* Long labels use two readable lines without increasing the physical ticket. */
+/* Long labels keep their full text in the same physical ticket. */
 @media print {
   body.student-access-printing
     .student-access-card.is-long-class:not(.is-long-name)
@@ -541,18 +546,18 @@
     font-size: 12pt;
   }
   body.student-access-printing .student-access-card.is-long-class .student-access-card-copy {
-    row-gap: 0.2mm;
+    row-gap: 0.15mm;
   }
   body.student-access-printing
     .student-access-card.is-long-name.is-long-class
     .student-access-codes {
-    padding-top: 0.3mm;
+    padding-top: 0.15mm;
   }
   body.student-access-printing
     .student-access-card.is-long-name.is-long-class
     .student-access-codes
     > div {
-    gap: 0.2mm;
+    gap: 0.15mm;
   }
   body.student-access-printing
     .student-access-card.is-long-name.is-long-class
