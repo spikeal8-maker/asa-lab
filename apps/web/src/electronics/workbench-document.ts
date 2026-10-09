@@ -552,9 +552,7 @@ export function moveWireSegment(
   const vertices = moveWireSegmentVertices(
     from,
     to,
-    // Legacy wires without saved vertices display the default route. Drag the
-    // same segments the Stage draws; an explicit [] still means a straight wire.
-    wire.vertices ?? wirePoints(from, to).slice(1, -1),
+    wire.vertices ?? [],
     segmentIndex,
     pointerDelta,
   );
