@@ -581,15 +581,15 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
-      issue: 530
+      id: TASK-ELECTRONICS-BROWSER-READINESS-001
+      issue: 531
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_native_menu_layer_repair
-      dependency_for_issue: 526
+      checkpoint: bounded_pending_sdk_readiness_repair
+      dependency_for_issue: 530
       owner_acceptance: pending
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
@@ -688,14 +688,55 @@ parallel_lanes:
           r5_browser_failed: 1
           r5_independent_review: request_changes
           r5_independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
+      - task_id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
+        issue: 530
+        status: waiting_readiness_and_compact_ui_dependencies
+        checkpoint: candidate_preserved_after_independent_request_changes
+        observed_at: '2026-10-09T03:42:17Z'
+        preserved_candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
+        preserved_candidate_tree: 84d1bda673f13d30734748032e0567a2c5239722
+        preserved_branch: codex/electronics-wire-menu-layer-530
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
+        readiness_dependency_issue: 531
+        compact_ui_dependency: required_separate_selection_after_531
+        owner_acceptance: pending
+        reason: Native Purple and16phase resize receipts PASS, all8 gates6SUCCESS1FAIL1SKIP. Trace proves external
+          SDK load barrierD; actual981Run/font clipping needs separate bounded UI resolution. No main-before
+          browser claim.
+        resume_after: Accepted531 readiness, then separately selected compact UI repair; preserve870/0dd and
+          obtain required final combined gates/NEW review without duplicate implementation.
+        preserved_task_snapshot:
+          id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
+          issue: 530
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_progress
+          checkpoint: bounded_native_menu_layer_repair
+          dependency_for_issue: 526
+          owner_acceptance: pending
+          candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
+          candidate_tree: 84d1bda673f13d30734748032e0567a2c5239722
+          candidate_branch: codex/electronics-wire-menu-layer-530
+          general_run: 37876587447
+          general_conclusion: success
+          electronics_run: 37876603308
+          electronics_conclusion: failure
+          browser_passed: 120
+          browser_failed: 1
+          independent_review: request_changes
+          independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
+          classifier_evidence: docs/product/electronics/evidence/wire-menu-530-breadboard-startup-classification.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2c195713b408ea88f2c8d2d5a87c3908bd887ab9
+      convergence_baseline_sha: 602f5aabda2c12370d7dda6f6cf46b19fe1817c3
       head_sha: null
-      observed_at: '2026-10-09T02:30:20Z'
+      observed_at: '2026-10-09T03:42:17Z'
       main:
         branch: main
-        sha: 2c195713b408ea88f2c8d2d5a87c3908bd887ab9
+        sha: 602f5aabda2c12370d7dda6f6cf46b19fe1817c3
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
         Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
@@ -746,6 +787,17 @@ parallel_lanes:
         No child-z-only workaround, forced clicks, closing Code to mask required state, timeout/assertion weakening or restyling.
         After accepted530 freshly resume526 and verify final combined exact SHA with all gates/raw56/new independent review.
         Suspended525, accepted529/other slices and school K0/T3 pending remain intact. No deployment/DB/backup/network action.
+        Latest53087099554 is preserved/unaccepted: General37876587447 SUCCESS/all4; ordinary37876603308
+        focused/benchmarkSUCCESS, browser120PASS1FAIL, review-imagesSKIPPED. NEW independentREQUEST_CHANGES:
+        nativePurple/16phasesPASS but actual981Run caption and font control clip; fullvisualNEEDS_FIX.
+        Separate classifierD proves external deferred MAX SDK holds global-load navigation30.371s;
+        app visible1.568s, count assertion runs14.602ms during teardown, no measured incorrect count/physics defect.
+        Select only531 bounded existing-profile application-readiness test repair under controlled pending SDK.
+        Preserve30000/5000 limits, production asset readiness,2components/882holes/2bindings/five drag-undo/reopen.
+        No fake SDK/auth, assertion weakening, product/bootstrap/Portal/physics changes or whole-suite hopeful retry.
+        One temporary directed probe is diagnostic only and outside final ancestry; final ordinary exact gates/NEWreview mandatory.
+        After accepted531 select separate compact UI repair before resuming530/526 acceptance; prior route notes are history.
+        Preserve870/0dd/525/529/all accepted slices and otherlanes; schoolK0/T3 pending, no deployment/DB/backup/network.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned

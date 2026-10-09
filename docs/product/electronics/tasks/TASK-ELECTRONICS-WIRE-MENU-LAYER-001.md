@@ -37,6 +37,12 @@ After canonical main publishes this selection/card/review, start from that main 
 
 Existing focused tests may run, but implementation-mirroring source-string tests are not a substitute for the real click regression. Preserve every existing browser case, precision, deadlines, protected owner assets and the accepted529 code. The suspended526 and525 documents/results remain intact.
 
+## Preserved first candidate — separate dependencies
+
+Exact87099554c8227f841718fc052cc24f99f2883d41/tree84d1bda673f13d30734748032e0567a2c5239722 remains unchanged. [NEW independent review](../evidence/wire-menu-530-independent-review-87099554.md) REQUEST_CHANGES; native menu6.9s/16phasesPASS, General37876587447SUCCESS/all4, ordinary37876603308browser120PASS1FAIL/review-imagesSKIPPED. Actual981primaryRun caption/font control clipping blocks fullvisualreadiness. Neither the passing action nor303freshNx executions accept the whole slice.
+
+[Separate classifier](../evidence/wire-menu-530-breadboard-startup-classification.md) provesD: pending external deferred SDK blocks unchanged global-load navigation30.371s, while board/editor appears1.568s after navigation; count assertion14.602ms occurs during teardown. No wrong-count/physics defect or provider outage claimed. Controller separately selects [531 application-readiness repair](TASK-ELECTRONICS-BROWSER-READINESS-001.md), then a separate bounded compact-UI dependency. Do not add those repairs to this preserved ref, retry the full suite without a new cause, or pretend530/526 accepted. Original raw receipts/PNGs/trace remain cached; no repeat BEFORE. Fresh final convergence/ordinary gates/NEW review remain required. Original review SHA55d44ea5b856380a9f309cdf05dd4d26343101bb6e73d98021969e4b821d34bf and classifier9328cf15ee2a95957703b6fc838d080ec1e21cc599129d7015c457762f5ae9fe precede ordinary Markdown Git LF normalization.
+
 ## Required acceptance / return
 
 Root checks actual diff/source/raw evidence. Require ordinary exact-SHA `gate:electronics-m1`, `gate:electronics-m1:browser`, `gate:repository`, frozen dependencies, literal NX_SKIP_NX_CACHE=true, actual fresh counts and a NEW independent reviewer of one final SHA/GitHub state/original browser evidence. Old green runs and author report do not prove this changed candidate. Any confirmed findings get a separate bounded repair/new reviewer; no blind rerun on unchanged code.
