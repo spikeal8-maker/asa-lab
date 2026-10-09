@@ -2795,15 +2795,14 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_proven_drag_coordinate_clamp_repair_only
+      checkpoint: r3_full_expected_dragged_empty_binding_harness_only
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: Only componentDragDelta in existing workbench hook after actual trusted
-        native root drag jumped stored x-5216 to-980. Preserve Stage3d1, all32 full boundary
-        scenarios and prior532/530/526. Meaningful mounted hook regression new workbench-field-drag.spec.ts
-        plus its one subsystem test registration; supporting existing interactions unchanged
-        unless a new concrete harness cause is proved. No keyboard/product-neighbor cleanup,
-        coordinate migration, magic expanded world bounds, physics/CSS/artwork/auth changes.
+      repair_scope: 'ONLY e2e/electronics-interactions.spec.ts first full expected after
+        native drag: explicit holeBindings:{} on grabbed component with expected position.
+        Preserve entire deep equality/originalfixture/nativeevents/precision4/32cases/all
+        assertions/timeout/Save/revision/cookies-reopen/regrab. No product/helper/CSS/fixture
+        normalization/partial match or cleanup.'
       preserved_candidate_sha: 88103655410c490fa00cf657dbd666793ab45029
       preserved_candidate_tree: 834bad21f7f2b58b15505d6a6b4bc75898c1fa4d
       candidate_publication: unpublished
@@ -2839,6 +2838,18 @@ parallel_lanes:
       psu_candidate_preservation: 543 hook writer STOP; active543 harnessR2 writes only
         browser simulation/digest. Preserve exact043a U/I functions at later composition;
         no simultaneous hook author.
+      preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
+      preserved_product_candidate_tree: f2a87f5230b5ae84860e40bfd10ffa2ff29cee08
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-1ee34813.md
+      independent_review_original_sha256: cb3f9533f01b5d865690e000589fb22e29694f74f8d4f893489b9d3c0d27f03c
+      r2_actual_after_probe: 14c33dbd95530cc687cfbd3b70b81b4ff2a3014a
+      r2_actual_after_run: 38004803405
+      r2_actual_raw_sha256: 1e631476187acccc5669c4b01e72bd3b6164ac34ae06bb10b093b55b74d777ee
+      r2_actual_after_result: Trusted native6moves now reaches expected(-5198.652,3.011),
+        viewport and wholeotherdocument unchanged. Full equality fails only selected empty
+        holeBindings, existing translatedDragDocument normalization from6b1ff210 unchanged.
+        Save/reopen NOT_REACHED, no fullacceptance.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
