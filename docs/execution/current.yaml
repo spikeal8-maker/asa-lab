@@ -587,8 +587,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: r1_bounded_native_load_observer_repair
+      status: done
+      checkpoint: technical_readiness_accepted
       dependency_for_issue: 530
       owner_acceptance: pending
       first_candidate_sha: ba1018b4a4ccad7f3e6877aa7fb3ea419981324d
@@ -600,6 +600,9 @@ parallel_lanes:
       diagnostic_run: 37881376880
       diagnostic_conclusion: failure
       diagnostic_is_gate: false
+      accepted_candidate_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+      independent_review: approved
+      evidence: docs/product/electronics/evidence/browser-readiness-531-acceptance-20261009.md
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
@@ -740,12 +743,12 @@ parallel_lanes:
           classifier_evidence: docs/product/electronics/evidence/wire-menu-530-breadboard-startup-classification.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: dc76e97171ca8e44f49dd37d443f82e950e43b76
+      convergence_baseline_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
       head_sha: null
-      observed_at: '2026-10-09T04:04:44Z'
+      observed_at: '2026-10-09T04:44:37Z'
       main:
         branch: main
-        sha: dc76e97171ca8e44f49dd37d443f82e950e43b76
+        sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
         Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
@@ -817,6 +820,13 @@ parallel_lanes:
         ONE additional directed probe of changed observer is allowed in this separate R1 cycle; not repeated BEFORE,
         not whole-suite hopeful rerun or gate substitute. Final ordinary exact gates/NEW independent review remain.
         No product/UI/bootstrap/Portal/physics/auth/dependency/generated/workflow change in final R1 candidate.
+        Accepted531 exact68c8be1d is normally integrated unchanged, NEW independentAPPROVE/all8requiredSUCCESS.
+        General37882939710 and ordinary37883347010 prove existing120browsercases plus original7readinessreceipts.
+        Actual native image load and pendingSDK across reload, fivephysicaldrag-undo/fullmockedUI documents preserved.
+        Test-only readiness acceptance, not E01serverpersistence/MAX Mini App/realpupilT3 or providerfrequency.
+        Firstba/1540 and R1c9 diagnostics remain outside final ancestry and retained as rejected/partial history.
+        Next separately select bounded proved981Run/font compactUI;530870 and5260dd remain unaccepted/preserved.
+        Preserve525/529/allaccepted/foreignlanes; no schooldeployment/DB/network/backup or ownerclassreleaseclaim.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -837,6 +847,33 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-BROWSER-READINESS-001
+        issue: 531
+        accepted_candidate_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        integrated_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        candidate_tree: 26cf904b7c4261402cc7ec58493ed38fb12c0990
+        independent_review: approved
+        independent_review_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        exact_candidate_general_run: 37882939710
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37883347010
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 120
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          benchmark: 18
+          browser_images: 49
+          review_image_packaging: 22
+        production_source_changed: false
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/browser-readiness-531-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/browser-readiness-531-independent-review-68c8be1d.md
+        raw_evidence: docs/product/electronics/evidence/browser-readiness-531-final-raw-receipts.json
+        independent_review_original_sha256: fe92c1712c1bc9acb01639b441f3b4d03986f993ab3359c6d6c7882154fb45d9
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-SKETCH-DRAFT-COMMIT-001
         issue: 529
         accepted_candidate_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
