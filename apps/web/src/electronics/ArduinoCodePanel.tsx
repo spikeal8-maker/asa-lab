@@ -539,6 +539,10 @@ function ScratchWorkspace({
     if (!host) return;
     registerArduinoBlocks();
     const workspace = ScratchBlocks.inject(host, {
+      // Scratch creates image hrefs synchronously inside inject. Vite preserves
+      // the four pinned vendor filenames together; configure their local base
+      // before creation, rather than relying on the later DOM refresh.
+      media: new URL('.', new URL(scratchZoomInUrl, document.baseURI)).href,
       toolbox: toolboxForCategory(category, [], paletteScale),
       scratchTheme: ScratchBlocks.ScratchBlocksTheme.CLASSIC,
       theme: ARDUINO_SCRATCH_THEME,
