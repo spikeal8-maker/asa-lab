@@ -14,6 +14,7 @@ on:
       - 'apps/web/vite.config.ts'
       - 'apps/web/tsconfig.json'
       - 'e2e/electronics-simulation.spec.ts'
+      - 'e2e/electronics-simulation-time.spec.ts'
       - 'e2e/electronics-interactions.spec.ts'
       - 'e2e/electronics-ready-cadence.spec.ts'
       - 'tests/electronics/**'
