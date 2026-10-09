@@ -392,5 +392,592 @@
     "package.json": "a65427eef73086f199054fb07f8104114f7bad77f9a55dc9f5b56e48fe573426",
     "pnpm-lock.yaml": "452e1a53871abe1e8b6b231cfc5a15ae2a590484a410717f9fb8c4494aee50b1",
     "tools/gate-governance.sh": "1606860ca226598028971bdf04affb2999bbda405bd3a136d71a74913c94aa4d"
+  },
+  "historical_proof_scope": "workflow_baseline_sha256 and production_defaults_sha256 are one-time original 545 diff evidence only (--baseline-proof); ongoing CI checks semantic_contract, not those full-file hashes.",
+  "semantic_contract": {
+    "dockerfile_defaults": {
+      "Dockerfile.api": {
+        "NODE_IMAGE": "node:22.23.2-bookworm-slim"
+      },
+      "Dockerfile.web": {
+        "NODE_IMAGE": "node:22.23.2-bookworm-slim",
+        "CADDY_IMAGE": "caddy:2.10.2-alpine"
+      }
+    },
+    "gate_scripts": {
+      "gate:governance": "node tools/run-governance-gate.mjs",
+      "gate:code": "corepack pnpm format:check && corepack pnpm seo:check && corepack pnpm validate:electronics-agent-docs && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm boundaries:check && corepack pnpm contracts:check && corepack pnpm compose:check && corepack pnpm security:secrets && corepack pnpm license:check && corepack pnpm security:dependencies && corepack pnpm test:release && corepack pnpm build && corepack pnpm bundle:check",
+      "gate:data": "corepack pnpm db:migrate:check && corepack pnpm test && corepack pnpm test:rls",
+      "gate:repository": "corepack pnpm gate:governance && corepack pnpm gate:code && corepack pnpm gate:data",
+      "gate:electronics-m1": "corepack pnpm nx build module-sdk && corepack pnpm validate:electronics-component-information && corepack pnpm test:electronics && corepack pnpm vitest run apps/web/src/electronics/testing && corepack pnpm typecheck && corepack pnpm build",
+      "gate:electronics-m1:browser": "corepack pnpm e2e:electronics-simulation"
+    },
+    "workflows": {
+      ".github/workflows/spec-validation.yml": {
+        "workflow_controls": {
+          "permissions": {
+            "contents": "read",
+            "pull-requests": "read",
+            "actions": "read"
+          },
+          "env": {
+            "CI": "true",
+            "NX_SKIP_NX_CACHE": "true"
+          },
+          "concurrency": {
+            "group": "asa-gates-${{ github.workflow }}-${{ github.head_ref || github.ref_name }}",
+            "cancel-in-progress": true
+          },
+          "defaults": null
+        },
+        "jobs": {
+          "governance": {
+            "controls": {
+              "runs-on": "ubuntu-latest",
+              "needs": null,
+              "timeout-minutes": 15,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": null,
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false,
+                  "fetch-depth": 0
+                }
+              },
+              {
+                "uses": "actions/setup-python@v5",
+                "with": {
+                  "python-version": "3.13",
+                  "cache": "pip",
+                  "cache-dependency-path": "tools/requirements.txt"
+                }
+              },
+              {
+                "run": "python -m pip install --disable-pip-version-check -r tools/requirements.txt"
+              },
+              {
+                "env": {
+                  "GH_TOKEN": "${{ secrets.GITHUB_TOKEN }}"
+                },
+                "run": "bash tools/gate-governance.sh"
+              }
+            ]
+          },
+          "code": {
+            "controls": {
+              "runs-on": "ubuntu-latest",
+              "needs": "governance",
+              "timeout-minutes": 35,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": null,
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false,
+                  "fetch-depth": 0
+                }
+              },
+              {
+                "uses": "pnpm/action-setup@v4",
+                "with": {
+                  "version": "9.15.9",
+                  "run_install": false
+                }
+              },
+              {
+                "uses": "actions/setup-node@v4",
+                "with": {
+                  "node-version": "22",
+                  "cache": "pnpm"
+                }
+              },
+              {
+                "run": "pnpm install --frozen-lockfile"
+              },
+              {
+                "run": "pnpm gate:code"
+              }
+            ]
+          },
+          "postgres-tests": {
+            "controls": {
+              "runs-on": "ubuntu-latest",
+              "needs": "code",
+              "timeout-minutes": 45,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": null,
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false,
+                  "fetch-depth": 0
+                }
+              },
+              {
+                "uses": "pnpm/action-setup@v4",
+                "with": {
+                  "version": "9.15.9",
+                  "run_install": false
+                }
+              },
+              {
+                "uses": "actions/setup-node@v4",
+                "with": {
+                  "node-version": "22",
+                  "cache": "pnpm"
+                }
+              },
+              {
+                "run": "pnpm install --frozen-lockfile"
+              },
+              {
+                "run": "pnpm db:migrate:check"
+              },
+              {
+                "run": "python3 tools/test_ci_image_transport.py --compose-model-check\ndocker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test config\n"
+              },
+              {
+                "env": {
+                  "ASA_BUILD_REVISION": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "ASA_IMAGE_TAG": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "COMPOSE_PROJECT_NAME": "asa-lab-ci-${{ github.run_id }}"
+                },
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration test-runner\npython3 tools/test_ci_image_transport.py --built-images\n"
+              },
+              {
+                "env": {
+                  "COMPOSE_PROJECT_NAME": "asa-lab-ci-${{ github.run_id }}"
+                },
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test up -d postgres\npython3 tools/test_ci_image_transport.py --pulled-postgres\n"
+              },
+              {
+                "env": {
+                  "ASA_BUILD_REVISION": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "ASA_IMAGE_TAG": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "COMPOSE_PROJECT_NAME": "asa-lab-ci-${{ github.run_id }}"
+                },
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm migration"
+              },
+              {
+                "env": {
+                  "ASA_BUILD_REVISION": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "ASA_IMAGE_TAG": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "COMPOSE_PROJECT_NAME": "asa-lab-ci-${{ github.run_id }}"
+                },
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:data"
+              },
+              {
+                "if": "always()",
+                "env": {
+                  "COMPOSE_PROJECT_NAME": "asa-lab-ci-${{ github.run_id }}"
+                },
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test down -v --remove-orphans"
+              }
+            ]
+          },
+          "access-a-browser": {
+            "controls": {
+              "runs-on": "ubuntu-latest",
+              "needs": "code",
+              "timeout-minutes": 25,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": {
+                "TEST_DATABASE_URL": "postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test",
+                "APP_TEST_DATABASE_URL": "postgresql://asalab_app:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test",
+                "MIGRATION_DATABASE_URL": "postgresql://postgres:access-a-ci-isolated-test@127.0.0.1:5432/asa_access_a_test",
+                "MIGRATION_EXPECT_DATABASE": "asa_access_a_test",
+                "MIGRATION_CONFIRM": "APPLY:asa_access_a_test",
+                "VITEST_MAX_WORKERS": "2"
+              },
+              "services": {
+                "postgres": {
+                  "image": "public.ecr.aws/docker/library/postgres@sha256:75adc2a65806c96bc0e59030230bfe3f1c1b0d6d8f8181a8913e2b8b53bdc166",
+                  "env": {
+                    "POSTGRES_DB": "asa_access_a_test",
+                    "POSTGRES_USER": "postgres",
+                    "POSTGRES_PASSWORD": "access-a-ci-isolated-test"
+                  },
+                  "ports": [
+                    "5432:5432"
+                  ],
+                  "options": "--health-cmd \"pg_isready -U postgres -d asa_access_a_test\" --health-interval 5s --health-timeout 5s --health-retries 12"
+                }
+              },
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false
+                }
+              },
+              {
+                "uses": "pnpm/action-setup@v4",
+                "with": {
+                  "version": "9.15.9"
+                }
+              },
+              {
+                "uses": "actions/setup-node@v4",
+                "with": {
+                  "node-version": "22",
+                  "cache": "pnpm"
+                }
+              },
+              {
+                "run": "pnpm install --frozen-lockfile"
+              },
+              {
+                "run": "# Only this disposable Ubuntu runner; keep package signature checks.\nsudo python3 - <<'PY'\nfrom pathlib import Path\ndirectory = Path('/etc/apt/sources.list.d')\nsources = [Path('/etc/apt/sources.list'), *directory.glob('*.list'), *directory.glob('*.sources')]\nfor source in sources:\n    if not source.is_file():\n        continue\n    original = source.read_text()\n    updated = original.replace('http://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')\n    updated = updated.replace('https://azure.archive.ubuntu.com/ubuntu', 'https://archive.ubuntu.com/ubuntu')\n    if updated != original:\n        source.write_text(updated)\nPath('/etc/apt/apt.conf.d/80-asa-browser-network').write_text(\n    'Acquire::http::Timeout \"30\";\\nAcquire::https::Timeout \"30\";\\nAcquire::Retries \"1\";\\n')\nPY\n"
+              },
+              {
+                "run": "pnpm exec playwright install --with-deps chromium"
+              },
+              {
+                "run": "pnpm build"
+              },
+              {
+                "run": "pnpm db:migrate\npsql \"$TEST_DATABASE_URL\" -v ON_ERROR_STOP=1 -c \"ALTER ROLE asalab_app WITH LOGIN PASSWORD 'access-a-ci-isolated-test'\"\n"
+              },
+              {
+                "run": "pnpm test:access-a"
+              },
+              {
+                "run": "pnpm e2e:access-a"
+              },
+              {
+                "run": "pnpm e2e:settings-ui"
+              },
+              {
+                "if": "always()",
+                "uses": "actions/upload-artifact@v4",
+                "with": {
+                  "name": "access-a-browser-${{ github.event.pull_request.head.sha || github.sha }}",
+                  "path": "e2e/artifacts/owner-preview/access-a\nreports/playwright/access-a\nreports/playwright/settings-ui\ne2e/artifacts/owner-preview/access-a-ui\n",
+                  "retention-days": 14
+                }
+              }
+            ]
+          }
+        },
+        "required_triggers": {
+          "push": {
+            "branches": [
+              "main",
+              "agent/**",
+              "assistant/**",
+              "codex/**"
+            ]
+          },
+          "pull_request": {}
+        }
+      },
+      ".github/workflows/electronics-r4-m1-focused.yml": {
+        "workflow_controls": {
+          "permissions": {
+            "contents": "read"
+          },
+          "env": {
+            "NX_SKIP_NX_CACHE": "true"
+          },
+          "concurrency": {
+            "group": "electronics-r4-m1-${{ github.event.pull_request.number || github.ref }}",
+            "cancel-in-progress": true
+          },
+          "defaults": null
+        },
+        "jobs": {
+          "focused": {
+            "controls": {
+              "runs-on": "ubuntu-24.04",
+              "needs": null,
+              "timeout-minutes": 25,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": {
+                "CI": "true"
+              },
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false,
+                  "fetch-depth": 0
+                }
+              },
+              {
+                "uses": "pnpm/action-setup@v4",
+                "with": {
+                  "version": "9.15.9",
+                  "run_install": false
+                }
+              },
+              {
+                "uses": "actions/setup-node@v4",
+                "with": {
+                  "node-version": 22,
+                  "cache": "pnpm"
+                }
+              },
+              {
+                "run": "pnpm install --frozen-lockfile"
+              },
+              {
+                "run": "pnpm gate:electronics-m1"
+              }
+            ]
+          },
+          "benchmark": {
+            "controls": {
+              "runs-on": "ubuntu-24.04",
+              "needs": "focused",
+              "timeout-minutes": 25,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": {
+                "CI": "true"
+              },
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false,
+                  "fetch-depth": 0
+                }
+              },
+              {
+                "uses": "pnpm/action-setup@v4",
+                "with": {
+                  "version": "9.15.9",
+                  "run_install": false
+                }
+              },
+              {
+                "uses": "actions/setup-node@v4",
+                "with": {
+                  "node-version": 22,
+                  "cache": "pnpm"
+                }
+              },
+              {
+                "run": "pnpm install --frozen-lockfile"
+              },
+              {
+                "run": "pnpm exec playwright install --with-deps chromium"
+              },
+              {
+                "run": "pnpm benchmark:electronics:ci"
+              },
+              {
+                "if": "always()",
+                "uses": "actions/upload-artifact@v4",
+                "with": {
+                  "name": "electronics-e-opt-${{ github.run_id }}",
+                  "path": "reports/electronics-opt0-*.json\nreports/electronics-opt0-*.md\n",
+                  "if-no-files-found": "ignore",
+                  "retention-days": 14
+                }
+              }
+            ]
+          },
+          "browser": {
+            "controls": {
+              "runs-on": "ubuntu-24.04",
+              "needs": "focused",
+              "timeout-minutes": 35,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": {
+                "CI": "true",
+                "ASA_BUILD_REVISION": "${{ github.event.pull_request.head.sha || github.sha }}",
+                "ASA_IMAGE_TAG": "${{ github.event.pull_request.head.sha || github.sha }}",
+                "COMPOSE_PROJECT_NAME": "asa-lab-electronics-${{ github.run_id }}",
+                "ASA_TEST_UID": "1000",
+                "ASA_TEST_GID": "1000"
+              },
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false,
+                  "fetch-depth": 0
+                }
+              },
+              {
+                "run": "mkdir -p e2e/artifacts/electronics-simulation reports\nchmod -R 0777 e2e/artifacts reports\n"
+              },
+              {
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 migration api web test-runner"
+              },
+              {
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test up -d --wait --wait-timeout 120 postgres"
+              },
+              {
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps migration"
+              },
+              {
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test up -d --wait --wait-timeout 240 --no-deps api web"
+              },
+              {
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:electronics-m1:browser"
+              },
+              {
+                "if": "always()",
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test ps -a"
+              },
+              {
+                "if": "always()",
+                "uses": "actions/upload-artifact@v4",
+                "with": {
+                  "name": "electronics-r4-m1-browser-${{ github.run_id }}",
+                  "path": "e2e/artifacts/electronics-simulation\nreports\n",
+                  "if-no-files-found": "ignore",
+                  "retention-days": 14
+                }
+              },
+              {
+                "if": "always()",
+                "run": "docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test down -v --remove-orphans"
+              }
+            ]
+          },
+          "review-images": {
+            "controls": {
+              "runs-on": "ubuntu-24.04",
+              "needs": [
+                "focused",
+                "benchmark",
+                "browser"
+              ],
+              "timeout-minutes": 35,
+              "if": null,
+              "continue-on-error": null,
+              "permissions": null,
+              "env": {
+                "ASA_BUILD_REVISION": "${{ github.event.pull_request.head.sha || github.sha }}",
+                "ASA_IMAGE_TAG": "${{ github.event.pull_request.head.sha || github.sha }}"
+              },
+              "services": null,
+              "container": null,
+              "strategy": null,
+              "defaults": null
+            },
+            "required_steps": [
+              {
+                "uses": "actions/checkout@v4",
+                "with": {
+                  "ref": "${{ github.event.pull_request.head.sha || github.sha }}",
+                  "persist-credentials": false
+                }
+              },
+              {
+                "run": "docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web"
+              },
+              {
+                "shell": "bash",
+                "run": "set -euo pipefail\napi_revision=\"$(docker image inspect --format='{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' \"asa-lab-api:${ASA_IMAGE_TAG}\")\"\nweb_revision=\"$(docker image inspect --format='{{ index .Config.Labels \"org.opencontainers.image.revision\" }}' \"asa-lab-web:${ASA_IMAGE_TAG}\")\"\ntest \"$api_revision\" = \"$ASA_BUILD_REVISION\"\ntest \"$web_revision\" = \"$ASA_BUILD_REVISION\"\n"
+              },
+              {
+                "shell": "bash",
+                "run": "set -euo pipefail\nmkdir -p review-images\ndocker save \"asa-lab-api:${ASA_IMAGE_TAG}\" | gzip -1 > \"review-images/asa-lab-api-${ASA_IMAGE_TAG}.tar.gz\"\ndocker save \"asa-lab-web:${ASA_IMAGE_TAG}\" | gzip -1 > \"review-images/asa-lab-web-${ASA_IMAGE_TAG}.tar.gz\"\nprintf 'revision=%s\\napi=%s\\nweb=%s\\n' \\\n  \"$ASA_BUILD_REVISION\" \\\n  \"asa-lab-api:${ASA_IMAGE_TAG}\" \\\n  \"asa-lab-web:${ASA_IMAGE_TAG}\" > review-images/MANIFEST.txt\nsha256sum review-images/*.tar.gz > review-images/SHA256SUMS\n"
+              },
+              {
+                "uses": "actions/upload-artifact@v4",
+                "with": {
+                  "name": "electronics-review-images-${{ github.run_id }}",
+                  "path": "review-images",
+                  "if-no-files-found": "error",
+                  "retention-days": 14
+                }
+              }
+            ]
+          }
+        },
+        "required_triggers": {
+          "pull_request": {
+            "paths": [
+              "compose.test.yaml",
+              ".github/compose.registry-ci.yaml",
+              "apps/api/src/origin-policy.ts",
+              "apps/api/src/app.factory.ts",
+              "AGENTS.md",
+              "contexts/electronics/**",
+              "apps/web/src/electronics/**",
+              "apps/web/src/pages/SchematicEditor.tsx",
+              "apps/web/vite.config.ts",
+              "apps/web/tsconfig.json",
+              "e2e/electronics-simulation.spec.ts",
+              "e2e/electronics-interactions.spec.ts",
+              "tests/electronics/**",
+              "tools/run-electronics-benchmark.mjs",
+              "tools/run-electronics-browser-benchmark.mjs",
+              "tools/run-electronics-load-benchmark.mjs",
+              "tools/run-electronics-memory-benchmark.mjs",
+              "tools/update-electronics-benchmark-golden.mjs",
+              "docs/delivery/evidence/electronics-opt0/**",
+              "package.json",
+              "pnpm-lock.yaml",
+              ".github/workflows/electronics-r4-m1-focused.yml"
+            ]
+          },
+          "workflow_dispatch": null
+        }
+      }
+    }
   }
 }
