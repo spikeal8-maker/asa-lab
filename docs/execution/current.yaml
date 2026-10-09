@@ -572,139 +572,37 @@ parallel_lanes:
   - id: electronics
     worktree_id: electronics-main
     owned_paths:
-    - apps/web/src/electronics/WorkbenchHeader.tsx
-    - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
-    - apps/web/src/electronics/testing/workbench-presentation.spec.ts
-    - apps/web/src/electronics/testing/workbench-project-state.spec.ts
     - apps/web/src/electronics/use-electronics-workbench.ts
-    - apps/web/src/electronics/use-workbench-project-state.ts
-    - apps/web/src/electronics/workbench-autosave.ts
-    - apps/web/src/electronics/workbench.css
-    - apps/web/src/modules/project-local-draft.ts
-    - apps/web/src/modules/testing/project-local-draft.spec.ts
-    - apps/web/src/pages/SchematicEditor.tsx
-    - docs/product/electronics/generated/component-coverage.json
+    - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
+    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
     - e2e/electronics-simulation.spec.ts
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-RECOVERY-001.md
+    - docs/product/electronics/generated/component-coverage.json
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
     task:
-      id: TASK-ELECTRONICS-SAVE-RECOVERY-001
-      issue: 526
+      id: TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001
+      issue: 543
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: e01_full_schema_sketch_recovery_exact_head_technically_accepted
-      r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
-      r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
-      r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
-      r4_general_run: 37869131311
-      r4_general_conclusion: success
-      r4_electronics_run: 37869145318
-      r4_electronics_conclusion: failure
-      r4_browser_passed: 125
-      r4_browser_failed: 2
-      r4_independent_review: request_changes
-      r4_independent_evidence: docs/product/electronics/evidence/save-526-r4-independent-review-c25dd582.md
-      r3_candidate_sha: 0c8a0d5e606e037078e7d8a5bff47b70d299ab23
-      r3_candidate_tree: 33825fb81e99188ba992ca21c2d590b8b68355a4
-      r3_candidate_branch: codex/electronics-save-recovery-526-review-r3
-      r3_general_run: 37865142075
-      r3_general_conclusion: success
-      r3_electronics_run: 37865154341
-      r3_electronics_conclusion: success
-      r3_browser_passed: 127
-      r3_browser_failed: 0
-      r3_independent_review: request_changes
-      r3_independent_evidence: docs/product/electronics/evidence/save-526-r3-independent-review-0c8a0d5e.md
-      r2_candidate_sha: 520bc45afaad32b89d142fbcf313561c1170d72d
-      r2_candidate_tree: ec3e6483cbaa73c4bf3ff7a217e0889dbb86d855
-      r2_candidate_branch: codex/electronics-save-recovery-526-review-r2
-      r2_general_run: 37859012428
-      r2_general_conclusion: success
-      r2_electronics_run: 37859024247
-      r2_electronics_conclusion: failure
-      r2_browser_passed: 125
-      r2_browser_failed: 2
-      r2_independent_review: request_changes
-      r2_independent_evidence: docs/product/electronics/evidence/save-526-r2-independent-review-520bc45a.md
-      preserved_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
-      preserved_candidate_branch: codex/electronics-save-recovery-526-review-r5
-      preserved_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
-      preserved_candidate_general_run: 37845048256
-      preserved_candidate_general_conclusion: success
-      preserved_candidate_electronics_run: 37845156460
-      preserved_candidate_browser_conclusion: failure
-      preserved_candidate_independent_review: request_changes
+      status: in_progress
+      checkpoint: bounded_persist_psu_ui_without_hidden_canonical_restart
+      kind: repair
       owner_acceptance: pending
-      r5_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
-      r5_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
-      r5_candidate_branch: codex/electronics-save-recovery-526-review-r5
-      r5_general_run: 37872258062
-      r5_general_conclusion: success
-      r5_electronics_run: 37872270511
-      r5_electronics_conclusion: failure
-      r5_browser_passed: 126
-      r5_browser_failed: 1
-      r5_independent_review: request_changes
-      r5_independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
-      dependencies_accepted:
-      - 529
-      - 531
-      - 532
-      - 533
-      - 534
-      - 530
-      final_convergence_baseline_sha: 9747d80d0e0d0f2b750ab1b88b88e08c673dd5a7
-      repair_scope: Preserve existing R5 product; ordinary merge accepted main, retain
-        all accepted and R5 scenarios; regenerate only derived canonical browser digest.
-        No new product repair without causal evidence.
-      required_full_normal_and_denied_layout_states: 56
-      new_independent_final_sha_review_required: true
-      owner_approved_conflict_paths:
-      - e2e/electronics-simulation.spec.ts
-      - docs/product/electronics/generated/component-coverage.json
-      post_530_candidate_sha: dda9fe1c6956ace5e009b14004fd83b606b8be3a
-      post_530_candidate_tree: 46b02ae8707f329d0abf3e9f529d4ea1c94765f7
-      post_530_candidate_branch: codex/electronics-save-recovery-526-post-530
-      post_530_independent_review: request_changes
-      post_530_independent_evidence: docs/product/electronics/evidence/save-526-post-530-independent-review-dda9fe1c.md
-      post_530_independent_review_original_sha256: bf5416b038e9f4b17fc46b98844fab262485bad88c472b8a771e5359a0cb4144
-      post_530_general_run: 37976875849
-      post_530_general_conclusion: success
-      post_530_electronics_run: 37976882424
-      post_530_electronics_conclusion: failure
-      post_530_browser_passed: 132
-      post_530_browser_failed: 3
-      post_530_e01_layout_phases_passed: 56
-      r6_repair_scope: Only causal CSS qualification for normal1374 running toolbar48
-        versus current96. Preserve all persistence code, full56/denial, all old532/530
-        tests and widths/captions/native hits; no test/timeout change. NEW author then
-        final exact gates and NEW independent reviewer.
-      candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
-      candidate_tree: cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6
-      candidate_branch: codex/electronics-save-recovery-526-r6
-      accepted_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
-      integrated_sha: 1d7a14d780cefc555e78d8e65579723fcef291d5
-      independent_review: approved
-      independent_evidence: docs/product/electronics/evidence/save-526-r6-independent-review-185d723b.md
-      evidence: docs/product/electronics/evidence/save-526-r6-acceptance-20261009.md
-      general_run: 37981551177
-      general_conclusion: success
-      electronics_run: 37981556181
-      electronics_conclusion: success
-      browser_passed: 135
-      browser_failed: 0
-      final_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
-      final_candidate_tree: cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6
-      final_independent_review: approved
-      final_independent_evidence: docs/product/electronics/evidence/save-526-r6-independent-review-185d723b.md
-      final_general_run: 37981551177
-      final_general_conclusion: success
-      final_electronics_run: 37981556181
-      final_electronics_conclusion: success
-      final_browser_passed: 135
-      final_browser_failed: 0
+      selected_at: '2026-10-09T20:49:58Z'
+      technical_prerequisites:
+      - 526
+      - 542
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      - docs/product/electronics/components/engine-worker-clock.yaml
+      repair_scope: Exactly hook and narrow consistent regulated-PSU value alias comparison
+        in live controller; meaningful mounted/controller tests and real full Save/autosave/cookies-only
+        reopen. Persist U/I/value, runtime-only output; preserve progressed canonical
+        state/time and intentional Stop/Start reset. No other product subsystem or school
+        actions.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1181,23 +1079,22 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 1d7a14d780cefc555e78d8e65579723fcef291d5
+      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
       head_sha: null
-      observed_at: '2026-10-09T20:06:55Z'
+      observed_at: '2026-10-09T20:49:58Z'
       main:
         branch: main
-        sha: 2d0b7557a34bf39fe9cef4876c43b83aed274698
-      observation_note: 'Dated snapshot; fetch main and actual GitHub/CI before writes. Technical526
-        source185d accepted after NEW independent APPROVE; General37981551177 and ordinary37981556181
-        all8SUCCESS,135browser/56E01/96compact/5wholeintents/native16/media2x7,325freshNx0hits.
-        Whole schema/sketch quiet6017ms, rendererSIGKILL24ms, denied storage, emergencyJSON,
-        reauth, scope isolation, CAS and fastSave/departure independently verified. Ordinary
-        integration1d7a14d preserves all16 accepted source entries and all late main2d0b
-        docs/foreign lanes. Source CI is not CI of later merge/closeout. This is counted
-        production slice3 after full535 (532,530,526): mandatory compact full hygiene
-        checkpoint before another production start/acceptance. Preserve537/539/540,538APPROVEheld,541candidate,525.
-        K0/backups NOT_VERIFIED; real schoolT3/class/owner/release/deployment pending;
-        no installation/DB/network/backup action.'
+        sha: 3134650d808e698a9524515388d1793b0841a677
+      observation_note: Dated snapshot; fetch main and actual exact CI before writes.
+        Source542cffba NEW independent APPROVE/all4General37987374023 SUCCESS and actual
+        one-doc/3775 foreign entries proof; mandatory hygiene resolved, no cleanup. E01
+        source185d accepted/integrated; actual313 General37986023898 all4SUCCESS and Issue526
+        CLOSED6088797737. Select E04/543 only hook+narrow PSU alias/controller continuity,
+        full persistence/browser proof. Preserve every parallel candidate;54072 REQUEST_CHANGES
+        genuine GPIO compute bottleneck, not UI loss; independent Access timeout forwarded
+        to Portal for C/D classification, no Electronics scope expansion. Source CI is
+        not later docs composition CI. K0/T3/class/owner/deployment pending; no school
+        actions.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -1218,6 +1115,51 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-009
+        issue: 542
+        accepted_candidate_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        candidate_tree: 90ac7403916102b55a409d1723382e3386c23eee
+        integrated_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        reviewed_main_sha: 3134650d808e698a9524515388d1793b0841a677
+        independent_review: approved
+        independent_review_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        independent_review_original_sha256: 825cc54f30cee28282c19154c9660823f65a8dd6dc2b0d064e11fee3de2dd481
+        exact_candidate_general_run: 37987374023
+        exact_candidate_general_conclusion: success
+        status: technical_accepted
+        full_hygiene_checkpoint: true
+        production_source_changed: false
+        counted_production_issues:
+        - 532
+        - 530
+        - 526
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-005.yaml
+        independent_evidence: docs/product/electronics/evidence/hygiene-542-independent-review-cffba38e.md
+        raw_evidence: docs/product/electronics/evidence/hygiene-542-technical-acceptance.json
+        prior_closeout_task_snapshot:
+          id: TASK-ELECTRONICS-GOVERNANCE-009
+          issue: 542
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_progress
+          checkpoint: mandatory_compact_full_hygiene_after_532_530_526
+          kind: plan/governance
+          full_hygiene_checkpoint: true
+          previous_full_checkpoint_issue: 535
+          reviewed_main_sha: b663348a50bed99b2f1fa13c64272879aa3e526b
+          counted_production_issues:
+          - 532
+          - 530
+          - 526
+          next_product_priority: E04 PSU U/I persistence; preserve parallel540/541/538/525
+          context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-009.md
+          - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
+          - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
         issue: 526
         accepted_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
@@ -2395,20 +2337,28 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_same_time_scheduler_work_preserving_full_canonical_parity
+      checkpoint: r1_localize_remaining_exact72_compute_cost_before_same_scope_repair
       dependency_for_issue: 539
       owner_acceptance: pending
       selected_at: '2026-10-09T19:34:20Z'
       source_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
       preserved_preparation_sha: 9036e015195cd367c6e5f84c603a530df9d2e443
-      integration_priority: Hold integration until root526 acceptance and due compact
-        hygiene checkpoint. No school actions.
+      integration_priority: Hygiene542 accepted; remain unaccepted until full GPIO/Serial
+        and necessary exact gates plus NEW independent reviewer. External Access timeout
+        separately forwarded Portal for C/D classification.
       evidence: docs/product/electronics/evidence/scheduler-540-proven-same-time-cost.md
-      repair_scope: Only scheduler production path and existing mapped scheduler test.
-        Remove proved redundant same-time work only with byte-exact full-state/event/observation
-        parity; preserve barriers, quantum1000us, instruction1us, budget256, quality,
-        source programs and existing timeouts. Any other production path needs a separate
-        bounded controller decision before edits.
+      repair_scope: R1 only scheduler and its mapped spec. First localize remaining compute
+        cost of exact72 using retained full GPIO document and external read-only profile;
+        no repeat unchanged browser run. Safe causal product repair only with full byte-exact
+        canonical parity. New production path requires separate concrete controller decision
+        before edits. Quantum1000us/instruction1us/event256/quality/physics/full programs/5s
+        unchanged; no yielded as ready.
+      prior_failed_candidate_sha: 72e3122f5bd3510bd7b837965365bc33c87da115
+      prior_failed_candidate_tree: 5cae8ada4b137364436d0b7b540b8d6d7810ce68
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/scheduler-540-independent-review-72e3122f.md
+      directed_failed_run: 37987101301
+      general_failed_run: 37987090792
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2430,20 +2380,18 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2d03a56f96ed849079f09a4aa8e0dbe6d5c7d91f
+      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
       head_sha: null
-      observed_at: '2026-10-09T19:34:20Z'
+      observed_at: '2026-10-09T20:49:58Z'
       main:
         branch: main
-        sha: 2d03a56f96ed849079f09a4aa8e0dbe6d5c7d91f
-      observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes.
-        Main2d03 General37980349084 in progress at observation, Governance PASS; no final
-        CI claim. Preserved c7 General all4SUCCESS but NEW independent REQUEST_CHANGES,
-        actual directed GPIO only0..5 within5s. Read-only R1 stopped outside two-path
-        budget at clean9036: actual scheduler repeated same-time solve/compile/quality
-        cost, no product edit. Separate bounded540 selected on main; preserve all539/537
-        originals, full programs, tests/timeouts/physics. Root526 R6 independent priority;
-        hold integration until E01 and due hygiene. K0/T3/class/deployment pending.'
+        sha: 3134650d808e698a9524515388d1793b0841a677
+      observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent
+        exact72 REQUEST_CHANGES: GPIO16 ready C=H0..1.5s, indices0..5 in unchanged5s,
+        compute4330.7ms/UI4.5..16.5ms. Serial8/fullSave/reopen PASS; ordinary NOT_RUN.
+        General37987090792 Access timeout separate C/D, other3 PASS. Preserve72/c7/9036/1747
+        and all original artifacts. Bounded R1 selected, same two-path budget; actual
+        profiling before any further optimization. No school/device frequency claim.'
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
       issue: 537
@@ -2640,16 +2588,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_ui_integer_seconds_without_canonical_clock_change
+      checkpoint: r1_explicit_success_raw_and_running_png_preservation_only
       owner_acceptance: pending
       selected_at: '2026-10-09T19:44:45Z'
-      integration_priority: E01/526 first, then mandatory compact hygiene checkpoint
-        before this integration.
-      repair_scope: Only WorkbenchHeader formatting; new meaningful mounted and dedicated
-        real browser tests plus existing command/workflow/map registration. Shared Header
-        stays advisory root scope; card authorizes this non-overlapping actual work
-        after526 author STOP, with explicit actual dirty-path checks. No engine/state/physics/persistence/CSS
-        changes.
+      integration_priority: Hygiene542 accepted. Require new exact SHA ordinary/General
+        and NEW independent reviewer of retained originals; green old89 CI is not acceptance.
+      repair_scope: 'R1 evidence only: e2e/electronics-simulation-time.spec.ts explicitly
+        write raw JSON and three running phase PNG per width to testInfo.outputPath and
+        attach paths. Preserve exact Header/product/assertions/timeouts/physics/dependencies/workflows/mounted
+        tests. BEFORE remains genuine causal history, no repeat old run. Mobile DOM-only
+        from unchanged baseline CSS, no visible mobile clock claim.'
+      prior_failed_candidate_sha: 89ebdf34bcb1d30882ddd248376e532b0c9440e5
+      prior_failed_candidate_tree: 1bbb5e7d2f3a3ceeb0e0ced10361599f8edcf7bc
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/integer-time-541-independent-review-89ebdf34.md
+      previous_electronics_run: 37986680475
+      previous_browser_passed: 139
     execution_lease:
       executor_id: electronics-integer-time-541
       holder: unassigned
@@ -2671,20 +2625,18 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 8955a8a9ef5e9df9e39a8a31f5e3a59984e80b2e
+      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
       head_sha: null
-      observed_at: '2026-10-09T19:44:45Z'
+      observed_at: '2026-10-09T20:49:58Z'
       main:
         branch: main
-        sha: 8955a8a9ef5e9df9e39a8a31f5e3a59984e80b2e
-      observation_note: Dated snapshot; fetch main and actual exact-SHA CI before writes.
-        Owner explicitly approved integer seconds and parallel bounded fixes. E01 source185d
-        focusedPASS, General37981551177 and ordinary37981556181 pending; old results
-        not acceptance. Preserve root526 and539/537/538/525. No concurrent writer in
-        Header:526 author STOP, independent reviewer read-only; manually check all actual
-        dirty paths before writes. Hold integration until E01 and due hygiene. No school/DB/network/deployment
-        action.
-
+        sha: 3134650d808e698a9524515388d1793b0841a677
+      observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent
+        exact89 REQUEST_CHANGES evidence-only: all8SUCCESS/139browserPASS but original330CRC
+        ZIP lacks four raw JSON and12running PNG; only4StopPNG. BEFORE722fc882 all4 fractionalclock
+        failure genuine, preserved. Selected bounded evidence preservation R1 only; product/Header/CSS/assertions/timeouts
+        unchanged. Mobileclock hidden by prior CSS: DOM-only/accessibility geometry does
+        not prove visible clock. K0/T3/class/owner/deployment pending.'
 integration:
   owner_lane: visual-programming
   shared_paths:
