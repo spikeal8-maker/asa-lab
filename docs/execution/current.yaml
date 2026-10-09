@@ -2716,7 +2716,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r1_correct_native_before_harness_target_and_event_retention_no_product_edit
+      checkpoint: proven_root_pointer_noop_minimal_stage_repair_only
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
       repair_scope: Only Stage pointer routing and existing interactions browser spec.
@@ -2728,6 +2728,12 @@ parallel_lanes:
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
+      corrected_harness_sha: a4d115a4ecd84ba729c5a16cb000bd42ad6d800f
+      causal_before_sha: 5627d90081aa548f36f304f1ee45f839636e41db
+      causal_before_run: 37998566920
+      causal_before_raw_sha256: 8b5d0d51d77c5d627fb31debe9a4f044c657644558441d7e483e5a4e79ca6e1b
+      causal_before_result: Full authenticated schema equal at revision2; native trusted left down-move-up on opaque alpha255 owner body targets SVG root outside fixed grid; component and viewport unchanged, original5000ms position assertion fails.
+      supporting_auth_setup: Existing organization-login desktop banner prerequisite proven separately in543; authenticate at1440 then restore original target width before all editor actions. No Portal/helper edit or timeout change.
       before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
       before_probe_run: 37996438894
       before_probe_conclusion: harness_precondition_failure_not_product_proof
