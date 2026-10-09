@@ -1,0 +1,223 @@
+schema: asa-lab.electronics-hygiene-stabilization-005.v1
+task_id: TASK-ELECTRONICS-GOVERNANCE-009
+issue: 542
+program_issue: 452
+checkpoint_reason: Three technically accepted production slices532/530/526 after full535 require this compact seven-category checkpoint; no capability inventory, cleanup, decomposition or task activation is performed.
+reviewed_main_sha: 3134650d808e698a9524515388d1793b0841a677
+previous_full_checkpoint:
+  issue: 535
+  evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
+  reviewed_main_sha: 8bc337be3ec84b8e33faefedc825742b48a7ddef
+  accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+  independent_evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-independent-review-abe4b02a.md
+counted_slice_provenance:
+  authority: Dated accepted_slices at reviewed_main_sha and actual Git source diffs; historical provenance only, not execution state or school acceptance.
+  production_changing:
+    - issue: 532
+      accepted_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+      concern: Whole desktop simulation captions and wrapping Arduino controls, preserving native actions.
+    - issue: 530
+      accepted_candidate_sha: f37391b1a16d35c73f99b4b32dde8804644bc03f
+      concern: Open native desktop wire menu clears the Code drawer layer; mobile clipping remains intentional.
+    - issue: 526
+      accepted_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
+      concern: Truthful latest local-copy status, transient save recovery, identity/project isolation, emergency whole-document export and compact emergency controls.
+  counted_production_slices: 3
+  excluded: Governance535/536, test-only531 and all unaccepted525/537/538/539/540/541 candidates; their presence or review is not main integration.
+method:
+  sizes: Actual Git blob bytes from git ls-tree -r --long at reviewed_main_sha; compare previous reviewed main and unchanged baseline reviewed_bytes, excluding checkout CRLF.
+  delta: Git name-status and blob comparison of the existing two Electronics production roots plus named shared persistence, routing, generated, historical and protected concerns; no broad product audit.
+  measurements: No accepted browser, load, school-device or classroom measurement is repeated by this documentation slice.
+
+large_sources:
+  source_roots: [contexts/electronics/domain, apps/web/src/electronics]
+  threshold_bytes: 50000
+  growth_review_percent: 20
+  tracked_production_sources_above_threshold: 8
+  newly_unreviewed_sources: []
+  over_twenty_percent_growth: []
+  excluded: Tests, testing directories, compiled dist and generated output under the existing contract.
+  reviewed:
+    - path: contexts/electronics/domain/solver.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 179752
+      previous_full_checkpoint_bytes: 184413
+      current_bytes: 184413
+      growth_percent: 2.59
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged physical/model orchestration; retain until separately selected responsibility extraction proves deterministic netlist, physical accuracy and direct/Worker parity.
+    - path: apps/web/src/electronics/workbench.css
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 120669
+      previous_full_checkpoint_bytes: 133474
+      current_bytes: 136006
+      growth_percent: 12.71
+      delta_since_full_checkpoint_bytes: 2532
+      disposition: Actual532/530/526 delta supplies caption wrapping, native-menu layering and emergency-copy rows. R6 scopes the1281..1536 row to clock plus emergency-copy, preserving normal1374px Run height. Retain cohesive cascade pending separately selected visual/responsibility parity.
+    - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103985
+      previous_full_checkpoint_bytes: 113843
+      current_bytes: 113843
+      growth_percent: 9.48
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active inspector/library surface; no extraction or ownership change is justified by this delta.
+    - path: apps/web/src/electronics/use-electronics-workbench.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103385
+      previous_full_checkpoint_bytes: 106135
+      current_bytes: 106325
+      growth_percent: 2.84
+      delta_since_full_checkpoint_bytes: 190
+      disposition: Actual delta threads user/seat identity and exposes localCopySaved, exportEmergencyCopy and saveBeforeLeave; no solver/runtime responsibility is extracted or altered here.
+    - path: contexts/electronics/domain/arduino-program-runtime.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 84928
+      previous_full_checkpoint_bytes: 84880
+      current_bytes: 84880
+      growth_percent: -0.06
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged accepted-main parser/runtime; preserved537/539 candidates are excluded. Canonical-clock convergence requires its own physical-state and replay evidence.
+    - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 63884
+      previous_full_checkpoint_bytes: 61250
+      current_bytes: 61250
+      growth_percent: -4.12
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged immediate canonical sketch publication and accepted media initialization/late refresh; byte size alone is no retirement proof.
+    - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 72432
+      previous_full_checkpoint_bytes: 72775
+      current_bytes: 72775
+      growth_percent: 0.47
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged accepted ordinary-image lifecycle; preserve518 responsibility review and shared loading/instrument/selection debt.
+    - path: apps/web/src/electronics/WorkbenchStage.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 54879
+      previous_full_checkpoint_bytes: 62462
+      current_bytes: 62462
+      growth_percent: 13.82
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active stage interaction/rendering; separately selected gesture/connectivity/browser evidence is required before structural extraction.
+  production_delta_since_full_checkpoint:
+    modified:
+      - apps/web/src/electronics/WorkbenchHeader.tsx
+      - apps/web/src/electronics/use-electronics-workbench.ts
+      - apps/web/src/electronics/use-workbench-project-state.ts
+      - apps/web/src/electronics/workbench-autosave.ts
+      - apps/web/src/electronics/workbench.css
+    new: []
+    deleted: []
+    renamed: []
+    supporting_persistence_outside_roots: [apps/web/src/pages/SchematicEditor.tsx, apps/web/src/modules/project-local-draft.ts, apps/web/src/components/editor-chrome/EditorPersistenceIndicator.tsx]
+    supporting_diagnostics_outside_roots: ModuleEditorHost adds an Electronics diagnostic context; Admin/client/server diagnostics coexist without being reclassified as Electronics acceptance.
+    test_delta_excluded_from_sizes: Three Electronics testing files plus shared local-draft/indicator tests and both existing Electronics browser suites changed; none counts as a production threshold crossing.
+    unchanged_dependencies: pnpm-lock.yaml, apps/web/package.json and apps/web/vite.config.ts are identical to the prior reviewed main. Root package.json changes only test:admin-logs registration; no dependency graph change.
+  baseline_changed_by_this_task: false
+  baseline_reason: Same eight reviewed sources, no new threshold crossing, all growth below20%, no changed ownership or satisfied legacy retirement condition. Record measured delta without resetting reviewed_bytes.
+
+legacy_bridges:
+  - path: apps/web/src/electronics/live-simulation.ts
+    class: compatibility-shim
+    changed_since_full_checkpoint: false
+    retention_evidence: advanceLiveSimulation still has13 actual reference-test calls plus3 calls in run-electronics-browser-benchmark.mjs and run-electronics-memory-benchmark.mjs; no production advance caller outside its declaration. calculateSimulationPreflight remains active in simulation-worker-evaluator.ts and use-electronics-workbench.ts.
+    intervening_delta_effect: Persistence and toolbar changes migrate none of these callers or preflight consumers; no new retirement capability is established.
+    retirement_condition: Separately select migration or explicit retirement of all active advance test/tool callers, preserve historical benchmark evidence, prove no public/package/schema/normative dependency and pass replacement/focused/shared gates; whole-file removal additionally requires migration of active preflight helpers.
+    retirement_ready: false
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: active-legacy-bridge
+    changed_since_full_checkpoint: false
+    retention_evidence: advanceArduinoRuntime explicitly selects legacy-ms-v1; actual arduino-model.ts and solver.ts production calls remain alongside instruction-us-v1. All three source blobs are unchanged from reviewed main8bc337be.
+    intervening_delta_effect: Accepted UI/persistence changes and unaccepted537/539/540 candidates establish no accepted replacement for stateless/snapshot callers or persisted clock compatibility.
+    retirement_condition: Separately select canonical-clock convergence of every production/stateless/snapshot caller, migrate public and persisted-state dependencies and prove replay/physical-state/normative compatibility before retiring legacy-ms-v1 or advanceArduinoRuntime.
+    retirement_ready: false
+  - path: apps/web/src/modules/project-local-draft.ts
+    class: compatibility-shim
+    changed_since_full_checkpoint: true
+    retention_evidence: The526 delta adds identity-scoped schema3 with account/seat keys, while retaining schema1/2 and unscoped keys. use-chess-project.ts and use-checkers-project.ts still read/write/clear without identity and therefore consume the schema1/2 compatibility path; Electronics now supplies userId/identityKind and accepts only matching schema3. Old unscoped records are not silently imported or removed by Electronics.
+    boundary: Shared helper compatibility is retained for real Chess/Checkers consumers and persisted records; retaining it does not establish identity isolation for those modules or authorize their repair inside Electronics.
+    retirement_condition: Separately select migration of all unscoped Chess/Checkers/public callers and supported persisted schema1/2 records under their data/identity contracts, prove whole-document recovery and account/seat/project isolation without cross-user adoption, then prove no remaining source/schema/test/normative consumer before removal.
+    retirement_ready: false
+
+changed_media_concern:
+  class: canonical-active
+  changed_since_full_checkpoint: false
+  pre_initialization: ArduinoCodePanel passes the local absolute media directory before ScratchBlocks.inject; Vite retains the selective four-file packaging. Both source blobs are unchanged from8bc337be.
+  late_dom_refresh: ScratchWorkspace's active requestAnimationFrame calls applyScratchMediaAssets(host) then svgResize(workspace); cleanup cancels assetFrame. Existing source-contract coverage remains; this is neither an orphan nor a proved redundant replacement.
+  future_removal_condition: Separately select proof that synchronous creation and subsequent renderer/resize remain equivalent without this consumer, migrate its source-contract assertion, check runtime/public/schema/normative dependencies and pass focused/browser/shared gates. Accepted533 combined behavior is not evidence for a version without late refresh.
+  removal_authorized: false
+
+routing:
+  canonical_map: docs/product/electronics/COMPONENT_MAP.yaml
+  map_changed_since_full_checkpoint: false
+  existing_component_route_files: 4
+  component_entries: 29
+  new_component_route_files: []
+  deleted_component_route_files: []
+  updated_component_route_files: []
+  orphaned_routes: []
+  actual_route_delta: All four mapped component-route files and the component index are byte-identical to8bc337be; existing source/symbol/test/dependency routes remain valid.
+  router_delta: START_HERE documents unique owner-selected parallel child lanes and exact-card validation under existing canonical current.yaml; accepted536 adds corresponding fail-closed validator checks exercised by the114-test routing suite. No second selection authority or inheritance of blockers/permissions is introduced.
+  contract_delta: []
+  task_and_evidence_delta: Bounded cards/reports are appended or receive explicit closeout provenance; accepted and rejected reviews remain historical evidence. AGENT_GUIDE, DEVELOPMENT_SPEC, normative README and hygiene contract are unchanged.
+  validation_boundary: Exact selected-card routing, full governance and control-plane checks; no product routing is changed by this checkpoint.
+
+generated:
+  new_artifacts: []
+  deleted_artifacts: []
+  new_generators: []
+  deleted_generators: []
+  reviewed:
+    - path: docs/product/electronics/generated/component-coverage.json
+      class: generated
+      generator: tools/generate-electronics-component-coverage.mjs
+      stale_output_validator: tools/validate-electronics-component-information.mjs
+      blob_sha: 1283e562f39051918f24fa74d161b894341f5309
+      generated_bytes: 31454
+      changed_since_full_checkpoint: true
+      generator_changed_since_full_checkpoint: false
+      validator_changed_since_full_checkpoint: false
+      canonical_browser_source: e2e/electronics-simulation.spec.ts
+      canonical_browser_sha256: dd2bc599ca5209285f7dc7a85d5cfcc1b8d6b907ffe712dab311a337f09da4ae
+      evidence: Only generatedFrom.browserEvidenceSha256 differs from checkpoint004; independent LF-canonical Git-blob SHA256 matches the committed value. All other parsed fields and generating/validation code are unchanged; stale validation remains enabled.
+  hand_edited_by_this_task: false
+  regenerated_by_this_task: false
+
+historical_and_protected:
+  historical_evidence_preserved: true
+  historical_paths: [docs/product/electronics/tasks/**, docs/product/electronics/evidence/**, docs/delivery/evidence/electronics-opt0/**]
+  historical_deletions_or_renames_since_full_checkpoint: []
+  previous_checkpoint_and_baseline_preserved: true
+  protected_owner_assets_preserved: true
+  owner_supplied_tree_sha: 1314b45c0c38f9d3bfaa905526e34a0840e67d86
+  owner_audit_tree_sha: 87b2a4ba91a1bdfbeea0997d5df3a321757f03fe
+  protected_asset_changes_since_full_checkpoint: []
+  ordinary_browser_output_policy_changed: false
+  tracked_screenshot_changes_since_full_checkpoint: []
+  preservation_evidence: Git delta has no owner-root, e2e/artifacts, .gitignore or Playwright output configuration changes. Output remains ignored reports/playwright. Checkpoint004/baseline and accepted535/532/530/526 evidence remain intact; old failed attempts and suspended/unaccepted525/537/538/539/540/541 refs are not rewritten. This task changes only checkpoint005. Local owner ZIP/backups/credentials/screenshots were not accessed or modified.
+
+actual_removals: []
+removal_evidence: Git delete/rename filters find none in the established Electronics production, supporting persistence, routing/generated/task/evidence, browser and protected concerns since reviewed8bc337be. No deletion, artwork operation or decomposition is authorized or performed.
+
+residual_debt:
+  - concern: Eight active large sources retain existing responsibilities; Stage growth13.82%, CSS12.71%, controller2.84%, none beyond20%.
+    owner_selectable_followup: Separately selected responsibility extraction with mapped ownership and physics/gesture/visual parity only if needed; no split or baseline reset by size.
+  - concern: Two legacy runtime/reference concerns and active late media refresh remain used; new526 schema1/2 compatibility also has real shared consumers.
+    owner_selectable_followup: Use the concrete caller/schema/renderer migration and deletion proof above in separate bounded slices; do not delete on the strength of accepted persistence or zero Worker advance callers.
+  - concern: Accepted526 proves the reviewed recovery scenarios, not recovery of already-lost historical work or the frequency of all school failures. Client departure is best-effort and memory-only recovery cannot survive process death; server identity/CAS protections remain required.
+    owner_selectable_followup: Continue the existing owner programme through freshly selected pupil-result repairs and preserve unaccepted parallel candidates; no source acceptance is conferred on them by this checkpoint.
+  - concern: School installed version/full-backup K0 evidence is NOT_VERIFIED; actual pupil-device T3, class15+15, owner acceptance and deployment remain pending.
+    owner_selectable_followup: Collect existing read-only K0 and owner-required real pupil-device metrics when available; no dev-PC/runner substitute or school installation mutation.
+
+production_source_changed_by_this_task: false
+test_source_changed_by_this_task: false
+generated_output_changed_by_this_task: false
+protected_asset_changed_by_this_task: false
+baseline_changed_by_this_task: false
+measurements_repeated_by_this_task: false
+owner_class_acceptance_claimed: false
+release_or_deployment_claimed: false
+task_selection_authorized_by_this_evidence: false

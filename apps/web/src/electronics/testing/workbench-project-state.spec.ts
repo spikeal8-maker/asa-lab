@@ -1,7 +1,7 @@
 /* @vitest-environment jsdom */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { act, createElement } from 'react';
+import { act, createElement, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument } from '../../api';
@@ -101,6 +101,7 @@ describe('loaded Electronics project migration', () => {
 });
 
 const projectId = 'autosave-project';
+const userId = 'autosave-user';
 const project = {
   id: projectId,
   moduleKey: 'electronics',
@@ -138,8 +139,16 @@ function state(): ReturnType<typeof useWorkbenchProjectState> {
   return current;
 }
 
-function Probe() {
-  current = useWorkbenchProjectState(projectId);
+function Probe({
+  id = projectId,
+  actor = userId,
+  seat = false,
+}: {
+  id?: string;
+  actor?: string;
+  seat?: boolean;
+}) {
+  current = useWorkbenchProjectState(id, actor, seat);
   return null;
 }
 
@@ -147,6 +156,11 @@ async function mountProject() {
   vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout'] });
   vi.setSystemTime(0);
   window.localStorage.clear();
+  vi.spyOn(api, 'me').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { authenticated: true, user: { id: userId } },
+  } as Awaited<ReturnType<typeof api.me>>);
   let revision = 1;
   vi.spyOn(api, 'openProject').mockResolvedValue({
     ok: true,
@@ -199,8 +213,8 @@ async function advance(milliseconds: number) {
   });
 }
 
-afterEach(() => {
-  if (root) act(() => root!.unmount());
+afterEach(async () => {
+  if (root) await act(async () => root!.unmount());
   root = null;
   host?.remove();
   host = null;
@@ -212,6 +226,249 @@ afterEach(() => {
 });
 
 describe('Electronics project autosave in the mounted editor hook', () => {
+  it('retracts another-tab-cleared local durability and restores the current copy on save failure', async () => {
+    const save = await mountProject();
+    const latest = edit(2);
+    expect(state().localCopySaved).toBe(true);
+    const key = `asa-project-local-draft:user:account:${userId}:${projectId}`;
+    window.localStorage.removeItem(key);
+    act(() => window.dispatchEvent(new StorageEvent('storage', { key, newValue: null })));
+    expect(state().localCopySaved).toBe(false);
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    vi.mocked(api.openProject).mockResolvedValueOnce({
+      ok: false,
+      status: 0,
+      error: { code: 'offline', message: 'Offline' },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await act(async () => state().saveNow());
+    expect(state().saveStatus).toBe('error');
+    expect(state().localCopySaved).toBe(true);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
+  });
+  it('loads, saves and restores a StudentSeat using its server authority and separate identity namespace', async () => {
+    const save = await mountProject();
+    edit(2);
+    const accountCalls = vi.mocked(api.me).mock.calls.length;
+    const seatMe = vi.spyOn(api, 'classroomStudentMe').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { authenticated: true, student: { seatId: userId } },
+    } as Awaited<ReturnType<typeof api.classroomStudentMe>>);
+    await act(async () => root!.render(createElement(Probe, { seat: true })));
+    expect(state().document?.viewport.zoom).toBe(1);
+    expect(vi.mocked(api.me).mock.calls.length).toBe(accountCalls);
+    const latest = normalizeLoadedDocument({
+      ...edit(3),
+      components: [resistor('seat-pupil-work', 42)],
+    });
+    act(() => state().setDocument(latest));
+    expect(
+      readLocalProjectDraft<SchematicDocument>(
+        window.localStorage,
+        projectId,
+        'electronics',
+        userId,
+        'account',
+      )?.document.viewport.zoom,
+    ).toBe(2);
+    expect(
+      readLocalProjectDraft<SchematicDocument>(
+        window.localStorage,
+        projectId,
+        'electronics',
+        userId,
+        'seat',
+      )?.document.viewport.zoom,
+    ).toBe(3);
+    seatMe.mockResolvedValueOnce({ ok: true, status: 200, data: { authenticated: false } });
+    await act(async () => state().saveNow());
+    expect(save).not.toHaveBeenCalled();
+    expect(state().saveIssue).toBe('auth');
+    await act(async () => root!.unmount());
+    root = createRoot(host!);
+    await act(async () => root!.render(createElement(Probe, { seat: true })));
+    expect(state().document).toEqual(latest);
+    await act(async () => state().saveNow());
+    expect(save).toHaveBeenCalledExactlyOnceWith(projectId, state().document, 1);
+    expect(state().saveStatus).toBe('saved');
+    expect(vi.mocked(api.me).mock.calls.length).toBe(accountCalls);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId, 'seat'),
+    ).toBeNull();
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId, 'account'),
+    ).not.toBeNull();
+  });
+  it('retains the latest schema and sketch but retracts local durability when a later write fails', async () => {
+    await mountProject();
+    edit(2);
+    expect(state().localCopySaved).toBe(true);
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    const latest = {
+      ...state().document!,
+      components: [
+        resistor('latest', 33),
+        {
+          id: 'uno',
+          kind: 'visual',
+          componentTypeId: 'arduino-uno',
+          name: 'Pupil Arduino',
+          position: { x: 100, y: 100 },
+          value: 5,
+          stateProperties: { arduinoSource: 'void setup() {} void loop() {}' },
+        },
+      ],
+    } as SchematicDocument;
+    act(() => state().setDocument(latest));
+    expect(state().document).toBe(latest);
+    expect(state().localCopySaved).toBe(false);
+    expect(state().getCurrentDocument()).toBe(latest);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).not.toEqual(latest);
+  });
+
+  it('catches an unavailable localStorage getter without losing the in-memory edit', async () => {
+    await mountProject();
+    vi.spyOn(window, 'localStorage', 'get').mockImplementation(() => {
+      throw new Error('denied getter');
+    });
+    const latest = edit(3);
+    expect(state().getCurrentDocument()).toBe(latest);
+    expect(state().localCopySaved).toBe(false);
+    vi.restoreAllMocks();
+  });
+
+  it('checks existing server session identity before resuming a failed save', async () => {
+    const save = await mountProject();
+    edit(2);
+    vi.mocked(api.me).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { authenticated: false },
+    });
+    await act(async () => state().saveNow());
+    expect(save).not.toHaveBeenCalled();
+    expect(state().saveIssue).toBe('auth');
+    const latest = edit(3);
+    await advance(120_000);
+    expect(save).not.toHaveBeenCalled();
+    vi.mocked(api.me).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { authenticated: true, user: { id: 'different-user' } },
+    } as Awaited<ReturnType<typeof api.me>>);
+    await act(async () => state().saveNow());
+    expect(save).not.toHaveBeenCalled();
+    expect(state().localCopySaved).toBe(true);
+    await act(async () => state().saveNow());
+    expect(save).toHaveBeenCalledExactlyOnceWith(projectId, latest, 1);
+    expect(state().saveStatus).toBe('saved');
+  });
+
+  it('drops queued work and a late response after user changes, retaining only that actor draft', async () => {
+    const save = await mountProject();
+    let resolveSave!: (result: Awaited<ReturnType<typeof api.saveDraft>>) => void;
+    save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    const first = edit(2);
+    await act(async () => {
+      void state().saveNow();
+    });
+    edit(3);
+    act(() => window.dispatchEvent(new Event('pagehide')));
+    vi.mocked(api.me).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { authenticated: true, user: { id: 'new-user' } },
+    } as Awaited<ReturnType<typeof api.me>>);
+    await act(async () => root!.render(createElement(Probe, { actor: 'new-user' })));
+    expect(state().document?.viewport.zoom).toBe(1);
+    expect(state().busy).toBe(false);
+    await act(async () =>
+      resolveSave({
+        ok: true,
+        status: 200,
+        data: { draft: { projectId, document: first, revision: 2, updatedAt: '' }, result: null },
+      } as Awaited<ReturnType<typeof api.saveDraft>>),
+    );
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(state().document?.viewport.zoom).toBe(1);
+    expect(
+      readLocalProjectDraft<SchematicDocument>(
+        window.localStorage,
+        projectId,
+        'electronics',
+        userId,
+      )?.document.viewport.zoom,
+    ).toBe(3);
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', 'new-user'),
+    ).toBeNull();
+  });
+
+  it('drops a late open response after a project switch', async () => {
+    await mountProject();
+    let resolveOpen!: (result: Awaited<ReturnType<typeof api.openProject>>) => void;
+    vi.mocked(api.openProject).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveOpen = resolve;
+        }),
+    );
+    await act(async () => root!.render(createElement(Probe, { id: 'old-pending' })));
+    await act(async () => root!.render(createElement(Probe, { id: 'new-project' })));
+    const fresh = state().document;
+    await act(async () =>
+      resolveOpen({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: {
+            projectId: 'old-pending',
+            document: { ...initialDocument, viewport: { x: 999, y: 999, zoom: 3 } },
+            revision: 99,
+            updatedAt: '',
+          },
+          versions: [],
+          result: null,
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>),
+    );
+    expect(state().document).toBe(fresh);
+    expect(state().serverRevision).toBe(1);
+  });
+
+  it('opens under the production StrictMode lifecycle and cannot retry after unmount', async () => {
+    const save = await mountProject();
+    await act(async () => root!.render(createElement(StrictMode, null, createElement(Probe))));
+    expect(state().status).toBe('ready');
+    save.mockResolvedValue({
+      ok: false,
+      status: 503,
+      error: { code: 'temporary', message: 'Temporary' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    edit(2);
+    await act(async () => state().saveNow());
+    const count = save.mock.calls.length;
+    await act(async () => root!.unmount());
+    root = null;
+    await advance(180_000);
+    expect(save).toHaveBeenCalledTimes(count);
+  });
   it('recognizes reordered server JSON as saved but keeps a real migration dirty', async () => {
     const save = await mountProject();
     const normalized = normalizeLoadedDocument({
@@ -292,7 +549,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(save).toHaveBeenCalledWith(projectId, second, 2, { unloading: true });
 
     const third = { ...state().document!, viewport: { x: 0, y: 0, zoom: 4 } };
-    act(() => {
+    await act(async () => {
       state().setDocument(third);
       window.dispatchEvent(new Event('pagehide'));
     });
@@ -308,10 +565,109 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     const changed = { ...state().document!, components: [resistor('route-edit', 10)] };
     act(() => state().setDocument(changed));
 
-    act(() => root!.unmount());
+    await act(async () => root!.unmount());
     root = null;
     expect(save).toHaveBeenCalledWith(projectId, changed, 1, { unloading: true });
   });
+
+  it('serially completes one genuine-unmount safety save after an older request, using its confirmed revision', async () => {
+    const save = await mountProject();
+    let finish!: (value: Awaited<ReturnType<typeof api.saveDraft>>) => void;
+    save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = edit(2);
+    await act(async () => {
+      void state().saveNow();
+    });
+    const latest = edit(3);
+    await act(async () => root!.unmount());
+    root = null;
+    expect(save).toHaveBeenCalledTimes(1);
+    await act(async () =>
+      finish({
+        ok: true,
+        status: 200,
+        data: { draft: { projectId, document: first, revision: 2, updatedAt: '' }, result: null },
+      } as Awaited<ReturnType<typeof api.saveDraft>>),
+    );
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(projectId, latest, 2, { unloading: true });
+    // No detached response may clear a newer copy. Reopening checks it against the server.
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
+    await advance(180_000);
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not complete detached safety under a different verified user or retry its failure', async () => {
+    const save = await mountProject();
+    edit(2);
+    vi.mocked(api.me).mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      data: { authenticated: true, user: { id: 'different-cookie-owner' } },
+    } as Awaited<ReturnType<typeof api.me>>);
+    await act(async () => root!.unmount());
+    root = null;
+    expect(save).not.toHaveBeenCalled();
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId),
+    ).not.toBeNull();
+    await advance(180_000);
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it.each([200, 401, 403, 409])(
+    'does not duplicate a same-document in-flight save or retry permanent %s on unmount',
+    async (status) => {
+      const save = await mountProject();
+      let finish!: (value: Awaited<ReturnType<typeof api.saveDraft>>) => void;
+      save.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+      );
+      const latest = edit(2);
+      await act(async () => {
+        void state().saveNow();
+      });
+      await act(async () => root!.unmount());
+      root = null;
+      await act(async () =>
+        finish(
+          status === 200
+            ? ({
+                ok: true,
+                status,
+                data: {
+                  draft: { projectId, document: latest, revision: 2, updatedAt: '' },
+                  result: null,
+                },
+              } as Awaited<ReturnType<typeof api.saveDraft>>)
+            : ({
+                ok: false,
+                status,
+                error: {
+                  code: status === 409 ? 'project_revision_conflict' : 'auth',
+                  message: 'Blocked',
+                },
+              } as Awaited<ReturnType<typeof api.saveDraft>>),
+        ),
+      );
+      expect(save).toHaveBeenCalledTimes(1);
+      await advance(180_000);
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(
+        readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+      ).toEqual(latest);
+    },
+  );
 
   it('queues a later edit after the in-flight save without sending an old snapshot again', async () => {
     const save = await mountProject();
@@ -421,6 +777,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
         window.localStorage,
         projectId,
         'electronics',
+        userId,
       )?.document.components.map((component) => component.id),
     ).toEqual(['first', 'newest']);
     await reopenProject();
@@ -444,7 +801,7 @@ describe('Electronics project autosave in the mounted editor hook', () => {
       error: { code: 'network', message: 'Unload request cancelled' },
     } as Awaited<ReturnType<typeof api.saveDraft>>);
 
-    act(() => window.dispatchEvent(new Event('pagehide')));
+    await act(async () => window.dispatchEvent(new Event('pagehide')));
     expect(save).toHaveBeenCalledWith(projectId, large, 1, { unloading: true });
     await reopenProject();
     expect(state().document?.components[0]?.name).toBe(large.components[0]?.name);
@@ -519,120 +876,112 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(save).toHaveBeenCalledExactlyOnceWith(projectId, latest, 1);
   });
 
-  it('keeps a later queued edit local after an in-flight save fails, then recovers on a new edit', async () => {
+  it('retries the latest queued edit quietly after a transient failure', async () => {
     const save = await mountProject();
-    let finishFirst: ((value: Awaited<ReturnType<typeof api.saveDraft>>) => void) | null = null;
+    let resolveFirst!: (result: Awaited<ReturnType<typeof api.saveDraft>>) => void;
     save.mockImplementationOnce(
       () =>
         new Promise((resolve) => {
-          finishFirst = resolve;
+          resolveFirst = resolve;
         }),
     );
     edit(2);
     await act(async () => {
       void state().saveNow();
     });
-    edit(3);
-    Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
-    document.dispatchEvent(new Event('visibilitychange'));
+    const latest = edit(3);
     await act(async () =>
-      finishFirst!({
+      resolveFirst({
         ok: false,
         status: 0,
         error: { code: 'offline', message: 'Offline' },
       } as Awaited<ReturnType<typeof api.saveDraft>>),
     );
-    await advance(0);
-    expect(save).toHaveBeenCalledTimes(1);
     expect(state().saveStatus).toBe('error');
-    expect(window.localStorage.length).toBeGreaterThan(0);
-
-    const recovered = edit(4);
-    await advance(59_999);
+    await advance(4_999);
     expect(save).toHaveBeenCalledTimes(1);
     await advance(1);
-    expect(save).toHaveBeenLastCalledWith(projectId, recovered, 1);
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(projectId, latest, 1);
     expect(state().saveStatus).toBe('saved');
   });
 
-  it('does not loop after a failed save and gives the next edit a fresh minute', async () => {
-    const save = await mountProject();
-    save.mockResolvedValueOnce({
-      ok: false,
-      status: 0,
-      error: { code: 'offline', message: 'Offline' },
-    } as Awaited<ReturnType<typeof api.saveDraft>>);
-    edit(2);
-    await advance(60_000);
-    expect(state().saveStatus).toBe('error');
-    await advance(180_000);
-    expect(save).toHaveBeenCalledTimes(1);
-    const recovered = edit(3);
-    await advance(59_999);
-    expect(save).toHaveBeenCalledTimes(1);
-    await advance(1);
-    expect(save).toHaveBeenLastCalledWith(projectId, recovered, 1);
-    expect(state().saveStatus).toBe('saved');
-  });
-
-  it.each([
-    { name: 'offline', status: 0, code: 'offline' },
-    { name: 'revision conflict', status: 409, code: 'project_revision_conflict' },
-  ])(
-    'does not flush an unchanged failed draft on repeated hide events after $name',
-    async (failure) => {
+  it.each([0, 408, 500, 503])(
+    'backs off temporary HTTP %s failures without edits or retry storms',
+    async (status) => {
       const save = await mountProject();
-      if (failure.status === 409) {
-        vi.mocked(api.openProject).mockResolvedValueOnce({
-          ok: false,
-          status: 0,
-          error: { code: 'offline', message: 'Cannot load latest revision' },
-        } as Awaited<ReturnType<typeof api.openProject>>);
-      }
-      save.mockResolvedValueOnce({
+      save.mockResolvedValue({
         ok: false,
-        status: failure.status,
-        error: { code: failure.code, message: failure.name },
+        status,
+        error: { code: 'temporary', message: 'Temporary' },
       } as Awaited<ReturnType<typeof api.saveDraft>>);
-
-      edit(2);
+      const latest = edit(2);
+      await act(async () => state().saveNow());
+      for (const interval of [5_000, 10_000, 20_000, 40_000, 60_000, 60_000]) {
+        const before = save.mock.calls.length;
+        await advance(interval - 1);
+        expect(save).toHaveBeenCalledTimes(before);
+        await advance(1);
+        expect(save).toHaveBeenCalledTimes(before + 1);
+        expect(save).toHaveBeenLastCalledWith(projectId, latest, 1);
+      }
+      save.mockResolvedValue({
+        ok: true,
+        status: 200,
+        data: { draft: { projectId, document: latest, revision: 2, updatedAt: '' }, result: null },
+      } as Awaited<ReturnType<typeof api.saveDraft>>);
       await advance(60_000);
-      expect(save).toHaveBeenCalledTimes(1);
-      expect(state().saveStatus).toBe('error');
-
-      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
-      await act(async () => {
-        document.dispatchEvent(new Event('visibilitychange'));
-        document.dispatchEvent(new Event('visibilitychange'));
-        window.dispatchEvent(new Event('pagehide'));
-        window.dispatchEvent(new Event('pagehide'));
-      });
-      expect(save).toHaveBeenCalledTimes(1);
+      expect(state().saveStatus).toBe('saved');
+      const count = save.mock.calls.length;
       await advance(120_000);
-      expect(save).toHaveBeenCalledTimes(1);
-
-      const recovered = edit(3);
-      await advance(59_999);
-      expect(save).toHaveBeenCalledTimes(1);
-      await advance(1);
-      expect(save).toHaveBeenCalledTimes(2);
-      expect(save).toHaveBeenLastCalledWith(projectId, recovered, 1);
-      Reflect.deleteProperty(document, 'visibilityState');
+      expect(save).toHaveBeenCalledTimes(count);
     },
   );
 
-  it('stops automatic retries when the draft request throws', async () => {
+  it.each([400, 401, 403, 404, 409])(
+    'does not let edits or repeated hide events clear permanent HTTP %s failure',
+    async (status) => {
+      const save = await mountProject();
+      save.mockResolvedValueOnce({
+        ok: false,
+        status,
+        error: {
+          code: status === 409 ? 'project_revision_conflict' : 'permanent',
+          message: 'Permanent',
+        },
+      } as Awaited<ReturnType<typeof api.saveDraft>>);
+      if (status === 409)
+        vi.mocked(api.openProject).mockResolvedValueOnce({
+          ok: false,
+          status: 0,
+          error: { code: 'offline', message: 'Offline' },
+        } as Awaited<ReturnType<typeof api.openProject>>);
+      edit(2);
+      await act(async () => state().saveNow());
+      expect(state().saveStatus).toBe('error');
+      edit(3);
+      await act(async () => {
+        window.dispatchEvent(new Event('pagehide'));
+        window.dispatchEvent(new Event('pagehide'));
+      });
+      await advance(180_000);
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(state().saveStatus).toBe('error');
+      expect(state().localCopySaved).toBe(true);
+    },
+  );
+
+  it('rearms a thrown transport failure and only sends one request', async () => {
     const save = await mountProject();
-    save.mockRejectedValueOnce(new Error('network request failed'));
-    edit(2);
-    await advance(60_000);
+    save.mockRejectedValueOnce(new Error('network failed'));
+    const latest = edit(2);
+    await act(async () => state().saveNow());
     expect(state().saveStatus).toBe('error');
-    expect(window.localStorage.length).toBeGreaterThan(0);
-    await advance(120_000);
+    await advance(4_999);
     expect(save).toHaveBeenCalledTimes(1);
-    edit(3);
-    await advance(60_000);
+    await advance(1);
     expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith(projectId, latest, 1);
     expect(state().saveStatus).toBe('saved');
   });
 

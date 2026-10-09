@@ -162,6 +162,10 @@ describe('owner-reference Electronics presentation contract', () => {
     expect(headerSource).toContain('formatSimulationTime(c.committedSimulationTimeMs / 1000)');
     expect(headerSource).not.toContain('Date.now() - startedAt');
     expect(headerSource).toContain('<EditorPersistenceIndicator');
+    expect(headerSource).toContain('localCopySaved={c.localCopySaved}');
+    expect(headerSource).toContain("c.saveStatus !== 'saved' && !c.localCopySaved");
+    expect(headerSource).toContain('onClick={c.exportEmergencyCopy}');
+    expect(headerSource).toContain('Получить аварийную копию проекта');
     expect(persistenceIndicatorSource).toContain("label: 'Сохранено'");
     expect(persistenceIndicatorSource).toContain("label: 'Не удалось сохранить'");
     expect(persistenceIndicatorSource).toContain('pendingDelayMs: 900');
