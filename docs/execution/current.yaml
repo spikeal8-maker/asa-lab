@@ -2021,6 +2021,49 @@ parallel_lanes:
         commands:
         - pnpm gate:repository
 
+  - id: electronics-control
+    parent_lane: electronics
+    worktree_id: electronics-control-536
+    owned_paths:
+    - tools/validate-electronics-agent-docs.mjs
+    - tools/test_validate_electronics_agent_docs.mjs
+    - docs/product/electronics/START_HERE.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-008.md
+    task:
+      id: TASK-ELECTRONICS-GOVERNANCE-008
+      issue: 536
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_parallel_card_guard_repair
+      owner_acceptance: pending
+    execution_lease:
+      executor_id: electronics-control-536
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:governance
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 47b8585c32ec5875ccb1db2d8d1f0877e68978f8
+      head_sha: null
+      observed_at: '2026-10-09T16:24:31Z'
+      main:
+        branch: main
+        sha: 47b8585c32ec5875ccb1db2d8d1f0877e68978f8
+      observation_note: Dated snapshot; fetch main and exact CI before writes. Explicit
+        owner452 parallel repairs need bounded validation of existing selected parented
+        Electronics lanes. Only validator/tests/router; no product/current/card/deployment
+        mutation by author. Parent programme and task blockers checked by controller,
+        no inherited-blocker bypass. Root electronics530 and all foreign state preserved.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
