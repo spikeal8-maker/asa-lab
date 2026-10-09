@@ -588,7 +588,18 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r4_bounded_affected_toolbar_ui_repair
+      checkpoint: r5_bounded_normal_state_evidence_repair
+      r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
+      r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
+      r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
+      r4_general_run: 37869131311
+      r4_general_conclusion: success
+      r4_electronics_run: 37869145318
+      r4_electronics_conclusion: failure
+      r4_browser_passed: 125
+      r4_browser_failed: 2
+      r4_independent_review: request_changes
+      r4_independent_evidence: docs/product/electronics/evidence/save-526-r4-independent-review-c25dd582.md
       r3_candidate_sha: 0c8a0d5e606e037078e7d8a5bff47b70d299ab23
       r3_candidate_tree: 33825fb81e99188ba992ca21c2d590b8b68355a4
       r3_candidate_branch: codex/electronics-save-recovery-526-review-r3
@@ -640,12 +651,12 @@ parallel_lanes:
         resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 3d38faf6a26ee210caf4ea8583c8a049aa5192a0
+      convergence_baseline_sha: e86550500a9f09087268e6342eb813d0cc58fbb5
       head_sha: null
-      observed_at: '2026-10-09T00:57:15Z'
+      observed_at: '2026-10-09T01:44:59Z'
       main:
         branch: main
-        sha: 3d38faf6a26ee210caf4ea8583c8a049aa5192a0
+        sha: e86550500a9f09087268e6342eb813d0cc58fbb5
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
         Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
@@ -678,6 +689,15 @@ parallel_lanes:
         Scope: minimal causal WorkbenchHeader/workbench.css layout and existing browser affected-action regression;
         no whole-editor redesign, unrelated disabled-Send cleanup, timeout/assertion weakening or physics/auth change.
         Final combined candidate requires ordinary exact gates and a NEW independent review before technical526 closure.
+        Exact R4 candidatec25dd582 is preserved/unaccepted: General37869131311 SUCCESS/all4;
+        ordinary37869145318 focused/benchmark SUCCESS, browser125PASS/2FAIL, review-images SKIPPED.
+        NEW independent REQUEST_CHANGES confirms new helper expected disabled Save for a DIRTY normalized local document.
+        Old local bytes and all passing semantic/sketch receipts remain preserved; R4 denial/UI acceptance was not reached.
+        Select only R5 existing denial-case normal-state evidence correction and canonical browser digest, no production edits.
+        Verify actual normal local-draft status and enabled Save; do not force Save or delete a record to manufacture a saved state.
+        Quiet/pending indicator visibility follows its real presentation contract; original error/warning/export checks stay strict.
+        Preserve geometry/captions/consumers/breakpoints/Run-Stop and all budgets. Separate missing-image failure1925 is under
+        read-only classification, not permission for asset repair inside526. Final exact gates and NEW reviewer remain mandatory.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
