@@ -147,11 +147,12 @@ async function observeRealWorkerAndUi(page: Page): Promise<void> {
         const id = ++workerId;
         const sources = new Map<string, string | null>();
         const post = worker.postMessage.bind(worker);
-        worker.postMessage = ((message: {
-          kind?: string;
-          requestId: string;
-          document?: SchematicDocument;
-        }) => {
+        worker.postMessage = ((...args: unknown[]) => {
+          const message = args[0] as {
+            kind?: string;
+            requestId: string;
+            document?: SchematicDocument;
+          };
           if (message.kind === 'advance')
             sources.set(
               message.requestId,
@@ -161,7 +162,7 @@ async function observeRealWorkerAndUi(page: Page): Promise<void> {
                 ] ?? '',
               ),
             );
-          post(message);
+          Reflect.apply(post, worker, args);
         }) as Worker['postMessage'];
         worker.addEventListener('message', (event: MessageEvent) => {
           const response = event.data as {
@@ -297,7 +298,7 @@ async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: stri
   for (const row of ready) {
     expect(row.advance.committedHorizonMicroseconds).toBe(row.advance.requestedHorizonMicroseconds);
     expect(row.advance.result?.solved).toBe(true);
-    expect(row.advance.result?.quality.passed).toBe(true);
+    expect(row.advance.result?.quality?.passed).toBe(true);
     expect(row.advance.diagnostics).toEqual([]);
     const board = row.boards.find((board) => board.componentId === 'uno')!;
     expect(board.loadedSource).toBe(source);
@@ -314,7 +315,8 @@ async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: stri
           (component) => component.componentId === `led${led}`,
         )!;
         expect(result).toBeDefined();
-        expect(result.brightness ?? 0)[led === index ? 'toBeGreaterThan' : 'toBe'](0);
+        if (led === index) expect(result.brightness ?? 0).toBeGreaterThan(0);
+        else expect(result.brightness ?? 0).toBe(0);
         if (led === index) {
           expect(result.current).toBeGreaterThan(0.001);
           expect(result.current).toBeLessThan(0.02);
