@@ -2852,29 +2852,103 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
           .digest('hex'),
       ]),
     );
-    const requests: { url: string; at: number }[] = [];
-    const responses: { url: string; status: number; sha256: string; at: number }[] = [];
+    type Validators = { etag?: string; lastModified?: string; location?: string };
+    type MediaResponse = {
+      url: string;
+      status: number;
+      at: number;
+      request: { ifNoneMatch?: string; ifModifiedSince?: string };
+      validators: Validators;
+      sha256?: string;
+      verified200At?: number;
+      bodyRead: boolean;
+    };
+    const requests: { url: string; at: number; ifNoneMatch?: string; ifModifiedSince?: string }[] =
+      [];
+    const responses: MediaResponse[] = [];
+    const observerErrors: { url: string; at: number; error: string }[] = [];
+    const verified200 = new Map<string, Promise<MediaResponse>>();
     const responseBodies: Promise<void>[] = [];
     const isMedia = (url: string) =>
       /blockly-demo\.appspot\.com/.test(url) ||
       /\/(?:sprites\.png|zoom-(?:in|out|reset)\.svg)(?:[?#]|$)/.test(url);
     // Install before navigation: the Code panel can pre-mount while still hidden.
     page.on('request', (request) => {
-      if (isMedia(request.url())) requests.push({ url: request.url(), at: Date.now() });
+      if (!isMedia(request.url())) return;
+      requests.push({
+        url: request.url(),
+        at: Date.now(),
+        ifNoneMatch: request.headers()['if-none-match'],
+        ifModifiedSince: request.headers()['if-modified-since'],
+      });
     });
     page.on('response', (response) => {
       if (!isMedia(response.url())) return;
+      const entry: MediaResponse = {
+        url: response.url(),
+        status: response.status(),
+        at: Date.now(),
+        request: {},
+        validators: {},
+        bodyRead: false,
+      };
+      responses.push(entry);
+      // Capture the earlier 200 now, never a later response for this URL.
+      const previous200 = verified200.get(entry.url);
+      const observed = (async () => {
+        const [requestHeaders, responseHeaders] = await Promise.all([
+          response.request().allHeaders(),
+          response.allHeaders(),
+        ]);
+        entry.request = {
+          ifNoneMatch: requestHeaders['if-none-match'],
+          ifModifiedSince: requestHeaders['if-modified-since'],
+        };
+        entry.validators = {
+          etag: responseHeaders.etag,
+          lastModified: responseHeaders['last-modified'],
+          location: responseHeaders.location,
+        };
+        expect(entry.validators.location).toBeUndefined();
+        expect(response.request().redirectedFrom()).toBeNull();
+        const name = new URL(entry.url).pathname.split('/').at(-1)!;
+        expect(expectedHashes[name]).toBeDefined();
+        if (entry.status === 200) {
+          entry.bodyRead = true;
+          entry.sha256 = createHash('sha256')
+            .update(await response.body())
+            .digest('hex');
+          expect(entry.sha256).toBe(expectedHashes[name]);
+        } else {
+          expect(entry.status).toBe(304);
+          expect(previous200, '304 must revalidate an earlier hash-verified 200').toBeDefined();
+          const prior = await previous200!;
+          expect(prior.url).toBe(entry.url);
+          expect(prior.sha256).toBe(expectedHashes[name]);
+          expect(prior.validators.etag).toBeTruthy();
+          expect(entry.request.ifNoneMatch).toBe(prior.validators.etag);
+          // Caddy may report the unencoded ETag on 304 while the real
+          // conditional request carries the earlier gzip representation tag.
+          // Link via that exact request validator; retain both response tags.
+          if (entry.request.ifModifiedSince !== undefined) {
+            expect(prior.validators.lastModified).toBeTruthy();
+            expect(entry.request.ifModifiedSince).toBe(prior.validators.lastModified);
+          }
+          entry.sha256 = prior.sha256;
+          entry.verified200At = prior.at;
+        }
+        return entry;
+      })();
+      if (entry.status === 200) verified200.set(entry.url, observed);
+      // Attach immediately: preserve failures without an unhandled rejection
+      // starting teardown before the final media/intent observations.
       responseBodies.push(
-        (async () => {
-          responses.push({
-            url: response.url(),
-            status: response.status(),
-            sha256: createHash('sha256')
-              .update(await response.body())
-              .digest('hex'),
-            at: Date.now(),
-          });
-        })(),
+        observed.then(
+          () => undefined,
+          (error: unknown) => {
+            observerErrors.push({ url: entry.url, at: Date.now(), error: String(error) });
+          },
+        ),
       );
     });
     const source =
@@ -2935,6 +3009,113 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     const canvas = svg.locator(':scope > .blocklyWorkspace > .blocklyBlockCanvas');
     const scale = () =>
       canvas.evaluate((node) => (node as SVGGElement).transform.baseVal.consolidate()!.matrix.a);
+    const readControls = () =>
+      svg.evaluate((root) => {
+        const rectValue = (rect: DOMRect) => ({
+          left: rect.left,
+          top: rect.top,
+          right: rect.right,
+          bottom: rect.bottom,
+          width: rect.width,
+          height: rect.height,
+        });
+        return ['.blocklyZoomIn', '.blocklyZoomOut', '.blocklyZoomReset', '.blocklyTrash'].map(
+          (selector) => {
+            const control = root.querySelector<SVGGElement>(selector)!;
+            let bounds = control.getBoundingClientRect();
+            if (selector === '.blocklyTrash') {
+              // The full spritesheet bbox is not the visible trash target.
+              // Upstream clips its body and lid separately in SVG user space.
+              const parts = Array.from(control.querySelectorAll<SVGImageElement>('image')).map(
+                (image) => {
+                  const clipId = image.getAttribute('clip-path')!.slice(5, -1);
+                  const clip = document.getElementById(clipId)!.querySelector('rect')!;
+                  const matrix = image.getScreenCTM()!;
+                  const x = Number(clip.getAttribute('x') ?? 0);
+                  const y = Number(clip.getAttribute('y') ?? 0);
+                  const width = Number(clip.getAttribute('width'));
+                  const height = Number(clip.getAttribute('height'));
+                  const points = [
+                    [x, y],
+                    [x + width, y],
+                    [x, y + height],
+                    [x + width, y + height],
+                  ].map(([px, py]) => new DOMPoint(px, py).matrixTransform(matrix));
+                  const left = Math.min(...points.map((point) => point.x));
+                  const top = Math.min(...points.map((point) => point.y));
+                  return new DOMRect(
+                    left,
+                    top,
+                    Math.max(...points.map((point) => point.x)) - left,
+                    Math.max(...points.map((point) => point.y)) - top,
+                  );
+                },
+              );
+              const left = Math.min(...parts.map((part) => part.left));
+              const top = Math.min(...parts.map((part) => part.top));
+              bounds = new DOMRect(
+                left,
+                top,
+                Math.max(...parts.map((part) => part.right)) - left,
+                Math.max(...parts.map((part) => part.bottom)) - top,
+              );
+            }
+            const clips = [{ left: 0, top: 0, right: innerWidth, bottom: innerHeight }];
+            for (
+              let ancestor = control.parentElement;
+              ancestor;
+              ancestor = ancestor.parentElement
+            ) {
+              const style = getComputedStyle(ancestor);
+              const rect = ancestor.getBoundingClientRect();
+              const clipsX = style.overflowX !== 'visible';
+              const clipsY = style.overflowY !== 'visible';
+              if (clipsX || clipsY)
+                clips.push({
+                  left: clipsX ? rect.left : 0,
+                  right: clipsX ? rect.right : innerWidth,
+                  top: clipsY ? rect.top : 0,
+                  bottom: clipsY ? rect.bottom : innerHeight,
+                });
+            }
+            const hits = [
+              [0.5, 0.5],
+              [0.2, 0.2],
+              [0.8, 0.2],
+              [0.2, 0.8],
+              [0.8, 0.8],
+            ].map(([x, y]) => {
+              const px = bounds.left + bounds.width * x;
+              const py = bounds.top + bounds.height * y;
+              const hit = document.elementFromPoint(px, py);
+              return {
+                x: px,
+                y: py,
+                target: hit?.tagName ?? null,
+                inside: !!hit && control.contains(hit),
+              };
+            });
+            return {
+              selector,
+              bounds: rectValue(bounds),
+              viewport: { width: innerWidth, height: innerHeight },
+              clips,
+              hits,
+              usable:
+                bounds.width > 0 &&
+                bounds.height > 0 &&
+                clips.every(
+                  (clip) =>
+                    bounds.left >= clip.left &&
+                    bounds.right <= clip.right &&
+                    bounds.top >= clip.top &&
+                    bounds.bottom <= clip.bottom,
+                ) &&
+                hits.every((hit) => hit.inside),
+            };
+          },
+        );
+      });
     const record = async (phase: string) => {
       for (const selector of [
         '.blocklyZoomIn',
@@ -2966,16 +3147,50 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
       expect(
         new Set(images.map((image) => new URL(image.href!, page.url()).pathname.split('/').at(-1))),
       ).toEqual(new Set(mediaNames));
+      try {
+        await expect
+          .poll(async () => (await readControls()).every((control) => control.usable))
+          .toBe(true);
+      } catch (error) {
+        writeFileSync(
+          resolve(evidenceDir, 'media.json'),
+          JSON.stringify(
+            {
+              mode,
+              requests,
+              responses,
+              observerErrors,
+              expectedHashes,
+              phases,
+              incompleteControlObservation: {
+                phase,
+                controls: await readControls(),
+                at: Date.now(),
+              },
+            },
+            null,
+            2,
+          ),
+        );
+        throw error;
+      }
+      const controls = await readControls();
+      expect(controls.every((control) => control.usable)).toBe(true);
       phases.push({
         phase,
         images,
+        controls,
         scale: await scale(),
         transform: await canvas.getAttribute('transform'),
         at: Date.now(),
       });
       writeFileSync(
         resolve(evidenceDir, 'media.json'),
-        JSON.stringify({ mode, requests, responses, expectedHashes, phases }, null, 2),
+        JSON.stringify(
+          { mode, requests, responses, observerErrors, expectedHashes, phases },
+          null,
+          2,
+        ),
       );
       await page.screenshot({ path: resolve(evidenceDir, `${phase}.png`) });
     };
@@ -2990,7 +3205,18 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
         page.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true }),
       ).toHaveValue(source);
     await expect
-      .poll(() => new Set(responses.map((item) => new URL(item.url).pathname.split('/').at(-1))))
+      .poll(
+        () =>
+          new Set(
+            responses
+              .filter(
+                (item) =>
+                  item.status === 200 &&
+                  item.sha256 === expectedHashes[new URL(item.url).pathname.split('/').at(-1)!],
+              )
+              .map((item) => new URL(item.url).pathname.split('/').at(-1)),
+          ),
+      )
       .toEqual(new Set(mediaNames));
     const localBefore = await readLocal();
     const initialScale = await scale();
@@ -3020,12 +3246,25 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
       await expect(
         page.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true }),
       ).toHaveValue(source);
+    const reopenedScale = await scale();
+    await svg.locator('.blocklyZoomIn').click();
+    await expect.poll(scale).toBeGreaterThan(reopenedScale);
+    await record('reopened-zoom-in');
+    const reopenedEnlargedScale = await scale();
+    await svg.locator('.blocklyZoomOut').click();
+    await expect.poll(scale).toBeLessThan(reopenedEnlargedScale);
+    await record('reopened-zoom-out');
+    await svg.locator('.blocklyZoomIn').click();
+    await expect.poll(scale).toBeGreaterThan(reopenedScale);
+    await svg.locator('.blocklyZoomReset').click();
+    await expect.poll(scale).toBe(initialScale);
     await record('reopened');
     await Promise.all(responseBodies);
+    expect(responses).toHaveLength(requests.length);
     for (const request of requests)
       expect(new URL(request.url).origin).toBe(new URL(page.url()).origin);
     for (const response of responses) {
-      expect(response.status).toBe(200);
+      expect([200, 304]).toContain(response.status);
       const name = new URL(response.url).pathname.split('/').at(-1)!;
       expect(response.sha256).toBe(expectedHashes[name]);
     }
@@ -3043,8 +3282,13 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     );
     writeFileSync(
       resolve(evidenceDir, 'media.json'),
-      JSON.stringify({ mode, requests, responses, expectedHashes, phases }, null, 2),
+      JSON.stringify(
+        { mode, requests, responses, observerErrors, expectedHashes, phases },
+        null,
+        2,
+      ),
     );
+    expect(observerErrors).toEqual([]);
     failures.assertEmpty();
   });
 }
