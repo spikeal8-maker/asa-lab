@@ -3012,6 +3012,8 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
         const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
         return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
       }, projectId);
+    const readLocalKey = () =>
+      page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId);
     const phases: unknown[] = [];
     const svg = page
       .getByTestId('arduino-block-workspace')
@@ -3229,8 +3231,10 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
       )
       .toEqual(new Set(mediaNames));
     const localBefore = await readLocal();
-    expect(localBefore).not.toBeNull();
-    expect(localBefore).toEqual(before.draft.document);
+    // A saved, unchanged program needs no dirty recovery record. Full document
+    // preservation is checked against the pre-mount server draft below.
+    expect(await readLocalKey()).toBeNull();
+    expect(localBefore).toBeNull();
     const initialScale = await scale();
     await record('initial');
     await svg.locator('.blocklyZoomIn').click();
@@ -3246,6 +3250,8 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     await expect.poll(scale).toBe(initialScale);
     await record('zoom-reset');
     const localAfterZoom = await readLocal();
+    expect(await readLocalKey()).toBeNull();
+    expect(localAfterZoom).toBeNull();
     expect(localAfterZoom).toEqual(localBefore);
     const afterZoom = await readServer();
     expect(afterZoom.draft).toEqual(before.draft);
@@ -3283,6 +3289,8 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     const after = await readServer();
     const localAfter = await readLocal();
     expect(after.draft).toEqual(before.draft);
+    expect(await readLocalKey()).toBeNull();
+    expect(localAfter).toBeNull();
     expect(localAfter).toEqual(localBefore);
     writeFileSync(
       resolve(evidenceDir, 'intent.json'),
