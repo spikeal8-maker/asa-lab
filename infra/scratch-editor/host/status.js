@@ -17,6 +17,14 @@
       status(status) {
         return post('ASA_BLOCKS_STATUS', { status });
       },
+      requestFailed(httpStatus, relatedRequestId, durationMs) {
+        return post('ASA_BLOCKS_STATUS', {
+          status: 'request-failed',
+          httpStatus,
+          relatedRequestId,
+          durationMs,
+        });
+      },
       projectDirty(generation) {
         return post('ASA_BLOCKS_STATUS', { status: 'project-dirty', generation });
       },

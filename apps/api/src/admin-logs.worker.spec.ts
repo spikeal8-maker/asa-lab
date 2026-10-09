@@ -16,6 +16,104 @@ const filter: LogFilter = {
 };
 
 describe('retained log reader and archive', () => {
+  it('respects application scope in whole-segment exports of mixed historical segments', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-logs-scope-'));
+    try {
+      const rows = ['api', 'windows:System'].map((source, i) => ({
+        id: String(i + 1).padStart(64, '0'),
+        time: filter.from,
+        source,
+        module: 'system',
+        level: 'info',
+        message: 'fixture',
+      }));
+      const raw = Buffer.from(rows.map((e) => JSON.stringify(e)).join('\n') + '\n'),
+        data = gzipSync(raw);
+      const file = 'seg-0000000000000001-0000000000000002.jsonl.gz';
+      await writeFile(join(root, file), data);
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({
+          version: 1,
+          sources: [],
+          segments: [
+            {
+              file,
+              schema: 2,
+              sha256: createHash('sha256').update(raw).digest('hex'),
+              rawBytes: raw.length,
+              bytes: data.length,
+              count: 2,
+              first: filter.from,
+              last: filter.from,
+              sources: rows.map((e) => e.source),
+              modules: ['system'],
+              levels: ['info'],
+            },
+          ],
+        }),
+      );
+      const scoped = { ...filter, scope: 'application' as const };
+      expect((await queryLogs(root, scoped, 100)).items.map((e) => e.source)).toEqual(['api']);
+      expect((await exportLogs(root, scoped, join(root, 'scope.zip'))).count).toBe(1);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+  it('continues a rare search beyond 200,000 rows on the same snapshot', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-logs-search-'));
+    try {
+      const segments = [];
+      for (let i = 0; i < 201; i++) {
+        const first = i * 1000 + 1,
+          last = first + 999;
+        const rows = Array.from({ length: 1000 }, (_, n) => ({
+          id: (first + n).toString(16).padStart(64, '0'),
+          time: filter.from,
+          source: 'api',
+          module: 'portal',
+          level: 'error',
+          message: i === 200 && n === 999 ? 'rare failure' : 'ordinary',
+        }));
+        const data = gzipSync(rows.map((e) => JSON.stringify(e)).join('\n') + '\n');
+        const file = `seg-${String(first).padStart(16, '0')}-${String(last).padStart(16, '0')}.jsonl.gz`;
+        await writeFile(join(root, file), data);
+        segments.push({
+          file,
+          bytes: data.length,
+          count: 1000,
+          first: filter.from,
+          last: filter.from,
+          sources: ['api'],
+          modules: ['portal'],
+          levels: ['error'],
+        });
+      }
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({ version: 1, sources: [], segments }),
+      );
+      const first = await queryLogs(root, { ...filter, search: 'rare failure' }, 100);
+      expect(first).toMatchObject({ items: [], partial: true, scanned: 200000 });
+      expect(first.scanState).toBeDefined();
+      // A collector publication cannot change the search's captured frontier.
+      await writeFile(
+        join(root, 'catalog.json'),
+        JSON.stringify({ version: 1, sources: [], segments: [] }),
+      );
+      const last = await queryLogs(
+        root,
+        { ...filter, search: 'rare failure' },
+        100,
+        first.scanState,
+      );
+      expect(last.partial).toBe(false);
+      expect(last.scanned).toBe(201000);
+      expect(last.items.map((e) => e.message)).toEqual(['rare failure']);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  }, 30000);
   it('exports more than the old 256 MiB limit from compressed segments without losing rows', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-logs-large-'));
     try {

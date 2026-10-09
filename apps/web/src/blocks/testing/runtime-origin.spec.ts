@@ -24,7 +24,9 @@ describe('BlocksEditor single ASA entry', () => {
     'embeds the editor within %s without another origin or port',
     (origin) => {
       const html = renderEditor(origin);
-      expect(html).toContain('src="/internal/blocks/?asaStatus=parent"');
+      expect(html).toMatch(
+        /src="\/internal\/blocks\/\?asaStatus=parent&amp;diagnosticInstance=[a-f0-9-]{36}"/,
+      );
       expect(html).toContain('Загружаем рабочую среду');
       expect(html).not.toContain('role="alert"');
     },
@@ -35,7 +37,9 @@ describe('BlocksEditor single ASA entry', () => {
       vi.stubGlobal('__ASA_RUNTIME_CONFIG__', { blocksRuntimeOrigin: foreign });
       vi.stubGlobal('__ASA_BLOCKS_RUNTIME_ORIGIN__', foreign);
       const html = renderEditor('https://asa-lab.ru');
-      expect(html).toContain('src="/internal/blocks/?asaStatus=parent"');
+      expect(html).toMatch(
+        /src="\/internal\/blocks\/\?asaStatus=parent&amp;diagnosticInstance=[a-f0-9-]{36}"/,
+      );
       expect(html).not.toContain(foreign);
     },
   );
