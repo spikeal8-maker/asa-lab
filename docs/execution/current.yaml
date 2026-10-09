@@ -587,8 +587,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: r4_owner_approved_convergence_and_short_text_segments
+      status: done
+      checkpoint: r4_full95_compact_controls_technically_accepted
       dependency_for_issue: 530
       upstream_readiness_issue: 531
       owner_acceptance: pending
@@ -661,6 +661,18 @@ parallel_lanes:
         classification: independent baseline timeout; precise cause under separate read-only
           diagnosis
         repair_inside_532: false
+      accepted_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+      candidate_tree: e2380450d73899c32915b048be299921e2e5e4ea
+      independent_review: approved
+      r4_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+      r4_general_run: 37952280920
+      r4_general_conclusion: success
+      r4_electronics_run: 37952969953
+      r4_electronics_conclusion: success
+      r4_browser_scenarios_passed: 127
+      r4_original_phases: 95
+      r4_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r4-independent-review-604ac63d.md
+      evidence: docs/product/electronics/evidence/compact-controls-532-r4-acceptance-20261009.md
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1039,18 +1051,17 @@ parallel_lanes:
       compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
+      convergence_baseline_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
       head_sha: null
-      observed_at: '2026-10-09T15:13:16Z'
+      observed_at: '2026-10-09T16:03:51Z'
       main:
         branch: main
-        sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
+        sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
       observation_note: >-
-        Dated snapshot; fetch main and actual exact CI before writing. Owner explicitly approved resolving the two actual532 convergence conflicts and continuing programme452. Technical535 full checkpoint004 is closed and preserved; accepted533/534/529/531/528 remain unchanged.
-        R4 selects only preserved532bd4074fe causal compact CSS plus test packaging. NEW author performs ordinary convergence with canonical selected main, manually preserves BOTH accepted533media and532compact scenarios at their shared append anchor, and regenerates only canonical browser digest. CSS has no reported conflict. No published-history rewrite or automatic choice of one scenario over the other.
-        Only NEW532 test region changes: shorter independent text viewport segments retaining all52text/95total phases, all assertions and original PNG/raw requirements, full final server/document/revision/local intent per segment, unchanged default30000ms and all other limits. Preserve original122 main browser scenarios, accepted533media/534no-op/529publication, existing canonical workflows/dependencies and repaired532CSS. No solver/Arduino/runtime/save/auth/Portal product change or test weakening.
-        Fresh main43 General37920212460 G/C/D SUCCESS but Access test:access-a fails tests/portal/project-transactions.spec.ts large mixed library90s plus teardown10s. Diff43 is controllerdocs only; separate read-only diagnosis owns precise C/D classification, not a repair inside532. No hopeful full-suite retry or timeout increase; final combined exact General and ordinary Electronics all8 plus NEW independent review required before technical acceptance.
-        Author one bounded candidate/self-review/report then STOP. Controller actual source/raw, one changed-cause directed NEW532 diagnostic outside source ancestry, then canonical exact gates/review/closeout. Continue530 then526full56 only after actual532 acceptance. Preserve525 and all other candidates/foreign state. SchoolK0 NOT_VERIFIED/T3 pendingclassaccess; no installation/DB/container/network/backup/restore or owner/class/release claim.
+        Dated snapshot; fetch main and actual exact CI before writing. Technical532 R4 accepted exact604ac63d after NEW independent APPROVE, General37952280920 and ordinary37952969953 all8SUCCESS, full127browser/95originalphases/5independentprojectintent receipts. Full captions/clock/font controls fit and normal resize/input work; full server documents/revisions remain unchanged.
+        Earlier R1/R2/R3 refs/reviews/partial observations remain historical and unaccepted; no old timeout/post-teardown files establish this acceptance. All122 previous main scenarios and accepted533/534/529/531 plus canonical workflows/dependencies/assets preserved. No timeout/assertion/physical precision change.
+        This is the first counted production slice after full hygiene535 checkpoint004. Next dependency preserved530 requires fresh canonical selection. Owner explicitly agreed to its two forecast simulation-append/generated-digest conflicts: preserve all532/533 and add saved530 scenario, regenerate only canonical digest, NEW author/checks/independent final review. Any additional actual conflict STOP/show. Then resume526 full56/denial/real persistence final acceptance. No next task activated by closeout.
+        Source604 General all4SUCCESS including Access; old43 baseline timeout cause remains unproved history, no Portal repair or hopeful rerun. Preserve all historical/suspended525/526/530 and foreign state. SchoolK0 version/full backups NOT_VERIFIED/T3 pending class access; owner/class/release/deployment separate. No installation/DB/container/network/backup/restore action.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -1071,6 +1082,35 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+        issue: 532
+        accepted_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        integrated_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        candidate_tree: e2380450d73899c32915b048be299921e2e5e4ea
+        independent_review: approved
+        independent_review_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        exact_candidate_general_run: 37952280920
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37952969953
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 127
+        original_compact_phases: 95
+        independent_real_project_intent_receipts: 5
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          benchmark: 18
+          browser_images: 49
+          review_image_packaging: 22
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/compact-controls-532-r4-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/compact-controls-532-r4-independent-review-604ac63d.md
+        raw_evidence: docs/product/electronics/evidence/compact-controls-532-r4-final-raw-receipts.json
+        independent_review_original_sha256: ac707ec4ed77288dda737e6230f4a38d6d2bf9da39a8614c2aee1aeccb21bab9
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-GOVERNANCE-007
         issue: 535
         accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957

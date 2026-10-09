@@ -1,0 +1,581 @@
+{
+  "kind": "controller original raw check; original ZIP/log authority",
+  "evidenceLevel": "ordinary registered browser gate",
+  "exactSha": "604ac63d237b242d5e46a22d3dc0f580be35636f",
+  "run": 37952969953,
+  "separateModeGeometries": [
+    {
+      "mode": "text",
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide\\electronics-compact-controls-532\\text-desktop-wide\\geometry.json",
+      "bytes": 778236,
+      "sha256": "b053d3b77fc66218dd4b2cdf3c4811273fe1519eac2efbe5a42685d2f2286604",
+      "phases": 18
+    },
+    {
+      "mode": "text",
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-bd3d2-rawer-sizes-—-text-—-mobile\\electronics-compact-controls-532\\text-mobile\\geometry.json",
+      "bytes": 486915,
+      "sha256": "e7f883a6aadf1e0fa0eab22f01e83dc669fe090013a79ede526143060594ffb3",
+      "phases": 9
+    },
+    {
+      "mode": "blocks-text",
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-72838--—-blocks-text-—-all-widths\\electronics-compact-controls-532\\blocks-text-all-widths\\geometry.json",
+      "bytes": 1104232,
+      "sha256": "ed46115b943db2e74b1f88f7f7223c94f6cea21fcd63414d08f9c650889d3f60",
+      "phases": 24
+    },
+    {
+      "mode": "text",
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-3b5ab-es-—-text-—-desktop-compact\\electronics-compact-controls-532\\text-desktop-compact\\geometry.json",
+      "bytes": 1082884,
+      "sha256": "12f4d4358ece37cb3d3d26d072e872cc0aa516501b013469ed60db43b5dfab22",
+      "phases": 25
+    },
+    {
+      "mode": "blocks",
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths\\electronics-compact-controls-532\\blocks-all-widths\\geometry.json",
+      "bytes": 739188,
+      "sha256": "fac9ef0d87e0f57522d6d164d5780af9230c06c37829dbbab58c331f50b540c9",
+      "phases": 19
+    }
+  ],
+  "independentProjectIds": [
+    "53e72f86-84bc-4922-b6ea-7ef2458e1f51",
+    "495697f9-a312-4707-9447-7aa0c0d52dff",
+    "6b8f16db-9383-43b6-ada5-74e8b4ca0d4b",
+    "79aa0385-d75f-40d7-a40d-97b498898065",
+    "7a9eb587-f7b6-4107-a091-192331283d36"
+  ],
+  "phases": 95,
+  "originalImages": [
+    {
+      "phase": "1440-stopped",
+      "bytes": 97266,
+      "sha256": "0beb91ae95316109cc4a454a831c4831fdd1e1050a050000e493d4fb8bb38443"
+    },
+    {
+      "phase": "1440-running",
+      "bytes": 104251,
+      "sha256": "1e17d78d17ef4be6517a57fcd4e1bc5f4abea894e17a722583756e49b77a7861"
+    },
+    {
+      "phase": "1440-resized",
+      "bytes": 99752,
+      "sha256": "8842fe1d81706650f12461935afe70561352e0b401d54bc3b27dca5f282124d7"
+    },
+    {
+      "phase": "1440-Схемы",
+      "bytes": 82337,
+      "sha256": "a1fd6a29855f2e92dee69a40916f4bb715670c97338cb5db571920537098c329"
+    },
+    {
+      "phase": "1440-Компоненты",
+      "bytes": 61458,
+      "sha256": "263fddfe1365799bba87594eff5bc1e46bc563666b9d4a0a8b649d6eaa0a57bc"
+    },
+    {
+      "phase": "1440-Цепи",
+      "bytes": 99683,
+      "sha256": "cf6f071d7671a03aef350e9c0c7a48503bdc7309efe15152da8bc855115fddf7"
+    },
+    {
+      "phase": "1374-stopped",
+      "bytes": 98116,
+      "sha256": "c9e79989a103878a0570f7d8e16c32ac4e69d7096343fc3d6d90fac5991ea236"
+    },
+    {
+      "phase": "1374-running",
+      "bytes": 102958,
+      "sha256": "00ffa9f87f3dfdfb03b4f066582e4be2c822dac8a9bbd25f3991cb58e5cef474"
+    },
+    {
+      "phase": "1374-resized",
+      "bytes": 98151,
+      "sha256": "cb935333c8beb2f9b4007ab648772f8e5b053ba61893905068ce86a4daa4d3a9"
+    },
+    {
+      "phase": "1374-Схемы",
+      "bytes": 80977,
+      "sha256": "527c6dd7bc73c26f4988d52e7cef533bbbe1996a078e988eaa76b1bf09e8dc2b"
+    },
+    {
+      "phase": "1374-Компоненты",
+      "bytes": 60376,
+      "sha256": "62d2b5201e10ee29164d16b0e8f8db01ed522fbb288e352de84e8c6845d1a594"
+    },
+    {
+      "phase": "1374-Цепи",
+      "bytes": 98182,
+      "sha256": "4f8b98480f0de1c2b2b7334b984aafb8a3e76530be9a55e7ea1a63c0b0c29d69"
+    },
+    {
+      "phase": "1373-stopped",
+      "bytes": 94532,
+      "sha256": "214c7ab61b0aae77a90e3901578f28896e14a7434f7de9da7d3b63b194b03763"
+    },
+    {
+      "phase": "1373-running",
+      "bytes": 101293,
+      "sha256": "cc401ca17928c3b208ef369eeefa7c6ce578afd30224ddb0f0d155505f044434"
+    },
+    {
+      "phase": "1373-resized",
+      "bytes": 94977,
+      "sha256": "8056a5b81048b111b58b56df0c49734a0728d57165403db53e8aeedeec50f82b"
+    },
+    {
+      "phase": "1373-Схемы",
+      "bytes": 77528,
+      "sha256": "3eba94d80afde9c2b7fe164b5285f6dd376a2a7eed2718950d8ec815435d88d5"
+    },
+    {
+      "phase": "1373-Компоненты",
+      "bytes": 63473,
+      "sha256": "77aeafee0893d94370184d72a6660a50e2e0acda9fd24bb5af54a9ed24681a70"
+    },
+    {
+      "phase": "1373-Цепи",
+      "bytes": 95012,
+      "sha256": "9765681c4955df06b3969f9c7daec86faafcbeeae47614ef9bf882b3305e3cb5"
+    },
+    {
+      "phase": "1181-stopped",
+      "bytes": 87375,
+      "sha256": "6c2dd1aaae6d7d379ac8ad4972b43b558607edc85a7ea2cb43890002c4029672"
+    },
+    {
+      "phase": "1181-running",
+      "bytes": 93969,
+      "sha256": "64684768cf4d021b293d8a1ec4a9bd519abb5f54b4f07d9f7ac6c0cd6afd3470"
+    },
+    {
+      "phase": "1181-resized",
+      "bytes": 88500,
+      "sha256": "be535e434b4a84cebf32d69e1ad05d85dafc98451f608a1d0fecb88fde3e3350"
+    },
+    {
+      "phase": "1181-Схемы",
+      "bytes": 70083,
+      "sha256": "8127ded70e01f30f499fb0118699c66ca3472e7e300407a63a960a27a0302ec2"
+    },
+    {
+      "phase": "1181-Компоненты",
+      "bytes": 59601,
+      "sha256": "c812955ef814cb5fc140c08a194c9b9d4bc7c2971088709707b7459cf07b5432"
+    },
+    {
+      "phase": "1181-Цепи",
+      "bytes": 88562,
+      "sha256": "87322ed10fc7475d19f8a0d1428e55ad3fab85c0b9f0e65230d6e482f6527546"
+    },
+    {
+      "phase": "1180-stopped",
+      "bytes": 88676,
+      "sha256": "4e49c8cf93c69031d0b0d1c72d3d699101169c83dd3527e6e867c90f675857f2"
+    },
+    {
+      "phase": "1180-running",
+      "bytes": 93712,
+      "sha256": "deef0e710236961bf00bbd71b9aa64826015fa88c296accf208974574893faaf"
+    },
+    {
+      "phase": "1180-resized",
+      "bytes": 88372,
+      "sha256": "e09369b47d8c23a270f937a045576bb4b4f9efc1b4dfedbaadc3549383c55f10"
+    },
+    {
+      "phase": "1180-Схемы",
+      "bytes": 75226,
+      "sha256": "599adde3b583d226bd45dfe55453fee0b124609d7dfec540977c982a98328e6e"
+    },
+    {
+      "phase": "1180-Компоненты",
+      "bytes": 59057,
+      "sha256": "b7b2b261069f69279826c0cc97162caa67beaff2449183b00f0604a7dc3cc209"
+    },
+    {
+      "phase": "1180-Цепи",
+      "bytes": 88414,
+      "sha256": "9350b609e4a8ded039874a84ffee9006382fe283421ed553dd265c32ad90ed1c"
+    },
+    {
+      "phase": "1024-stopped",
+      "bytes": 81949,
+      "sha256": "5f5c9130de093375dbe7ae6edcccaba3d258d09aaa41af37e16630259c7a961b"
+    },
+    {
+      "phase": "1024-running",
+      "bytes": 87017,
+      "sha256": "2adda490cd64464e0bc387d5530c6a8b1b7028e113b385dca53ff699a69a5172"
+    },
+    {
+      "phase": "1024-resized",
+      "bytes": 81564,
+      "sha256": "dbf571ec5fcdcd1cf5292a32df49c70075264dc387da7ed772e9ab0d5f0b34dd"
+    },
+    {
+      "phase": "1024-Схемы",
+      "bytes": 72669,
+      "sha256": "f2b1f1cd762c3ebb35de3821d90502e3e574b0dffb8bbcc48f7b36b01fd95a9c"
+    },
+    {
+      "phase": "1024-Компоненты",
+      "bytes": 58709,
+      "sha256": "0ee4090ba04daf52fa01838ca2bd1e6116c5ae398e17ccf8f9a56df8ebb294f2"
+    },
+    {
+      "phase": "1024-Цепи",
+      "bytes": 81553,
+      "sha256": "b26901be312bb0b5a57c469ba289a52ad90c20436aa8b2db06a513c0a9b0322e"
+    },
+    {
+      "phase": "981-stopped",
+      "bytes": 78755,
+      "sha256": "6ce1d89be02e557aec6661a25fe8636d149349e5624c348651d483fc891e4768"
+    },
+    {
+      "phase": "981-native-open",
+      "bytes": 81834,
+      "sha256": "35a438f04ad83fcb9617124f60ae300a8c8a11e3f2009e1cb4ac56d86ad621ee"
+    },
+    {
+      "phase": "981-running",
+      "bytes": 83718,
+      "sha256": "4ba59dc680ac32cee00e9d3df89d23468894ed8eaed451da3526c62950a01d2e"
+    },
+    {
+      "phase": "981-resized",
+      "bytes": 78200,
+      "sha256": "a2a994c432d504b4d642cba56f2eac566ff2803949b02321b2f3f8d990e07690"
+    },
+    {
+      "phase": "981-Схемы",
+      "bytes": 66107,
+      "sha256": "6ef4136b3702bfe225be8f5dd1866969b348b6e1eb5337d3144cf3ae6a26f944"
+    },
+    {
+      "phase": "981-Компоненты",
+      "bytes": 59640,
+      "sha256": "3ad766a856f6fe07afe54aa6fa34b589d67cf82ca3d2ecb10318f189877c744b"
+    },
+    {
+      "phase": "981-Цепи",
+      "bytes": 78197,
+      "sha256": "c2a607c44d40d4b965ab3e87a50c81bcd59165c280b68b0bf9241639405c72b2"
+    },
+    {
+      "phase": "980-stopped",
+      "bytes": 71402,
+      "sha256": "bfe9f27b829d9485aea8f2265300bf9a53b4be6212b847e427d4c1500c006722"
+    },
+    {
+      "phase": "980-running",
+      "bytes": 73286,
+      "sha256": "144f3c50d3af1bf86fd7bdf2becc0c856163cbf0bf62e974da3919a0836a3edb"
+    },
+    {
+      "phase": "980-resized",
+      "bytes": 69509,
+      "sha256": "61bbbf9832e5dd10267278077a2747d3ab259bb5dd223bdba00b545968cc1a7d"
+    },
+    {
+      "phase": "390-stopped",
+      "bytes": 47189,
+      "sha256": "914427f17c6115aae90e09e4f1c988207ad2408ece62053b07c85cf0ab12a835"
+    },
+    {
+      "phase": "390-running",
+      "bytes": 47679,
+      "sha256": "77b89246e8c02845636e8b793b6603f914259c2dbd052b31fd504f76be451407"
+    },
+    {
+      "phase": "390-resized",
+      "bytes": 46753,
+      "sha256": "10e1d8399acd1ce88629949407e289d9f6168167e8d30e0e731f33649c6c916b"
+    },
+    {
+      "phase": "320-stopped",
+      "bytes": 40701,
+      "sha256": "03abcb8f8ca57cc7672901f383207bd1ff90d6a5f258b3e62a77dbf27ffb2eeb"
+    },
+    {
+      "phase": "320-running",
+      "bytes": 41512,
+      "sha256": "2c05f24d8bab267165036bdf4ea17200b9c17c94b0810412e93196b1e2a634a3"
+    },
+    {
+      "phase": "320-resized",
+      "bytes": 41205,
+      "sha256": "0af525eeaaf07bb7c6fdc62bedc2c098c9569a71e34229409b782adabf90fd57"
+    },
+    {
+      "phase": "1440-blocks-text",
+      "bytes": 189410,
+      "sha256": "7dd7c8cd5603d771af945f8c26e9b483468ec714f5723b7d36afcc0e6bf68dce"
+    },
+    {
+      "phase": "1440-blocks-text-resized",
+      "bytes": 188751,
+      "sha256": "15e844be423090bac616a6786131401bc45580454d6b4fb57ec2b235971a7a86"
+    },
+    {
+      "phase": "1440-blocks-text-font",
+      "bytes": 194606,
+      "sha256": "6bf79e2d75a109e1adf1140be10b42589682ccef21d75f131662005f42351d80"
+    },
+    {
+      "phase": "1374-blocks-text",
+      "bytes": 193413,
+      "sha256": "269f20a28d08ec22fce3046871d47e8b31127ca8fc6f618f62d85ce5a7f49441"
+    },
+    {
+      "phase": "1374-blocks-text-running",
+      "bytes": 199318,
+      "sha256": "aede9a7027e027e9d96b9d2d08d632a29e871e4848f282701f52234575426f3f"
+    },
+    {
+      "phase": "1374-blocks-text-resized",
+      "bytes": 193686,
+      "sha256": "c4bb8b2ed16bd954479e3d5577e963fd824653712cc9b65ea25ddfab7cbfbd1f"
+    },
+    {
+      "phase": "1374-blocks-text-font",
+      "bytes": 188132,
+      "sha256": "35cb71a1b850dcbd7bd210f5359bce68a3b3ff073592cc27f3a164b9d5d40e12"
+    },
+    {
+      "phase": "1373-blocks-text",
+      "bytes": 181208,
+      "sha256": "ba7f78944277e1f0c2cde6a0017f5c2aa57b10e4ba7e16f3e0e2aad25635d3c2"
+    },
+    {
+      "phase": "1373-blocks-text-running",
+      "bytes": 187029,
+      "sha256": "2bf74541b72b604dc9ccd8c3d74ec0e0dd21f704a712d4d477f92c39514bf143"
+    },
+    {
+      "phase": "1373-blocks-text-resized",
+      "bytes": 181440,
+      "sha256": "8c8ec0b591e134d2e9362887fbd51a7792aaea1c309fa133f394c8aa4264f7f4"
+    },
+    {
+      "phase": "1373-blocks-text-font",
+      "bytes": 186681,
+      "sha256": "9e079475ad7351593c3506d3575cf3ff5926626fef7c8cf73578f59c02095307"
+    },
+    {
+      "phase": "1181-blocks-text",
+      "bytes": 174890,
+      "sha256": "922fa7877d2ff28cff45e0ffd70fc912962139f0f6b43538e9089d7e0dbc8740"
+    },
+    {
+      "phase": "1181-blocks-text-running",
+      "bytes": 180595,
+      "sha256": "beb3e46c3f8de91e98e74f875903a96a2f9c9dd1292b8962ae33143724462088"
+    },
+    {
+      "phase": "1181-blocks-text-resized",
+      "bytes": 174831,
+      "sha256": "b6259be5e5142d9ea00ad2362a646c2e35b17c0a1d05a24b59bc2f93369fda8f"
+    },
+    {
+      "phase": "1181-blocks-text-font",
+      "bytes": 169839,
+      "sha256": "2afc2ca026e984f220e18908d407184c00c0845dcc5c97455d6df8ce5465fb09"
+    },
+    {
+      "phase": "1180-blocks-text",
+      "bytes": 170056,
+      "sha256": "9cddedb38c2d58fea54562c36226427685821ef7a710f91bbe2f73de8ea078ac"
+    },
+    {
+      "phase": "1180-blocks-text-running",
+      "bytes": 175815,
+      "sha256": "65509fc965ea24d7a670c6d922e62fa0345ba2de91b4d4f4f4d6f096a545564b"
+    },
+    {
+      "phase": "1180-blocks-text-resized",
+      "bytes": 169639,
+      "sha256": "540248f4d28406002297a1884bf9c5d75db59c9f8b26d0d25acf2ddc1c9bd630"
+    },
+    {
+      "phase": "1180-blocks-text-font",
+      "bytes": 173980,
+      "sha256": "81b35fb3be971ca7ed31d60c28ddc27e2577ddb8c7ced79da9740fde014bc381"
+    },
+    {
+      "phase": "1024-blocks-text",
+      "bytes": 162624,
+      "sha256": "3e2f5ba831ea0503c1cfba712c8391dc19e2061baea86460a84f6b42d932f136"
+    },
+    {
+      "phase": "981-blocks-text",
+      "bytes": 153284,
+      "sha256": "9c529c8089472163d8d20e67c6ba0c104df1cc297d590f44ed017006e416247a"
+    },
+    {
+      "phase": "980-blocks-text",
+      "bytes": 92426,
+      "sha256": "9983816e6e1ee8592ffb62338ecc79f83e189b8b123f0b79e40460244fde7bd1"
+    },
+    {
+      "phase": "390-blocks-text",
+      "bytes": 66217,
+      "sha256": "cc4ae6e4c49feccbc707c50b9781e1ea535e962247731b06bbb32b48fa8b008d"
+    },
+    {
+      "phase": "320-blocks-text",
+      "bytes": 57052,
+      "sha256": "e0830d572f2ad7b781913971e8839ef0094b1d58eb2c00ab18f49350824bf758"
+    },
+    {
+      "phase": "1440-blocks",
+      "bytes": 170719,
+      "sha256": "57531ce2c94f9b130a6f4ceddd71b2d43a3868bb603fe65befe76f7ff96946b6"
+    },
+    {
+      "phase": "1440-blocks-resized",
+      "bytes": 170172,
+      "sha256": "54b45ab83e1aea6f760a43173be450cbcdafc9fe4b5e37b097d92b4407d16870"
+    },
+    {
+      "phase": "1374-blocks",
+      "bytes": 169070,
+      "sha256": "93f6a2a3f2919fb58d248abe2289dc6b227c966c1585c79b435458a14a732658"
+    },
+    {
+      "phase": "1374-blocks-running",
+      "bytes": 175125,
+      "sha256": "7c2300b43561ba2ec551f7c87c1d35c4dc7479facd78f1c559643ddbd7fdf328"
+    },
+    {
+      "phase": "1374-blocks-resized",
+      "bytes": 169500,
+      "sha256": "ce7129243531335c422316111d05bfb300f9a5f4b6573b430caf6493347ff494"
+    },
+    {
+      "phase": "1373-blocks",
+      "bytes": 162405,
+      "sha256": "173c6c3f3800e54e707e535e7d238e4ef505d88ae417bd0fda29caee818e2fa2"
+    },
+    {
+      "phase": "1373-blocks-running",
+      "bytes": 168625,
+      "sha256": "8dc53320257a6e20d60b929e44d8ee72ef1ad313fe7cd34fd4649da0c6502dc8"
+    },
+    {
+      "phase": "1373-blocks-resized",
+      "bytes": 162883,
+      "sha256": "819b557a8e9c35d1cc5836143d2fa6f50c5f6906b2670f2ca99c91d2d395bbc7"
+    },
+    {
+      "phase": "1181-blocks",
+      "bytes": 157070,
+      "sha256": "69c12c58c75b0f298ede7e493c30d78eb4683ba27e1d3dbe481997ec13ac6c73"
+    },
+    {
+      "phase": "1181-blocks-running",
+      "bytes": 162927,
+      "sha256": "c46820a0ec6fb1925ed49f79f0c1a87d9e7edfd87f2d4563d33a81dd186b0d7e"
+    },
+    {
+      "phase": "1181-blocks-resized",
+      "bytes": 157167,
+      "sha256": "c6d3c4deffa742d11afe2ab00e070460975b3bb1482cef76289831c63eb43ce6"
+    },
+    {
+      "phase": "1180-blocks",
+      "bytes": 157266,
+      "sha256": "8da9f3112615c2ef01b8ce17e9a60696019ea4a2817e359eb6e7106637be0148"
+    },
+    {
+      "phase": "1180-blocks-running",
+      "bytes": 163178,
+      "sha256": "a61a290e3c59cb7b9500b69b1ac75c52461598a9d69db81374a0da5bd4cc3566"
+    },
+    {
+      "phase": "1180-blocks-resized",
+      "bytes": 157602,
+      "sha256": "fc7cde2fc8e64f061fa9194e0522a2b7a3487c914b895cde6d395ca3e1627a87"
+    },
+    {
+      "phase": "1024-blocks",
+      "bytes": 152271,
+      "sha256": "74192170b00496c3178b3d298adc65f73a9e0961e132e37811be7409beeb5723"
+    },
+    {
+      "phase": "981-blocks",
+      "bytes": 144154,
+      "sha256": "761c2f4bbdbe13c454cdd2c8933d817a489ea43094e5a3b1b574682a4975841d"
+    },
+    {
+      "phase": "980-blocks",
+      "bytes": 91983,
+      "sha256": "c9d10fb48b20983c2bf994fdef4951e04ab397bb328c63561f9988c750ab54ee"
+    },
+    {
+      "phase": "390-blocks",
+      "bytes": 69792,
+      "sha256": "db7e0996f45f52f11c31e5befbf7a3947f41b4d4f700b78affae040e35e99e2b"
+    },
+    {
+      "phase": "320-blocks",
+      "bytes": 59941,
+      "sha256": "363305c163243fff1c4e4be8135bf69e6e2abde7997227daafea5bfe25fdbbcb"
+    }
+  ],
+  "fullServerIntentReceipts": [
+    {
+      "mode": "text",
+      "folder": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-f48c4-sizes-—-text-—-desktop-wide\\electronics-compact-controls-532\\text-desktop-wide",
+      "name": "intent.json",
+      "bytes": 46384,
+      "sha256": "6f588acf1793bbc816155ddc1aefc85d870bd90bc227b9ea994c0c05690d58a0",
+      "revision": 2,
+      "dirtyLocalDraftPresent": false,
+      "mountedFullDocument": "NOT_PROVED_BY_NULL_LOCAL_DRAFT"
+    },
+    {
+      "mode": "text",
+      "folder": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-bd3d2-rawer-sizes-—-text-—-mobile\\electronics-compact-controls-532\\text-mobile",
+      "name": "intent.json",
+      "bytes": 46363,
+      "sha256": "3b84201de637ea05ee4a43b03f3662ac5671fd884647172d0efda41e2bafa1ce",
+      "revision": 2,
+      "dirtyLocalDraftPresent": false,
+      "mountedFullDocument": "NOT_PROVED_BY_NULL_LOCAL_DRAFT"
+    },
+    {
+      "mode": "blocks-text",
+      "folder": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-72838--—-blocks-text-—-all-widths\\electronics-compact-controls-532\\blocks-text-all-widths",
+      "name": "intent-blocks-text.json",
+      "bytes": 44761,
+      "sha256": "e01978ee46fd33562111ab1647382f793145854af5a0ec3c6a6e1726e46523fd",
+      "revision": 2,
+      "dirtyLocalDraftPresent": false,
+      "mountedFullDocument": "NOT_PROVED_BY_NULL_LOCAL_DRAFT"
+    },
+    {
+      "mode": "text",
+      "folder": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-3b5ab-es-—-text-—-desktop-compact\\electronics-compact-controls-532\\text-desktop-compact",
+      "name": "intent.json",
+      "bytes": 46402,
+      "sha256": "ab2f5954273788ad75f22e4a6a6fddcb5d9577e7c4b749c7a5d6c74c312a2b12",
+      "revision": 2,
+      "dirtyLocalDraftPresent": false,
+      "mountedFullDocument": "NOT_PROVED_BY_NULL_LOCAL_DRAFT"
+    },
+    {
+      "mode": "blocks",
+      "folder": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\604ac63d-ci\\run-37952969953\\extracted\\reports\\playwright\\electronics-simulation-com-1aa84-sizes-—-blocks-—-all-widths\\electronics-compact-controls-532\\blocks-all-widths",
+      "name": "intent-blocks.json",
+      "bytes": 44736,
+      "sha256": "6db4af65e7c5d4051db64c94a9bc8d381ba182a469bd30f308641b27e9ecf146",
+      "revision": 2,
+      "dirtyLocalDraftPresent": false,
+      "mountedFullDocument": "NOT_PROVED_BY_NULL_LOCAL_DRAFT"
+    }
+  ],
+  "result": "PASS raw checks; visual review and ordinary exact source gates independently required"
+}
