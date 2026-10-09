@@ -9,7 +9,8 @@ test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
 
 async function fixture(
   page: Page,
-  state: 'populated' | 'empty' | 'error' | 'loading' | 'unavailable',
+  state:
+    'populated' | 'empty' | 'error' | 'loading' | 'unavailable' | 'partial' | 'collector-error',
 ) {
   const dist = resolve('apps/web/dist');
   const accountId = '20000000-0000-4000-8000-000000000001';
@@ -69,7 +70,16 @@ async function fixture(
       });
     if (path === '/api/admin/v1/logs/status')
       return reply({
-        state: state === 'unavailable' ? 'unavailable' : 'ok',
+        state:
+          state === 'unavailable' ? 'unavailable' : state === 'collector-error' ? 'error' : 'ok',
+        collectorHealth:
+          state === 'collector-error'
+            ? {
+                state: 'error',
+                lastSuccessAt: '2026-10-07T10:00:00.000Z',
+                detail: 'fixture interruption',
+              }
+            : null,
         collectedAt: new Date().toISOString(),
         retentionDays: 30,
         bytes: 2048,
@@ -108,6 +118,14 @@ async function fixture(
       queries.push(url.searchParams);
       if (state === 'loading') return; // Deliberately unresolved response; page close releases it.
       if (failed) return reply({ error: { code: 'unavailable', message: 'offline' } }, 503);
+      if (state === 'partial' && !url.searchParams.has('scanCursor'))
+        return reply({
+          items: [],
+          next: null,
+          partial: true,
+          scanned: 200000,
+          scanCursor: '10000000-0000-4000-8000-000000000009',
+        });
       return reply({
         items: ['empty', 'unavailable'].includes(state)
           ? []
@@ -158,6 +176,12 @@ for (const width of [1440, 1025, 1024, 390, 320]) {
     await expect(page.getByRole('heading', { name: 'Админ Логи', exact: true })).toBeVisible();
     await expect(page.locator('.admin-log-entry')).toHaveCount(1);
     await expect(page.getByLabel('Журналы системы')).toBeVisible();
+    const moduleBox = await page
+      .getByRole('combobox', { name: 'Модуль', exact: true })
+      .boundingBox();
+    const searchBox = await page.getByRole('searchbox').boundingBox();
+    if (width >= 1025) expect(Math.abs(moduleBox!.y - searchBox!.y)).toBeLessThan(2);
+    if (width === 1024) expect(searchBox!.width).toBeGreaterThan(moduleBox!.width * 1.8);
     await expect(
       page.getByText('Источники и полнота: 151 дозагружаются; 1 недоступны'),
     ).toBeVisible();
@@ -192,6 +216,33 @@ test('source coverage is readable and archive buttons use dates independently of
   expect(f.exportBodies()[0]).toEqual(expect.objectContaining({ level: 'error' }));
   expect(f.exportBodies()[0]).not.toHaveProperty('source');
   expect(f.exportBodies()[0]).not.toHaveProperty('search');
+});
+
+test('search continues past a partial scan and never displays a false empty result', async ({
+  page,
+}) => {
+  const f = await fixture(page, 'partial');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  expect(f.queries()).toHaveLength(2);
+  expect(f.queries()[1]!.get('scanCursor')).toBe('10000000-0000-4000-8000-000000000009');
+  await expect(page.getByText(/За выбранный период и фильтры записей нет/)).toHaveCount(0);
+  expect(f.queries()[0]!.get('scope')).toBe('application');
+  await page.getByRole('combobox', { name: 'Показывать', exact: true }).selectOption('host');
+  await page.getByRole('button', { name: 'Показать', exact: true }).click();
+  await expect.poll(() => f.queries().at(-1)?.get('scope')).toBe('host');
+});
+
+test('collector errors are visible at a narrow width with fresh retained records', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await fixture(page, 'collector-error');
+  await expect(page.getByRole('alert')).toContainText('Сборщик сообщил об ошибке');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: `${evidence}/logs-collector-error-320.png`, fullPage: true });
 });
 
 for (const state of ['empty', 'error', 'loading', 'unavailable'] as const) {

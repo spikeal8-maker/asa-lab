@@ -4,16 +4,120 @@ import secrets
 import zipfile
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 import time
 from unittest.mock import patch
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from collect_logs import Collector, normalize, now, file_timestamp, clean
+from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health
 
 
 class CollectorTests(unittest.TestCase):
+    def test_first_startup_failure_publishes_health_without_a_catalog(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result=subprocess.run([sys.executable,str(Path(__file__).with_name('collect_logs.py')),'--root',temp,'--once'],capture_output=True,timeout=10)
+            self.assertNotEqual(result.returncode,0)
+            health=json.loads((Path(temp)/'.asa/diagnostics/store/collector-health.json').read_text())
+            self.assertEqual(health['state'],'error');self.assertIsNone(health['lastSuccessAt'])
+    def test_resource_sample_survives_database_failure_without_sql_or_secrets(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp),{});c.postgres='fixture';c.containers={}
+            c.command=lambda *args,**kwargs: (_ for _ in ()).throw(RuntimeError('password=private-value'))
+            c.telemetry();c.telemetry()
+            events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
+            self.assertEqual(len(events),1);payload=json.loads(events[0]['message'])
+            self.assertTrue(payload['incomplete']);self.assertGreater(payload['host']['diskFreeBytes'],0)
+            self.assertNotIn('private-value',events[0]['message']);c.db.close()
+    def test_history_reconciliation_is_independent_of_fresh_poll_age(self):
+        import csv, io
+        with tempfile.TemporaryDirectory() as temp:
+            c = Collector(Path(temp), {}); c.postgres = 'fixture'
+            stamp = (datetime.now(timezone.utc)-timedelta(days=3)).isoformat()
+            row = dict(id='retained-native-id', created_at=stamp, action='fixture')
+            stream = io.StringIO(); csv.writer(stream).writerow([json.dumps(row)])
+            queries = []
+            def command(args, **kwargs):
+                sql = kwargs['sql']; queries.append(sql)
+                return stream.getvalue().encode() if '"audit_events"' in sql and ' OR ' not in sql else b''
+            c.command = command
+            with patch('collect_logs.time.time', return_value=100000): c.database()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            with patch('collect_logs.time.time', return_value=100121): c.database()
+            with patch('collect_logs.time.time', return_value=100242): c.database()
+            self.assertEqual(len([s for s in queries if ' OR ' not in s]), 9)
+            with patch('collect_logs.time.time', return_value=121601): c.database()
+            self.assertEqual(len([s for s in queries if ' OR ' not in s]), 18)
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            c.publish(); catalog=json.loads((c.store/'catalog.json').read_text())
+            source=next(s for s in catalog['sources'] if s['source']=='database-history:audit_events')
+            self.assertIsNotNone(source['retainedFrom']); self.assertEqual(source['state'], 'ok'); c.db.close()
+
+    def test_failed_history_does_not_advance_cursor(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp), {}); c.postgres='fixture'
+            cursor=(datetime.now(timezone.utc)-timedelta(days=4)).isoformat()
+            c.set_state('db:history:audit_events', cursor)
+            def command(args, **kwargs):
+                if ' OR ' not in kwargs['sql']: raise RuntimeError('bounded query timeout')
+                return b''
+            c.command=command; c.database()
+            self.assertEqual(c.state('db:history:audit_events'),cursor)
+            self.assertIsNone(c.state('db:history:audit_events:completed'))
+            self.assertEqual(c.state('db:history:audit_events:span'),15*86400); c.db.close()
+
+    def test_compaction_recovers_after_file_write_without_losing_ids_or_snapshot(self):
+        for reopen in (False, True):
+            with tempfile.TemporaryDirectory() as temp:
+                root=Path(temp); c=Collector(root,{}); c.reader_format=2; ids=set(); metadata={}
+                for i in range(256):
+                    event=normalize('api','retained '+str(i),now(),str(i)); ids.add(event['id']); c.add(event)
+                    meta=c.write_segment(f'seg-{i+1:016d}-{i+1:016d}.jsonl',[event]); metadata[meta['file']]=meta
+                c.db.execute('UPDATE events SET published=1'); c.set_state('segments',metadata); c.db.commit()
+                with patch.object(c,'compact',side_effect=lambda s,r:(s,r)): c.publish()
+                before=json.loads((c.store/'catalog.json').read_text()); write=c.write_segment
+                def interrupted(*args): write(*args); raise RuntimeError('simulated power loss')
+                c.write_segment=interrupted
+                with self.assertRaisesRegex(RuntimeError,'power loss'):c.publish()
+                self.assertIsNotNone(c.state('compaction:pending')); c.db.rollback()
+                if reopen:
+                    c.db.close(); c=Collector(root,{})
+                else: c.write_segment=write
+                c.reader_format=2; c.publish()
+                catalog=json.loads((c.store/'catalog.json').read_text())
+                events=[json.loads(line) for s in catalog['segments'] for line in gzip.decompress((c.store/s['file']).read_bytes()).splitlines()]
+                self.assertEqual({e['id'] for e in events},ids); self.assertEqual(len(events),256)
+                self.assertLess(len(catalog['segments']),256)
+                self.assertTrue(all((c.store/s['file']).exists() for s in before['segments']))
+                c.add(normalize('api','after recovery',now(),'later'))
+                self.assertGreater(c.db.execute('SELECT max(seq) FROM events').fetchone()[0],288); c.db.close()
+
+    def test_copy_rotation_requires_verified_bytes_and_keeps_repetitions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); directory=root/'logs';directory.mkdir(); active=directory/'frpc.log'
+            active.write_text('ERROR repeat\nERROR repeat\n',encoding='utf8')
+            c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'tunnel','path':str(directory)}]})
+            c.files()
+            # Upgrade: the old cursor is at EOF but has no rotation fingerprint.
+            c.db.execute("DELETE FROM state WHERE key LIKE 'file:rotation:%'");c.files()
+            (directory/'frpc.20261009-000000.log').write_bytes(active.read_bytes()+b'ERROR extra\n')
+            active.write_text('ERROR new generation\n',encoding='utf8');c.files();c.files()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],4)
+            (directory/'independent.log').write_text('ERROR repeat\nERROR repeat\n',encoding='utf8');c.files()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],6);c.db.close()
+
+    def test_transcript_time_is_labelled_and_health_retains_last_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); file=root/'backup.log'; file.write_text('Start time: 20261001083000\nbackup complete\nStart time: 99999999999999\n',encoding='utf8')
+            c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'backup','path':str(file)}]});c.files()
+            events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
+            self.assertEqual(len(events),3);self.assertTrue(all(e['timeBasis']=='transcript' for e in events));c.db.close()
+            write_collector_health(root,'ok',now()); first=json.loads((root/'.asa/diagnostics/store/collector-health.json').read_text())
+            write_collector_health(root,'error',detail='password=private-value')
+            health=json.loads((root/'.asa/diagnostics/store/collector-health.json').read_text())
+            self.assertEqual(health['lastSuccessAt'],first['lastSuccessAt']);self.assertNotIn('private-value',health['detail'])
+
     def test_empty_legacy_index_keeps_sequence_after_atomic_swap(self):
         with tempfile.TemporaryDirectory() as temp:
             root=Path(temp);c=Collector(root,{});c.add(normalize('api','expired',now(),'expired'))
@@ -32,9 +136,9 @@ class CollectorTests(unittest.TestCase):
             self.assertTrue(file.exists());self.assertIsNone(c.state('retired:segments')[name])
             with patch('collect_logs.time.time',return_value=10020):c.publish()
             self.assertTrue(file.exists())
-            with patch('collect_logs.time.time',return_value=10139):c.publish()
+            with patch('collect_logs.time.time',return_value=10020+RETIRE_SECONDS-1):c.publish()
             self.assertTrue(file.exists())
-            with patch('collect_logs.time.time',return_value=10200):c.publish()
+            with patch('collect_logs.time.time',return_value=10020+RETIRE_SECONDS):c.publish()
             self.assertFalse(file.exists());c.db.close()
 
     def test_email_redaction_handles_long_identifiers_without_quadratic_delay(self):

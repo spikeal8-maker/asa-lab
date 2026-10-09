@@ -75,6 +75,47 @@
 
   let reporter = null;
   let editor = null;
+  let heartbeat = null;
+  const stopHeartbeat = () => {
+    if (heartbeat !== null) window.clearInterval(heartbeat);
+    heartbeat = null;
+  };
+  // A disposable diagnostic ID carries no capability or project identity.
+  const diagnosticInstance = new URL(window.location.href).searchParams.get('diagnosticInstance');
+  if (
+    integrated &&
+    /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(diagnosticInstance ?? '')
+  ) {
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        window.location.href,
+      );
+      if (url.origin !== window.location.origin || !url.pathname.startsWith('/api/'))
+        return originalFetch(input, init);
+      const headers = new Headers(
+        init?.headers ?? (input instanceof Request ? input.headers : undefined),
+      );
+      headers.set('x-asa-diagnostic-instance', diagnosticInstance);
+      headers.set('x-asa-diagnostic-module', 'scratch');
+      const started = performance.now();
+      try {
+        const response = await originalFetch(input, { ...init, headers });
+        if (response.status >= 400)
+          reporter?.requestFailed(
+            response.status,
+            response.headers.get('x-request-id'),
+            Math.round(performance.now() - started),
+          );
+        return response;
+      } catch (failure) {
+        if (failure?.name !== 'AbortError')
+          reporter?.requestFailed(null, null, Math.round(performance.now() - started));
+        throw failure;
+      }
+    };
+  }
   const incrementRejections = () => {
     const current = Number.parseInt(shell.dataset.protocolRejections ?? '0', 10) || 0;
     shell.dataset.protocolRejections = String(current + 1);
@@ -108,6 +149,8 @@
           onReady() {
             status.textContent = 'Учебный проект готов.';
             reporter.status('editor-ready');
+            stopHeartbeat();
+            heartbeat = window.setInterval(() => reporter?.status('runtime-heartbeat'), 15_000);
           },
           onDirty(generation) {
             reporter?.projectDirty(generation);
@@ -144,6 +187,7 @@
       });
     },
     onStop() {
+      stopHeartbeat();
       reporter?.status('stopped');
       void editor?.dispose().catch(() => undefined);
       shell.dataset.runtimeState = 'stopped';
@@ -153,6 +197,7 @@
   });
 
   const reportFatal = (code) => {
+    stopHeartbeat();
     if (!reporter) return;
     shell.dataset.runtimeState = 'error';
     status.textContent = 'Среда визуального программирования завершилась с ошибкой.';
@@ -168,6 +213,7 @@
     }
   });
   window.addEventListener('pagehide', () => {
+    stopHeartbeat();
     void editor?.flushRecovery().catch(() => undefined);
     void editor?.dispose().catch(() => undefined);
     protocol.dispose();

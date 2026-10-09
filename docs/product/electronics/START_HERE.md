@@ -21,6 +21,14 @@ from their numbering.
 
 Before executable work, run `pnpm validate:electronics-agent-docs --task <selected-id>`.
 The explicit ID must match canonical `in_progress` selection and a valid concrete card.
+An owner-authorized parallel repair uses an existing `parallel_lanes` record with its
+own unique lane/task IDs and explicit `parent_lane: electronics`; it runs preflight
+with `--scope <that-lane-id>` and validates its own exact selected task ID. Exactly
+one root `electronics` lane remains required. The controller selects child tasks on
+main and includes the exact card/router in existing context hints; a parent marker
+does not activate an unselected card, inherit permission or bypass programme/task
+blockers, dirty-path handoff or independent review. The validator checks every active
+root/child card, and `--task` accepts only one selected `in_progress` task.
 If the lane is `in_review` or `blocked`, implementation stops: use the declared review/blocker
 path only. A review-found code repair must be explicitly returned to an executable
 `in_progress` scope before editing production runtime.

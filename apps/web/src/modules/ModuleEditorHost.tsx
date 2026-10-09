@@ -10,6 +10,7 @@ import { AssignmentBrief } from '../components/AssignmentBrief';
 import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
 import { newClientId } from '../client-id';
+import { beginDiagnosticContext } from '../client-diagnostics';
 import { isGameModule } from '../games/game-catalog';
 import { BlocksEditor } from '../blocks/BlocksEditor';
 import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
@@ -119,6 +120,12 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       active = false;
     };
   }, [props.moduleKey, props.onModuleResolved, props.projectId, props.returnTo]);
+
+  useEffect(() => {
+    if (state.kind === 'ready' && state.moduleKey === 'electronics')
+      return beginDiagnosticContext('electronics');
+    return undefined;
+  }, [state.kind, state.kind === 'ready' ? state.moduleKey : null, props.projectId]);
 
   useEffect(() => {
     if (state.kind !== 'ready') return;

@@ -584,7 +584,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: final_convergence_after_accepted_531_532
+      checkpoint: bounded_native_popup_acceptance_protocol_repair
       dependency_for_issue: 526
       owner_acceptance: pending
       candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
@@ -603,11 +603,23 @@ parallel_lanes:
       dependencies_accepted:
       - 531
       - 532
-      final_candidate_sha: null
-      final_independent_review: not_run
+      final_candidate_sha: 31dfcbbdbb88219f69532cee2abc8479c2236772
+      final_independent_review: request_changes
       owner_approved_conflict_paths:
       - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/generated/component-coverage.json
+      final_candidate_tree: 644e33153a0e0c05360e3fb0a5eba0d7b7d8c51b
+      final_candidate_branch: codex/electronics-wire-menu-layer-530-final
+      final_independent_evidence: docs/product/electronics/evidence/wire-menu-530-final-independent-review-31dfcbbd.md
+      final_general_run: 37959804343
+      final_general_conclusion: success
+      final_electronics_run: 37959807372
+      final_electronics_conclusion: failure
+      final_browser_passed: 127
+      final_browser_failed: 1
+      repair_scope: Only native-open popup hit ownership protocol plus canonical digest;
+        preserve production CSS and all closed/unoccluded assertions, add closed full-control
+        receipt/action; no timeout change
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1084,25 +1096,24 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: eb112ea197b305a26607ab71b9ecc57222a1bc4e
+      convergence_baseline_sha: e49dce32205c2d1094c63eb24f0ab8c06e4438f4
       head_sha: null
-      observed_at: '2026-10-09T16:21:31Z'
+      observed_at: '2026-10-09T17:05:03Z'
       main:
         branch: main
-        sha: eb112ea197b305a26607ab71b9ecc57222a1bc4e
-      observation_note: 'Dated remote snapshot; fetch main and exact-SHA CI before writes. Accepted532 exact604ac63d/all8SUCCESS/127browser/95phases/NEW
-        APPROVE is preserved; closeout eb112ea1 and Issue532 CLOSED. Select ONLY saved53087099554
-        final convergence after accepted531/532. Owner expressly agreed to two known scenario-append/generated-digest
-        conflicts: preserve all127 current532/533/other scenarios, add unchanged saved530
-        native-menu scenario and regenerate canonical digest. CSS merges without conflict.
-        Any additional actual conflict STOP/show. No new product reimplementation, timeout/assertion
-        changes or persistence/runtime/physics edits. New final exact gates/full128browser
-        and NEW independent review required; old review/CI historical. Then immediately
-        resume preserved526 full56/denial/persistence acceptance. Other original complaints
-        have separately delegated nonoverlapping preparation, not authorization to write
-        in these530 paths. Preserve every suspended/accepted/foreign record and owner
-        data. K0/T3/class evidence pending; no deployment/DB/container/network/backup
-        operations.'
+        sha: e49dce32205c2d1094c63eb24f0ab8c06e4438f4
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Independent
+        exact31dfcbbd review REQUEST_CHANGES proves one temporary native-open popup/test
+        ownership mismatch, not an inaccessible product action. General37959804343 all4SUCCESS,
+        ordinary37959807372 focused/benchmarkSUCCESS, browser127PASS1FAIL and imagesSKIPPED.
+        Native530 all16phases pass; full532 only90/95 and4/5intent receipts. Selected
+        bounded test-protocol repair preserves CSS/all128cases/all95existingphases/deadlines
+        and adds exact popup ancestry plus full ownership after ordinary close. NEW final
+        SHA, ordinary gates and NEW independent review required; no acceptance claim.
+        Preserve accepted532/533/536, original870/31 candidates, parallel537/538 and preserved526.
+        Immediately after530 acceptance resume526 full56/denial real persistence acceptance.
+        Foreign admin-logs e49 main is preserved; pending main CI is not claimed PASS.
+        School K0/T3/class pending; no installation/DB/network/backup operations.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -2032,9 +2043,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: bounded_parallel_card_guard_repair
+      status: done
+      checkpoint: selected_parallel_guard_technically_accepted
       owner_acceptance: pending
+      accepted_candidate_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/parallel-card-guard-536-independent-review-51361740.md
     execution_lease:
       executor_id: electronics-control-536
       holder: unassigned
@@ -2048,17 +2062,163 @@ parallel_lanes:
         - pnpm gate:governance
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 47b8585c32ec5875ccb1db2d8d1f0877e68978f8
+      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
       head_sha: null
-      observed_at: '2026-10-09T16:24:31Z'
+      observed_at: '2026-10-09T16:49:06Z'
       main:
         branch: main
-        sha: 47b8585c32ec5875ccb1db2d8d1f0877e68978f8
-      observation_note: Dated snapshot; fetch main and exact CI before writes. Explicit
-        owner452 parallel repairs need bounded validation of existing selected parented
-        Electronics lanes. Only validator/tests/router; no product/current/card/deployment
-        mutation by author. Parent programme and task blockers checked by controller,
-        no inherited-blocker bypass. Root electronics530 and all foreign state preserved.
+        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
+        exact51361740 is technically accepted after remote Governance SUCCESS, final
+        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
+        or pupil acceptance claim. Owner explicitly authorizes the separately selected
+        E13/E07 product repairs. Each author owns only its exact card paths, checks
+        root programme/task/action blockers and actual dirty worktrees, returns one
+        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
+        acceptance still required. Root530 finalCI and preserved526 acceptance remain
+        priority, no competing changes in their paths. School/device/class/deployment
+        remain separate.
+    accepted_slices:
+    - task_id: TASK-ELECTRONICS-GOVERNANCE-008
+      issue: 536
+      accepted_candidate_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      integrated_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      candidate_tree: f8d13a2bdbc1e11d117d756f10ec5c59fd5e628b
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/parallel-card-guard-536-independent-review-51361740.md
+      independent_review_original_sha256: f89b2821b0905d59e050e13f772f05b87dc2fd120c3f843eca2daf776239b8fe
+      exact_governance_run: 37960652317
+      exact_governance_job: 113922339704
+      exact_governance_conclusion: success
+      full_general_observation: in_progress_at_review_not_claimed_pass
+      production_source_changed: false
+      status: technical_accepted
+      owner_acceptance: not_product_acceptance
+      deployment: not_run
+
+  - id: electronics-arduino
+    parent_lane: electronics
+    worktree_id: electronics-arduino-537
+    owned_paths:
+    - contexts/electronics/domain/arduino-program-runtime.ts
+    - contexts/electronics/domain/arduino-values.ts
+    - contexts/electronics/domain/arduino-capabilities.ts
+    - apps/web/src/electronics/arduino-source-language.ts
+    - apps/web/src/electronics/arduino-command-reference.ts
+    - contexts/electronics/testing/arduino-bitwise.spec.ts
+    - e2e/electronics-arduino-bitwise.spec.ts
+    - docs/product/electronics/components/arduino-peripherals.yaml
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-BITWISE-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
+      issue: 537
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_confirmed_product_repair
+      dependency_issue: 536
+      owner_acceptance: pending
+      dependency_status: technical_accepted
+      selected_at: '2026-10-09T16:49:06Z'
+    execution_lease:
+      executor_id: electronics-arduino-537
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      head_sha: null
+      observed_at: '2026-10-09T16:49:06Z'
+      main:
+        branch: main
+        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
+        exact51361740 is technically accepted after remote Governance SUCCESS, final
+        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
+        or pupil acceptance claim. Owner explicitly authorizes the separately selected
+        E13/E07 product repairs. Each author owns only its exact card paths, checks
+        root programme/task/action blockers and actual dirty worktrees, returns one
+        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
+        acceptance still required. Root530 finalCI and preserved526 acceptance remain
+        priority, no competing changes in their paths. School/device/class/deployment
+        remain separate.
+
+  - id: electronics-wire
+    parent_lane: electronics
+    worktree_id: electronics-wire-538
+    owned_paths:
+    - apps/web/src/electronics/workbench-document.ts
+    - apps/web/src/electronics/testing/workbench-document.spec.ts
+    - e2e/electronics-interactions.spec.ts
+    - docs/product/electronics/components/ui-assets-persistence.yaml
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-LEGACY-WIRE-SEGMENT-001.md
+    task:
+      id: TASK-ELECTRONICS-LEGACY-WIRE-SEGMENT-001
+      issue: 538
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_confirmed_product_repair
+      dependency_issue: 536
+      owner_acceptance: pending
+      dependency_status: technical_accepted
+      selected_at: '2026-10-09T16:49:06Z'
+    execution_lease:
+      executor_id: electronics-wire-538
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      head_sha: null
+      observed_at: '2026-10-09T16:49:06Z'
+      main:
+        branch: main
+        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
+        exact51361740 is technically accepted after remote Governance SUCCESS, final
+        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
+        or pupil acceptance claim. Owner explicitly authorizes the separately selected
+        E13/E07 product repairs. Each author owns only its exact card paths, checks
+        root programme/task/action blockers and actual dirty worktrees, returns one
+        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
+        acceptance still required. Root530 finalCI and preserved526 acceptance remain
+        priority, no competing changes in their paths. School/device/class/deployment
+        remain separate.
 
 integration:
   owner_lane: visual-programming
