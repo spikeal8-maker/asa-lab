@@ -1,0 +1,234 @@
+schema: asa-lab.electronics-hygiene-stabilization-004.v1
+task_id: TASK-ELECTRONICS-GOVERNANCE-007
+issue: 535
+program_issue: 452
+checkpoint_reason: Three accepted production-changing slices529/534/533 since full checkpoint524; test-only528/531 are excluded. This bounded evidence does not select the next task.
+reviewed_main_sha: 8bc337be3ec84b8e33faefedc825742b48a7ddef
+previous_full_checkpoint:
+  issue: 524
+  evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-003.yaml
+  reviewed_main_sha: 32f530c3b84a60af444872f5138af4933fc3c919
+  accepted_candidate_sha: 24ddd7c5f88cb1d672df448a5f9e9fa658b81772
+  independent_evidence: docs/product/electronics/evidence/hygiene-checkpoint-524-final-review-20261008.md
+counted_slice_provenance:
+  authority: Dated accepted_slices records in current.yaml at reviewed_main_sha plus their actual Git source diffs; this list is checkpoint provenance, not execution state.
+  production_changing:
+    - issue: 529
+      accepted_candidate_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd
+      concern: Immediate canonical publication of the visible Arduino sketch before Save or departure; the former260ms persistence timer is removed.
+    - issue: 534
+      accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+      concern: Identical Arduino property publication preserves the latest canonical reference and clean/dirty state; real changes still commit immediately.
+    - issue: 533
+      accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+      concern: Local pinned Blockly media directory is configured before inject creates image hrefs, with selective Vite packaging. Separate533 review accepted this combined source without rerunning unchanged journeys.
+  excluded_test_only_issues: [528, 531]
+  counted_production_slices: 3
+method:
+  sizes: Git blob bytes from git ls-tree -r --long on reviewed_main_sha, compared with the previous reviewed main and applicable baseline reviewed_bytes; Windows checkout CRLF is excluded.
+  delta: Git name-status/blob comparison only across the established two production roots and named routing/generated/historical/protected concerns, plus the actual533 Vite packaging dependency.
+  scope: Eight existing baseline sources and actual new50000-byte crossings, two existing legacy concerns and the changed media concern; no repeated capability inventory or accepted browser/load/device measurements.
+
+large_sources:
+  source_roots:
+    - contexts/electronics/domain
+    - apps/web/src/electronics
+  threshold_bytes: 50000
+  growth_review_percent: 20
+  tracked_production_sources_above_threshold: 8
+  newly_unreviewed_sources: []
+  over_twenty_percent_growth: []
+  excluded: Tests, compiled dist and generated outputs under the existing contract.
+  reviewed:
+    - path: contexts/electronics/domain/solver.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 179752
+      previous_full_checkpoint_bytes: 184413
+      current_bytes: 184413
+      growth_percent: 2.59
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active physical/model orchestration; retain until separately selected responsibility extraction proves deterministic netlist, physical accuracy and direct/Worker parity.
+    - path: apps/web/src/electronics/workbench.css
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 120669
+      previous_full_checkpoint_bytes: 133474
+      current_bytes: 133474
+      growth_percent: 10.61
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active cascade; unaccepted532 trial CSS is not current-main source and is excluded. Responsibility boundaries require separate visual/cascade evidence before any split.
+    - path: apps/web/src/electronics/WorkbenchSidebars.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103985
+      previous_full_checkpoint_bytes: 113843
+      current_bytes: 113843
+      growth_percent: 9.48
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active inspector/library surface; retain with its current routes until a selected boundary review proves behavior parity.
+    - path: apps/web/src/electronics/use-electronics-workbench.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 103385
+      previous_full_checkpoint_bytes: 105621
+      current_bytes: 106135
+      growth_percent: 2.66
+      delta_since_full_checkpoint_bytes: 514
+      disposition: Active interaction/simulation controller; delta is the latest-document publication comment and the bounded scalar/ordered-array no-op guard. No solver, runtime, save scheduler or global commit behavior is changed by that guard.
+    - path: contexts/electronics/domain/arduino-program-runtime.ts
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 84928
+      previous_full_checkpoint_bytes: 84880
+      current_bytes: 84880
+      growth_percent: -0.06
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active parser/runtime and compatibility profile; retain pending separately selected canonical-clock convergence with persisted-state and replay parity.
+    - path: apps/web/src/electronics/ArduinoCodePanel.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 63884
+      previous_full_checkpoint_bytes: 61409
+      current_bytes: 61250
+      growth_percent: -4.12
+      delta_since_full_checkpoint_bytes: -159
+      disposition: Active editor remains cohesive at the accepted boundary; delta removes the260ms persistence queue and supplies the pre-injection media base. The separate180ms block-generation debounce and existing late media consumer remain; smaller size is not retirement proof.
+    - path: apps/web/src/electronics/ProductionComponentVisual.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 72432
+      previous_full_checkpoint_bytes: 72775
+      current_bytes: 72775
+      growth_percent: 0.47
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged accepted ordinary-image lifecycle and family renderer; retain the518 reviewed ceiling and existing shared loading/instrument/selection debt.
+    - path: apps/web/src/electronics/WorkbenchStage.tsx
+      class: decomposition-candidate
+      baseline_reviewed_bytes: 54879
+      previous_full_checkpoint_bytes: 62462
+      current_bytes: 62462
+      growth_percent: 13.82
+      delta_since_full_checkpoint_bytes: 0
+      disposition: Unchanged active rendering/interaction surface; responsibility extraction requires separately selected gesture/connectivity/browser parity rather than splitting by bytes.
+  production_delta_since_full_checkpoint:
+    modified:
+      - apps/web/src/electronics/ArduinoCodePanel.tsx
+      - apps/web/src/electronics/use-electronics-workbench.ts
+    new: []
+    deleted: []
+    renamed: []
+    supporting_packaging_outside_source_roots:
+      - apps/web/vite.config.ts
+    test_delta_excluded_from_production_sizes:
+      - apps/web/src/electronics/testing/arduino-code-contract.spec.ts
+      - apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts
+      - e2e/electronics-simulation.spec.ts
+      - e2e/electronics-interactions.spec.ts
+      - e2e/organization-login.ts
+    unchanged_dependencies: pnpm-lock.yaml, package.json and apps/web/package.json have no delta; persistence scheduler, project-state controller, project-local-draft and both legacy implementation files also have no delta.
+    cross_lane_preservation: Portal/Account/Admin e2e changes coexist in the reviewed main. This checkpoint changes none of their files or semantics and does not relabel their evidence as Electronics acceptance.
+  baseline_changed_by_this_task: false
+  baseline_reason: The same eight sources remain active decomposition candidates, every applicable growth is below20%, no new threshold crossing or ownership change requires renewal, and existing legacy retirement conditions remain unsatisfied. Current findings are recorded here without resetting reviewed_bytes.
+
+legacy_bridges:
+  - path: apps/web/src/electronics/live-simulation.ts
+    class: compatibility-shim
+    retention_evidence: advanceLiveSimulation has no production call outside its declaration, but13 actual live-simulation.spec.ts calls and3 calls across the browser/memory benchmark tools remain. calculateSimulationPreflight is actively called by simulation-worker-evaluator.ts and use-electronics-workbench.ts; the file is not removable.
+    changed_since_full_checkpoint: false
+    intervening_delta_effect: The Arduino updateArduinoProgram guard changes only document publication. It neither migrates the13 reference-test/3 tooling calls nor removes the controller's preflight calls.
+    retirement_condition: Separately select migration or explicit retirement of every advanceLiveSimulation test/tool caller, preserve historical benchmark evidence, prove no public/package/schema/normative compatibility dependency blocks removal, and verify replacement/focused/shared gates. Whole-file removal additionally requires migration of active preflight helpers.
+    retirement_ready: false
+  - path: contexts/electronics/domain/arduino-program-runtime.ts
+    class: active-legacy-bridge
+    retention_evidence: advanceArduinoRuntime still explicitly selects legacy-ms-v1; arduino-model.ts and solver.ts retain actual production calls. The instruction-us-v1 canonical path coexists with this stateless/snapshot bridge.
+    changed_since_full_checkpoint: false
+    intervening_delta_effect: Runtime, solver and arduino-model blobs are unchanged. Editor publication and media packaging establish no canonical replacement for stateless/snapshot clock consumers or persisted compatibility.
+    retirement_condition: Separately select canonical-clock convergence for every production/stateless/snapshot caller, migrate public callers and persisted-state requirements, and prove replay/parity and normative compatibility before retiring legacy-ms-v1 or advanceArduinoRuntime.
+    retirement_ready: false
+
+changed_media_concern:
+  pre_initialization:
+    class: canonical-active
+    paths: [apps/web/src/electronics/ArduinoCodePanel.tsx, apps/web/vite.config.ts]
+    source_evidence: ScratchWorkspace passes the absolute local base derived from scratchZoomInUrl/document.baseURI into ScratchBlocks.inject before synchronous image creation. Vite hashes names plus original bytes of exactly sprites.png and zoom-in/out/reset.svg into one directory, preserves upstream filenames and disables inlining only for those four imports; unrelated assets retain default naming/inlining.
+    retained_original_artwork: Existing imported vendor bytes are packaged, not redrawn or generated. Owner-supplied and owner-audit roots are outside the exact packaging matcher and remain unchanged.
+  late_dom_refresh:
+    class: canonical-active
+    symbol: applyScratchMediaAssets
+    consumer: ScratchWorkspace's requestAnimationFrame callback calls applyScratchMediaAssets(host) followed by ScratchBlocks.svgResize(workspace); its cleanup still cancels assetFrame.
+    retention_evidence: The unchanged function sets both href and xlink:href on the four existing zoom/trash SVG-image selectors from the same imported local asset URLs. It is still called and the existing renderer contract explicitly requires applyScratchMediaAssets(host). It is not an unused orphan or a proven replacement for pre-injection configuration.
+    coverage_boundary: Accepted533 actual production/browser and Vite-contract evidence covers the combined pre-injection plus retained late-refresh implementation. No removal experiment, bootstrap/resize equivalence proof or coverage of a version without late refresh exists; this checkpoint does not invent such proof or claim late refresh independently necessary for every renderer.
+    future_removal_condition: A separately selected bounded maintenance slice must prove synchronous creation and subsequent renderer/resize behavior remain equivalent without this consumer, migrate its existing source-contract expectation, check runtime/import/public/schema/normative dependencies and pass applicable focused/browser/shared gates before deletion is considered.
+    removal_authorized: false
+
+routing:
+  canonical_map: docs/product/electronics/COMPONENT_MAP.yaml
+  map_changed_since_full_checkpoint: false
+  existing_component_route_files: 4
+  component_entries: 29
+  new_component_route_files: []
+  deleted_component_route_files: []
+  updated_component_route_files:
+    - docs/product/electronics/components/ui-assets-persistence.yaml
+  orphaned_routes: []
+  actual_route_delta: electronics.persistence.project adds the existing ArduinoCodePanel symbol/source, project-local-draft source, actual persistence/source/browser test paths and electronics.ui.workbench dependency. No component ID, card ownership or index route is removed; all four mapped component files exist.
+  router_delta: START_HERE adds the owner-priority registry refinement/save-recovery route to the existing452 programme. AGENT_GUIDE, DEVELOPMENT_SPEC, normative README and ENGINEERING_HYGIENE_CONTRACT are unchanged.
+  contract_delta: []
+  task_and_evidence_delta: Bounded new cards and accepted/rejected independent reports remain registered task/evidence provenance; none becomes a second task-selection authority or permission to resume suspended work.
+  validation_boundary: Selected-card routing validation checks actual source/symbol/test/dependency paths; full governance also validates existing documentation ownership and current state. This checkpoint performs no new product routing change.
+
+generated:
+  new_artifacts: []
+  deleted_artifacts: []
+  new_generators: []
+  deleted_generators: []
+  reviewed:
+    - path: docs/product/electronics/generated/component-coverage.json
+      class: generated
+      generator: tools/generate-electronics-component-coverage.mjs
+      stale_output_validator: tools/validate-electronics-component-information.mjs
+      blob_sha: 7dc937c45ae2b88cba079f7906781aa175d4a533
+      generated_bytes: 31454
+      changed_since_full_checkpoint: true
+      generator_changed_since_full_checkpoint: false
+      validator_changed_since_full_checkpoint: false
+      canonical_browser_source: e2e/electronics-simulation.spec.ts
+      canonical_browser_sha256: 7b3489f75dcfa3173c5e58ae74681a78790fa7785eb30db2f3d869ef149a0c23
+      evidence: The only generated JSON delta is generatedFrom.browserEvidenceSha256. Independent Git-blob LF-canonical SHA256 recomputation matches the committed value; every other parsed field is identical to the previous checkpoint. Existing generator canonicalTextSha256 normalizes CRLF and stale-output validation remains enabled.
+  hand_edited_by_this_task: false
+  regenerated_by_this_task: false
+
+historical_and_protected:
+  historical_evidence_preserved: true
+  historical_paths:
+    - docs/product/electronics/tasks/**
+    - docs/product/electronics/evidence/**
+    - docs/delivery/evidence/electronics-opt0/**
+  historical_deletions_or_renames_since_full_checkpoint: []
+  previous_checkpoint_and_baseline_preserved: true
+  protected_owner_assets_preserved: true
+  owner_supplied_tree_sha: 1314b45c0c38f9d3bfaa905526e34a0840e67d86
+  owner_audit_tree_sha: 87b2a4ba91a1bdfbeea0997d5df3a321757f03fe
+  protected_asset_changes_since_full_checkpoint: []
+  ordinary_browser_output_policy_changed: false
+  tracked_screenshot_changes_since_full_checkpoint: []
+  preservation_evidence: Git delta has no protected-root, e2e/artifacts or .gitignore changes. Existing Playwright outputDir remains reports/playwright, covered by the unchanged ignore rule; tracked owner screenshots are not deleted. Checkpoint003 blob remains identical to accepted524 candidate24ddd; baseline bytes remain identical to reviewed32f. Original accepted/rejected source commits and suspended candidates are untouched. Local owner ZIP/backups/credentials/screenshots are outside this Git audit and were not accessed or modified.
+
+actual_removals: []
+removal_evidence: Git delete/rename filters find none in the established Electronics production, supporting Vite, routing/generated/task/evidence, Electronics browser or protected roots since reviewed32f. This task adds only checkpoint004 and authorizes no removal, decomposition or artwork operation.
+
+residual_debt:
+  - concern: Eight large active sources retain existing mixed responsibilities; WorkbenchStage remains13.82% above its reviewed baseline, CSS10.61%, controller2.66%. No20% ceiling is exceeded.
+    owner_selectable_followup: Separate responsibility-boundary reviews/extraction with mapped ownership and physics/gesture/visual parity evidence; no automatic split or baseline reset.
+  - concern: applyScratchMediaAssets remains an active late DOM consumer alongside the accepted pre-injection media contract; removal equivalence has not been proved.
+    owner_selectable_followup: Separately select the narrow removal proof described above only if needed; preserve original bytes and current accepted behavior until then.
+  - concern: The reference/tool advanceLiveSimulation callers, active preflight helpers and stateless legacy-ms-v1 Arduino callers still block retirement.
+    owner_selectable_followup: Separately select caller migration and complete deletion/compatibility/replacement proof rather than deleting on the strength of zero Worker advance callers.
+  - concern: Unaccepted532/530/526 and suspended525 remain preserved. This checkpoint neither repairs their tests/product nor grants their acceptance.
+    owner_selectable_followup: Programme controller must freshly select the canonical dependency and obey each preserved card's scope/review/evidence; this evidence does not activate any task.
+  - concern: School installed version/full-backup K0 evidence is NOT_VERIFIED; T3 remains pending actual pupil-computer access. Accepted CI observations do not establish school frequency, hardware performance or class acceptance.
+    owner_selectable_followup: Obtain read-only K0 and actual pupil-device T3 evidence through their existing boundaries, recording the owner-required device/scenario metrics; no dev-PC substitute or installation mutation.
+
+production_source_changed_by_this_task: false
+test_source_changed_by_this_task: false
+generated_output_changed_by_this_task: false
+protected_asset_changed_by_this_task: false
+baseline_changed_by_this_task: false
+measurements_repeated_by_this_task: false
+owner_class_acceptance_claimed: false
+release_or_deployment_claimed: false
+task_selection_authorized_by_this_evidence: false
