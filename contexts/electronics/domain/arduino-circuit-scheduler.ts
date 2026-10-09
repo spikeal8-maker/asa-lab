@@ -122,6 +122,26 @@ function usesElectrothermalProfile(document: ElectronicsDocument): boolean {
   );
 }
 
+// Reuse a zero-duration solve only when every carried physical input is identical.
+// Object.is also distinguishes signed zero; no state or frame is retained between advances.
+function identicalPhysicalState(left: unknown, right: unknown): boolean {
+  if (Object.is(left, right)) return true;
+  if (!left || !right || typeof left !== 'object' || typeof right !== 'object') return false;
+  if (Array.isArray(left) !== Array.isArray(right)) return false;
+  const keys = Object.keys(left);
+  return (
+    keys.length === Object.keys(right).length &&
+    keys.every(
+      (key) =>
+        Object.hasOwn(right, key) &&
+        identicalPhysicalState(
+          (left as Record<string, unknown>)[key],
+          (right as Record<string, unknown>)[key],
+        ),
+    )
+  );
+}
+
 export interface ArduinoCircuitInputEvent {
   readonly atMicroseconds: number;
   readonly componentId: string;
@@ -700,15 +720,25 @@ export function advanceArduinoCircuitClock(
         (board) => [board.id, arduinoSnapshotFromState(states.get(board.id) ?? coldState)] as const,
       ),
     );
+  let qualityDocument: ElectronicsDocument | undefined;
+  let qualityCircuit: ReturnType<typeof compileCircuit> | undefined;
   const withQuality = (
     frame: SolveResult,
     time: number,
-  ): NonNullable<ArduinoCircuitClockAdvance['result']> => ({
-    ...frame,
-    quality: verifyCircuitQuality(activeDocument, compileCircuit(activeDocument), frame, {
-      simulationTimeMs: time / 1000,
-    }),
-  });
+  ): NonNullable<ArduinoCircuitClockAdvance['result']> => {
+    // Compilation depends only on the immutable active document, never on a frame.
+    // Each applied input replaces that document; every frame is still independently verified.
+    if (qualityDocument !== activeDocument || !qualityCircuit) {
+      qualityCircuit = compileCircuit(activeDocument);
+      qualityDocument = activeDocument;
+    }
+    return {
+      ...frame,
+      quality: verifyCircuitQuality(activeDocument, qualityCircuit, frame, {
+        simulationTimeMs: time / 1000,
+      }),
+    };
+  };
   const advancePhysics = (time: number) =>
     withQuality(
       solveRcCircuitWithHeldArduino(
@@ -734,16 +764,21 @@ export function advanceArduinoCircuitClock(
       // otherwise UI frame rate would change adaptive integration and later ADC reads.
       const advanced = advancePhysics(time);
       if (!advanced.solved || !advanced.quality.passed) return advanced;
+      // The follow-up still runs whenever integration or a zero-duration settle changed
+      // any physical input. Otherwise it would repeat exactly the solve just verified.
       cachedFrame = withQuality(
-        solveRcCircuitWithHeldArduino(
-          activeDocument,
-          time / 1000,
-          snapshots(),
-          advanced.transientState,
-          hcSr04States,
-          pingUltrasonicStates,
-          servoStates,
-        ),
+        physicalState?.simulationTimeMs === time / 1000 &&
+          identicalPhysicalState(physicalState, advanced.transientState)
+          ? advanced
+          : solveRcCircuitWithHeldArduino(
+              activeDocument,
+              time / 1000,
+              snapshots(),
+              advanced.transientState,
+              hcSr04States,
+              pingUltrasonicStates,
+              servoStates,
+            ),
         time,
       );
     } else {

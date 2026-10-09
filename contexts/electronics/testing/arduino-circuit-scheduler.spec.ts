@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { createHash } from 'node:crypto';
 import {
   advanceArduinoCircuitClock,
   type ArduinoCircuitClockAdvance,
@@ -183,7 +184,91 @@ function pingUltrasonicCircuit(distanceMeters = 1, powered = true) {
   return circuit([board('uno', source), pingUltrasonic('ping', distanceMeters)], wires);
 }
 
+function coupledPhysicalCircuit() {
+  return circuit(
+    [
+      board(
+        'uno',
+        'int analog=0;int digital=0;void setup(){pinMode(2,INPUT_PULLUP);pinMode(13,OUTPUT);}void loop(){analog=analogRead(A0);digital=digitalRead(2);digitalWrite(13,digital);delayMicroseconds(400);}',
+      ),
+      part('source', 'source', 5),
+      part('rc', 'resistor'),
+      {
+        ...part('cap', 'visual', 10),
+        componentTypeId: 'electrolytic-capacitor',
+        pinIds: ['positive', 'negative'],
+        stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+      },
+      {
+        ...part('motor', 'visual', 5),
+        componentTypeId: 'dc-motor',
+        pinIds: ['negative', 'positive'],
+      },
+      part('rled', 'resistor', 330),
+      part('led', 'led', 2),
+      part('key', 'button'),
+    ],
+    [
+      ['source', 'a', 'rc', 'a'],
+      ['rc', 'b', 'cap', 'positive'],
+      ['cap', 'negative', 'source', 'b'],
+      ['cap', 'positive', 'uno', 'a0'],
+      ['source', 'b', 'uno', 'power-gnd-1'],
+      ['source', 'a', 'motor', 'positive'],
+      ['motor', 'negative', 'source', 'b'],
+      ['uno', 'd13', 'rled', 'a'],
+      ['rled', 'b', 'led', 'a'],
+      ['led', 'b', 'source', 'b'],
+      ['uno', 'd2', 'key', 'a'],
+      ['key', 'b', 'source', 'b'],
+    ],
+  );
+}
+const physicalInputs: readonly ArduinoCircuitInputEvent[] = [
+  { atMicroseconds: 1000, componentId: 'key', property: 'state', value: true },
+  { atMicroseconds: 2000, componentId: 'key', property: 'state', value: false },
+];
+
 describe('Arduino shared dc-inputs-v1 circuit clock', () => {
+  it.each([1, 7, 256, 1024])(
+    'preserves the pre-optimization full RC/heat/motor/ADC/GPIO trace with budget %i',
+    (budget) => {
+      const done = through(coupledPhysicalCircuit(), 5000, undefined, physicalInputs, budget);
+      expect(done.executionStatus).toBe('ready');
+      expect(done.result!.quality.passed).toBe(true);
+      expect(runtime(done).variables).toMatchObject({ analog: 393, digital: 1 });
+      expect(done.state!.physicalState!.capacitors[0]!.voltageVolt).toBeGreaterThan(1);
+      expect(done.state!.physicalState!.motors![0]!.currentAmp).toBeGreaterThan(0);
+      expect(
+        done.state!.physicalState!.thermal.some((entry) => entry.temperatureCelsius > 25),
+      ).toBe(true);
+      // Whole, unrounded output from the retained pre-optimization scheduler: state,
+      // ordered events, all electrical observations, diagnostics and independent quality.
+      expect(createHash('sha256').update(JSON.stringify(done)).digest('hex')).toBe(
+        'add3bf882d26e126dd468ab7fdbd52d844eb2eac1b7db3297479c3564c680137',
+      );
+    },
+  );
+
+  it('preserves physical checkpoints across speculative horizons and same-time input barriers', () => {
+    const doc = coupledPhysicalCircuit();
+    const whole = through(doc, 5000, undefined, physicalInputs);
+    let previous: ArduinoCircuitClockState | undefined;
+    const events: ArduinoCircuitClockAdvance['events'][number][] = [];
+    let last: ArduinoCircuitClockAdvance | undefined;
+    for (const horizon of [999, 1000, 1001, 1999, 2000, 2001, 5000]) {
+      last = through(doc, horizon, previous, physicalInputs, 3);
+      expect(last.executionStatus).toBe('ready');
+      events.push(...last.events);
+      previous = JSON.parse(JSON.stringify(last.state));
+    }
+    expect(JSON.stringify({ ...last, events })).toBe(JSON.stringify(whole));
+    const repeated = through(doc, 5000, previous, physicalInputs);
+    expect(repeated.events).toEqual([]);
+    expect(repeated.state).toEqual(whole.state);
+    expect(repeated.result).toEqual(whole.result);
+  });
+
   it('verifies the existing DC path from committed GPIO, without replaying input-dependent code', () => {
     const doc = circuit(
       [
