@@ -588,7 +588,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_bounded_media_cache_revalidation_test_repair
+      checkpoint: r3_bounded_canonical_media_fixture_test_repair
       dependency_for_issue: 532
       owner_acceptance: pending
       first_candidate_sha: 680ab8bf383280ee512ac4eca358290b817c5989
@@ -609,6 +609,16 @@ parallel_lanes:
       r1_directed_run: 37902333200
       r1_directed_conclusion: failure
       r1_ordinary_browser: not_run
+      r2_candidate_sha: 8f468d2560b4955a5ebfbbede25301b393ad5f9e
+      r2_candidate_tree: 8e7e05d3afd88e71ff907eb0fa7acfb2816d9ab2
+      r2_candidate_branch: codex/electronics-blockly-media-init-533-r2
+      r2_independent_review: request_changes
+      r2_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r2-independent-review-8f468d25.md
+      r2_general_run: 37904849942
+      r2_general_observed: success
+      r2_directed_run: 37904865576
+      r2_directed_conclusion: failure
+      r2_ordinary_browser: not_run
     suspended_slices:
       - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
         issue: 532
@@ -833,20 +843,20 @@ parallel_lanes:
         compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: b584b4332fa64c9678601613d4fa42ffb7bf3587
+      convergence_baseline_sha: 611db0e86b7300aa8b3b4916ad1a3dfc47dd7660
       head_sha: null
-      observed_at: '2026-10-09T08:10:35Z'
+      observed_at: '2026-10-09T08:43:56Z'
       main:
         branch: main
-        sha: b584b4332fa64c9678601613d4fa42ffb7bf3587
+        sha: 611db0e86b7300aa8b3b4916ad1a3dfc47dd7660
       observation_note: >-
-        Dated snapshot; fetch main and actual exact CI before writing. Main b584 General37901662201 all4SUCCESS. All accepted and suspended history preserved.
-        Published533 R1 source45acab06/treea0a92559/ref preserved and unaccepted. First680 historical unpublished observation is dated: it is now a published ancestor. NEW independent REQUEST_CHANGES: directed child743379/run37902333200/job113727556782 fails response.body on bodyless304 after reload; ordinary Electronics NOT_RUN.
-        Actual original trace each mode: four same-origin initial200 with all pinned vendor hashes, then four304 same URLs with If-None-Match equal prior200 ETag; no redirect Location/demo-host. Five stored media/scale phases and ten original PNGs are partial evidence, NOT full acceptance: reopened captures start AFTER After Hooks (mixed7778.228 versus screenshot8049.594; blocks14610.442 versus14821.020), only four pre-teardown phases per mode; both full intent receipts absent because Promise.all rejects. No product media failure or timeout established.
-        Select NEW R2 test-only author. Preserve product panel/Vite/focused test byte-identical680. Correct observer to retain every response status/URL/validator, immediately handle all promises, initial four200 full body hashes mandatory; permit ONLY validated304 for identical prior200 URL/ETag/pinned bytes. No blanket3xx/error ignore, cache disabling, fake traffic, sleeps/force or timeout increases.
-        Strengthen actual reopened normal zoom in/out/reset and viewport/clipping/hit observations for controls after specific original blocks/reopened visual observation; no steady-state root cause or school frequency claimed. Preserve both modes/full source/server document/revision/local separately/old120/531/all existing assertions. Only new test region and canonical browser digest may change.
-        Root actual final source then normal push and ONE changed-cause directed cache/reopen diagnostic outside final ancestry. Required ordinary final exact all8 plus complete raw intent/media/original visual evidence and NEW independent APPROVE before integration. A confirmed product blocker requires separate selection; do not change product speculatively.
-        After technical533 acceptance restore532 shorter text segments preserving52text/95total/30s; hygiene count529=1, accepted533would2/532would3 before530; then526 full56. Preserve all refs and foreign work. School K0/T3/owner/class/release pending; no deployment/DB/network/backups.
+        Dated snapshot; fetch main and actual current/exact CI before writes. Main611 General37903533950 all4SUCCESS. All prior accepted/suspended/foreign data preserved.
+        Published533 R2 source8f468d25/tree8e7e05d3 preserved unaccepted. NEW independent REQUEST_CHANGES after directed child320a7/run37904865576/job113735785623: strict full server equality fails revision2to3, workspace hats x330to379 and two existing catalog defaults. Ordinary Electronics NOT_RUN.
+        Original raw shows before-first-zoom full local snapshot already has all three changes; normal reload page-exit PUT persists it. Existing load normalizer and keepWorkspaceClearOfFlyout are byteequalmain: width290/startScale0.86 demands x>=379.209. New media fixture omitted defaults and put hats under reserved flyout. This is not a proved media-induced mutation or general pupil-loss cause.
+        R2 cache observer/normal post-reopen zoom/reset and all14 original PNG/control phases complete BEFORE teardown; full intent receipts absent due strict equality failure. Preserve raw, no acceptance or stale-head claim.
+        Select NEW R3 fixture-only author: before initial API save set two hats x400 outside reserved flyout and explicit existing resistor powerRatingWatt0.25/button contactState released. Keep all code/connections/source/IDs/other intent. Initial fixture must be canonical for unchanged production load. Do not normalize after, move baseline after mount, drop fields, relax full equality/revision, or change product/observer/geometry/30s/old120/531/workflow/deps.
+        Only NEW533 fixture region and canonical generated digest may change; product panel/Vite/unit byteequal680 and allR2 assertions/cache provenance/14planned images unchanged. NEW source inspection/normal push/ONE changed-cause directed canonical fixture scenario, required final ordinary all8 and NEW independent review precede integration.
+        After533 acceptance fresh532 shorter text packaging all52text/95total; hygiene529count1,533would2/532would3 before530; then526full56. Preserve all source refs and owner data. No school deployment/DB/network/backups; K0/T3/owner/class/release pending.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
