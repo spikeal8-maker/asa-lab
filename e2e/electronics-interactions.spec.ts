@@ -4871,6 +4871,31 @@ test.describe('E07 saved legacy wire segments with the real API', () => {
         page,
         browser,
       }, testInfo) => {
+        // Register before login: hash navigation does not create a new document.
+        await page.addInitScript(() => {
+          const events: unknown[] = [];
+          Reflect.set(window, '__legacyWireInput538', events);
+          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
+            document.addEventListener(
+              type,
+              (event) => {
+                const pointer = event as PointerEvent;
+                const target = event.target instanceof Element ? event.target : null;
+                if (events.length === 128) events.shift();
+                events.push({
+                  type,
+                  trusted: event.isTrusted,
+                  pointerType: pointer.pointerType,
+                  x: pointer.clientX,
+                  y: pointer.clientY,
+                  atMs: performance.now(),
+                  targetClass: target?.getAttribute('class'),
+                  wireId: target?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
+                });
+              },
+              true,
+            );
+        });
         const account = await seedTeacher(legacyAdmin, `e07-${input}-${testInfo.workerIndex}`);
         await loginWithOrganization(page, account);
         const origin = new URL(page.url()).origin;
@@ -4945,32 +4970,12 @@ test.describe('E07 saved legacy wire segments with the real API', () => {
           )
             puts.push(request.postDataJSON());
         });
-        await page.addInitScript(() => {
-          const events: unknown[] = [];
-          Reflect.set(window, '__legacyWireInput538', events);
-          for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel'])
-            document.addEventListener(
-              type,
-              (event) => {
-                const pointer = event as PointerEvent;
-                const target = event.target instanceof Element ? event.target : null;
-                if (events.length === 128) events.shift();
-                events.push({
-                  type,
-                  trusted: event.isTrusted,
-                  pointerType: pointer.pointerType,
-                  x: pointer.clientX,
-                  y: pointer.clientY,
-                  atMs: performance.now(),
-                  targetClass: target?.getAttribute('class'),
-                  wireId: target?.closest('[data-wire-id]')?.getAttribute('data-wire-id') ?? null,
-                });
-              },
-              true,
-            );
-        });
         await page.goto(`/#/home/${projectId}`, { waitUntil: 'domcontentloaded' });
         await expect(page.locator('.workbench-stage')).toBeVisible();
+        expect(
+          await page.evaluate(() => Array.isArray(Reflect.get(window, '__legacyWireInput538'))),
+          'The native-input observer must be installed before the first wire gesture',
+        ).toBe(true);
         const output = testInfo.outputPath('electronics-legacy-wire-538');
         mkdirSync(output, { recursive: true });
         const phases: unknown[] = [];
@@ -4999,7 +5004,12 @@ test.describe('E07 saved legacy wire segments with the real API', () => {
                 y: Number(node.getAttribute('cy')),
               })),
             ),
-            input: await target.evaluate(() => Reflect.get(window, '__legacyWireInput538') ?? []),
+            inputObserverScope:
+              target === page ? 'native-gesture-page' : 'fresh-context-without-input-observer',
+            inputObserverInstalled: await target.evaluate(() =>
+              Array.isArray(Reflect.get(window, '__legacyWireInput538')),
+            ),
+            input: await target.evaluate(() => Reflect.get(window, '__legacyWireInput538') ?? null),
             puts: structuredClone(puts),
           });
           writeFileSync(
