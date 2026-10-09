@@ -42,3 +42,9 @@ Root independently checks the actual result, publishes normally, verifies the re
 After technical closeout the programme controller restores only the next canonical dependency, preserved532 shorter text-test packaging with all52text/95total and unchanged30s. This card itself does not activate532. School installed version/full backups K0 remain NOT_VERIFIED, pupil T3 pending class access, owner/class/release/deployment remain separate.
 
 NEXT_ALLOWED_TASK for author/reviewer: STOP / controller.
+
+## Technical closeout
+
+Exact candidate `abe4b02a617f4174291763d88c492d3bec5cf957` is technically accepted after [NEW independent review](../evidence/hygiene-checkpoint-535-independent-review-abe4b02a.md) APPROVE and exact General37918283928 all4SUCCESS. [Acceptance and limitations](../evidence/hygiene-checkpoint-535-acceptance-20261009.md). Full checkpoint004 covers all seven mandatory categories and resolves the accepted529/534/533 count after524. Baseline and every existing file remain unchanged in the candidate; no removals, product repair, decomposition or accepted measurement replay. Retained legacy/media consumers have concrete future proof boundaries.
+
+Controller must freshly select preserved532 shorter text packaging before any new product work; this closeout does not activate it. All accepted and suspended work remains intact. SchoolK0/T3, owner/class/release/deployment remain separate.

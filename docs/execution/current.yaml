@@ -587,10 +587,13 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: mandatory_hygiene_after_529_534_533
+      status: done
+      checkpoint: full_hygiene_checkpoint_004_technically_accepted
       dependency_for_issue: 532
       owner_acceptance: pending
+      accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+      independent_review: approved
+      evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-acceptance-20261009.md
     suspended_slices:
     - task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
       issue: 533
@@ -949,17 +952,16 @@ parallel_lanes:
       compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: f3eea081cc06f10b5e3ed066825b8ff99c148d6b
+      convergence_baseline_sha: abe4b02a617f4174291763d88c492d3bec5cf957
       head_sha: null
-      observed_at: '2026-10-09T10:18:45Z'
+      observed_at: '2026-10-09T10:50:28Z'
       main:
         branch: main
-        sha: f3eea081cc06f10b5e3ed066825b8ff99c148d6b
+        sha: abe4b02a617f4174291763d88c492d3bec5cf957
       observation_note: >-
-        Dated snapshot; fetch main and actual current/exact CI before writing. Technical533 and534 are closed after separate NEW independent exact084 APPROVE; matching General37910895056/ordinary Electronics37911539739 all8SUCCESS/122browser reused without repeat. Mainf3ee closeout is controller docs; its registered CI must be read at actual current SHA, never relabeled from084.
-        Accepted production529+534+533 equals three since full524; mandatory bounded hygiene535 is now selected before532. Author scope only checkpoint-stabilization-004 evidence and baseline renewal only if an actual reviewed fact requires it. No general capability inventory, accepted measurement replay, product/test/generated/dependency/workflow/artwork change, deletion or decomposition.
-        Use actual Git delta from524 reviewed32f530c3 to selected current main, established two source roots/eight large entries/actual new threshold crossings, concrete legacy retirement consumers, routing/generated provenance/historical/protected preservation and residual debt. Root actual facts/scope, exact candidate General and NEW independent review before integration. No automatic gate-restoration exception.
-        Preserve accepted533 full completion snapshot and all old rejected refs/reviews, all accepted/suspended/foreign state,525/532/530/526/505/506. After accepted hygiene fresh selection returns to532 shorter text packaging with52text/95total/unchanged30s, then530/526full56; next product slice not activated here.
+        Dated snapshot; fetch main and actual exact CI before writing. Technical535 full checkpoint004 accepted on unchanged abe4b02a after NEW independent APPROVE and General37918283928 all4SUCCESS. Seven mandatory categories inspected against full524 reviewed32f to selected8bc; baseline unchanged, no removals or product changes.
+        Full hygiene resolves three counted production slices529,534,533; test-only528,531 excluded. Next controller dependency is preserved532 shorter text viewport packaging with all52text/95total/full intent per segment/unchanged30s, then530 and526full56. No product task is activated by this closeout; fresh canonical selection and applicable conflict guards remain required.
+        All accepted results and full533/R3 snapshots, suspended525/unaccepted532/530/526,505/506 and foreign state preserved. Large sources below20percent; legacy callers and active late media refresh retained with concrete removal proof boundaries. No repeated accepted browser/load/device measurement or cleanup/decomposition/artwork operation.
         SchoolK0 version/full backups NOT_VERIFIED; pupilT3 awaits class access. Owner/class/release/deployment remain separate. No working installation/DB/container restart/network/backup/restore action.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
@@ -981,6 +983,30 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-007
+        issue: 535
+        accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        integrated_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        candidate_tree: 779866c3cca7fe30be405f1bac4e7634aabb517b
+        independent_review: approved
+        independent_review_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        exact_candidate_general_run: 37918283928
+        exact_candidate_general_conclusion: success
+        production_source_changed: false
+        full_hygiene_checkpoint: true
+        hygiene_evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
+        reviewed_main_sha: 8bc337be3ec84b8e33faefedc825742b48a7ddef
+        counted_slices_resolved:
+        - 529
+        - 534
+        - 533
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-independent-review-abe4b02a.md
+        independent_review_original_sha256: bf613d125643606253920c5b19d7acd672803881704fb53dacf84befe2e2981f
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
         issue: 533
         accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
