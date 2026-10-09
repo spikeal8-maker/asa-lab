@@ -1,4 +1,4 @@
-name: Electronics R4-M1 Focused
+name: Electronics 543 Causal PSU BEFORE Diagnostic ONLY
 
 on:
   pull_request:
@@ -38,93 +38,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  focused:
-    name: Shared solver, editor contracts and build
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      # One gate per result: the same command a local agent and an owner
-      # evidence run invoke. Do not inline its steps here.
-      - name: Focused Electronics M1 gate
-        run: pnpm gate:electronics-m1
-
-  benchmark:
-    name: Electronics E-OPT benchmark integrity
-    needs: focused
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      CI: 'true'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Set up pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 9.15.9
-          run_install: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: pnpm
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Install Chromium for benchmark probes
-        run: pnpm exec playwright install --with-deps chromium
-
-      # Performance timings are evidence only at E-OPT-0. This gate fails on
-      # execution errors, status drift, golden-result drift or nondeterminism;
-      # it deliberately has no millisecond threshold yet.
-      - name: Electronics E-OPT quick benchmark suite
-        run: pnpm benchmark:electronics:ci
-
-      - name: Upload E-OPT benchmark evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-e-opt-${{ github.run_id }}
-          path: |
-            reports/electronics-opt0-*.json
-            reports/electronics-opt0-*.md
-          if-no-files-found: ignore
-          retention-days: 14
-
   browser:
-    name: Actual editor live simulation journey
-    needs: focused
+    name: Causal 543 PSU BEFORE diagnostic ONLY
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -167,14 +82,12 @@ jobs:
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
           up -d --wait --wait-timeout 240 --no-deps api web
 
-      # Identical to the command registered in docs/testing/active-task-tests.yaml.
-      # Named as its own gate because `gate:electronics-m1` deliberately does not
-      # include it: that gate needs no browser stack, this one does.
-      - name: Electronics M1 browser gate
+      # Same four pupil scenarios; only the two PSU product files are restored for causal BEFORE.
+      - name: Causal BEFORE diagnostic NOT registered gate
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
           run --rm --no-deps test-runner
-          pnpm gate:electronics-m1:browser
+          pnpm exec playwright test e2e/electronics-simulation.spec.ts --grep 'ELECTRONICS-E04 PSU settings'
 
       - name: Show isolated stack state
         if: always()
@@ -196,51 +109,3 @@ jobs:
         run: >-
           docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test
           down -v --remove-orphans
-
-  review-images:
-    name: Package exact-head review images
-    needs: [focused, benchmark, browser]
-    runs-on: ubuntu-24.04
-    timeout-minutes: 35
-    env:
-      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
-      ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
-    steps:
-      - name: Checkout exact candidate
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-
-      - name: Build exact API and Web review images
-        run: docker compose -f compose.yaml -f .github/compose.registry-ci.yaml build --build-arg NODE_IMAGE=public.ecr.aws/docker/library/node@sha256:43aeff40f4afc22e83f7589a2f37e111cff5ca84529571f1c8415bcc5fcc21b2 --build-arg CADDY_IMAGE=public.ecr.aws/docker/library/caddy@sha256:d8c17a862962def15cde69863a3a463f25a2664942eafd7bdbf050e9c3116b83 --build-arg BUILDKIT_SYNTAX=mirror.gcr.io/docker/dockerfile@sha256:b5f3b260a9678e1d83d2fce86eeddf79420b79147eaba2a25986f47133d73720 api web
-
-      - name: Verify exact revision labels
-        shell: bash
-        run: |
-          set -euo pipefail
-          api_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-api:${ASA_IMAGE_TAG}")"
-          web_revision="$(docker image inspect --format='{{ index .Config.Labels "org.opencontainers.image.revision" }}' "asa-lab-web:${ASA_IMAGE_TAG}")"
-          test "$api_revision" = "$ASA_BUILD_REVISION"
-          test "$web_revision" = "$ASA_BUILD_REVISION"
-
-      - name: Export ready-to-load review images
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p review-images
-          docker save "asa-lab-api:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-api-${ASA_IMAGE_TAG}.tar.gz"
-          docker save "asa-lab-web:${ASA_IMAGE_TAG}" | gzip -1 > "review-images/asa-lab-web-${ASA_IMAGE_TAG}.tar.gz"
-          printf 'revision=%s\napi=%s\nweb=%s\n' \
-            "$ASA_BUILD_REVISION" \
-            "asa-lab-api:${ASA_IMAGE_TAG}" \
-            "asa-lab-web:${ASA_IMAGE_TAG}" > review-images/MANIFEST.txt
-          sha256sum review-images/*.tar.gz > review-images/SHA256SUMS
-
-      - name: Upload exact-head review images
-        uses: actions/upload-artifact@v4
-        with:
-          name: electronics-review-images-${{ github.run_id }}
-          path: review-images
-          if-no-files-found: error
-          retention-days: 14

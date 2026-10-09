@@ -101,16 +101,7 @@ function stripTimedRuntimeInputs(document: SchematicDocument): unknown {
         if (Object.keys(stateProperties).length > 0) clone.stateProperties = stateProperties;
         else delete clone.stateProperties;
       }
-      // Explicit finite U owns PSU voltage; its equal numeric value is only
-      // the persisted alias. Keep legacy fallback and inconsistent aliases
-      // structural, and never normalize values belonging to another device.
-      const voltage = component.stateProperties?.voltageSetpointVolt;
-      return component.componentTypeId === 'regulated-power-supply' &&
-        typeof voltage === 'number' &&
-        Number.isFinite(voltage) &&
-        component.value === voltage
-        ? { ...clone, value: 'regulated-power-supply-voltage-alias' }
-        : clone;
+      return clone;
     }),
   };
 }
