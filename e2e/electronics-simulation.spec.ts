@@ -8180,7 +8180,17 @@ async function observePsuPersistenceWorker(page: Page) {
               requestedHorizonMicroseconds: number;
               committedHorizonMicroseconds: number;
               state: { continuation?: { serializedState?: string } };
-              result?: { solved?: boolean };
+              result?: {
+                solved?: boolean;
+                status?: string;
+                quality?: { finite: boolean; passed: boolean };
+                components?: Array<{
+                  componentId: string;
+                  voltageDrop: number;
+                  current: number;
+                  regulationMode?: string;
+                }>;
+              };
               serial?: unknown;
             };
           };
@@ -8194,6 +8204,12 @@ async function observePsuPersistenceWorker(page: Page) {
             committed: response.advance.committedHorizonMicroseconds,
             serializedState: response.advance.state.continuation?.serializedState ?? null,
             solved: response.advance.result?.solved ?? false,
+            resultStatus: response.advance.result?.status,
+            quality: response.advance.result?.quality,
+            supplyResult:
+              response.advance.result?.components?.find(
+                (component) => component.componentId === 'bench-supply',
+              ) ?? null,
             serial: response.advance.serial,
             metrics: response.metrics,
             uiClockBeforePublication: document.querySelector('.workbench-simulation-time')
@@ -8217,6 +8233,14 @@ type Psu543Sample = {
   previousCommitted?: number;
   inputEvents?: Array<{ operation: string; payload: unknown; atMicroseconds: number }>;
   solved?: boolean;
+  resultStatus?: string;
+  quality?: { finite: boolean; passed: boolean };
+  supplyResult?: {
+    componentId: string;
+    voltageDrop: number;
+    current: number;
+    regulationMode?: string;
+  } | null;
   metrics?: unknown;
 };
 async function psu543Records(page: Page): Promise<Psu543Sample[]> {
@@ -8236,6 +8260,7 @@ for (const width of [1440, 1024, 390, 320]) {
     const puts: Array<{ at: number; document: SchematicDocument; baseRevision: number }> = [];
     const snapshots: unknown[] = [];
     let profile: Awaited<ReturnType<typeof browser.newContext>> | null = null;
+    let reopened: Page | null = null;
     // The shared native organization login uses the desktop public banner.
     await page.setViewportSize({ width: 1440, height: 900 });
     await observePsuPersistenceWorker(page);
@@ -8489,7 +8514,8 @@ for (const width of [1440, 1024, 390, 320]) {
         viewport: { width, height: 900 },
       });
       await profile.addCookies(await page.context().cookies());
-      const reopened = await profile.newPage();
+      reopened = await profile.newPage();
+      await observePsuPersistenceWorker(reopened);
       const reopenedFailures = collectBrowserFailures(reopened, {
         allowAnonymousSessionProbe: true,
       });
@@ -8524,9 +8550,57 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(source);
       await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
       await reopened.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      const load = latest.draft.document.components.find((part) => part.id === 'load')!;
+      const outputResistance = Number(latestSupply.stateProperties!.outputResistanceOhm);
+      const expectedCurrent = Number(latestSupply.value) / (load.value + outputResistance);
+      const expectedVoltage = expectedCurrent * load.value;
+      // CV alone can be a pre-ready fallback. Require a genuine complete
+      // electrical frame from this new page before checking its publication.
+      await expect
+        .poll(async () =>
+          (await psu543Records(reopened!)).some(
+            (record) =>
+              record.direction === 'response' &&
+              record.status === 'ready' &&
+              record.committed === record.requested &&
+              record.solved === true &&
+              record.resultStatus === 'solved' &&
+              record.quality?.finite === true &&
+              record.quality.passed === true &&
+              record.supplyResult?.regulationMode === 'cv' &&
+              Number.isFinite(record.supplyResult.voltageDrop) &&
+              Number.isFinite(record.supplyResult.current) &&
+              Math.abs(record.supplyResult.voltageDrop - expectedVoltage) < 1e-9 &&
+              Math.abs(Math.abs(record.supplyResult.current) - expectedCurrent) < 1e-9,
+          ),
+        )
+        .toBe(true);
+      const reopenedVisual = component(reopened, 'regulated-power-supply').getByTestId(
+        'regulated-power-supply-runtime',
+      );
       await expect(
         component(reopened, 'regulated-power-supply').getByTestId('regulated-power-supply-runtime'),
       ).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect(
+        reopenedVisual.locator('.workbench-regulated-supply-reading').nth(0),
+      ).toContainText(`${expectedVoltage.toFixed(2)} V`);
+      await expect(
+        reopenedVisual.locator('.workbench-regulated-supply-reading').nth(1),
+      ).toContainText(`${expectedCurrent.toFixed(3)} A`);
+      audit.reopenedElectricalPublication = await reopened.evaluate(() => {
+        const records = (window as Window & { __psu543?: Psu543Sample[] }).__psu543 ?? [];
+        const visual = document.querySelector('[data-testid="regulated-power-supply-runtime"]');
+        return {
+          at: performance.now(),
+          latestReady: records
+            .filter((record) => record.direction === 'response' && record.status === 'ready')
+            .at(-1),
+          voltageText: visual?.querySelectorAll('.workbench-regulated-supply-reading')[0]
+            ?.textContent,
+          currentText: visual?.querySelectorAll('.workbench-regulated-supply-reading')[1]
+            ?.textContent,
+        };
+      });
       await reopened.screenshot({
         path: `${evidenceDir}/psu-${width}-reopened.png`,
         fullPage: true,
@@ -8535,6 +8609,7 @@ for (const width of [1440, 1024, 390, 320]) {
       failures.assertEmpty();
     } finally {
       audit.workerRecords = await psu543Records(page).catch(() => []);
+      audit.reopenedWorkerRecords = reopened ? await psu543Records(reopened).catch(() => []) : [];
       audit.puts = puts;
       audit.layouts = snapshots;
       const path = `${evidenceDir}/psu-${width}-raw.json`;
