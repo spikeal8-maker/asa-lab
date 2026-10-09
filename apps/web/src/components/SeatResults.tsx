@@ -3,8 +3,22 @@ import { api, type LearnerResult } from '../api';
 import { useSchoolTime } from './school-time';
 import './seat-results.css';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import { StudentJournalResults } from './StudentJournalResults';
 
 export function SeatResults({
+  completedOnly = false,
+}: {
+  readonly completedOnly?: boolean;
+}): JSX.Element {
+  return (
+    <>
+      <StudentJournalResults scope="seat" />
+      <AssignedSeatResults completedOnly={completedOnly} />
+    </>
+  );
+}
+
+function AssignedSeatResults({
   completedOnly = false,
 }: {
   readonly completedOnly?: boolean;

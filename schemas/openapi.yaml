@@ -11,6 +11,264 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/classrooms/{classroomId}/journal:
+    parameters:
+      - &journalPath001
+        name: classroomId
+        in: path
+        required: true
+        schema: &journalPath002
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Exact lesson day, 2000-01-01..2100-12-31. Supply from and to together; inclusive range at most 93 days. Omit both for current month in the persisted class journal timezone.
+        schema: { type: string, format: date }
+      - name: to
+        in: query
+        description: Inclusive final lesson day; must be at or after from, at most 92 days later.
+        schema: { type: string, format: date }
+      - name: offset
+        in: query
+        schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+    get:
+      operationId: readManualClassroomJournal
+      summary: Exact-class pupils including unassigned pupils and one bounded page of dated columns
+      description:
+        Session Account plus exact owner/co_teacher scope and educator capability. Archive read-only.
+        No client account/tenant selection. Only asa_session is resolved; asa_student_session cannot authorize any teacher method. Current month by default, at most 50 columns per page; grades are limited to those columns. Author records are joined in the page query.
+      responses:
+        '200':
+          description: Server-confirmed snapshot or persisted receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualJournalSnapshot'
+        '400': &journalPath003
+          description: Invalid fields, date, pinned value or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401': &journalPath004
+          description: No valid session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403': &journalPath005
+          description: No exact class teacher scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404': &journalPath006
+          description: Column or Seat unavailable in exact class
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409': &journalPath007
+          description: revision_conflict, idempotency_conflict or classroom_archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503': &journalPath008
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classroomId}/journal/{action}:
+    parameters:
+      - *journalPath001
+      - name: action
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - scale
+            - column
+            - grade
+    post:
+      operationId: writeManualClassroomJournal
+      summary: Set future preset, create dated category column, or append manual grade revision
+      description:
+        Body must match path action. Current session authorization precedes actor/class/requestId
+        receipt lookup; exact completed replay precedes stale-revision/archived mutation checks. A changed
+        payload with the same key conflicts. Receipts retained with history. For scale and column expectedRevision
+        is current scale version (0 initially); grade uses latest cell revision (0 initially). No fake project,
+        Attempt, Submission or ActivityRun. Grade, delivered/suppressed inbox events, receipt and audit commit in one transaction. Notification storage failure returns 500 and rolls everything back; retry the same requestId. OFF preferences persist an explicitly suppressed inbox event and never hide the result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/ManualJournalScaleCommand'
+                - $ref: '#/components/schemas/ManualJournalColumnCommand'
+                - $ref: '#/components/schemas/ManualJournalGradeCommand'
+      responses:
+        '200':
+          description: Server-confirmed snapshot or persisted receipt
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ManualJournalScale'
+                  - type: object
+                    additionalProperties: false
+                    required:
+                      - id
+                    properties:
+                      id: *journalPath002
+                  - $ref: '#/components/schemas/ManualJournalGrade'
+        '400': *journalPath003
+        '401': *journalPath004
+        '403': *journalPath005
+        '404': *journalPath006
+        '409': *journalPath007
+        '500':
+          {
+            description: Transaction rolled back,
+            including notification emission and receipt; safe identical retry,
+          }
+        '503': *journalPath008
+  /api/classrooms/{classroomId}/journal/{columnId}/{seatId}/history:
+    parameters:
+      - *journalPath001
+      - name: columnId
+        in: path
+        required: true
+        schema: *journalPath002
+      - name: seatId
+        in: path
+        required: true
+        schema: *journalPath002
+      - name: beforeRevision
+        in: query
+        description: Exclusive revision cursor returned as nextBeforeRevision. No fetch-all fallback.
+        schema: { type: integer, minimum: 1, maximum: 999999999 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    get:
+      operationId: readManualJournalHistory
+      summary: Exact-class teacher reads append-only history, newest first
+      responses:
+        '200':
+          description: Server-confirmed snapshot or persisted receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualJournalHistoryPage'
+        '400': *journalPath003
+        '401': *journalPath004
+        '403': *journalPath005
+        '404': *journalPath006
+        '409': *journalPath007
+        '503': *journalPath008
+  /api/classrooms/{classroomId}/journal/settings:
+    parameters:
+      - *journalPath001
+    get:
+      operationId: readManualJournalSettings
+      summary: Teacher reads only future scale, archive state and frozen class timezone
+      responses:
+        '200':
+          description: Settings without fetching matrix or history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualJournalSettings' }
+        '401': *journalPath004
+        '403': *journalPath005
+  /api/learning/journal/results:
+    parameters:
+      - name: from
+        in: query
+        description: Exact lesson day, 2000-01-01..2100-12-31. Supply from and to together; inclusive range at most 93 days. Omit both for current month in the persisted class journal timezone.
+        schema: { type: string, format: date }
+      - name: to
+        in: query
+        description: Inclusive final lesson day; must be at or after from, at most 92 days later.
+        schema: { type: string, format: date }
+      - name: offset
+        in: query
+        schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      - name: columnId
+        in: query
+        description: Optional exact journal column focus from inbox. Filters inside the authorized bounded query; does not grant access.
+        schema: { type: string, format: uuid }
+    get:
+      operationId: readAccountManualJournalResults
+      summary: Own manual results for Account
+      description: >-
+        Resolves only asa_session, never StudentSeat cookies.
+        Missing or expired required cookie is 401 even when the other cookie is valid.
+        Reads the exact grade learner_identity_id via active canonical Seat and Account links in its tenant/school/class lineage.
+        Pending/rejected applicants, revoked links, inactive identities and foreign pupils receive no grades.
+        Current month by default; for several classes the first accessible class supplies the initial month timezone.
+        Explicit ranges are exact stored lesson dates; each result carries its frozen class timezone.
+        At most 50 items; navigate nextOffset or another month. Preferences do not affect results.
+        Null is a cleared grade; zero is a grade. Both identities project the same evidence without merging cookie scopes.
+      responses:
+        '200':
+          description: One authorized page of latest manual revisions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualJournalResultsPage' }
+        '400': *journalPath003
+        '401': *journalPath004
+        '503': *journalPath008
+  /api/class-join/journal/results:
+    parameters:
+      - name: from
+        in: query
+        description: Exact lesson day, 2000-01-01..2100-12-31. Supply from and to together; inclusive range at most 93 days. Omit both for current month in the persisted class journal timezone.
+        schema: { type: string, format: date }
+      - name: to
+        in: query
+        description: Inclusive final lesson day; must be at or after from, at most 92 days later.
+        schema: { type: string, format: date }
+      - name: offset
+        in: query
+        schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      - name: columnId
+        in: query
+        description: Optional exact journal column focus from inbox. Filters inside the authorized bounded query; does not grant access.
+        schema: { type: string, format: uuid }
+    get:
+      operationId: readStudentSeatManualJournalResults
+      summary: Own manual results for StudentSeat
+      description: >-
+        Resolves only asa_student_session, never Account/refresh cookies.
+        Missing or expired required cookie is 401 even when the other cookie is valid.
+        Reads the exact grade learner_identity_id via active canonical Seat and Account links in its tenant/school/class lineage.
+        Pending/rejected applicants, revoked links, inactive identities and foreign pupils receive no grades.
+        Current month by default; for several classes the first accessible class supplies the initial month timezone.
+        Explicit ranges are exact stored lesson dates; each result carries its frozen class timezone.
+        At most 50 items; navigate nextOffset or another month. Preferences do not affect results.
+        Null is a cleared grade; zero is a grade. Both identities project the same evidence without merging cookie scopes.
+      responses:
+        '200':
+          description: One authorized page of latest manual revisions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualJournalResultsPage' }
+        '400': *journalPath003
+        '401': *journalPath004
+        '503': *journalPath008
   /api/account/presentation:
     parameters:
       - name: x-asa-presentation-account
@@ -3979,6 +4237,280 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    ManualJournalRange:
+      type: object
+      additionalProperties: false
+      required: [from, to, today, timeZone]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        today: { type: string, format: date }
+        timeZone: { type: string, maxLength: 80 }
+    ManualJournalSettings:
+      type: object
+      additionalProperties: false
+      required: [status, scale, timeZone]
+      properties:
+        status: { type: string, enum: [active, archived] }
+        scale: { $ref: '#/components/schemas/ManualJournalScale' }
+        timeZone: { type: string, maxLength: 80 }
+    ManualJournalHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextBeforeRevision]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/ManualJournalGrade' }
+        nextBeforeRevision: { type: [integer, 'null'], minimum: 1 }
+    ManualJournalResultsPage:
+      type: object
+      additionalProperties: false
+      required: [items, range, offset, nextOffset]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/ManualJournalResult' }
+        range: { $ref: '#/components/schemas/ManualJournalRange' }
+        offset: { type: integer, minimum: 0 }
+        nextOffset: { type: [integer, 'null'], minimum: 0 }
+    ManualJournalScale:
+      type: object
+      additionalProperties: false
+      required:
+        - preset
+        - version
+      properties:
+        preset: &journalSchema001
+          type: string
+          enum:
+            - five
+            - hundred
+            - three_five
+            - smileys
+            - symbols
+        version: &journalSchema002
+          type: integer
+          minimum: 0
+          maximum: 999999999
+    ManualJournalColumn:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - date
+        - category
+        - preset
+        - scaleVersion
+      properties:
+        id: &journalSchema003
+          type: string
+          format: uuid
+        date: &journalSchema010
+          type: string
+          format: date
+        category: &journalSchema011
+          type: string
+          minLength: 1
+          maxLength: 80
+        preset: *journalSchema001
+        scaleVersion: *journalSchema002
+    ManualJournalGrade:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - columnId
+        - seatId
+        - revision
+        - value
+        - reason
+        - supersedesId
+        - authorId
+        - authorName
+        - publishedAt
+      properties:
+        id: *journalSchema003
+        columnId: *journalSchema003
+        seatId: *journalSchema003
+        revision: &journalSchema004
+          type: integer
+          minimum: 1
+        value: &journalSchema005
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 100
+        reason: &journalSchema006
+          type:
+            - string
+            - 'null'
+          maxLength: 500
+        supersedesId: &journalSchema007
+          type:
+            - string
+            - 'null'
+          format: uuid
+        authorId: *journalSchema003
+        authorName: &journalSchema008
+          type: string
+        publishedAt: &journalSchema009
+          type: string
+          format: date-time
+    ManualJournalResult:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - columnId
+        - seatId
+        - revision
+        - value
+        - reason
+        - supersedesId
+        - authorId
+        - authorName
+        - publishedAt
+        - date
+        - category
+        - preset
+        - scaleVersion
+        - classroomId
+        - classroomTitle
+        - timeZone
+      properties:
+        id: *journalSchema003
+        columnId: *journalSchema003
+        seatId: *journalSchema003
+        revision: *journalSchema004
+        value: *journalSchema005
+        reason: *journalSchema006
+        supersedesId: *journalSchema007
+        authorId: *journalSchema003
+        authorName: *journalSchema008
+        publishedAt: *journalSchema009
+        date: *journalSchema010
+        category: *journalSchema011
+        preset: *journalSchema001
+        scaleVersion: *journalSchema002
+        classroomId: *journalSchema003
+        timeZone: { type: string, maxLength: 80 }
+        classroomTitle:
+          type: string
+    ManualJournalSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - scale
+        - students
+        - columns
+        - grades
+        - range
+        - offset
+        - nextOffset
+        - timeZone
+      properties:
+        range: { $ref: '#/components/schemas/ManualJournalRange' }
+        offset: { type: integer, minimum: 0 }
+        nextOffset: { type: [integer, 'null'], minimum: 0 }
+        timeZone: { type: string, maxLength: 80 }
+        status:
+          type: string
+          enum:
+            - active
+            - archived
+        scale:
+          $ref: '#/components/schemas/ManualJournalScale'
+        students:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - name
+              - status
+            properties:
+              id: *journalSchema003
+              name:
+                type: string
+              status:
+                type: string
+        columns:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ManualJournalColumn'
+        grades:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualJournalGrade'
+    ManualJournalScaleCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - expectedRevision
+        - preset
+      properties:
+        requestId: &journalSchema012
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{8,128}$
+        expectedRevision: *journalSchema002
+        preset: *journalSchema001
+    ManualJournalColumnCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - expectedRevision
+        - date
+        - category
+      properties:
+        requestId: *journalSchema012
+        expectedRevision: *journalSchema002
+        date:
+          type: string
+          format: date
+          description: Exact calendar day 2000-01-01..2100-12-31; no timezone conversion.
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+    ManualJournalGradeCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - expectedRevision
+        - columnId
+        - seatId
+        - value
+      properties:
+        requestId: *journalSchema012
+        expectedRevision: *journalSchema002
+        columnId: *journalSchema003
+        seatId: *journalSchema003
+        value:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 100
+          description:
+            'Pinned preset: five 0..5, hundred 0..100, three_five 3/4/5, smileys/symbols 1..5.
+            Null clears an existing grade; zero is a grade.'
+        reason:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 500
+          description: Required for every correction or clear; optional/null on first grade.
     AccountPresentation:
       type: object
       additionalProperties: false
@@ -5074,6 +5606,9 @@ components:
                         'seatId': { 'type': ['string', 'null'], 'format': 'uuid' },
                         'courseRunId': { 'type': ['string', 'null'], 'format': 'uuid' },
                         'joinRequestId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'journalRevisionId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'journalColumnId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'journalDate': { 'type': ['string', 'null'], 'format': 'date' },
                         'recipientKind':
                           { 'type': 'string', 'enum': ['teacher', 'learner', 'requester'] },
                         'createdAt': { 'type': 'string', 'format': 'date-time' },

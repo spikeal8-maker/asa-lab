@@ -5,6 +5,7 @@ import { AssignmentView } from '../components/AssignmentView';
 import { SeatCourses } from '../components/SeatCourses';
 import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
+import { StudentJournalResults } from '../components/StudentJournalResults';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from '../components/school-time';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
@@ -118,6 +119,7 @@ export function AttendedClassesPage({
           </button>
         </p>
       ) : null}
+      <StudentJournalResults scope="account" />
       {!completedOnly ? (
         <>
           <form className="attended-join" onSubmit={(event) => void join(event)}>

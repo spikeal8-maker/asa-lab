@@ -317,7 +317,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
   ]);
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Журнал', exact: true })
+    .getByRole('button', { name: 'Настройки', exact: true })
     .click();
   await page.getByText('Шкала новых оцениваемых заданий', { exact: true }).click();
   await page.getByLabel('Название шкалы', { exact: true }).fill('Два уровня');
@@ -356,6 +356,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await expect(page.getByText('Ждут проверки: 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^Маша · Оцениваемая/ }).click();
   const detail = page.getByRole('region', { name: 'Проверка сдачи' });
@@ -416,6 +417,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await stale.getByRole('button', { name: 'Задания', exact: true }).click();
   await stale.getByRole('button', { name: /^Маша · Оцениваемая/ }).click();
   const staleDetail = stale.getByRole('region', { name: 'Проверка сдачи' });
   await expect(staleDetail.getByLabel('Баллы из 10', { exact: true })).toHaveValue('8');
@@ -490,6 +492,7 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const matrix = page.getByRole('table', { name: 'Журнал работ класса' });
   await expect(matrix.locator('tbody tr')).toHaveCount(30);
   await expect(matrix.locator('thead th')).toHaveCount(11);
@@ -788,6 +791,7 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const cell = page.getByRole('button', { name: new RegExp('Лена · ' + title) });
   await cell.click();
   const detail = page.getByRole('region', { name: 'Проверка сдачи' });
@@ -1224,6 +1228,7 @@ for (const module of ['three-d', 'electronics'])
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Журнал', exact: true })
       .click();
+    await page.getByRole('button', { name: 'Задания', exact: true }).click();
     const cell = page.getByRole('button', { name: new RegExp('Ирина · ' + title) });
     await cell.click();
     const detail = page.getByRole('region', { name: 'Проверка сдачи' });
@@ -1343,6 +1348,7 @@ for (const module of ['three-d', 'electronics'])
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Журнал', exact: true })
       .click();
+    await page.getByRole('button', { name: 'Задания', exact: true }).click();
     await cell.click();
     await expect(detail.getByTestId('submission-version-id')).not.toHaveText(firstVersion);
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();

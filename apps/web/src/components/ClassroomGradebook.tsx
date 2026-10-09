@@ -6,6 +6,7 @@ import { LegacyLearningReview } from './LegacyLearningReview';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import './classroom-gradebook.css';
+import { ManualClassroomJournal } from './ManualClassroomJournal';
 
 const LABELS: Record<string, string> = {
   not_applicable: 'Не назначено',
@@ -340,6 +341,45 @@ function ReviewDetail({
 }
 
 export function ClassroomGradebook({ classroomId }: { classroomId: string }): JSX.Element {
+  return <JournalModes key={classroomId} classroomId={classroomId} />;
+}
+
+function JournalModes({ classroomId }: { classroomId: string }): JSX.Element {
+  const destination = useLearningDestination();
+  const [mode, setMode] = useState<'manual' | 'assignments'>(() =>
+    destination.assignment ? 'assignments' : 'manual',
+  );
+  useEffect(() => {
+    if (destination.assignment) setMode('assignments');
+  }, [destination.assignment, destination.attempt, destination.seat]);
+  return (
+    <div className="classroom-tab-panel">
+      <nav aria-label="Режим журнала">
+        <button
+          className="btn-secondary"
+          aria-pressed={mode === 'manual'}
+          onClick={() => setMode('manual')}
+        >
+          По датам
+        </button>{' '}
+        <button
+          className="btn-secondary"
+          aria-pressed={mode === 'assignments'}
+          onClick={() => setMode('assignments')}
+        >
+          Задания
+        </button>
+      </nav>
+      {mode === 'manual' ? (
+        <ManualClassroomJournal classroomId={classroomId} />
+      ) : (
+        <AssignedClassroomGradebook classroomId={classroomId} />
+      )}
+    </div>
+  );
+}
+
+function AssignedClassroomGradebook({ classroomId }: { classroomId: string }): JSX.Element {
   const [items, setItems] = useState<GradebookEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<GradebookEntry | null>(null);
