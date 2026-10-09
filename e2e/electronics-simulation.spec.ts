@@ -7932,8 +7932,7 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
     fullPage: true,
   });
 
-  // Persist the owner setting explicitly. The runtime-only 0.2 A adjustment
-  // must not replace the saved 0.1 A setting.
+  // U/I are now persistent pupil settings; the live output remains temporary.
   await saveEditorNow(page);
   await expect
     .poll(
@@ -7950,7 +7949,7 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
     )
     .toMatchObject({
       voltageSetpointVolt: 12,
-      currentLimitAmp: 0.1,
+      currentLimitAmp: 0.2,
       outputEnabled: true,
     });
   await expect(visual).toHaveAttribute('data-current-limit', '0.2');
@@ -7958,10 +7957,10 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
   await page.reload();
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await expect(visual).toHaveAttribute('data-voltage-setpoint', '12');
-  await expect(visual).toHaveAttribute('data-current-limit', '0.1');
+  await expect(visual).toHaveAttribute('data-current-limit', '0.2');
   await expect(visual).toHaveAttribute('data-output-enabled', 'true');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
-  await expect(visual).toHaveAttribute('data-regulation-mode', 'cc');
+  await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
   failures.assertEmpty();
 });
 
@@ -8107,6 +8106,12 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
 
+  // Use the normal save queue, never a request for each live knob adjustment.
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
   const saved = await page.context().request.get(`/api/projects/${projectId}`, {
     headers: { origin: new URL(page.url()).origin },
   });
@@ -8115,7 +8120,7 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   expect(
     persisted.draft.document.components.find((item) => item.id === 'bench-supply')
       ?.stateProperties?.['voltageSetpointVolt'],
-  ).toBe(5);
+  ).toBe(8);
   expect(
     persisted.draft.document.components.find((item) => item.id === 'scope')?.stateProperties?.[
       'voltsPerDivision'
@@ -8124,6 +8129,399 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   expect(persisted.draft.document.connections).toEqual(circuit.connections);
   failures.assertEmpty();
 });
+
+// Observe genuine Worker messages without changing transport, continuation,
+// budgets, clock or result. Explicit files below survive a passing test with
+// the repository's list reporter and retain-on-failure trace policy.
+async function observePsuPersistenceWorker(page: Page) {
+  await page.addInitScript(() => {
+    const probe = window as Window & { __psu543?: unknown[] };
+    const records: unknown[] = [];
+    probe.__psu543 = records;
+    const push = (record: unknown) => {
+      records.push(record);
+      if (records.length > 200) records.shift();
+    };
+    window.Worker = new Proxy(window.Worker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
+          return worker;
+        const post = worker.postMessage.bind(worker);
+        worker.postMessage = ((request: {
+          kind?: string;
+          generationId?: number;
+          requestedHorizonMicroseconds?: number;
+          inputEvents?: unknown;
+          state?: {
+            continuation?: { committedHorizonMicroseconds?: number; serializedState?: string };
+          };
+        }) => {
+          if (request.kind === 'advance')
+            push({
+              direction: 'request',
+              at: performance.now(),
+              generationId: request.generationId,
+              requested: request.requestedHorizonMicroseconds,
+              previousCommitted: request.state?.continuation?.committedHorizonMicroseconds ?? 0,
+              inputEvents: request.inputEvents ?? [],
+              previousState: request.state?.continuation?.serializedState ?? null,
+            });
+          post(request);
+        }) as Worker['postMessage'];
+        worker.addEventListener('message', (event: MessageEvent) => {
+          const response = event.data as {
+            ok?: boolean;
+            kind?: string;
+            generationId?: number;
+            metrics?: unknown;
+            advance?: {
+              executionStatus: string;
+              requestedHorizonMicroseconds: number;
+              committedHorizonMicroseconds: number;
+              state: { continuation?: { serializedState?: string } };
+              result?: { solved?: boolean };
+              serial?: unknown;
+            };
+          };
+          if (!response.ok || response.kind !== 'advance' || !response.advance) return;
+          push({
+            direction: 'response',
+            at: performance.now(),
+            generationId: response.generationId,
+            status: response.advance.executionStatus,
+            requested: response.advance.requestedHorizonMicroseconds,
+            committed: response.advance.committedHorizonMicroseconds,
+            serializedState: response.advance.state.continuation?.serializedState ?? null,
+            solved: response.advance.result?.solved ?? false,
+            serial: response.advance.serial,
+            metrics: response.metrics,
+            uiClockBeforePublication: document.querySelector('.workbench-simulation-time')
+              ?.textContent,
+          });
+        });
+        return worker;
+      },
+    });
+  });
+}
+
+type Psu543Sample = {
+  direction: 'request' | 'response';
+  generationId: number;
+  status?: string;
+  requested: number;
+  committed?: number;
+  serializedState?: string;
+  previousState?: string;
+  previousCommitted?: number;
+  inputEvents?: Array<{ operation: string; payload: unknown; atMicroseconds: number }>;
+  solved?: boolean;
+  metrics?: unknown;
+};
+async function psu543Records(page: Page): Promise<Psu543Sample[]> {
+  return page.evaluate(() => (window as Window & { __psu543?: Psu543Sample[] }).__psu543 ?? []);
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at ${width}px`, async ({
+    page,
+    browser,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    const evidenceDir = `${ARTIFACT_DIR}/psu-setpoints-543`;
+    mkdirSync(evidenceDir, { recursive: true });
+    const audit: Record<string, unknown> = { width, canonicalTimeAndTimeoutsUnchanged: true };
+    const puts: Array<{ at: number; document: SchematicDocument; baseRevision: number }> = [];
+    const snapshots: unknown[] = [];
+    let profile: Awaited<ReturnType<typeof browser.newContext>> | null = null;
+    await page.setViewportSize({ width, height: 900 });
+    await observePsuPersistenceWorker(page);
+    await loginWithOrganization(page, teacher);
+    const id = await createProject(page, `E04 pupil settings ${width}`);
+    const source =
+      '// E04 whole pupil sketch\nint cycles=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}\nvoid loop(){cycles++;delay(100);}\n';
+    const board = arduinoInputDocument('button').components.find((part) => part.id === 'uno')!;
+    const base = regulatedPowerSupplyDocument();
+    const initial: SchematicDocument = {
+      ...base,
+      components: [
+        ...base.components.map((part) =>
+          part.id === 'bench-supply'
+            ? {
+                ...part,
+                state: true,
+                stateProperties: { ...part.stateProperties, outputEnabled: true },
+              }
+            : {
+                ...part,
+                stateProperties: {
+                  tolerancePercent: 5,
+                  resistanceUnit: 'Ω',
+                  ...part.stateProperties,
+                },
+              },
+        ),
+        {
+          ...board,
+          position: { x: 1000, y: 550 },
+          stateProperties: {
+            ...board.stateProperties,
+            arduinoCodeMode: 'text',
+            arduinoSource: source,
+            arduinoWorkspace: '{"blocks":{"blocks":[]}}',
+          },
+        },
+      ],
+    };
+    await saveDocument(page, id, initial);
+    const seeded = await e01Server(page, id);
+    audit.seeded = seeded;
+    const expected = (voltage: number, limit: number): SchematicDocument => ({
+      ...seeded.draft.document,
+      components: seeded.draft.document.components.map((part) =>
+        part.id === 'bench-supply'
+          ? {
+              ...part,
+              value: voltage,
+              stateProperties: {
+                ...part.stateProperties,
+                voltageSetpointVolt: voltage,
+                currentLimitAmp: limit,
+              },
+            }
+          : part,
+      ),
+    });
+    page.on('request', (request) => {
+      if (
+        request.method() === 'PUT' &&
+        new URL(request.url()).pathname === `/api/projects/${id}/draft`
+      ) {
+        const body = request.postDataJSON() as {
+          document: SchematicDocument;
+          baseRevision: number;
+        };
+        puts.push({ at: Date.now(), ...body });
+      }
+    });
+    try {
+      await page.goto(`/#/home/${id}`);
+      await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      const supply = component(page, 'regulated-power-supply');
+      const visual = supply.getByTestId('regulated-power-supply-runtime');
+      await supply.locator('.workbench-part').press('Enter');
+      const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      const voltage = inspector.getByLabel('Уставка напряжения лабораторного источника');
+      const limit = inspector.getByLabel('Ограничение тока лабораторного источника');
+      for (const input of [voltage, limit]) {
+        await input.scrollIntoViewIfNeeded();
+        const layout = await input.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName,
+            type: (element as HTMLInputElement).type,
+            x: rect.x,
+            right: rect.right,
+            width: rect.width,
+            hit:
+              document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) ===
+              element,
+            pageOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+          };
+        });
+        snapshots.push(layout);
+        expect(layout.tag).toBe('INPUT');
+        expect(layout.type).toBe('number');
+        expect(layout.width).toBeGreaterThan(0);
+        expect(layout.x).toBeGreaterThanOrEqual(0);
+        expect(layout.right).toBeLessThanOrEqual(width + 1);
+        expect(layout.hit).toBe(true);
+        expect(layout.pageOverflow).toBe(false);
+      }
+      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect
+        .poll(
+          async () =>
+            (await psu543Records(page))
+              .filter((record) => record.direction === 'response' && record.status === 'ready')
+              .at(-1)?.committed ?? 0,
+          { timeout: 15_000 },
+        )
+        .toBeGreaterThan(100_000);
+      const before = (await psu543Records(page))
+        .filter((record) => record.direction === 'response' && record.status === 'ready')
+        .at(-1)!;
+      audit.beforeLiveEdit = before;
+      await voltage.fill('7.5');
+      await limit.fill('0.15');
+      await expect(visual).toHaveAttribute('data-voltage-setpoint', '7.5');
+      await expect(visual).toHaveAttribute('data-current-limit', '0.15');
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect(visual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+        '7.50 V',
+      );
+      await expect(visual.locator('.workbench-regulated-supply-reading').nth(1)).toContainText(
+        '0.075 A',
+      );
+      await expect
+        .poll(
+          async () =>
+            (await psu543Records(page))
+              .filter((record) => record.direction === 'response' && record.status === 'ready')
+              .at(-1)?.committed ?? 0,
+          { timeout: 15_000 },
+        )
+        .toBeGreaterThan(before.committed!);
+      const after = (await psu543Records(page))
+        .filter((record) => record.direction === 'response' && record.status === 'ready')
+        .at(-1)!;
+      audit.afterLiveEdit = after;
+      expect(after.generationId).toBe(before.generationId);
+      expect(after.committed).toBe(after.requested);
+      expect(after.solved).toBe(true);
+      const beforeState = JSON.parse(before.serializedState!);
+      const afterState = JSON.parse(after.serializedState!);
+      expect(afterState.boards[0].runtime.virtualTimeMs).toBeGreaterThanOrEqual(
+        beforeState.boards[0].runtime.virtualTimeMs,
+      );
+      expect(afterState.boards[0].runtime.pinModes).toEqual(beforeState.boards[0].runtime.pinModes);
+      expect(afterState.physicalState.simulationTimeMs).toBeGreaterThan(
+        beforeState.physicalState.simulationTimeMs,
+      );
+      const requests = (await psu543Records(page)).filter(
+        (record) => record.direction === 'request',
+      );
+      expect(
+        requests
+          .flatMap((record) => record.inputEvents ?? [])
+          .some((event) => event.operation === 'voltageSetpointVolt' && event.payload === 7.5),
+      ).toBe(true);
+      expect(
+        requests
+          .flatMap((record) => record.inputEvents ?? [])
+          .some((event) => event.operation === 'currentLimitAmp' && event.payload === 0.15),
+      ).toBe(true);
+      // Output stays runtime-only while both saved settings are already local.
+      await inspector.getByLabel('Включить выход лабораторного источника').uncheck();
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'off');
+      audit.localWhileOutputOff = JSON.parse((await e01LocalDraft(page, id))!);
+      expect(puts).toHaveLength(0);
+      await page.screenshot({ path: `${evidenceDir}/psu-${width}-running.png`, fullPage: true });
+      audit.beforeStopRecords = await psu543Records(page);
+      await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+      // The old product loses U/I at this exact pupil action; keep these asserts.
+      await expect(voltage).toHaveValue('7.5');
+      await expect(limit).toHaveValue('0.15');
+      expect((audit.localWhileOutputOff as { document: SchematicDocument }).document).toEqual(
+        expected(7.5, 0.15),
+      );
+      await expect(visual).toHaveAttribute('data-output-enabled', 'true');
+      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect
+        .poll(async () =>
+          (await psu543Records(page)).some(
+            (record) =>
+              record.direction === 'response' &&
+              record.generationId !== before.generationId &&
+              record.status === 'ready' &&
+              record.committed === 0 &&
+              record.requested === 0,
+          ),
+        )
+        .toBe(true);
+      await expect(voltage).toHaveValue('7.5');
+      await expect(limit).toHaveValue('0.15');
+      const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+      await save.click();
+      await expect(page.locator('.workbench-main')).toHaveAttribute(
+        'data-project-save-status',
+        'saved',
+      );
+      const manual = await e01Server(page, id);
+      audit.manualSave = manual;
+      expect(manual.draft.document).toEqual(expected(7.5, 0.15));
+      expect(manual.draft.revision).toBe(seeded.draft.revision + 1);
+      expect(puts).toHaveLength(1);
+      expect(puts[0]!.document).toEqual(manual.draft.document);
+      await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+      let latest = manual;
+      if (width === 1440) {
+        // Real quiet minute, with no clock install/fastForward, pagehide, focus,
+        // reload or additional edit used to cause the eventual request.
+        await voltage.fill('6.5');
+        await limit.fill('0.12');
+        const quietStarted = Date.now();
+        expect(puts).toHaveLength(1);
+        await expect.poll(() => puts.length, { timeout: 65_000 }).toBe(2);
+        await expect(page.locator('.workbench-main')).toHaveAttribute(
+          'data-project-save-status',
+          'saved',
+        );
+        latest = await e01Server(page, id);
+        audit.quietAutosave = {
+          quietStarted,
+          sentAt: puts[1]!.at,
+          elapsed: puts[1]!.at - quietStarted,
+          server: latest,
+        };
+        expect(puts[1]!.at - quietStarted).toBeGreaterThanOrEqual(59_000);
+        expect(latest.draft.document).toEqual(expected(6.5, 0.12));
+        expect(latest.draft.revision).toBe(manual.draft.revision + 1);
+        expect(puts[1]!.document).toEqual(latest.draft.document);
+      }
+      expect(await e01LocalDraft(page, id)).toBeNull();
+      profile = await browser.newContext({
+        baseURL: new URL(page.url()).origin,
+        viewport: { width, height: 900 },
+      });
+      await profile.addCookies(await page.context().cookies());
+      const reopened = await profile.newPage();
+      const reopenedFailures = collectBrowserFailures(reopened, {
+        allowAnonymousSessionProbe: true,
+      });
+      await reopened.goto(`/#/home/${id}`);
+      await expect(reopened.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      expect(await e01LocalDraft(reopened, id)).toBeNull();
+      await component(reopened, 'regulated-power-supply').locator('.workbench-part').press('Enter');
+      const latestSupply = latest.draft.document.components.find(
+        (part) => part.id === 'bench-supply',
+      )!;
+      await expect(reopened.getByLabel('Уставка напряжения лабораторного источника')).toHaveValue(
+        String(latestSupply.value),
+      );
+      await expect(reopened.getByLabel('Ограничение тока лабораторного источника')).toHaveValue(
+        String(latestSupply.stateProperties!.currentLimitAmp),
+      );
+      audit.cookiesOnlyServer = await e01Server(reopened, id);
+      expect((audit.cookiesOnlyServer as typeof latest).draft).toEqual(latest.draft);
+      await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+      await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(source);
+      await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+      await reopened.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await expect(
+        component(reopened, 'regulated-power-supply').getByTestId('regulated-power-supply-runtime'),
+      ).toHaveAttribute('data-regulation-mode', 'cv');
+      await reopened.screenshot({
+        path: `${evidenceDir}/psu-${width}-reopened.png`,
+        fullPage: true,
+      });
+      reopenedFailures.assertEmpty();
+      failures.assertEmpty();
+    } finally {
+      audit.workerRecords = await psu543Records(page).catch(() => []);
+      audit.puts = puts;
+      audit.layouts = snapshots;
+      const path = `${evidenceDir}/psu-${width}-raw.json`;
+      writeFileSync(path, JSON.stringify(audit, null, 2));
+      await testInfo.attach(`psu-${width}-raw`, { path, contentType: 'application/json' });
+      await profile?.close();
+    }
+  });
+}
 
 test('live generator waveform and frequency reach the scope calculation without a new generation', async ({
   page,
