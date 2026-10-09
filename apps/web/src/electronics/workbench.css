@@ -2199,6 +2199,13 @@
   background: #fff;
   box-shadow: inset 0 0 0 1px #cbd4db;
 }
+/* The native menu must escape the toolbar's layer below the Code drawer (45).
+   Mobile keeps its intentional clipped, horizontally scrolling toolbar. */
+@media (min-width: 981px) {
+  .workbench-toolbar:has(.workbench-wire-color[open]) {
+    z-index: 46;
+  }
+}
 .workbench-wire-color-menu {
   position: absolute;
   z-index: 80;
