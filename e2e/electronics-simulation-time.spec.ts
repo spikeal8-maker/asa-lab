@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
 import { collectBrowserFailures } from './browser-failures';
@@ -249,8 +250,10 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
     expect(caption.left).toBeGreaterThanOrEqual(geometry.buttonLeft - 1);
     expect(caption.right).toBeLessThanOrEqual(geometry.buttonRight + 1);
   }
+  const runningClockPath = testInfo.outputPath(`${phase}-running-clock.png`);
+  await page.screenshot({ path: runningClockPath });
   await testInfo.attach(`${phase}-running-clock`, {
-    body: await page.screenshot(),
+    path: runningClockPath,
     contentType: 'image/png',
   });
   await markAction(page, `${phase}:Stop`);
@@ -427,8 +430,10 @@ for (const width of [1440, 1024, 390, 320]) {
       }
       failures.assertEmpty();
     } finally {
-      await testInfo.attach(`integer-clock-${width}-raw`, {
-        body: JSON.stringify(
+      const rawPath = testInfo.outputPath(`integer-clock-${width}-raw.json`);
+      await writeFile(
+        rawPath,
+        JSON.stringify(
           {
             width,
             projectId,
@@ -439,6 +444,10 @@ for (const width of [1440, 1024, 390, 320]) {
           null,
           2,
         ),
+        'utf8',
+      );
+      await testInfo.attach(`integer-clock-${width}-raw`, {
+        path: rawPath,
         contentType: 'application/json',
       });
       await page.screenshot({ path: testInfo.outputPath(`integer-clock-${width}.png`) });
