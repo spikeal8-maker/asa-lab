@@ -2972,6 +2972,9 @@ for (const { mode, segment, widths } of compactControlSegments) {
           width: rect.width,
           height: rect.height,
         });
+        const nativeMenu = document.querySelector(
+          '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
+        );
         function inspect(element: Element) {
           const rect = element.getBoundingClientRect();
           const style = getComputedStyle(element);
@@ -3010,11 +3013,24 @@ for (const { mode, segment, widths } of compactControlSegments) {
             [rect.left + rect.width / 2, rect.top + rect.height / 2],
           ].map(([x, y]) => {
             const hit = document.elementFromPoint(x!, y!);
+            const hitAncestry = [];
+            for (let ancestor = hit; ancestor; ancestor = ancestor.parentElement) {
+              hitAncestry.push({
+                selector: `${ancestor.tagName}.${ancestor.className}`,
+                role: ancestor.getAttribute('role'),
+                ariaLabel: ancestor.getAttribute('aria-label'),
+              });
+            }
             return {
               x,
               y,
               owned: hit !== null && (hit === element || element.contains(hit)),
               hit: hit ? `${hit.tagName}.${hit.className}` : null,
+              hitAncestry,
+              ownedByOpenNativeMenu:
+                nativeMenu !== null &&
+                hit !== null &&
+                hit.closest('.workbench-wire-color-menu') === nativeMenu,
             };
           });
           const selectedText =
@@ -3112,6 +3128,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
                 rect: bounds(
                   document.querySelector('.workbench-wire-color-menu')!.getBoundingClientRect(),
                 ),
+                purple: inspect(document.querySelector('[aria-label="Цвет провода: Фиолетовый"]')!),
               }
             : null,
           codeBody: bounds(document.querySelector('.arduino-code-body')!.getBoundingClientRect()),
@@ -3143,12 +3160,31 @@ for (const { mode, segment, widths } of compactControlSegments) {
       const caption = running ? 'Остановить моделирование' : 'Начать моделирование';
       expect(observation.primary.ariaLabel).toBe(caption);
       expect(observation.primary.text).toBe(caption);
-      function assertFits(control: typeof observation.primary) {
+      function assertFits(control: typeof observation.primary, allowNativeMenuCorners = false) {
         expect(control.rect.left).toBeGreaterThanOrEqual(0);
         expect(control.rect.right).toBeLessThanOrEqual(observation.viewport.width + 1);
         expect(control.rect.top).toBeGreaterThanOrEqual(0);
         expect(control.rect.bottom).toBeLessThanOrEqual(observation.viewport.height + 1);
-        expect(control.points.every((point) => point.owned)).toBe(true);
+        expect(
+          control.points.every((point, index) => {
+            if (point.owned) return true;
+            const menu = observation.nativeWireMenu;
+            // An open popup owns its actual pixels. Only underlying Code corners
+            // may belong to this concrete native menu; the centre stays usable.
+            return (
+              allowNativeMenuCorners &&
+              phase === '981-native-open' &&
+              observation.viewport.width === 981 &&
+              menu?.open === true &&
+              index < 4 &&
+              point.ownedByOpenNativeMenu &&
+              point.x! >= menu.rect.left &&
+              point.x! <= menu.rect.right &&
+              point.y! >= menu.rect.top &&
+              point.y! <= menu.rect.bottom
+            );
+          }),
+        ).toBe(true);
         for (const clip of control.clips) {
           if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowX)) {
             expect(control.rect.left).toBeGreaterThanOrEqual(clip.left - 1);
@@ -3216,7 +3252,13 @@ for (const { mode, segment, widths } of compactControlSegments) {
       expect(observation.codeControls).toHaveLength(
         mode === 'text' ? 7 : mode === 'blocks-text' ? 6 : 3,
       );
-      for (const control of observation.codeControls) assertFits(control);
+      if (phase === '981-native-open') {
+        expect(observation.nativeWireMenu?.open).toBe(true);
+        const purple = observation.nativeWireMenu!.purple;
+        assertFits(purple);
+        expect(purple.points.every((point) => point.ownedByOpenNativeMenu)).toBe(true);
+      }
+      for (const control of observation.codeControls) assertFits(control, true);
       if (mode !== 'blocks') {
         const fontControl = observation.codeControls.find(
           (control) => control.ariaLabel === 'Размер текста Arduino',
@@ -3237,6 +3279,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
           await record(`${width}-native-open`, desktop, false);
           await nativeMenu.locator('summary').click();
           await expect(nativeMenu).not.toHaveAttribute('open', '');
+          await record(`${width}-native-closed`, desktop, false);
         }
         const size = (await font.inputValue()) === '14' ? '16' : '14';
         await font.click();
