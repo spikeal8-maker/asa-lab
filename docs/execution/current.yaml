@@ -581,28 +581,17 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BROWSER-READINESS-001
-      issue: 531
+      id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+      issue: 532
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: technical_readiness_accepted
+      status: in_progress
+      checkpoint: bounded_compact_desktop_controls_repair
       dependency_for_issue: 530
+      upstream_readiness_issue: 531
       owner_acceptance: pending
-      first_candidate_sha: ba1018b4a4ccad7f3e6877aa7fb3ea419981324d
-      first_candidate_tree: aef0ae18b9c68b5834d208ea964d5bf7dce91a92
-      first_candidate_branch: codex/electronics-browser-readiness-531
-      first_independent_review: request_changes
-      first_independent_evidence: docs/product/electronics/evidence/browser-readiness-531-independent-review-ba1018b4.md
-      diagnostic_sha: 1540eaf4274c6f53be286cf9b98dec3946aa0746
-      diagnostic_run: 37881376880
-      diagnostic_conclusion: failure
-      diagnostic_is_gate: false
-      accepted_candidate_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
-      independent_review: approved
-      evidence: docs/product/electronics/evidence/browser-readiness-531-acceptance-20261009.md
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
@@ -702,7 +691,7 @@ parallel_lanes:
           r5_independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
       - task_id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
         issue: 530
-        status: waiting_readiness_and_compact_ui_dependencies
+        status: waiting_compact_ui_dependency
         checkpoint: candidate_preserved_after_independent_request_changes
         observed_at: '2026-10-09T03:42:17Z'
         preserved_candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
@@ -711,13 +700,13 @@ parallel_lanes:
         independent_review: request_changes
         independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
         readiness_dependency_issue: 531
-        compact_ui_dependency: required_separate_selection_after_531
+        compact_ui_dependency: selected_issue_532
         owner_acceptance: pending
         reason: Native Purple and16phase resize receipts PASS, all8 gates6SUCCESS1FAIL1SKIP. Trace proves external
           SDK load barrierD; actual981Run/font clipping needs separate bounded UI resolution. No main-before
           browser claim.
-        resume_after: Accepted531 readiness, then separately selected compact UI repair; preserve870/0dd and
-          obtain required final combined gates/NEW review without duplicate implementation.
+        resume_after: Accepted531 readiness is integrated; await separately selected532 compact controls acceptance,
+          then preserve870/0dd and obtain final combined exact gates/NEW review without duplicate implementation.
         preserved_task_snapshot:
           id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
           issue: 530
@@ -741,92 +730,31 @@ parallel_lanes:
           independent_review: request_changes
           independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
           classifier_evidence: docs/product/electronics/evidence/wire-menu-530-breadboard-startup-classification.md
+        readiness_dependency_status: technical_accepted
+        compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+      convergence_baseline_sha: 2f731409cfad814836fbeab0e24fc19a3abdae03
       head_sha: null
-      observed_at: '2026-10-09T04:44:37Z'
+      observed_at: '2026-10-09T04:48:49Z'
       main:
         branch: main
-        sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        sha: 2f731409cfad814836fbeab0e24fc19a3abdae03
       observation_note: >-
-        Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
-        Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
-        NEW independent reviewer APPROVE; General37854813209 and ordinaryElectronics37854826793 terminalSUCCESS/all4.
-        Original raw AFTER manualSave63.1ms/genuineexit67.5ms inside260ms; complete local/PUT/server documents equal,
-        fresh sketch and resistor333.3 preserved, actual reopen assertions PASS; browser120PASS/focused633+379PASS.
-        This accepts only529 visible-text canonical handoff, not broader E01/E14/class/owner/deployment.
-        Resume only526 bounded R2 from preservedc15e6e13 with accepted529 source and current canonical state.
-        Preserve original branches/commits/evidence, no rewrite of published history or foreign unfinished work.
-        Repair proved current-diff JSON CTA clipping; adapt accepted529 test consumers to verified scoped identity
-        without weakening behavior; complete original crash/SAV10 evidence on the final combined candidate.
-        Old526 review/CI and local tests are not combined-candidate acceptance; NEW reviewer and all exact gates required.
-        Suspended525 and all other accepted results/lanes remain unchanged. Next E04 only after E01 technical acceptance.
-        Exact R2 candidate520bc45a remains published and unaccepted: General37859012428 SUCCESS/all4;
-        ordinary37859024247 focused/benchmark SUCCESS, browser125PASS/2FAIL, review-images SKIPPED.
-        NEW independent reviewer REQUEST_CHANGES: crash injection did not demonstrate renderer termination;
-        SAV10 changes only hash while canonical first-project pathname wins, so no actual project switch occurred.
-        No product scope leak is proved by that fixture; original traces/receipts are preserved without rerun.
-        Select only R3 bounded evidence repair of these two existing browser scenarios and canonical digest.
-        No product edits, timeout increase, weakened assertions, auth/physics/dependency/workflow baseline changes.
-        One root-reviewed temporary directed diagnostic ref may exercise exactly these two cases in existing isolated CI;
-        restore canonical workflow before final exact candidate, ordinary gates and NEW independent review.
-        School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
-        no deployment, DB, network, backup or protected-artwork operation is authorized.
-        Exact R3 candidate0c8a0d5e remains published/unaccepted: General37865142075 and ordinary37865154341 SUCCESS/all4;
-        browser127PASS and original full-document crash/recovery/user-isolation/529 receipts are preserved.
-        NEW independent HIGH reviewer REQUEST_CHANGES: the new JSON action clips the adjacent active Run label at1024.
-        Historical c15/520 clipping is earlier E01 candidate evidence, not the canonical main baseline.
-        Select only R4 bounded affected-toolbar repair, preserving all accepted persistence/sketch semantics and evidence.
-        Scope: minimal causal WorkbenchHeader/workbench.css layout and existing browser affected-action regression;
-        no whole-editor redesign, unrelated disabled-Send cleanup, timeout/assertion weakening or physics/auth change.
-        Final combined candidate requires ordinary exact gates and a NEW independent review before technical526 closure.
-        Exact R4 candidatec25dd582 is preserved/unaccepted: General37869131311 SUCCESS/all4;
-        ordinary37869145318 focused/benchmark SUCCESS, browser125PASS/2FAIL, review-images SKIPPED.
-        NEW independent REQUEST_CHANGES confirms new helper expected disabled Save for a DIRTY normalized local document.
-        Old local bytes and all passing semantic/sketch receipts remain preserved; R4 denial/UI acceptance was not reached.
-        Select only R5 existing denial-case normal-state evidence correction and canonical browser digest, no production edits.
-        Verify actual normal local-draft status and enabled Save; do not force Save or delete a record to manufacture a saved state.
-        Quiet/pending indicator visibility follows its real presentation contract; original error/warning/export checks stay strict.
-        Preserve geometry/captions/consumers/breakpoints/Run-Stop and all budgets. Separate missing-image failure1925 is under
-        read-only classification, not permission for asset repair inside526. Final exact gates and NEW reviewer remain mandatory.
-        R5 exact0dd31b4d is preserved/unaccepted: General37872258062 SUCCESS/all4; ordinary37872270511
-        focused/benchmarkSUCCESS, browser126PASS/1FAIL, review-imagesSKIPPED. NEW independent REQUEST_CHANGES
-        confirms native Purple swatch obstructed by Code drawer at1024; only2of56 layouts and no denial/export reached.
-        Other original persistence/sketch/quiet/crash/isolation receipts remain PASS; school/class frequency unproved.
-        Relevant menu/drawer stacking preexists main by source comparison, provisionalC; actual main browser NOT_RUN.
-        Select separate530 minimal native-menu layer repair on canonical main, preserving unintegrated526 product separately.
-        No child-z-only workaround, forced clicks, closing Code to mask required state, timeout/assertion weakening or restyling.
-        After accepted530 freshly resume526 and verify final combined exact SHA with all gates/raw56/new independent review.
-        Suspended525, accepted529/other slices and school K0/T3 pending remain intact. No deployment/DB/backup/network action.
-        Latest53087099554 is preserved/unaccepted: General37876587447 SUCCESS/all4; ordinary37876603308
-        focused/benchmarkSUCCESS, browser120PASS1FAIL, review-imagesSKIPPED. NEW independentREQUEST_CHANGES:
-        nativePurple/16phasesPASS but actual981Run caption and font control clip; fullvisualNEEDS_FIX.
-        Separate classifierD proves external deferred MAX SDK holds global-load navigation30.371s;
-        app visible1.568s, count assertion runs14.602ms during teardown, no measured incorrect count/physics defect.
-        Select only531 bounded existing-profile application-readiness test repair under controlled pending SDK.
-        Preserve30000/5000 limits, production asset readiness,2components/882holes/2bindings/five drag-undo/reopen.
-        No fake SDK/auth, assertion weakening, product/bootstrap/Portal/physics changes or whole-suite hopeful retry.
-        One temporary directed probe is diagnostic only and outside final ancestry; final ordinary exact gates/NEWreview mandatory.
-        After accepted531 select separate compact UI repair before resuming530/526 acceptance; prior route notes are history.
-        Preserve870/0dd/525/529/all accepted slices and otherlanes; schoolK0/T3 pending, no deployment/DB/backup/network.
-        First531sourceba1018b4 is preserved/unaccepted; separate1540eaf4 diagnostic37881376880FAIL/newloadpoll5000.
-        NEW independentREQUEST_CHANGES: Window capture cannot observe resourceLOAD beyond Document per DOM4.5.
-        Original appmounted464.806ms/masksready/2components/882holes/bindings2/assetsHTTP200; ownerImageLoads empty.
-        This is A new observer defect, not measured product/physics failure; no provider outage or school frequency claim.
-        Select only531R1 native resource observation repair on Document/actual image; preserve SVGload assertion and
-        controlled genuinelypendingSDK/reload lifecycle/full documents/fivephysicaldrag-undo/30000-5000 limits.
-        Preserve publishedba/1540 history; ordinary merge canonicalmain into NEWsourcebranch, no probe ancestor.
-        ONE additional directed probe of changed observer is allowed in this separate R1 cycle; not repeated BEFORE,
-        not whole-suite hopeful rerun or gate substitute. Final ordinary exact gates/NEW independent review remain.
-        No product/UI/bootstrap/Portal/physics/auth/dependency/generated/workflow change in final R1 candidate.
-        Accepted531 exact68c8be1d is normally integrated unchanged, NEW independentAPPROVE/all8requiredSUCCESS.
-        General37882939710 and ordinary37883347010 prove existing120browsercases plus original7readinessreceipts.
-        Actual native image load and pendingSDK across reload, fivephysicaldrag-undo/fullmockedUI documents preserved.
-        Test-only readiness acceptance, not E01serverpersistence/MAX Mini App/realpupilT3 or providerfrequency.
-        Firstba/1540 and R1c9 diagnostics remain outside final ancestry and retained as rejected/partial history.
-        Next separately select bounded proved981Run/font compactUI;530870 and5260dd remain unaccepted/preserved.
-        Preserve525/529/allaccepted/foreignlanes; no schooldeployment/DB/network/backup or ownerclassreleaseclaim.
+        Dated snapshot only; fetch main/current task/exact-head CI and inspect worktree before writes.
+        Accepted531 source68c8be1d is integrated unchanged; General37882939710 and ordinary37883347010
+        all8SUCCESS plus NEW independentAPPROVE. Readiness is test-only, not E01 server persistence/MAX Mini App/T3.
+        First rejectedba source remains ordinary ancestry; only temporary1540/c9 probe workflows are outside it.
+        Selected532 repairs only compact desktop primaryRun/font-control layout proved in original530981PNG.
+        Actual main-beforebrowser NOT_RUN; verify source continuity and preserve original cached BEFORE, no repeat.
+        Minimal CSS and one meaningful realproductionbrowsercase/generateddigest; preserve full captions,
+        normalinput/drawer/precision/assets/alloldcases/timeouts. Final ordinary exact gates/NEWreview mandatory.
+        Suspended530870/5260dd/525ed4 and all older results remain fully recorded in accepted_slices/suspended_slices.
+        After532 technical acceptance freshly resume530 final convergence/review, then526 full56/denial/server save.
+        Previous rejected candidates/reviews/raw evidence remain in those records, cards and Git history.
+        Hygiene524 has one counted acceptedproduction529;531 test-only doesnotcount. Reassess after each slice.
+        SchoolK0/version/full backups NOT_VERIFIED, pupil-deviceT3/owner/class/release pending; no deployment,
+        DB/network/backup authorization. This compact note replaces accumulated narration, not canonical evidence.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
