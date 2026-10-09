@@ -65,6 +65,7 @@ jobs:
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm build
       - name: Migrate and verify restricted application role
+        id: migrated
         run: |
           pnpm db:migrate
           psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'classroom-owner-ci-isolated-test'"
@@ -72,9 +73,12 @@ jobs:
           test "$role" = "asalab_app:false:false"
       - name: Real database and access regression tests
         run: pnpm test:access-a
+      # Collect browser evidence after a test failure; the failed step still fails the job.
       - name: Real teacher and pupil browser journeys
+        if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}
         run: pnpm e2e:access-a
       - name: Account settings layout regression
+        if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}
         run: pnpm e2e:settings-ui
       - name: Preserve exact-revision evidence
         if: always()
