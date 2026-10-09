@@ -2032,9 +2032,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: bounded_parallel_card_guard_repair
+      status: done
+      checkpoint: selected_parallel_guard_technically_accepted
       owner_acceptance: pending
+      accepted_candidate_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/parallel-card-guard-536-independent-review-51361740.md
     execution_lease:
       executor_id: electronics-control-536
       holder: unassigned
@@ -2048,17 +2051,39 @@ parallel_lanes:
         - pnpm gate:governance
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 47b8585c32ec5875ccb1db2d8d1f0877e68978f8
+      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
       head_sha: null
-      observed_at: '2026-10-09T16:24:31Z'
+      observed_at: '2026-10-09T16:49:06Z'
       main:
         branch: main
-        sha: 47b8585c32ec5875ccb1db2d8d1f0877e68978f8
-      observation_note: Dated snapshot; fetch main and exact CI before writes. Explicit
-        owner452 parallel repairs need bounded validation of existing selected parented
-        Electronics lanes. Only validator/tests/router; no product/current/card/deployment
-        mutation by author. Parent programme and task blockers checked by controller,
-        no inherited-blocker bypass. Root electronics530 and all foreign state preserved.
+        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
+        exact51361740 is technically accepted after remote Governance SUCCESS, final
+        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
+        or pupil acceptance claim. Owner explicitly authorizes the separately selected
+        E13/E07 product repairs. Each author owns only its exact card paths, checks
+        root programme/task/action blockers and actual dirty worktrees, returns one
+        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
+        acceptance still required. Root530 finalCI and preserved526 acceptance remain
+        priority, no competing changes in their paths. School/device/class/deployment
+        remain separate.
+    accepted_slices:
+    - task_id: TASK-ELECTRONICS-GOVERNANCE-008
+      issue: 536
+      accepted_candidate_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      integrated_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      candidate_tree: f8d13a2bdbc1e11d117d756f10ec5c59fd5e628b
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/parallel-card-guard-536-independent-review-51361740.md
+      independent_review_original_sha256: f89b2821b0905d59e050e13f772f05b87dc2fd120c3f843eca2daf776239b8fe
+      exact_governance_run: 37960652317
+      exact_governance_job: 113922339704
+      exact_governance_conclusion: success
+      full_general_observation: in_progress_at_review_not_claimed_pass
+      production_source_changed: false
+      status: technical_accepted
+      owner_acceptance: not_product_acceptance
+      deployment: not_run
 
   - id: electronics-arduino
     parent_lane: electronics
@@ -2080,10 +2105,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: ready
-      checkpoint: prepared_pending_independent_guard536_acceptance
+      status: in_progress
+      checkpoint: bounded_confirmed_product_repair
       dependency_issue: 536
       owner_acceptance: pending
+      dependency_status: technical_accepted
+      selected_at: '2026-10-09T16:49:06Z'
     execution_lease:
       executor_id: electronics-arduino-537
       holder: unassigned
@@ -2105,18 +2132,23 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
+      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
       head_sha: null
-      observed_at: '2026-10-09T16:35:26Z'
+      observed_at: '2026-10-09T16:49:06Z'
       main:
         branch: main
-        sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Owner452
-        explicitly commissioned this bounded parallel pupil repair. READY preparation
-        only, no executable product dispatch until independent guard536 acceptance and
-        in_progress selection on main. Exact card/paths, actual dirty overlap and parent
-        programme blockers must be checked. No school/container/DB/network/backup operation;
-        root530 and saved526 remain priority.
+        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
+        exact51361740 is technically accepted after remote Governance SUCCESS, final
+        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
+        or pupil acceptance claim. Owner explicitly authorizes the separately selected
+        E13/E07 product repairs. Each author owns only its exact card paths, checks
+        root programme/task/action blockers and actual dirty worktrees, returns one
+        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
+        acceptance still required. Root530 finalCI and preserved526 acceptance remain
+        priority, no competing changes in their paths. School/device/class/deployment
+        remain separate.
+
   - id: electronics-wire
     parent_lane: electronics
     worktree_id: electronics-wire-538
@@ -2133,10 +2165,12 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: ready
-      checkpoint: prepared_pending_independent_guard536_acceptance
+      status: in_progress
+      checkpoint: bounded_confirmed_product_repair
       dependency_issue: 536
       owner_acceptance: pending
+      dependency_status: technical_accepted
+      selected_at: '2026-10-09T16:49:06Z'
     execution_lease:
       executor_id: electronics-wire-538
       holder: unassigned
@@ -2158,18 +2192,22 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
+      convergence_baseline_sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
       head_sha: null
-      observed_at: '2026-10-09T16:35:26Z'
+      observed_at: '2026-10-09T16:49:06Z'
       main:
         branch: main
-        sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Owner452
-        explicitly commissioned this bounded parallel pupil repair. READY preparation
-        only, no executable product dispatch until independent guard536 acceptance and
-        in_progress selection on main. Exact card/paths, actual dirty overlap and parent
-        programme blockers must be checked. No school/container/DB/network/backup operation;
-        root530 and saved526 remain priority.
+        sha: 51361740a708bae5aee13bc9e366d3e35b0cf994
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Guard536
+        exact51361740 is technically accepted after remote Governance SUCCESS, final
+        full local governance and NEW independent APPROVE/114+10 checks. No fullGeneral/release
+        or pupil acceptance claim. Owner explicitly authorizes the separately selected
+        E13/E07 product repairs. Each author owns only its exact card paths, checks
+        root programme/task/action blockers and actual dirty worktrees, returns one
+        bounded candidate/self-review then STOP; NEW independent exact product/browser/API
+        acceptance still required. Root530 finalCI and preserved526 acceptance remain
+        priority, no competing changes in their paths. School/device/class/deployment
+        remain separate.
 
 integration:
   owner_lane: visual-programming
