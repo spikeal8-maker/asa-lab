@@ -1,0 +1,92 @@
+name: Classroom Owner Real Scenarios
+
+"on":
+  push:
+    branches: ["assistant/classroom-owner-fixes-20261008"]
+  pull_request:
+    paths:
+      - ".github/workflows/classroom-owner.yml"
+      - "apps/api/src/classroom*"
+      - "apps/web/src/components/*Classroom*"
+      - "apps/web/src/components/Student*"
+      - "apps/web/src/pages/Classroom*"
+      - "e2e/*classroom*"
+      - "e2e/*access*"
+      - "migrations/**"
+      - "playwright.access-a.config.ts"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: classroom-owner-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  classroom-owner-real:
+    name: Classroom Owner real PostgreSQL and browser
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      NX_SKIP_NX_CACHE: "true"
+      NX_DAEMON: "false"
+      TEST_DATABASE_URL: postgresql://postgres:classroom-owner-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:classroom-owner-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:classroom-owner-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      MIGRATION_EXPECT_DATABASE: asa_access_a_test
+      MIGRATION_CONFIRM: APPLY:asa_access_a_test
+      VITEST_MAX_WORKERS: "2"
+      ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Additional proof; existing gates and assertions remain unchanged.
+      # PostgreSQL 16 is included in the documented Ubuntu 24.04 runner image.
+      # Provisioning runs only on this disposable GitHub runner, not the owner computer.
+      - name: Provision isolated PostgreSQL 16 on the GitHub runner
+        run: |
+          sudo systemctl start postgresql.service
+          version=$(sudo -u postgres psql -Atqc 'SHOW server_version_num')
+          test "$version" -ge 160000 && test "$version" -lt 170000
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE postgres WITH PASSWORD 'classroom-owner-ci-isolated-test'"
+          sudo -u postgres createdb asa_access_a_test
+          pg_isready -h 127.0.0.1 -p 5432 -d asa_access_a_test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm build
+      - name: Migrate and verify restricted application role
+        run: |
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'classroom-owner-ci-isolated-test'"
+          role=$(psql "$APP_TEST_DATABASE_URL" -Atqc "SELECT current_user || ':' || rolsuper || ':' || rolbypassrls FROM pg_roles WHERE rolname=current_user")
+          test "$role" = "asalab_app:false:false"
+      - name: Real database and access regression tests
+        run: pnpm test:access-a
+      - name: Real teacher and pupil browser journeys
+        run: pnpm e2e:access-a
+      - name: Account settings layout regression
+        run: pnpm e2e:settings-ui
+      - name: Preserve exact-revision evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-owner-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            e2e/artifacts/owner-preview/access-a
+            e2e/artifacts/owner-preview/access-a-ui
+            reports/playwright
+            apps/web/dist/build-metadata.json
+          retention-days: 14
+      - name: Stop this disposable runner database
+        if: always()
+        run: sudo systemctl stop postgresql.service
