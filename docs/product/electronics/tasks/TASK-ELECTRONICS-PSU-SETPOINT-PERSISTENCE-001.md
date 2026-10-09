@@ -1,0 +1,51 @@
+---
+task_id: TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001
+kind: repair
+risk: high
+semantic_change: 'yes'
+roadmap_slice: null
+prerequisites:
+  - Technical acceptance of E01/526 and mandatory hygiene542
+  - Owner-approved persistence of PSU U/I/value with runtime-only output
+acceptance_boundary: slice
+review: independent
+---
+
+# Keep pupil PSU settings across Stop and server reopen
+
+Bounded [543](https://github.com/spikeal8-maker/asa-lab/issues/543) in existing programme452, original E04. Selection only canonical current.yaml on main. No new programme, inventory, solver repair, runtime accuracy change or school deployment.
+
+## Cause, approved result and mapped context
+
+Actual setRegulatedPowerSupplyControls stores only runtimeOverrides during Run; Stop clears them and loses U/I. Persisting the voltage alias naively causes sameCanonicalStructure to call beginGeneration(document,0), silently resetting physics. Both mechanisms belong to this single user repair.
+
+Read router, mapped electronics.ui.workbench in components/ui-assets-persistence.yaml and one direct dependency electronics.worker.live-controller in components/engine-worker-clock.yaml; owner E04/E29/K6-A in ASA_ELECTRONICS_OWNER_REPAIR_PRIORITY_20261008.md, clock contract sections1/6/9 and review/state/persistence contracts at exact mapped symbols. Accepted526 recovery and original browser evidence are preserved, not rerun as a new inventory. Controller-provided external e04-psu-bounded-preparation.md is navigation, not acceptance.
+
+Already approved: retain ONLY voltageSetpointVolt/currentLimitAmp and consistent value alias through live edits, Stop/Start, ordinary Save/autosave and reopen. outputEnabled remains runtime-only while running; persisted pre-Run output and all other properties remain intact. A live permitted edit preserves time, Arduino, capacitor, heat, damage and other canonical runtime state; intentional Stop then new Start resets physical state from zero. No new owner decision needed.
+
+## Exact production and supporting paths
+
+- apps/web/src/electronics/use-electronics-workbench.ts: separate persisted U/I/value from runtime-only output, normal commit and no-op handling, no direct per-knob HTTP or copying all measured/override state.
+- apps/web/src/electronics/live-simulation-worker-controller.ts: ONLY narrow normalization of a consistent regulated-PSU alias for structural comparison; preserve actual U/I timed-input delivery and progressed generation. Do not ignore other component values, inconsistent aliases, missing/legacy fallback or true structure changes.
+- apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts: new meaningful production-mounted hook/project-state/recovery/queue tests, existing public boundary mocks only.
+- apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts: narrow alias/input/generation/full-state continuity and structural negative regressions; retain all old bodies.
+- e2e/electronics-simulation.spec.ts: one actual user journey plus only two owner-policy expectation updates described below; retain every existing526/532/530/533 and physical test/assertion/timeout.
+- docs/product/electronics/components/ui-assets-persistence.yaml: only actual new test routing; generated/component-coverage.json only through the existing generator for canonical browser digest.
+
+No project-state/autosave/local-draft/auth/server/solver/model/scheduler/Arduino/compiler/Stage/Sidebar/visual/CSS/artwork/dependency/workflow/current/card write by author. A required additional product path returns a concrete proposal before writing. Root handles selection/closeout/publication. Other authors must not concurrently write these paths; stopped clean539/540 candidates are future integration concerns, not an automatic global blocker.
+
+## Meaningful tests and real pupil BEFORE/AFTER
+
+Mounted: Run7.5V/0.15A persists U/I/value and scoped recovery whole-document; Stop/Run keeps them; output-only does not create dirty/revision/queue; combined patch persists only U/I/value; identical/invalid/type/NaN/Infinity/clamp cases; preserve full sketch/workspace/wires and other fields. Manual Save and normal minute autosave use the real accepted queue, no per-input requests or stale in-flight overwrite. Fake timers only in mounted tests.
+
+Worker: consistent PSU alias changes keep progressed generation and actual timed-input order/boundary/committed state; non-PSU values, inconsistent alias and legacy value fallback still trigger the required structural path. Forwarded canonical state must remain continuous rather than fabricated equal across physically advancing ticks; meaningful RC/heat/damage/Arduino continuation, intentional Stop/Start reset0. Preserve quantum/instruction/budgets/precision/quality/faults and never publish yielded/incomplete electrical frames.
+
+Two existing browser assertions encode superseded owner policy: MATH-10B expects persisted0.1A after live0.2A; live supply/oscilloscope expects server5V after live8V. Update ONLY to approved persistent0.2A/correctCV and8V; retain real CC→CV measurements, ON/OFF, single-generation/ready horizons, runtime-only scope values, full wiring and unchanged timeouts. Explicit normal Save/quiet autosave precedes server persistence assertion; do not expect per-knob PUT.
+
+Actual built-editor BEFORE/AFTER: same full supported circuit, genuine Run/ready → inspector7.5/0.15 → live electrical result/continuous state → Stop → Run with same U/I and intentional fresh physical time → manual Save/full actual PUT/server/revision → separately ordinary quiet minute/latest document/no storm → cookies-only context without old local draft/full server schema+existing sketch reopen and Run. Genuine Worker observer may record complete ready/requested/committed/compute/UI frames without altering them. Keep initial BEFORE source and identical scenario; do not substitute isolated probes or shortened programs for production actions. Four applicable viewports1440/1024/390/320; controls remain native accessible/no overflow/clipping, physical elapsed/accuracy unchanged.
+
+## Gates / delivery / STOP
+
+NEW author fresh preflight/exact-card selection/actual dirty paths; frozen literal NX_SKIP_NX_CACHE=true focused gate, necessary lint/routing/generator validation, bounded self-review and ONE unpublished candidate/report thenSTOP. No local extra stack, deployment, push or CI dispatch by author. Controller independently checks actual diff/source/evidence, publishes one exact final source and justified BEFORE/AFTER in isolated CI; ordinary exact Electronics/General all8 and NEW independent reviewer required. Required failures classified before repair; no hopeful whole reruns, longer expectations or scope expansion. Final integration preserves all accepted and parallel work. STOP author/reviewer; controller continues452 after accepted repair.
+
+School K0/version/full backups NOT_VERIFIED, real pupil T3/class15+15/owner/deployment remain separately pending; no installation/DB/network/backup operations or runner substitute.

@@ -572,33 +572,37 @@ parallel_lanes:
   - id: electronics
     worktree_id: electronics-main
     owned_paths:
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-009.md
-    - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
-    - docs/product/electronics/evidence/hygiene-baseline.yaml
-    - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
-    - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-005.yaml
+    - apps/web/src/electronics/use-electronics-workbench.ts
+    - apps/web/src/electronics/live-simulation-worker-controller.ts
+    - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
+    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - e2e/electronics-simulation.spec.ts
+    - docs/product/electronics/generated/component-coverage.json
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
     task:
-      id: TASK-ELECTRONICS-GOVERNANCE-009
-      issue: 542
+      id: TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001
+      issue: 543
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: mandatory_compact_full_hygiene_after_532_530_526
-      kind: plan/governance
-      full_hygiene_checkpoint: true
-      previous_full_checkpoint_issue: 535
-      reviewed_main_sha: b663348a50bed99b2f1fa13c64272879aa3e526b
-      counted_production_issues:
-      - 532
-      - 530
+      checkpoint: bounded_persist_psu_ui_without_hidden_canonical_restart
+      kind: repair
+      owner_acceptance: pending
+      selected_at: '2026-10-09T20:49:58Z'
+      technical_prerequisites:
       - 526
-      next_product_priority: E04 PSU U/I persistence; preserve parallel540/541/538/525
+      - 542
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-009.md
-      - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
-      - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      - docs/product/electronics/components/engine-worker-clock.yaml
+      repair_scope: Exactly hook and narrow consistent regulated-PSU value alias comparison
+        in live controller; meaningful mounted/controller tests and real full Save/autosave/cookies-only
+        reopen. Persist U/I/value, runtime-only output; preserve progressed canonical
+        state/time and intentional Stop/Start reset. No other product subsystem or school
+        actions.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1075,21 +1079,22 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: b663348a50bed99b2f1fa13c64272879aa3e526b
+      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
       head_sha: null
-      observed_at: '2026-10-09T20:14:24Z'
+      observed_at: '2026-10-09T20:49:58Z'
       main:
         branch: main
-        sha: b663348a50bed99b2f1fa13c64272879aa3e526b
+        sha: 3134650d808e698a9524515388d1793b0841a677
       observation_note: Dated snapshot; fetch main and actual exact CI before writes.
-        Accepted526 source185d all8SUCCESS/NEW APPROVE and ordinary integration1d7a14d/closeoutb663
-        preserve foreign work. Source CI is not CI of later docs composition; final main
-        General is observed separately. Three production acceptances532/530/526 after
-        full535 trigger compact mandatory full hygiene542; no new feature or acceptance
-        of parallel production before checkpoint resolves. Preserve54023dc,5411ae8,538519APPROVEheld,5371747/539c7+9036
-        and525ed4. No replay accepted browser/load/device runs, no cleanup/decomposition
-        or school actions. After checkpoint fresh E04 selection and independent continuing
-        programme452. K0/T3/class/owner/deployment pending.
+        Source542cffba NEW independent APPROVE/all4General37987374023 SUCCESS and actual
+        one-doc/3775 foreign entries proof; mandatory hygiene resolved, no cleanup. E01
+        source185d accepted/integrated; actual313 General37986023898 all4SUCCESS and Issue526
+        CLOSED6088797737. Select E04/543 only hook+narrow PSU alias/controller continuity,
+        full persistence/browser proof. Preserve every parallel candidate;54072 REQUEST_CHANGES
+        genuine GPIO compute bottleneck, not UI loss; independent Access timeout forwarded
+        to Portal for C/D classification, no Electronics scope expansion. Source CI is
+        not later docs composition CI. K0/T3/class/owner/deployment pending; no school
+        actions.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -1110,6 +1115,51 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-009
+        issue: 542
+        accepted_candidate_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        candidate_tree: 90ac7403916102b55a409d1723382e3386c23eee
+        integrated_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        reviewed_main_sha: 3134650d808e698a9524515388d1793b0841a677
+        independent_review: approved
+        independent_review_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        independent_review_original_sha256: 825cc54f30cee28282c19154c9660823f65a8dd6dc2b0d064e11fee3de2dd481
+        exact_candidate_general_run: 37987374023
+        exact_candidate_general_conclusion: success
+        status: technical_accepted
+        full_hygiene_checkpoint: true
+        production_source_changed: false
+        counted_production_issues:
+        - 532
+        - 530
+        - 526
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-005.yaml
+        independent_evidence: docs/product/electronics/evidence/hygiene-542-independent-review-cffba38e.md
+        raw_evidence: docs/product/electronics/evidence/hygiene-542-technical-acceptance.json
+        prior_closeout_task_snapshot:
+          id: TASK-ELECTRONICS-GOVERNANCE-009
+          issue: 542
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_progress
+          checkpoint: mandatory_compact_full_hygiene_after_532_530_526
+          kind: plan/governance
+          full_hygiene_checkpoint: true
+          previous_full_checkpoint_issue: 535
+          reviewed_main_sha: b663348a50bed99b2f1fa13c64272879aa3e526b
+          counted_production_issues:
+          - 532
+          - 530
+          - 526
+          next_product_priority: E04 PSU U/I persistence; preserve parallel540/541/538/525
+          context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-GOVERNANCE-009.md
+          - docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
+          - docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
         issue: 526
         accepted_candidate_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
@@ -2287,20 +2337,28 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_same_time_scheduler_work_preserving_full_canonical_parity
+      checkpoint: r1_localize_remaining_exact72_compute_cost_before_same_scope_repair
       dependency_for_issue: 539
       owner_acceptance: pending
       selected_at: '2026-10-09T19:34:20Z'
       source_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
       preserved_preparation_sha: 9036e015195cd367c6e5f84c603a530df9d2e443
-      integration_priority: Hold integration until root526 acceptance and due compact
-        hygiene checkpoint. No school actions.
+      integration_priority: Hygiene542 accepted; remain unaccepted until full GPIO/Serial
+        and necessary exact gates plus NEW independent reviewer. External Access timeout
+        separately forwarded Portal for C/D classification.
       evidence: docs/product/electronics/evidence/scheduler-540-proven-same-time-cost.md
-      repair_scope: Only scheduler production path and existing mapped scheduler test.
-        Remove proved redundant same-time work only with byte-exact full-state/event/observation
-        parity; preserve barriers, quantum1000us, instruction1us, budget256, quality,
-        source programs and existing timeouts. Any other production path needs a separate
-        bounded controller decision before edits.
+      repair_scope: R1 only scheduler and its mapped spec. First localize remaining compute
+        cost of exact72 using retained full GPIO document and external read-only profile;
+        no repeat unchanged browser run. Safe causal product repair only with full byte-exact
+        canonical parity. New production path requires separate concrete controller decision
+        before edits. Quantum1000us/instruction1us/event256/quality/physics/full programs/5s
+        unchanged; no yielded as ready.
+      prior_failed_candidate_sha: 72e3122f5bd3510bd7b837965365bc33c87da115
+      prior_failed_candidate_tree: 5cae8ada4b137364436d0b7b540b8d6d7810ce68
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/scheduler-540-independent-review-72e3122f.md
+      directed_failed_run: 37987101301
+      general_failed_run: 37987090792
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2322,20 +2380,18 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2d03a56f96ed849079f09a4aa8e0dbe6d5c7d91f
+      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
       head_sha: null
-      observed_at: '2026-10-09T19:34:20Z'
+      observed_at: '2026-10-09T20:49:58Z'
       main:
         branch: main
-        sha: 2d03a56f96ed849079f09a4aa8e0dbe6d5c7d91f
-      observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes.
-        Main2d03 General37980349084 in progress at observation, Governance PASS; no final
-        CI claim. Preserved c7 General all4SUCCESS but NEW independent REQUEST_CHANGES,
-        actual directed GPIO only0..5 within5s. Read-only R1 stopped outside two-path
-        budget at clean9036: actual scheduler repeated same-time solve/compile/quality
-        cost, no product edit. Separate bounded540 selected on main; preserve all539/537
-        originals, full programs, tests/timeouts/physics. Root526 R6 independent priority;
-        hold integration until E01 and due hygiene. K0/T3/class/deployment pending.'
+        sha: 3134650d808e698a9524515388d1793b0841a677
+      observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent
+        exact72 REQUEST_CHANGES: GPIO16 ready C=H0..1.5s, indices0..5 in unchanged5s,
+        compute4330.7ms/UI4.5..16.5ms. Serial8/fullSave/reopen PASS; ordinary NOT_RUN.
+        General37987090792 Access timeout separate C/D, other3 PASS. Preserve72/c7/9036/1747
+        and all original artifacts. Bounded R1 selected, same two-path budget; actual
+        profiling before any further optimization. No school/device frequency claim.'
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
       issue: 537
@@ -2532,16 +2588,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_ui_integer_seconds_without_canonical_clock_change
+      checkpoint: r1_explicit_success_raw_and_running_png_preservation_only
       owner_acceptance: pending
       selected_at: '2026-10-09T19:44:45Z'
-      integration_priority: E01/526 first, then mandatory compact hygiene checkpoint
-        before this integration.
-      repair_scope: Only WorkbenchHeader formatting; new meaningful mounted and dedicated
-        real browser tests plus existing command/workflow/map registration. Shared Header
-        stays advisory root scope; card authorizes this non-overlapping actual work
-        after526 author STOP, with explicit actual dirty-path checks. No engine/state/physics/persistence/CSS
-        changes.
+      integration_priority: Hygiene542 accepted. Require new exact SHA ordinary/General
+        and NEW independent reviewer of retained originals; green old89 CI is not acceptance.
+      repair_scope: 'R1 evidence only: e2e/electronics-simulation-time.spec.ts explicitly
+        write raw JSON and three running phase PNG per width to testInfo.outputPath and
+        attach paths. Preserve exact Header/product/assertions/timeouts/physics/dependencies/workflows/mounted
+        tests. BEFORE remains genuine causal history, no repeat old run. Mobile DOM-only
+        from unchanged baseline CSS, no visible mobile clock claim.'
+      prior_failed_candidate_sha: 89ebdf34bcb1d30882ddd248376e532b0c9440e5
+      prior_failed_candidate_tree: 1bbb5e7d2f3a3ceeb0e0ced10361599f8edcf7bc
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/integer-time-541-independent-review-89ebdf34.md
+      previous_electronics_run: 37986680475
+      previous_browser_passed: 139
     execution_lease:
       executor_id: electronics-integer-time-541
       holder: unassigned
@@ -2563,20 +2625,18 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 8955a8a9ef5e9df9e39a8a31f5e3a59984e80b2e
+      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
       head_sha: null
-      observed_at: '2026-10-09T19:44:45Z'
+      observed_at: '2026-10-09T20:49:58Z'
       main:
         branch: main
-        sha: 8955a8a9ef5e9df9e39a8a31f5e3a59984e80b2e
-      observation_note: Dated snapshot; fetch main and actual exact-SHA CI before writes.
-        Owner explicitly approved integer seconds and parallel bounded fixes. E01 source185d
-        focusedPASS, General37981551177 and ordinary37981556181 pending; old results
-        not acceptance. Preserve root526 and539/537/538/525. No concurrent writer in
-        Header:526 author STOP, independent reviewer read-only; manually check all actual
-        dirty paths before writes. Hold integration until E01 and due hygiene. No school/DB/network/deployment
-        action.
-
+        sha: 3134650d808e698a9524515388d1793b0841a677
+      observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent
+        exact89 REQUEST_CHANGES evidence-only: all8SUCCESS/139browserPASS but original330CRC
+        ZIP lacks four raw JSON and12running PNG; only4StopPNG. BEFORE722fc882 all4 fractionalclock
+        failure genuine, preserved. Selected bounded evidence preservation R1 only; product/Header/CSS/assertions/timeouts
+        unchanged. Mobileclock hidden by prior CSS: DOM-only/accessibility geometry does
+        not prove visible clock. K0/T3/class/owner/deployment pending.'
 integration:
   owner_lane: visual-programming
   shared_paths:
