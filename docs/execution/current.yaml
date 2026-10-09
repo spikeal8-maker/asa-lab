@@ -2237,12 +2237,28 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_complete_ready_observation_and_compilation_reuse
+      checkpoint: bounded_r1_confirmed_gpio_compute_throughput_repair
       dependency_for_issue: 537
       owner_acceptance: pending
       selected_at: '2026-10-09T18:13:06Z'
       integration_priority: hold candidate until root530 then526 acceptance; preserve
         E01 priority
+      preserved_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
+      preserved_candidate_tree: 2051369e4b1cb851621da9dedba8deaf7fac9839
+      preserved_candidate_branch: codex/electronics-ready-cadence-539-final
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/arduino-ready-cadence-539-independent-review-c7ab5fd4.md
+      independent_review_original_sha256: 9e9361dee201efb02020eea9117980c80f5aaf9ce4bf59a41a01bf59da81a32e
+      exact_general_run: 37975631829
+      exact_general_conclusion: success
+      directed_before_run: 37977684653
+      directed_after_run: 37977699930
+      directed_after_conclusion: failure
+      repair_scope: Only proven remaining compute cost inside the two existing controller/runtime
+        production paths. Keep both complete generic programs, 5s/30s assertions, all
+        canonical state/inputs/barriers/precision/budgets. New production path requires
+        a separate bounded controller decision before edits. E01 acceptance remains
+        priority; hold this candidate integration until E01 and due hygiene.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2264,23 +2280,22 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 26e9c5879d4305441310dbc1f9ab68061f759a65
+      convergence_baseline_sha: c69265688891d3084f59add6d1188813a6764633
       head_sha: null
-      observed_at: '2026-10-09T18:13:06Z'
+      observed_at: '2026-10-09T19:15:50Z'
       main:
         branch: main
-        sha: 26e9c5879d4305441310dbc1f9ab68061f759a65
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Preserved537
-        exact1747 received NEW independent REQUEST_CHANGES after three strict full saved
-        documents2->3 PASS and exactGeneral37968550047 all4SUCCESS. Original traces
-        prove Serial ready0 then yielded256->2048/request112300, GPIO ready0/2/4 only
-        and UI same; buffer200 not reached. Select separate bounded539 on canonical
-        main, without importing unaccepted E13. Only controller adaptive complete horizons
-        and immutable bounded exact-source compilation reuse in runtime; no physics,
-        scheduler, instruction timing or budget changes. Require full state/event parity,
-        real generic browser/save/reopen, exact gates and NEW independent review. No
-        incomplete electrical publication or timeout change. Preserve all537 candidates/reports,
-        root530 then526 priority, foreign work, school/K0/T3/class/deployment limits.
+        sha: c69265688891d3084f59add6d1188813a6764633
+      observation_note: 'Dated snapshot; fetch main and actual exact CI before writes. NEW independent
+        exactc7 REQUEST_CHANGES: Serial full8/save/reopen PASS, GPIO genuine ready0..1400000/100000
+        and UI0..5 only within original5s; actual compute14chunks4113.2ms, observer15/200,
+        no lost ready frame or physics quality fault. General37975631829 all4SUCCESS
+        does not accept incomplete pupil journey; Ordinary source NOT_RUN deliberately
+        after directed failure. Preserve c7/0147/1747 and original BEFORE/AFTER ZIPs.
+        New bounded R1 author investigates remaining compute cause within existing two
+        production paths; no timeout/precision/budget weakening, no incomplete frame.
+        Root526 stays independent priority; all other lanes/history preserved; school/K0/T3/class/deployment
+        pending.'
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
       issue: 537

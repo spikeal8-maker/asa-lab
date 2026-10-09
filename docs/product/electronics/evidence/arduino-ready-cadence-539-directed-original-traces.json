@@ -1,0 +1,931 @@
+[
+  {
+    "mode": "before",
+    "run": 37977684653,
+    "trace": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\42a5da62-ci\\run-37977684653\\extracted\\reports\\playwright\\electronics-ready-cadence--01078--reopened-with-cookies-only\\trace.zip",
+    "traceSha256": "9532f7417ae712f0c0ad3a81566b1b6741d7c939a234a532eb56155cea0904b1",
+    "workerCount": 9,
+    "uiCount": 9,
+    "readyIndices": [
+      0,
+      2,
+      4
+    ],
+    "lastWorkerRows": [
+      {
+        "at": 2542.100000000006,
+        "status": "ready",
+        "requested": 0,
+        "committed": 0,
+        "computeMs": 11.200000000011642,
+        "index": -1,
+        "resultNull": false
+      },
+      {
+        "at": 3211.600000000035,
+        "status": "ready",
+        "requested": 100100,
+        "committed": 100100,
+        "computeMs": 658.8999999999942,
+        "index": 0,
+        "resultNull": false
+      },
+      {
+        "at": 3939.5,
+        "status": "yielded",
+        "requested": 600100,
+        "committed": 298000,
+        "computeMs": 727.3999999999651,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 4480.900000000023,
+        "status": "yielded",
+        "requested": 600100,
+        "committed": 500221,
+        "computeMs": 540.9000000000233,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 4774.299999999988,
+        "status": "ready",
+        "requested": 600100,
+        "committed": 600100,
+        "computeMs": 292.79999999998836,
+        "index": 2,
+        "resultNull": false
+      },
+      {
+        "at": 5304.600000000035,
+        "status": "yielded",
+        "requested": 1100100,
+        "committed": 798000,
+        "computeMs": 529.7999999999884,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 5925.100000000035,
+        "status": "yielded",
+        "requested": 1100100,
+        "committed": 1000337,
+        "computeMs": 619.8999999999651,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 6194.900000000023,
+        "status": "ready",
+        "requested": 1100100,
+        "committed": 1100100,
+        "computeMs": 269.20000000001164,
+        "index": 4,
+        "resultNull": false
+      },
+      {
+        "at": 6763.200000000012,
+        "status": "yielded",
+        "requested": 1600100,
+        "committed": 1298000,
+        "computeMs": 560.2999999999884,
+        "index": -1,
+        "resultNull": true
+      }
+    ],
+    "firstWorkerAt": 2542.100000000006,
+    "lastWorkerAt": 6763.200000000012,
+    "maxCommitted": 1298000,
+    "yieldedAlwaysNull": true,
+    "uiRows": [
+      {
+        "at": 1636.8000000000175,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1686.7000000000116,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1816.6000000000058,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1868.9000000000233,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2011.1000000000058,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2449,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:00",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3216.7999999999884,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.1001",
+        "serial": [],
+        "brightness": [
+          70,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 4778.900000000023,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.6001000000000001",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          70,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 6199.900000000023,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:1.1000999999999999",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          70,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "mode": "before",
+    "run": 37977684653,
+    "trace": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\42a5da62-ci\\run-37977684653\\extracted\\reports\\playwright\\electronics-ready-cadence--40a7e--reopened-with-cookies-only\\trace.zip",
+    "traceSha256": "d6a75cf5514d2c947c5e626a487e3ba30c75526ae97e12f501f0fdf8144156c5",
+    "workerCount": 11,
+    "uiCount": 8,
+    "readyIndices": [],
+    "lastWorkerRows": [
+      {
+        "at": 3194.2000000000116,
+        "status": "ready",
+        "requested": 0,
+        "committed": 0,
+        "computeMs": 9.89999999999418,
+        "index": -1,
+        "resultNull": false
+      },
+      {
+        "at": 3742.7999999999884,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 256,
+        "computeMs": 530.2999999999884,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 4208.100000000006,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 512,
+        "computeMs": 464.5,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 4617.799999999988,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 768,
+        "computeMs": 406.70000000001164,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 4967.5,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 1024,
+        "computeMs": 349.3999999999942,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 5347.299999999988,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 1280,
+        "computeMs": 379.30000000001746,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 5667.399999999994,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 1536,
+        "computeMs": 319.6000000000058,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 6050,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 1792,
+        "computeMs": 381.29999999998836,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 6406.200000000012,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 2048,
+        "computeMs": 355.3999999999942,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 6761.799999999988,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 2304,
+        "computeMs": 355,
+        "index": -1,
+        "resultNull": true
+      },
+      {
+        "at": 7104.399999999994,
+        "status": "yielded",
+        "requested": 100100,
+        "committed": 2560,
+        "computeMs": 334.79999999998836,
+        "index": -1,
+        "resultNull": true
+      }
+    ],
+    "firstWorkerAt": 3194.2000000000116,
+    "lastWorkerAt": 7104.399999999994,
+    "maxCommitted": 2560,
+    "yieldedAlwaysNull": true,
+    "uiRows": [
+      {
+        "at": 2282.600000000006,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2339.899999999994,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2389.7999999999884,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2526.100000000006,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2753.2999999999884,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3109.7999999999884,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:00",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3199,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:00",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3752.5,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:00",
+        "serial": [
+          "1\n",
+          "2\n",
+          "4\n",
+          "8\n",
+          "16\n",
+          "32\n",
+          "64\n",
+          "128\n"
+        ],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      }
+    ]
+  },
+  {
+    "mode": "after",
+    "run": 37977699930,
+    "trace": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\ae7d5790-ci\\run-37977699930\\extracted\\reports\\playwright\\electronics-ready-cadence--01078--reopened-with-cookies-only\\trace.zip",
+    "traceSha256": "675c3ab0acb2de765c91b3cd704835b6b8709bca793f379ab5b00177d49e752d",
+    "workerCount": 15,
+    "uiCount": 21,
+    "readyIndices": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "lastWorkerRows": [
+      {
+        "at": 3621.2000000000116,
+        "status": "ready",
+        "requested": 300000,
+        "committed": 300000,
+        "computeMs": 406.5,
+        "index": 1,
+        "resultNull": false
+      },
+      {
+        "at": 3832.7000000000116,
+        "status": "ready",
+        "requested": 400000,
+        "committed": 400000,
+        "computeMs": 209.90000000002328,
+        "index": 1,
+        "resultNull": false
+      },
+      {
+        "at": 4075.2000000000116,
+        "status": "ready",
+        "requested": 500000,
+        "committed": 500000,
+        "computeMs": 241.90000000002328,
+        "index": 1,
+        "resultNull": false
+      },
+      {
+        "at": 4464.900000000023,
+        "status": "ready",
+        "requested": 600000,
+        "committed": 600000,
+        "computeMs": 385,
+        "index": 2,
+        "resultNull": false
+      },
+      {
+        "at": 4673.599999999977,
+        "status": "ready",
+        "requested": 700000,
+        "committed": 700000,
+        "computeMs": 207.10000000003492,
+        "index": 2,
+        "resultNull": false
+      },
+      {
+        "at": 5023.099999999977,
+        "status": "ready",
+        "requested": 800000,
+        "committed": 800000,
+        "computeMs": 348.79999999998836,
+        "index": 3,
+        "resultNull": false
+      },
+      {
+        "at": 5249.099999999977,
+        "status": "ready",
+        "requested": 900000,
+        "committed": 900000,
+        "computeMs": 225.39999999996508,
+        "index": 3,
+        "resultNull": false
+      },
+      {
+        "at": 5436.400000000023,
+        "status": "ready",
+        "requested": 1000000,
+        "committed": 1000000,
+        "computeMs": 186.59999999997672,
+        "index": 3,
+        "resultNull": false
+      },
+      {
+        "at": 5774.099999999977,
+        "status": "ready",
+        "requested": 1100000,
+        "committed": 1100000,
+        "computeMs": 337.20000000001164,
+        "index": 4,
+        "resultNull": false
+      },
+      {
+        "at": 6005.099999999977,
+        "status": "ready",
+        "requested": 1200000,
+        "committed": 1200000,
+        "computeMs": 230.5,
+        "index": 4,
+        "resultNull": false
+      },
+      {
+        "at": 6339,
+        "status": "ready",
+        "requested": 1300000,
+        "committed": 1300000,
+        "computeMs": 333.19999999995343,
+        "index": 5,
+        "resultNull": false
+      },
+      {
+        "at": 6531.400000000023,
+        "status": "ready",
+        "requested": 1400000,
+        "committed": 1400000,
+        "computeMs": 191.79999999998836,
+        "index": 5,
+        "resultNull": false
+      }
+    ],
+    "firstWorkerAt": 2387.0999999999767,
+    "lastWorkerAt": 6531.400000000023,
+    "maxCommitted": 1400000,
+    "yieldedAlwaysNull": true,
+    "uiRows": [
+      {
+        "at": 1466.5,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1593.9000000000233,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1613.9000000000233,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1740.4000000000233,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1809.2999999999884,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 1962.5999999999767,
+        "time": "",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2299.4000000000233,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:00",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 2980.7999999999884,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.1",
+        "serial": [],
+        "brightness": [
+          70,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3224.9000000000233,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.2",
+        "serial": [],
+        "brightness": [
+          70,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3625.9000000000233,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.3",
+        "serial": [],
+        "brightness": [
+          0,
+          70,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 3843.9000000000233,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.4",
+        "serial": [],
+        "brightness": [
+          0,
+          70,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 4079.4000000000233,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.5",
+        "serial": [],
+        "brightness": [
+          0,
+          70,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 4469.200000000012,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.6",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          70,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 4676.599999999977,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.7",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          70,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 5026.200000000012,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.8",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          70,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 5254.700000000012,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:0.9",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          70,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 5439.200000000012,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:01",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          70,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 5779.200000000012,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:1.1",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          70,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 6008.900000000023,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:1.2",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          70,
+          0,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 6342.599999999977,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:1.3",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          70,
+          0,
+          0
+        ]
+      },
+      {
+        "at": 6535.700000000012,
+        "time": "\u0412\u0440\u0435\u043c\u044f \u043c\u043e\u0434\u0435\u043b\u0438\u0440\u043e\u0432\u0430\u043d\u0438\u044f: 00:00:1.4",
+        "serial": [],
+        "brightness": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          70,
+          0,
+          0
+        ]
+      }
+    ]
+  }
+]
