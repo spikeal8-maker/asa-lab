@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
@@ -19,6 +19,8 @@ import {
   snapComponentToBreadboard,
   terminalPositionInDocument,
 } from '../apps/web/src/electronics/workbench-document';
+import { loginWithOrganization } from './organization-login';
+import { e2eAdminPool, seedTeacher } from './seed';
 
 configureProductionLibrary(
   JSON.parse(
@@ -4870,4 +4872,401 @@ test.describe('owner D3-D6 acceptance', () => {
     expect(await cards.count()).toBeGreaterThan(0);
     await page.screenshot({ path: 'reports/interactions/d6-all-components-default.png' });
   });
+});
+
+// Unlike openEditor above, these journeys use the real isolated API and server draft.
+// The fixed centre of the resistor's opaque body is used at every boundary; no
+// alpha-pixel/DOM-target search chooses a point that happens to pass the product.
+test.describe('ELECTRONICS-E03 native field boundary real API', () => {
+  test.use({ hasTouch: true });
+  let pool: ReturnType<typeof e2eAdminPool>;
+  test.beforeAll(() => {
+    pool = e2eAdminPool();
+  });
+  test.afterAll(async () => pool.end());
+
+  for (const width of [1440, 1024, 390, 320]) {
+    for (const [boundary, x, y] of [
+      ['left', -5_000, 0],
+      ['right', 6_000, 0],
+      ['top', 0, -4_000],
+      ['bottom', 0, 5_000],
+      ['top-left', -5_000, -4_000],
+      ['top-right', 6_000, -4_000],
+      ['bottom-left', -5_000, 5_000],
+      ['bottom-right', 6_000, 5_000],
+    ] as const) {
+      test(`${width} ${boundary}: native opaque grab, whole save and cookies-only reopen`, async ({
+        page,
+        browser,
+      }, info) => {
+        const actor = await seedTeacher(pool, `field-${info.workerIndex}-${info.testId.slice(-8)}`);
+        await page.setViewportSize({ width, height: 900 });
+        await loginWithOrganization(page, actor);
+        const origin = new URL(page.url()).origin;
+        const created = await page.context().request.post('/api/projects', {
+          headers: { origin, 'idempotency-key': crypto.randomUUID() },
+          data: { scope: 'personal', classroomId: null, module: 'electronics', title: 'E03 field' },
+        });
+        expect(created.status()).toBe(201);
+        const { project } = (await created.json()) as { project: { id: string } };
+        const server = async (target: Page) => {
+          const response = await target.context().request.get(`/api/projects/${project.id}`);
+          expect(response.status()).toBe(200);
+          return (await response.json()) as {
+            draft: { document: SchematicDocument; revision: number };
+          };
+        };
+        let fixture: SchematicDocument = {
+          schemaVersion: 4,
+          components: [],
+          connections: [],
+          viewport: { x: x - 800, y: y - 490, zoom: 1 },
+          simulation: { running: false, maxIterations: 24 },
+        };
+        for (const [type, id, dx, dy] of [
+          ['resistor-axial', 'field-resistor', 0, 0],
+          ['battery-holder-aa-2', 'field-source', -130, 140],
+          ['led-5mm', 'field-led', 140, 140],
+          ['arduino-uno', 'field-uno', -130, -200],
+        ] as const)
+          fixture = addComponentToDocument(fixture, type, { x: x + dx, y: y + dy }, id).document;
+        const sketch =
+          'void setup() { pinMode(13, OUTPUT); }\nvoid loop() { digitalWrite(13, HIGH); delay(250); digitalWrite(13, LOW); delay(250); }';
+        fixture = {
+          ...fixture,
+          components: fixture.components.map((component) =>
+            component.id === 'field-uno'
+              ? {
+                  ...component,
+                  stateProperties: {
+                    ...component.stateProperties,
+                    arduinoCodeMode: 'text',
+                    arduinoSource: sketch,
+                    arduinoSerialOpen: false,
+                    arduinoBaudRate: 9600,
+                  },
+                }
+              : component.id === 'field-resistor'
+                ? { ...component, value: 220 }
+                : component,
+          ),
+          connections: [
+            {
+              id: 'field-positive',
+              from: { componentId: 'field-source', terminal: 'BAT+' },
+              to: { componentId: 'field-resistor', terminal: 'lead-1' },
+              color: '#e3212b',
+              vertices: [{ x: x - 70, y: y - 70 }],
+            },
+            {
+              id: 'field-load',
+              from: { componentId: 'field-resistor', terminal: 'lead-2' },
+              to: { componentId: 'field-led', terminal: 'anode' },
+              color: '#149447',
+              vertices: [],
+            },
+            {
+              id: 'field-return',
+              from: { componentId: 'field-led', terminal: 'cathode' },
+              to: { componentId: 'field-source', terminal: 'BAT-' },
+              color: '#2a3035',
+              vertices: [{ x, y: y + 260 }],
+            },
+          ],
+        };
+        const initial = await server(page);
+        const seeded = await page.context().request.put(`/api/projects/${project.id}/draft`, {
+          headers: { origin },
+          data: {
+            document: fixture,
+            baseRevision: initial.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seeded.status()).toBe(200);
+        const baseline = await server(page);
+        expect(baseline.draft.document).toEqual(fixture);
+        const session = await page.context().request.get('/api/auth/me');
+        expect(session.status()).toBe(200);
+        const identity = (await session.json()) as { user: { id: string } };
+        const draftKey = `asa-project-local-draft:user:account:${encodeURIComponent(identity.user.id)}:${encodeURIComponent(project.id)}`;
+        const local = async (target: Page): Promise<SchematicDocument | null> =>
+          target.evaluate((key) => {
+            const raw = localStorage.getItem(key);
+            return raw === null ? null : (JSON.parse(raw).document as SchematicDocument);
+          }, draftKey);
+        const observeInput = async (target: Page) => {
+          await target.addInitScript(() => {
+            const events: unknown[] = [];
+            (window as unknown as { fieldEvents: unknown[] }).fieldEvents = events;
+            for (const type of [
+              'pointerdown',
+              'pointermove',
+              'pointerup',
+              'gotpointercapture',
+              'lostpointercapture',
+              'pointercancel',
+              'click',
+            ])
+              window.addEventListener(
+                type,
+                (event) => {
+                  const pointer = event as PointerEvent;
+                  const node = event.target instanceof Element ? event.target : null;
+                  if (!node?.closest('.workbench-canvas')) return;
+                  events.push({
+                    type,
+                    trusted: event.isTrusted,
+                    atMs: performance.now(),
+                    x: pointer.clientX,
+                    y: pointer.clientY,
+                    button: pointer.button,
+                    pointerType: pointer.pointerType,
+                    shift: pointer.shiftKey,
+                    target: node.localName,
+                    targetClass: node.getAttribute('class'),
+                    path: event
+                      .composedPath()
+                      .flatMap((item) =>
+                        item instanceof Element
+                          ? [item.getAttribute('class') ?? item.localName]
+                          : [],
+                      ),
+                    viewBox: node.closest('svg.workbench-canvas')?.getAttribute('viewBox'),
+                  });
+                },
+                true,
+              );
+          });
+        };
+        const receipts: unknown[] = [];
+        const requests: unknown[] = [];
+        page.on('request', (request) => {
+          if (
+            request.method() === 'PUT' &&
+            new URL(request.url()).pathname === `/api/projects/${project.id}/draft`
+          )
+            requests.push(request.postDataJSON());
+        });
+        const capture = async (target: Page, phase: string, extra: unknown = null) => {
+          const observed = await target.evaluate(() => ({
+            viewBox: document.querySelector('.workbench-canvas')?.getAttribute('viewBox'),
+            components: Array.from(
+              document.querySelectorAll('[data-testid="schematic-component"]'),
+            ).map((element) => ({
+              id: element.getAttribute('data-component-id'),
+              x: element.getAttribute('data-x'),
+              y: element.getAttribute('data-y'),
+              mask: element.getAttribute('data-hit-mask-status'),
+              selected: element.classList.contains('workbench-component-selected'),
+            })),
+            events: (window as unknown as { fieldEvents: unknown[] }).fieldEvents,
+            pageWidth: document.documentElement.scrollWidth,
+            viewportWidth: innerWidth,
+          }));
+          receipts.push({ phase, extra, observed, local: await local(target) });
+          const rawPath = info.outputPath('field-boundary.json');
+          writeFileSync(
+            rawPath,
+            JSON.stringify({ width, boundary, fixture, baseline, requests, receipts }, null, 2),
+          );
+          await target.screenshot({ path: info.outputPath(`${phase}.png`), fullPage: true });
+        };
+        const resistorAsset = catalogEntry('resistor-axial')!.asset;
+        const bodyPoint = async (target: Page) =>
+          part(target, 'field-resistor')
+            .locator('.workbench-part')
+            .evaluate(async (element, asset) => {
+              const body = element.querySelector<SVGRectElement>('.workbench-component-body-hit')!;
+              const matrix = (element as SVGGraphicsElement).getScreenCTM();
+              if (!matrix) throw new Error('Resistor has no real screen CTM');
+              const local = { x: body.width.baseVal.value / 2, y: body.height.baseVal.value / 2 };
+              const point = new DOMPoint(local.x, local.y).matrixTransform(matrix);
+              const hit = document.elementFromPoint(point.x, point.y);
+              const stageMatrix = document
+                .querySelector<SVGSVGElement>('.workbench-canvas')!
+                .getScreenCTM()!;
+              // A single fixed sample independently records this known body's
+              // opacity. It does not search alpha pixels or change any DOM target.
+              const image = new Image();
+              image.src = asset;
+              await image.decode();
+              const canvas = document.createElement('canvas');
+              canvas.width = 106;
+              canvas.height = 282;
+              const context = canvas.getContext('2d')!;
+              context.drawImage(image, 0, 0, canvas.width, canvas.height);
+              return {
+                x: point.x,
+                y: point.y,
+                local,
+                matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+                stageScale: stageMatrix.a,
+                opaqueCentreAlpha: context.getImageData(53, 141, 1, 1).data[3],
+                target: hit?.localName,
+                targetClass: hit?.getAttribute('class'),
+                world: new DOMPoint(point.x, point.y)
+                  .matrixTransform(stageMatrix.inverse())
+                  .toJSON(),
+              };
+            }, resistorAsset);
+        const requireReady = async (target: Page) => {
+          await expect(part(target, 'field-resistor')).toHaveAttribute(
+            'data-hit-mask-status',
+            'ready',
+          );
+          await expect(target.getByTestId('schematic-component')).toHaveCount(4);
+        };
+        const drag = async (target: Page, phase: string, touch = false) => {
+          const before = {
+            x: Number(await part(target, 'field-resistor').getAttribute('data-x')),
+            y: Number(await part(target, 'field-resistor').getAttribute('data-y')),
+          };
+          const point = await bodyPoint(target);
+          const viewBox = await target.locator('.workbench-canvas').getAttribute('viewBox');
+          await capture(target, `${phase}-before`, { before, point, viewBox, touch });
+          // These checks prove that the opaque body is reachable through the
+          // *actual* native SVG root, rather than through a terminal/wire/panel.
+          expect(point.target).toBe('svg');
+          expect(point.targetClass).toContain('workbench-canvas');
+          expect(point.opaqueCentreAlpha).toBeGreaterThan(0);
+          if (touch) {
+            const cdp = await target.context().newCDPSession(target);
+            try {
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchStart',
+                touchPoints: [{ x: point.x, y: point.y, id: 1 }],
+              });
+              await cdp.send('Input.dispatchTouchEvent', {
+                type: 'touchMove',
+                touchPoints: [{ x: point.x + 24, y: point.y + 18, id: 1 }],
+              });
+              await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+            } finally {
+              await cdp.detach();
+            }
+          } else {
+            await target.mouse.move(point.x, point.y);
+            await target.mouse.down();
+            await target.mouse.move(point.x + 24, point.y + 18, { steps: 6 });
+            await target.mouse.up();
+          }
+          await frames(target);
+          await capture(target, `${phase}-after`, { before, point, viewBox, touch });
+          await expect(part(target, 'field-resistor')).not.toHaveAttribute(
+            'data-x',
+            String(before.x),
+          );
+          await expect(target.locator('.workbench-canvas')).toHaveAttribute('viewBox', viewBox!);
+          const expected = {
+            x: before.x + Math.round((24 / point.stageScale) * 1000) / 1000,
+            y: before.y + Math.round((18 / point.stageScale) * 1000) / 1000,
+          };
+          expect(Number(await part(target, 'field-resistor').getAttribute('data-x'))).toBeCloseTo(
+            expected.x,
+            4,
+          );
+          expect(Number(await part(target, 'field-resistor').getAttribute('data-y'))).toBeCloseTo(
+            expected.y,
+            4,
+          );
+          return expected;
+        };
+        await observeInput(page);
+        await page.goto(`/#/home/${project.id}`);
+        await requireReady(page);
+        try {
+          await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+          const stage = await page.locator('.workbench-canvas').boundingBox();
+          if (!stage) throw new Error('Stage is absent');
+          const pan = { x: stage.x + stage.width * 0.25, y: stage.y + stage.height * 0.15 };
+          const initialViewBox = await page.locator('.workbench-canvas').getAttribute('viewBox');
+          await page.mouse.move(pan.x, pan.y);
+          await page.mouse.down({ button: 'middle' });
+          await page.mouse.move(pan.x + 12, pan.y + 8, { steps: 3 });
+          await page.mouse.up({ button: 'middle' });
+          await expect(page.locator('.workbench-canvas')).not.toHaveAttribute(
+            'viewBox',
+            initialViewBox!,
+          );
+          expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          await page.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+          const point = await bodyPoint(page);
+          await page.keyboard.down('Shift');
+          await page.mouse.click(point.x, point.y);
+          await page.keyboard.up('Shift');
+          expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          await page.mouse.click(point.x, point.y, { button: 'right' });
+          expect(((await local(page)) ?? fixture).components).toEqual(fixture.components);
+          const moved = await drag(page, 'closed-panel-mouse');
+          const expected = await local(page);
+          expect(expected).not.toBeNull();
+          expect(expected!.components).toEqual(
+            fixture.components.map((component) =>
+              component.id === 'field-resistor' ? { ...component, position: moved } : component,
+            ),
+          );
+          expect(expected!.connections).toEqual(fixture.connections);
+          const response = page.waitForResponse(
+            (reply) =>
+              new URL(reply.url()).pathname === `/api/projects/${project.id}/draft` &&
+              reply.request().method() === 'PUT',
+          );
+          await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+          expect((await response).status()).toBe(200);
+          const confirmed = await server(page);
+          expect(confirmed.draft.revision).toBeGreaterThan(baseline.draft.revision);
+          expect(confirmed.draft.document).toEqual(expected);
+          await capture(page, 'saved', confirmed);
+          const profile = await browser.newContext({
+            baseURL: origin,
+            viewport: { width, height: 900 },
+            hasTouch: true,
+          });
+          try {
+            await profile.addCookies(await page.context().cookies());
+            const reopened = await profile.newPage();
+            await observeInput(reopened);
+            await reopened.goto(`/#/home/${project.id}`);
+            await requireReady(reopened);
+            expect(await local(reopened)).toBeNull();
+            expect((await server(reopened)).draft.document).toEqual(confirmed.draft.document);
+            for (const component of expected!.components) {
+              await expect(part(reopened, component.id)).toHaveAttribute(
+                'data-x',
+                String(component.position.x),
+              );
+              await expect(part(reopened, component.id)).toHaveAttribute(
+                'data-y',
+                String(component.position.y),
+              );
+            }
+            await reopened
+              .getByRole('button', { name: 'Открыть редактор кода', exact: true })
+              .click();
+            await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
+              sketch,
+            );
+            await reopened.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+            await drag(reopened, 'open-panel-reopened', width <= 390);
+            const final = await local(reopened);
+            expect(final!.connections).toEqual(fixture.connections);
+            expect(final!.components.find((component) => component.id === 'field-uno')).toEqual(
+              fixture.components.find((component) => component.id === 'field-uno'),
+            );
+            await capture(reopened, 'complete', { confirmed, final });
+          } finally {
+            await profile.close();
+          }
+        } finally {
+          await capture(page, 'initial-context-final');
+          await info.attach('field-boundary', {
+            path: info.outputPath('field-boundary.json'),
+            contentType: 'application/json',
+          });
+        }
+      });
+    }
+  }
 });
