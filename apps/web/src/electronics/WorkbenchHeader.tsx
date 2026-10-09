@@ -206,6 +206,7 @@ export function WorkbenchHeader({
           className="workbench-save-state"
           status={c.saveStatus}
           issue={c.saveIssue}
+          localCopySaved={c.localCopySaved}
         />
         {/* Named tabs rather than bare icons. Three unlabelled squares gave no way
             to tell the breadboard from the schematic without clicking one. */}
@@ -384,6 +385,17 @@ export function WorkbenchHeader({
         ) : null}
         <div className="workbench-toolbar-spacer" />
         <div className="workbench-toolbar-group right">
+          {c.saveStatus === 'error' || (c.saveStatus !== 'saved' && !c.localCopySaved) ? (
+            <button
+              type="button"
+              className="workbench-pill emergency-copy"
+              onClick={c.exportEmergencyCopy}
+              aria-label="Получить аварийную копию проекта"
+              title="Скачать всю схему и скетчи Arduino в JSON"
+            >
+              Копия JSON
+            </button>
+          ) : null}
           <button
             type="button"
             className="workbench-mobile-library-toggle"

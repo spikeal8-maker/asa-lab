@@ -27,10 +27,28 @@ describe('shared editor persistence presentation', () => {
     });
     expect(editorPersistencePresentation('error', 'conflict')).toEqual({
       label: 'Не удалось сохранить',
-      detail: 'Изменения не потеряны. Попробуем сохранить их снова.',
+      detail:
+        'Сервер содержит другую версию. Последние изменения только в открытом редакторе; получите аварийную копию.',
     });
     expect(editorPersistencePresentation('error', 'offline').label).toBe('Нет связи');
     expect(editorPersistencePresentation('error', 'auth').label).toBe('Нужно войти');
+  });
+
+  it('claims a local copy only when the current document was actually stored', () => {
+    for (const issue of ['offline', 'auth', 'conflict', 'server'] as const) {
+      expect(editorPersistencePresentation('error', issue, true).detail).toContain(
+        'сохранены в браузере',
+      );
+      expect(editorPersistencePresentation('error', issue, false).detail).toContain(
+        'только в открытом редакторе',
+      );
+      expect(editorPersistencePresentation('error', issue, false).detail).not.toContain(
+        'не потеряны',
+      );
+    }
+    expect(editorPersistencePresentation('error', 'conflict', true).detail).toContain(
+      'отправка остановлена',
+    );
   });
 
   it('suppresses fast save churn and keeps success feedback brief', () => {
