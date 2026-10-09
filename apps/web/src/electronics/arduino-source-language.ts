@@ -390,6 +390,48 @@ const COMPLETION_DEFINITIONS = {
     example: 'digitalWrite(LED_BUILTIN, HIGH);',
     lineComplete: false,
   },
+  bit: {
+    label: 'bit',
+    detail: 'Маска одного бита',
+    insertText: 'bit(3)',
+    example: 'bit(3)',
+    lineComplete: false,
+  },
+  bitRead: {
+    label: 'bitRead',
+    detail: 'Прочитать бит',
+    insertText: 'bitRead(mask, 3)',
+    example: 'bitRead(mask, 3)',
+    lineComplete: false,
+  },
+  bitSet: {
+    label: 'bitSet',
+    detail: 'Установить бит',
+    insertText: 'bitSet(mask, 3)',
+    example: 'bitSet(mask, 3)',
+    lineComplete: false,
+  },
+  bitClear: {
+    label: 'bitClear',
+    detail: 'Сбросить бит',
+    insertText: 'bitClear(mask, 3)',
+    example: 'bitClear(mask, 3)',
+    lineComplete: false,
+  },
+  bitToggle: {
+    label: 'bitToggle',
+    detail: 'Инвертировать бит',
+    insertText: 'bitToggle(mask, 3)',
+    example: 'bitToggle(mask, 3)',
+    lineComplete: false,
+  },
+  bitWrite: {
+    label: 'bitWrite',
+    detail: 'Записать бит',
+    insertText: 'bitWrite(mask, 3, HIGH)',
+    example: 'bitWrite(mask, 3, HIGH)',
+    lineComplete: false,
+  },
 } as const satisfies Readonly<Record<ArduinoTextCommand, ArduinoCompletionDefinition>>;
 
 export const ARDUINO_COMPLETIONS: readonly ArduinoCompletion[] = Object.values(

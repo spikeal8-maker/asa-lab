@@ -16,6 +16,8 @@ components:
     - contexts/electronics/testing/arduino-correctness.spec.ts
     - contexts/electronics/testing/arduino-runtime-state.spec.ts
     - contexts/electronics/testing/arduino-values.spec.ts
+    - contexts/electronics/testing/arduino-bitwise.spec.ts
+    - e2e/electronics-arduino-bitwise.spec.ts
     dependencies:
     - electronics.clock.canonical
     notes: Educational deterministic subset; not arbitrary AVR/Uno emulation.
@@ -49,6 +51,8 @@ components:
     - docs/product/electronics/README.md#15-arduino-и-программирование
     sources:
     - contexts/electronics/domain/arduino-capabilities.ts
+    - apps/web/src/electronics/arduino-source-language.ts
+    - apps/web/src/electronics/arduino-command-reference.ts
     tests:
     - contexts/electronics/testing/arduino-capabilities.spec.ts
     - apps/web/src/electronics/testing/arduino-code-contract.spec.ts

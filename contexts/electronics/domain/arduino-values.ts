@@ -86,6 +86,17 @@ export function unaryValue(
 ): ArduinoValue {
   if (operator === '!')
     return validateOnly ? zeroValue('bool') : numericValue('bool', Number(!operand.value));
+  if (operator === '~') {
+    if (floating(operand.type)) throw new SyntaxError('Побитовое НЕ требует целого числа.');
+    const type = promotedType(operand.type) as keyof typeof integers;
+    if (validateOnly) return zeroValue(type);
+    const { bits, signed } = integers[type];
+    const value = ~BigInt(operand.value);
+    return numericValue(
+      type,
+      Number(signed ? BigInt.asIntN(bits, value) : BigInt.asUintN(bits, value)),
+    );
+  }
   const value = convertValue(operand, promotedType(operand.type), validateOnly);
   return operator === '+' ? value : binaryValue('-', zeroValue(value.type), value, validateOnly);
 }
@@ -96,6 +107,38 @@ export function binaryValue(
   b: ArduinoValue,
   validateOnly = false,
 ): ArduinoValue {
+  if (['&', '|', '^', '<<', '>>'].includes(operator)) {
+    if (floating(a.type) || floating(b.type))
+      throw new SyntaxError('Побитовые операции и сдвиги требуют целочисленных операндов.');
+    const shift = operator === '<<' || operator === '>>';
+    const type = (
+      shift ? promotedType(a.type) : commonType(a.type, b.type)
+    ) as keyof typeof integers;
+    if (validateOnly) return zeroValue(type);
+    const { bits, signed } = integers[type];
+    const x = BigInt(convertValue(a, type).value);
+    const y = BigInt(shift ? b.value : convertValue(b, type).value);
+    if (shift && (y < 0n || y >= BigInt(bits)))
+      throw new ArduinoArithmeticError(`Сдвиг ${type} требует число битов от 0 до ${bits - 1}.`);
+    if (operator === '<<' && signed && (x < 0n || x << y >= 2n ** BigInt(bits)))
+      throw new ArduinoArithmeticError(`Недопустимый знаковый сдвиг ${type} влево.`);
+    // AVR GNU++11: signed right shift is arithmetic. Left shift may set the sign
+    // bit when the nonnegative result is representable in the unsigned counterpart.
+    const value =
+      operator === '&'
+        ? x & y
+        : operator === '|'
+          ? x | y
+          : operator === '^'
+            ? x ^ y
+            : operator === '<<'
+              ? x << y
+              : x >> y;
+    return numericValue(
+      type,
+      Number(signed ? BigInt.asIntN(bits, value) : BigInt.asUintN(bits, value)),
+    );
+  }
   const type = commonType(a.type, b.type);
   const comparison = ['==', '!=', '<', '<=', '>', '>='].includes(operator);
   if (operator === '%' && floating(type))

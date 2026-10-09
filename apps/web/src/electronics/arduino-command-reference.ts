@@ -109,6 +109,12 @@ const ARDUINO_COMMAND_TITLES = {
   INPUT_PULLUP: 'Вход с подтяжкой',
   OUTPUT: 'Цифровой выход',
   LED_BUILTIN: 'Встроенный светодиод',
+  bit: 'Маска одного бита',
+  bitRead: 'Прочитать бит',
+  bitSet: 'Установить бит',
+  bitClear: 'Сбросить бит',
+  bitToggle: 'Инвертировать бит',
+  bitWrite: 'Записать бит',
 } as const satisfies Readonly<Record<ArduinoTextCommand, string>>;
 
 const REFERENCE_METADATA = {
@@ -341,6 +347,48 @@ const REFERENCE_METADATA = {
     limits: 'Встроенный светодиод Uno на D13.',
     example: 'digitalWrite(LED_BUILTIN, HIGH);',
   },
+  bit: {
+    signature: 'bit(index)',
+    category: 'math',
+    limits:
+      'Целочисленные типы Uno; индекс внутри ширины сдвига. Изменение требует неконстантную переменную.',
+    example: 'bit(3)',
+  },
+  bitRead: {
+    signature: 'bitRead(value, index)',
+    category: 'math',
+    limits:
+      'Целочисленные типы Uno; индекс внутри ширины сдвига. Изменение требует неконстантную переменную.',
+    example: 'bitRead(mask, 3)',
+  },
+  bitSet: {
+    signature: 'bitSet(variable, index)',
+    category: 'math',
+    limits:
+      'Целочисленные типы Uno; индекс внутри ширины сдвига. Изменение требует неконстантную переменную.',
+    example: 'bitSet(mask, 3)',
+  },
+  bitClear: {
+    signature: 'bitClear(variable, index)',
+    category: 'math',
+    limits:
+      'Целочисленные типы Uno; индекс внутри ширины сдвига. Изменение требует неконстантную переменную.',
+    example: 'bitClear(mask, 3)',
+  },
+  bitToggle: {
+    signature: 'bitToggle(variable, index)',
+    category: 'math',
+    limits:
+      'Целочисленные типы Uno; индекс внутри ширины сдвига. Изменение требует неконстантную переменную.',
+    example: 'bitToggle(mask, 3)',
+  },
+  bitWrite: {
+    signature: 'bitWrite(variable, index, bitValue)',
+    category: 'math',
+    limits:
+      'Целочисленные типы Uno; индекс внутри ширины сдвига. Изменение требует неконстантную переменную.',
+    example: 'bitWrite(mask, 3, HIGH)',
+  },
 } as const satisfies Readonly<Record<ArduinoTextCommand, ArduinoCommandReferenceMetadata>>;
 
 type ArduinoLanguageReferenceMetadata = Omit<
@@ -536,6 +584,30 @@ const LANGUAGE_REFERENCE_METADATA = {
     category: 'math',
     limits: 'Деление и остаток от деления на ноль дают безопасный ноль, а не ошибку платы.',
     example: 'int average = (left + right) / 2;',
+  },
+  bitwise: {
+    title: 'Побитовые операции',
+    command: '&, |, ^, ~',
+    signature: '&, |, ^, ~',
+    category: 'logic',
+    limits: 'Целочисленные типы Uno; недопустимые сдвиги дают явную ошибку.',
+    example: 'unsigned int mask = 10U & 12U;',
+  },
+  shift: {
+    title: 'Сдвиги',
+    command: '<<, >>',
+    signature: '<<, >>',
+    category: 'logic',
+    limits: 'Целочисленные типы Uno; недопустимые сдвиги дают явную ошибку.',
+    example: 'unsigned long mask = 1UL << 31;',
+  },
+  'bitwise-assignment': {
+    title: 'Побитовые присваивания',
+    command: '&=, |=, ^=, <<=, >>=',
+    signature: '&=, |=, ^=, <<=, >>=',
+    category: 'logic',
+    limits: 'Целочисленные типы Uno; недопустимые сдвиги дают явную ошибку.',
+    example: 'unsigned int mask = 1U; mask <<= 3;',
   },
 } as const satisfies Readonly<Record<ArduinoLanguageFeature, ArduinoLanguageReferenceMetadata>>;
 

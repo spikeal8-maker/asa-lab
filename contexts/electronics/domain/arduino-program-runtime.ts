@@ -636,7 +636,7 @@ function tokenize(expression: string): readonly Token[] {
       index += identifier[0].length;
       continue;
     }
-    const operator = ['&&', '||', '==', '!=', '<=', '>='].find((candidate) =>
+    const operator = ['&&', '||', '==', '!=', '<=', '>=', '<<', '>>'].find((candidate) =>
       expression.startsWith(candidate, index),
     );
     if (operator) {
@@ -644,7 +644,7 @@ function tokenize(expression: string): readonly Token[] {
       index += operator.length;
       continue;
     }
-    if ('+-*/%!<>'.includes(character)) {
+    if ('+-*/%!<>&|^~'.includes(character)) {
       tokens.push({ kind: 'operator', value: character });
       index += 1;
       continue;
@@ -744,14 +744,34 @@ class ExpressionParser {
   }
 
   private parseAnd(): ArduinoValue {
-    let value = this.parseEquality();
+    let value = this.parseBitwiseOr();
     while (this.take('&&')) {
       const skip = value.value === 0;
       if (skip) this.suppressed++;
-      const right = this.parseEquality();
+      const right = this.parseBitwiseOr();
       if (skip) this.suppressed--;
       value = numericValue('bool', Number(!skip && right.value !== 0));
     }
+    return value;
+  }
+
+  private parseBitwiseOr(): ArduinoValue {
+    let value = this.parseBitwiseXor();
+    while (this.take('|'))
+      value = binaryValue('|', value, this.parseBitwiseXor(), this.validateOnly);
+    return value;
+  }
+
+  private parseBitwiseXor(): ArduinoValue {
+    let value = this.parseBitwiseAnd();
+    while (this.take('^'))
+      value = binaryValue('^', value, this.parseBitwiseAnd(), this.validateOnly);
+    return value;
+  }
+
+  private parseBitwiseAnd(): ArduinoValue {
+    let value = this.parseEquality();
+    while (this.take('&')) value = binaryValue('&', value, this.parseEquality(), this.validateOnly);
     return value;
   }
 
@@ -766,11 +786,20 @@ class ExpressionParser {
   }
 
   private parseComparison(): ArduinoValue {
-    let value = this.parseAdditive();
+    let value = this.parseShift();
     while (['<', '<=', '>', '>='].includes(this.current()?.value ?? '')) {
       const operator = this.take()?.value;
-      const right = this.parseAdditive();
+      const right = this.parseShift();
       value = binaryValue(operator!, value, right, this.validateOnly);
+    }
+    return value;
+  }
+
+  private parseShift(): ArduinoValue {
+    let value = this.parseAdditive();
+    while (['<<', '>>'].includes(this.current()?.value ?? '')) {
+      const operator = this.take()!.value;
+      value = binaryValue(operator, value, this.parseAdditive(), this.validateOnly);
     }
     return value;
   }
@@ -796,7 +825,7 @@ class ExpressionParser {
   }
 
   private parseUnary(): ArduinoValue {
-    if (['!', '-', '+'].includes(this.current()?.value ?? '')) {
+    if (['!', '-', '+', '~'].includes(this.current()?.value ?? '')) {
       const operator = this.take()!.value;
       return unaryValue(operator, this.parseUnary(), this.validateOnly);
     }
@@ -840,7 +869,8 @@ class ExpressionParser {
     }
     if (this.current()?.value === '(') {
       this.take('(');
-      const macro = ['min', 'max', 'abs', 'constrain'].includes(token.value);
+      const bitMutation = ['bitSet', 'bitClear', 'bitWrite', 'bitToggle'].includes(token.value);
+      const macro = bitMutation || ['min', 'max', 'abs', 'constrain'].includes(token.value);
       const argumentsList: ArduinoValue[] = [];
       const argumentTokens: Array<readonly Token[]> = [];
       if (this.current()?.value !== ')') {
@@ -853,6 +883,7 @@ class ExpressionParser {
         } while (this.take(','));
       }
       if (!this.take(')')) throw new SyntaxError('Ожидается закрывающая скобка вызова.');
+      if (bitMutation) return this.mutateBit(token.value, argumentsList, argumentTokens);
       if (macro) return this.macro(token.value, argumentsList, argumentTokens);
       return this.call(token.value, argumentsList);
     }
@@ -908,11 +939,63 @@ class ExpressionParser {
     return convertValue(value, type);
   }
 
+  private mutateBit(
+    name: string,
+    argumentsList: readonly ArduinoValue[],
+    tokens: readonly (readonly Token[])[],
+  ): ArduinoValue {
+    validateCallArguments(name, argumentsList.length, true);
+    if (this.state.scopes.some((scope) => scope.has(name)))
+      throw new SyntaxError(`«${name}» — переменная, а не функция.`);
+    const target = tokens[0];
+    if (target?.length !== 1 || target[0]?.kind !== 'identifier')
+      throw new SyntaxError(
+        `${name}() требует изменяемую целочисленную переменную первым аргументом.`,
+      );
+    const variable = target[0].value;
+    const binding = bindingFor(this.state.scopes, variable);
+    if (binding.constant) throw new SyntaxError(`Нельзя изменять const «${variable}».`);
+    const read = (index: number): ArduinoValue =>
+      this.validateOnly
+        ? argumentsList[index]!
+        : new ExpressionParser(tokens[index]!, this.state).parse();
+    // Arduino AVR 1.8.6 macros use a 32-bit 1UL mask, followed by assignment
+    // conversion back to the lvalue type. bitWrite evaluates its condition first.
+    const set = name === 'bitWrite' ? read(2).value !== 0 : name === 'bitSet';
+    const bit = read(1);
+    const mask = binaryValue('<<', numericValue('unsigned long', 1), bit, this.validateOnly);
+    const current = readBinding(this.state.scopes, variable, this.validateOnly);
+    const operator = name === 'bitToggle' ? '^' : set ? '|' : '&';
+    const result = binaryValue(
+      operator,
+      current,
+      set || name === 'bitToggle' ? mask : unaryValue('~', mask, this.validateOnly),
+      this.validateOnly,
+    );
+    const converted = convertValue(result, binding.type, this.validateOnly);
+    if (!this.validateOnly) assignBinding(this.state.scopes, variable, converted, false);
+    return converted;
+  }
+
   private call(name: string, argumentsList: readonly ArduinoValue[]): ArduinoValue {
     validateCallArguments(name, argumentsList.length, true);
     if (this.state.scopes.some((scope) => scope.has(name)))
       throw new SyntaxError(`«${name}» — переменная, а не функция.`);
     const lower = name.toLowerCase();
+    if (name === 'bit')
+      return binaryValue(
+        '<<',
+        numericValue('unsigned long', 1),
+        argumentsList[0]!,
+        this.validateOnly,
+      );
+    if (name === 'bitRead')
+      return binaryValue(
+        '&',
+        binaryValue('>>', argumentsList[0]!, argumentsList[1]!, this.validateOnly),
+        numericValue('int', 1),
+        this.validateOnly,
+      );
     if (lower === 'analogread') {
       if (this.validateOnly) return zeroValue();
       const terminal = analogTerminalFromPin(convertValue(argumentsList[0]!, 'byte').value);
@@ -1069,6 +1152,12 @@ function validateCallArguments(name: string, count: number, expression = false):
     abs: [1, 1],
     min: [2, 2],
     max: [2, 2],
+    bit: [1, 1],
+    bitRead: [2, 2],
+    bitSet: [2, 2],
+    bitClear: [2, 2],
+    bitToggle: [2, 2],
+    bitWrite: [3, 3],
   };
   const commandCalls: Readonly<Record<string, readonly [number, number]>> = {
     pinMode: [2, 2],
@@ -1209,7 +1298,9 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
     declareVariable(declaration, state);
     return;
   }
-  const assignment = /^([A-Za-z_]\w*)\s*(=|\+=|-=|\*=|\/=|%=)\s*([\s\S]+)$/.exec(compact);
+  const assignment = /^([A-Za-z_]\w*)\s*(<<=|>>=|&=|\|=|\^=|=|\+=|-=|\*=|\/=|%=)\s*([\s\S]+)$/.exec(
+    compact,
+  );
   if (assignment) {
     const name = assignment[1]!;
     bindingFor(state.scopes, name);
@@ -1218,7 +1309,7 @@ function executeSimpleStatement(statement: string, state: RuntimeState): void {
       assignment[2] === '='
         ? value
         : binaryValue(
-            assignment[2]![0]!,
+            assignment[2]!.slice(0, -1),
             readBinding(state.scopes, name, Boolean(state.validateOnly)),
             value,
             state.validateOnly,
