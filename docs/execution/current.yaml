@@ -572,14 +572,10 @@ parallel_lanes:
   - id: electronics
     worktree_id: electronics-main
     owned_paths:
-      - contexts/electronics/**
-      - apps/web/src/electronics/**
-      - e2e/electronics-simulation.spec.ts
-      - e2e/artifacts/electronics-simulation/**
-      - docs/product/electronics/**
-      - tools/validate-electronics-component-information.mjs
-      - tools/validate-electronics-agent-docs.mjs
-      - tools/test_validate_electronics_agent_docs.mjs
+    - apps/web/src/electronics/workbench.css
+    - e2e/electronics-simulation.spec.ts
+    - docs/product/electronics/generated/component-coverage.json
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-WIRE-MENU-LAYER-001.md
     task:
       id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
       issue: 530
