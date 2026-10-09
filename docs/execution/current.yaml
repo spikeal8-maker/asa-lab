@@ -588,10 +588,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_compact_desktop_controls_repair
+      checkpoint: r1_bounded_workspace_selector_and_breakpoint_evidence
       dependency_for_issue: 530
       upstream_readiness_issue: 531
       owner_acceptance: pending
+      first_candidate_sha: 0340d9be50ac04caf34f49206c8f18fab9fc5f9a
+      first_candidate_tree: c6220bd80d74679dfd112090c7e106ecda0ba3f6
+      first_candidate_branch: codex/electronics-compact-controls-532
+      first_independent_review: request_changes
+      first_independent_evidence: docs/product/electronics/evidence/compact-controls-532-independent-review-0340d9be.md
+      first_general_run: 37888088058
+      first_general_conclusion: success
+      first_electronics_run: 37888099694
+      first_electronics_conclusion: failure
+      first_browser_passed: 120
+      first_browser_failed: 1
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
@@ -734,27 +745,20 @@ parallel_lanes:
         compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2f731409cfad814836fbeab0e24fc19a3abdae03
+      convergence_baseline_sha: 7ded5a22ef2feb90e868cdca72577dbaf9c69ab7
       head_sha: null
-      observed_at: '2026-10-09T04:48:49Z'
+      observed_at: '2026-10-09T05:50:42Z'
       main:
         branch: main
-        sha: 2f731409cfad814836fbeab0e24fc19a3abdae03
+        sha: 7ded5a22ef2feb90e868cdca72577dbaf9c69ab7
       observation_note: >-
-        Dated snapshot only; fetch main/current task/exact-head CI and inspect worktree before writes.
-        Accepted531 source68c8be1d is integrated unchanged; General37882939710 and ordinary37883347010
-        all8SUCCESS plus NEW independentAPPROVE. Readiness is test-only, not E01 server persistence/MAX Mini App/T3.
-        First rejectedba source remains ordinary ancestry; only temporary1540/c9 probe workflows are outside it.
-        Selected532 repairs only compact desktop primaryRun/font-control layout proved in original530981PNG.
-        Actual main-beforebrowser NOT_RUN; verify source continuity and preserve original cached BEFORE, no repeat.
-        Minimal CSS and one meaningful realproductionbrowsercase/generateddigest; preserve full captions,
-        normalinput/drawer/precision/assets/alloldcases/timeouts. Final ordinary exact gates/NEWreview mandatory.
-        Suspended530870/5260dd/525ed4 and all older results remain fully recorded in accepted_slices/suspended_slices.
-        After532 technical acceptance freshly resume530 final convergence/review, then526 full56/denial/server save.
-        Previous rejected candidates/reviews/raw evidence remain in those records, cards and Git history.
-        Hygiene524 has one counted acceptedproduction529;531 test-only doesnotcount. Reassess after each slice.
-        SchoolK0/version/full backups NOT_VERIFIED, pupil-deviceT3/owner/class/release pending; no deployment,
-        DB/network/backup authorization. This compact note replaces accumulated narration, not canonical evidence.
+        Dated snapshot; fetch main and read live current task/exact CI before writes. Accepted531/529 and all prior results remain.
+        First532source0340 preserved/unaccepted: General37888088058 all4SUCCESS; ordinary37888099694 focused/benchmarkSUCCESS, browser120PASS1FAIL/imagesSKIPPED; NEW independentREQUEST_CHANGES.
+        Actual trace host contains injectionDiv > SVG before the new direct-child locator fails5000ms: A newtest selector error, not product-loading evidence. Original28text phases/fullserverdocument revision2to2 PASS; nontext/1180/1181 NOT_RUN.
+        R1 changes ONLY the NEWcase selector and significant breakpoint coverage/genuine clamp-aware input, plus canonical generated browser digest; keep candidate CSS/production byte-identical. No timeout increase/force/fakeSDK/check weakening.
+        ONE changed-cause directed NEWcase diagnostic permitted outside final source ancestry; not gate or same-code/full-suite retry. Final ordinary exact all8 and NEW independentreview mandatory.
+        Preserve530870/5260dd/525ed4 and all accepted/foreignwork. After532acceptance freshly resume530, then526full56/denial/serverpersistence. Hygiene524count529=1;531test-only0, reassess aftereachaccepted slice.
+        SchoolK0/version/backups NOT_VERIFIED,T3/owner/class/release pending; no deployment/DB/network/backup authorization.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
