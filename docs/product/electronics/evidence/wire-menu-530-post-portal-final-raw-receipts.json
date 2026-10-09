@@ -1,0 +1,164 @@
+{
+  "exactSha": "f37391b1a16d35c73f99b4b32dde8804644bc03f",
+  "mainBeforeIntegration": "3445b6813d618347970acd1e2ff8f734b9645502",
+  "reviewSha256": "6985f3e8487fb05fb88e1f113ef168d09b1418aac42d84b29cd688a8d3daa76f",
+  "github": [
+    {
+      "run": 37969209411,
+      "head": "f37391b1a16d35c73f99b4b32dde8804644bc03f",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113951213474,
+          "name": "Governance contracts",
+          "conclusion": "success"
+        },
+        {
+          "id": 113951664306,
+          "name": "Format lint types contracts build",
+          "conclusion": "success"
+        },
+        {
+          "id": 113953216035,
+          "name": "PostgreSQL tests and RLS",
+          "conclusion": "success"
+        },
+        {
+          "id": 113953216151,
+          "name": "Access A real browser journeys",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "run": 37969211551,
+      "head": "f37391b1a16d35c73f99b4b32dde8804644bc03f",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113951228154,
+          "name": "Shared solver, editor contracts and build",
+          "conclusion": "success"
+        },
+        {
+          "id": 113952061681,
+          "name": "Electronics E-OPT benchmark integrity",
+          "conclusion": "success"
+        },
+        {
+          "id": 113952061687,
+          "name": "Actual editor live simulation journey",
+          "conclusion": "success"
+        },
+        {
+          "id": 113958341847,
+          "name": "Package exact-head review images",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "changedPaths": [
+    "apps/web/src/electronics/workbench.css",
+    "docs/product/electronics/generated/component-coverage.json",
+    "e2e/electronics-simulation.spec.ts"
+  ],
+  "unchangedEntries": 3754,
+  "compact": [
+    {
+      "member": "reports/playwright/electronics-simulation-com-1aa84-sizes-\u2014-blocks-\u2014-all-widths/electronics-compact-controls-532/blocks-all-widths/geometry.json",
+      "count": 19
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-3b5ab-es-\u2014-text-\u2014-desktop-compact/electronics-compact-controls-532/text-desktop-compact/geometry.json",
+      "count": 26
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-72838--\u2014-blocks-text-\u2014-all-widths/electronics-compact-controls-532/blocks-text-all-widths/geometry.json",
+      "count": 24
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-bd3d2-rawer-sizes-\u2014-text-\u2014-mobile/electronics-compact-controls-532/text-mobile/geometry.json",
+      "count": 9
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-f48c4-sizes-\u2014-text-\u2014-desktop-wide/electronics-compact-controls-532/text-desktop-wide/geometry.json",
+      "count": 18
+    }
+  ],
+  "totalCompactPhases": 96,
+  "fullServerIntents": [
+    {
+      "member": "reports/playwright/electronics-simulation-com-1aa84-sizes-\u2014-blocks-\u2014-all-widths/electronics-compact-controls-532/blocks-all-widths/intent-blocks.json",
+      "projectId": "8abc1696-1a13-428b-a1ea-0bf2a3a7d046",
+      "revision": [
+        2,
+        2
+      ],
+      "sha256": "bdb3ea4548ddb6b9f0bf71d075f52267ae9f41900e66ff542b5c17cba3abc8a1"
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-3b5ab-es-\u2014-text-\u2014-desktop-compact/electronics-compact-controls-532/text-desktop-compact/intent.json",
+      "projectId": "f57c2324-fc2c-453d-b334-b1f604b74e9f",
+      "revision": [
+        2,
+        2
+      ],
+      "sha256": "cd534efc8d97bffdd31a5a624d324064414be3e954bbe5cd24dfb3bee603b27a"
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-72838--\u2014-blocks-text-\u2014-all-widths/electronics-compact-controls-532/blocks-text-all-widths/intent-blocks-text.json",
+      "projectId": "334a3488-2389-4f02-bcb7-c363ed1f88ff",
+      "revision": [
+        2,
+        2
+      ],
+      "sha256": "67043cadfb508a42b30bb06d45c2f5d2ca57bd997b561998d69b570e0dd11a98"
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-bd3d2-rawer-sizes-\u2014-text-\u2014-mobile/electronics-compact-controls-532/text-mobile/intent.json",
+      "projectId": "1bc8df55-a964-48b4-9e27-f888210fc773",
+      "revision": [
+        2,
+        2
+      ],
+      "sha256": "20aa856a8f634edef8bb70c8f54b0315b9874e2135582af8639bc43181baf3e3"
+    },
+    {
+      "member": "reports/playwright/electronics-simulation-com-f48c4-sizes-\u2014-text-\u2014-desktop-wide/electronics-compact-controls-532/text-desktop-wide/intent.json",
+      "projectId": "a2406cb5-b1b0-4ec0-b1c1-23da39ad1633",
+      "revision": [
+        2,
+        2
+      ],
+      "sha256": "1f32b18e0c8c32f0355414ec6763ede2bc1625d966a3f519f4709a692bc581ea"
+    }
+  ],
+  "popupExceptions": [
+    {
+      "phase": "981-native-open",
+      "x": 433,
+      "y": 154
+    }
+  ],
+  "nativePhases": [
+    "1440-open-before-resize",
+    "1440-after-open-menu-resize",
+    "1440-closed-before-resize",
+    "1440-after-closed-menu-resize",
+    "1440-before-purple",
+    "1440-after-purple",
+    "1024-before-purple",
+    "1024-after-purple",
+    "981-before-purple",
+    "981-after-purple",
+    "980-mobile-before-resize",
+    "980-mobile-after-resize",
+    "390-mobile-before-resize",
+    "390-mobile-after-resize",
+    "320-mobile-before-resize",
+    "320-mobile-after-resize"
+  ],
+  "zipSha256": "1045047084b1c01e17a2401ebf14a4a2a72b56c5c9ef86099c464d9d55e2a739",
+  "verdict": "PASS"
+}

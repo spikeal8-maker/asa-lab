@@ -1297,6 +1297,20 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     ) {
       return;
     }
+    // Initial Blockly publication may repeat an already saved program. Keep
+    // its canonical reference clean; compare arrays by their persisted values.
+    const unchanged = Object.entries(properties).every(([key, value]) => {
+      const previous = component.stateProperties?.[key];
+      if (Array.isArray(value)) {
+        return (
+          Array.isArray(previous) &&
+          previous.length === value.length &&
+          value.every((entry, index) => entry === previous[index])
+        );
+      }
+      return previous === value;
+    });
+    if (unchanged) return;
     commitDocument({
       ...currentDocument,
       components: currentDocument.components.map((item) =>

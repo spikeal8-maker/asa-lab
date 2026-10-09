@@ -1,0 +1,404 @@
+{
+  "kind": "derived raw JSON extraction; original log remains authority",
+  "exactSha": "68c8be1dd34f1943afd11be1f396f147f93b6940",
+  "run": 37883347010,
+  "job": 113668465062,
+  "originalLogSha256": "908d1284c4bf332555400e619dd8be4593b1f80d1843a3a57d01b2738c0ca4d4",
+  "receipts": [
+    {
+      "phase": "navigation-commit-before-component-assertion",
+      "navigation": "initial",
+      "elapsedMs": 75.41413900000043,
+      "browser": {
+        "atMs": 47.20000000001164,
+        "readyState": "loading",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [],
+        "holes": 0,
+        "ownerImageLoads": []
+      },
+      "sdkRequests": [],
+      "assetResponses": []
+    },
+    {
+      "phase": "application-mounted-before-asset-assertions",
+      "navigation": "initial",
+      "elapsedMs": 1503.9349479999946,
+      "browser": {
+        "atMs": 1177.899999999965,
+        "readyState": "interactive",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [
+          {
+            "id": "board",
+            "hitMask": "ready",
+            "holeBindings": "0",
+            "ownerImageErrors": 0
+          },
+          {
+            "id": "resistor",
+            "hitMask": "ready",
+            "holeBindings": "2",
+            "ownerImageErrors": 0
+          }
+        ],
+        "holes": 882,
+        "ownerImageLoads": [
+          {
+            "componentId": "board",
+            "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+            "atMs": 1020.0999999999767
+          }
+        ]
+      },
+      "sdkRequests": [
+        {
+          "id": 1,
+          "navigation": "initial",
+          "requestedMs": 92.21805699999823,
+          "heldMs": 92.48509299999569
+        }
+      ],
+      "assetResponses": [
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 664.7339109999957
+        },
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 754.0078569999969
+        }
+      ]
+    },
+    {
+      "phase": "production-ready-before-assertions",
+      "navigation": "initial",
+      "elapsedMs": 1766.9667069999996,
+      "browser": {
+        "atMs": 1728.5999999999767,
+        "readyState": "interactive",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [
+          {
+            "id": "board",
+            "hitMask": "ready",
+            "holeBindings": "0",
+            "ownerImageErrors": 0
+          },
+          {
+            "id": "resistor",
+            "hitMask": "ready",
+            "holeBindings": "2",
+            "ownerImageErrors": 0
+          }
+        ],
+        "holes": 882,
+        "ownerImageLoads": [
+          {
+            "componentId": "board",
+            "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+            "atMs": 1020.0999999999767
+          }
+        ]
+      },
+      "sdkRequests": [
+        {
+          "id": 1,
+          "navigation": "initial",
+          "requestedMs": 92.21805699999823,
+          "heldMs": 92.48509299999569
+        }
+      ],
+      "assetResponses": [
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 664.7339109999957
+        },
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 754.0078569999969
+        }
+      ]
+    },
+    {
+      "phase": "reload-commit-before-component-assertion",
+      "navigation": "reopen",
+      "elapsedMs": 13166.838581999997,
+      "browser": {
+        "atMs": 162,
+        "readyState": "loading",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [],
+        "holes": 0,
+        "ownerImageLoads": []
+      },
+      "sdkRequests": [
+        {
+          "id": 1,
+          "navigation": "initial",
+          "requestedMs": 92.21805699999823,
+          "heldMs": 92.48509299999569,
+          "failedMs": 13118.244937999996,
+          "failure": "net::ERR_ABORTED"
+        },
+        {
+          "id": 2,
+          "navigation": "reopen",
+          "requestedMs": 13151.470938999999,
+          "heldMs": 13151.650924999994
+        }
+      ],
+      "assetResponses": [
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 664.7339109999957
+        },
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 754.0078569999969
+        }
+      ]
+    },
+    {
+      "phase": "application-mounted-before-asset-assertions",
+      "navigation": "reopen",
+      "elapsedMs": 14194.428519000001,
+      "browser": {
+        "atMs": 1153.6999999999534,
+        "readyState": "interactive",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [
+          {
+            "id": "board",
+            "hitMask": "ready",
+            "holeBindings": "0",
+            "ownerImageErrors": 0
+          },
+          {
+            "id": "resistor",
+            "hitMask": "ready",
+            "holeBindings": "2",
+            "ownerImageErrors": 0
+          }
+        ],
+        "holes": 882,
+        "ownerImageLoads": [
+          {
+            "componentId": "board",
+            "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+            "atMs": 813.6999999999534
+          }
+        ]
+      },
+      "sdkRequests": [
+        {
+          "id": 1,
+          "navigation": "initial",
+          "requestedMs": 92.21805699999823,
+          "heldMs": 92.48509299999569,
+          "failedMs": 13118.244937999996,
+          "failure": "net::ERR_ABORTED"
+        },
+        {
+          "id": 2,
+          "navigation": "reopen",
+          "requestedMs": 13151.470938999999,
+          "heldMs": 13151.650924999994
+        }
+      ],
+      "assetResponses": [
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 664.7339109999957
+        },
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 754.0078569999969
+        },
+        {
+          "navigation": "reopen",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 13524.607684999995
+        },
+        {
+          "navigation": "reopen",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 13524.965063999996
+        }
+      ]
+    },
+    {
+      "phase": "production-ready-before-assertions",
+      "navigation": "reopen",
+      "elapsedMs": 14496.474557000001,
+      "browser": {
+        "atMs": 1497.6999999999534,
+        "readyState": "interactive",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [
+          {
+            "id": "board",
+            "hitMask": "ready",
+            "holeBindings": "0",
+            "ownerImageErrors": 0
+          },
+          {
+            "id": "resistor",
+            "hitMask": "ready",
+            "holeBindings": "2",
+            "ownerImageErrors": 0
+          }
+        ],
+        "holes": 882,
+        "ownerImageLoads": [
+          {
+            "componentId": "board",
+            "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+            "atMs": 813.6999999999534
+          }
+        ]
+      },
+      "sdkRequests": [
+        {
+          "id": 1,
+          "navigation": "initial",
+          "requestedMs": 92.21805699999823,
+          "heldMs": 92.48509299999569,
+          "failedMs": 13118.244937999996,
+          "failure": "net::ERR_ABORTED"
+        },
+        {
+          "id": 2,
+          "navigation": "reopen",
+          "requestedMs": 13151.470938999999,
+          "heldMs": 13151.650924999994
+        }
+      ],
+      "assetResponses": [
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 664.7339109999957
+        },
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 754.0078569999969
+        },
+        {
+          "navigation": "reopen",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 13524.607684999995
+        },
+        {
+          "navigation": "reopen",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 13524.965063999996
+        }
+      ]
+    },
+    {
+      "phase": "profile-complete-before-final-assertions",
+      "navigation": "reopen",
+      "elapsedMs": 14732.873128,
+      "browser": {
+        "atMs": 1737.6999999999534,
+        "readyState": "interactive",
+        "domContentLoadedEndMs": 0,
+        "loadEndMs": 0,
+        "components": [
+          {
+            "id": "board",
+            "hitMask": "ready",
+            "holeBindings": "0",
+            "ownerImageErrors": 0
+          },
+          {
+            "id": "resistor",
+            "hitMask": "ready",
+            "holeBindings": "2",
+            "ownerImageErrors": 0
+          }
+        ],
+        "holes": 882,
+        "ownerImageLoads": [
+          {
+            "componentId": "board",
+            "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+            "atMs": 813.6999999999534
+          }
+        ]
+      },
+      "sdkRequests": [
+        {
+          "id": 1,
+          "navigation": "initial",
+          "requestedMs": 92.21805699999823,
+          "heldMs": 92.48509299999569,
+          "failedMs": 13118.244937999996,
+          "failure": "net::ERR_ABORTED"
+        },
+        {
+          "id": 2,
+          "navigation": "reopen",
+          "requestedMs": 13151.470938999999,
+          "heldMs": 13151.650924999994
+        }
+      ],
+      "assetResponses": [
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 664.7339109999957
+        },
+        {
+          "navigation": "initial",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 754.0078569999969
+        },
+        {
+          "navigation": "reopen",
+          "path": "/assets/electronics/component-database/components/breadboards/breadboard-large.svg",
+          "status": 200,
+          "atMs": 13524.607684999995
+        },
+        {
+          "navigation": "reopen",
+          "path": "/assets/electronics/component-database/components/reference-candidates/resistor-axial.svg",
+          "status": 200,
+          "atMs": 13524.965063999996
+        }
+      ]
+    }
+  ]
+}

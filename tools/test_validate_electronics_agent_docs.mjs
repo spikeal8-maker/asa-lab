@@ -556,6 +556,257 @@ test('in-review task cannot be started as in-progress', () => {
   assert.match(result.output, /is not selected for execution/);
 });
 
+const childTaskId = 'TASK-ELECTRONICS-CHILD-001';
+
+test('preserves the root governance namespace without a concrete product card', () => {
+  const selectedId = 'TASK-ELECTRONICS-GOVERNANCE-009';
+  const result = check(
+    (f) => {
+      f.current.task.id = selectedId;
+    },
+    ['--task', selectedId],
+  );
+  assert.equal(result.status, 0, result.output);
+});
+
+test('requires a concrete card even for a selected governance child', () => {
+  const selectedId = 'TASK-ELECTRONICS-GOVERNANCE-009';
+  const result = check(
+    (f) => {
+      selectChild(f, { task: { id: selectedId, status: 'in_progress' } });
+      delete f.files[`${docs}/tasks/child.md`];
+    },
+    ['--task', selectedId],
+  );
+  assert.equal(result.status, 1, result.output);
+  assert.match(result.output, /must map to exactly one task card/);
+});
+
+function selectChild(f, overrides = {}) {
+  const child = {
+    id: 'electronics-child',
+    parent_lane: 'electronics',
+    task: { id: childTaskId, status: 'in_progress' },
+    ...overrides,
+  };
+  f.current.parallel_lanes = [...(f.current.parallel_lanes ?? []), child];
+  f.files[`${docs}/tasks/child.md`] = taskMarkdown({ task_id: childTaskId });
+  return child;
+}
+
+test('accepts root Electronics selection when root is a parallel lane', () => {
+  const result = check(
+    (f) => {
+      f.current.parallel_lanes = [{ id: 'electronics', task: f.current.task }];
+      f.current.primary_lane = { id: 'portal' };
+      f.current.task = { id: 'TASK-PORTAL-001', status: 'in_progress' };
+    },
+    ['--task', taskId],
+  );
+  assert.equal(result.status, 0, result.output);
+});
+
+for (const selectedId of [taskId, childTaskId, 'TASK-ELECTRONICS-SECOND-001']) {
+  test(`accepts unique selected root/child task ${selectedId} among two children`, () => {
+    const result = check(
+      (f) => {
+        selectChild(f);
+        selectChild(f, {
+          id: 'electronics-second',
+          task: { id: 'TASK-ELECTRONICS-SECOND-001', status: 'in_progress' },
+        });
+        f.files[`${docs}/tasks/second.md`] = taskMarkdown({
+          task_id: 'TASK-ELECTRONICS-SECOND-001',
+        });
+      },
+      ['--task', selectedId],
+    );
+    assert.equal(result.status, 0, result.output);
+  });
+}
+
+test('completed root does not prevent a separately selected child from executing', () => {
+  const result = check(
+    (f) => {
+      f.current.task.status = 'done';
+      selectChild(f);
+    },
+    ['--task', childTaskId],
+  );
+  assert.equal(result.status, 0, result.output);
+});
+
+for (const status of ['ready', 'in_review', 'blocked', 'done']) {
+  test(`rejects executing a selected child with status ${status}`, () => {
+    const result = check(
+      (f) => {
+        selectChild(f, { task: { id: childTaskId, status } });
+      },
+      ['--task', childTaskId],
+    );
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /is not selected for execution/);
+  });
+}
+
+for (const status of ['in_progress', 'in_review']) {
+  test(`validates all ${status} child cards even when root is requested`, () => {
+    const result = check(
+      (f) => {
+        selectChild(f, { task: { id: childTaskId, status } });
+        delete f.files[`${docs}/tasks/child.md`];
+      },
+      ['--task', taskId],
+    );
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /must map to exactly one task card/);
+  });
+}
+
+for (const [name, mutate, expected] of [
+  [
+    'missing root',
+    (f) => {
+      f.current.primary_lane.id = 'portal';
+    },
+    /lane must exist exactly once/,
+  ],
+  [
+    'duplicate root',
+    (f) => {
+      f.current.parallel_lanes.push({ id: 'electronics', task: f.current.task });
+    },
+    /lane must exist exactly once/,
+  ],
+  [
+    'root parent marker',
+    (f) => {
+      f.current.primary_lane.parent_lane = 'electronics';
+    },
+    /root lane must not declare parent_lane/,
+  ],
+  [
+    'primary child',
+    (f) => {
+      f.current.parallel_lanes.push({ id: 'electronics', task: f.current.task });
+      f.current.primary_lane = { id: 'electronics-primary-child', parent_lane: 'electronics' };
+      f.current.task = { id: 'TASK-ELECTRONICS-PRIMARY-001', status: 'done' };
+    },
+    /child lane must be declared in parallel_lanes/,
+  ],
+  [
+    'invalid child lane ID',
+    (f) => {
+      f.current.parallel_lanes[0].id = 'Invalid Child';
+    },
+    /child lane ID is invalid/,
+  ],
+  [
+    'missing child task',
+    (f) => {
+      delete f.current.parallel_lanes[0].task;
+    },
+    /lane\/task is missing/,
+  ],
+  [
+    'array child task',
+    (f) => {
+      f.current.parallel_lanes[0].task = [];
+    },
+    /lane\/task is missing/,
+  ],
+  [
+    'invalid child task ID',
+    (f) => {
+      f.current.parallel_lanes[0].task.id = 'wrong';
+    },
+    /task ID is invalid/,
+  ],
+  [
+    'invalid child task status',
+    (f) => {
+      f.current.parallel_lanes[0].task.status = 'waiting';
+    },
+    /task status is invalid/,
+  ],
+  [
+    'duplicate child lane',
+    (f) => {
+      f.current.parallel_lanes.push({
+        ...f.current.parallel_lanes[0],
+        task: { id: 'TASK-ELECTRONICS-ANOTHER-001', status: 'done' },
+      });
+    },
+    /duplicate Electronics lane ID/,
+  ],
+  [
+    'duplicate child task',
+    (f) => {
+      f.current.parallel_lanes.push({ ...f.current.parallel_lanes[0], id: 'electronics-another' });
+    },
+    /duplicate Electronics task ID/,
+  ],
+  [
+    'child reuses root task',
+    (f) => {
+      f.current.parallel_lanes[0].task.id = taskId;
+    },
+    /duplicate Electronics task ID/,
+  ],
+  [
+    'misspelled parent marker',
+    (f) => {
+      f.current.parallel_lanes[0].parent_lane = 'electroncis';
+    },
+    /invalid Electronics parent_lane marker/,
+  ],
+  [
+    'non-string parent marker',
+    (f) => {
+      f.current.parallel_lanes[0].parent_lane = ['electronics'];
+    },
+    /invalid Electronics parent_lane marker/,
+  ],
+]) {
+  test(`rejects malformed parallel Electronics selection: ${name}`, () => {
+    const result = check((f) => {
+      selectChild(f);
+      mutate(f);
+    });
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, expected);
+  });
+}
+
+for (const [name, mutate] of [
+  ['unselected valid child card', () => {}],
+  [
+    'unmarked parallel lane',
+    (f) => {
+      selectChild(f);
+      delete f.current.parallel_lanes[0].parent_lane;
+    },
+  ],
+  [
+    'foreign parallel lane',
+    (f) => {
+      selectChild(f, { id: 'portal-child', parent_lane: 'portal' });
+    },
+  ],
+]) {
+  test(`rejects executing ${name}`, () => {
+    const result = check(
+      (f) => {
+        f.files[`${docs}/tasks/child.md`] = taskMarkdown({ task_id: childTaskId });
+        mutate(f);
+      },
+      ['--task', childTaskId],
+    );
+    assert.equal(result.status, 1, result.output);
+    assert.match(result.output, /is not selected for execution/);
+  });
+}
+
 test('rejects duplicate YAML metadata keys', () => {
   const result = check((f) => {
     f.files[`${docs}/tasks/E-OPT-1A.md`] = taskMarkdown().replace(

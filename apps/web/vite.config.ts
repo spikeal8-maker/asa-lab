@@ -3,9 +3,25 @@ import react from '@vitejs/plugin-react';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = resolve(root, '../..');
+// A shared content fingerprint keeps fixed upstream filenames cache-safe while
+// letting Blockly resolve all four existing media files from one directory.
+const scratchMediaHash = createHash('sha256');
+for (const name of ['sprites.png', 'zoom-in.svg', 'zoom-out.svg', 'zoom-reset.svg']) {
+  scratchMediaHash.update(name);
+  scratchMediaHash.update(readFileSync(resolve(root, 'node_modules/scratch-blocks/media', name)));
+}
+const scratchMediaDirectory = `assets/arduino-blockly-${scratchMediaHash.digest('hex').slice(0, 16)}`;
+
+function isArduinoScratchMedia(path: string): boolean {
+  return /[/\\]scratch-blocks[/\\]media[/\\](?:sprites\.png|zoom-(?:in|out|reset)\.svg)$/.test(
+    path,
+  );
+}
 
 /** Canonical ports per docs/delivery/LOCAL_PORT_POLICY.md. Overrides come from
  * the same ASA_* variables tools/dev.mjs uses; forbidden legacy dev ports are
@@ -112,8 +128,19 @@ export default defineConfig(({ command }) => {
       manifest: true,
       outDir: 'dist',
       emptyOutDir: true,
+      assetsInlineLimit(path) {
+        return isArduinoScratchMedia(path) ? false : undefined;
+      },
       rollupOptions: {
         output: {
+          // Blockly appends fixed filenames to its media option during inject.
+          // Keep only these already imported vendor bytes together, without
+          // inlining or renaming them. Other assets retain Vite's default names.
+          assetFileNames(asset) {
+            return asset.originalFileNames.some(isArduinoScratchMedia)
+              ? `${scratchMediaDirectory}/[name][extname]`
+              : 'assets/[name]-[hash][extname]';
+          },
           manualChunks(id) {
             if (id.includes('/node_modules/.pnpm/three@') || id.includes('/node_modules/three/')) {
               return 'three-vendor';

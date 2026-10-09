@@ -1,10 +1,10 @@
 import { Worker } from 'node:worker_threads';
 import { createReadStream } from 'node:fs';
-import { mkdir, readdir, rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rm, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Readable } from 'node:stream';
-import { readLogCatalog, type LogFilter } from './admin-logs.worker.js';
+import { readLogCatalog, type LogFilter, type LogScanState } from './admin-logs.worker.js';
 
 interface ExportJob {
   readonly id: string;
@@ -21,6 +21,17 @@ export class AdminLogsService {
   private running = 0;
   private readonly jobs = new Map<string, ExportJob>();
   private lastCleanup = 0;
+  private readonly scans = new Map<
+    string,
+    {
+      owner: string;
+      filter: string;
+      effectiveFilter: LogFilter;
+      state?: LogScanState;
+      createdAt: number;
+      busy: boolean;
+    }
+  >();
   constructor(
     private readonly root = process.env['ASA_LOG_STORE'] ?? '/var/lib/asa-logs',
     private readonly exportsRoot = process.env['ASA_LOG_EXPORTS'] ?? '/tmp/asa-log-exports',
@@ -28,10 +39,42 @@ export class AdminLogsService {
 
   async status() {
     await this.expireJobs();
+    let collectorHealth: {
+      state: string;
+      checkedAt: string;
+      lastSuccessAt: string | null;
+      detail: string;
+    } | null = null;
+    try {
+      const path = join(this.root, 'collector-health.json');
+      if ((await stat(path)).size > 4096) throw new Error('LOG_HEALTH_INVALID');
+      const value = JSON.parse(await readFile(path, 'utf8'));
+      if (
+        value.version !== 1 ||
+        !['ok', 'error'].includes(value.state) ||
+        !Number.isFinite(Date.parse(value.checkedAt))
+      )
+        throw new Error('LOG_HEALTH_INVALID');
+      collectorHealth = {
+        state: value.state,
+        checkedAt: value.checkedAt,
+        lastSuccessAt: typeof value.lastSuccessAt === 'string' ? value.lastSuccessAt : null,
+        detail: typeof value.detail === 'string' ? value.detail.slice(0, 500) : '',
+      };
+    } catch (failure) {
+      if ((failure as NodeJS.ErrnoException).code !== 'ENOENT')
+        collectorHealth = {
+          state: 'error',
+          checkedAt: new Date().toISOString(),
+          lastSuccessAt: null,
+          detail: 'Collector health file is unreadable',
+        };
+    }
     const catalog = await readLogCatalog(this.root);
     if (!catalog)
       return {
         state: 'unavailable' as const,
+        collectorHealth,
         collectedAt: null,
         sources: [],
         retentionDays: null,
@@ -42,7 +85,13 @@ export class AdminLogsService {
       };
     const age = Date.now() - Date.parse(catalog.collectedAt);
     return {
-      state: age > 5 * 60_000 ? ('stale' as const) : ('ok' as const),
+      state:
+        collectorHealth?.state === 'error'
+          ? ('error' as const)
+          : age > 5 * 60_000
+            ? ('stale' as const)
+            : ('ok' as const),
+      collectorHealth,
       collectedAt: catalog.collectedAt,
       sources: catalog.sources,
       eventSources: [...new Set(catalog.segments.flatMap((s) => s.sources))].sort(),
@@ -60,14 +109,19 @@ export class AdminLogsService {
     };
   }
 
-  private async worker(kind: 'query' | 'export', filter: LogFilter, output = ''): Promise<unknown> {
+  private async worker(
+    kind: 'query' | 'export',
+    filter: LogFilter,
+    output = '',
+    scanState?: LogScanState,
+  ): Promise<unknown> {
     if (this.running >= 2) throw new Error('LOG_BUSY');
     this.running += 1;
     return new Promise((resolve, reject) => {
       let worker: Worker;
       try {
         worker = new Worker(join(__dirname, 'admin-logs.worker.js'), {
-          workerData: { kind, root: this.root, filter, limit: 100, output },
+          workerData: { kind, root: this.root, filter, limit: 100, output, scanState },
           resourceLimits: { maxOldGenerationSizeMb: 128 },
         });
       } catch {
@@ -99,8 +153,61 @@ export class AdminLogsService {
     });
   }
 
-  query(filter: LogFilter): Promise<unknown> {
-    return this.worker('query', filter);
+  async query(
+    filter: LogFilter,
+    owner = '',
+    cursor = '',
+    defaults: { from?: boolean; to?: boolean } = {},
+  ): Promise<unknown> {
+    for (const [id, scan] of this.scans)
+      if (Date.now() - scan.createdAt > 300_000 && !scan.busy) this.scans.delete(id);
+    const scan = cursor ? this.scans.get(cursor) : undefined;
+    const fingerprint = JSON.stringify({
+      ...filter,
+      from: defaults.from ? '' : filter.from,
+      to: defaults.to ? '' : filter.to,
+    });
+    if (cursor && (!scan || scan.owner !== owner || scan.filter !== fingerprint))
+      throw new Error('LOG_NOT_FOUND');
+    if (scan?.busy || (!scan && this.scans.size >= 2)) throw new Error('LOG_BUSY');
+    const id = cursor || randomUUID();
+    // Reserve before starting work, so concurrent initial queries cannot exceed
+    // the same two-session bound as continuations.
+    const active = scan ?? {
+      owner,
+      filter: fingerprint,
+      effectiveFilter: filter,
+      createdAt: Date.now(),
+      busy: false,
+    };
+    active.busy = true;
+    this.scans.set(id, active);
+    try {
+      const result = (await this.worker('query', active.effectiveFilter, '', scan?.state)) as {
+        items: unknown[];
+        next: unknown;
+        partial: boolean;
+        scanned: number;
+        scanState?: LogScanState;
+      };
+      const { scanState, ...page } = result;
+      if (!scanState) {
+        this.scans.delete(id);
+        return { ...page, scanCursor: null };
+      }
+      this.scans.set(id, {
+        owner,
+        filter: fingerprint,
+        effectiveFilter: active.effectiveFilter,
+        state: scanState,
+        createdAt: scan?.createdAt ?? Date.now(),
+        busy: false,
+      });
+      return { ...page, scanCursor: id };
+    } catch (failure) {
+      this.scans.delete(id);
+      throw failure;
+    }
   }
 
   private async expireJobs(): Promise<void> {

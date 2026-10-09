@@ -2199,6 +2199,13 @@
   background: #fff;
   box-shadow: inset 0 0 0 1px #cbd4db;
 }
+/* The native menu must escape the toolbar's layer below the Code drawer (45).
+   Mobile keeps its intentional clipped, horizontally scrolling toolbar. */
+@media (min-width: 981px) {
+  .workbench-toolbar:has(.workbench-wire-color[open]) {
+    z-index: 46;
+  }
+}
 .workbench-wire-color-menu {
   position: absolute;
   z-index: 80;
@@ -4794,6 +4801,57 @@ html.arduino-palette-resizing * {
 .workbench-library-handle-label,
 .arduino-mobile-panel-header {
   display: none;
+}
+
+/* Whole controls need real rows, rather than clipping inside a narrow drawer. */
+@media (min-width: 981px) {
+  .workbench-toolbar-group.right .workbench-pill.simulate {
+    width: max-content;
+    flex-shrink: 0;
+  }
+  .arduino-code-toolbar {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    min-height: 50px;
+    padding: 6px 9px;
+  }
+  .arduino-code-toolbar > * {
+    flex-shrink: 0;
+  }
+  .arduino-code-toolbar-spacer {
+    display: none;
+  }
+  .arduino-code-toolbar .arduino-board-select {
+    margin-left: auto;
+  }
+}
+
+/* Full running tools + clock + actions, including group padding, need 1373.703125px. */
+@media (min-width: 981px) and (max-width: 1373px) {
+  .workbench-shell {
+    --wb-toolbar-height: 96px;
+  }
+  .workbench-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: repeat(2, 48px);
+  }
+  .workbench-toolbar-group:not(.right) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .workbench-toolbar-group.right {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .workbench-simulation-time {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .workbench-toolbar-spacer {
+    display: none;
+  }
 }
 
 /* UI text is independent of circuit zoom; larger desktops have comfortable panels. */
