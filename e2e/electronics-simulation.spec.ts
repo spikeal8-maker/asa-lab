@@ -2831,6 +2831,202 @@ test.afterEach(async ({ page }) => {
   await page.context().request.post('/api/auth/logout', { headers: { origin } });
 });
 
+test('native wire colour menu accepts Purple beside Code across desktop and mobile layouts', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const evidenceDir = 'reports/playwright/electronics-wire-menu-530';
+  mkdirSync(evidenceDir, { recursive: true });
+  const observations: unknown[] = [];
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Native wire menu beside Code');
+  await saveDocument(page, projectId, arduinoInputDocument('button', '2'));
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  const code = page.locator('.workbench-pill.code');
+  const drawer = page.locator('.arduino-code-panel');
+  const details = page.locator('.workbench-wire-color');
+  const summary = details.locator('summary');
+  const purple = details.locator('[aria-label="Цвет провода: Фиолетовый"]');
+  const blue = details.locator('[aria-label="Цвет провода: Синий"]');
+  const widthHandle = page.getByRole('separator', { name: 'Изменить ширину редактора кода' });
+  const heightHandle = page.getByRole('separator', { name: 'Изменить высоту редактора кода' });
+  await code.click();
+  await expect(drawer).toHaveClass(/open/);
+  await expect(drawer).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+
+  async function record(phase: string) {
+    const observation = await page.evaluate((phase) => {
+      function inspect(selector: string) {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing wire menu consumer: ${selector}`);
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const points = [
+          [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
+          [bounds.left + 4, bounds.top + 4],
+          [bounds.right - 4, bounds.top + 4],
+          [bounds.left + 4, bounds.bottom - 4],
+          [bounds.right - 4, bounds.bottom - 4],
+        ].map(([x, y]) => {
+          const top = document.elementFromPoint(x, y);
+          return {
+            x,
+            y,
+            owned: top === element || Boolean(top && element.contains(top)),
+            target: top?.closest('button, summary, [role="separator"]')?.outerHTML ?? top?.tagName,
+          };
+        });
+        return {
+          bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+          display: style.display,
+          visibility: style.visibility,
+          overflowX: style.overflowX,
+          overflowY: style.overflowY,
+          zIndex: style.zIndex,
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          ariaValueNow: element.getAttribute('aria-valuenow'),
+          checked: element.getAttribute('aria-checked'),
+          pressed: element.getAttribute('aria-pressed'),
+          points,
+        };
+      }
+      return {
+        phase,
+        viewport: { width: innerWidth, height: innerHeight },
+        pageWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        menuOpen: document.querySelector<HTMLDetailsElement>('.workbench-wire-color')?.open,
+        toolbar: inspect('.workbench-toolbar'),
+        tools: inspect('.workbench-breadboard-tools'),
+        summary: inspect('.workbench-wire-color summary'),
+        menu: inspect('.workbench-wire-color-menu'),
+        purple: inspect('[aria-label="Цвет провода: Фиолетовый"]'),
+        code: inspect('.workbench-pill.code'),
+        drawer: inspect('.arduino-code-panel'),
+        widthHandle: inspect('.arduino-drawer-resize-handle'),
+        heightHandle: inspect('.arduino-mobile-panel-grip'),
+      };
+    }, phase);
+    observations.push(observation);
+    writeFileSync(`${evidenceDir}/geometry.json`, JSON.stringify(observations, null, 2));
+    await page.screenshot({ path: `${evidenceDir}/${phase}.png`, fullPage: true });
+    return observation;
+  }
+
+  function assertFits(bounds: { x: number; y: number; width: number; height: number }) {
+    const viewport = page.viewportSize()!;
+    expect(bounds.width).toBeGreaterThan(0);
+    expect(bounds.height).toBeGreaterThan(0);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+  }
+
+  // At 1440 the drawer has room to change width; at 1024 its existing clamp
+  // fixes it at 604px. Exercise real resizing where the control permits it.
+  await summary.click();
+  const openResize = await record('1440-open-before-resize');
+  expect(openResize.menuOpen).toBe(true);
+  expect(openResize.widthHandle.points[0].owned).toBe(true);
+  const resizePoint = {
+    x: openResize.widthHandle.bounds.x + openResize.widthHandle.bounds.width / 2,
+    y: openResize.drawer.bounds.y + openResize.drawer.bounds.height / 2,
+  };
+  expect(resizePoint.y).toBeGreaterThan(openResize.menu.bounds.y + openResize.menu.bounds.height);
+  await page.mouse.move(resizePoint.x, resizePoint.y);
+  await page.mouse.down();
+  await page.mouse.move(resizePoint.x + 32, resizePoint.y, { steps: 8 });
+  await page.mouse.up();
+  const resizedOpen = await record('1440-after-open-menu-resize');
+  expect(Number(resizedOpen.widthHandle.ariaValueNow)).toBe(
+    Number(openResize.widthHandle.ariaValueNow) - 32,
+  );
+  expect(resizedOpen.drawer.bounds.width).toBe(openResize.drawer.bounds.width - 32);
+  if (await details.evaluate((element) => (element as HTMLDetailsElement).open)) {
+    await summary.click();
+  }
+  const closedResize = await record('1440-closed-before-resize');
+  expect(closedResize.menuOpen).toBe(false);
+  expect(closedResize.widthHandle.points[0].owned).toBe(true);
+  const closedPoint = {
+    x: closedResize.widthHandle.bounds.x + closedResize.widthHandle.bounds.width / 2,
+    y: resizePoint.y,
+  };
+  await page.mouse.move(closedPoint.x, closedPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(closedPoint.x + 32, closedPoint.y, { steps: 8 });
+  await page.mouse.up();
+  const resizedClosed = await record('1440-after-closed-menu-resize');
+  expect(Number(resizedClosed.widthHandle.ariaValueNow)).toBe(
+    Number(closedResize.widthHandle.ariaValueNow) - 32,
+  );
+  expect(resizedClosed.drawer.bounds.width).toBe(closedResize.drawer.bounds.width - 32);
+
+  for (const width of [1440, 1024, 981]) {
+    await page.setViewportSize({ width, height: 900 });
+    await summary.click();
+    await blue.click();
+    await summary.click();
+    const before = await record(`${width}-before-purple`);
+    expect(before.menuOpen).toBe(true);
+    expect(before.code.pressed).toBe('true');
+    expect(before.purple.checked).toBe('false');
+    expect(before.pageWidth).toBeLessThanOrEqual(before.clientWidth);
+    assertFits(before.menu.bounds);
+    assertFits(before.purple.bounds);
+    expect(before.menu.points.every((point) => point.owned)).toBe(true);
+    expect(before.purple.points.every((point) => point.owned)).toBe(true);
+    await purple.click({ trial: true });
+    await purple.click();
+    const after = await record(`${width}-after-purple`);
+    expect(after.purple.checked).toBe('true');
+    expect(after.menuOpen).toBe(false);
+    await expect(purple).toHaveAttribute('aria-checked', 'true');
+    await expect(summary.locator('span')).toHaveCSS('background-color', 'rgb(141, 69, 199)');
+    await expect(code).toHaveAttribute('aria-pressed', 'true');
+    await expect(widthHandle).toBeVisible();
+  }
+
+  // Native dropdown presentation is intentionally clipped on mobile. Check its
+  // actual toolbar/Code consumers and the bottom panel's real height gesture.
+  for (const width of [980, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    const before = await record(`${width}-mobile-before-resize`);
+    expect(before.menuOpen).toBe(false);
+    expect(before.pageWidth).toBeLessThanOrEqual(before.clientWidth);
+    expect(before.toolbar.overflowX).toBe('hidden');
+    expect(before.tools.overflowX).toBe('auto');
+    expect(before.widthHandle.display).toBe('none');
+    expect(before.code.pressed).toBe('true');
+    assertFits(before.toolbar.bounds);
+    assertFits(before.code.bounds);
+    assertFits(before.drawer.bounds);
+    assertFits(before.heightHandle.bounds);
+    expect(before.code.points.every((point) => point.owned)).toBe(true);
+    expect(before.heightHandle.points[0].owned).toBe(true);
+    await expect(heightHandle).toBeVisible();
+    const point = before.heightHandle.points[0];
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    await page.mouse.move(point.x, point.y - 32, { steps: 8 });
+    await page.mouse.up();
+    const after = await record(`${width}-mobile-after-resize`);
+    expect(Number(after.heightHandle.ariaValueNow)).toBeGreaterThan(
+      Number(before.heightHandle.ariaValueNow),
+    );
+    expect(after.drawer.bounds.height).toBeGreaterThan(before.drawer.bounds.height);
+    assertFits(after.drawer.bounds);
+    await expect(code).toHaveAttribute('aria-pressed', 'true');
+    await expect(widthHandle).toBeHidden();
+  }
+  failures.assertEmpty();
+});
+
 test('component inspector separates compact settings, live state and educational help', async ({
   page,
 }) => {
