@@ -2060,6 +2060,117 @@ parallel_lanes:
         mutation by author. Parent programme and task blockers checked by controller,
         no inherited-blocker bypass. Root electronics530 and all foreign state preserved.
 
+  - id: electronics-arduino
+    parent_lane: electronics
+    worktree_id: electronics-arduino-537
+    owned_paths:
+    - contexts/electronics/domain/arduino-program-runtime.ts
+    - contexts/electronics/domain/arduino-values.ts
+    - contexts/electronics/domain/arduino-capabilities.ts
+    - apps/web/src/electronics/arduino-source-language.ts
+    - apps/web/src/electronics/arduino-command-reference.ts
+    - contexts/electronics/testing/arduino-bitwise.spec.ts
+    - e2e/electronics-arduino-bitwise.spec.ts
+    - docs/product/electronics/components/arduino-peripherals.yaml
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-BITWISE-001.md
+    task:
+      id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
+      issue: 537
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: prepared_pending_independent_guard536_acceptance
+      dependency_issue: 536
+      owner_acceptance: pending
+    execution_lease:
+      executor_id: electronics-arduino-537
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
+      head_sha: null
+      observed_at: '2026-10-09T16:35:26Z'
+      main:
+        branch: main
+        sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Owner452
+        explicitly commissioned this bounded parallel pupil repair. READY preparation
+        only, no executable product dispatch until independent guard536 acceptance and
+        in_progress selection on main. Exact card/paths, actual dirty overlap and parent
+        programme blockers must be checked. No school/container/DB/network/backup operation;
+        root530 and saved526 remain priority.
+  - id: electronics-wire
+    parent_lane: electronics
+    worktree_id: electronics-wire-538
+    owned_paths:
+    - apps/web/src/electronics/workbench-document.ts
+    - apps/web/src/electronics/testing/workbench-document.spec.ts
+    - e2e/electronics-interactions.spec.ts
+    - docs/product/electronics/components/ui-assets-persistence.yaml
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-LEGACY-WIRE-SEGMENT-001.md
+    task:
+      id: TASK-ELECTRONICS-LEGACY-WIRE-SEGMENT-001
+      issue: 538
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: ready
+      checkpoint: prepared_pending_independent_guard536_acceptance
+      dependency_issue: 536
+      owner_acceptance: pending
+    execution_lease:
+      executor_id: electronics-wire-538
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
+      head_sha: null
+      observed_at: '2026-10-09T16:35:26Z'
+      main:
+        branch: main
+        sha: d2738e42387ba4a2f6cbd04c27d9744c4dc50ab9
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Owner452
+        explicitly commissioned this bounded parallel pupil repair. READY preparation
+        only, no executable product dispatch until independent guard536 acceptance and
+        in_progress selection on main. Exact card/paths, actual dirty overlap and parent
+        programme blockers must be checked. No school/container/DB/network/backup operation;
+        root530 and saved526 remain priority.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
