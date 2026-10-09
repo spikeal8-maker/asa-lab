@@ -594,7 +594,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: preserved_r5_final_convergence_after_accepted_530
+      checkpoint: bounded_r6_preserve_compact_normal_toolbar_after_full_e01_pass
       r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
       r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
       r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
@@ -664,6 +664,23 @@ parallel_lanes:
       owner_approved_conflict_paths:
       - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/generated/component-coverage.json
+      post_530_candidate_sha: dda9fe1c6956ace5e009b14004fd83b606b8be3a
+      post_530_candidate_tree: 46b02ae8707f329d0abf3e9f529d4ea1c94765f7
+      post_530_candidate_branch: codex/electronics-save-recovery-526-post-530
+      post_530_independent_review: request_changes
+      post_530_independent_evidence: docs/product/electronics/evidence/save-526-post-530-independent-review-dda9fe1c.md
+      post_530_independent_review_original_sha256: bf5416b038e9f4b17fc46b98844fab262485bad88c472b8a771e5359a0cb4144
+      post_530_general_run: 37976875849
+      post_530_general_conclusion: success
+      post_530_electronics_run: 37976882424
+      post_530_electronics_conclusion: failure
+      post_530_browser_passed: 132
+      post_530_browser_failed: 3
+      post_530_e01_layout_phases_passed: 56
+      r6_repair_scope: Only causal CSS qualification for normal1374 running toolbar48
+        versus current96. Preserve all persistence code, full56/denial, all old532/530
+        tests and widths/captions/native hits; no test/timeout change. NEW author then
+        final exact gates and NEW independent reviewer.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1140,28 +1157,23 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9747d80d0e0d0f2b750ab1b88b88e08c673dd5a7
+      convergence_baseline_sha: d56dc2a11d8a2ebccc7f2af185eb339e5db5c859
       head_sha: null
-      observed_at: '2026-10-09T18:39:28Z'
+      observed_at: '2026-10-09T19:24:10Z'
       main:
         branch: main
-        sha: 9747d80d0e0d0f2b750ab1b88b88e08c673dd5a7
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Technical530
-        accepted sourcef37391b1 NEW APPROVE/General37969209411 and ordinary37969211551
-        all8SUCCESS, integrated9964d8fd/closeout9747d80d and Issue530CLOSED. Freshly selected526
-        resumes preserved0dd31 R5 after accepted530; every prior source/ref/review/fullsemantic
-        receipt remains intact. NEW bounded author performs ordinary final composition
-        preserving all accepted529/531/532/533/534/530 scenarios, CSS, foreign state and
-        frozen dependencies; only known derived browser digest conflict regeneration is
-        agreed. Any additional actual conflict STOP/show. No new E01 implementation, causal
-        BEFORE repeat, timeout increase, physics weakening or yielded electrical publication.
-        Final full56 normal/denial and complete schema+sketch/quiet recovery/crash/reauth/scope/CAS/two
-        tabs/second profile/export require ordinary exact gates and NEW independent final-SHA
-        review. E01 not accepted yet. Main9747 documentation CI is a separately observed
-        workflow, not inherited sourcef373 PASS. Two production slices accepted since
-        hygiene535;526 has priority before accepting parallel537/538/539. SchoolK0 installed
-        version/full backups NOT_VERIFIED; real pupilT3/class/owner/deployment pending.
-        No installation/DB/network/backup operation.
+        sha: d56dc2a11d8a2ebccc7f2af185eb339e5db5c859
+      observation_note: 'Dated snapshot; fetch main and actual exact CI before writes.
+        NEW exactdda9 REQUEST_CHANGES after full56/denial/schema/sketch/quiet6020ms/SIGKILL29ms/reauth/scope/CAS/departure/529fast
+        PASS. General37976875849 all4SUCCESS, ordinary37976882424 focused/benchmarkSUCCESS
+        but132browserPASS3compactFAIL and imagesSKIPPED. Root and reviewer actual acceptedf3731374
+        running48 versus newdda9 normal96 in all3modes: current composition CSS1281..1536
+        time-only qualifier causes regression, categoryA. Select bounded R6 CSS-only repair,
+        preserve every persistence source/test/raw/priorcandidate and accepted532/530
+        criteria, no expectations/timeouts weakening. Parallel539R1 only controller/runtime,
+        no overlap. E01 remains priority; acceptance/full8 on new SHA required. This is
+        not acceptance3 or due-hygiene closeout yet; schoolK0/backups/T3/class/owner/deployment
+        pending.'
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
