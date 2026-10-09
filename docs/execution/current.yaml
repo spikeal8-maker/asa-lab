@@ -2098,40 +2098,31 @@ parallel_lanes:
 
   - id: electronics-arduino
     parent_lane: electronics
-    worktree_id: electronics-arduino-537
+    worktree_id: electronics-ready-cadence-539
     owned_paths:
+    - apps/web/src/electronics/live-simulation-worker-controller.ts
     - contexts/electronics/domain/arduino-program-runtime.ts
-    - contexts/electronics/domain/arduino-values.ts
-    - contexts/electronics/domain/arduino-capabilities.ts
-    - apps/web/src/electronics/arduino-source-language.ts
-    - apps/web/src/electronics/arduino-command-reference.ts
-    - contexts/electronics/testing/arduino-bitwise.spec.ts
-    - e2e/electronics-arduino-bitwise.spec.ts
-    - docs/product/electronics/components/arduino-peripherals.yaml
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-BITWISE-001.md
+    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - contexts/electronics/testing/arduino-execution-clock.spec.ts
+    - e2e/electronics-ready-cadence.spec.ts
+    - docs/product/electronics/components/engine-worker-clock.yaml
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001.md
     task:
-      id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
-      issue: 537
+      id: TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001
+      issue: 539
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_canonical_fixture_acceptance_repair
-      dependency_issue: 536
+      checkpoint: bounded_complete_ready_observation_and_compilation_reuse
+      dependency_for_issue: 537
       owner_acceptance: pending
-      dependency_status: technical_accepted
-      selected_at: '2026-10-09T16:49:06Z'
-      preserved_candidate_sha: 89946bb1dd86883ee1374e0edce6e7d25000d205
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/arduino-bitwise-537-independent-review-89946bb1.md
-      independent_review_original_sha256: 9f0282b6c2872f574afa13552030d1f59f8413ef573d2547d2016b8f932a0e33
-      repair_scope: Only dedicated browser fixture canonical LED defaults. Keep full document
-        equality and all real Worker/GPIO/LED/Serial/save/reopen assertions; production
-        unchanged. Both failed probes stopped before Run and do not prove browser bitwise
-        behavior.
+      selected_at: '2026-10-09T18:13:06Z'
+      integration_priority: hold candidate until root530 then526 acceptance; preserve
+        E01 priority
     execution_lease:
-      executor_id: electronics-arduino-537
+      executor_id: electronics-ready-cadence-539
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -2151,21 +2142,79 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: a211875aff3e4452ee085109a282d5f72a33dcac
+      convergence_baseline_sha: 26e9c5879d4305441310dbc1f9ab68061f759a65
       head_sha: null
-      observed_at: '2026-10-09T17:31:58Z'
+      observed_at: '2026-10-09T18:13:06Z'
       main:
         branch: main
-        sha: a211875aff3e4452ee085109a282d5f72a33dcac
-      observation_note: 'Dated snapshot; fetch main and exact CI before writes.
-        NEW independent REQUEST_CHANGES on preserved candidate requires one bounded test-only
-        acceptance repair; product source must remain unchanged unless a new actual defect
-        is proved. Complete pupil browser acceptance and required exact gates remain missing.
-        Main General37963988429 is FAILURE from independent Portal/Scratch synthetic fixtures:
-        Governance/Code/Data SUCCESS, Access eight failures; transmitted to responsible
-        Portal executor, no Electronics scope expansion. All prior accepted/suspended
-        results and foreign work remain preserved. Root530 then526 stay priority. No school/DB/deployment/network/backup
-        operations.'
+        sha: 26e9c5879d4305441310dbc1f9ab68061f759a65
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Preserved537
+        exact1747 received NEW independent REQUEST_CHANGES after three strict full saved
+        documents2->3 PASS and exactGeneral37968550047 all4SUCCESS. Original traces
+        prove Serial ready0 then yielded256->2048/request112300, GPIO ready0/2/4 only
+        and UI same; buffer200 not reached. Select separate bounded539 on canonical
+        main, without importing unaccepted E13. Only controller adaptive complete horizons
+        and immutable bounded exact-source compilation reuse in runtime; no physics,
+        scheduler, instruction timing or budget changes. Require full state/event parity,
+        real generic browser/save/reopen, exact gates and NEW independent review. No
+        incomplete electrical publication or timeout change. Preserve all537 candidates/reports,
+        root530 then526 priority, foreign work, school/K0/T3/class/deployment limits.
+    suspended_tasks:
+    - task_id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
+      issue: 537
+      task:
+        id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
+        issue: 537
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: bounded_canonical_fixture_acceptance_repair
+        dependency_issue: 536
+        owner_acceptance: pending
+        dependency_status: technical_accepted
+        selected_at: '2026-10-09T16:49:06Z'
+        preserved_candidate_sha: 89946bb1dd86883ee1374e0edce6e7d25000d205
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/arduino-bitwise-537-independent-review-89946bb1.md
+        independent_review_original_sha256: 9f0282b6c2872f574afa13552030d1f59f8413ef573d2547d2016b8f932a0e33
+        repair_scope: Only dedicated browser fixture canonical LED defaults. Keep full
+          document equality and all real Worker/GPIO/LED/Serial/save/reopen assertions;
+          production unchanged. Both failed probes stopped before Run and do not prove
+          browser bitwise behavior.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: a211875aff3e4452ee085109a282d5f72a33dcac
+        head_sha: null
+        observed_at: '2026-10-09T17:31:58Z'
+        main:
+          branch: main
+          sha: a211875aff3e4452ee085109a282d5f72a33dcac
+        observation_note: 'Dated snapshot; fetch main and exact CI before writes. NEW
+          independent REQUEST_CHANGES on preserved candidate requires one bounded test-only
+          acceptance repair; product source must remain unchanged unless a new actual
+          defect is proved. Complete pupil browser acceptance and required exact gates
+          remain missing. Main General37963988429 is FAILURE from independent Portal/Scratch
+          synthetic fixtures: Governance/Code/Data SUCCESS, Access eight failures; transmitted
+          to responsible Portal executor, no Electronics scope expansion. All prior
+          accepted/suspended results and foreign work remain preserved. Root530 then526
+          stay priority. No school/DB/deployment/network/backup operations.'
+      status: blocked_pending_ready_cadence_dependency
+      dependency_issue: 539
+      candidate_sha: 1747f8650a45d27d8cdde0a5fbc03fa82a867cd9
+      candidate_tree: 7ee723b68d4ee9b7bc9d8bc87e22e9bc6cb3e273
+      candidate_branch: codex/electronics-537-canonical-fixture-r1
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/arduino-bitwise-537-r1-independent-review-1747f865.md
+      independent_review_original_sha256: 7af8c1e9e9d92ad1d258960771b23877af3ca5c8f3fcb0c416e4cdefd8e8f5ad
+      exact_general_run: 37968550047
+      exact_general_conclusion: success
+      directed_before_run: 37968672280
+      directed_after_run: 37968776709
+      full_saved_document_revision: 2->3 PASS
+      browser_complete_and_reopen: not_run
+      owner_acceptance: pending
 
   - id: electronics-wire
     parent_lane: electronics
