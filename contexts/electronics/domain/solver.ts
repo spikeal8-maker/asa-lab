@@ -444,12 +444,55 @@ interface InternalSolveOptions extends SolveOptions {
   readonly holdMotorStates?: boolean | undefined;
 }
 
+/** Preserve filter order, including multiple entries with the same component ID. */
+function branchesByComponent<T extends { readonly component: SchematicComponent }>(
+  branches: readonly T[],
+): ReadonlyMap<string, readonly T[]> {
+  const grouped = new Map<string, T[]>();
+  for (const branch of branches) {
+    const existing = grouped.get(branch.component.id);
+    if (existing) existing.push(branch);
+    else grouped.set(branch.component.id, [branch]);
+  }
+  for (const entries of grouped.values()) Object.freeze(entries);
+  return grouped;
+}
+
+/** Document-only routing; numeric observations and active branches are never retained. */
+function prepareObservationRouting(document: ElectronicsDocument) {
+  const nonlinearComponents: SchematicComponent[] = [];
+  const nonlinearBranches = document.components.flatMap((component) => {
+    const branches = nonlinearDcBranchesForComponent(component);
+    if (branches.length > 0) nonlinearComponents.push(component);
+    return branches.map((branch) => Object.freeze(branch));
+  });
+  return Object.freeze({
+    components: Object.freeze(
+      document.components
+        .filter((component) => component.kind !== 'wire')
+        .map((component) =>
+          Object.freeze({
+            component,
+            terminals: Object.freeze([...terminalsForComponent(component)]),
+          }),
+        ),
+    ),
+    nonlinearComponents: Object.freeze(nonlinearComponents),
+    nonlinearBranches: Object.freeze(nonlinearBranches),
+    nonlinearBranchesByComponent: branchesByComponent(nonlinearBranches),
+    nonlinearBranchKeys: new Map(
+      nonlinearBranches.map((branch) => [branch, nonlinearBranchKey(branch)] as const),
+    ) as ReadonlyMap<NonlinearDcBranch, string>,
+  });
+}
+
 /** Read-only document work, scoped to one scheduler advance; never a solved frame. */
 export function prepareCircuitSolve(document: ElectronicsDocument) {
   const ordered = [...document.components].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const netlist = buildNetlist(document);
   const preparation = Object.freeze({
     netlist,
+    observationRouting: prepareObservationRouting(document),
     terminalNodes: new Map(
       document.components.map(
         (component) =>
@@ -2632,9 +2675,18 @@ function solveCircuitStep(
     ...heldCapacitors.filter((component) => capacitorConstraints.independentIds.has(component.id)),
   ];
   const size = nodeVariableCount + stampedVoltageSourceComponents.length;
-  const diodeBranches = document.components.flatMap((component) =>
-    failedComponentIds.has(component.id) ? [] : nonlinearDcBranchesForComponent(component),
+  const observationRouting = preparation?.observationRouting ?? prepareObservationRouting(document);
+  const diodeBranches = observationRouting.nonlinearBranches.filter(
+    (branch) => !failedComponentIds.has(branch.component.id),
   );
+  const diodeBranchesByComponent =
+    failedComponentIds.size === 0
+      ? observationRouting.nonlinearBranchesByComponent
+      : branchesByComponent(diodeBranches);
+  // Arduino stamps depend on this solve's snapshot; never put them in preparation.
+  const arduinoBranchesByComponent = branchesByComponent(arduinoBranches);
+  const branchKey = (branch: NonlinearDcBranch): string =>
+    observationRouting.nonlinearBranchKeys.get(branch) as string;
   const diodeStates = new Map<string, boolean>();
   const diodeSegmentIndices = new Map<string, number>();
   const regulatedSupplyModes = new Map<string, RegulatedPowerSupplyMode>(
@@ -2683,7 +2735,7 @@ function solveCircuitStep(
   // first linear solve turns them on; an isolated LED must not create its own
   // artificial voltage across otherwise floating terminals.
   for (const branch of diodeBranches) {
-    const key = nonlinearBranchKey(branch);
+    const key = branchKey(branch);
     diodeStates.set(key, false);
     diodeSegmentIndices.set(key, 0);
   }
@@ -2877,7 +2929,7 @@ function solveCircuitStep(
     for (const branch of diodeBranches) {
       const anode = physicalNodeIndex(branch.component, branch.anode);
       const cathode = physicalNodeIndex(branch.component, branch.cathode);
-      const key = nonlinearBranchKey(branch);
+      const key = branchKey(branch);
       const active = diodeStates.get(key) === true;
       if (active) {
         const segment = nonlinearSegmentAt(branch, diodeSegmentIndices.get(key) ?? 0);
@@ -2986,7 +3038,7 @@ function solveCircuitStep(
       }
     }
     for (const branch of diodeBranches) {
-      const key = nonlinearBranchKey(branch);
+      const key = branchKey(branch);
       const segmentIndex = diodeSegmentIndices.get(key) ?? 0;
       const segment = nonlinearSegmentAt(branch, segmentIndex);
       const drop =
@@ -3161,7 +3213,7 @@ function solveCircuitStep(
     return (branch.targetVoltage - measured) / branch.resistanceOhm;
   };
   const resultForBranch = (branch: NonlinearDcBranch) => {
-    const key = nonlinearBranchKey(branch);
+    const key = branchKey(branch);
     const segment = nonlinearSegmentAt(branch, diodeSegmentIndices.get(key) ?? 0);
     const voltageDrop =
       physicalVoltageAt(branch.component, branch.anode) -
@@ -3316,11 +3368,10 @@ function solveCircuitStep(
   );
 
   const linearDcObservationById = new Map<string, LinearDcObservation>();
-  const components: ComponentResult[] = document.components
-    .filter((component) => component.kind !== 'wire')
-    .map((component) => {
+  const components: ComponentResult[] = observationRouting.components.map(
+    ({ component, terminals }) => {
       const terminalVoltages: Partial<Record<Terminal, number>> = {};
-      for (const terminal of terminalsForComponent(component)) {
+      for (const terminal of terminals) {
         terminalVoltages[terminal] = round(physicalVoltageAt(component, terminal));
       }
       if (failedComponentIds.has(component.id)) {
@@ -3374,11 +3425,9 @@ function solveCircuitStep(
             : {}),
         };
       }
-      const branches = diodeBranches.filter((branch) => branch.component.id === component.id);
+      const branches = diodeBranchesByComponent.get(component.id) ?? [];
       const branchResults = branches.map((branch) => ({ branch, ...resultForBranch(branch) }));
-      const componentArduinoBranches = arduinoBranches.filter(
-        (branch) => branch.component.id === component.id,
-      );
+      const componentArduinoBranches = arduinoBranchesByComponent.get(component.id) ?? [];
       const arduinoBranchResults = componentArduinoBranches.map((branch) => ({
         branch,
         voltageDrop:
@@ -4051,7 +4100,15 @@ function solveCircuitStep(
             }
           : {}),
       };
-    });
+    },
+  );
+  // Match Array.find: the first result wins even for malformed duplicate IDs.
+  const componentResultById = new Map<string, ComponentResult>();
+  for (const result of components) {
+    if (!componentResultById.has(result.componentId)) {
+      componentResultById.set(result.componentId, result);
+    }
+  }
 
   for (const [componentId, observation] of [...tmp36Results, ...soilResults, ...pirResults]) {
     diagnostics.push(
@@ -4091,7 +4148,7 @@ function solveCircuitStep(
   }
 
   for (const lamp of document.components.filter((component) => component.kind === 'lamp')) {
-    const result = components.find((component) => component.componentId === lamp.id);
+    const result = componentResultById.get(lamp.id);
     if (!result || failedComponentIds.has(lamp.id)) continue;
     const voltageRatio = Math.abs(result.voltageDrop) / INCANDESCENT_LAMP_PROFILE.ratedVoltageVolt;
     if (voltageRatio <= INCANDESCENT_LAMP_PROFILE.warningVoltageRatio) continue;
@@ -4108,7 +4165,7 @@ function solveCircuitStep(
   }
 
   for (const piezo of document.components.filter((component) => component.kind === 'piezo')) {
-    const result = components.find((component) => component.componentId === piezo.id);
+    const result = componentResultById.get(piezo.id);
     if (!result || result.piezoMode !== 'active') continue;
     if (result.piezoDriveState === 'reverse_polarity') {
       diagnostics.push({
@@ -4131,7 +4188,7 @@ function solveCircuitStep(
   }
 
   for (const motor of document.components.filter(isBrushedMotor)) {
-    const result = components.find((component) => component.componentId === motor.id);
+    const result = componentResultById.get(motor.id);
     if (!result) continue;
     if (result.motorVoltageState === 'overvoltage') {
       const maximumVoltage = result.operatingVoltageMaxVolt ?? 0;
@@ -4164,7 +4221,7 @@ function solveCircuitStep(
   }
 
   for (const capacitor of capacitors) {
-    const result = components.find((component) => component.componentId === capacitor.id);
+    const result = componentResultById.get(capacitor.id);
     if (!result) continue;
     const parameters = capacitorParameters(capacitor);
     if (result.voltageDrop < -0.1) {
@@ -4189,13 +4246,9 @@ function solveCircuitStep(
     }
   }
 
-  for (const component of document.components.filter(
-    (item) => nonlinearDcBranchesForComponent(item).length > 0,
-  )) {
-    const componentBranches = diodeBranches.filter(
-      (branch) => branch.component.id === component.id,
-    );
-    const result = components.find((entry) => entry.componentId === component.id);
+  for (const component of observationRouting.nonlinearComponents) {
+    const componentBranches = diodeBranchesByComponent.get(component.id) ?? [];
+    const result = componentResultById.get(component.id);
     const reverseBranches = componentBranches.filter((branch) => {
       const anodeVoltage = result?.terminalVoltages[branch.anode] ?? 0;
       const cathodeVoltage = result?.terminalVoltages[branch.cathode] ?? 0;

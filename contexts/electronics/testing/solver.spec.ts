@@ -56,6 +56,100 @@ describe('advance-local immutable solve preparation', () => {
       typeof entry === 'number' && Object.is(entry, -0) ? { negativeZero: true } : entry,
     );
 
+  it.each([
+    [
+      'ordinary LED colour',
+      component('load', 'led', 2),
+      { stateProperties: { ledColour: 'blue' } },
+    ],
+    ['legacy diode knee', component('load', 'diode', 0.7), { value: 0.9 }],
+    [
+      'diode model profile',
+      component('load', 'diode', 0.7, {
+        componentTypeId: 'diode-do35',
+        pinIds: ['anode', 'cathode'],
+      }),
+      { componentTypeId: 'diode-do41', modelProfileId: 'generic-rectifier-diode-do41' },
+    ],
+    [
+      'RGB common terminal',
+      component('load', 'rgb-led', 0, {
+        componentTypeId: 'rgb-led',
+        pinIds: ['red', 'common', 'green', 'blue'],
+        stateProperties: { commonMode: 'common-cathode' },
+      }),
+      { stateProperties: { commonMode: 'common-anode' } },
+    ],
+    [
+      'seven-segment common terminal',
+      component('load', 'seven-segment', 0, {
+        componentTypeId: 'seven-segment-display',
+        pinIds: [
+          'top-1',
+          'top-2',
+          'top-3',
+          'top-4',
+          'top-5',
+          'bottom-1',
+          'bottom-2',
+          'bottom-3',
+          'bottom-4',
+          'bottom-5',
+        ],
+        stateProperties: { commonMode: 'common-cathode' },
+      }),
+      { stateProperties: { commonMode: 'common-anode' } },
+    ],
+  ] as const)('invalidates observation routing after changing %s', (_name, load, change) => {
+    const [anode, cathode] =
+      load.kind === 'rgb-led'
+        ? ['red', 'common']
+        : load.kind === 'seven-segment'
+          ? ['top-4', 'top-3']
+          : load.componentTypeId
+            ? ['anode', 'cathode']
+            : ['a', 'b'];
+    const original = doc(
+      [component('source', 'source', 5), component('resistor', 'resistor', 330), load],
+      [
+        connect('a', 'source', 'a', 'resistor', 'a'),
+        connect('b', 'resistor', 'b', 'load', anode),
+        connect('c', 'load', cathode, 'source', 'b'),
+      ],
+    );
+    const preparation = prepareCircuitSolve(original);
+    const solve = (document: ElectronicsDocument, prepared = false) =>
+      solveCircuitWithHeldArduino(
+        document,
+        0,
+        new Map(),
+        undefined,
+        undefined,
+        undefined,
+        prepared ? preparation : undefined,
+      );
+    expect(bytes(solve(original, true))).toBe(bytes(solve(original)));
+    const changed: ElectronicsDocument = {
+      ...original,
+      components: original.components.map((entry) =>
+        entry.id === 'load' ? { ...entry, ...change } : entry,
+      ),
+    };
+    expect(preparation(changed)).toBeUndefined();
+    expect(bytes(solve(changed, true))).toBe(bytes(solve(changed)));
+    expect(bytes(solve(changed))).not.toBe(bytes(solve(original)));
+  });
+
+  it('does not freeze or rewrite caller-owned terminal arrays during preparation', () => {
+    const original = series([component('load', 'resistor', 470, { pinIds: ['a', 'b'] })], 5);
+    const terminals = original.components.find((entry) => entry.id === 'load')!.pinIds!;
+    const before = bytes(original);
+    expect(Object.isFrozen(terminals)).toBe(false);
+    prepareCircuitSolve(original);
+    expect(bytes(original)).toBe(before);
+    expect(Object.isFrozen(terminals)).toBe(false);
+  });
+
   it('rejects a stale token after parameter, topology, terminal or model changes', () => {
     const original = series([component('load', 'resistor', 470)], 5);
     const preparation = prepareCircuitSolve(original);
