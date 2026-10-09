@@ -22,7 +22,14 @@ import {
   type OrdinaryLedColour,
   type RgbLedChannel,
 } from '../domain/led-model';
-import { solveCircuit } from '../domain/solver';
+import {
+  prepareCircuitSolve,
+  solveCircuit,
+  solveCircuitWithHeldArduino,
+  solveRcCircuitWithHeldArduino,
+} from '../domain/solver';
+import { arduinoSnapshotFromState } from '../domain/arduino-model';
+import { advanceArduinoRuntime } from '../domain/arduino-program-runtime';
 import {
   canonicalPhotoresistorProfileRegistry,
   photoresistorIlluminanceLux,
@@ -42,6 +49,203 @@ import {
   incandescentLampResistanceOhm,
   INCANDESCENT_LAMP_PROFILE,
 } from '../domain/models/incandescent-lamp-model';
+
+describe('advance-local immutable solve preparation', () => {
+  const bytes = (value: unknown) =>
+    JSON.stringify(value, (_key, entry) =>
+      typeof entry === 'number' && Object.is(entry, -0) ? { negativeZero: true } : entry,
+    );
+
+  it('rejects a stale token after parameter, topology, terminal or model changes', () => {
+    const original = series([component('load', 'resistor', 470)], 5);
+    const preparation = prepareCircuitSolve(original);
+    const changes: ElectronicsDocument[] = [
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load' ? { ...entry, value: 220 } : entry,
+        ),
+      },
+      { ...original, connections: original.connections.slice(0, 1) },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load' ? { ...entry, pinIds: ['a'] } : entry,
+        ),
+      },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load' ? { ...entry, value: -1 } : entry,
+        ),
+      },
+      {
+        ...original,
+        components: original.components.map((entry) =>
+          entry.id === 'load'
+            ? { ...entry, kind: 'visual', componentTypeId: 'unknown-model' }
+            : entry,
+        ),
+      },
+    ];
+    for (const changed of changes) {
+      const direct = solveCircuitWithHeldArduino(changed, 0, new Map());
+      const stale = solveCircuitWithHeldArduino(
+        changed,
+        0,
+        new Map(),
+        undefined,
+        undefined,
+        undefined,
+        preparation,
+      );
+      expect(bytes(stale)).toBe(bytes(direct));
+      expect(bytes(stale)).not.toBe(bytes(solveCircuitWithHeldArduino(original, 0, new Map())));
+    }
+  });
+
+  it('recomputes generator voltage and Arduino output/high-Z/runtime fault for every frame', () => {
+    const generator = component('generator', 'source', 100, {
+      componentTypeId: 'signal-generator',
+      pinIds: ['signal', 'ground'],
+      stateProperties: {
+        waveform: 'sine',
+        frequencyHz: 100,
+        amplitudeVpp: 4,
+        dcOffsetVolt: 1,
+        outputEnabled: true,
+      },
+    });
+    const source =
+      'void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){delay(1000);}';
+    const uno = component('uno', 'visual', 5, {
+      componentTypeId: 'arduino-uno',
+      pinIds: ['d13', 'power-5v', 'power-3v3', 'power-gnd-1'],
+      stateProperties: { arduinoSource: source },
+    });
+    const document = doc(
+      [generator, uno, component('load', 'resistor', 1000)],
+      [
+        connect('a', 'generator', 'signal', 'load', 'a'),
+        connect('b', 'load', 'b', 'generator', 'ground'),
+        connect('gnd', 'uno', 'power-gnd-1', 'generator', 'ground'),
+      ],
+    );
+    const preparation = prepareCircuitSolve(document);
+    const initial = advanceArduinoRuntime(source).state;
+    const variants = [
+      initial,
+      { ...initial, outputVoltages: { d13: 0 } },
+      { ...initial, pinModes: { d13: 'INPUT' as const }, outputVoltages: {} },
+      { ...initial, faults: [{ code: 'arithmetic_error' as const, message: 'division by zero' }] },
+    ];
+    const frames = variants.flatMap((state) =>
+      [0, 2.5].map((time) => {
+        const snapshots = new Map([['uno', arduinoSnapshotFromState(state)]]);
+        const direct = solveCircuitWithHeldArduino(document, time, snapshots);
+        const prepared = solveCircuitWithHeldArduino(
+          document,
+          time,
+          snapshots,
+          undefined,
+          undefined,
+          undefined,
+          preparation,
+        );
+        expect(bytes(prepared)).toBe(bytes(direct));
+        return prepared;
+      }),
+    );
+    expect(frames[0]!.solved, JSON.stringify(frames[0]!.diagnostics)).toBe(true);
+    expect(
+      frames[0]!.components.find((entry) => entry.componentId === 'load')!.voltageDrop,
+    ).not.toBe(frames[1]!.components.find((entry) => entry.componentId === 'load')!.voltageDrop);
+    expect(
+      frames[0]!.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages['d13'],
+    ).toBeCloseTo(5, 8);
+    expect(
+      frames[2]!.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages['d13'],
+    ).toBe(0);
+    expect(
+      frames[4]!.components.find((entry) => entry.componentId === 'uno')!.terminalVoltages['d13'],
+    ).toBe(0);
+    expect(frames[6]!.status).toBe('invalid');
+    expect(frames[6]!.diagnostics.some((entry) => entry.code === 'arduino_arithmetic_error')).toBe(
+      true,
+    );
+  });
+
+  it('keeps carried meter fuse and thermal failure dynamic even at the same physical time', () => {
+    const source = component('source', 'source', 3);
+    const load = component('load', 'resistor', 100);
+    const meter = component('meter', 'visual', 0, {
+      componentTypeId: 'multimeter',
+      pinIds: ['com', 'v-ohm-ma'],
+      stateProperties: { measurementMode: 'dc-current', meterRange: '400ma' },
+    });
+    const document = doc(
+      [source, load, meter],
+      [
+        connect('a', 'source', 'a', 'load', 'a'),
+        connect('b', 'load', 'b', 'meter', 'v-ohm-ma'),
+        connect('c', 'meter', 'com', 'source', 'b'),
+      ],
+    );
+    const preparation = prepareCircuitSolve(document);
+    const initial = solveRcCircuitWithHeldArduino(document, 0, new Map());
+    expect(initial.solved).toBe(true);
+    const history = initial.transientState!;
+    const blown = {
+      ...history,
+      multimeterFuses: history.multimeterFuses!.map((entry) => ({
+        ...entry,
+        fuseState: 'blown' as const,
+      })),
+    };
+    const failed = {
+      ...history,
+      thermal: history.thermal.map((entry) => ({ ...entry, failureMode: 'open' as const })),
+    };
+    for (const state of [history, blown, failed]) {
+      const direct = solveRcCircuitWithHeldArduino(document, 0, new Map(), state);
+      const prepared = solveRcCircuitWithHeldArduino(
+        document,
+        0,
+        new Map(),
+        state,
+        undefined,
+        undefined,
+        undefined,
+        preparation,
+      );
+      expect(bytes(prepared)).toBe(bytes(direct));
+    }
+    const fused = solveRcCircuitWithHeldArduino(
+      document,
+      0,
+      new Map(),
+      blown,
+      undefined,
+      undefined,
+      undefined,
+      preparation,
+    );
+    expect(fused.components.find((entry) => entry.componentId === 'meter')!.meterFuseState).toBe(
+      'blown',
+    );
+    const failedFrame = solveRcCircuitWithHeldArduino(
+      document,
+      0,
+      new Map(),
+      failed,
+      undefined,
+      undefined,
+      undefined,
+      preparation,
+    );
+    expect(bytes(failedFrame)).not.toBe(bytes(initial));
+  });
+});
 
 function component(
   id: string,

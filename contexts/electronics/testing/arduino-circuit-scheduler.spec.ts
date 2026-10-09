@@ -230,6 +230,73 @@ const physicalInputs: readonly ArduinoCircuitInputEvent[] = [
 ];
 
 describe('Arduino shared dc-inputs-v1 circuit clock', () => {
+  it('invalidates normalized sensor preparation before the next ADC read after a timed input', () => {
+    const source =
+      'int before=0;int after=0;void setup(){before=analogRead(A0);delayMicroseconds(500);after=analogRead(A0);}void loop(){delay(1000);}';
+    const sensor: SchematicComponent = {
+      ...part('temperature', 'visual', 25),
+      componentTypeId: 'temperature-sensor',
+      pinIds: ['pin-1', 'pin-2', 'pin-3'],
+      stateProperties: { temperatureCelsius: 25 },
+    };
+    const document = circuit(
+      [board('uno', source), sensor],
+      [
+        ['temperature', 'pin-1', 'uno', 'power-5v'],
+        ['temperature', 'pin-2', 'uno', 'a0'],
+        ['temperature', 'pin-3', 'uno', 'power-gnd-1'],
+      ],
+    );
+    const inputs: readonly ArduinoCircuitInputEvent[] = [
+      {
+        atMicroseconds: 250,
+        componentId: 'temperature',
+        property: 'temperatureCelsius',
+        value: 75,
+      },
+    ];
+    const whole = through(document, 1000, undefined, inputs, 256);
+    expect(whole.executionStatus, JSON.stringify(whole.diagnostics)).toBe('ready');
+    expect(whole.result!.quality.passed).toBe(true);
+    const readings = runtime(whole).variables;
+    expect(readings['after']).toBeGreaterThan(Number(readings['before']) + 80);
+    const first = through(document, 200, undefined, inputs, 1);
+    const partitioned = through(document, 1000, JSON.parse(JSON.stringify(first.state)), inputs, 7);
+    expect(partitioned.state).toEqual(whole.state);
+    expect(partitioned.result).toEqual(whole.result);
+    expect(
+      document.components.find((entry) => entry.id === 'temperature')!.stateProperties![
+        'temperatureCelsius'
+      ],
+    ).toBe(25);
+  });
+  it('keeps nested canonical documents immutable while applying inputs and continuing JSON state', () => {
+    const freeze = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return;
+      for (const child of Object.values(value)) freeze(child);
+      Object.freeze(value);
+    };
+    const document = coupledPhysicalCircuit();
+    const original = JSON.stringify(document);
+    freeze(document);
+    freeze(physicalInputs);
+    const first = through(document, 1500, undefined, physicalInputs, 7);
+    const done = through(
+      document,
+      5000,
+      JSON.parse(JSON.stringify(first.state)),
+      physicalInputs,
+      1,
+    );
+    expect(done.executionStatus).toBe('ready');
+    expect(done.result!.quality.passed).toBe(true);
+    expect(JSON.stringify(document)).toBe(original);
+    // Compare every canonical field, including physical history, against an uninterrupted run.
+    const whole = through(document, 5000, undefined, physicalInputs, 256);
+    expect(done.state).toEqual(whole.state);
+    expect(done.result).toEqual(whole.result);
+    expect(done.diagnostics).toEqual(whole.diagnostics);
+  });
   it.each([1, 7, 256, 1024])(
     'preserves the pre-optimization full RC/heat/motor/ADC/GPIO trace with budget %i',
     (budget) => {

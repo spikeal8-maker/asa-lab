@@ -419,6 +419,7 @@ export interface SolveOptions {
 export const ELECTRICAL_EVENT_FRAME_VERSION = 2;
 
 interface InternalSolveOptions extends SolveOptions {
+  readonly preparation?: CircuitSolvePreparation | undefined;
   readonly transientStepSeconds?: number;
   readonly capacitorPreviousVoltageById?: Readonly<Record<string, number>>;
   readonly bjtPreviousRegionById?: Readonly<Record<string, 'cutoff' | 'active' | 'saturation'>>;
@@ -442,6 +443,81 @@ interface InternalSolveOptions extends SolveOptions {
   /** Algebraic event frame: armature current and mechanical state cannot jump. */
   readonly holdMotorStates?: boolean | undefined;
 }
+
+/** Read-only document work, scoped to one scheduler advance; never a solved frame. */
+export function prepareCircuitSolve(document: ElectronicsDocument) {
+  const ordered = [...document.components].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const netlist = buildNetlist(document);
+  const preparation = Object.freeze({
+    netlist,
+    terminalNodes: new Map(
+      document.components.map(
+        (component) =>
+          [
+            component.id,
+            new Map(
+              terminalsForComponent(component).map(
+                (terminal) =>
+                  [terminal, netlist.nodeOf.get(terminalKey(component.id, terminal))] as const,
+              ),
+            ),
+          ] as const,
+      ),
+    ) as ReadonlyMap<string, ReadonlyMap<Terminal, number | undefined>>,
+    orderedCapacitors: ordered.filter(isElectrolyticCapacitor),
+    orderedMotors: ordered.filter(isBrushedMotor),
+    orderedLamps: ordered.filter((component) => component.kind === 'lamp'),
+    orderedMultimeters: ordered.filter((component) => component.componentTypeId === 'multimeter'),
+    orderedThermalComponents: ordered.filter((component) => thermalProfileFor(component) !== null),
+    // Generator voltage and meter fuse/mode are materialised afresh in every solve.
+    linearDevices: new Map(
+      document.components.flatMap((component) =>
+        component.componentTypeId === 'signal-generator' ||
+        component.componentTypeId === 'multimeter'
+          ? []
+          : [[component.id, createLinearDcDevice(component)] as const],
+      ),
+    ) as ReadonlyMap<string, ReturnType<typeof createLinearDcDevice>>,
+    tmp36Devices: document.components.flatMap((component) => {
+      const device = createTmp36DcDevice(component);
+      return device ? [device] : [];
+    }),
+    soilDevices: document.components.flatMap((component) => {
+      const device = createSoilMoistureDevice(component);
+      return device ? [device] : [];
+    }),
+    pirDevices: createPirSensorDevices(document.components),
+    npnDevices: document.components.flatMap((component) => {
+      const device = createNpnDcDevice(component);
+      return device ? [device] : [];
+    }),
+    pnpDevices: document.components.flatMap((component) => {
+      const device = createPnpDcDevice(component);
+      return device ? [device] : [];
+    }),
+    arduinoProgramChecks: document.components.flatMap((component) => {
+      if (!isArduinoUno(component)) return [];
+      const source = component.stateProperties?.['arduinoSource'];
+      return typeof source === 'string'
+        ? [{ component, diagnostics: analyseArduinoSourceSupport(source) }]
+        : [];
+    }),
+    invalid: document.components.flatMap((component) => {
+      const message = propertyError(component);
+      return message ? [{ component, message }] : [];
+    }),
+    invalidTerminalContracts: document.components.flatMap((component) => {
+      const contract = validateElectricalTerminalContract(component);
+      return contract.valid ? [] : [{ component, missing: contract.missing }];
+    }),
+    unsupported: unsupportedElectricalComponents(document.components),
+  });
+  // The scheduler owns an immutable document and replaces it for every applied input.
+  // No mutable state or numerical result is retained; reject other document identities.
+  return (source: ElectronicsDocument) => (source === document ? preparation : undefined);
+}
+
+type CircuitSolvePreparation = ReturnType<typeof prepareCircuitSolve>;
 
 const GMIN = 1e-12;
 const CLOSED_RESISTANCE = 1e-4;
@@ -1141,24 +1217,35 @@ function solveCircuitBase(
   document: ElectronicsDocument,
   options: InternalSolveOptions = {},
 ): SolveResult {
-  const orderedCapacitors = document.components
-    .filter(isElectrolyticCapacitor)
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedMotors = document.components
-    .filter(isBrushedMotor)
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedLamps = document.components
-    .filter((component) => component.kind === 'lamp')
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
-  const orderedMultimeters = document.components
-    .filter((component) => component.componentTypeId === 'multimeter')
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const preparation = options.preparation?.(document);
+  const orderedCapacitors =
+    preparation?.orderedCapacitors ??
+    document.components
+      .filter(isElectrolyticCapacitor)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedMotors =
+    preparation?.orderedMotors ??
+    document.components
+      .filter(isBrushedMotor)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedLamps =
+    preparation?.orderedLamps ??
+    document.components
+      .filter((component) => component.kind === 'lamp')
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedMultimeters =
+    preparation?.orderedMultimeters ??
+    document.components
+      .filter((component) => component.componentTypeId === 'multimeter')
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const hasCurrentMeter = orderedMultimeters.some(
     (component) => component.stateProperties?.['measurementMode'] === 'dc-current',
   );
-  const orderedThermalComponents = document.components
-    .filter((component) => thermalProfileFor(component) !== null)
-    .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
+  const orderedThermalComponents =
+    preparation?.orderedThermalComponents ??
+    document.components
+      .filter((component) => thermalProfileFor(component) !== null)
+      .sort((left, right) => (left.id < right.id ? -1 : left.id > right.id ? 1 : 0));
   const transientRequested =
     orderedCapacitors.length > 0 ||
     orderedMotors.length > 0 ||
@@ -1168,6 +1255,7 @@ function solveCircuitBase(
     options.transientState !== undefined;
   if (!transientRequested)
     return solveCircuitStep(document, {
+      preparation: options.preparation,
       ...options,
       arduinoRuntimeStateById: arduinoRuntimeStatesFromController(options.controllerState),
     });
@@ -1318,6 +1406,7 @@ function solveCircuitBase(
   });
   if (options.clockedRcTransient && startTimeMs === targetTimeMs) {
     const frame = solveCircuitStep(document, {
+      preparation: options.preparation,
       simulationTimeMs: targetTimeMs,
       heldArduinoSnapshots: options.heldArduinoSnapshots,
       hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
@@ -1404,6 +1493,7 @@ function solveCircuitBase(
 
     if (orderedCapacitors.length === 0) {
       acceptedResult = solveCircuitStep(document, {
+        preparation: options.preparation,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1424,6 +1514,7 @@ function solveCircuitBase(
       // is deterministic, stable and lets multivibrators actually change
       // state instead of asymptotically freezing at VBE.
       const switched = solveCircuitStep(document, {
+        preparation: options.preparation,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
@@ -1450,12 +1541,14 @@ function solveCircuitBase(
       );
     } else {
       const full = solveCircuitStep(document, {
+        preparation: options.preparation,
         ...common,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: stepMs / 1_000,
       });
       const halfStepMs = stepMs / 2;
       const firstHalf = solveCircuitStep(document, {
+        preparation: options.preparation,
         ...common,
         simulationTimeMs: currentTimeMs + halfStepMs,
         transientStepSeconds: halfStepMs / 1_000,
@@ -1470,6 +1563,7 @@ function solveCircuitBase(
         ? advanceMotorStates(orderedMotors, motorStateById, firstHalf, halfStepMs / 1_000)
         : motorStateById;
       const secondHalf = solveCircuitStep(document, {
+        preparation: options.preparation,
         simulationTimeMs: stepEndTimeMs,
         transientStepSeconds: halfStepMs / 1_000,
         capacitorPreviousVoltageById: halfVoltageById,
@@ -1664,6 +1758,7 @@ function solveCircuitBase(
 
     if (failureOccurred) {
       const postFailure = solveCircuitStep(document, {
+        preparation: options.preparation,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
@@ -1733,6 +1828,7 @@ function solveCircuitBase(
     const result =
       finalResult ??
       solveCircuitStep(document, {
+        preparation: options.preparation,
         heldArduinoSnapshots: options.heldArduinoSnapshots,
         hcSr04RuntimeStateById: options.hcSr04RuntimeStateById,
         pingUltrasonicRuntimeStateById: options.pingUltrasonicRuntimeStateById,
@@ -1940,8 +2036,10 @@ export function solveCircuitWithHeldArduino(
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
   pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
+  preparation?: CircuitSolvePreparation,
 ): SolveResult {
   return solveCircuitStep(document, {
+    preparation,
     simulationTimeMs,
     heldArduinoSnapshots: snapshots,
     ...(hcSr04States ? { hcSr04RuntimeStateById: hcSr04States } : {}),
@@ -2024,8 +2122,10 @@ export function solveRcCircuitWithHeldArduino(
   hcSr04States?: ReadonlyMap<string, HcSr04RuntimeState>,
   pingUltrasonicStates?: ReadonlyMap<string, PingUltrasonicRuntimeState>,
   servoStates?: ReadonlyMap<string, ServoMotorRuntimeState>,
+  preparation?: CircuitSolvePreparation,
 ): SolveResult {
   return solveCircuitBase(document, {
+    preparation,
     simulationTimeMs,
     ...(transientState ? { transientState } : {}),
     heldArduinoSnapshots: snapshots,
@@ -2042,47 +2142,62 @@ function solveCircuitStep(
   options: InternalSolveOptions = {},
 ): SolveResult {
   const diagnostics: Diagnostic[] = [];
-  const netlist = buildNetlist(document);
+  const preparation = options.preparation?.(document);
+  const netlist = preparation?.netlist ?? buildNetlist(document);
   const failedComponentIds = options.failedComponentIds ?? new Set<string>();
   const linearDcDevices = document.components.flatMap((component) => {
     if (failedComponentIds.has(component.id)) return [];
-    const device = createLinearDcDevice(
-      component.componentTypeId === 'signal-generator'
-        ? {
-            ...component,
-            value: signalGeneratorVoltageAt(component, options.simulationTimeMs ?? 0),
-          }
-        : component.componentTypeId === 'multimeter'
-          ? {
-              ...component,
-              stateProperties: {
-                ...component.stateProperties,
-                meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
-              },
-            }
-          : component,
-    );
+    const device = preparation?.linearDevices.has(component.id)
+      ? preparation.linearDevices.get(component.id)
+      : createLinearDcDevice(
+          component.componentTypeId === 'signal-generator'
+            ? {
+                ...component,
+                value: signalGeneratorVoltageAt(component, options.simulationTimeMs ?? 0),
+              }
+            : component.componentTypeId === 'multimeter'
+              ? {
+                  ...component,
+                  stateProperties: {
+                    ...component.stateProperties,
+                    meterFuseBlownRuntime: options.meterFuseBlownById?.[component.id] === true,
+                  },
+                }
+              : component,
+        );
     return device ? [device] : [];
   });
-  const tmp36Devices = document.components.flatMap((component) => {
-    const device = createTmp36DcDevice(component);
-    return device ? [device] : [];
-  });
-  const soilDevices = document.components.flatMap((component) => {
-    const device = createSoilMoistureDevice(component);
-    return device ? [device] : [];
-  });
-  const pirDevices = createPirSensorDevices(document.components);
-  const npnDcDevices = document.components.flatMap((component) => {
-    if (failedComponentIds.has(component.id)) return [];
-    const device = createNpnDcDevice(component);
-    return device ? [device] : [];
-  });
-  const pnpDcDevices = document.components.flatMap((component) => {
-    if (failedComponentIds.has(component.id)) return [];
-    const device = createPnpDcDevice(component);
-    return device ? [device] : [];
-  });
+  const tmp36Devices =
+    preparation?.tmp36Devices ??
+    document.components.flatMap((component) => {
+      const device = createTmp36DcDevice(component);
+      return device ? [device] : [];
+    });
+  const soilDevices =
+    preparation?.soilDevices ??
+    document.components.flatMap((component) => {
+      const device = createSoilMoistureDevice(component);
+      return device ? [device] : [];
+    });
+  const pirDevices = preparation?.pirDevices ?? createPirSensorDevices(document.components);
+  const npnDcDevices = preparation
+    ? preparation.npnDevices.filter(
+        (device) => !failedComponentIds.has(device.instance.componentId),
+      )
+    : document.components.flatMap((component) => {
+        if (failedComponentIds.has(component.id)) return [];
+        const device = createNpnDcDevice(component);
+        return device ? [device] : [];
+      });
+  const pnpDcDevices = preparation
+    ? preparation.pnpDevices.filter(
+        (device) => !failedComponentIds.has(device.instance.componentId),
+      )
+    : document.components.flatMap((component) => {
+        if (failedComponentIds.has(component.id)) return [];
+        const device = createPnpDcDevice(component);
+        return device ? [device] : [];
+      });
   const capacitors = document.components.filter(
     (component) => isElectrolyticCapacitor(component) && !failedComponentIds.has(component.id),
   );
@@ -2221,12 +2336,14 @@ function solveCircuitStep(
 
   if (inputFailure) return inputFailure;
 
-  const arduinoProgramChecks = document.components.flatMap((component) => {
-    if (!isArduinoUno(component)) return [];
-    const source = component.stateProperties?.['arduinoSource'];
-    if (typeof source !== 'string') return [];
-    return [{ component, diagnostics: analyseArduinoSourceSupport(source) }];
-  });
+  const arduinoProgramChecks =
+    preparation?.arduinoProgramChecks ??
+    document.components.flatMap((component) => {
+      if (!isArduinoUno(component)) return [];
+      const source = component.stateProperties?.['arduinoSource'];
+      if (typeof source !== 'string') return [];
+      return [{ component, diagnostics: analyseArduinoSourceSupport(source) }];
+    });
   const unsupportedArduinoPrograms = arduinoProgramChecks.flatMap((entry) => {
     const unsupportedDiagnostics = entry.diagnostics.filter(
       (diagnostic) => diagnostic.status === 'unsupported' && diagnostic.code !== 'syntax-error',
@@ -2295,10 +2412,12 @@ function solveCircuitStep(
     return empty('invalid');
   }
 
-  const invalid = document.components.flatMap((component) => {
-    const message = propertyError(component);
-    return message ? [{ component, message }] : [];
-  });
+  const invalid =
+    preparation?.invalid ??
+    document.components.flatMap((component) => {
+      const message = propertyError(component);
+      return message ? [{ component, message }] : [];
+    });
   for (const entry of invalid) {
     diagnostics.push({
       code: 'invalid_property',
@@ -2309,10 +2428,12 @@ function solveCircuitStep(
     });
   }
   if (invalid.length > 0) return empty('invalid');
-  const invalidTerminalContracts = document.components.flatMap((component) => {
-    const contract = validateElectricalTerminalContract(component);
-    return contract.valid ? [] : [{ component, missing: contract.missing }];
-  });
+  const invalidTerminalContracts =
+    preparation?.invalidTerminalContracts ??
+    document.components.flatMap((component) => {
+      const contract = validateElectricalTerminalContract(component);
+      return contract.valid ? [] : [{ component, missing: contract.missing }];
+    });
   for (const entry of invalidTerminalContracts) {
     diagnostics.push({
       code: 'invalid_terminal_contract',
@@ -2323,7 +2444,8 @@ function solveCircuitStep(
     });
   }
   if (invalidTerminalContracts.length > 0) return empty('invalid');
-  const unsupported = unsupportedElectricalComponents(document.components);
+  const unsupported =
+    preparation?.unsupported ?? unsupportedElectricalComponents(document.components);
   if (unsupported.length > 0) {
     diagnostics.push({
       code: 'unsupported_component',
@@ -2577,7 +2699,9 @@ function solveCircuitStep(
   let finalRhs: number[] | null = null;
   const maxIterations = document.simulation.maxIterations;
   const physicalNodeIndex = (component: SchematicComponent, terminal: Terminal): number =>
-    netlist.nodeOf.get(terminalKey(component.id, terminal)) as number;
+    (preparation
+      ? preparation.terminalNodes.get(component.id)?.get(terminal)
+      : netlist.nodeOf.get(terminalKey(component.id, terminal))) as number;
   const voltageFrom = (values: number[], node: number): number =>
     referenceNodes.has(node) ? 0 : (values[nodeVariables.get(node) as number] as number);
 
@@ -3012,7 +3136,7 @@ function solveCircuitStep(
   const voltageAt = (component: SchematicComponent, terminal: LogicalTerminal): number =>
     voltageFrom(solution as number[], nodeIndex(component, terminal));
   const physicalVoltageAt = (component: SchematicComponent, terminal: Terminal): number => {
-    const node = netlist.nodeOf.get(terminalKey(component.id, terminal));
+    const node = physicalNodeIndex(component, terminal);
     return node === undefined ? 0 : voltageFrom(solution as number[], node);
   };
   const sourceCurrents = new Map<string, number>();

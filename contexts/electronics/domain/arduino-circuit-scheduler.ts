@@ -34,6 +34,7 @@ import {
 import { electricalModelFor } from './model-registry.js';
 import { compileCircuit, verifyCircuitQuality, type SimulationQuality } from './simulation.js';
 import {
+  prepareCircuitSolve,
   clockedRcStateIsCompatible,
   clockedPhysicalStateIsCompatible,
   solveCircuitWithHeldArduino,
@@ -739,6 +740,15 @@ export function advanceArduinoCircuitClock(
       }),
     };
   };
+  let solveDocument: ElectronicsDocument | undefined;
+  let solvePreparation: ReturnType<typeof prepareCircuitSolve> | undefined;
+  const preparation = () => {
+    if (solveDocument !== activeDocument || !solvePreparation) {
+      solvePreparation = prepareCircuitSolve(activeDocument);
+      solveDocument = activeDocument;
+    }
+    return solvePreparation;
+  };
   const advancePhysics = (time: number) =>
     withQuality(
       solveRcCircuitWithHeldArduino(
@@ -749,6 +759,7 @@ export function advanceArduinoCircuitClock(
         hcSr04States,
         pingUltrasonicStates,
         servoStates,
+        preparation(),
       ),
       time,
     );
@@ -778,6 +789,7 @@ export function advanceArduinoCircuitClock(
               hcSr04States,
               pingUltrasonicStates,
               servoStates,
+              preparation(),
             ),
         time,
       );
@@ -790,6 +802,7 @@ export function advanceArduinoCircuitClock(
           hcSr04States,
           pingUltrasonicStates,
           servoStates,
+          preparation(),
         ),
         time,
       );
