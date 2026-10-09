@@ -2351,18 +2351,36 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: author_stop_candidate_preserved_pending_controller_diff_and_original_gpio_browser
+      checkpoint: r1_localize_actual_final_gpio_compute_residual_before_same_scope_repair
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: Only solver and scheduler plus their existing specs; local one-advance
-        immutable preparation, exact identity/invalidation, full byte parity, every solve/quality/quantum/budget/program/timeout
-        preserved. No other product paths.
+      repair_scope: Read retained new0677 trace first; one targeted current-source CPU/call
+        profile of the same full GPIO horizon only if needed to attribute remaining repeated
+        work. No browser/full-suite rerun, timeout/quantum/budget/precision/program change.
+        Before product edits propose proven causal optimization within original solver/scheduler
+        paths; code edits require concrete controller scope decision. Preserve mathematical
+        byte parity and every solve/quality/state.
       preserved_candidate_sha: 7f2faad8b36b62c17fa57c100d4e7f20d62822e3
       preserved_candidate_tree: 90b0c0535f24b80f8a1337ad46f116b865cb2762
       candidate_publication: unpublished
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
+      final_candidate_sha: 067702ae655707b71d3c096d6cca8073367eab96
+      final_candidate_tree: 34ddabae5138d8b50dd294e7781cb568d283a351
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/solver-preparation-546-independent-review-067702ae.md
+      independent_review_original_sha256: 9481a396a22aadc96048877c014c69af5431e5e631fad1d16546c80cbcf7abe9
+      exact_general_run: 37999952858
+      exact_general_conclusion: success
+      exact_electronics_run: 37999954611
+      exact_electronics_conclusion: failure
+      browser_passed: 136
+      browser_failed: 1
+      residual_cause: 'First GPIO initial Run before reopen: assertion0..2/5000ms; later
+        retained observation11ready C=H0..1s/UI0..3,0yielded/fault, compute4228.8ms max865,
+        UI5.2..39.1ms after ready. Runner contention versus ownCPU and school frequency
+        not proved.'
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2716,12 +2734,15 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: proven_root_pointer_noop_minimal_stage_repair_only
+      checkpoint: r2_proven_drag_coordinate_clamp_repair_only
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: Only Stage pointer routing and existing interactions browser spec.
-        Real native BEFORE required before product edit, full Save/reopen, preserve terminal/wire/alpha
-        behavior and all other authors.
+      repair_scope: Only componentDragDelta in existing workbench hook after actual trusted
+        native root drag jumped stored x-5216 to-980. Preserve Stage3d1, all32 full boundary
+        scenarios and prior532/530/526. Meaningful mounted hook regression new workbench-field-drag.spec.ts
+        plus its one subsystem test registration; supporting existing interactions unchanged
+        unless a new concrete harness cause is proved. No keyboard/product-neighbor cleanup,
+        coordinate migration, magic expanded world bounds, physics/CSS/artwork/auth changes.
       preserved_candidate_sha: 88103655410c490fa00cf657dbd666793ab45029
       preserved_candidate_tree: 834bad21f7f2b58b15505d6a6b4bc75898c1fa4d
       candidate_publication: unpublished
@@ -2732,13 +2753,31 @@ parallel_lanes:
       causal_before_sha: 5627d90081aa548f36f304f1ee45f839636e41db
       causal_before_run: 37998566920
       causal_before_raw_sha256: 8b5d0d51d77c5d627fb31debe9a4f044c657644558441d7e483e5a4e79ca6e1b
-      causal_before_result: Full authenticated schema equal at revision2; native trusted left down-move-up on opaque alpha255 owner body targets SVG root outside fixed grid; component and viewport unchanged, original5000ms position assertion fails.
-      supporting_auth_setup: Existing organization-login desktop banner prerequisite proven separately in543; authenticate at1440 then restore original target width before all editor actions. No Portal/helper edit or timeout change.
+      causal_before_result: Full authenticated schema equal at revision2; native trusted
+        left down-move-up on opaque alpha255 owner body targets SVG root outside fixed
+        grid; component and viewport unchanged, original5000ms position assertion fails.
+      supporting_auth_setup: Existing organization-login desktop banner prerequisite proven
+        separately in543; authenticate at1440 then restore original target width before
+        all editor actions. No Portal/helper edit or timeout change.
       before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
       before_probe_run: 37996438894
       before_probe_conclusion: harness_precondition_failure_not_product_proof
-      before_probe_detail: Actual fixed opaque body point returned path instead of SVG root before drag; observer events absent. Preserve complete fixture and existing assertions; new bounded author repairs only native setup/evidence in interactions before another single causal probe.
+      before_probe_detail: Actual fixed opaque body point returned path instead of SVG
+        root before drag; observer events absent. Preserve complete fixture and existing
+        assertions; new bounded author repairs only native setup/evidence in interactions
+        before another single causal probe.
       before_raw_sha256: 50cf338b1a57e7a5e908ce9933857470268522cf3c27bc4ad162dbb2395c5400
+      preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
+      clamp_after_probe_sha: beef3ab90ad998879a633066adc57d2bfb4298fe
+      clamp_after_run: 38000814089
+      clamp_after_raw_sha256: ae1ff4a3c359af2ab5433c4c1b1fd3db30245dc02eb72ab26ce19ef92061be3f
+      clamp_after_result: Full fixture revision2 equal; same alpha255 trusted down-sixmoves-up
+        now captures root and moves; expected(-5198.652,3.011), actual(-980,3.011), all
+        other components/wires and viewBox unchanged. Legacy componentDragDelta absolute
+        bounds force unrelated coordinate jump. No repeat BEFORE.
+      psu_candidate_preservation: 543 hook writer STOP; active543 harnessR2 writes only
+        browser simulation/digest. Preserve exact043a U/I functions at later composition;
+        no simultaneous hook author.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -2789,8 +2828,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: r2_reject_narrowed_required_event_filters_keep_additive_positive_test_paths
+      status: done
+      checkpoint: r2_exact_source_all4_new_review_approved_integrated_transport
       owner_acceptance: pending
       selected_at: '2026-10-09T21:43:50Z'
       repair_scope: 'R2 only helper and receipt inside original545 budget: reject new
@@ -2800,10 +2839,22 @@ parallel_lanes:
       prior_failed_candidate_sha: 16997f1697c35cdfe7e34c0e251137f008478017
       prior_failed_candidate_tree: 308bea69bce2e62bbb495a1ad30b6c645ba08cee
       prior_candidate_branch: codex/electronics-ci-image-transport-545-r1
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-16997f16.md
-      independent_review_original_sha256: c60970c0c226ba96026b96a8e0567b60c0654f751ba653268d2c8ccd32f73382
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-07433e36.md
+      independent_review_original_sha256: 4cd327683e9679d56d4d473c6fabcfb2359e7f3fc413ca888f9bd54f1b6ebde1
       prior_candidate_general_run: 37997430335
+      accepted_candidate_sha: 07433e36e19c7dd072de4cb31c0f97aa21b142c4
+      candidate_tree: 2d4a414b4d8cb32616ec91db05131917c55449bb
+      integrated_sha: 6889893a53723747f3323950370c4776680d0554
+      exact_candidate_general_run: 37999373698
+      exact_candidate_general_conclusion: success
+      acceptance: technical_accepted
+      main_integration_run: 38001035501
+      main_integration_run_conclusion: cancelled
+      main_integration_run_note: Stale cancelled by later docs-only main7c652; not PASS
+        or product FAIL. Required exact source07433 all4SUCCESS and NEW APPROVE satisfied;
+        all5 integrated blobs independently byte-identical. Latest main General is tracked
+        separately, no release/deployment claim.
     execution_lease:
       executor_id: electronics-ci-545
       holder: unassigned
@@ -2890,20 +2941,4 @@ blocking:
       - focused_verification
     reason: E1 corrections remain open, but owner review 2026-10-04 changed implementation priority to visible-first. V-UX2A Assignment list is the selected next visible slice; A6/A7/A8 backend/media work may proceed only when it blocks that exact visible flow. Owner acceptance and release/deployment claims remain blocked.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
-  - id: ELECTRONICS-545-REGISTRY-429
-    kind: acceptance_blocker
-    lane: electronics
-    blocks:
-    - product_integration
-    - owner_acceptance
-    - release_claim
-    allows:
-    - bounded_repair
-    - regression_authoring
-    - documentation_update
-    - focused_verification
-    reason: Exact e761 General37990032316 Data/Access Docker Hub429 before tests. Separate
-      CI-only545 repair requires exact General all4SUCCESS and NEW independent review
-      before product integration or release claims.
-    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001.md
 next_task: null
