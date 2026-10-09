@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { test, expect, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
 import {
@@ -183,6 +183,167 @@ for (const [variant, holeCount] of [
 
 test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
+  const sdkUrl = 'https://st.max.ru/js/max-web-app.js';
+  const startedAt = performance.now();
+  let navigation: 'initial' | 'reopen' = 'initial';
+  const sdkRequests = new Map<
+    Request,
+    {
+      id: number;
+      navigation: 'initial' | 'reopen';
+      requestedMs: number;
+      heldMs?: number;
+      responseStatus?: number;
+      finishedMs?: number;
+      failedMs?: number;
+      failure?: string;
+    }
+  >();
+  const assetPaths = [
+    catalogEntry('breadboard-large')!.asset,
+    catalogEntry('resistor-axial')!.asset,
+  ];
+  const assetResponses: { navigation: string; path: string; status: number; atMs: number }[] = [];
+  const consoleErrors: string[] = [];
+  page.on('console', (message) => {
+    if (message.type() === 'error') consoleErrors.push(message.text());
+  });
+  page.on('request', (request) => {
+    if (request.url() === sdkUrl)
+      sdkRequests.set(request, {
+        id: sdkRequests.size + 1,
+        navigation,
+        requestedMs: performance.now() - startedAt,
+      });
+  });
+  page.on('response', (response) => {
+    const sdk = sdkRequests.get(response.request());
+    if (sdk) sdk.responseStatus = response.status();
+    const path = new URL(response.url()).pathname;
+    if (assetPaths.includes(path))
+      assetResponses.push({
+        navigation,
+        path,
+        status: response.status(),
+        atMs: performance.now() - startedAt,
+      });
+  });
+  page.on('requestfinished', (request) => {
+    const sdk = sdkRequests.get(request);
+    if (sdk) sdk.finishedMs = performance.now() - startedAt;
+  });
+  page.on('requestfailed', (request) => {
+    const sdk = sdkRequests.get(request);
+    if (sdk) {
+      sdk.failedMs = performance.now() - startedAt;
+      const failure = request.failure();
+      if (failure) sdk.failure = failure.errorText;
+    }
+  });
+  await page.route(sdkUrl, async (route) => {
+    const sdk = sdkRequests.get(route.request());
+    if (sdk) sdk.heldMs = performance.now() - startedAt;
+    // Keep this exact external request genuinely pending. Navigation/context
+    // teardown owns its cancellation; no SDK response or capability is invented.
+    await new Promise<void>(() => {
+      // Intentionally unresolved for this request's browser lifetime.
+    });
+  });
+  await page.addInitScript(() => {
+    const loads: { componentId: string; path: string; atMs: number }[] = [];
+    (window as unknown as { breadboardOwnerImageLoads: typeof loads }).breadboardOwnerImageLoads =
+      loads;
+    window.addEventListener(
+      'load',
+      (event) => {
+        const image = event.target;
+        if (!(image instanceof SVGImageElement)) return;
+        const componentId = image
+          .closest('[data-testid="schematic-component"]')
+          ?.getAttribute('data-component-id');
+        if (componentId !== 'board') return;
+        loads.push({
+          componentId,
+          path: new URL(image.href.baseVal, document.baseURI).pathname,
+          atMs: performance.now(),
+        });
+      },
+      true,
+    );
+  });
+  const observeReadiness = async (phase: string) => {
+    const browser = await page.evaluate(() => {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+      return {
+        atMs: performance.now(),
+        readyState: document.readyState,
+        domContentLoadedEndMs: nav.domContentLoadedEventEnd,
+        loadEndMs: nav.loadEventEnd,
+        components: Array.from(
+          document.querySelectorAll('[data-testid="schematic-component"]'),
+        ).map((component) => ({
+          id: component.getAttribute('data-component-id'),
+          hitMask: component.getAttribute('data-hit-mask-status'),
+          holeBindings: component.getAttribute('data-hole-bindings'),
+          ownerImageErrors: component.querySelectorAll(
+            '[data-testid="owner-image-error"], [data-testid="owner-svg-error"]',
+          ).length,
+        })),
+        holes: document.querySelectorAll('.workbench-breadboard-hole-hit').length,
+        ownerImageLoads: (
+          window as unknown as {
+            breadboardOwnerImageLoads: { componentId: string; path: string; atMs: number }[];
+          }
+        ).breadboardOwnerImageLoads,
+      };
+    });
+    const receipt = {
+      phase,
+      navigation,
+      elapsedMs: performance.now() - startedAt,
+      browser,
+      sdkRequests: Array.from(sdkRequests.values(), (sdk) => ({ ...sdk })),
+      assetResponses: assetResponses.map((response) => ({ ...response })),
+    };
+    console.log('BREADBOARD_READINESS ' + JSON.stringify(receipt));
+    return receipt;
+  };
+  const requireProductionReady = async () => {
+    // Commit navigation admits the app, but never an unready placeholder/mask.
+    await observeReadiness('application-mounted-before-asset-assertions');
+    await expect(part(page, 'board')).toHaveAttribute('data-hit-mask-status', 'ready');
+    await expect(part(page, 'resistor')).toHaveAttribute('data-hit-mask-status', 'ready');
+    await expect
+      .poll(async () =>
+        page.evaluate(() =>
+          (
+            window as unknown as { breadboardOwnerImageLoads: { path: string }[] }
+          ).breadboardOwnerImageLoads.map((load) => load.path),
+        ),
+      )
+      .toContain(assetPaths[0]);
+    const receipt = await observeReadiness('production-ready-before-assertions');
+    const pending = receipt.sdkRequests.filter((sdk) => sdk.navigation === navigation);
+    expect(pending).toHaveLength(1);
+    expect(pending[0].heldMs).toBeDefined();
+    expect(pending[0].responseStatus).toBeUndefined();
+    expect(pending[0].finishedMs).toBeUndefined();
+    expect(pending[0].failedMs).toBeUndefined();
+    expect(receipt.browser.loadEndMs).toBe(0);
+    expect(receipt.browser.domContentLoadedEndMs).toBe(0);
+    for (const path of assetPaths)
+      expect(
+        receipt.assetResponses.some(
+          (response) =>
+            response.navigation === navigation && response.path === path && response.status === 200,
+        ),
+      ).toBe(true);
+    expect(receipt.browser.components).toHaveLength(2);
+    expect(receipt.browser.components.every((component) => component.ownerImageErrors === 0)).toBe(
+      true,
+    );
+    return receipt;
+  };
   let document = addComponentToDocument(
     {
       schemaVersion: 4,
@@ -217,8 +378,17 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
     Object.keys(document.components.find((item) => item.id === 'resistor')?.holeBindings ?? {}),
   ).toHaveLength(2);
   const mountedAt = performance.now();
-  const { readDocument, readEditorDocument } = await openEditor(page, document);
+  const { readDocument, readEditorDocument, errors } = await openEditor(
+    page,
+    document,
+    'commit',
+    async () => {
+      await observeReadiness('navigation-commit-before-component-assertion');
+    },
+  );
+  await requireProductionReady();
   const mountMs = performance.now() - mountedAt;
+  await expect(page.locator('.workbench-breadboard-hole-hit')).toHaveCount(882);
   await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
   const idleDom = await page.locator('.workbench-canvas *').count();
   const samples: { startMs: number; moveMs: number; dropMs: number; dragDom: number }[] = [];
@@ -254,15 +424,31 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
   await expect
     .poll(() => readDocument().components.find((item) => item.id === 'resistor')?.holeBindings)
     .toEqual(beforeReopen.components.find((item) => item.id === 'resistor')?.holeBindings);
-  await page.reload();
+  await expect.poll(() => readDocument()).toEqual(beforeReopen);
+  navigation = 'reopen';
+  await page.reload({ waitUntil: 'commit' });
+  await observeReadiness('reload-commit-before-component-assertion');
+  await expect(page.getByTestId('schematic-component')).toHaveCount(2);
+  const reopened = await requireProductionReady();
+  const previousSdk = reopened.sdkRequests.find((sdk) => sdk.navigation === 'initial')!;
+  expect(previousSdk.failedMs).toBeDefined();
+  expect(previousSdk.failure).toBe('net::ERR_ABORTED');
+  expect(previousSdk.responseStatus).toBeUndefined();
+  expect(previousSdk.finishedMs).toBeUndefined();
+  await expect.poll(readEditorDocument).toEqual(beforeReopen);
   await expect(part(page, 'resistor')).toHaveAttribute('data-hole-bindings', '2');
   await expect(page.locator('.workbench-breadboard-hole-hit')).toHaveCount(882);
+  await observeReadiness('profile-complete-before-final-assertions');
+  expect(errors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
   console.log(
     'BREADBOARD_PROFILE ' +
       JSON.stringify({
         variant: 'breadboard-large-rigid-2pin',
         holeCount: 882,
         mountMs,
+        mountMetric:
+          'commit-navigation-plus-production-asset-readiness; not global-load or school T3',
         idleDom,
         samples,
       }),
@@ -952,7 +1138,8 @@ function documentFixture(): SchematicDocument {
 async function openEditor(
   page: Page,
   initial = documentFixture(),
-  navigationWaitUntil: 'load' | 'domcontentloaded' = 'load',
+  navigationWaitUntil: 'load' | 'domcontentloaded' | 'commit' = 'load',
+  beforeReadyAssertion?: () => Promise<void>,
 ) {
   let doc = initial;
   let revision = 1;
@@ -1027,6 +1214,7 @@ async function openEditor(
     });
   });
   await page.goto('/projects/' + ID + '/electronics/edit', { waitUntil: navigationWaitUntil });
+  if (beforeReadyAssertion) await beforeReadyAssertion();
   await expect(page.getByTestId('schematic-component')).toHaveCount(initial.components.length);
   // The mock server changes only after PUT /draft. Interaction checks use the
   // browser's synchronously written local draft until an explicit server save.
