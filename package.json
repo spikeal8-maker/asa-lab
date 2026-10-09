@@ -91,7 +91,7 @@
     "test:access-a": "vitest run contexts/identity/testing apps/api/src/presentation-preferences.controller.spec.ts apps/api/src/account-c1.controller.spec.ts apps/api/src/auth.controller.spec.ts apps/api/src/max-auth.service.spec.ts apps/api/src/refresh-session.service.spec.ts apps/api/src/learning-activities.controller.spec.ts apps/api/src/classroom-join.controller.spec.ts apps/web/src/session-fetch.spec.ts tests/account tests/portal tests/courses",
     "e2e:access-a": "playwright test --config playwright.access-a.config.ts",
     "e2e:settings-ui": "playwright test --config playwright.settings-ui.config.ts",
-    "test:admin-logs": "python tools/test_collect_logs.py && vitest run apps/api/src/admin-logs.controller.spec.ts apps/api/src/admin-logs.worker.spec.ts apps/api/src/admin-logs.service.spec.ts apps/api/src/client-diagnostics.controller.spec.ts apps/web/src/client-diagnostics.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts apps/web/src/session-fetch.spec.ts",
+    "test:admin-logs": "python tools/test_collect_logs.py && vitest run apps/api/src/admin-logs.controller.spec.ts apps/api/src/admin-logs.worker.spec.ts apps/api/src/admin-logs.service.spec.ts apps/api/src/client-diagnostics.controller.spec.ts apps/api/src/server-diagnostics.spec.ts apps/web/src/client-diagnostics.spec.ts apps/web/src/admin/testing/admin-navigation.spec.ts apps/web/src/session-fetch.spec.ts apps/web/src/blocks/testing",
     "e2e:admin-logs": "playwright test --config playwright.admin-logs.config.ts",
     "test:account-c1:pg": "vitest run tests/account/account-c1.pg.spec.ts",
     "e2e:account-c1": "playwright test e2e/account-c1.spec.ts",

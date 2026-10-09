@@ -9,6 +9,7 @@ import io
 import json
 import os
 import re
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -21,7 +22,7 @@ from pathlib import Path
 
 UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
-RETIRE_SECONDS = 180  # Longer than the API's 120-second export snapshot.
+RETIRE_SECONDS = 600  # Longer than five-minute resumable searches and exports.
 SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|student.?code|token|api.?key|jwt|signing.?key", re.I)
 
 
@@ -116,7 +117,7 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
         module = "electronics" if "electronics" in route else "scratch" if "blocks" in route or "scratch" in route else "auth" if "/auth/" in route or "class-join" in route else "portal" if source == "api" else module
         if payload.get("module") in ("scratch", "electronics", "auth", "portal", "system"):
             module = payload["module"]
-        if payload.get("kind") == "client_diagnostic":
+        if payload.get("kind") == "client_diagnostic" and payload.get("level") not in ("info", "warn", "error"):
             level = "error"
         request_id = payload.get("requestId") if isinstance(payload.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", payload["requestId"]) else None
         revision = payload.get("revision") if isinstance(payload.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", payload["revision"]) else None
@@ -154,6 +155,7 @@ class Collector:
         # sequence in its duplicate index, rather than a second copy of every log.
         try:
             self.upgrade_index()
+            self.finish_compaction()
         except Exception:
             self.db.close()
             raise
@@ -248,7 +250,7 @@ class Collector:
             ids = self.command(["docker", "ps", "-aq", "--filter", f"label=com.docker.compose.project={project}"]).decode().split()
             if not ids:
                 raise RuntimeError("No containers for the configured installation")
-            template = '{"Id":{{json .Id}},"Created":{{json .Created}},"Config":{"Labels":{{json .Config.Labels}}}}'
+            template = '{"Id":{{json .Id}},"Created":{{json .Created}},"RestartCount":{{json .RestartCount}},"State":{{json .State}},"Config":{"Labels":{{json .Config.Labels}}}}'
             inspected = [json.loads(line) for line in self.command(["docker", "inspect", "--format", template, *ids]).decode().splitlines()]
             canonical = next((c for c in inspected if c["Config"]["Labels"].get("com.docker.compose.service") == "postgres"), None)
             if not canonical:
@@ -257,12 +259,25 @@ class Collector:
             if os.path.normcase(os.path.abspath(actual)) != os.path.normcase(str(self.root)):
                 raise RuntimeError("Collector root differs from the canonical installation")
             self.postgres = canonical["Id"]
+            self.containers = {}
             for container in inspected:
                 labels = container["Config"].get("Labels") or {}
                 if labels.get("com.docker.compose.project.working_dir") != actual:
                     raise RuntimeError("Mixed installation roots; collection stopped")
                 service = labels.get("com.docker.compose.service", "unknown")
                 cid = container["Id"]
+                self.containers = getattr(self, "containers", {})
+                state = container.get("State", {})
+                if state.get("Running", True): self.containers[cid] = service
+                observed = {k: state[k] for k in ("Status", "ExitCode", "OOMKilled", "StartedAt", "FinishedAt") if k in state}
+                if isinstance(state.get("Health"), dict): observed["health"] = state["Health"].get("Status")
+                if "RestartCount" in container: observed["restartCount"] = container["RestartCount"]
+                state_key = "docker:state:" + cid
+                if observed and observed != self.state(state_key):
+                    level = "error" if observed.get("OOMKilled") or observed.get("health") == "unhealthy" or observed.get("ExitCode", 0) != 0 else "warn" if observed.get("Status") == "restarting" else "info"
+                    measured = now()
+                    self.add(normalize(service, json.dumps(dict(kind="container_state", module="system", level=level, service=service, **observed)), measured, cid+":"+measured+":state"))
+                    self.set_state(state_key, observed)
                 if service == "api":
                     if cid not in self.reader_formats:
                         try:
@@ -308,8 +323,6 @@ class Collector:
             key = "db:" + table
             cutoff = datetime.now(UTC) - timedelta(days=self.config.get("retentionDays", 30))
             since = self.state(key, cutoff.isoformat())
-            if datetime.fromisoformat(since) >= datetime.now(UTC) - timedelta(seconds=120):
-                since = cutoff.isoformat()
             span = self.state(key + ":span", 6 * 3600)
             until = min(datetime.now(UTC), datetime.fromisoformat(since.replace("Z", "+00:00")) + timedelta(seconds=span)).isoformat()
             if column.endswith("_ms"):
@@ -332,11 +345,41 @@ class Collector:
                     source = "auth" if table == "product_analytics_events" else "audit"
                     self.add(normalize(source, raw, timestamp(stamp, until), table + ":" + raw, table))
                 self.set_state(key, until)
-                self.status("database-events:" + table, "ok", "Periodic reconciliation of the retained interval", until)
+                self.status("database-events:" + table, "ok", "Fresh database events", until)
             except Exception as exc:
                 failures += 1
                 self.set_state(key + ":span", max(1, span // 2))
                 self.status("database-events:" + table, "error", str(exc))
+            # Historical reconciliation has its own cursor and schedule. The
+            # fresh cursor is necessarily older than the 120-second throttle.
+            # Never use its age to decide whether history should be revisited.
+            history_key = "db:history:" + table
+            if time.time() - self.state(history_key + ":completed", 0) < 6 * 3600:
+                continue
+            history_since = max(cutoff, datetime.fromisoformat(self.state(history_key, cutoff.isoformat()).replace("Z", "+00:00")))
+            history_span = self.state(history_key + ":span", self.config.get("retentionDays", 30) * 86400)
+            history_until = min(datetime.now(UTC), history_since + timedelta(seconds=history_span))
+            if column.endswith("_ms"):
+                historical_condition = f'"{column}" BETWEEN {int(history_since.timestamp()*1000)} AND {int(history_until.timestamp()*1000)}'
+            else:
+                historical_condition = f'"{column}" BETWEEN TIMESTAMPTZ \'{history_since.isoformat()}\' AND TIMESTAMPTZ \'{history_until.isoformat()}\''
+            historical_sql = f'''BEGIN READ ONLY; SET LOCAL statement_timeout='15s';
+                COPY (SELECT row_to_json(t)::text FROM (SELECT * FROM public."{table}" WHERE {historical_condition} ORDER BY "{column}") t) TO STDOUT WITH CSV; ROLLBACK;'''
+            try:
+                data = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=historical_sql)
+                for row in csv.reader(io.StringIO(data.decode("utf-8"))):
+                    value = json.loads(row[0])
+                    stamp = datetime.fromtimestamp(value[column] / 1000, UTC).isoformat() if column.endswith("_ms") else value[column]
+                    raw = json.dumps(value, ensure_ascii=False, sort_keys=True)
+                    self.add(normalize("auth" if table == "product_analytics_events" else "audit", raw, timestamp(stamp, history_until.isoformat()), table + ":" + raw, table))
+                complete = history_until >= datetime.now(UTC) - timedelta(seconds=30)
+                self.set_state(history_key, cutoff.isoformat() if complete else history_until.isoformat())
+                if complete: self.set_state(history_key + ":completed", time.time())
+                self.status("database-history:" + table, "ok" if complete else "pending", "Historical reconciliation complete" if complete else "History collection is queued", history_until.isoformat())
+            except Exception as exc:
+                failures += 1
+                self.set_state(history_key + ":span", max(1, history_span // 2))
+                self.status("database-history:" + table, "error", str(exc))
         self.set_state("database:last", time.time())
         self.status("database-events", "error" if failures else "ok", f"{failures} table sources require attention" if failures else "")
 
@@ -349,16 +392,20 @@ class Collector:
             source, path = item["source"], Path(item["path"])
             try:
                 if not path.exists(): raise RuntimeError("Configured log directory is absent")
-                for file in path.rglob("*") if path.is_dir() else [path]:
+                for file in sorted(path.rglob("*"), key=lambda p: (not p.name.endswith((".log", ".out")), str(p))) if path.is_dir() else [path]:
                     if not file.is_file() or not re.search(r"\.log(?:\.|$)|\.out\.", file.name, re.I): continue
                     stat = file.stat()
                     if stat.st_mtime < cutoff: continue
                     # File IDs survive rename rotation on Windows and Linux. Copies
-                    # remain different occurrences; equal adjacent lines remain distinct.
+                    # are shared only after verifying a rotation prefix. Equal
+                    # adjacent lines remain distinct occurrences.
                     identity = f"{stat.st_dev}:{stat.st_ino}" if stat.st_ino else str(file.resolve())
                     key = "file:v2:" + source + ":" + identity
                     legacy = self.state("file:" + str(file.resolve()))
                     previous = self.state(key, legacy or {"offset": 0, "head": "", "generation": uuid.uuid4().hex})
+                    rotation = re.fullmatch(r"(.*?)(?:\.\d{8}-[^.]+)?(\.log|\.out)(?:\.\d.*)?", file.name, re.I)
+                    family = rotation[1] + rotation[2] if rotation else None
+                    rotation_key = "file:rotation:" + source + ":" + str(file.parent.resolve()) + ":" + str(family)
                     with file.open("rb") as stream:
                         prefix = stream.read(min(128, stat.st_size))
                         head = hashlib.sha256(prefix).hexdigest()
@@ -377,15 +424,44 @@ class Collector:
                     if not consumed and len(data) == 8 * 1024 * 1024:
                         raise RuntimeError(f"Oversized unterminated line in {file.name}; cursor preserved")
                     at = datetime.fromtimestamp(stat.st_mtime, UTC).isoformat()
+                    copied_generation = previous.get("copiedGeneration") if resumed else None
+                    copied_through = previous.get("copiedThrough", 0) if resumed else 0
+                    if offset == 0 and family and file.name != family:
+                        candidates = self.state(rotation_key, [])
+                        if isinstance(candidates, dict): candidates = [candidates]
+                        # Deduplicate only bytes proven equal to the collected
+                        # active file, within a bounded 8 MiB prefix. The rest
+                        # remains independent; equal text alone is never proof.
+                        for active in candidates:
+                            through = active.get("through", 0)
+                            if through and through <= consumed and hashlib.sha256(data[:through]).hexdigest() == active.get("sha256"):
+                                copied_generation, copied_through = active["generation"], through
+                                break
+                    transcript = previous.get("transcriptTime") if resumed else None
                     byte_offset = offset
                     for raw_line in data[:consumed].splitlines(keepends=True):
                         line = raw_line.decode("utf-8-sig", errors="replace").rstrip("\r\n")
                         event_at, basis = file_timestamp(line, at)
-                        entry = normalize(source, line, event_at, generation + ":" + str(byte_offset), file.name)
+                        boundary = re.search(r"(?:Start time|End time|Время начала|Время окончания)\s*:\s*(\d{14})", line, re.I)
+                        if boundary:
+                            try:
+                                parsed = datetime.strptime(boundary[1], "%Y%m%d%H%M%S").astimezone().astimezone(UTC)
+                                if parsed <= datetime.now(UTC) + timedelta(minutes=5): transcript = parsed.isoformat(timespec="milliseconds").replace("+00:00", "Z")
+                            except ValueError: pass
+                        if basis == "file_mtime" and transcript: event_at, basis = transcript, "transcript"
+                        occurrence = copied_generation if byte_offset + len(raw_line) <= copied_through else generation
+                        entry = normalize(source, line, event_at, occurrence + ":" + str(byte_offset), file.name)
                         entry["timeBasis"] = basis
                         self.add(entry)
                         byte_offset += len(raw_line)
-                    self.set_state(key, {"offset": offset + consumed, "head": head, "headSize": min(128, stat.st_size), "generation": generation})
+                    self.set_state(key, {"offset": offset + consumed, "head": head, "headSize": min(128, stat.st_size), "generation": generation, "copiedGeneration": copied_generation, "copiedThrough": copied_through, "transcriptTime": transcript})
+                    if family and file.name == family and offset + consumed > 0:
+                        through = min(offset + consumed, 8*1024*1024)
+                        with file.open("rb") as stream: digest = hashlib.sha256(stream.read(through)).hexdigest()
+                        candidates = self.state(rotation_key, [])
+                        if isinstance(candidates, dict): candidates = [candidates]
+                        current = dict(through=through, sha256=digest, generation=generation)
+                        self.set_state(rotation_key, [current, *(c for c in candidates if c != current)][:4])
                 self.status(source, "ok")
             except Exception as exc:
                 self.status(source, "error", str(exc))
@@ -420,13 +496,13 @@ class Collector:
 
     @staticmethod
     def host_segment(meta):
-        return all(s == "docker-desktop" or s.startswith("windows:") for s in meta["sources"])
+        return all(s in ("docker-desktop", "metrics") or s.startswith("windows:") for s in meta["sources"])
 
     @staticmethod
-    def source_ranges(events):
+    def source_ranges(events, key="source"):
         result = {}
         for event in events:
-            span = result.setdefault(event["source"], {"first": event["time"], "last": event["time"]})
+            span = result.setdefault(event.get(key, ""), {"first": event["time"], "last": event["time"]})
             span["first"] = min(span["first"], event["time"])
             span["last"] = max(span["last"], event["time"])
         return result
@@ -440,7 +516,70 @@ class Collector:
         temp.write_bytes(data)
         if os.name != "nt": os.chmod(temp, 0o640)
         os.replace(temp, self.store / file)
-        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+
+    def finish_compaction(self):
+        """Complete a durable compaction intent before accepting new events.
+
+        Files named by the old catalog survive the normal reader grace period.
+        Stable event IDs never change; only the private sequence is reassigned.
+        Reserving the sequence and intent together prevents reuse after a crash.
+        """
+        intent = self.state("compaction:pending")
+        if not intent: return
+        events = []
+        for meta in intent["originals"]:
+            data = (self.store / meta["file"]).read_bytes()
+            raw = gzip.decompress(data) if meta["file"].endswith(".gz") else data
+            if len(raw) != meta["rawBytes"] or hashlib.sha256(raw).hexdigest() != meta["sha256"]:
+                raise RuntimeError("Compaction original failed verification; originals preserved")
+            events.extend(json.loads(line) for line in raw.splitlines())
+        if len(events) != intent["count"] or len({e["id"] for e in events}) != len(events):
+            raise RuntimeError("Compaction identities failed verification; originals preserved")
+        for event in events:
+            row = self.db.execute("SELECT seq,published FROM events WHERE id=?", (bytes.fromhex(event["id"]),)).fetchone()
+            if not row or row[1] != 1 or not any(int(m["file"].split("-")[1]) <= row[0] <= int(m["file"].split("-")[2].split(".")[0]) for m in intent["originals"]):
+                raise RuntimeError("Compaction index differs from originals; originals preserved")
+        old_format = self.reader_format
+        self.reader_format = 2
+        try:
+            meta = self.write_segment(f'seg-{intent["first"]:016d}-{intent["first"]+len(events)-1:016d}.jsonl', events)
+        finally: self.reader_format = old_format
+        segments = self.state("segments", {})
+        retired = self.state("retired:segments", {})
+        for offset, event in enumerate(events):
+            self.db.execute("UPDATE events SET seq=? WHERE id=?", (intent["first"]+offset, bytes.fromhex(event["id"])))
+        for original in intent["originals"]:
+            segments.pop(original["file"], None)
+            retired[original["file"]] = None
+        segments[meta["file"]] = meta
+        self.set_state("segments", segments)
+        self.set_state("retired:segments", retired)
+        self.db.execute("DELETE FROM state WHERE key='compaction:pending'")
+        self.db.commit()
+
+    def compact(self, segments, retired):
+        if self.reader_format < 2 or len(segments) < 256: return segments, retired
+        # Compact at most 32 small files per cycle, keeping host telemetry apart
+        # from application events so eviction retains its source priority.
+        for host in (False, True):
+            selected, size = [], 0
+            for meta in sorted(segments, key=lambda s: s["last"]):
+                if meta.get("schema") != 2 or not meta.get("sha256") or self.host_segment(meta) != host or meta.get("rawBytes", 0) > 256*1024: continue
+                if size + meta["rawBytes"] > 3*1024*1024: break
+                selected.append(meta); size += meta["rawBytes"]
+                if len(selected) == 32: break
+            if len(selected) < 4: continue
+            first = self.db.execute("SELECT seq FROM sqlite_sequence WHERE name='events'").fetchone()[0] + 1
+            count = sum(m["count"] for m in selected)
+            self.set_state("segments", {m["file"]: m for m in segments})
+            self.set_state("retired:segments", retired)
+            self.set_state("compaction:pending", dict(originals=selected, first=first, count=count))
+            self.db.execute("UPDATE sqlite_sequence SET seq=? WHERE name='events'", (first+count-1,))
+            self.db.commit()
+            self.finish_compaction()
+            return list(self.state("segments").values()), self.state("retired:segments", {})
+        return segments, retired
 
     def upgrade_file_event(self, entry):
         if entry.get("normalizationVersion") == 2: return entry
@@ -489,7 +628,7 @@ class Collector:
                             entry["requestId"] = entry.get("requestId") if isinstance(entry.get("requestId"), str) and re.fullmatch(r"[a-fA-F0-9-]{36}", entry["requestId"]) else None
                             entry["revision"] = entry.get("revision") if isinstance(entry.get("revision"), str) and re.fullmatch(r"[a-f0-9]{7,64}", entry["revision"]) else None
                             entry["truncated"] = entry.get("truncated") is True
-                            if entry.get("timeBasis") not in ("event", "file_mtime"): entry.pop("timeBasis", None)
+                            if entry.get("timeBasis") not in ("event", "file_mtime", "transcript"): entry.pop("timeBasis", None)
                             if re.fullmatch(r"\d{1,20}", str(entry.get("windowsRecordId", ""))): entry["windowsRecordId"] = str(entry["windowsRecordId"])
                             else: entry.pop("windowsRecordId", None)
                             if type(entry.get("windowsEventId")) is not int or not 0 <= entry["windowsEventId"] <= 65535: entry.pop("windowsEventId", None)
@@ -507,6 +646,7 @@ class Collector:
         return result
 
     def publish(self):
+        self.finish_compaction()
         self.db.commit()
         retired = self.state("retired:segments", {})
         catalog_path = self.store / "catalog.json"
@@ -553,11 +693,11 @@ class Collector:
                 events = [self.upgrade_file_event(json.loads(line)) for line in file.read_text(encoding="utf-8").splitlines()]
                 meta = self.write_segment(name, events)
                 retired.setdefault(name, None)
-            elif not meta or "sourceRanges" not in meta:
+            elif not meta or "sourceRanges" not in meta or (not meta.get("originRanges") and any(s in ("audit", "auth") for s in meta["sources"])):
                 raw = file.read_bytes()
                 if name.endswith(".gz"): raw = gzip.decompress(raw)
                 events = [json.loads(line) for line in raw.decode("utf-8").splitlines()]
-                meta = dict(file=name, bytes=file.stat().st_size, rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+                meta = dict(file=name, bytes=file.stat().st_size, rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
                 if all(e.get("normalizationVersion") == 2 for e in events):
                     meta.update(schema=2, sha256=hashlib.sha256(raw).hexdigest())
             segments.append(meta)
@@ -576,6 +716,7 @@ class Collector:
                     raise RuntimeError("Overlapping diagnostic segments; originals were preserved")
                 retired.setdefault(segment["file"], None)
             else: canonical.append(segment)
+        canonical, retired = self.compact(canonical, retired)
         segments = []
         for meta in canonical:
             if meta["last"] < cutoff:
@@ -612,10 +753,12 @@ class Collector:
         sources = [json.loads(r[0]) for r in self.db.execute("SELECT payload FROM sources ORDER BY name")]
         for source in sources:
             event_source = source["source"].removesuffix(":recent")
-            matching = [s for s in segments if event_source in s["sources"]]
-            source["retainedFrom"] = min((s["sourceRanges"][event_source]["first"] for s in matching), default=None)
-            source["retainedTo"] = max((s["sourceRanges"][event_source]["last"] for s in matching), default=None)
-            source["trimmed"] = bool(evicted.get(event_source))
+            origin = event_source.split(":", 1)[1] if event_source.startswith(("database-events:", "database-history:")) else None
+            ranges = [s.get("originRanges", {}).get(origin) if origin else s["sourceRanges"].get(event_source) for s in segments]
+            ranges = [r for r in ranges if r]
+            source["retainedFrom"] = min((r["first"] for r in ranges), default=None)
+            source["retainedTo"] = max((r["last"] for r in ranges), default=None)
+            source["trimmed"] = bool(evicted.get("auth" if origin == "product_analytics_events" else "audit" if origin else event_source))
         self.set_state("segments", {s["file"]: s for s in segments})
         self.set_state("retired:segments", retired)
         self.set_state("evicted:sources", evicted)
@@ -629,11 +772,65 @@ class Collector:
         os.replace(temp, self.store / "catalog.json")
 
     def cycle(self):
+        self.finish_compaction()
         self.docker()
         self.files()
         self.database()
         self.windows()
+        self.telemetry()
         self.publish()
+
+    def telemetry(self):
+        if time.time() - self.state("metrics:last", 0) < 60: return
+        measured = now()
+        metrics = dict(kind="runtime_metrics", module="system", host=dict(diskFreeBytes=shutil.disk_usage(self.root).free))
+        try:
+            if os.name == "nt":
+                import ctypes
+                from ctypes import wintypes
+                class Memory(ctypes.Structure):
+                    _fields_ = [("length", wintypes.DWORD), ("load", wintypes.DWORD), *[(n, ctypes.c_ulonglong) for n in ("total", "available", "pageTotal", "pageAvailable", "virtualTotal", "virtualAvailable", "extended")]]
+                memory = Memory(); memory.length = ctypes.sizeof(memory)
+                if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+                    metrics["host"].update(memoryTotalBytes=memory.total, memoryAvailableBytes=memory.available)
+                idle, kernel, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
+                if ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+                    value = lambda v: v.dwHighDateTime*2**32+v.dwLowDateTime
+                    counters = [value(idle), value(kernel)+value(user)]
+                    previous = self.state("metrics:cpu")
+                    if previous and counters[1] > previous[1]: metrics["host"]["cpuPercent"] = round(100*(1-(counters[0]-previous[0])/(counters[1]-previous[1])), 2)
+                    self.set_state("metrics:cpu", counters)
+            else:
+                metrics["host"]["loadAverage"] = list(os.getloadavg())
+            ids = list(getattr(self, "containers", {}))
+            if ids:
+                output = self.command(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids], timeout=15)
+                metrics["containers"] = [{k: v for k, v in json.loads(line).items() if k in ("Name", "CPUPerc", "MemUsage", "MemPerc", "PIDs")} for line in output.decode("utf-8").splitlines()]
+            if getattr(self, "postgres", None):
+                sql = '''BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; COPY (SELECT json_build_object('connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),'waits',(SELECT json_agg(t) FROM (SELECT state,wait_event_type,count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state,wait_event_type) t))) TO STDOUT; ROLLBACK;'''
+                output = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=10)
+                metrics["database"] = json.loads(output.decode("utf-8").strip())
+            self.add(normalize("metrics", json.dumps(metrics), measured, measured))
+            self.status("metrics", "ok", "Runtime resource sample", measured)
+        except Exception as exc:
+            metrics["incomplete"] = True
+            self.add(normalize("metrics", json.dumps(metrics), measured, measured))
+            self.status("metrics", "error", str(exc))
+        self.set_state("metrics:last", time.time())
+
+
+def write_collector_health(root, state, last_success=None, detail="", duration=None):
+    store = root / ".asa" / "diagnostics" / "store"
+    store.mkdir(parents=True, exist_ok=True)
+    target = store / "collector-health.json"
+    if last_success is None and target.exists():
+        try: last_success = json.loads(target.read_text(encoding="utf-8")).get("lastSuccessAt")
+        except (OSError, ValueError): pass
+    value = dict(version=1, state=state, checkedAt=now(), lastSuccessAt=last_success, detail=clean(str(detail))[:500], durationMs=duration)
+    temporary = target.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+    if os.name != "nt": os.chmod(temporary, 0o640)
+    os.replace(temporary, target)
 
 
 def main():
@@ -642,13 +839,17 @@ def main():
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--import-history", type=Path, help="Recover retained history from an existing normalized ASA log ZIP")
     args = parser.parse_args()
-    config_path = args.root / ".asa" / "log-collector.json"
-    config = json.loads(config_path.read_text(encoding="utf-8-sig")) if config_path.exists() else {}
-    installation = json.loads((args.root / ".asa" / "installation.json").read_text(encoding="utf-8-sig"))
-    config.setdefault("project", installation["project"])
-    for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):
-        if key in config and (type(config[key]) is not int or not lower <= config[key] <= upper):
-            raise SystemExit(f"Invalid collector setting: {key}")
+    try:
+        config_path = args.root / ".asa" / "log-collector.json"
+        config = json.loads(config_path.read_text(encoding="utf-8-sig")) if config_path.exists() else {}
+        installation = json.loads((args.root / ".asa" / "installation.json").read_text(encoding="utf-8-sig"))
+        config.setdefault("project", installation["project"])
+        for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):
+            if key in config and (type(config[key]) is not int or not lower <= config[key] <= upper):
+                raise ValueError(f"Invalid collector setting: {key}")
+    except Exception as exc:
+        write_collector_health(args.root, "error", detail=exc)
+        raise
     script_version = Path(__file__).stat().st_mtime_ns
     # Only one collector may publish the installation's catalog at a time.
     private = args.root / ".asa" / "diagnostics" / "private"
@@ -665,12 +866,24 @@ def main():
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         raise SystemExit("Another log collector is already running")
-    collector = Collector(args.root, config)
-    if args.import_history: collector.import_history(args.import_history)
+    try:
+        collector = Collector(args.root, config)
+    except Exception as exc:
+        write_collector_health(args.root, "error", detail=exc)
+        raise
+    if args.import_history:
+        try: collector.import_history(args.import_history)
+        except Exception as exc:
+            write_collector_health(args.root, "error", detail=exc)
+            raise
     while True:
+        cycle_start = time.monotonic()
         try:
             collector.cycle()
+            write_collector_health(args.root, "ok", now(), duration=round((time.monotonic()-cycle_start)*1000))
         except Exception as exc:
+            collector.db.rollback()
+            write_collector_health(args.root, "error", detail=exc)
             if sys.stderr: print(clean(f"Collector cycle failed: {exc}"), file=sys.stderr, flush=True)
             if args.once: raise
         if args.once: break

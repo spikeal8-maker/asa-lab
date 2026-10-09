@@ -584,7 +584,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: final_convergence_after_accepted_531_532
+      checkpoint: bounded_native_popup_acceptance_protocol_repair
       dependency_for_issue: 526
       owner_acceptance: pending
       candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
@@ -603,11 +603,23 @@ parallel_lanes:
       dependencies_accepted:
       - 531
       - 532
-      final_candidate_sha: null
-      final_independent_review: not_run
+      final_candidate_sha: 31dfcbbdbb88219f69532cee2abc8479c2236772
+      final_independent_review: request_changes
       owner_approved_conflict_paths:
       - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/generated/component-coverage.json
+      final_candidate_tree: 644e33153a0e0c05360e3fb0a5eba0d7b7d8c51b
+      final_candidate_branch: codex/electronics-wire-menu-layer-530-final
+      final_independent_evidence: docs/product/electronics/evidence/wire-menu-530-final-independent-review-31dfcbbd.md
+      final_general_run: 37959804343
+      final_general_conclusion: success
+      final_electronics_run: 37959807372
+      final_electronics_conclusion: failure
+      final_browser_passed: 127
+      final_browser_failed: 1
+      repair_scope: Only native-open popup hit ownership protocol plus canonical digest;
+        preserve production CSS and all closed/unoccluded assertions, add closed full-control
+        receipt/action; no timeout change
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1084,25 +1096,24 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: eb112ea197b305a26607ab71b9ecc57222a1bc4e
+      convergence_baseline_sha: e49dce32205c2d1094c63eb24f0ab8c06e4438f4
       head_sha: null
-      observed_at: '2026-10-09T16:21:31Z'
+      observed_at: '2026-10-09T17:05:03Z'
       main:
         branch: main
-        sha: eb112ea197b305a26607ab71b9ecc57222a1bc4e
-      observation_note: 'Dated remote snapshot; fetch main and exact-SHA CI before writes. Accepted532 exact604ac63d/all8SUCCESS/127browser/95phases/NEW
-        APPROVE is preserved; closeout eb112ea1 and Issue532 CLOSED. Select ONLY saved53087099554
-        final convergence after accepted531/532. Owner expressly agreed to two known scenario-append/generated-digest
-        conflicts: preserve all127 current532/533/other scenarios, add unchanged saved530
-        native-menu scenario and regenerate canonical digest. CSS merges without conflict.
-        Any additional actual conflict STOP/show. No new product reimplementation, timeout/assertion
-        changes or persistence/runtime/physics edits. New final exact gates/full128browser
-        and NEW independent review required; old review/CI historical. Then immediately
-        resume preserved526 full56/denial/persistence acceptance. Other original complaints
-        have separately delegated nonoverlapping preparation, not authorization to write
-        in these530 paths. Preserve every suspended/accepted/foreign record and owner
-        data. K0/T3/class evidence pending; no deployment/DB/container/network/backup
-        operations.'
+        sha: e49dce32205c2d1094c63eb24f0ab8c06e4438f4
+      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Independent
+        exact31dfcbbd review REQUEST_CHANGES proves one temporary native-open popup/test
+        ownership mismatch, not an inaccessible product action. General37959804343 all4SUCCESS,
+        ordinary37959807372 focused/benchmarkSUCCESS, browser127PASS1FAIL and imagesSKIPPED.
+        Native530 all16phases pass; full532 only90/95 and4/5intent receipts. Selected
+        bounded test-protocol repair preserves CSS/all128cases/all95existingphases/deadlines
+        and adds exact popup ancestry plus full ownership after ordinary close. NEW final
+        SHA, ordinary gates and NEW independent review required; no acceptance claim.
+        Preserve accepted532/533/536, original870/31 candidates, parallel537/538 and preserved526.
+        Immediately after530 acceptance resume526 full56/denial real persistence acceptance.
+        Foreign admin-logs e49 main is preserved; pending main CI is not claimed PASS.
+        School K0/T3/class pending; no installation/DB/network/backup operations.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
