@@ -130,6 +130,7 @@ components:
     tests:
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
     - e2e/electronics-simulation.spec.ts
+    - e2e/electronics-ready-cadence.spec.ts
     dependencies:
     - electronics.worker.protocol
     symbols:

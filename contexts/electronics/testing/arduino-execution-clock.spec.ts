@@ -1,7 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   advanceArduinoRuntime,
   advanceClockedArduinoRuntime,
+  analyseArduinoProgramSyntax,
   type ArduinoInputReader,
   type ArduinoRuntimeEvent,
   type ArduinoRuntimeState,
@@ -56,6 +57,63 @@ function pulseThrough(
 }
 
 describe('Arduino instruction-us-v1 execution clock (scheduler foundation)', () => {
+  it('reuses only compilation across cold/hot execution, source edits and bounded eviction', async () => {
+    vi.resetModules();
+    const coldRuntime = await import('../domain/arduino-program-runtime.js');
+    const source = `unsigned long count=0;void setup(){pinMode(13,OUTPUT);Serial.begin(9600);}
+      void loop(){count++;digitalWrite(13,count%2);Serial.println(count);delayMicroseconds(10);}`;
+    const drain = (run: typeof advanceClockedArduinoRuntime, quantum: number) => {
+      let state: ArduinoRuntimeState | undefined;
+      const events: ArduinoRuntimeEvent[] = [];
+      for (let batch = 0; batch < 1000; batch++) {
+        const actual = run(source, {}, 0.3, state, undefined, { instructionBudget: quantum });
+        events.push(...actual.events);
+        expect(actual.diagnostics).toEqual([]);
+        if (actual.executionStatus === 'ready') return { state: actual.state, events };
+        expect(actual.executionStatus).toBe('yielded');
+        state = JSON.parse(JSON.stringify(actual.state));
+      }
+      throw new Error('Canonical test horizon not reached');
+    };
+    const cold = drain(coldRuntime.advanceClockedArduinoRuntime, 1024);
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 1)).toEqual(cold);
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 7)).toEqual(cold);
+    const edited = source.replace('count++;', 'count+=2;');
+    const changed = coldRuntime.advanceClockedArduinoRuntime(edited, {}, 0.3);
+    expect(changed.state.programFingerprint).not.toBe(cold.state.programFingerprint);
+    expect(changed.state.variables.count).not.toBe(cold.state.variables.count);
+    expect(coldRuntime.advanceClockedArduinoRuntime(edited, {}, 0.3).state).toEqual(changed.state);
+    // Exercise both entry-count pressure and byte pressure with exact-source keys.
+    for (let index = 0; index < 40; index++) {
+      const distinct = `/*${index}:${'x'.repeat(40_000)}*/${source}`;
+      expect(coldRuntime.advanceClockedArduinoRuntime(distinct, {}, 0.3).diagnostics).toEqual([]);
+    }
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 3)).toEqual(cold);
+    const oversized = `/*${'x'.repeat(1_050_000)}*/${source}`;
+    const large = coldRuntime.advanceClockedArduinoRuntime(oversized, {}, 0.3);
+    expect(coldRuntime.advanceClockedArduinoRuntime(oversized, {}, 0.3)).toEqual(large);
+    expect(drain(coldRuntime.advanceClockedArduinoRuntime, 1024)).toEqual(cold);
+  });
+
+  it('isolates mutable diagnostics and runtime results from compiled code reuse', () => {
+    const source = 'int count=0;void setup(){pinMode(13,OUTPUT);count=3;}void loop(){delay(1);}';
+    const expected = structuredClone(advanceClockedArduinoRuntime(source, {}, 0.1));
+    const exposed = advanceClockedArduinoRuntime(source, {}, 0.1);
+    (exposed.state.variables as Record<string, number>).count = 999;
+    (exposed.state.outputVoltages as Record<string, number>).d13 = 12;
+    (analyseArduinoProgramSyntax(source) as unknown[]).push({ code: 'injected' });
+    expect(advanceClockedArduinoRuntime(source, {}, 0.1)).toEqual(expected);
+    const invalid = 'void setup(){unsupportedCall();}void loop(){}';
+    const original = structuredClone(analyseArduinoProgramSyntax(invalid));
+    const leaked = analyseArduinoProgramSyntax(invalid) as { message: string }[];
+    leaked[0]!.message = 'modified by consumer';
+    leaked.length = 0;
+    expect(analyseArduinoProgramSyntax(invalid)).toEqual(original);
+    const fault = advanceClockedArduinoRuntime(invalid, {}, 0.1);
+    expect(fault.executionStatus).toBe('fault');
+    expect(fault.events).toEqual([]);
+    expect(fault.state.outputVoltages).toEqual({});
+  });
   it('finishes millis busy-wait instead of treating it as an infinite program', () => {
     const source = `void setup(){pinMode(13,OUTPUT);while(millis()<10){}
       digitalWrite(13,HIGH);}void loop(){delay(100);}`;
