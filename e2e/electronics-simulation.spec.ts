@@ -2831,6 +2831,427 @@ test.afterEach(async ({ page }) => {
   await page.context().request.post('/api/auth/logout', { headers: { origin } });
 });
 
+test('compact controls retain full desktop captions and usable Code controls at actual drawer sizes', async ({
+  page,
+}, testInfo) => {
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const evidenceDir = testInfo.outputPath('electronics-compact-controls-532');
+  mkdirSync(evidenceDir, { recursive: true });
+  const observations: unknown[] = [];
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Compact controls preserve pupil intent');
+  const fixture = arduinoInputDocument('button', '2');
+  await saveDocument(page, projectId, fixture);
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  await page.locator('.workbench-pill.code').click();
+  const drawer = page.locator('.arduino-code-panel');
+  await expect(drawer).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+  const run = page.locator('.workbench-pill.simulate');
+  const font = page.getByRole('combobox', { name: 'Размер текста Arduino', exact: true });
+  const editor = page.getByRole('textbox', { name: 'Код Arduino C++', exact: true });
+  const source = String(
+    fixture.components.find((item) => item.id === 'uno')?.stateProperties?.['arduinoSource'],
+  );
+  await expect(editor).toHaveValue(source);
+  const draftBefore = await page.context().request.get(`/api/projects/${projectId}`);
+  expect(draftBefore.status()).toBe(200);
+  const before = (await draftBefore.json()) as {
+    draft: { document: SchematicDocument; revision: number };
+  };
+
+  async function record(
+    phase: string,
+    desktop: boolean,
+    running: boolean,
+    mode: 'text' | 'blocks-text' | 'blocks' = 'text',
+    expectedSource = source,
+  ) {
+    const observation = await page.evaluate((phase) => {
+      const bounds = (rect: DOMRect) => ({
+        left: rect.left,
+        top: rect.top,
+        right: rect.right,
+        bottom: rect.bottom,
+        width: rect.width,
+        height: rect.height,
+      });
+      function inspect(element: Element) {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const textRects: ReturnType<typeof bounds>[] = [];
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        while (!(element instanceof HTMLSelectElement) && walker.nextNode()) {
+          if (!walker.currentNode.textContent?.trim()) continue;
+          const range = document.createRange();
+          range.selectNodeContents(walker.currentNode);
+          textRects.push(...Array.from(range.getClientRects(), bounds));
+        }
+        const clips = [];
+        for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+          const css = getComputedStyle(parent);
+          if (
+            ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowX) ||
+            ['hidden', 'clip', 'auto', 'scroll'].includes(css.overflowY)
+          ) {
+            const box = parent.getBoundingClientRect();
+            clips.push({
+              selector: `${parent.tagName}.${parent.className}`,
+              overflowX: css.overflowX,
+              overflowY: css.overflowY,
+              left: box.left + parent.clientLeft,
+              top: box.top + parent.clientTop,
+              right: box.left + parent.clientLeft + parent.clientWidth,
+              bottom: box.top + parent.clientTop + parent.clientHeight,
+            });
+          }
+        }
+        const points = [
+          [rect.left + 3, rect.top + 3],
+          [rect.right - 3, rect.top + 3],
+          [rect.left + 3, rect.bottom - 3],
+          [rect.right - 3, rect.bottom - 3],
+          [rect.left + rect.width / 2, rect.top + rect.height / 2],
+        ].map(([x, y]) => {
+          const hit = document.elementFromPoint(x!, y!);
+          return {
+            x,
+            y,
+            owned: hit !== null && (hit === element || element.contains(hit)),
+            hit: hit ? `${hit.tagName}.${hit.className}` : null,
+          };
+        });
+        const selectedText =
+          element instanceof HTMLSelectElement
+            ? (element.selectedOptions[0]?.textContent ?? '')
+            : null;
+        const context = document.createElement('canvas').getContext('2d')!;
+        context.font = style.font;
+        return {
+          selector: `${element.tagName}.${element.className}`,
+          text: element.textContent?.trim(),
+          ariaLabel: element.getAttribute('aria-label'),
+          rect: bounds(rect),
+          fontSize: style.fontSize,
+          textRects,
+          clips,
+          points,
+          selectedText,
+          selectedTextWidth: selectedText === null ? null : context.measureText(selectedText).width,
+          contentWidth:
+            element.clientWidth -
+            Number.parseFloat(style.paddingLeft) -
+            Number.parseFloat(style.paddingRight),
+        };
+      }
+      const primary = document.querySelector('.workbench-pill.simulate')!;
+      const panel = document.querySelector('.arduino-code-panel')!;
+      const toolbar = document.querySelector('.workbench-toolbar')!;
+      const codeToolbar = document.querySelector('.arduino-code-toolbar')!;
+      return {
+        phase,
+        view: toolbar.className,
+        viewport: {
+          width: innerWidth,
+          height: innerHeight,
+          pageWidth: document.documentElement.scrollWidth,
+          clientWidth: document.documentElement.clientWidth,
+        },
+        primary: inspect(primary),
+        codeControls: Array.from(
+          codeToolbar.querySelectorAll(
+            ':scope > details > summary, :scope > button, :scope > select, .arduino-font-size-select > select',
+          ),
+          inspect,
+        ),
+        clock: document.querySelector('.workbench-simulation-time')
+          ? inspect(document.querySelector('.workbench-simulation-time')!)
+          : null,
+        toolbar: bounds(toolbar.getBoundingClientRect()),
+        main: bounds(document.querySelector('.workbench-main')!.getBoundingClientRect()),
+        drawer: bounds(panel.getBoundingClientRect()),
+        codeToolbar: bounds(codeToolbar.getBoundingClientRect()),
+        nativeWireMenu: document.querySelector('.workbench-wire-color-menu')
+          ? {
+              open: document.querySelector('.workbench-wire-color')!.hasAttribute('open'),
+              toolbarZIndex: getComputedStyle(toolbar).zIndex,
+              rect: bounds(
+                document.querySelector('.workbench-wire-color-menu')!.getBoundingClientRect(),
+              ),
+            }
+          : null,
+        codeBody: bounds(document.querySelector('.arduino-code-body')!.getBoundingClientRect()),
+        source:
+          document.querySelector<HTMLTextAreaElement>(
+            '[aria-label="Код Arduino C++"], [aria-label="Сгенерированный код Arduino"]',
+          )?.value ?? null,
+        codeMode: codeToolbar.className,
+        componentCount: document.querySelectorAll('[data-testid="schematic-component"]').length,
+      };
+    }, phase);
+    observations.push(observation);
+    writeFileSync(
+      resolve(evidenceDir, 'geometry.json'),
+      JSON.stringify(observations, null, 2),
+      'utf8',
+    );
+    await page.screenshot({ path: resolve(evidenceDir, `${phase}.png`) });
+    expect(observation.viewport.pageWidth).toBeLessThanOrEqual(observation.viewport.clientWidth);
+    expect(observation.source).toBe(mode === 'blocks' ? null : expectedSource);
+    expect(observation.codeMode).toContain(`mode-${mode}`);
+    expect(observation.componentCount).toBe(
+      observation.view.includes('breadboard') ? fixture.components.length : 0,
+    );
+    expect(observation.main.top).toBeGreaterThanOrEqual(observation.toolbar.bottom - 1);
+    expect(observation.drawer.top).toBeGreaterThanOrEqual(observation.toolbar.bottom - 1);
+    expect(observation.codeBody.top).toBeGreaterThanOrEqual(observation.codeToolbar.bottom - 1);
+    expect(observation.codeBody.height).toBeGreaterThan(0);
+    const caption = running ? 'Остановить моделирование' : 'Начать моделирование';
+    expect(observation.primary.ariaLabel).toBe(caption);
+    expect(observation.primary.text).toBe(caption);
+    function assertFits(control: typeof observation.primary) {
+      expect(control.rect.left).toBeGreaterThanOrEqual(0);
+      expect(control.rect.right).toBeLessThanOrEqual(observation.viewport.width + 1);
+      expect(control.rect.top).toBeGreaterThanOrEqual(0);
+      expect(control.rect.bottom).toBeLessThanOrEqual(observation.viewport.height + 1);
+      expect(control.points.every((point) => point.owned)).toBe(true);
+      for (const clip of control.clips) {
+        if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowX)) {
+          expect(control.rect.left).toBeGreaterThanOrEqual(clip.left - 1);
+          expect(control.rect.right).toBeLessThanOrEqual(clip.right + 1);
+        }
+        if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowY)) {
+          expect(control.rect.top).toBeGreaterThanOrEqual(clip.top - 1);
+          expect(control.rect.bottom).toBeLessThanOrEqual(clip.bottom + 1);
+        }
+      }
+      for (const text of control.textRects) {
+        expect(text.left).toBeGreaterThanOrEqual(control.rect.left - 1);
+        expect(text.right).toBeLessThanOrEqual(control.rect.right + 1);
+        expect(text.top).toBeGreaterThanOrEqual(control.rect.top - 1);
+        expect(text.bottom).toBeLessThanOrEqual(control.rect.bottom + 1);
+      }
+    }
+    assertFits(observation.primary);
+    if (desktop) {
+      expect(Number.parseFloat(observation.primary.fontSize)).toBeGreaterThan(0);
+      expect(observation.primary.textRects.some((rect) => rect.width > 0)).toBe(true);
+      if (running) {
+        expect(observation.clock).not.toBeNull();
+        assertFits(observation.clock!);
+        expect(observation.clock!.rect.right).toBeLessThanOrEqual(observation.primary.rect.left);
+      }
+    } else {
+      // Preserve existing mobile icon presentation; full accessible caption is checked above.
+      expect(observation.primary.fontSize).toBe('0px');
+    }
+    expect(observation.codeControls).toHaveLength(
+      mode === 'text' ? 7 : mode === 'blocks-text' ? 6 : 3,
+    );
+    for (const control of observation.codeControls) assertFits(control);
+    if (mode !== 'blocks') {
+      const fontControl = observation.codeControls.find(
+        (control) => control.ariaLabel === 'Размер текста Arduino',
+      )!;
+      expect(fontControl.selectedTextWidth).toBeLessThanOrEqual(fontControl.contentWidth);
+    }
+  }
+
+  for (const width of [1440, 1024, 981, 980, 390, 320]) {
+    const desktop = width > 980;
+    await page.setViewportSize({ width, height: 900 });
+    await record(`${width}-stopped`, desktop, false);
+    if (width === 981) {
+      const nativeMenu = page.locator('.workbench-wire-color');
+      await nativeMenu.locator('summary').click();
+      await expect(nativeMenu).toHaveAttribute('open', '');
+      await record(`${width}-native-open`, desktop, false);
+      await nativeMenu.locator('summary').click();
+      await expect(nativeMenu).not.toHaveAttribute('open', '');
+    }
+    const size = (await font.inputValue()) === '14' ? '16' : '14';
+    await font.click();
+    await page.keyboard.press('Home');
+    for (let step = 0; step < (size === '16' ? 4 : 2); step++) {
+      await page.keyboard.press('ArrowDown');
+    }
+    await page.keyboard.press('Enter');
+    await expect(font).toHaveValue(size);
+    await expect(page.locator('.arduino-source-editor')).toHaveCSS('font-size', `${size}px`);
+    await run.click();
+    await expect(run).toHaveAttribute('aria-pressed', 'true');
+    await expect(run).toHaveAttribute('data-simulation-status', 'running');
+    await record(`${width}-running`, desktop, true);
+    await run.click();
+    await expect(run).toHaveAttribute('aria-pressed', 'false');
+
+    const handle = page.getByRole('separator', {
+      name: desktop ? 'Изменить ширину редактора кода' : 'Изменить высоту редактора кода',
+      exact: true,
+    });
+    const beforeBox = await drawer.boundingBox();
+    const handleBox = await handle.boundingBox();
+    if (!beforeBox || !handleBox) throw new Error('Code drawer resize geometry is missing');
+    const x = handleBox.x + handleBox.width / 2;
+    const y = handleBox.y + handleBox.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + (desktop ? 32 : 0), y - (desktop ? 0 : 32), { steps: 4 });
+    await page.mouse.up();
+    await expect
+      .poll(async () => {
+        const afterBox = await drawer.boundingBox();
+        if (!afterBox) return false;
+        return desktop
+          ? width === 1440
+            ? afterBox.width < beforeBox.width - 16
+            : Math.abs(afterBox.width - beforeBox.width) <= 1
+          : afterBox.height > beforeBox.height + 16;
+      })
+      .toBe(true);
+    await record(`${width}-resized`, desktop, false);
+    if (desktop) {
+      const actualWidth = (await drawer.boundingBox())!.width;
+      if (width !== 1440) {
+        // The existing drawer minimum meets its viewport-minus-420px maximum.
+        // Ordinary input is clamped at these widths, not a missing interaction.
+        expect(actualWidth).toBe(width - 420);
+      }
+      expect(
+        Math.abs(actualWidth - Number(await handle.getAttribute('aria-valuenow'))),
+      ).toBeLessThanOrEqual(1);
+      for (const view of ['Схемы', 'Компоненты', 'Цепи']) {
+        await page.getByRole('button', { name: view, exact: true }).click();
+        await record(`${width}-${view}`, desktop, false);
+      }
+    }
+  }
+  const draftAfter = await page.context().request.get(`/api/projects/${projectId}`);
+  expect(draftAfter.status()).toBe(200);
+  const after = (await draftAfter.json()) as typeof before;
+  writeFileSync(
+    resolve(evidenceDir, 'intent.json'),
+    JSON.stringify({ projectId, before, after }, null, 2),
+    'utf8',
+  );
+  expect(after.draft.document).toEqual(before.draft.document);
+  expect(after.draft.revision).toBe(before.draft.revision);
+  await expect(editor).toHaveValue(source);
+
+  // Separate supported fixtures protect the original C++ sketch from mode conversion.
+  // Both nonempty serialised hat blocks generate this exact empty program.
+  const blockSource =
+    '// C++ code generated by ASA Lab\n// Arduino Uno R3\n\nvoid setup()\n{\n\n}\n\nvoid loop()\n{\n\n}\n';
+  const workspace = JSON.stringify({
+    blocks: {
+      languageVersion: 0,
+      blocks: [
+        { type: 'asa_setup', id: 'setup-532', x: 330, y: 120 },
+        { type: 'asa_loop', id: 'loop-532', x: 330, y: 280 },
+      ],
+    },
+  });
+  for (const mode of ['blocks-text', 'blocks'] as const) {
+    await page.goto('/#/projects');
+    const modeProjectId = await createProject(page, `Compact controls ${mode}`);
+    const modeFixture = {
+      ...fixture,
+      components: fixture.components.map((item) =>
+        item.id === 'uno'
+          ? {
+              ...item,
+              stateProperties: {
+                ...item.stateProperties,
+                arduinoCodeMode: mode,
+                arduinoSource: blockSource,
+                arduinoWorkspace: workspace,
+                arduinoSerialOpen: false,
+                arduinoBaudRate: 9600,
+              },
+            }
+          : item,
+      ),
+    };
+    await saveDocument(page, modeProjectId, modeFixture);
+    const opened = await page.context().request.get(`/api/projects/${modeProjectId}`);
+    expect(opened.status()).toBe(200);
+    const modeBefore = (await opened.json()) as typeof before;
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/#/home/${modeProjectId}`);
+    await expect(page.locator('.workbench-stage')).toBeVisible();
+    await page.locator('.workbench-pill.code').click();
+    await expect(drawer).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+    await expect(
+      page.getByTestId('arduino-block-workspace').locator(':scope > svg.blocklySvg'),
+    ).toBeVisible();
+    const modeLocalBefore = await page.evaluate((id) => {
+      const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
+      return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
+    }, modeProjectId);
+    for (const width of [1440, 1024, 981, 980, 390, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      await record(`${width}-${mode}`, width > 980, false, mode, blockSource);
+      if (width === 1440) {
+        const widthHandle = page.getByRole('separator', {
+          name: 'Изменить ширину редактора кода',
+          exact: true,
+        });
+        const start = (await widthHandle.boundingBox())!;
+        const initialWidth = (await drawer.boundingBox())!.width;
+        await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
+        await page.mouse.down();
+        await page.mouse.move(start.x + start.width / 2 - 24, start.y + start.height / 2, {
+          steps: 4,
+        });
+        await page.mouse.up();
+        await record(`${width}-${mode}-resized`, true, false, mode, blockSource);
+        expect((await drawer.boundingBox())!.width).toBeGreaterThan(initialWidth + 16);
+        if (mode === 'blocks-text') {
+          await font.click();
+          await page.keyboard.press('End');
+          await page.keyboard.press('Enter');
+          await expect(font).toHaveValue('20');
+          await expect(page.locator('.arduino-source-editor')).toHaveCSS('font-size', '20px');
+          await record(`${width}-${mode}-font`, true, false, mode, blockSource);
+        }
+      }
+    }
+    const response = await page.context().request.get(`/api/projects/${modeProjectId}`);
+    expect(response.status()).toBe(200);
+    const modeAfter = (await response.json()) as typeof before;
+    const local = await page.evaluate((id) => {
+      const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
+      return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
+    }, modeProjectId);
+    writeFileSync(
+      resolve(evidenceDir, `intent-${mode}.json`),
+      JSON.stringify(
+        {
+          modeProjectId,
+          before: modeBefore,
+          after: modeAfter,
+          localBefore: modeLocalBefore,
+          localAfter: local,
+        },
+        null,
+        2,
+      ),
+      'utf8',
+    );
+    expect(modeAfter.draft.document).toEqual(modeBefore.draft.document);
+    expect(modeAfter.draft.revision).toBe(modeBefore.draft.revision);
+    expect(local).toEqual(modeLocalBefore);
+    if (local) {
+      expect(local.connections).toEqual(modeFixture.connections);
+      expect(
+        local.components.find((item) => item.id === 'uno')?.stateProperties?.['arduinoSource'],
+      ).toBe(blockSource);
+    }
+  }
+  failures.assertEmpty();
+});
+
 test('component inspector separates compact settings, live state and educational help', async ({
   page,
 }) => {
