@@ -59,9 +59,9 @@ const ARDUINO_SOURCE_PROPERTY = 'arduinoSource' as const;
 const RUNTIME_INPUT_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
 // Presentation requests are finite even when host demand accumulates faster than
 // physics can advance. This does not change the engine's barriers/work budget.
-// At most 100 ms separates complete observations, including during catch-up.
-// This is a model-time bound, not a wall-time/throughput promise.
-const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 100_000;
+// The cap is half a second of model time, not a wall-time/throughput promise.
+// Yielded work still finishes this exact target before another window is chosen.
+const COMPLETE_OBSERVATION_WINDOW_MICROSECONDS = 500_000;
 
 function boundedInputObservationHorizon(
   eventAtMicroseconds: number,
@@ -213,7 +213,6 @@ export class ElectronicsLiveSimulationWorkerController {
   private pendingInputEvents: ElectronicsTimedInputEvent[] = [];
   private lastInputEventAtMicroseconds = -1;
   private horizonOffsetMicroseconds = 0;
-  private observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
   private inFlight = false;
   private inFlightKind: 'preflight' | 'advance' | null = null;
 
@@ -349,7 +348,6 @@ export class ElectronicsLiveSimulationWorkerController {
     this.inputTarget = null;
     this.pendingInputEvents = [];
     this.lastInputEventAtMicroseconds = -1;
-    this.observationWindowMicroseconds = COMPLETE_OBSERVATION_WINDOW_MICROSECONDS;
     this.callbacks?.onSerialProjection?.([]);
     const generationId = this.executor.beginGeneration(projectSessionId);
     this.generationId = generationId;
@@ -427,15 +425,16 @@ export class ElectronicsLiveSimulationWorkerController {
       this.startupTarget ?? this.inputTarget ?? this.continuationTarget ?? this.latestTarget;
     if (generationId === null || !document || this.inFlight || !pendingTarget) return;
     const committed = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
-    const isStartup = pendingTarget === this.startupTarget;
-    const target = isStartup
-      ? pendingTarget
-      : {
-          requestedHorizonMicroseconds: Math.min(
-            pendingTarget.requestedHorizonMicroseconds,
-            committed + this.observationWindowMicroseconds,
-          ),
-        };
+    const target =
+      pendingTarget === this.latestTarget
+        ? {
+            requestedHorizonMicroseconds: Math.min(
+              pendingTarget.requestedHorizonMicroseconds,
+              committed + COMPLETE_OBSERVATION_WINDOW_MICROSECONDS,
+            ),
+          }
+        : pendingTarget;
+    const isStartup = target === this.startupTarget;
     // Complete time zero before pursuing host ticks or inputs queued after Start.
     if (!isStartup) {
       if (this.inputTarget) this.inputTarget = null;
@@ -482,7 +481,6 @@ export class ElectronicsLiveSimulationWorkerController {
       this.fail(generationId, timedAdvanceFailure(advance));
       return;
     }
-    const previouslyCommitted = this.timedState.continuation?.committedHorizonMicroseconds ?? 0;
     this.timedState = advance.state;
     this.callbacks?.onSerialProjection?.(advance.serial);
     this.retimePendingInputsAfterCommitted(
@@ -490,20 +488,7 @@ export class ElectronicsLiveSimulationWorkerController {
       target.requestedHorizonMicroseconds,
     );
     if (advance.executionStatus === 'yielded') {
-      if (target !== this.startupTarget) {
-        const progress = advance.committedHorizonMicroseconds - previouslyCommitted;
-        if (progress > 0)
-          this.observationWindowMicroseconds = Math.min(
-            this.observationWindowMicroseconds,
-            progress,
-          );
-        // A yielded checkpoint is not a frame. Ask the same engine to complete
-        // an observation at C instead of withholding frames until the old H.
-        // latestTarget still retains all outstanding host/input demand.
-        this.continuationTarget = {
-          requestedHorizonMicroseconds: advance.committedHorizonMicroseconds,
-        };
-      }
+      if (target !== this.startupTarget) this.continuationTarget = target;
       this.pump();
       return;
     }

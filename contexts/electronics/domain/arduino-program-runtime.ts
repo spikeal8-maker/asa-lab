@@ -1671,47 +1671,7 @@ function applyScopeInstruction(instruction: ScopeInstruction, scopes: ArduinoSco
   }
 }
 
-const COMPILATION_CACHE_ENTRIES = 32;
-const COMPILATION_CACHE_BYTES = 2 * 1024 * 1024;
-const compilationCache = new Map<
-  string,
-  { readonly compilation: ArduinoProgramCompilation; readonly bytes: number }
->();
-let compilationCacheBytes = 0;
-
 function compileArduinoProgram(source: string): ArduinoProgramCompilation {
-  const cached = compilationCache.get(source);
-  if (cached) {
-    compilationCache.delete(source);
-    compilationCache.set(source, cached);
-    return cached.compilation;
-  }
-  const compilation = compileUncachedArduinoProgram(source);
-  // Only immutable executable code is reused. Runtime state and invalid
-  // programmes never enter the cache. Full source, not a hash, is its identity.
-  if (compilation.diagnostics.length !== 0) return compilation;
-  const bytes = 2 * (source.length + JSON.stringify(compilation).length);
-  if (bytes > COMPILATION_CACHE_BYTES) return compilation;
-  for (const instruction of [...compilation.setupInstructions, ...compilation.loopInstructions])
-    Object.freeze(instruction);
-  Object.freeze(compilation.setupInstructions);
-  Object.freeze(compilation.loopInstructions);
-  Object.freeze(compilation.diagnostics);
-  Object.freeze(compilation);
-  while (
-    compilationCache.size >= COMPILATION_CACHE_ENTRIES ||
-    compilationCacheBytes + bytes > COMPILATION_CACHE_BYTES
-  ) {
-    const oldest = compilationCache.keys().next().value!;
-    compilationCacheBytes -= compilationCache.get(oldest)!.bytes;
-    compilationCache.delete(oldest);
-  }
-  compilationCache.set(source, { compilation, bytes });
-  compilationCacheBytes += bytes;
-  return compilation;
-}
-
-function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilation {
   const cleanSource = removeComments(source);
   const messages: string[] = [];
   const structuralError = structuralCompileError(cleanSource);
@@ -1792,7 +1752,7 @@ function compileUncachedArduinoProgram(source: string): ArduinoProgramCompilatio
 
 /** Lightweight syntax pass for the supported Arduino subset; it never executes the sketch. */
 export function analyseArduinoProgramSyntax(source: string): readonly ArduinoRuntimeDiagnostic[] {
-  return compileArduinoProgram(source).diagnostics.map((diagnostic) => ({ ...diagnostic }));
+  return compileArduinoProgram(source).diagnostics;
 }
 
 /** Validate persisted state before exposing its GPIO to an electrical solver. */
