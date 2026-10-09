@@ -37,6 +37,12 @@ After canonical main publishes this selection/card/review, start from that main 
 
 Existing focused tests may run, but implementation-mirroring source-string tests are not a substitute for the real click regression. Preserve every existing browser case, precision, deadlines, protected owner assets and the accepted529 code. The suspended526 and525 documents/results remain intact.
 
+## Preserved first candidate — separate dependencies
+
+Exact87099554c8227f841718fc052cc24f99f2883d41/tree84d1bda673f13d30734748032e0567a2c5239722 remains unchanged. [NEW independent review](../evidence/wire-menu-530-independent-review-87099554.md) REQUEST_CHANGES; native menu6.9s/16phasesPASS, General37876587447SUCCESS/all4, ordinary37876603308browser120PASS1FAIL/review-imagesSKIPPED. Actual981primaryRun caption/font control clipping blocks fullvisualreadiness. Neither the passing action nor303freshNx executions accept the whole slice.
+
+[Separate classifier](../evidence/wire-menu-530-breadboard-startup-classification.md) provesD: pending external deferred SDK blocks unchanged global-load navigation30.371s, while board/editor appears1.568s after navigation; count assertion14.602ms occurs during teardown. No wrong-count/physics defect or provider outage claimed. Controller separately selects [531 application-readiness repair](TASK-ELECTRONICS-BROWSER-READINESS-001.md), then a separate bounded compact-UI dependency. Do not add those repairs to this preserved ref, retry the full suite without a new cause, or pretend530/526 accepted. Original raw receipts/PNGs/trace remain cached; no repeat BEFORE. Fresh final convergence/ordinary gates/NEW review remain required. Original review SHA55d44ea5b856380a9f309cdf05dd4d26343101bb6e73d98021969e4b821d34bf and classifier9328cf15ee2a95957703b6fc838d080ec1e21cc599129d7015c457762f5ae9fe precede ordinary Markdown Git LF normalization.
+
 ## Required acceptance / return
 
 Root checks actual diff/source/raw evidence. Require ordinary exact-SHA `gate:electronics-m1`, `gate:electronics-m1:browser`, `gate:repository`, frozen dependencies, literal NX_SKIP_NX_CACHE=true, actual fresh counts and a NEW independent reviewer of one final SHA/GitHub state/original browser evidence. Old green runs and author report do not prove this changed candidate. Any confirmed findings get a separate bounded repair/new reviewer; no blind rerun on unchanged code.
@@ -44,3 +50,9 @@ Root checks actual diff/source/raw evidence. Require ordinary exact-SHA `gate:el
 This task does not accept526, solve the separate asset observation, close an unrelated E-ID or assert school/class/release acceptance. After technical530 acceptance, controller freshly selects526 and safely converges its preserved0dd31 candidate with accepted530/canonical state; its final combined version requires original full56/denial evidence, ordinary exact gates and a NEW independent review. No reimplementation of prior E01/529 repairs.
 
 Author returns exact unpublished SHA/tree/clean state/self-review and STOP. Reviewer returns one verdict and STOP. Controller continues452. School K0/version/backups and actual-pupil T3 remain pending; no deployment, restart, local stack, DB/backup/network operation or protected-data mutation.
+
+## Final convergence after accepted531/532
+
+Accepted dependencies531/532 are integrated. Preserve source87099554c8227f841718fc052cc24f99f2883d41; no repeat BEFORE and no new menu implementation. The owner explicitly approved the two forecast conflicts in simulation scenario append and generated browser digest. A NEW author ordinarily merges the selected canonical main, manually retains ALL127 current cases including accepted533 and532, appends the unchanged saved530 native case, and regenerates only the canonical digest. CSS must retain both accepted compact repair and the saved open-menu layer repair. Any additional actual conflict is reported before resolution. No blanket ours/theirs, published-history rewrite, forced clicks, timeouts or weaker assertions.
+
+The final merged SHA needs ordinary exact General and Electronics all8 jobs,128 browser cases, the original16-phase native-menu/resize raw evidence and PNGs, unchanged canonical dependencies/workflows, root actual-diff verification, and a NEW independent reviewer. Previous candidate gates/review are history. After acceptance immediately return to preserved526; no unrelated repair is part of530.

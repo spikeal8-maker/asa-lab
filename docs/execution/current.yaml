@@ -588,164 +588,525 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_native_menu_layer_repair
+      checkpoint: final_convergence_after_accepted_531_532
       dependency_for_issue: 526
       owner_acceptance: pending
+      candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
+      candidate_tree: 84d1bda673f13d30734748032e0567a2c5239722
+      candidate_branch: codex/electronics-wire-menu-layer-530
+      general_run: 37876587447
+      general_conclusion: success
+      electronics_run: 37876603308
+      electronics_conclusion: failure
+      browser_passed: 120
+      browser_failed: 1
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
+      classifier_evidence: docs/product/electronics/evidence/wire-menu-530-breadboard-startup-classification.md
+      preserved_candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
+      dependencies_accepted:
+      - 531
+      - 532
+      final_candidate_sha: null
+      final_independent_review: not_run
+      owner_approved_conflict_paths:
+      - e2e/electronics-simulation.spec.ts
+      - docs/product/electronics/generated/component-coverage.json
     suspended_slices:
-      - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
-        issue: 525
-        status: suspended_by_owner_priority
-        checkpoint: local_candidate_preserved_before_final_convergence
-        preserved_candidate_sha: ed4ee96949c5dd5a2fde035e2f7d9e61d5ba88df
-        preserved_branch: codex/electronics-instrument-mirror-525-final
-        preserved_tree: 07a125e6f06859e5721201e323119ee74fd7aaf6
-        before_browser_sha: ee7d5eca4388f9404c12b2a23ee6aff8c12c42e7
-        before_browser_run: 37757863776
-        local_focused_tests: 1009
-        local_nx_fresh_executions: 70
-        final_convergence: not_run
-        final_browser_after: not_run
-        independent_review: pending
+    - task_id: TASK-ELECTRONICS-GOVERNANCE-007
+      issue: 535
+      status: technical_accepted
+      completion_observed_at: '2026-10-09T15:13:16Z'
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-GOVERNANCE-007
+        issue: 535
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: full_hygiene_checkpoint_004_technically_accepted
+        dependency_for_issue: 532
         owner_acceptance: pending
-        reason: Owner programme452 input6066364541 selects P0 E01 before P2 E05; preserve candidate and original evidence without redo or acceptance.
-        resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner priority registry3.0.
-      - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+        accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        independent_review: approved
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-acceptance-20261009.md
+    - task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
+      issue: 533
+      status: technical_accepted_after_dependency
+      checkpoint: r3_candidate_preserved_after_independent_request_changes
+      observed_at: '2026-10-09T09:10:41Z'
+      preserved_candidate_sha: b5045472f3a6670f36014cf3ca43d5145e3ed0c6
+      preserved_candidate_tree: 03e2c969795aa07379d08f0309a4469bc93f70df
+      preserved_branch: codex/electronics-blockly-media-init-533-r3
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/blockly-media-533-r3-independent-review-b5045472.md
+      dependency_issue: 534
+      owner_acceptance: pending
+      reason: Independent actual full documents equal, but unchanged initial publication
+        creates a new object and exit PUT advances server revision2 to3. Classification
+        C existing baseline, not a media-induced content change or another fixture defect.
+      resume_after: Technical534 acceptance, fresh533 selection and NEW independent combined
+        exact-source acceptance; reuse matching unchanged final gates/raw, no hopeful
+        rerun. Recalculate mandatory hygiene before532.
+      preserved_task_snapshot:
+        id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
+        issue: 533
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r3_bounded_canonical_media_fixture_test_repair
+        dependency_for_issue: 532
+        owner_acceptance: pending
+        first_candidate_sha: 680ab8bf383280ee512ac4eca358290b817c5989
+        first_candidate_tree: 04e3907c47cc763580b74fc59d0bad8da19181da
+        first_candidate_branch: codex/electronics-blockly-media-init-533
+        first_candidate_published: false
+        first_independent_review: request_changes
+        first_independent_evidence: docs/product/electronics/evidence/blockly-media-533-independent-review-680ab8bf.md
+        first_general: not_run
+        first_browser: not_run
+        r1_candidate_sha: 45acab06e83d01f74466452dd5ca01fa0fcd5224
+        r1_candidate_tree: a0a9255972d6b012f60fd073c1e8307a5339411a
+        r1_candidate_branch: codex/electronics-blockly-media-init-533-r1
+        r1_independent_review: request_changes
+        r1_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r1-independent-review-45acab06.md
+        r1_general_run: 37902288735
+        r1_general_observed: in_progress
+        r1_directed_run: 37902333200
+        r1_directed_conclusion: failure
+        r1_ordinary_browser: not_run
+        r2_candidate_sha: 8f468d2560b4955a5ebfbbede25301b393ad5f9e
+        r2_candidate_tree: 8e7e05d3afd88e71ff907eb0fa7acfb2816d9ab2
+        r2_candidate_branch: codex/electronics-blockly-media-init-533-r2
+        r2_independent_review: request_changes
+        r2_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r2-independent-review-8f468d25.md
+        r2_general_run: 37904849942
+        r2_general_observed: success
+        r2_directed_run: 37904865576
+        r2_directed_conclusion: failure
+        r2_ordinary_browser: not_run
+        r3_candidate_sha: b5045472f3a6670f36014cf3ca43d5145e3ed0c6
+        r3_candidate_tree: 03e2c969795aa07379d08f0309a4469bc93f70df
+        r3_candidate_branch: codex/electronics-blockly-media-init-533-r3
+        r3_independent_review: request_changes
+        r3_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r3-independent-review-b5045472.md
+        r3_general_run: 37907895948
+        r3_general_observed: success
+        r3_directed_sha: 8b347f153396e3035b146b76c5188a63060009b8
+        r3_directed_run: 37907937816
+        r3_directed_conclusion: failure
+        r3_ordinary_electronics: not_run
+      resumed_at: '2026-10-09T10:00:03Z'
+      resumed_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+      resolved_dependency_issue: 534
+      completion_observed_at: '2026-10-09T10:18:45Z'
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
+        issue: 533
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: technical_media_initialization_accepted
+        dependency_for_issue: 532
+        owner_acceptance: pending
+        first_candidate_sha: 680ab8bf383280ee512ac4eca358290b817c5989
+        first_candidate_tree: 04e3907c47cc763580b74fc59d0bad8da19181da
+        first_candidate_branch: codex/electronics-blockly-media-init-533
+        first_candidate_published: false
+        first_independent_review: request_changes
+        first_independent_evidence: docs/product/electronics/evidence/blockly-media-533-independent-review-680ab8bf.md
+        first_general: not_run
+        first_browser: not_run
+        r1_candidate_sha: 45acab06e83d01f74466452dd5ca01fa0fcd5224
+        r1_candidate_tree: a0a9255972d6b012f60fd073c1e8307a5339411a
+        r1_candidate_branch: codex/electronics-blockly-media-init-533-r1
+        r1_independent_review: request_changes
+        r1_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r1-independent-review-45acab06.md
+        r1_general_run: 37902288735
+        r1_general_observed: in_progress
+        r1_directed_run: 37902333200
+        r1_directed_conclusion: failure
+        r1_ordinary_browser: not_run
+        r2_candidate_sha: 8f468d2560b4955a5ebfbbede25301b393ad5f9e
+        r2_candidate_tree: 8e7e05d3afd88e71ff907eb0fa7acfb2816d9ab2
+        r2_candidate_branch: codex/electronics-blockly-media-init-533-r2
+        r2_independent_review: request_changes
+        r2_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r2-independent-review-8f468d25.md
+        r2_general_run: 37904849942
+        r2_general_observed: success
+        r2_directed_run: 37904865576
+        r2_directed_conclusion: failure
+        r2_ordinary_browser: not_run
+        r3_candidate_sha: b5045472f3a6670f36014cf3ca43d5145e3ed0c6
+        r3_candidate_tree: 03e2c969795aa07379d08f0309a4469bc93f70df
+        r3_candidate_branch: codex/electronics-blockly-media-init-533-r3
+        r3_independent_review: request_changes
+        r3_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r3-independent-review-b5045472.md
+        r3_general_run: 37907895948
+        r3_general_observed: success
+        r3_directed_sha: 8b347f153396e3035b146b76c5188a63060009b8
+        r3_directed_run: 37907937816
+        r3_directed_conclusion: failure
+        r3_ordinary_electronics: not_run
+        final_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        final_candidate_tree: 1b495572133f7c2a954ca4821166fa93c8ef61d6
+        final_candidate_branch: codex/electronics-arduino-noop-publication-534
+        resolved_dependency_issue: 534
+        exact_candidate_general_run: 37910895056
+        exact_candidate_electronics_run: 37911539739
+        independent_review: approved
+        accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        evidence: docs/product/electronics/evidence/blockly-media-533-final-acceptance-20261009.md
+    - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+      issue: 532
+      status: resumed_for_bounded_r4_test_packaging
+      checkpoint: r3_candidate_preserved_after_independent_request_changes
+      observed_at: '2026-10-09T07:23:04Z'
+      preserved_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+      preserved_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+      preserved_branch: codex/electronics-compact-controls-532-r3
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
+      dependency_issue: 533
+      owner_acceptance: pending
+      reason: 'Independent R3: existing product default external media requests require
+        separate repair; text cumulative30s remains packaging, not proved Stop defect.
+        Preserve all source/raw and causal CSS.'
+      resume_after: Technical533 acceptance, fresh532 selection/convergence, shorter independent
+        text viewport segments at unchanged30s preserving52text/95total and complete final
+        intent per segment; final combined exact gates and NEW review.
+      preserved_task_snapshot:
+        id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+        issue: 532
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r3_bounded_independent_mode_test_packaging
+        dependency_for_issue: 530
+        upstream_readiness_issue: 531
+        owner_acceptance: pending
+        first_candidate_sha: 0340d9be50ac04caf34f49206c8f18fab9fc5f9a
+        first_candidate_tree: c6220bd80d74679dfd112090c7e106ecda0ba3f6
+        first_candidate_branch: codex/electronics-compact-controls-532
+        first_independent_review: request_changes
+        first_independent_evidence: docs/product/electronics/evidence/compact-controls-532-independent-review-0340d9be.md
+        first_general_run: 37888088058
+        first_general_conclusion: success
+        first_electronics_run: 37888099694
+        first_electronics_conclusion: failure
+        first_browser_passed: 120
+        first_browser_failed: 1
+        r1_candidate_sha: 823796169da09dd3e8683bd5a3b3af5b1007b7de
+        r1_candidate_tree: b67ae45c5c2c854cdd9d07cf085f1fda8e392241
+        r1_candidate_branch: codex/electronics-compact-controls-532-r1
+        r1_independent_review: request_changes
+        r1_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r1-independent-review-82379616.md
+        r1_general_run: 37891874071
+        r1_general_status: in_progress
+        r1_general_conclusion: pending
+        r1_directed_sha: 189c424495e8b50ce5d165cf6303fad94b1e516d
+        r1_directed_run: 37891915974
+        r1_directed_conclusion: failure
+        r1_directed_completed_phases: 8
+        r1_ordinary_electronics: not_run
+        r2_candidate_sha: 07a396785ea73d06394d29b66917428c0fa23521
+        r2_candidate_tree: 5f5a910a8591caa4823692daa0dee088c43df005
+        r2_candidate_branch: codex/electronics-compact-controls-532-r2
+        r2_independent_review: request_changes
+        r2_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r2-independent-review-07a39678.md
+        r2_general_run: 37893847140
+        r2_general_status: in_progress
+        r2_general_conclusion: pending
+        r2_directed_sha: 383d60177f68f5b26d618cf1a45480722901a885
+        r2_directed_run: 37893883609
+        r2_directed_conclusion: failure
+        r2_directed_completed_phases: 75
+        r2_directed_recorded_rows: 76
+        r2_ordinary_electronics: not_run
+        r3_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+        r3_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+        r3_candidate_branch: codex/electronics-compact-controls-532-r3
+        r3_independent_review: request_changes
+        r3_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
+        r3_general_run: 37896979603
+        r3_general_conclusion: success
+        r3_directed_sha: 7a79fa5194dac7a075cc591d0499e9c46f100303
+        r3_directed_run: 37897059035
+        r3_directed_conclusion: failure
+        r3_recorded_rows: 94
+        r3_completed_before_timeout: 88
+        r3_text_completed_before_timeout: 45
+        r3_ordinary_electronics: not_run
+      r4_resumed_at: '2026-10-09T15:13:16Z'
+      r4_owner_conflict_agreement: true
+      r4_disposition: technical_accepted
+      accepted_r4_task_snapshot:
+        id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+        issue: 532
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: r4_full95_compact_controls_technically_accepted
+        dependency_for_issue: 530
+        upstream_readiness_issue: 531
+        owner_acceptance: pending
+        first_candidate_sha: 0340d9be50ac04caf34f49206c8f18fab9fc5f9a
+        first_candidate_tree: c6220bd80d74679dfd112090c7e106ecda0ba3f6
+        first_candidate_branch: codex/electronics-compact-controls-532
+        first_independent_review: request_changes
+        first_independent_evidence: docs/product/electronics/evidence/compact-controls-532-independent-review-0340d9be.md
+        first_general_run: 37888088058
+        first_general_conclusion: success
+        first_electronics_run: 37888099694
+        first_electronics_conclusion: failure
+        first_browser_passed: 120
+        first_browser_failed: 1
+        r1_candidate_sha: 823796169da09dd3e8683bd5a3b3af5b1007b7de
+        r1_candidate_tree: b67ae45c5c2c854cdd9d07cf085f1fda8e392241
+        r1_candidate_branch: codex/electronics-compact-controls-532-r1
+        r1_independent_review: request_changes
+        r1_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r1-independent-review-82379616.md
+        r1_general_run: 37891874071
+        r1_general_status: in_progress
+        r1_general_conclusion: pending
+        r1_directed_sha: 189c424495e8b50ce5d165cf6303fad94b1e516d
+        r1_directed_run: 37891915974
+        r1_directed_conclusion: failure
+        r1_directed_completed_phases: 8
+        r1_ordinary_electronics: not_run
+        r2_candidate_sha: 07a396785ea73d06394d29b66917428c0fa23521
+        r2_candidate_tree: 5f5a910a8591caa4823692daa0dee088c43df005
+        r2_candidate_branch: codex/electronics-compact-controls-532-r2
+        r2_independent_review: request_changes
+        r2_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r2-independent-review-07a39678.md
+        r2_general_run: 37893847140
+        r2_general_status: in_progress
+        r2_general_conclusion: pending
+        r2_directed_sha: 383d60177f68f5b26d618cf1a45480722901a885
+        r2_directed_run: 37893883609
+        r2_directed_conclusion: failure
+        r2_directed_completed_phases: 75
+        r2_directed_recorded_rows: 76
+        r2_ordinary_electronics: not_run
+        r3_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+        r3_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+        r3_candidate_branch: codex/electronics-compact-controls-532-r3
+        r3_independent_review: request_changes
+        r3_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
+        r3_general_run: 37896979603
+        r3_general_conclusion: success
+        r3_directed_sha: 7a79fa5194dac7a075cc591d0499e9c46f100303
+        r3_directed_run: 37897059035
+        r3_directed_conclusion: failure
+        r3_recorded_rows: 94
+        r3_completed_before_timeout: 88
+        r3_text_completed_before_timeout: 45
+        r3_ordinary_electronics: not_run
+        r4_preserved_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+        r4_preserved_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+        r4_base_main_sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
+        accepted_media_dependency_issue: 533
+        accepted_noop_dependency_issue: 534
+        accepted_hygiene_dependency_issue: 535
+        owner_conflict_agreement: 2026-10-09 explicit continue and resolve both scenario
+          conflicts; preserve all checks and accepted work
+        general_baseline_observation:
+          sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
+          run: 37920212460
+          conclusion: failure
+          failed_job: 113788080706
+          failed_step: Run pnpm test:access-a
+          classification: independent baseline timeout; precise cause under separate read-only
+            diagnosis
+          repair_inside_532: false
+        accepted_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        candidate_tree: e2380450d73899c32915b048be299921e2e5e4ea
+        independent_review: approved
+        r4_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        r4_general_run: 37952280920
+        r4_general_conclusion: success
+        r4_electronics_run: 37952969953
+        r4_electronics_conclusion: success
+        r4_browser_scenarios_passed: 127
+        r4_original_phases: 95
+        r4_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r4-independent-review-604ac63d.md
+        evidence: docs/product/electronics/evidence/compact-controls-532-r4-acceptance-20261009.md
+    - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
+      issue: 525
+      status: suspended_by_owner_priority
+      checkpoint: local_candidate_preserved_before_final_convergence
+      preserved_candidate_sha: ed4ee96949c5dd5a2fde035e2f7d9e61d5ba88df
+      preserved_branch: codex/electronics-instrument-mirror-525-final
+      preserved_tree: 07a125e6f06859e5721201e323119ee74fd7aaf6
+      before_browser_sha: ee7d5eca4388f9404c12b2a23ee6aff8c12c42e7
+      before_browser_run: 37757863776
+      local_focused_tests: 1009
+      local_nx_fresh_executions: 70
+      final_convergence: not_run
+      final_browser_after: not_run
+      independent_review: pending
+      owner_acceptance: pending
+      reason: Owner programme452 input6066364541 selects P0 E01 before P2 E05; preserve
+        candidate and original evidence without redo or acceptance.
+      resume_after: First technically accepted E01 save recovery, then fresh bounded selection
+        under owner priority registry3.0.
+    - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
+      issue: 526
+      status: waiting_separate_ui_baseline_repair
+      checkpoint: r5_candidate_preserved_after_independent_request_changes
+      observed_at: '2026-10-09T02:30:20Z'
+      preserved_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
+      preserved_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
+      preserved_branch: codex/electronics-save-recovery-526-review-r5
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
+      dependency_issue: 530
+      owner_acceptance: pending
+      reason: Actual1024 native wire menu overlaps Code drawer; all original persistence
+        receipts preserved, denied-copy/full56 acceptance NOT_RUN. Baseline attribution
+        provisionalC from source comparison; no main browser claim.
+      resume_after: Technical530 acceptance, fresh526 canonical selection and safe convergence;
+        final combined exact gates/raw/UI/new independent review. No E01 reimplementation.
+      preserved_task_snapshot:
+        id: TASK-ELECTRONICS-SAVE-RECOVERY-001
         issue: 526
-        status: waiting_separate_ui_baseline_repair
-        checkpoint: r5_candidate_preserved_after_independent_request_changes
-        observed_at: '2026-10-09T02:30:20Z'
-        preserved_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
-        preserved_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
-        preserved_branch: codex/electronics-save-recovery-526-review-r5
-        independent_review: request_changes
-        independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
-        dependency_issue: 530
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r5_bounded_normal_state_evidence_repair
+        r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
+        r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
+        r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
+        r4_general_run: 37869131311
+        r4_general_conclusion: success
+        r4_electronics_run: 37869145318
+        r4_electronics_conclusion: failure
+        r4_browser_passed: 125
+        r4_browser_failed: 2
+        r4_independent_review: request_changes
+        r4_independent_evidence: docs/product/electronics/evidence/save-526-r4-independent-review-c25dd582.md
+        r3_candidate_sha: 0c8a0d5e606e037078e7d8a5bff47b70d299ab23
+        r3_candidate_tree: 33825fb81e99188ba992ca21c2d590b8b68355a4
+        r3_candidate_branch: codex/electronics-save-recovery-526-review-r3
+        r3_general_run: 37865142075
+        r3_general_conclusion: success
+        r3_electronics_run: 37865154341
+        r3_electronics_conclusion: success
+        r3_browser_passed: 127
+        r3_browser_failed: 0
+        r3_independent_review: request_changes
+        r3_independent_evidence: docs/product/electronics/evidence/save-526-r3-independent-review-0c8a0d5e.md
+        r2_candidate_sha: 520bc45afaad32b89d142fbcf313561c1170d72d
+        r2_candidate_tree: ec3e6483cbaa73c4bf3ff7a217e0889dbb86d855
+        r2_candidate_branch: codex/electronics-save-recovery-526-review-r2
+        r2_general_run: 37859012428
+        r2_general_conclusion: success
+        r2_electronics_run: 37859024247
+        r2_electronics_conclusion: failure
+        r2_browser_passed: 125
+        r2_browser_failed: 2
+        r2_independent_review: request_changes
+        r2_independent_evidence: docs/product/electronics/evidence/save-526-r2-independent-review-520bc45a.md
+        preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
+        preserved_candidate_branch: codex/electronics-save-recovery-526-review-r1
+        preserved_candidate_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
+        preserved_candidate_general_run: 37845048256
+        preserved_candidate_general_conclusion: success
+        preserved_candidate_electronics_run: 37845156460
+        preserved_candidate_browser_conclusion: failure
+        preserved_candidate_independent_review: request_changes
         owner_acceptance: pending
-        reason: Actual1024 native wire menu overlaps Code drawer; all original persistence
-          receipts preserved, denied-copy/full56 acceptance NOT_RUN. Baseline attribution
-          provisionalC from source comparison; no main browser claim.
-        resume_after: Technical530 acceptance, fresh526 canonical selection and safe convergence;
-          final combined exact gates/raw/UI/new independent review. No E01 reimplementation.
-        preserved_task_snapshot:
-          id: TASK-ELECTRONICS-SAVE-RECOVERY-001
-          issue: 526
-          branch: main
-          base_branch: main
-          pr: null
-          pr_draft: false
-          status: in_progress
-          checkpoint: r5_bounded_normal_state_evidence_repair
-          r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
-          r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
-          r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
-          r4_general_run: 37869131311
-          r4_general_conclusion: success
-          r4_electronics_run: 37869145318
-          r4_electronics_conclusion: failure
-          r4_browser_passed: 125
-          r4_browser_failed: 2
-          r4_independent_review: request_changes
-          r4_independent_evidence: docs/product/electronics/evidence/save-526-r4-independent-review-c25dd582.md
-          r3_candidate_sha: 0c8a0d5e606e037078e7d8a5bff47b70d299ab23
-          r3_candidate_tree: 33825fb81e99188ba992ca21c2d590b8b68355a4
-          r3_candidate_branch: codex/electronics-save-recovery-526-review-r3
-          r3_general_run: 37865142075
-          r3_general_conclusion: success
-          r3_electronics_run: 37865154341
-          r3_electronics_conclusion: success
-          r3_browser_passed: 127
-          r3_browser_failed: 0
-          r3_independent_review: request_changes
-          r3_independent_evidence: docs/product/electronics/evidence/save-526-r3-independent-review-0c8a0d5e.md
-          r2_candidate_sha: 520bc45afaad32b89d142fbcf313561c1170d72d
-          r2_candidate_tree: ec3e6483cbaa73c4bf3ff7a217e0889dbb86d855
-          r2_candidate_branch: codex/electronics-save-recovery-526-review-r2
-          r2_general_run: 37859012428
-          r2_general_conclusion: success
-          r2_electronics_run: 37859024247
-          r2_electronics_conclusion: failure
-          r2_browser_passed: 125
-          r2_browser_failed: 2
-          r2_independent_review: request_changes
-          r2_independent_evidence: docs/product/electronics/evidence/save-526-r2-independent-review-520bc45a.md
-          preserved_candidate_sha: c15e6e13dab91f72619c28ba0adc552a96fa2d77
-          preserved_candidate_branch: codex/electronics-save-recovery-526-review-r1
-          preserved_candidate_tree: 5eb99bbe8797e26751c14e56bd3d95f7f3ae9af3
-          preserved_candidate_general_run: 37845048256
-          preserved_candidate_general_conclusion: success
-          preserved_candidate_electronics_run: 37845156460
-          preserved_candidate_browser_conclusion: failure
-          preserved_candidate_independent_review: request_changes
-          owner_acceptance: pending
-          r5_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
-          r5_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
-          r5_candidate_branch: codex/electronics-save-recovery-526-review-r5
-          r5_general_run: 37872258062
-          r5_general_conclusion: success
-          r5_electronics_run: 37872270511
-          r5_electronics_conclusion: failure
-          r5_browser_passed: 126
-          r5_browser_failed: 1
-          r5_independent_review: request_changes
-          r5_independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
+        r5_candidate_sha: 0dd31b4d97cba4cbda935c66968e180fdc630a04
+        r5_candidate_tree: 759fc80b7a0e423f67a247d3ba663abe363cc888
+        r5_candidate_branch: codex/electronics-save-recovery-526-review-r5
+        r5_general_run: 37872258062
+        r5_general_conclusion: success
+        r5_electronics_run: 37872270511
+        r5_electronics_conclusion: failure
+        r5_browser_passed: 126
+        r5_browser_failed: 1
+        r5_independent_review: request_changes
+        r5_independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
+    - task_id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
+      issue: 530
+      status: waiting_compact_ui_dependency
+      checkpoint: candidate_preserved_after_independent_request_changes
+      observed_at: '2026-10-09T03:42:17Z'
+      preserved_candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
+      preserved_candidate_tree: 84d1bda673f13d30734748032e0567a2c5239722
+      preserved_branch: codex/electronics-wire-menu-layer-530
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
+      readiness_dependency_issue: 531
+      compact_ui_dependency: selected_issue_532
+      owner_acceptance: pending
+      reason: Native Purple and16phase resize receipts PASS, all8 gates6SUCCESS1FAIL1SKIP.
+        Trace proves external SDK load barrierD; actual981Run/font clipping needs separate
+        bounded UI resolution. No main-before browser claim.
+      resume_after: Accepted531 readiness is integrated; await separately selected532
+        compact controls acceptance, then preserve870/0dd and obtain final combined exact
+        gates/NEW review without duplicate implementation.
+      preserved_task_snapshot:
+        id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
+        issue: 530
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: bounded_native_menu_layer_repair
+        dependency_for_issue: 526
+        owner_acceptance: pending
+        candidate_sha: 87099554c8227f841718fc052cc24f99f2883d41
+        candidate_tree: 84d1bda673f13d30734748032e0567a2c5239722
+        candidate_branch: codex/electronics-wire-menu-layer-530
+        general_run: 37876587447
+        general_conclusion: success
+        electronics_run: 37876603308
+        electronics_conclusion: failure
+        browser_passed: 120
+        browser_failed: 1
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/wire-menu-530-independent-review-87099554.md
+        classifier_evidence: docs/product/electronics/evidence/wire-menu-530-breadboard-startup-classification.md
+      readiness_dependency_status: technical_accepted
+      compact_ui_dependency_issue: 532
+      resumed_at: '2026-10-09T16:21:31Z'
+      resumed_disposition: in_progress_after_531_532
+      compact_ui_dependency_status: technical_accepted
+      owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 2c195713b408ea88f2c8d2d5a87c3908bd887ab9
+      convergence_baseline_sha: eb112ea197b305a26607ab71b9ecc57222a1bc4e
       head_sha: null
-      observed_at: '2026-10-09T02:30:20Z'
+      observed_at: '2026-10-09T16:21:31Z'
       main:
         branch: main
-        sha: 2c195713b408ea88f2c8d2d5a87c3908bd887ab9
-      observation_note: >-
-        Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
-        Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
-        NEW independent reviewer APPROVE; General37854813209 and ordinaryElectronics37854826793 terminalSUCCESS/all4.
-        Original raw AFTER manualSave63.1ms/genuineexit67.5ms inside260ms; complete local/PUT/server documents equal,
-        fresh sketch and resistor333.3 preserved, actual reopen assertions PASS; browser120PASS/focused633+379PASS.
-        This accepts only529 visible-text canonical handoff, not broader E01/E14/class/owner/deployment.
-        Resume only526 bounded R2 from preservedc15e6e13 with accepted529 source and current canonical state.
-        Preserve original branches/commits/evidence, no rewrite of published history or foreign unfinished work.
-        Repair proved current-diff JSON CTA clipping; adapt accepted529 test consumers to verified scoped identity
-        without weakening behavior; complete original crash/SAV10 evidence on the final combined candidate.
-        Old526 review/CI and local tests are not combined-candidate acceptance; NEW reviewer and all exact gates required.
-        Suspended525 and all other accepted results/lanes remain unchanged. Next E04 only after E01 technical acceptance.
-        Exact R2 candidate520bc45a remains published and unaccepted: General37859012428 SUCCESS/all4;
-        ordinary37859024247 focused/benchmark SUCCESS, browser125PASS/2FAIL, review-images SKIPPED.
-        NEW independent reviewer REQUEST_CHANGES: crash injection did not demonstrate renderer termination;
-        SAV10 changes only hash while canonical first-project pathname wins, so no actual project switch occurred.
-        No product scope leak is proved by that fixture; original traces/receipts are preserved without rerun.
-        Select only R3 bounded evidence repair of these two existing browser scenarios and canonical digest.
-        No product edits, timeout increase, weakened assertions, auth/physics/dependency/workflow baseline changes.
-        One root-reviewed temporary directed diagnostic ref may exercise exactly these two cases in existing isolated CI;
-        restore canonical workflow before final exact candidate, ordinary gates and NEW independent review.
-        School K0/version/full backups, real-school T3 and owner/class acceptance remain pending separately;
-        no deployment, DB, network, backup or protected-artwork operation is authorized.
-        Exact R3 candidate0c8a0d5e remains published/unaccepted: General37865142075 and ordinary37865154341 SUCCESS/all4;
-        browser127PASS and original full-document crash/recovery/user-isolation/529 receipts are preserved.
-        NEW independent HIGH reviewer REQUEST_CHANGES: the new JSON action clips the adjacent active Run label at1024.
-        Historical c15/520 clipping is earlier E01 candidate evidence, not the canonical main baseline.
-        Select only R4 bounded affected-toolbar repair, preserving all accepted persistence/sketch semantics and evidence.
-        Scope: minimal causal WorkbenchHeader/workbench.css layout and existing browser affected-action regression;
-        no whole-editor redesign, unrelated disabled-Send cleanup, timeout/assertion weakening or physics/auth change.
-        Final combined candidate requires ordinary exact gates and a NEW independent review before technical526 closure.
-        Exact R4 candidatec25dd582 is preserved/unaccepted: General37869131311 SUCCESS/all4;
-        ordinary37869145318 focused/benchmark SUCCESS, browser125PASS/2FAIL, review-images SKIPPED.
-        NEW independent REQUEST_CHANGES confirms new helper expected disabled Save for a DIRTY normalized local document.
-        Old local bytes and all passing semantic/sketch receipts remain preserved; R4 denial/UI acceptance was not reached.
-        Select only R5 existing denial-case normal-state evidence correction and canonical browser digest, no production edits.
-        Verify actual normal local-draft status and enabled Save; do not force Save or delete a record to manufacture a saved state.
-        Quiet/pending indicator visibility follows its real presentation contract; original error/warning/export checks stay strict.
-        Preserve geometry/captions/consumers/breakpoints/Run-Stop and all budgets. Separate missing-image failure1925 is under
-        read-only classification, not permission for asset repair inside526. Final exact gates and NEW reviewer remain mandatory.
-        R5 exact0dd31b4d is preserved/unaccepted: General37872258062 SUCCESS/all4; ordinary37872270511
-        focused/benchmarkSUCCESS, browser126PASS/1FAIL, review-imagesSKIPPED. NEW independent REQUEST_CHANGES
-        confirms native Purple swatch obstructed by Code drawer at1024; only2of56 layouts and no denial/export reached.
-        Other original persistence/sketch/quiet/crash/isolation receipts remain PASS; school/class frequency unproved.
-        Relevant menu/drawer stacking preexists main by source comparison, provisionalC; actual main browser NOT_RUN.
-        Select separate530 minimal native-menu layer repair on canonical main, preserving unintegrated526 product separately.
-        No child-z-only workaround, forced clicks, closing Code to mask required state, timeout/assertion weakening or restyling.
-        After accepted530 freshly resume526 and verify final combined exact SHA with all gates/raw56/new independent review.
-        Suspended525, accepted529/other slices and school K0/T3 pending remain intact. No deployment/DB/backup/network action.
+        sha: eb112ea197b305a26607ab71b9ecc57222a1bc4e
+      observation_note: 'Dated remote snapshot; fetch main and exact-SHA CI before writes. Accepted532 exact604ac63d/all8SUCCESS/127browser/95phases/NEW
+        APPROVE is preserved; closeout eb112ea1 and Issue532 CLOSED. Select ONLY saved53087099554
+        final convergence after accepted531/532. Owner expressly agreed to two known scenario-append/generated-digest
+        conflicts: preserve all127 current532/533/other scenarios, add unchanged saved530
+        native-menu scenario and regenerate canonical digest. CSS merges without conflict.
+        Any additional actual conflict STOP/show. No new product reimplementation, timeout/assertion
+        changes or persistence/runtime/physics edits. New final exact gates/full128browser
+        and NEW independent review required; old review/CI historical. Then immediately
+        resume preserved526 full56/denial/persistence acceptance. Other original complaints
+        have separately delegated nonoverlapping preparation, not authorization to write
+        in these530 paths. Preserve every suspended/accepted/foreign record and owner
+        data. K0/T3/class evidence pending; no deployment/DB/container/network/backup
+        operations.'
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -766,6 +1127,136 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
     accepted_slices:
+      - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+        issue: 532
+        accepted_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        integrated_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        candidate_tree: e2380450d73899c32915b048be299921e2e5e4ea
+        independent_review: approved
+        independent_review_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
+        exact_candidate_general_run: 37952280920
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37952969953
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 127
+        original_compact_phases: 95
+        independent_real_project_intent_receipts: 5
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          benchmark: 18
+          browser_images: 49
+          review_image_packaging: 22
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/compact-controls-532-r4-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/compact-controls-532-r4-independent-review-604ac63d.md
+        raw_evidence: docs/product/electronics/evidence/compact-controls-532-r4-final-raw-receipts.json
+        independent_review_original_sha256: ac707ec4ed77288dda737e6230f4a38d6d2bf9da39a8614c2aee1aeccb21bab9
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-GOVERNANCE-007
+        issue: 535
+        accepted_candidate_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        integrated_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        candidate_tree: 779866c3cca7fe30be405f1bac4e7634aabb517b
+        independent_review: approved
+        independent_review_sha: abe4b02a617f4174291763d88c492d3bec5cf957
+        exact_candidate_general_run: 37918283928
+        exact_candidate_general_conclusion: success
+        production_source_changed: false
+        full_hygiene_checkpoint: true
+        hygiene_evidence: docs/product/electronics/evidence/hygiene-checkpoint-stabilization-004.yaml
+        reviewed_main_sha: 8bc337be3ec84b8e33faefedc825742b48a7ddef
+        counted_slices_resolved:
+        - 529
+        - 534
+        - 533
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/hygiene-checkpoint-535-independent-review-abe4b02a.md
+        independent_review_original_sha256: bf613d125643606253920c5b19d7acd672803881704fb53dacf84befe2e2981f
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
+        issue: 533
+        accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        integrated_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        candidate_tree: 1b495572133f7c2a954ca4821166fa93c8ef61d6
+        independent_review: approved
+        independent_review_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        exact_candidate_general_run: 37910895056
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37911539739
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 122
+        evidence_reused_from_issue: 534
+        new_heavy_gate_executions: 0
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/blockly-media-533-final-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/blockly-media-533-final-independent-review-084ec1f6.md
+        raw_evidence: docs/product/electronics/evidence/arduino-noop-534-final-raw-receipts.json
+        independent_review_original_sha256: 6f2ec8865af2a7cc76295769ab7160fa5c2feb3c052df48590984f01edf929cd
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-ARDUINO-NOOP-PUBLICATION-001
+        issue: 534
+        accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        integrated_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        candidate_tree: 1b495572133f7c2a954ca4821166fa93c8ef61d6
+        independent_review: approved
+        independent_review_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        exact_candidate_general_run: 37910895056
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37911539739
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 122
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          benchmark: 18
+          browser_images: 49
+          review_image_packaging: 22
+        production_source_changed: true
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/arduino-noop-534-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/arduino-noop-534-independent-review-084ec1f6.md
+        raw_evidence: docs/product/electronics/evidence/arduino-noop-534-final-raw-receipts.json
+        independent_review_original_sha256: c9538b42a1a3c7953db15363d9f244c71e68335b914b3dcae74e7711ffca49d0
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
+      - task_id: TASK-ELECTRONICS-BROWSER-READINESS-001
+        issue: 531
+        accepted_candidate_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        integrated_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        candidate_tree: 26cf904b7c4261402cc7ec58493ed38fb12c0990
+        independent_review: approved
+        independent_review_sha: 68c8be1dd34f1943afd11be1f396f147f93b6940
+        exact_candidate_general_run: 37882939710
+        exact_candidate_general_conclusion: success
+        exact_candidate_focused_run: 37883347010
+        exact_candidate_focused_conclusion: success
+        browser_scenarios_passed: 120
+        nx_fresh_executions:
+          general: 166
+          focused_gate: 70
+          benchmark: 18
+          browser_images: 49
+          review_image_packaging: 22
+        production_source_changed: false
+        status: technical_accepted
+        evidence: docs/product/electronics/evidence/browser-readiness-531-acceptance-20261009.md
+        independent_evidence: docs/product/electronics/evidence/browser-readiness-531-independent-review-68c8be1d.md
+        raw_evidence: docs/product/electronics/evidence/browser-readiness-531-final-raw-receipts.json
+        independent_review_original_sha256: fe92c1712c1bc9acb01639b441f3b4d03986f993ab3359c6d6c7882154fb45d9
+        school_device_frequency: not_measured
+        owner_acceptance: pending
+        deployment: not_run
       - task_id: TASK-ELECTRONICS-SKETCH-DRAFT-COMMIT-001
         issue: 529
         accepted_candidate_sha: 908e28f2bdeacffa18b83c79cb3be96c232d1bbd

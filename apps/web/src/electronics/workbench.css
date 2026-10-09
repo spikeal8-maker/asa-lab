@@ -4799,6 +4799,57 @@ html.arduino-palette-resizing * {
   display: none;
 }
 
+/* Whole controls need real rows, rather than clipping inside a narrow drawer. */
+@media (min-width: 981px) {
+  .workbench-toolbar-group.right .workbench-pill.simulate {
+    width: max-content;
+    flex-shrink: 0;
+  }
+  .arduino-code-toolbar {
+    flex: 0 0 auto;
+    flex-wrap: wrap;
+    box-sizing: border-box;
+    min-height: 50px;
+    padding: 6px 9px;
+  }
+  .arduino-code-toolbar > * {
+    flex-shrink: 0;
+  }
+  .arduino-code-toolbar-spacer {
+    display: none;
+  }
+  .arduino-code-toolbar .arduino-board-select {
+    margin-left: auto;
+  }
+}
+
+/* Full running tools + clock + actions, including group padding, need 1373.703125px. */
+@media (min-width: 981px) and (max-width: 1373px) {
+  .workbench-shell {
+    --wb-toolbar-height: 96px;
+  }
+  .workbench-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: repeat(2, 48px);
+  }
+  .workbench-toolbar-group:not(.right) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .workbench-toolbar-group.right {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .workbench-simulation-time {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .workbench-toolbar-spacer {
+    display: none;
+  }
+}
+
 /* UI text is independent of circuit zoom; larger desktops have comfortable panels. */
 .workbench-shell {
   --wb-ui-font-size: clamp(14px, 0.35vw + 8px, 18px);

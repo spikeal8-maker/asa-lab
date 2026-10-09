@@ -1,0 +1,299 @@
+{
+  "kind": "controller derived verification receipts; original GitHub logs and archive remain authority",
+  "exactSha": "084ec1f66ade168ade777eab007c1c608d7bc048",
+  "ordinaryRun": 37911539739,
+  "ordinaryBrowserPassed": 122,
+  "freshNx": {
+    "general": 166,
+    "focused_gate": 70,
+    "benchmark": 18,
+    "browser_images": 49,
+    "review_image_packaging": 22
+  },
+  "totalFreshNx": 325,
+  "cacheHits": 0,
+  "exactCi": [
+    {
+      "run": 37910895056,
+      "headSha": "084ec1f66ade168ade777eab007c1c608d7bc048",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113755502571,
+          "name": "Governance contracts",
+          "conclusion": "success"
+        },
+        {
+          "id": 113755822121,
+          "name": "Format lint types contracts build",
+          "conclusion": "success"
+        },
+        {
+          "id": 113757125972,
+          "name": "Access A real browser journeys",
+          "conclusion": "success"
+        },
+        {
+          "id": 113757126041,
+          "name": "PostgreSQL tests and RLS",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "run": 37911539739,
+      "headSha": "084ec1f66ade168ade777eab007c1c608d7bc048",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 113757622546,
+          "name": "Shared solver, editor contracts and build",
+          "conclusion": "success"
+        },
+        {
+          "id": 113758637703,
+          "name": "Actual editor live simulation journey",
+          "conclusion": "success"
+        },
+        {
+          "id": 113758637805,
+          "name": "Electronics E-OPT benchmark integrity",
+          "conclusion": "success"
+        },
+        {
+          "id": 113764098094,
+          "name": "Package exact-head review images",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "originalGeneralArchive": {
+    "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37910895056\\general-logs.zip",
+    "bytes": 376078,
+    "sha256": "6b739f356d92d9c9a421c2064701406d2162547162ead2a395408ab756f1f089"
+  },
+  "originalOrdinaryLogs": {
+    "focused_gate": {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\focused-job-113757622546.log",
+      "bytes": 106336,
+      "sha256": "bdb43231d0e927ccd977906478b60493528a4c878a4aaa2c8ef17a2e7b16ed6b"
+    },
+    "benchmark": {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\benchmark-job-113758637805.log",
+      "bytes": 137190,
+      "sha256": "f2e156acb32fa6a95d4628adecb9ecadb268115e8c381ceefa51ab2ad0d11861"
+    },
+    "browser_images": {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\browser-job-113758637703.log",
+      "bytes": 273148,
+      "sha256": "b34e10be7a2bd7203fc694b2684163fa23bf20f5f6247a9e0d2d3ad85c1f9b15"
+    },
+    "review_image_packaging": {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\review-images-job-113764098094.log",
+      "bytes": 71004,
+      "sha256": "3882786030ab38ecd856d72eb542170b03a10d7c625d3556f04f12ebd158f794"
+    }
+  },
+  "originalBrowserArchive": {
+    "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\browser-artifact-11607134881.zip",
+    "bytes": 21977489,
+    "sha256": "5efec1f724a7c5bf034357804650ce61c718407d1665486bbc744d0b9f7445ba",
+    "artifactId": 11607134881,
+    "crcMembers": 151
+  },
+  "reviewImagePackaging": {
+    "artifactId": 11607711640,
+    "bytes": 188039081,
+    "uploadedDigest": "sha256:69a565b1e7d9c7b61418f43499f2830b2f82ca0fbb3ce6c13a4d5387ee481a5e",
+    "archiveDownloaded": false,
+    "installed": false
+  },
+  "mediaNumericAndWholeServerIntent": {
+    "exactWorkflowSha": "084ec1f66ade168ade777eab007c1c608d7bc048",
+    "run": "37911539739",
+    "rawNumericAndFullIntent": "PASS",
+    "notIndependentReviewOrOrdinaryGate": true,
+    "visualOriginalInspection": "PENDING separate inspection",
+    "cases": [
+      {
+        "mode": "blocks",
+        "projectId": "a86767de-2ec6-452b-8eb1-6897924d9011",
+        "media": {
+          "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\media.json",
+          "bytes": 74985,
+          "sha256": "c9feeecb962b2b10624d1a8cedad03030952005580a5fce783771dc40fc5448a"
+        },
+        "intent": {
+          "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\intent.json",
+          "bytes": 66822,
+          "sha256": "7133d3a8fc49addfd17cfaf596fbe6e38366f08bb65636921faa43d5dfb57c41"
+        },
+        "requests": 8,
+        "responses": 8,
+        "origin": [
+          "http",
+          "web:8080"
+        ],
+        "scales": [
+          0.8600000143051147,
+          0.9460000395774841,
+          0.8600000143051147,
+          0.8600000143051147,
+          0.9460000395774841,
+          0.8600000143051147,
+          0.8600000143051147
+        ],
+        "serverRevision": 2,
+        "localEvidence": "absent throughout; not mounted React state evidence",
+        "originalPNGs": [
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\initial.png",
+            "bytes": 170662,
+            "sha256": "d389601145896cb8275e6bf4d9ff1d8555c3799e388c46190489f40ba71ce551"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\zoom-in.png",
+            "bytes": 171105,
+            "sha256": "ec49c2e6e965ee58215327fa82971305b38172bdb66d479ddb858ca92c157d97"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\zoom-out.png",
+            "bytes": 170629,
+            "sha256": "c6b0937368d272e15e3ed66870a9213312e88c006099a52fd3e77e016d8c0687"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\zoom-reset.png",
+            "bytes": 170681,
+            "sha256": "9e5a543043577f02493c4815def815bd08c9f9f08965875c0da04a411a62d9e7"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\reopened-zoom-in.png",
+            "bytes": 171105,
+            "sha256": "ec49c2e6e965ee58215327fa82971305b38172bdb66d479ddb858ca92c157d97"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\reopened-zoom-out.png",
+            "bytes": 170629,
+            "sha256": "c6b0937368d272e15e3ed66870a9213312e88c006099a52fd3e77e016d8c0687"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-4fb81-rst-initialization-\u2014-blocks\\electronics-blockly-media-533\\reopened.png",
+            "bytes": 170681,
+            "sha256": "9e5a543043577f02493c4815def815bd08c9f9f08965875c0da04a411a62d9e7"
+          }
+        ]
+      },
+      {
+        "mode": "blocks-text",
+        "projectId": "966e1b27-7c8d-4c21-ae59-d233e3f27411",
+        "media": {
+          "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\media.json",
+          "bytes": 75025,
+          "sha256": "676d2f10373d8d9218bf63270d6288f8b3acc9595f69f3ae7db4091f5557cb4c"
+        },
+        "intent": {
+          "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\intent.json",
+          "bytes": 66857,
+          "sha256": "ff3a9035548017614bc4b4bb02e71066507903621dbc0796584c87a872be68f3"
+        },
+        "requests": 8,
+        "responses": 8,
+        "origin": [
+          "http",
+          "web:8080"
+        ],
+        "scales": [
+          0.8600000143051147,
+          0.9460000395774841,
+          0.8600000143051147,
+          0.8600000143051147,
+          0.9460000395774841,
+          0.8600000143051147,
+          0.8600000143051147
+        ],
+        "serverRevision": 2,
+        "localEvidence": "absent throughout; not mounted React state evidence",
+        "originalPNGs": [
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\initial.png",
+            "bytes": 189575,
+            "sha256": "9857caaa5c23b8ce01a35c973830144984463f6c4c3735e6106edc4d9abc104f"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\zoom-in.png",
+            "bytes": 189656,
+            "sha256": "dbddc557c29696fb8c356d4144bde4524a558b36ddf7ead3f09598e63093edee"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\zoom-out.png",
+            "bytes": 189575,
+            "sha256": "876b33b0dac5a18e2bf91d99923e589d164ce3a1466139a89b7ea6dfab8f714f"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\zoom-reset.png",
+            "bytes": 189706,
+            "sha256": "e1901f43120596ef472c3294c235066ee6ca9788eae4b3609e7c6c81cd7d3256"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\reopened-zoom-in.png",
+            "bytes": 189656,
+            "sha256": "dbddc557c29696fb8c356d4144bde4524a558b36ddf7ead3f09598e63093edee"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\reopened-zoom-out.png",
+            "bytes": 189575,
+            "sha256": "876b33b0dac5a18e2bf91d99923e589d164ce3a1466139a89b7ea6dfab8f714f"
+          },
+          {
+            "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\electronics-simulation-Ard-8e4af-nitialization-\u2014-blocks-text\\electronics-blockly-media-533\\reopened.png",
+            "bytes": 189706,
+            "sha256": "e1901f43120596ef472c3294c235066ee6ca9788eae4b3609e7c6c81cd7d3256"
+          }
+        ]
+      }
+    ]
+  },
+  "genuineChangedIntent": {
+    "exactWorkflowSha": "084ec1f66ade168ade777eab007c1c608d7bc048",
+    "run": "37911539739",
+    "rawCompleteGenuineEditPayloads": "PASS",
+    "notOrdinaryGateOrIndependentReview": true,
+    "cases": [
+      {
+        "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\sketch-529\\after-genuine-departure.json",
+        "sha256": "516ab02413dd10e5c8d1376cc6e878ca2efd93f2bbe93eacd7f281578cc6df63",
+        "bytes": 58331,
+        "action": "genuine departure",
+        "elapsedMs": 70.0,
+        "completeLatestInputLocalActionLocalPutServerEquality": true,
+        "realServerRevision": 3,
+        "sourceAndUnrelatedResistorIntentPreserved": true
+      },
+      {
+        "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\084ec1f6-ci\\run-37911539739\\extracted\\reports\\playwright\\sketch-529\\after-manual-Save.json",
+        "sha256": "a68f01311037fb5cafda6c12e86f6b8942d98d07f875436b2c4bc471b3f1ffe6",
+        "bytes": 58304,
+        "action": "manual Save",
+        "elapsedMs": 60.70000000001164,
+        "completeLatestInputLocalActionLocalPutServerEquality": true,
+        "realServerRevision": 3,
+        "sourceAndUnrelatedResistorIntentPreserved": true
+      }
+    ]
+  },
+  "rootVisualInspection": {
+    "originalOrdinaryPngs": [
+      "blocks/reopened.png",
+      "blocks-text/reopened.png"
+    ],
+    "scope": "two reopened originals inspected, zoom/trash fit and clean Save; no all14 human inspection claim"
+  },
+  "limits": [
+    "null local snapshots prove absence, not complete mounted React document state",
+    "mounted production-controller whole-document/reference coverage complements browser full server draft and genuine edit payloads",
+    "passing trace archives absent under retain-on-failure; ordered awaited screenshots and passing actual cases, no invented trace timestamps",
+    "not school frequency evidence, school K0/T3 or owner/class/release acceptance",
+    "534 technical review and integration remain separate from533 NEW independent acceptance"
+  ]
+}

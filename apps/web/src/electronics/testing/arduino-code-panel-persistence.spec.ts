@@ -290,3 +290,161 @@ describe('latest visible Arduino text is canonical before save or departure', ()
     );
   });
 });
+
+describe('unchanged Arduino publication preserves canonical persistence state', () => {
+  it('keeps a saved document clean through repeated publication and departure', async () => {
+    const save = await prepare();
+    const saved = controller().document;
+    const epoch = controller().documentMutationEpoch();
+    expect(saved).toEqual(initialDocument);
+    expect(controller().saveStatus).toBe('saved');
+    expect(controller().canUndo).toBe(false);
+    expect(controller().canRedo).toBe(false);
+    expect(localDocument()).toBeUndefined();
+    expect(localStorage.getItem('asa-project-local-draft:first')).toBeNull();
+    act(() => {
+      controller().updateArduinoProgram('uno-a', {
+        ...initialDocument.components[0]!.stateProperties,
+      });
+      controller().updateArduinoProgram('uno-a', {
+        ...initialDocument.components[0]!.stateProperties,
+      });
+      controller().updateArduinoProgram('uno-b', {});
+      controller().updateArduinoProgram('missing', { arduinoSource: source('ignored') });
+      controller().updateArduinoProgram('resistor', { arduinoSource: source('ignored') });
+    });
+    expect(controller().document).toBe(saved);
+    expect(controller().document).toEqual(initialDocument);
+    expect(controller().documentMutationEpoch()).toBe(epoch);
+    expect(controller().saveStatus).toBe('saved');
+    expect(controller().canUndo).toBe(false);
+    expect(controller().canRedo).toBe(false);
+    expect(localDocument()).toBeUndefined();
+    await act(async () => window.dispatchEvent(new Event('pagehide')));
+    await act(async () => root!.unmount());
+    root = null;
+    expect(Date.now()).toBe(0);
+    expect(save).not.toHaveBeenCalled();
+    expect(localDocument()).toBeUndefined();
+    expect(localStorage.getItem('asa-project-local-draft:first')).toBeNull();
+  });
+
+  it('commits a genuine same-render program edit with the entire latest document', async () => {
+    const save = await prepare();
+    const changedWorkspace = '{"blocks":{"blocks":[]},"variables":[{"name":"latest","id":"v"}]}';
+    const changedSource = source('genuine latest');
+    act(() => controller().selectComponent('resistor', false));
+    // All three publications use one render: the comparison must read the
+    // latest board/document, just like the real edit merge does.
+    act(() => {
+      controller().updateSelectedValue(444.4);
+      controller().updateArduinoProgram('uno-a', initialDocument.components[0]!.stateProperties!);
+      controller().updateArduinoProgram('uno-a', {
+        arduinoSource: changedSource,
+        arduinoWorkspace: changedWorkspace,
+      });
+      controller().updateArduinoProgram('uno-a', {
+        arduinoSource: changedSource,
+        arduinoWorkspace: changedWorkspace,
+      });
+    });
+    const expected = {
+      ...initialDocument,
+      components: initialDocument.components.map((component) =>
+        component.id === 'uno-a'
+          ? {
+              ...component,
+              stateProperties: {
+                ...component.stateProperties,
+                arduinoSource: changedSource,
+                arduinoWorkspace: changedWorkspace,
+              },
+            }
+          : component.id === 'resistor'
+            ? { ...component, value: 444.4 }
+            : component,
+      ),
+    };
+    expect(Date.now()).toBe(0);
+    expect(controller().document).toEqual(expected);
+    expect(localDocument()).toEqual(expected);
+    expect(controller().documentMutationEpoch()).toBe(2);
+    expect(controller().canUndo).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+    await act(async () => window.dispatchEvent(new Event('pagehide')));
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]?.[1]).toEqual(expected);
+    expect(stored.get('first')).toEqual(expected);
+    expect(controller().saveStatus).toBe('saved');
+    expect(localDocument()).toBeUndefined();
+  });
+
+  it('retains an unrelated dirty edit and its history when the Arduino publication is equal', async () => {
+    const save = await prepare();
+    act(() => controller().selectComponent('resistor', false));
+    act(() => controller().updateSelectedValue(555.5));
+    const dirty = controller().document;
+    const epoch = controller().documentMutationEpoch();
+    const saveStatus = controller().saveStatus;
+    expect(saveStatus).not.toBe('saved');
+    expect(localDocument()).toEqual(dirty);
+    act(() =>
+      controller().updateArduinoProgram('uno-a', {
+        ...initialDocument.components[0]!.stateProperties,
+      }),
+    );
+    expect(controller().document).toBe(dirty);
+    expect(controller().documentMutationEpoch()).toBe(epoch);
+    expect(controller().saveStatus).toBe(saveStatus);
+    expect(localDocument()).toEqual(dirty);
+    expect(controller().canUndo).toBe(true);
+    expect(controller().canRedo).toBe(false);
+    act(() => controller().undo());
+    expect(controller().document).toEqual(initialDocument);
+    expect(controller().canUndo).toBe(false);
+    expect(controller().canRedo).toBe(true);
+    act(() => controller().redo());
+    expect(controller().document).toEqual(dirty);
+    await act(async () => controller().saveNow());
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0]?.[1]).toEqual(dirty);
+    expect(stored.get('first')).toEqual(dirty);
+  });
+
+  it('preserves string-array state semantics without swallowing changed entries, order or length', async () => {
+    const save = await prepare();
+    act(() => controller().updateArduinoProgram('uno-a', { ownerArray: ['a', 'b'] }));
+    const withArray = controller().document;
+    const epoch = controller().documentMutationEpoch();
+    act(() => controller().updateArduinoProgram('uno-a', { ownerArray: ['a', 'b'] }));
+    expect(controller().document).toBe(withArray);
+    expect(controller().documentMutationEpoch()).toBe(epoch);
+    act(() => controller().updateArduinoProgram('uno-a', { ownerArray: ['a', 'c'] }));
+    expect(controller().document?.components[0]?.stateProperties?.['ownerArray']).toEqual([
+      'a',
+      'c',
+    ]);
+    act(() => controller().updateArduinoProgram('uno-a', { ownerArray: ['c', 'a'] }));
+    expect(controller().document?.components[0]?.stateProperties?.['ownerArray']).toEqual([
+      'c',
+      'a',
+    ]);
+    act(() => controller().updateArduinoProgram('uno-a', { ownerArray: ['c'] }));
+    expect(controller().document?.components[0]?.stateProperties?.['ownerArray']).toEqual(['c']);
+    expect(controller().documentMutationEpoch()).toBe(epoch + 3);
+    const expected = {
+      ...initialDocument,
+      components: initialDocument.components.map((component) =>
+        component.id === 'uno-a'
+          ? { ...component, stateProperties: { ...component.stateProperties, ownerArray: ['c'] } }
+          : component,
+      ),
+    };
+    expect(controller().document).toEqual(expected);
+    expect(localDocument()).toEqual(expected);
+    expect(save).not.toHaveBeenCalled();
+    await act(async () => controller().saveNow());
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(stored.get('first')).toEqual(expected);
+  });
+});
