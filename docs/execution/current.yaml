@@ -581,64 +581,16 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
-      issue: 533
+      id: TASK-ELECTRONICS-GOVERNANCE-007
+      issue: 535
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: technical_media_initialization_accepted
+      status: in_progress
+      checkpoint: mandatory_hygiene_after_529_534_533
       dependency_for_issue: 532
       owner_acceptance: pending
-      first_candidate_sha: 680ab8bf383280ee512ac4eca358290b817c5989
-      first_candidate_tree: 04e3907c47cc763580b74fc59d0bad8da19181da
-      first_candidate_branch: codex/electronics-blockly-media-init-533
-      first_candidate_published: false
-      first_independent_review: request_changes
-      first_independent_evidence: docs/product/electronics/evidence/blockly-media-533-independent-review-680ab8bf.md
-      first_general: not_run
-      first_browser: not_run
-      r1_candidate_sha: 45acab06e83d01f74466452dd5ca01fa0fcd5224
-      r1_candidate_tree: a0a9255972d6b012f60fd073c1e8307a5339411a
-      r1_candidate_branch: codex/electronics-blockly-media-init-533-r1
-      r1_independent_review: request_changes
-      r1_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r1-independent-review-45acab06.md
-      r1_general_run: 37902288735
-      r1_general_observed: in_progress
-      r1_directed_run: 37902333200
-      r1_directed_conclusion: failure
-      r1_ordinary_browser: not_run
-      r2_candidate_sha: 8f468d2560b4955a5ebfbbede25301b393ad5f9e
-      r2_candidate_tree: 8e7e05d3afd88e71ff907eb0fa7acfb2816d9ab2
-      r2_candidate_branch: codex/electronics-blockly-media-init-533-r2
-      r2_independent_review: request_changes
-      r2_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r2-independent-review-8f468d25.md
-      r2_general_run: 37904849942
-      r2_general_observed: success
-      r2_directed_run: 37904865576
-      r2_directed_conclusion: failure
-      r2_ordinary_browser: not_run
-      r3_candidate_sha: b5045472f3a6670f36014cf3ca43d5145e3ed0c6
-      r3_candidate_tree: 03e2c969795aa07379d08f0309a4469bc93f70df
-      r3_candidate_branch: codex/electronics-blockly-media-init-533-r3
-      r3_independent_review: request_changes
-      r3_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r3-independent-review-b5045472.md
-      r3_general_run: 37907895948
-      r3_general_observed: success
-      r3_directed_sha: 8b347f153396e3035b146b76c5188a63060009b8
-      r3_directed_run: 37907937816
-      r3_directed_conclusion: failure
-      r3_ordinary_electronics: not_run
-      final_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
-      final_candidate_tree: 1b495572133f7c2a954ca4821166fa93c8ef61d6
-      final_candidate_branch: codex/electronics-arduino-noop-publication-534
-      resolved_dependency_issue: 534
-      exact_candidate_general_run: 37910895056
-      exact_candidate_electronics_run: 37911539739
-      independent_review: approved
-      accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
-      evidence: docs/product/electronics/evidence/blockly-media-533-final-acceptance-20261009.md
     suspended_slices:
     - task_id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
       issue: 533
@@ -711,6 +663,66 @@ parallel_lanes:
       resumed_at: '2026-10-09T10:00:03Z'
       resumed_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
       resolved_dependency_issue: 534
+      completion_observed_at: '2026-10-09T10:18:45Z'
+      accepted_task_snapshot:
+        id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
+        issue: 533
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: technical_media_initialization_accepted
+        dependency_for_issue: 532
+        owner_acceptance: pending
+        first_candidate_sha: 680ab8bf383280ee512ac4eca358290b817c5989
+        first_candidate_tree: 04e3907c47cc763580b74fc59d0bad8da19181da
+        first_candidate_branch: codex/electronics-blockly-media-init-533
+        first_candidate_published: false
+        first_independent_review: request_changes
+        first_independent_evidence: docs/product/electronics/evidence/blockly-media-533-independent-review-680ab8bf.md
+        first_general: not_run
+        first_browser: not_run
+        r1_candidate_sha: 45acab06e83d01f74466452dd5ca01fa0fcd5224
+        r1_candidate_tree: a0a9255972d6b012f60fd073c1e8307a5339411a
+        r1_candidate_branch: codex/electronics-blockly-media-init-533-r1
+        r1_independent_review: request_changes
+        r1_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r1-independent-review-45acab06.md
+        r1_general_run: 37902288735
+        r1_general_observed: in_progress
+        r1_directed_run: 37902333200
+        r1_directed_conclusion: failure
+        r1_ordinary_browser: not_run
+        r2_candidate_sha: 8f468d2560b4955a5ebfbbede25301b393ad5f9e
+        r2_candidate_tree: 8e7e05d3afd88e71ff907eb0fa7acfb2816d9ab2
+        r2_candidate_branch: codex/electronics-blockly-media-init-533-r2
+        r2_independent_review: request_changes
+        r2_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r2-independent-review-8f468d25.md
+        r2_general_run: 37904849942
+        r2_general_observed: success
+        r2_directed_run: 37904865576
+        r2_directed_conclusion: failure
+        r2_ordinary_browser: not_run
+        r3_candidate_sha: b5045472f3a6670f36014cf3ca43d5145e3ed0c6
+        r3_candidate_tree: 03e2c969795aa07379d08f0309a4469bc93f70df
+        r3_candidate_branch: codex/electronics-blockly-media-init-533-r3
+        r3_independent_review: request_changes
+        r3_independent_evidence: docs/product/electronics/evidence/blockly-media-533-r3-independent-review-b5045472.md
+        r3_general_run: 37907895948
+        r3_general_observed: success
+        r3_directed_sha: 8b347f153396e3035b146b76c5188a63060009b8
+        r3_directed_run: 37907937816
+        r3_directed_conclusion: failure
+        r3_ordinary_electronics: not_run
+        final_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        final_candidate_tree: 1b495572133f7c2a954ca4821166fa93c8ef61d6
+        final_candidate_branch: codex/electronics-arduino-noop-publication-534
+        resolved_dependency_issue: 534
+        exact_candidate_general_run: 37910895056
+        exact_candidate_electronics_run: 37911539739
+        independent_review: approved
+        accepted_candidate_sha: 084ec1f66ade168ade777eab007c1c608d7bc048
+        evidence: docs/product/electronics/evidence/blockly-media-533-final-acceptance-20261009.md
     - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
       issue: 532
       status: waiting_separate_media_dependency
@@ -937,17 +949,18 @@ parallel_lanes:
       compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c80d06414cd58d123448d1852574cc4c93f6e963
+      convergence_baseline_sha: f3eea081cc06f10b5e3ed066825b8ff99c148d6b
       head_sha: null
-      observed_at: '2026-10-09T10:14:04Z'
+      observed_at: '2026-10-09T10:18:45Z'
       main:
         branch: main
-        sha: c80d06414cd58d123448d1852574cc4c93f6e963
+        sha: f3eea081cc06f10b5e3ed066825b8ff99c148d6b
       observation_note: >-
-        Dated snapshot; fetch main and actual current/exact CI before writing. Technical533 accepted after separate closed534 dependency. Source084ec1f6 is integrated unchanged; fresh NEW533 independent APPROVE inspects exact version/originals/GitHub, not prior534 verdict.
-        Reuse actual matching source General37910895056 and ordinary Electronics37911539739 all8SUCCESS/122browser; no new heavy execution and no relabeling as new docs-head evidence. Strict local pinned200/linked304 and normal zoom/reset/reopen/full server draft revision2/updatedAt preserved; local absence is explicitly not whole mounted-state proof. Genuine fast Save/exit full payload coverage remains.
-        Counted production since full524: accepted529,534,533 equals three. Mandatory bounded hygiene is now due BEFORE resumed532; no automatic exception. Next controller fresh selection is hygiene only, then preserve52text/95total/30s in532 packaging and530/526full56.
-        All old rejected533 sources/reviews/full suspended snapshot and525/532/530/526/505/506/accepted/foreign state preserved. SchoolK0 version/full backups NOT_VERIFIED; pupilT3/owner/class/release pending. No installation, workingDB, network, restart, backup or restore action.
+        Dated snapshot; fetch main and actual current/exact CI before writing. Technical533 and534 are closed after separate NEW independent exact084 APPROVE; matching General37910895056/ordinary Electronics37911539739 all8SUCCESS/122browser reused without repeat. Mainf3ee closeout is controller docs; its registered CI must be read at actual current SHA, never relabeled from084.
+        Accepted production529+534+533 equals three since full524; mandatory bounded hygiene535 is now selected before532. Author scope only checkpoint-stabilization-004 evidence and baseline renewal only if an actual reviewed fact requires it. No general capability inventory, accepted measurement replay, product/test/generated/dependency/workflow/artwork change, deletion or decomposition.
+        Use actual Git delta from524 reviewed32f530c3 to selected current main, established two source roots/eight large entries/actual new threshold crossings, concrete legacy retirement consumers, routing/generated provenance/historical/protected preservation and residual debt. Root actual facts/scope, exact candidate General and NEW independent review before integration. No automatic gate-restoration exception.
+        Preserve accepted533 full completion snapshot and all old rejected refs/reviews, all accepted/suspended/foreign state,525/532/530/526/505/506. After accepted hygiene fresh selection returns to532 shorter text packaging with52text/95total/unchanged30s, then530/526full56; next product slice not activated here.
+        SchoolK0 version/full backups NOT_VERIFIED; pupilT3 awaits class access. Owner/class/release/deployment remain separate. No working installation/DB/container restart/network/backup/restore action.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
