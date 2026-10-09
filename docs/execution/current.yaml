@@ -588,9 +588,18 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_pending_sdk_readiness_repair
+      checkpoint: r1_bounded_native_load_observer_repair
       dependency_for_issue: 530
       owner_acceptance: pending
+      first_candidate_sha: ba1018b4a4ccad7f3e6877aa7fb3ea419981324d
+      first_candidate_tree: aef0ae18b9c68b5834d208ea964d5bf7dce91a92
+      first_candidate_branch: codex/electronics-browser-readiness-531
+      first_independent_review: request_changes
+      first_independent_evidence: docs/product/electronics/evidence/browser-readiness-531-independent-review-ba1018b4.md
+      diagnostic_sha: 1540eaf4274c6f53be286cf9b98dec3946aa0746
+      diagnostic_run: 37881376880
+      diagnostic_conclusion: failure
+      diagnostic_is_gate: false
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
@@ -731,12 +740,12 @@ parallel_lanes:
           classifier_evidence: docs/product/electronics/evidence/wire-menu-530-breadboard-startup-classification.md
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 602f5aabda2c12370d7dda6f6cf46b19fe1817c3
+      convergence_baseline_sha: dc76e97171ca8e44f49dd37d443f82e950e43b76
       head_sha: null
-      observed_at: '2026-10-09T03:42:17Z'
+      observed_at: '2026-10-09T04:04:44Z'
       main:
         branch: main
-        sha: 602f5aabda2c12370d7dda6f6cf46b19fe1817c3
+        sha: dc76e97171ca8e44f49dd37d443f82e950e43b76
       observation_note: >-
         Fetch main and read actual exact-head GitHub CI before writes; dated observation, not current HEAD authority.
         Exact529 final908e28f2bdeacffa18b83c79cb3be96c232d1bbd is normally fast-forward integrated unchanged.
@@ -798,6 +807,16 @@ parallel_lanes:
         One temporary directed probe is diagnostic only and outside final ancestry; final ordinary exact gates/NEWreview mandatory.
         After accepted531 select separate compact UI repair before resuming530/526 acceptance; prior route notes are history.
         Preserve870/0dd/525/529/all accepted slices and otherlanes; schoolK0/T3 pending, no deployment/DB/backup/network.
+        First531sourceba1018b4 is preserved/unaccepted; separate1540eaf4 diagnostic37881376880FAIL/newloadpoll5000.
+        NEW independentREQUEST_CHANGES: Window capture cannot observe resourceLOAD beyond Document per DOM4.5.
+        Original appmounted464.806ms/masksready/2components/882holes/bindings2/assetsHTTP200; ownerImageLoads empty.
+        This is A new observer defect, not measured product/physics failure; no provider outage or school frequency claim.
+        Select only531R1 native resource observation repair on Document/actual image; preserve SVGload assertion and
+        controlled genuinelypendingSDK/reload lifecycle/full documents/fivephysicaldrag-undo/30000-5000 limits.
+        Preserve publishedba/1540 history; ordinary merge canonicalmain into NEWsourcebranch, no probe ancestor.
+        ONE additional directed probe of changed observer is allowed in this separate R1 cycle; not repeated BEFORE,
+        not whole-suite hopeful rerun or gate substitute. Final ordinary exact gates/NEW independent review remain.
+        No product/UI/bootstrap/Portal/physics/auth/dependency/generated/workflow change in final R1 candidate.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
