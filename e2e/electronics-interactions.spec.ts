@@ -253,7 +253,8 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
     const loads: { componentId: string; path: string; atMs: number }[] = [];
     (window as unknown as { breadboardOwnerImageLoads: typeof loads }).breadboardOwnerImageLoads =
       loads;
-    window.addEventListener(
+    // Resource load paths stop at Document, so capture there rather than Window.
+    window.document.addEventListener(
       'load',
       (event) => {
         const image = event.target;
@@ -264,7 +265,7 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
         if (componentId !== 'board') return;
         loads.push({
           componentId,
-          path: new URL(image.href.baseVal, document.baseURI).pathname,
+          path: new URL(image.href.baseVal, window.document.baseURI).pathname,
           atMs: performance.now(),
         });
       },
@@ -276,11 +277,11 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
       return {
         atMs: performance.now(),
-        readyState: document.readyState,
+        readyState: window.document.readyState,
         domContentLoadedEndMs: nav.domContentLoadedEventEnd,
         loadEndMs: nav.loadEventEnd,
         components: Array.from(
-          document.querySelectorAll('[data-testid="schematic-component"]'),
+          window.document.querySelectorAll('[data-testid="schematic-component"]'),
         ).map((component) => ({
           id: component.getAttribute('data-component-id'),
           hitMask: component.getAttribute('data-hit-mask-status'),
@@ -289,7 +290,7 @@ test('BREADBOARD_PROFILE large board with a rigid two-pin part', async ({ page }
             '[data-testid="owner-image-error"], [data-testid="owner-svg-error"]',
           ).length,
         })),
-        holes: document.querySelectorAll('.workbench-breadboard-hole-hit').length,
+        holes: window.document.querySelectorAll('.workbench-breadboard-hole-hit').length,
         ownerImageLoads: (
           window as unknown as {
             breadboardOwnerImageLoads: { componentId: string; path: string; atMs: number }[];
