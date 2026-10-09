@@ -4471,22 +4471,30 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
   pageCdp.on('Inspector.targetCrashed', (event) => targetCrashed.push({ at: Date.now(), event }));
   const pageCrashes: number[] = [];
   page.on('crash', () => pageCrashes.push(Date.now()));
-  snapshot('before-injection');
-  const crash = page.waitForEvent('crash');
-  // Pinned Playwright 1.55.1's Chromium crash fixture uses this browser URL.
-  // Record the injection outcome; an injection error alone is not a crash.
-  let injectionOutcome: { status: string; error?: string } = { status: 'pending' };
-  const injection = page.goto('chrome://crash').then(
-    () => (injectionOutcome = { status: 'resolved' }),
-    (error: unknown) => (injectionOutcome = { status: 'rejected', error: String(error) }),
-  );
-  const sampler = setTimeout(() => snapshot('one-second-after-injection'), 1_000);
-  try {
-    await crash;
-    await injection;
-  } finally {
-    clearTimeout(sampler);
-    snapshot('after-crash-wait');
+  // Bind the current editor to one OS renderer PID using its own unique mark.
+  // The first diagnostic proved the fatal/debug-URL path stalls in pipe write;
+  // a targeted SIGKILL tests abrupt loss without that stalled fatal handler.
+  const marker = `e01-current-editor-${Date.now()}-${process.pid}`;
+  const traceEvents: Array<Record<string, string>> = [];
+  let traceDataLoss: boolean | null = null;
+  let markerEvents: Array<Record<string, string>> = [];
+  let mappedPids: number[] = [];
+  let mappedRenderer: ReturnType<typeof readProcess> = null;
+  const freshAncestry: Array<ReturnType<typeof readProcess>> = [];
+  const injectionOutcome: {
+    status: string;
+    method: string;
+    signal: string;
+    rendererPid?: number;
+    at?: number;
+    signalAccepted?: boolean;
+    error?: string;
+  } = {
+    status: 'not-attempted',
+    method: 'own-page-renderer-signal',
+    signal: 'SIGKILL',
+  };
+  const writeInjectionEvidence = () => {
     mkdirSync('reports/playwright/electronics-e01', { recursive: true });
     writeFileSync(
       'reports/playwright/electronics-e01/renderer-crash-injection-diagnostic.json',
@@ -4495,6 +4503,12 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
           version,
           browserPid,
           rendererPids,
+          marker,
+          traceDataLoss,
+          markerEvents,
+          mappedPids,
+          mappedRenderer,
+          freshAncestry,
           snapshots,
           targetCrashed,
           pageCrashes,
@@ -4506,6 +4520,79 @@ test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a
         2,
       ),
     );
+  };
+  writeInjectionEvidence();
+  let sampler: ReturnType<typeof setTimeout> | undefined;
+  try {
+    browserCdp.on('Tracing.dataCollected', (event) => traceEvents.push(...event.value));
+    const traceComplete = new Promise<{ dataLossOccurred: boolean }>((resolve) =>
+      browserCdp.once('Tracing.tracingComplete', resolve),
+    );
+    await browserCdp.send('Tracing.start', {
+      categories: 'blink.user_timing',
+      transferMode: 'ReportEvents',
+    });
+    await page.evaluate((name) => performance.mark(name), marker);
+    await browserCdp.send('Tracing.end');
+    traceDataLoss = (await traceComplete).dataLossOccurred;
+    markerEvents = traceEvents.filter(
+      (event) => event.name === marker && event.cat?.split(',').includes('blink.user_timing'),
+    );
+    mappedPids = [...new Set(markerEvents.map((event) => Number(event.pid)))];
+    writeInjectionEvidence();
+    expect(traceDataLoss).toBe(false);
+    expect(mappedPids).toHaveLength(1);
+    const rendererPid = mappedPids[0]!;
+    expect(process.platform).toBe('linux');
+    expect(Number.isSafeInteger(rendererPid) && rendererPid > 1).toBe(true);
+    expect(rendererPid).not.toBe(process.pid);
+    expect(rendererPid).not.toBe(browserPid);
+    expect(rendererPids).toContain(rendererPid);
+    const freshProcesses = await browserCdp.send('SystemInfo.getProcessInfo');
+    expect(
+      freshProcesses.processInfo.some(
+        (entry) => entry.type === 'renderer' && entry.id === rendererPid,
+      ),
+    ).toBe(true);
+    mappedRenderer = readProcess(rendererPid);
+    expect(mappedRenderer).not.toBeNull();
+    expect(mappedRenderer && 'status' in mappedRenderer && mappedRenderer.status.NSpid).toBe(
+      String(rendererPid),
+    );
+    snapshot('before-injection');
+    writeInjectionEvidence();
+    // Fresh parent chain is the final guard. No await follows it before the signal.
+    let owned = false;
+    for (let ancestor = rendererPid, depth = 0; depth < 12; depth += 1) {
+      const own = readProcess(ancestor);
+      freshAncestry.push(own);
+      expect(own && 'status' in own).toBe(true);
+      if (!own || !('status' in own)) throw new Error('Own renderer ancestry cannot be verified');
+      if (ancestor === browserPid) {
+        owned = true;
+        break;
+      }
+      const parent = Number(own.status.PPid);
+      expect(Number.isSafeInteger(parent) && parent > 1 && parent !== ancestor).toBe(true);
+      ancestor = parent;
+    }
+    expect(owned).toBe(true);
+    const crash = page.waitForEvent('crash');
+    void crash.catch(() => undefined); // Keep a failed signal from orphaning this waiter.
+    injectionOutcome.rendererPid = rendererPid;
+    injectionOutcome.at = Date.now();
+    injectionOutcome.status = 'attempting';
+    injectionOutcome.signalAccepted = process.kill(rendererPid, 'SIGKILL');
+    injectionOutcome.status = 'signal-sent';
+    sampler = setTimeout(() => snapshot('one-second-after-injection'), 1_000);
+    await crash;
+  } catch (error) {
+    injectionOutcome.error = String(error);
+    throw error;
+  } finally {
+    clearTimeout(sampler);
+    snapshot('after-crash-wait');
+    writeInjectionEvidence();
   }
   await expect(page.evaluate(() => document.title)).rejects.toThrow(/crash/i);
   expect(lifecycle).toEqual([]);
@@ -4883,8 +4970,8 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
   const otherTeacher = await seedTeacher(admin, 'e2e-electronics-sav10-other-actor');
   const other = await page.context().newPage();
   try {
-    // Actual account logout/login in a second page changes shared server cookies,
-    // not the old page's cached App principal or document.
+    // Real logout revokes the old page through the existing session channel;
+    // its editor must stay unmounted while its old reply is delivered later.
     await other.goto('/#/home');
     await other
       .getByRole('banner')
@@ -4894,6 +4981,21 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
     await expect(
       other.getByRole('banner').getByRole('button', { name: 'Войти', exact: true }),
     ).toBeVisible();
+    const revokedUi = async () => {
+      await expect(
+        page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true }),
+      ).toBeVisible();
+      await expect(page.locator('.workbench-main')).toHaveCount(0);
+      await expect(page.getByLabel('Код Arduino C++', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Сохранить проект', exact: true })).toHaveCount(
+        0,
+      );
+      return { url: page.url(), loginVisible: true, editorCount: 0, codeCount: 0, saveCount: 0 };
+    };
+    const oldUiAfterLogout = await revokedUi();
+    const oldLocalAfterLogout = await local(actorA.id, secondProject);
+    expect(oldLocalAfterLogout.raw).toBe(beforeAccountSwitch.raw);
+    assertContent(oldLocalAfterLogout.record!.document, 444.4, latestSecondSketch);
     await loginWithOrganization(other, otherTeacher);
     const actorB = await actor();
     expect(actorB.email).toBe(otherTeacher.email);
@@ -4914,22 +5016,19 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
     );
     const newServerBeforeReply = await e01Server(other, newProject);
     assertContent(newServerBeforeReply.draft.document, 888.8, newSketch);
+    expect(newServerBeforeReply.draft.document).toEqual(newLocalBefore.record!.document);
     const newUiBeforeReply = await ui(other, '888.8', newSketch, actorB);
     const oldPutCountAtB = oldBrowserPuts.length;
     accountReply.release();
     await accountReply.finished;
-    await expect(page.locator('.workbench-main')).toHaveAttribute(
-      'data-project-save-status',
-      'dirty',
-    );
-    const oldUiAfterReply = await ui(page, '444.4', latestSecondSketch);
+    const oldUiAfterReply = await revokedUi();
+    expect(oldUiAfterReply).toEqual(oldUiAfterLogout);
     expect(await ui(other, '888.8', newSketch, actorB)).toEqual(newUiBeforeReply);
     expect(await e01Server(other, newProject)).toEqual(newServerBeforeReply);
-    await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-    await expect(page.locator('.workbench-save-state')).toHaveText('Нужно войти');
     expect(oldBrowserPuts).toHaveLength(oldPutCountAtB);
     expect(oldBrowserPuts.filter((request) => request.phase === 'actor-B')).toEqual([]);
     const oldLocalAfterReply = await local(actorA.id, secondProject);
+    expect(oldLocalAfterReply.raw).toBe(beforeAccountSwitch.raw);
     assertContent(oldLocalAfterReply.record!.document, 444.4, latestSecondSketch);
     expect(await local(actorB.id, secondProject)).toMatchObject({ raw: null, record: null });
     const deniedProjects: unknown[] = [];
@@ -4944,11 +5043,9 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
     expect(bootstrappedActorB).toEqual(actorB);
     const bootstrappedUi = await ui(page, '888.8', newSketch, actorB);
     expect(bootstrappedUi.status).toBe('saved');
-    assertContent(
-      (await local(actorA.id, secondProject)).record!.document,
-      444.4,
-      latestSecondSketch,
-    );
+    const oldLocalAfterBootstrap = await local(actorA.id, secondProject);
+    expect(oldLocalAfterBootstrap.raw).toBe(beforeAccountSwitch.raw);
+    assertContent(oldLocalAfterBootstrap.record!.document, 444.4, latestSecondSketch);
     expect(oldBrowserPuts.filter((request) => request.phase === 'actor-B')).toEqual([]);
     writeFileSync(
       `${evidenceDir}/after-project-account-isolation.json`,
@@ -4973,8 +5070,11 @@ test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save r
           secondAfterReply,
           secondServerBeforeReply,
           beforeAccountSwitch,
+          oldUiAfterLogout,
+          oldLocalAfterLogout,
           oldUiAfterReply,
           oldLocalAfterReply,
+          oldLocalAfterBootstrap,
           newLocalBefore,
           newServerBeforeReply,
           newUiBeforeReply,
