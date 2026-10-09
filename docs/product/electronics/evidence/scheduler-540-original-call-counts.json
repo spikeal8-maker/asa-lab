@@ -1,0 +1,47 @@
+{
+  "kind": "external bundle function-call counters; same production algorithm, not browser benchmark",
+  "rows": [
+    {
+      "h": 0,
+      "computeMs": 42.96629999999999,
+      "calls": {
+        "solveRc": 3,
+        "advanceRuntime": 3,
+        "compile": 3,
+        "quality": 3
+      },
+      "status": "ready",
+      "committed": 0,
+      "solved": true,
+      "quality": true
+    },
+    {
+      "h": 100000,
+      "computeMs": 455.5701,
+      "calls": {
+        "solveRc": 627,
+        "advanceRuntime": 111,
+        "compile": 627,
+        "quality": 627
+      },
+      "status": "ready",
+      "committed": 100000,
+      "solved": true,
+      "quality": true
+    },
+    {
+      "h": 200000,
+      "computeMs": 197.68619999999999,
+      "calls": {
+        "solveRc": 300,
+        "advanceRuntime": 2,
+        "compile": 300,
+        "quality": 300
+      },
+      "status": "ready",
+      "committed": 200000,
+      "solved": true,
+      "quality": true
+    }
+  ]
+}
