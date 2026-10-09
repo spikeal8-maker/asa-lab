@@ -1,0 +1,2245 @@
+{
+  "projectId": "967011c0-2fd3-4b06-af21-100e1dc93e28",
+  "action": "genuine departure",
+  "elapsedMs": 67.5,
+  "receipt": {
+    "inputAt": 1718.7000000000116,
+    "actionAt": 1786.2000000000116,
+    "inputLocal": {
+      "schemaVersion": 2,
+      "projectId": "967011c0-2fd3-4b06-af21-100e1dc93e28",
+      "moduleKey": "electronics",
+      "baseRevision": 2,
+      "baseDocument": {
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "components": [
+          {
+            "id": "uno",
+            "kind": "visual",
+            "name": "Arduino Uno",
+            "value": 5,
+            "pinIds": [
+              "a0",
+              "a1",
+              "a2",
+              "a3",
+              "a4",
+              "a5",
+              "aref",
+              "d0",
+              "d1",
+              "d10",
+              "d11",
+              "d12",
+              "d13",
+              "d2",
+              "d3",
+              "d4",
+              "d5",
+              "d6",
+              "d7",
+              "d8",
+              "d9",
+              "gnd-top",
+              "ioref",
+              "power-3v3",
+              "power-5v",
+              "power-gnd-1",
+              "power-gnd-2",
+              "reset",
+              "scl",
+              "sda",
+              "vin"
+            ],
+            "position": {
+              "x": 120,
+              "y": 120
+            },
+            "variantId": "arduino-uno",
+            "modelProfileId": "arduino-uno-r3",
+            "componentTypeId": "arduino-uno",
+            "stateProperties": {
+              "arduinoSource": "void setup(){pinMode(2,INPUT_PULLUP);pinMode(13,OUTPUT);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}delay(10);}"
+            },
+            "electricalModelId": "arduino-uno",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "resistor",
+            "kind": "resistor",
+            "name": "R1",
+            "value": 330,
+            "pinIds": [
+              "lead-1",
+              "lead-2"
+            ],
+            "position": {
+              "x": 650,
+              "y": 190
+            },
+            "rotation": 90,
+            "variantId": "resistor-axial",
+            "modelProfileId": "axial-resistor",
+            "componentTypeId": "resistor-axial",
+            "stateProperties": {
+              "tolerancePercent": 5,
+              "resistanceUnit": "Ом",
+              "powerRatingWatt": 0.25
+            },
+            "electricalModelId": "resistor",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "led",
+            "kind": "led",
+            "name": "LED1",
+            "value": 2,
+            "pinIds": [
+              "anode",
+              "cathode"
+            ],
+            "position": {
+              "x": 840,
+              "y": 190
+            },
+            "rotation": 0,
+            "variantId": "led-5mm",
+            "modelProfileId": "generic-red-led",
+            "componentTypeId": "led-5mm",
+            "stateProperties": {
+              "ledColour": "red",
+              "ledBrightness": 0,
+              "ledFault": "none"
+            },
+            "electricalModelId": "ordinary-led",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "button-0",
+            "kind": "button",
+            "name": "Кнопка 1",
+            "state": false,
+            "value": 0,
+            "pinIds": [
+              "SW-A1",
+              "SW-A2",
+              "SW-B1",
+              "SW-B2"
+            ],
+            "position": {
+              "x": 510,
+              "y": 410
+            },
+            "rotation": 0,
+            "variantId": "button-tactile-6mm",
+            "modelProfileId": "tactile-button-6mm",
+            "componentTypeId": "button-tactile-6mm",
+            "stateProperties": {
+              "contactState": "released"
+            },
+            "electricalModelId": "momentary-button",
+            "internalConnections": [
+              [
+                "SW-A1",
+                "SW-A2"
+              ],
+              [
+                "SW-B1",
+                "SW-B2"
+              ]
+            ],
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          }
+        ],
+        "simulation": {
+          "running": false,
+          "maxIterations": 24
+        },
+        "connections": [
+          {
+            "id": "wire-0",
+            "to": {
+              "terminal": "lead-1",
+              "componentId": "resistor"
+            },
+            "from": {
+              "terminal": "d13",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-1",
+            "to": {
+              "terminal": "anode",
+              "componentId": "led"
+            },
+            "from": {
+              "terminal": "lead-2",
+              "componentId": "resistor"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-2",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "cathode",
+              "componentId": "led"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-3",
+            "to": {
+              "terminal": "SW-A1",
+              "componentId": "button-0"
+            },
+            "from": {
+              "terminal": "d2",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-4",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "SW-B1",
+              "componentId": "button-0"
+            },
+            "color": "#149447",
+            "vertices": []
+          }
+        ],
+        "schemaVersion": 4
+      },
+      "document": {
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "components": [
+          {
+            "id": "uno",
+            "kind": "visual",
+            "name": "Arduino Uno",
+            "value": 5,
+            "pinIds": [
+              "a0",
+              "a1",
+              "a2",
+              "a3",
+              "a4",
+              "a5",
+              "aref",
+              "d0",
+              "d1",
+              "d10",
+              "d11",
+              "d12",
+              "d13",
+              "d2",
+              "d3",
+              "d4",
+              "d5",
+              "d6",
+              "d7",
+              "d8",
+              "d9",
+              "gnd-top",
+              "ioref",
+              "power-3v3",
+              "power-5v",
+              "power-gnd-1",
+              "power-gnd-2",
+              "reset",
+              "scl",
+              "sda",
+              "vin"
+            ],
+            "position": {
+              "x": 120,
+              "y": 120
+            },
+            "variantId": "arduino-uno",
+            "modelProfileId": "arduino-uno-r3",
+            "componentTypeId": "arduino-uno",
+            "stateProperties": {
+              "arduinoSource": "// latest sketch before genuine departure\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n",
+              "arduinoCodeMode": "text",
+              "arduinoWorkspace": "",
+              "arduinoSerialOpen": false,
+              "arduinoBaudRate": 9600
+            },
+            "electricalModelId": "arduino-uno",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "resistor",
+            "kind": "resistor",
+            "name": "R1",
+            "value": 333.3,
+            "pinIds": [
+              "lead-1",
+              "lead-2"
+            ],
+            "position": {
+              "x": 650,
+              "y": 190
+            },
+            "rotation": 90,
+            "variantId": "resistor-axial",
+            "modelProfileId": "axial-resistor",
+            "componentTypeId": "resistor-axial",
+            "stateProperties": {
+              "tolerancePercent": 5,
+              "resistanceUnit": "Ω",
+              "powerRatingWatt": 0.25
+            },
+            "electricalModelId": "resistor",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "led",
+            "kind": "led",
+            "name": "LED1",
+            "value": 2,
+            "pinIds": [
+              "anode",
+              "cathode"
+            ],
+            "position": {
+              "x": 840,
+              "y": 190
+            },
+            "rotation": 0,
+            "variantId": "led-5mm",
+            "modelProfileId": "generic-red-led",
+            "componentTypeId": "led-5mm",
+            "stateProperties": {
+              "ledColour": "red",
+              "ledBrightness": 0,
+              "ledFault": "none"
+            },
+            "electricalModelId": "ordinary-led",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "button-0",
+            "kind": "button",
+            "name": "Кнопка 1",
+            "state": false,
+            "value": 0,
+            "pinIds": [
+              "SW-A1",
+              "SW-A2",
+              "SW-B1",
+              "SW-B2"
+            ],
+            "position": {
+              "x": 510,
+              "y": 410
+            },
+            "rotation": 0,
+            "variantId": "button-tactile-6mm",
+            "modelProfileId": "tactile-button-6mm",
+            "componentTypeId": "button-tactile-6mm",
+            "stateProperties": {
+              "contactState": "released"
+            },
+            "electricalModelId": "momentary-button",
+            "internalConnections": [
+              [
+                "SW-A1",
+                "SW-A2"
+              ],
+              [
+                "SW-B1",
+                "SW-B2"
+              ]
+            ],
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          }
+        ],
+        "simulation": {
+          "running": false,
+          "maxIterations": 24
+        },
+        "connections": [
+          {
+            "id": "wire-0",
+            "to": {
+              "terminal": "lead-1",
+              "componentId": "resistor"
+            },
+            "from": {
+              "terminal": "d13",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-1",
+            "to": {
+              "terminal": "anode",
+              "componentId": "led"
+            },
+            "from": {
+              "terminal": "lead-2",
+              "componentId": "resistor"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-2",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "cathode",
+              "componentId": "led"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-3",
+            "to": {
+              "terminal": "SW-A1",
+              "componentId": "button-0"
+            },
+            "from": {
+              "terminal": "d2",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-4",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "SW-B1",
+              "componentId": "button-0"
+            },
+            "color": "#149447",
+            "vertices": []
+          }
+        ],
+        "schemaVersion": 4
+      },
+      "updatedAt": "2026-10-08T22:47:37.617Z"
+    },
+    "actionLocal": {
+      "schemaVersion": 2,
+      "projectId": "967011c0-2fd3-4b06-af21-100e1dc93e28",
+      "moduleKey": "electronics",
+      "baseRevision": 2,
+      "baseDocument": {
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "components": [
+          {
+            "id": "uno",
+            "kind": "visual",
+            "name": "Arduino Uno",
+            "value": 5,
+            "pinIds": [
+              "a0",
+              "a1",
+              "a2",
+              "a3",
+              "a4",
+              "a5",
+              "aref",
+              "d0",
+              "d1",
+              "d10",
+              "d11",
+              "d12",
+              "d13",
+              "d2",
+              "d3",
+              "d4",
+              "d5",
+              "d6",
+              "d7",
+              "d8",
+              "d9",
+              "gnd-top",
+              "ioref",
+              "power-3v3",
+              "power-5v",
+              "power-gnd-1",
+              "power-gnd-2",
+              "reset",
+              "scl",
+              "sda",
+              "vin"
+            ],
+            "position": {
+              "x": 120,
+              "y": 120
+            },
+            "variantId": "arduino-uno",
+            "modelProfileId": "arduino-uno-r3",
+            "componentTypeId": "arduino-uno",
+            "stateProperties": {
+              "arduinoSource": "void setup(){pinMode(2,INPUT_PULLUP);pinMode(13,OUTPUT);}void loop(){if(digitalRead(2)==LOW){digitalWrite(13,HIGH);}else{digitalWrite(13,LOW);}delay(10);}"
+            },
+            "electricalModelId": "arduino-uno",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "resistor",
+            "kind": "resistor",
+            "name": "R1",
+            "value": 330,
+            "pinIds": [
+              "lead-1",
+              "lead-2"
+            ],
+            "position": {
+              "x": 650,
+              "y": 190
+            },
+            "rotation": 90,
+            "variantId": "resistor-axial",
+            "modelProfileId": "axial-resistor",
+            "componentTypeId": "resistor-axial",
+            "stateProperties": {
+              "tolerancePercent": 5,
+              "resistanceUnit": "Ом",
+              "powerRatingWatt": 0.25
+            },
+            "electricalModelId": "resistor",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "led",
+            "kind": "led",
+            "name": "LED1",
+            "value": 2,
+            "pinIds": [
+              "anode",
+              "cathode"
+            ],
+            "position": {
+              "x": 840,
+              "y": 190
+            },
+            "rotation": 0,
+            "variantId": "led-5mm",
+            "modelProfileId": "generic-red-led",
+            "componentTypeId": "led-5mm",
+            "stateProperties": {
+              "ledColour": "red",
+              "ledBrightness": 0,
+              "ledFault": "none"
+            },
+            "electricalModelId": "ordinary-led",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "button-0",
+            "kind": "button",
+            "name": "Кнопка 1",
+            "state": false,
+            "value": 0,
+            "pinIds": [
+              "SW-A1",
+              "SW-A2",
+              "SW-B1",
+              "SW-B2"
+            ],
+            "position": {
+              "x": 510,
+              "y": 410
+            },
+            "rotation": 0,
+            "variantId": "button-tactile-6mm",
+            "modelProfileId": "tactile-button-6mm",
+            "componentTypeId": "button-tactile-6mm",
+            "stateProperties": {
+              "contactState": "released"
+            },
+            "electricalModelId": "momentary-button",
+            "internalConnections": [
+              [
+                "SW-A1",
+                "SW-A2"
+              ],
+              [
+                "SW-B1",
+                "SW-B2"
+              ]
+            ],
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          }
+        ],
+        "simulation": {
+          "running": false,
+          "maxIterations": 24
+        },
+        "connections": [
+          {
+            "id": "wire-0",
+            "to": {
+              "terminal": "lead-1",
+              "componentId": "resistor"
+            },
+            "from": {
+              "terminal": "d13",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-1",
+            "to": {
+              "terminal": "anode",
+              "componentId": "led"
+            },
+            "from": {
+              "terminal": "lead-2",
+              "componentId": "resistor"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-2",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "cathode",
+              "componentId": "led"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-3",
+            "to": {
+              "terminal": "SW-A1",
+              "componentId": "button-0"
+            },
+            "from": {
+              "terminal": "d2",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-4",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "SW-B1",
+              "componentId": "button-0"
+            },
+            "color": "#149447",
+            "vertices": []
+          }
+        ],
+        "schemaVersion": 4
+      },
+      "document": {
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "components": [
+          {
+            "id": "uno",
+            "kind": "visual",
+            "name": "Arduino Uno",
+            "value": 5,
+            "pinIds": [
+              "a0",
+              "a1",
+              "a2",
+              "a3",
+              "a4",
+              "a5",
+              "aref",
+              "d0",
+              "d1",
+              "d10",
+              "d11",
+              "d12",
+              "d13",
+              "d2",
+              "d3",
+              "d4",
+              "d5",
+              "d6",
+              "d7",
+              "d8",
+              "d9",
+              "gnd-top",
+              "ioref",
+              "power-3v3",
+              "power-5v",
+              "power-gnd-1",
+              "power-gnd-2",
+              "reset",
+              "scl",
+              "sda",
+              "vin"
+            ],
+            "position": {
+              "x": 120,
+              "y": 120
+            },
+            "variantId": "arduino-uno",
+            "modelProfileId": "arduino-uno-r3",
+            "componentTypeId": "arduino-uno",
+            "stateProperties": {
+              "arduinoSource": "// latest sketch before genuine departure\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n",
+              "arduinoCodeMode": "text",
+              "arduinoWorkspace": "",
+              "arduinoSerialOpen": false,
+              "arduinoBaudRate": 9600
+            },
+            "electricalModelId": "arduino-uno",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "resistor",
+            "kind": "resistor",
+            "name": "R1",
+            "value": 333.3,
+            "pinIds": [
+              "lead-1",
+              "lead-2"
+            ],
+            "position": {
+              "x": 650,
+              "y": 190
+            },
+            "rotation": 90,
+            "variantId": "resistor-axial",
+            "modelProfileId": "axial-resistor",
+            "componentTypeId": "resistor-axial",
+            "stateProperties": {
+              "tolerancePercent": 5,
+              "resistanceUnit": "Ω",
+              "powerRatingWatt": 0.25
+            },
+            "electricalModelId": "resistor",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "led",
+            "kind": "led",
+            "name": "LED1",
+            "value": 2,
+            "pinIds": [
+              "anode",
+              "cathode"
+            ],
+            "position": {
+              "x": 840,
+              "y": 190
+            },
+            "rotation": 0,
+            "variantId": "led-5mm",
+            "modelProfileId": "generic-red-led",
+            "componentTypeId": "led-5mm",
+            "stateProperties": {
+              "ledColour": "red",
+              "ledBrightness": 0,
+              "ledFault": "none"
+            },
+            "electricalModelId": "ordinary-led",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "button-0",
+            "kind": "button",
+            "name": "Кнопка 1",
+            "state": false,
+            "value": 0,
+            "pinIds": [
+              "SW-A1",
+              "SW-A2",
+              "SW-B1",
+              "SW-B2"
+            ],
+            "position": {
+              "x": 510,
+              "y": 410
+            },
+            "rotation": 0,
+            "variantId": "button-tactile-6mm",
+            "modelProfileId": "tactile-button-6mm",
+            "componentTypeId": "button-tactile-6mm",
+            "stateProperties": {
+              "contactState": "released"
+            },
+            "electricalModelId": "momentary-button",
+            "internalConnections": [
+              [
+                "SW-A1",
+                "SW-A2"
+              ],
+              [
+                "SW-B1",
+                "SW-B2"
+              ]
+            ],
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          }
+        ],
+        "simulation": {
+          "running": false,
+          "maxIterations": 24
+        },
+        "connections": [
+          {
+            "id": "wire-0",
+            "to": {
+              "terminal": "lead-1",
+              "componentId": "resistor"
+            },
+            "from": {
+              "terminal": "d13",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-1",
+            "to": {
+              "terminal": "anode",
+              "componentId": "led"
+            },
+            "from": {
+              "terminal": "lead-2",
+              "componentId": "resistor"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-2",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "cathode",
+              "componentId": "led"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-3",
+            "to": {
+              "terminal": "SW-A1",
+              "componentId": "button-0"
+            },
+            "from": {
+              "terminal": "d2",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-4",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "SW-B1",
+              "componentId": "button-0"
+            },
+            "color": "#149447",
+            "vertices": []
+          }
+        ],
+        "schemaVersion": 4
+      },
+      "updatedAt": "2026-10-08T22:47:37.617Z"
+    }
+  },
+  "expected": {
+    "viewport": {
+      "x": 0,
+      "y": 0,
+      "zoom": 1
+    },
+    "components": [
+      {
+        "id": "uno",
+        "kind": "visual",
+        "name": "Arduino Uno",
+        "value": 5,
+        "pinIds": [
+          "a0",
+          "a1",
+          "a2",
+          "a3",
+          "a4",
+          "a5",
+          "aref",
+          "d0",
+          "d1",
+          "d10",
+          "d11",
+          "d12",
+          "d13",
+          "d2",
+          "d3",
+          "d4",
+          "d5",
+          "d6",
+          "d7",
+          "d8",
+          "d9",
+          "gnd-top",
+          "ioref",
+          "power-3v3",
+          "power-5v",
+          "power-gnd-1",
+          "power-gnd-2",
+          "reset",
+          "scl",
+          "sda",
+          "vin"
+        ],
+        "position": {
+          "x": 120,
+          "y": 120
+        },
+        "variantId": "arduino-uno",
+        "modelProfileId": "arduino-uno-r3",
+        "componentTypeId": "arduino-uno",
+        "stateProperties": {
+          "arduinoSource": "// latest sketch before genuine departure\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n",
+          "arduinoCodeMode": "text",
+          "arduinoWorkspace": "",
+          "arduinoSerialOpen": false,
+          "arduinoBaudRate": 9600
+        },
+        "electricalModelId": "arduino-uno",
+        "modelProfileVersion": 1,
+        "electricalModelVersion": 1
+      },
+      {
+        "id": "resistor",
+        "kind": "resistor",
+        "name": "R1",
+        "value": 333.3,
+        "pinIds": [
+          "lead-1",
+          "lead-2"
+        ],
+        "position": {
+          "x": 650,
+          "y": 190
+        },
+        "rotation": 90,
+        "variantId": "resistor-axial",
+        "modelProfileId": "axial-resistor",
+        "componentTypeId": "resistor-axial",
+        "stateProperties": {
+          "tolerancePercent": 5,
+          "resistanceUnit": "Ω",
+          "powerRatingWatt": 0.25
+        },
+        "electricalModelId": "resistor",
+        "modelProfileVersion": 1,
+        "electricalModelVersion": 1
+      },
+      {
+        "id": "led",
+        "kind": "led",
+        "name": "LED1",
+        "value": 2,
+        "pinIds": [
+          "anode",
+          "cathode"
+        ],
+        "position": {
+          "x": 840,
+          "y": 190
+        },
+        "rotation": 0,
+        "variantId": "led-5mm",
+        "modelProfileId": "generic-red-led",
+        "componentTypeId": "led-5mm",
+        "stateProperties": {
+          "ledColour": "red",
+          "ledBrightness": 0,
+          "ledFault": "none"
+        },
+        "electricalModelId": "ordinary-led",
+        "modelProfileVersion": 1,
+        "electricalModelVersion": 1
+      },
+      {
+        "id": "button-0",
+        "kind": "button",
+        "name": "Кнопка 1",
+        "state": false,
+        "value": 0,
+        "pinIds": [
+          "SW-A1",
+          "SW-A2",
+          "SW-B1",
+          "SW-B2"
+        ],
+        "position": {
+          "x": 510,
+          "y": 410
+        },
+        "rotation": 0,
+        "variantId": "button-tactile-6mm",
+        "modelProfileId": "tactile-button-6mm",
+        "componentTypeId": "button-tactile-6mm",
+        "stateProperties": {
+          "contactState": "released"
+        },
+        "electricalModelId": "momentary-button",
+        "internalConnections": [
+          [
+            "SW-A1",
+            "SW-A2"
+          ],
+          [
+            "SW-B1",
+            "SW-B2"
+          ]
+        ],
+        "modelProfileVersion": 1,
+        "electricalModelVersion": 1
+      }
+    ],
+    "simulation": {
+      "running": false,
+      "maxIterations": 24
+    },
+    "connections": [
+      {
+        "id": "wire-0",
+        "to": {
+          "terminal": "lead-1",
+          "componentId": "resistor"
+        },
+        "from": {
+          "terminal": "d13",
+          "componentId": "uno"
+        },
+        "color": "#149447",
+        "vertices": []
+      },
+      {
+        "id": "wire-1",
+        "to": {
+          "terminal": "anode",
+          "componentId": "led"
+        },
+        "from": {
+          "terminal": "lead-2",
+          "componentId": "resistor"
+        },
+        "color": "#149447",
+        "vertices": []
+      },
+      {
+        "id": "wire-2",
+        "to": {
+          "terminal": "power-gnd-1",
+          "componentId": "uno"
+        },
+        "from": {
+          "terminal": "cathode",
+          "componentId": "led"
+        },
+        "color": "#149447",
+        "vertices": []
+      },
+      {
+        "id": "wire-3",
+        "to": {
+          "terminal": "SW-A1",
+          "componentId": "button-0"
+        },
+        "from": {
+          "terminal": "d2",
+          "componentId": "uno"
+        },
+        "color": "#149447",
+        "vertices": []
+      },
+      {
+        "id": "wire-4",
+        "to": {
+          "terminal": "power-gnd-1",
+          "componentId": "uno"
+        },
+        "from": {
+          "terminal": "SW-B1",
+          "componentId": "button-0"
+        },
+        "color": "#149447",
+        "vertices": []
+      }
+    ],
+    "schemaVersion": 4
+  },
+  "puts": [
+    {
+      "viewport": {
+        "x": 0,
+        "y": 0,
+        "zoom": 1
+      },
+      "components": [
+        {
+          "id": "uno",
+          "kind": "visual",
+          "name": "Arduino Uno",
+          "value": 5,
+          "pinIds": [
+            "a0",
+            "a1",
+            "a2",
+            "a3",
+            "a4",
+            "a5",
+            "aref",
+            "d0",
+            "d1",
+            "d10",
+            "d11",
+            "d12",
+            "d13",
+            "d2",
+            "d3",
+            "d4",
+            "d5",
+            "d6",
+            "d7",
+            "d8",
+            "d9",
+            "gnd-top",
+            "ioref",
+            "power-3v3",
+            "power-5v",
+            "power-gnd-1",
+            "power-gnd-2",
+            "reset",
+            "scl",
+            "sda",
+            "vin"
+          ],
+          "position": {
+            "x": 120,
+            "y": 120
+          },
+          "variantId": "arduino-uno",
+          "modelProfileId": "arduino-uno-r3",
+          "componentTypeId": "arduino-uno",
+          "stateProperties": {
+            "arduinoSource": "// latest sketch before genuine departure\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n",
+            "arduinoCodeMode": "text",
+            "arduinoWorkspace": "",
+            "arduinoSerialOpen": false,
+            "arduinoBaudRate": 9600
+          },
+          "electricalModelId": "arduino-uno",
+          "modelProfileVersion": 1,
+          "electricalModelVersion": 1
+        },
+        {
+          "id": "resistor",
+          "kind": "resistor",
+          "name": "R1",
+          "value": 333.3,
+          "pinIds": [
+            "lead-1",
+            "lead-2"
+          ],
+          "position": {
+            "x": 650,
+            "y": 190
+          },
+          "rotation": 90,
+          "variantId": "resistor-axial",
+          "modelProfileId": "axial-resistor",
+          "componentTypeId": "resistor-axial",
+          "stateProperties": {
+            "tolerancePercent": 5,
+            "resistanceUnit": "Ω",
+            "powerRatingWatt": 0.25
+          },
+          "electricalModelId": "resistor",
+          "modelProfileVersion": 1,
+          "electricalModelVersion": 1
+        },
+        {
+          "id": "led",
+          "kind": "led",
+          "name": "LED1",
+          "value": 2,
+          "pinIds": [
+            "anode",
+            "cathode"
+          ],
+          "position": {
+            "x": 840,
+            "y": 190
+          },
+          "rotation": 0,
+          "variantId": "led-5mm",
+          "modelProfileId": "generic-red-led",
+          "componentTypeId": "led-5mm",
+          "stateProperties": {
+            "ledColour": "red",
+            "ledBrightness": 0,
+            "ledFault": "none"
+          },
+          "electricalModelId": "ordinary-led",
+          "modelProfileVersion": 1,
+          "electricalModelVersion": 1
+        },
+        {
+          "id": "button-0",
+          "kind": "button",
+          "name": "Кнопка 1",
+          "state": false,
+          "value": 0,
+          "pinIds": [
+            "SW-A1",
+            "SW-A2",
+            "SW-B1",
+            "SW-B2"
+          ],
+          "position": {
+            "x": 510,
+            "y": 410
+          },
+          "rotation": 0,
+          "variantId": "button-tactile-6mm",
+          "modelProfileId": "tactile-button-6mm",
+          "componentTypeId": "button-tactile-6mm",
+          "stateProperties": {
+            "contactState": "released"
+          },
+          "electricalModelId": "momentary-button",
+          "internalConnections": [
+            [
+              "SW-A1",
+              "SW-A2"
+            ],
+            [
+              "SW-B1",
+              "SW-B2"
+            ]
+          ],
+          "modelProfileVersion": 1,
+          "electricalModelVersion": 1
+        }
+      ],
+      "simulation": {
+        "running": false,
+        "maxIterations": 24
+      },
+      "connections": [
+        {
+          "id": "wire-0",
+          "to": {
+            "terminal": "lead-1",
+            "componentId": "resistor"
+          },
+          "from": {
+            "terminal": "d13",
+            "componentId": "uno"
+          },
+          "color": "#149447",
+          "vertices": []
+        },
+        {
+          "id": "wire-1",
+          "to": {
+            "terminal": "anode",
+            "componentId": "led"
+          },
+          "from": {
+            "terminal": "lead-2",
+            "componentId": "resistor"
+          },
+          "color": "#149447",
+          "vertices": []
+        },
+        {
+          "id": "wire-2",
+          "to": {
+            "terminal": "power-gnd-1",
+            "componentId": "uno"
+          },
+          "from": {
+            "terminal": "cathode",
+            "componentId": "led"
+          },
+          "color": "#149447",
+          "vertices": []
+        },
+        {
+          "id": "wire-3",
+          "to": {
+            "terminal": "SW-A1",
+            "componentId": "button-0"
+          },
+          "from": {
+            "terminal": "d2",
+            "componentId": "uno"
+          },
+          "color": "#149447",
+          "vertices": []
+        },
+        {
+          "id": "wire-4",
+          "to": {
+            "terminal": "power-gnd-1",
+            "componentId": "uno"
+          },
+          "from": {
+            "terminal": "SW-B1",
+            "componentId": "button-0"
+          },
+          "color": "#149447",
+          "vertices": []
+        }
+      ],
+      "schemaVersion": 4
+    }
+  ],
+  "server": {
+    "project": {
+      "id": "967011c0-2fd3-4b06-af21-100e1dc93e28",
+      "scope": "personal",
+      "classroomId": null,
+      "moduleKey": "electronics",
+      "title": "Sketch durability genuine departure",
+      "status": "active",
+      "createdAt": "2026-10-08T22:47:36.687Z",
+      "updatedAt": "2026-10-08T22:47:37.712Z",
+      "preview": {
+        "digest": "ec2fc549",
+        "descriptor": {
+          "kind": "schematic",
+          "figure": {
+            "shapes": [
+              {
+                "x1": 44,
+                "x2": 574,
+                "y1": 44,
+                "y2": 114,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 574,
+                "x2": 764,
+                "y1": 114,
+                "y2": 114,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 764,
+                "x2": 44,
+                "y1": 114,
+                "y2": 44,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 44,
+                "x2": 434,
+                "y1": 44,
+                "y2": 334,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 434,
+                "x2": 44,
+                "y1": 334,
+                "y2": 44,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x": 22,
+                "y": 22,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 552,
+                "y": 92,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 742,
+                "y": 92,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 412,
+                "y": 312,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              }
+            ],
+            "viewBox": {
+              "width": 808,
+              "height": 378
+            },
+            "background": "#e8edf1"
+          },
+          "summary": "4 компонентов · 5 соединений"
+        }
+      },
+      "snapshotRevision": null,
+      "description": null,
+      "tags": [],
+      "license": "reserved",
+      "copiedFrom": null
+    },
+    "draft": {
+      "projectId": "967011c0-2fd3-4b06-af21-100e1dc93e28",
+      "document": {
+        "viewport": {
+          "x": 0,
+          "y": 0,
+          "zoom": 1
+        },
+        "components": [
+          {
+            "id": "uno",
+            "kind": "visual",
+            "name": "Arduino Uno",
+            "value": 5,
+            "pinIds": [
+              "a0",
+              "a1",
+              "a2",
+              "a3",
+              "a4",
+              "a5",
+              "aref",
+              "d0",
+              "d1",
+              "d10",
+              "d11",
+              "d12",
+              "d13",
+              "d2",
+              "d3",
+              "d4",
+              "d5",
+              "d6",
+              "d7",
+              "d8",
+              "d9",
+              "gnd-top",
+              "ioref",
+              "power-3v3",
+              "power-5v",
+              "power-gnd-1",
+              "power-gnd-2",
+              "reset",
+              "scl",
+              "sda",
+              "vin"
+            ],
+            "position": {
+              "x": 120,
+              "y": 120
+            },
+            "variantId": "arduino-uno",
+            "modelProfileId": "arduino-uno-r3",
+            "componentTypeId": "arduino-uno",
+            "stateProperties": {
+              "arduinoSource": "// latest sketch before genuine departure\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n",
+              "arduinoBaudRate": 9600,
+              "arduinoCodeMode": "text",
+              "arduinoWorkspace": "",
+              "arduinoSerialOpen": false
+            },
+            "electricalModelId": "arduino-uno",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "resistor",
+            "kind": "resistor",
+            "name": "R1",
+            "value": 333.3,
+            "pinIds": [
+              "lead-1",
+              "lead-2"
+            ],
+            "position": {
+              "x": 650,
+              "y": 190
+            },
+            "rotation": 90,
+            "variantId": "resistor-axial",
+            "modelProfileId": "axial-resistor",
+            "componentTypeId": "resistor-axial",
+            "stateProperties": {
+              "resistanceUnit": "Ω",
+              "powerRatingWatt": 0.25,
+              "tolerancePercent": 5
+            },
+            "electricalModelId": "resistor",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "led",
+            "kind": "led",
+            "name": "LED1",
+            "value": 2,
+            "pinIds": [
+              "anode",
+              "cathode"
+            ],
+            "position": {
+              "x": 840,
+              "y": 190
+            },
+            "rotation": 0,
+            "variantId": "led-5mm",
+            "modelProfileId": "generic-red-led",
+            "componentTypeId": "led-5mm",
+            "stateProperties": {
+              "ledFault": "none",
+              "ledColour": "red",
+              "ledBrightness": 0
+            },
+            "electricalModelId": "ordinary-led",
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          },
+          {
+            "id": "button-0",
+            "kind": "button",
+            "name": "Кнопка 1",
+            "state": false,
+            "value": 0,
+            "pinIds": [
+              "SW-A1",
+              "SW-A2",
+              "SW-B1",
+              "SW-B2"
+            ],
+            "position": {
+              "x": 510,
+              "y": 410
+            },
+            "rotation": 0,
+            "variantId": "button-tactile-6mm",
+            "modelProfileId": "tactile-button-6mm",
+            "componentTypeId": "button-tactile-6mm",
+            "stateProperties": {
+              "contactState": "released"
+            },
+            "electricalModelId": "momentary-button",
+            "internalConnections": [
+              [
+                "SW-A1",
+                "SW-A2"
+              ],
+              [
+                "SW-B1",
+                "SW-B2"
+              ]
+            ],
+            "modelProfileVersion": 1,
+            "electricalModelVersion": 1
+          }
+        ],
+        "simulation": {
+          "running": false,
+          "maxIterations": 24
+        },
+        "connections": [
+          {
+            "id": "wire-0",
+            "to": {
+              "terminal": "lead-1",
+              "componentId": "resistor"
+            },
+            "from": {
+              "terminal": "d13",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-1",
+            "to": {
+              "terminal": "anode",
+              "componentId": "led"
+            },
+            "from": {
+              "terminal": "lead-2",
+              "componentId": "resistor"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-2",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "cathode",
+              "componentId": "led"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-3",
+            "to": {
+              "terminal": "SW-A1",
+              "componentId": "button-0"
+            },
+            "from": {
+              "terminal": "d2",
+              "componentId": "uno"
+            },
+            "color": "#149447",
+            "vertices": []
+          },
+          {
+            "id": "wire-4",
+            "to": {
+              "terminal": "power-gnd-1",
+              "componentId": "uno"
+            },
+            "from": {
+              "terminal": "SW-B1",
+              "componentId": "button-0"
+            },
+            "color": "#149447",
+            "vertices": []
+          }
+        ],
+        "schemaVersion": 4
+      },
+      "revision": 3,
+      "updatedAt": "Thu Oct 08 2026 22:47:37 GMT+0000 (Coordinated Universal Time)",
+      "preview": {
+        "digest": "ec2fc549",
+        "descriptor": {
+          "kind": "schematic",
+          "figure": {
+            "shapes": [
+              {
+                "x1": 44,
+                "x2": 574,
+                "y1": 44,
+                "y2": 114,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 574,
+                "x2": 764,
+                "y1": 114,
+                "y2": 114,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 764,
+                "x2": 44,
+                "y1": 114,
+                "y2": 44,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 44,
+                "x2": 434,
+                "y1": 44,
+                "y2": 334,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x1": 434,
+                "x2": 44,
+                "y1": 334,
+                "y2": 44,
+                "shape": "line",
+                "width": 5,
+                "stroke": "#149447"
+              },
+              {
+                "x": 22,
+                "y": 22,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 552,
+                "y": 92,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 742,
+                "y": 92,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              },
+              {
+                "x": 412,
+                "y": 312,
+                "fill": "#3f6f8f",
+                "shape": "rect",
+                "width": 44,
+                "height": 44,
+                "radius": 6,
+                "stroke": "#22475c"
+              }
+            ],
+            "viewBox": {
+              "width": 808,
+              "height": 378
+            },
+            "background": "#e8edf1"
+          },
+          "summary": "4 компонентов · 5 соединений"
+        }
+      }
+    },
+    "versions": [],
+    "result": {
+      "solved": true,
+      "status": "solved",
+      "current": 0.008975179738,
+      "components": [
+        {
+          "componentId": "button-0",
+          "voltageDrop": 0,
+          "current": 0,
+          "terminalVoltages": {
+            "SW-A1": 0,
+            "SW-A2": 0,
+            "SW-B1": 0,
+            "SW-B2": 0
+          },
+          "power": 0,
+          "brightness": 0
+        },
+        {
+          "componentId": "led",
+          "voltageDrop": 1.918820797536,
+          "current": 0.008975179731,
+          "terminalVoltages": {
+            "anode": 1.918820797536,
+            "cathode": 0
+          },
+          "power": 0.01722176153,
+          "brightness": 69.73,
+          "branchCurrents": {
+            "led": 0.008975179731
+          },
+          "branchBrightness": {
+            "led": 69.73
+          },
+          "continuousCurrentLimitAmp": 0.02,
+          "destructiveCurrentLimitAmp": 0.12,
+          "reverseVoltageLimitVolt": 5,
+          "junctionState": "conducting",
+          "currentUtilizationPercent": 44.88,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal",
+          "lit": true
+        },
+        {
+          "componentId": "resistor",
+          "voltageDrop": 2.991427405083,
+          "current": 0.008975179733,
+          "terminalVoltages": {
+            "lead-1": 4.910248202619,
+            "lead-2": 1.918820797536
+          },
+          "terminalCurrents": {
+            "lead-1": 0.008975179733,
+            "lead-2": -0.008975179733
+          },
+          "power": 0.02684859862,
+          "brightness": 0,
+          "powerUtilizationPercent": 10.74,
+          "stressState": "normal",
+          "deviceHealth": "normal",
+          "damageState": "none",
+          "presentationState": "normal"
+        },
+        {
+          "componentId": "uno",
+          "voltageDrop": 4.910248202619,
+          "current": 0.008975179738,
+          "terminalVoltages": {
+            "a0": 0,
+            "a1": 0,
+            "a2": 0,
+            "a3": 0,
+            "a4": 0,
+            "a5": 0,
+            "aref": 0,
+            "d0": 0,
+            "d1": 0,
+            "d10": 0,
+            "d11": 0,
+            "d12": 0,
+            "d13": 4.910248202619,
+            "d2": 0,
+            "d3": 0,
+            "d4": 0,
+            "d5": 0,
+            "d6": 0,
+            "d7": 0,
+            "d8": 0,
+            "d9": 0,
+            "gnd-top": 0,
+            "ioref": 0,
+            "power-3v3": 3.299999999999,
+            "power-5v": 5,
+            "power-gnd-1": 0,
+            "power-gnd-2": 0,
+            "reset": 0,
+            "scl": 0,
+            "sda": 0,
+            "vin": 0
+          },
+          "power": 0.044070360213,
+          "brightness": 0,
+          "branchCurrents": {
+            "d13": 0.008975179738,
+            "power-3v3": 0,
+            "power-5v": 0
+          },
+          "energized": true
+        }
+      ],
+      "nodes": [
+        {
+          "id": "net-0",
+          "voltage": 0,
+          "terminals": [
+            "button-0:SW-A1",
+            "button-0:SW-A2",
+            "uno:d2"
+          ]
+        },
+        {
+          "id": "net-1",
+          "voltage": 0,
+          "terminals": [
+            "button-0:SW-B1",
+            "button-0:SW-B2",
+            "led:cathode",
+            "uno:gnd-top",
+            "uno:power-gnd-1",
+            "uno:power-gnd-2"
+          ]
+        },
+        {
+          "id": "net-10",
+          "voltage": 0,
+          "terminals": [
+            "uno:aref"
+          ]
+        },
+        {
+          "id": "net-11",
+          "voltage": 0,
+          "terminals": [
+            "uno:d0"
+          ]
+        },
+        {
+          "id": "net-12",
+          "voltage": 0,
+          "terminals": [
+            "uno:d1"
+          ]
+        },
+        {
+          "id": "net-13",
+          "voltage": 0,
+          "terminals": [
+            "uno:d10"
+          ]
+        },
+        {
+          "id": "net-14",
+          "voltage": 0,
+          "terminals": [
+            "uno:d11"
+          ]
+        },
+        {
+          "id": "net-15",
+          "voltage": 0,
+          "terminals": [
+            "uno:d12"
+          ]
+        },
+        {
+          "id": "net-16",
+          "voltage": 0,
+          "terminals": [
+            "uno:d3"
+          ]
+        },
+        {
+          "id": "net-17",
+          "voltage": 0,
+          "terminals": [
+            "uno:d4"
+          ]
+        },
+        {
+          "id": "net-18",
+          "voltage": 0,
+          "terminals": [
+            "uno:d5"
+          ]
+        },
+        {
+          "id": "net-19",
+          "voltage": 0,
+          "terminals": [
+            "uno:d6"
+          ]
+        },
+        {
+          "id": "net-2",
+          "voltage": 1.918820797536,
+          "terminals": [
+            "led:anode",
+            "resistor:lead-2"
+          ]
+        },
+        {
+          "id": "net-20",
+          "voltage": 0,
+          "terminals": [
+            "uno:d7"
+          ]
+        },
+        {
+          "id": "net-21",
+          "voltage": 0,
+          "terminals": [
+            "uno:d8"
+          ]
+        },
+        {
+          "id": "net-22",
+          "voltage": 0,
+          "terminals": [
+            "uno:d9"
+          ]
+        },
+        {
+          "id": "net-23",
+          "voltage": 0,
+          "terminals": [
+            "uno:ioref"
+          ]
+        },
+        {
+          "id": "net-24",
+          "voltage": 3.299999999999,
+          "terminals": [
+            "uno:power-3v3"
+          ]
+        },
+        {
+          "id": "net-25",
+          "voltage": 5,
+          "terminals": [
+            "uno:power-5v"
+          ]
+        },
+        {
+          "id": "net-26",
+          "voltage": 0,
+          "terminals": [
+            "uno:reset"
+          ]
+        },
+        {
+          "id": "net-27",
+          "voltage": 0,
+          "terminals": [
+            "uno:scl"
+          ]
+        },
+        {
+          "id": "net-28",
+          "voltage": 0,
+          "terminals": [
+            "uno:sda"
+          ]
+        },
+        {
+          "id": "net-29",
+          "voltage": 0,
+          "terminals": [
+            "uno:vin"
+          ]
+        },
+        {
+          "id": "net-3",
+          "voltage": 4.910248202619,
+          "terminals": [
+            "resistor:lead-1",
+            "uno:d13"
+          ]
+        },
+        {
+          "id": "net-4",
+          "voltage": 0,
+          "terminals": [
+            "uno:a0"
+          ]
+        },
+        {
+          "id": "net-5",
+          "voltage": 0,
+          "terminals": [
+            "uno:a1"
+          ]
+        },
+        {
+          "id": "net-6",
+          "voltage": 0,
+          "terminals": [
+            "uno:a2"
+          ]
+        },
+        {
+          "id": "net-7",
+          "voltage": 0,
+          "terminals": [
+            "uno:a3"
+          ]
+        },
+        {
+          "id": "net-8",
+          "voltage": 0,
+          "terminals": [
+            "uno:a4"
+          ]
+        },
+        {
+          "id": "net-9",
+          "voltage": 0,
+          "terminals": [
+            "uno:a5"
+          ]
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "circuit_ok",
+          "severity": "info",
+          "message": "DC-расчёт завершён. Ток источника 8.98 мА."
+        }
+      ],
+      "iterations": 3,
+      "numericalResidual": 1.1102230246251565e-16,
+      "numericalTolerance": 5.0000000000000004e-8,
+      "controllerState": {
+        "version": 1,
+        "simulationTimeMs": 0,
+        "boards": [
+          {
+            "componentId": "uno",
+            "runtime": {
+              "version": 7,
+              "clockProfile": "legacy-ms-v1",
+              "programFingerprint": "arduino-v1-122-5cffcc0b-76a994f7",
+              "virtualTimeMs": 0,
+              "resumeAtMs": 10,
+              "phase": "loop",
+              "programCounter": 2,
+              "loopIterationActive": true,
+              "loopStartedAtMs": 0,
+              "loopIterations": 1,
+              "nextEventSequence": 3,
+              "eventQueue": [
+                {
+                  "kind": "pin-mode-change",
+                  "terminal": "d13",
+                  "mode": "OUTPUT",
+                  "sequence": 0,
+                  "atMicroseconds": 0
+                },
+                {
+                  "kind": "output-change",
+                  "terminal": "d13",
+                  "voltage": 0,
+                  "sequence": 1,
+                  "atMicroseconds": 0
+                },
+                {
+                  "kind": "output-change",
+                  "terminal": "d13",
+                  "voltage": 5,
+                  "sequence": 2,
+                  "atMicroseconds": 0
+                }
+              ],
+              "variables": {},
+              "locals": {},
+              "scopes": [
+                {},
+                {}
+              ],
+              "faults": [],
+              "pinModes": {
+                "d13": "OUTPUT"
+              },
+              "outputVoltages": {
+                "d13": 5
+              },
+              "tones": {}
+            }
+          }
+        ]
+      },
+      "quality": {
+        "finite": true,
+        "passed": true,
+        "maxKclResidualAmp": 1.2e-11,
+        "maxSourceVoltageResidualVolt": 0,
+        "powerBalanceResidualWatt": 0,
+        "powerBalanceToleranceWatt": 1e-9,
+        "kclToleranceAmp": 0.000001,
+        "sourceVoltageToleranceVolt": 1e-9
+      },
+      "topologySignature": "{\"components\":[\"button-0\",\"led\",\"resistor\",\"uno\"],\"nets\":[[\"net-0\",[\"button-0:SW-A1\",\"button-0:SW-A2\",\"uno:d2\"]],[\"net-1\",[\"button-0:SW-B1\",\"button-0:SW-B2\",\"led:cathode\",\"uno:gnd-top\",\"uno:power-gnd-1\",\"uno:power-gnd-2\"]],[\"net-2\",[\"led:anode\",\"resistor:lead-2\"]],[\"net-3\",[\"resistor:lead-1\",\"uno:d13\"]],[\"net-4\",[\"uno:a0\"]],[\"net-5\",[\"uno:a1\"]],[\"net-6\",[\"uno:a2\"]],[\"net-7\",[\"uno:a3\"]],[\"net-8\",[\"uno:a4\"]],[\"net-9\",[\"uno:a5\"]],[\"net-10\",[\"uno:aref\"]],[\"net-11\",[\"uno:d0\"]],[\"net-12\",[\"uno:d1\"]],[\"net-13\",[\"uno:d10\"]],[\"net-14\",[\"uno:d11\"]],[\"net-15\",[\"uno:d12\"]],[\"net-16\",[\"uno:d3\"]],[\"net-17\",[\"uno:d4\"]],[\"net-18\",[\"uno:d5\"]],[\"net-19\",[\"uno:d6\"]],[\"net-20\",[\"uno:d7\"]],[\"net-21\",[\"uno:d8\"]],[\"net-22\",[\"uno:d9\"]],[\"net-23\",[\"uno:ioref\"]],[\"net-24\",[\"uno:power-3v3\"]],[\"net-25\",[\"uno:power-5v\"]],[\"net-26\",[\"uno:reset\"]],[\"net-27\",[\"uno:scl\"]],[\"net-28\",[\"uno:sda\"]],[\"net-29\",[\"uno:vin\"]]]}",
+      "simulationInputDigest": "01413c373cb631e7ab326c84106cec5cb84f8dca6ccf21eaf313a21015259d0f",
+      "solverRevision": "asa-electronics-solver-v21",
+      "modelSetDigest": "sha256:cf1c1cdf671948ddaa41e25ff2d9d8a33dc43596d4faffe57552f5e4e60a2a59",
+      "analysis": {
+        "electricalMode": "dc",
+        "controllerRuntime": "arduino"
+      }
+    }
+  }
+}

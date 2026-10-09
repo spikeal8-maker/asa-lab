@@ -5,6 +5,8 @@ do not preload that full specification or the Electronics source/test trees.
 
 > **Classroom stabilization 2.1:** owner programme [#452](https://github.com/spikeal8-maker/asa-lab/issues/452) is governed by [ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md](ASA_ELECTRONICS_STABILIZATION_SPEC_V2.md). Weekly-log evidence is in [evidence/stabilization-20261001-weekly-log-findings.md](evidence/stabilization-20261001-weekly-log-findings.md). Prepared owner decisions include the 60-second autosave task [#459](https://github.com/spikeal8-maker/asa-lab/issues/459); classroom FRP/session/save load is tracked in [#460](https://github.com/spikeal8-maker/asa-lab/issues/460). These links do not override the active task in `current.yaml`.
 
+> **Owner priority update 3.0 (08.10.2026):** [E01–E35 / K0–K8](ASA_ELECTRONICS_OWNER_REPAIR_PRIORITY_20261008.md) refines the existing programme #452. P0 E01 save recovery precedes visual work; K0 version/backup verification is read-only and parallel. The [save-recovery card](tasks/TASK-ELECTRONICS-SAVE-RECOVERY-001.md) defines E01; concrete task selection lives only in current.yaml, including separately selected dependencies. Suspended525 and accepted results remain preserved. This owner input grants no school deployment or live data operation.
+
 ## 1. Confirm the selected task
 
 Follow root `AGENTS.md` and `START_HERE_FOR_AI.md`: run
@@ -19,6 +21,14 @@ from their numbering.
 
 Before executable work, run `pnpm validate:electronics-agent-docs --task <selected-id>`.
 The explicit ID must match canonical `in_progress` selection and a valid concrete card.
+An owner-authorized parallel repair uses an existing `parallel_lanes` record with its
+own unique lane/task IDs and explicit `parent_lane: electronics`; it runs preflight
+with `--scope <that-lane-id>` and validates its own exact selected task ID. Exactly
+one root `electronics` lane remains required. The controller selects child tasks on
+main and includes the exact card/router in existing context hints; a parent marker
+does not activate an unselected card, inherit permission or bypass programme/task
+blockers, dirty-path handoff or independent review. The validator checks every active
+root/child card, and `--task` accepts only one selected `in_progress` task.
 If the lane is `in_review` or `blocked`, implementation stops: use the declared review/blocker
 path only. A review-found code repair must be explicitly returned to an executable
 `in_progress` scope before editing production runtime.

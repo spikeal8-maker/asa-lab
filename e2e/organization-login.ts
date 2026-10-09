@@ -19,10 +19,38 @@ export async function loginWithOrganization(
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   const submit = page.getByRole('button', { name: 'Войти через организацию' });
   await expect(submit).toBeEnabled();
+  const loginResponse = page.waitForResponse(
+    (response) => {
+      if (
+        new URL(response.url()).pathname !== '/api/auth/login' ||
+        response.request().method() !== 'POST'
+      ) {
+        return false;
+      }
+      const request = response.request().postDataJSON();
+      return (
+        request.workspace === credentials.workspace.trim() &&
+        request.email === credentials.email.trim()
+      );
+    },
+    { timeout: 5_000 },
+  );
   await submit.click();
-  await expect(
-    page.getByRole('heading', {
-      name: /^(Мои проекты|Главная)$/,
-    }),
-  ).toBeVisible();
+  const response = await loginResponse;
+  expect(response.status()).toBe(200);
+  const session = (await response.json()) as {
+    authenticated?: boolean;
+    user?: { email?: string };
+  };
+  expect(session.authenticated, 'Organization login authenticated the requested account').toBe(
+    true,
+  );
+  expect(
+    session.user?.email?.toLowerCase() === credentials.email.trim().toLowerCase(),
+    'Organization login returned the requested account',
+  ).toBe(true);
+  await expect(page.getByRole('banner').getByLabel(/^Меню аккаунта /)).toBeVisible();
+  await expect(page).toHaveURL(/\/#\/home$/);
+  // Home retains its named landmark after the visible page heading was removed.
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
 }

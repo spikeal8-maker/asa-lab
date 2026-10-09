@@ -1282,10 +1282,9 @@ export function useElectronicsWorkbench(projectId: string) {
     componentId: string,
     properties: Readonly<Record<string, ProductionStateValue>>,
   ): void {
-    // Arduino text is persisted after a short debounce. Always merge it into
-    // the newest document instead of the render snapshot captured when the
-    // timer was created; otherwise switching between two boards can restore
-    // the previous source of the first board.
+    // Merge input into the newest document, including edits made before this
+    // render commits. The panel's render snapshot must not restore an older
+    // source or overwrite another component's latest edit.
     const currentDocument = getCurrentDocument();
     if (!currentDocument) return;
     const component = currentDocument.components.find((item) => item.id === componentId);
@@ -1295,6 +1294,20 @@ export function useElectronicsWorkbench(projectId: string) {
     ) {
       return;
     }
+    // Initial Blockly publication may repeat an already saved program. Keep
+    // its canonical reference clean; compare arrays by their persisted values.
+    const unchanged = Object.entries(properties).every(([key, value]) => {
+      const previous = component.stateProperties?.[key];
+      if (Array.isArray(value)) {
+        return (
+          Array.isArray(previous) &&
+          previous.length === value.length &&
+          value.every((entry, index) => entry === previous[index])
+        );
+      }
+      return previous === value;
+    });
+    if (unchanged) return;
     commitDocument({
       ...currentDocument,
       components: currentDocument.components.map((item) =>

@@ -3,7 +3,8 @@ import { saveProjectSnapshot } from '../project-snapshot-client';
 import { BlocksEditorShell } from './BlocksEditorShell';
 import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol';
 import { requestBlocksRuntimeSession } from './runtime-session';
-import { reportClientDiagnostic } from '../client-diagnostics';
+import { beginDiagnosticContext, reportClientDiagnostic } from '../client-diagnostics';
+import { newClientId } from '../client-id';
 
 interface BlocksEditorProps {
   projectId: string;
@@ -47,6 +48,8 @@ export function BlocksEditor({
   const onHomeClickRef = useRef(onHomeClick);
   const [startupState, setStartupState] = useState<BlocksEditorStartupState>('loading');
   const [attempt, setAttempt] = useState(0);
+  const diagnosticInstance = useMemo(() => newClientId(), [projectId, attempt]);
+  useEffect(() => beginDiagnosticContext('scratch', diagnosticInstance), [diagnosticInstance]);
 
   onHomeClickRef.current = onHomeClick;
 
@@ -74,6 +77,31 @@ export function BlocksEditor({
     let bridge: BlocksRuntimeBridge | null = null;
     let disposed = false;
     let editorReady = false;
+    let lastHeartbeat = Date.now();
+    let unresponsive = false;
+    let lastWatch = Date.now();
+    const noteVisible = (): void => {
+      lastHeartbeat = Date.now();
+    };
+    document.addEventListener('visibilitychange', noteVisible);
+    const heartbeatTimer = window.setInterval(() => {
+      const now = Date.now();
+      const parentDelay = now - lastWatch;
+      lastWatch = now;
+      if (parentDelay > 30_000) {
+        lastHeartbeat = now;
+        return;
+      }
+      if (!editorReady || document.visibilityState !== 'visible') return;
+      const delay = Date.now() - lastHeartbeat;
+      if (delay > 60_000 && !unresponsive) {
+        unresponsive = true;
+        reportClientDiagnostic('editor_unresponsive', 'scratch', {
+          phase: 'runtime',
+          durationMs: delay,
+        });
+      }
+    }, 15_000);
     let loadGeneration = 0;
     let requestController: AbortController | null = null;
     let refreshTimer: number | null = null;
@@ -157,8 +185,37 @@ export function BlocksEditor({
     const onMessage = (event: MessageEvent): void => {
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
+      if (
+        payload['messageType'] === 'ASA_BLOCKS_STATUS' &&
+        payload['status'] === 'request-failed'
+      ) {
+        reportClientDiagnostic('request_failed', 'scratch', {
+          phase: 'request',
+          ...(typeof payload['httpStatus'] === 'number'
+            ? { httpStatus: payload['httpStatus'] }
+            : {}),
+          ...(typeof payload['relatedRequestId'] === 'string'
+            ? { relatedRequestId: payload['relatedRequestId'] }
+            : {}),
+          ...(typeof payload['durationMs'] === 'number'
+            ? { durationMs: payload['durationMs'] }
+            : {}),
+        });
+      }
+      if (
+        payload['messageType'] === 'ASA_BLOCKS_STATUS' &&
+        payload['status'] === 'runtime-heartbeat'
+      ) {
+        lastHeartbeat = Date.now();
+        reportClientDiagnostic(unresponsive ? 'editor_recovered' : 'editor_heartbeat', 'scratch', {
+          phase: 'runtime',
+        });
+        unresponsive = false;
+      }
       if (payload['messageType'] === 'ASA_BLOCKS_STATUS' && payload['status'] === 'editor-ready') {
         editorReady = true;
+        lastHeartbeat = Date.now();
+        reportClientDiagnostic('editor_ready', 'scratch', { phase: 'startup' });
         window.clearTimeout(startupTimer);
         setStartupState('ready');
       }
@@ -222,6 +279,9 @@ export function BlocksEditor({
     };
 
     const onLoad = (): void => {
+      editorReady = false;
+      unresponsive = false;
+      lastHeartbeat = Date.now();
       requestController?.abort();
       refreshController?.abort();
       clearRefreshTimer();
@@ -245,6 +305,8 @@ export function BlocksEditor({
       refreshController?.abort();
       clearRefreshTimer();
       window.clearTimeout(startupTimer);
+      window.clearInterval(heartbeatTimer);
+      document.removeEventListener('visibilitychange', noteVisible);
       frame.removeEventListener('load', onLoad);
       window.removeEventListener('message', onMessage);
       bridge?.stop();
@@ -279,7 +341,7 @@ export function BlocksEditor({
           key={attempt}
           ref={iframeRef}
           title="Scratch runtime"
-          src="/internal/blocks/?asaStatus=parent"
+          src={`/internal/blocks/?asaStatus=parent&diagnosticInstance=${diagnosticInstance}`}
         />
       </BlocksEditorShell>
       <div

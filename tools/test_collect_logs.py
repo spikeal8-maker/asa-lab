@@ -1,14 +1,256 @@
 import json
+import gzip
+import secrets
+import zipfile
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
+import time
+from unittest.mock import patch
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from collect_logs import Collector, normalize, now
+from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health
 
 
 class CollectorTests(unittest.TestCase):
+    def test_first_startup_failure_publishes_health_without_a_catalog(self):
+        with tempfile.TemporaryDirectory() as temp:
+            result=subprocess.run([sys.executable,str(Path(__file__).with_name('collect_logs.py')),'--root',temp,'--once'],capture_output=True,timeout=10)
+            self.assertNotEqual(result.returncode,0)
+            health=json.loads((Path(temp)/'.asa/diagnostics/store/collector-health.json').read_text())
+            self.assertEqual(health['state'],'error');self.assertIsNone(health['lastSuccessAt'])
+    def test_resource_sample_survives_database_failure_without_sql_or_secrets(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp),{});c.postgres='fixture';c.containers={}
+            c.command=lambda *args,**kwargs: (_ for _ in ()).throw(RuntimeError('password=private-value'))
+            c.telemetry();c.telemetry()
+            events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
+            self.assertEqual(len(events),1);payload=json.loads(events[0]['message'])
+            self.assertTrue(payload['incomplete']);self.assertGreater(payload['host']['diskFreeBytes'],0)
+            self.assertNotIn('private-value',events[0]['message']);c.db.close()
+    def test_history_reconciliation_is_independent_of_fresh_poll_age(self):
+        import csv, io
+        with tempfile.TemporaryDirectory() as temp:
+            c = Collector(Path(temp), {}); c.postgres = 'fixture'
+            stamp = (datetime.now(timezone.utc)-timedelta(days=3)).isoformat()
+            row = dict(id='retained-native-id', created_at=stamp, action='fixture')
+            stream = io.StringIO(); csv.writer(stream).writerow([json.dumps(row)])
+            queries = []
+            def command(args, **kwargs):
+                sql = kwargs['sql']; queries.append(sql)
+                return stream.getvalue().encode() if '"audit_events"' in sql and ' OR ' not in sql else b''
+            c.command = command
+            with patch('collect_logs.time.time', return_value=100000): c.database()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            with patch('collect_logs.time.time', return_value=100121): c.database()
+            with patch('collect_logs.time.time', return_value=100242): c.database()
+            self.assertEqual(len([s for s in queries if ' OR ' not in s]), 9)
+            with patch('collect_logs.time.time', return_value=121601): c.database()
+            self.assertEqual(len([s for s in queries if ' OR ' not in s]), 18)
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            c.publish(); catalog=json.loads((c.store/'catalog.json').read_text())
+            source=next(s for s in catalog['sources'] if s['source']=='database-history:audit_events')
+            self.assertIsNotNone(source['retainedFrom']); self.assertEqual(source['state'], 'ok'); c.db.close()
+
+    def test_failed_history_does_not_advance_cursor(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp), {}); c.postgres='fixture'
+            cursor=(datetime.now(timezone.utc)-timedelta(days=4)).isoformat()
+            c.set_state('db:history:audit_events', cursor)
+            def command(args, **kwargs):
+                if ' OR ' not in kwargs['sql']: raise RuntimeError('bounded query timeout')
+                return b''
+            c.command=command; c.database()
+            self.assertEqual(c.state('db:history:audit_events'),cursor)
+            self.assertIsNone(c.state('db:history:audit_events:completed'))
+            self.assertEqual(c.state('db:history:audit_events:span'),15*86400); c.db.close()
+
+    def test_compaction_recovers_after_file_write_without_losing_ids_or_snapshot(self):
+        for reopen in (False, True):
+            with tempfile.TemporaryDirectory() as temp:
+                root=Path(temp); c=Collector(root,{}); c.reader_format=2; ids=set(); metadata={}
+                for i in range(256):
+                    event=normalize('api','retained '+str(i),now(),str(i)); ids.add(event['id']); c.add(event)
+                    meta=c.write_segment(f'seg-{i+1:016d}-{i+1:016d}.jsonl',[event]); metadata[meta['file']]=meta
+                c.db.execute('UPDATE events SET published=1'); c.set_state('segments',metadata); c.db.commit()
+                with patch.object(c,'compact',side_effect=lambda s,r:(s,r)): c.publish()
+                before=json.loads((c.store/'catalog.json').read_text()); write=c.write_segment
+                def interrupted(*args): write(*args); raise RuntimeError('simulated power loss')
+                c.write_segment=interrupted
+                with self.assertRaisesRegex(RuntimeError,'power loss'):c.publish()
+                self.assertIsNotNone(c.state('compaction:pending')); c.db.rollback()
+                if reopen:
+                    c.db.close(); c=Collector(root,{})
+                else: c.write_segment=write
+                c.reader_format=2; c.publish()
+                catalog=json.loads((c.store/'catalog.json').read_text())
+                events=[json.loads(line) for s in catalog['segments'] for line in gzip.decompress((c.store/s['file']).read_bytes()).splitlines()]
+                self.assertEqual({e['id'] for e in events},ids); self.assertEqual(len(events),256)
+                self.assertLess(len(catalog['segments']),256)
+                self.assertTrue(all((c.store/s['file']).exists() for s in before['segments']))
+                c.add(normalize('api','after recovery',now(),'later'))
+                self.assertGreater(c.db.execute('SELECT max(seq) FROM events').fetchone()[0],288); c.db.close()
+
+    def test_copy_rotation_requires_verified_bytes_and_keeps_repetitions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); directory=root/'logs';directory.mkdir(); active=directory/'frpc.log'
+            active.write_text('ERROR repeat\nERROR repeat\n',encoding='utf8')
+            c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'tunnel','path':str(directory)}]})
+            c.files()
+            # Upgrade: the old cursor is at EOF but has no rotation fingerprint.
+            c.db.execute("DELETE FROM state WHERE key LIKE 'file:rotation:%'");c.files()
+            (directory/'frpc.20261009-000000.log').write_bytes(active.read_bytes()+b'ERROR extra\n')
+            active.write_text('ERROR new generation\n',encoding='utf8');c.files();c.files()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],4)
+            (directory/'independent.log').write_text('ERROR repeat\nERROR repeat\n',encoding='utf8');c.files()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],6);c.db.close()
+
+    def test_transcript_time_is_labelled_and_health_retains_last_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); file=root/'backup.log'; file.write_text('Start time: 20261001083000\nbackup complete\nStart time: 99999999999999\n',encoding='utf8')
+            c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'backup','path':str(file)}]});c.files()
+            events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
+            self.assertEqual(len(events),3);self.assertTrue(all(e['timeBasis']=='transcript' for e in events));c.db.close()
+            write_collector_health(root,'ok',now()); first=json.loads((root/'.asa/diagnostics/store/collector-health.json').read_text())
+            write_collector_health(root,'error',detail='password=private-value')
+            health=json.loads((root/'.asa/diagnostics/store/collector-health.json').read_text())
+            self.assertEqual(health['lastSuccessAt'],first['lastSuccessAt']);self.assertNotIn('private-value',health['detail'])
+
+    def test_empty_legacy_index_keeps_sequence_after_atomic_swap(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);c=Collector(root,{});c.add(normalize('api','expired',now(),'expired'))
+            c.db.execute('DELETE FROM events');c.db.execute("UPDATE sqlite_sequence SET seq=777 WHERE name='events'")
+            c.set_state('index:version',1);c.db.commit();c.db.close()
+            c=Collector(root,{});c.add(normalize('api','next',now(),'next'))
+            self.assertEqual(c.db.execute('SELECT seq FROM events').fetchone()[0],778);c.db.close()
+
+    def test_retirement_clock_starts_after_published_catalog_exclusion(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp),{});c.reader_format=2;c.add(normalize('api','old snapshot',now(),'old'));c.publish()
+            catalog=json.loads((c.store/'catalog.json').read_text());name=catalog['segments'][0]['file'];file=c.store/name
+            # Model a crash after retirement commit but before catalog replacement.
+            c.set_state('retired:segments',{name:1});c.db.execute('DELETE FROM events');c.db.commit()
+            with patch('collect_logs.time.time',return_value=10000):c.publish()
+            self.assertTrue(file.exists());self.assertIsNone(c.state('retired:segments')[name])
+            with patch('collect_logs.time.time',return_value=10020):c.publish()
+            self.assertTrue(file.exists())
+            with patch('collect_logs.time.time',return_value=10020+RETIRE_SECONDS-1):c.publish()
+            self.assertTrue(file.exists())
+            with patch('collect_logs.time.time',return_value=10020+RETIRE_SECONDS):c.publish()
+            self.assertFalse(file.exists());c.db.close()
+
+    def test_email_redaction_handles_long_identifiers_without_quadratic_delay(self):
+        started=time.monotonic()
+        for value in ['a'*100000, 'a'*100000+'@invalid', 'a'*100000+'@example.org', 'user.name+tag@example.org']:
+            result=clean(value)
+            if value.endswith('.org'): self.assertEqual(result,'[email]')
+            else: self.assertEqual(result,value)
+        self.assertLess(time.monotonic()-started,3)
+
+    def test_corrupt_segment_upgrade_preserves_private_payloads(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);c=Collector(root,{});event=normalize('api','kept private',now(),'kept');c.add(event);c.publish()
+            c.set_state('index:version',1)
+            c.db.execute('UPDATE events SET id=?,payload=?',(event['id'],json.dumps(event)));c.db.commit()
+            file=next(c.store.glob('seg-*.jsonl'));file.write_text('corrupt\n');c.db.close()
+            with self.assertRaisesRegex(RuntimeError,'private payloads were preserved'):Collector(root,{})
+            import sqlite3
+            with sqlite3.connect(root/'.asa/diagnostics/private/index.sqlite') as db:
+                self.assertEqual(json.loads(db.execute('SELECT payload FROM events').fetchone()[0])['id'],event['id'])
+            db.close()
+
+    def test_source_coverage_uses_actual_source_rows_in_mixed_segment(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp),{});c.reader_format=2
+            later=now();earlier=(datetime.now(timezone.utc)-timedelta(days=2)).isoformat(timespec='milliseconds').replace('+00:00','Z')
+            c.add(normalize('api','old',earlier,'old'));c.add(normalize('scratch','new',later,'new'));c.status('scratch','ok');c.publish()
+            cat=json.loads((c.store/'catalog.json').read_text());source=cat['sources'][0]
+            self.assertEqual((source['retainedFrom'],source['retainedTo']),(later,later))
+            self.assertEqual(cat['segments'][0]['schema'],2);self.assertIn('sha256',cat['segments'][0]);c.db.close()
+
+    def test_short_file_rewrite_is_collected_as_a_new_generation(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);file=root/'test.log';file.write_text('ERROR first\n')
+            c=Collector(root,{'includeDockerDesktop':False,'fileSources':[{'source':'test','path':str(file)}]})
+            c.files();file.write_text('ERROR other\n');c.files();c.files()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],2);c.db.close()
+
+    def test_explicit_severity_and_status_override_incidental_error_words(self):
+        for value, expected in [(40, 'warn'), (50, 'error'), ('info', 'info'), ('debug', 'info'), ('ERROR', 'error')]:
+            self.assertEqual(normalize('api', json.dumps({'level':value,'msg':'The error counter is zero'}), now(), str(value))['level'], expected)
+        self.assertEqual(normalize('api', '{"path":"/errors","status":200}', now(), 'ok')['level'], 'info')
+        self.assertEqual(normalize('api', '{"status":503}', now(), 'down')['level'], 'error')
+
+    def test_file_json_timestamp_seconds_milliseconds_and_fallback(self):
+        stamp = datetime.now(timezone.utc) - timedelta(days=2)
+        expected = stamp.isoformat(timespec='milliseconds').replace('+00:00','Z')
+        for raw in [json.dumps({'time':stamp.isoformat()}),json.dumps({'timestamp':stamp.isoformat()}),json.dumps({'ts':stamp.timestamp()}),json.dumps({'ts':int(stamp.timestamp()*1000)})]:
+            self.assertEqual(file_timestamp(raw, now()), (expected, 'event'))
+        fallback = now()
+        for raw in ['{"time":"invalid"}', '{"ts":true}', '{"ts":1e30}', '{"time":"2099-01-01T00:00:00Z"}', 'no clock']:
+            self.assertEqual(file_timestamp(raw, fallback), (fallback, 'file_mtime'))
+
+    def test_rename_rotation_restart_and_new_file_preserve_occurrences(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'source';source.mkdir();file=source/'test.log'
+            line=json.dumps({'time':now(),'level':'info','msg':'repeated'})+'\n'
+            file.write_text(line+line,encoding='utf8')
+            cfg={'includeDockerDesktop':False,'fileSources':[{'source':'test','path':str(source)}]}
+            c=Collector(root,cfg);c.files();c.db.commit();c.db.close()
+            file.rename(source/'test.log.1');file.write_text(line,encoding='utf8')
+            c=Collector(root,cfg);c.files();c.db.commit();self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],3)
+            c.files();c.db.commit();self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],3);c.db.close()
+
+    def test_legacy_index_and_segments_upgrade_without_changing_ids(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);c=Collector(root,{});event=normalize('api','{"status":500}',now(),'kept');c.add(event);c.publish()
+            meta=json.loads((c.store/'catalog.json').read_text())['segments'][0]
+            # Recreate the prior private-index representation for upgrade coverage.
+            c.set_state('index:version',1)
+            c.db.execute('UPDATE events SET id=?,time=?,source=?,payload=?',(event['id'],event['time'],event['source'],json.dumps(event)))
+            c.db.execute("UPDATE sqlite_sequence SET seq=777 WHERE name='events'")
+            c.db.commit();c.db.close()
+            c=Collector(root,{});self.assertIsNone(c.db.execute('SELECT payload FROM events').fetchone()[0]);c.reader_format=2;c.publish()
+            catalog=json.loads((c.store/'catalog.json').read_text());self.assertEqual(sum(s['count'] for s in catalog['segments']),1)
+            file=c.store/catalog['segments'][0]['file'];self.assertTrue(file.name.endswith('.gz'))
+            self.assertEqual(json.loads(gzip.decompress(file.read_bytes()))['id'],event['id'])
+            self.assertTrue((c.store/meta['file']).exists()) # old readers keep their immutable snapshot
+            c.add(event);c.db.commit();self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],1)
+            c.add(normalize('api','after upgrade',now(),'next'));self.assertGreater(c.db.execute('SELECT max(seq) FROM events').fetchone()[0],777);c.db.close()
+
+    def test_crash_after_segment_write_replay_retires_only_verified_prefix(self):
+        with tempfile.TemporaryDirectory() as temp:
+            c=Collector(Path(temp),{'retentionDays':3});c.reader_format=2
+            old=(datetime.now(timezone.utc)-timedelta(days=2)).isoformat(timespec='milliseconds').replace('+00:00','Z')
+            c.add(normalize('api','first',old,'first'))
+            write=c.write_segment
+            def interrupted(*args):
+                write(*args);raise RuntimeError('simulated interruption')
+            c.write_segment=interrupted
+            with self.assertRaises(RuntimeError):c.publish()
+            c.write_segment=write;c.config['retentionDays']=1;c.add(normalize('api','second',now(),'second'));c.publish()
+            catalog=json.loads((c.store/'catalog.json').read_text());self.assertEqual(sum(s['count'] for s in catalog['segments']),2)
+            self.assertEqual(len(catalog['segments']),1);self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],2);c.db.close()
+
+    def test_normalized_history_import_is_atomic_and_idempotent(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);c=Collector(root,{});event=normalize('scratch','retained',now(),'archive')
+            event.update(requestId='private-value',revision='private-value',windowsRecordId='private-value',windowsEventId=True,timeBasis='private-value')
+            archive=root/'old.zip'
+            with zipfile.ZipFile(archive,'w') as z:
+                z.writestr('manifest.json',json.dumps({'normalized':True,'count':1}))
+                z.writestr('records/part-00001.jsonl',json.dumps(event)+'\n')
+            c.import_history(archive);c.import_history(archive)
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],1)
+            imported=json.loads(gzip.decompress(c.db.execute('SELECT payload FROM events').fetchone()[0]));self.assertNotIn('private-value',json.dumps(imported))
+            bad=root/'bad.zip'
+            with zipfile.ZipFile(bad,'w') as z:
+                z.writestr('manifest.json',json.dumps({'normalized':True,'count':2}))
+                z.writestr('records/part-00001.jsonl',json.dumps(normalize('api','new',now(),'bad'))+'\n')
+            with self.assertRaises(RuntimeError):c.import_history(bad)
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0],1);c.db.close()
     def test_replaced_container_collects_current_errors_without_history_delay(self):
         with tempfile.TemporaryDirectory() as temp:
             collector = Collector(Path(temp), {})
@@ -73,13 +315,18 @@ class CollectorTests(unittest.TestCase):
     def test_budget_eviction_deletes_exact_private_rows(self):
         with tempfile.TemporaryDirectory() as temp:
             collector = Collector(Path(temp), {'maxBytes': 3 * 1024 * 1024})
-            for i in range(160): collector.add(normalize('api', '🔥' * 10000, now(), str(i)))
+            collector.reader_format=2
+            # Random data stays large after compression and exercises real eviction.
+            for i in range(400): collector.add(normalize('docker-desktop', secrets.token_hex(8000), now(), str(i)))
+            app=normalize('scratch','important editor failure',now(),'protected');collector.add(app)
             collector.publish()
             catalog = json.loads((collector.store/'catalog.json').read_text())
             self.assertTrue(catalog['trimmed'])
             retained = sum(s['count'] for s in catalog['segments'])
             self.assertEqual(collector.db.execute('SELECT count(*) FROM events').fetchone()[0], retained)
-            self.assertLessEqual(catalog['storageBytes'], 3 * 1024 * 1024)
+            self.assertLessEqual(catalog['activeStorageBytes'], 3 * 1024 * 1024)
+            kept=[json.loads(line) for s in catalog['segments'] for line in gzip.decompress((collector.store/s['file']).read_bytes()).decode().splitlines()]
+            self.assertIn(app['id'],[e['id'] for e in kept])
             collector.db.close()
 
 

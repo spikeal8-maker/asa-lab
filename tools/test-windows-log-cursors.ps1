@@ -14,13 +14,14 @@ function Get-WinEvent {
     if ($MaxEvents -eq 1) { return @{RecordId=if($global:ASATestPhase -eq 3){2}else{300}} }
     $range = if($LogName -eq 'B'){1..1}elseif($global:ASATestPhase -eq 1){1..256}elseif($global:ASATestPhase -eq 2){257..300}else{1..2}
     foreach ($id in $range) {
-        @{RecordId=$id;TimeCreated=$start.AddHours(1);ProviderName='Test';Level=2;Message='Synthetic failure'}
+        @{RecordId=$id;Id=1001;TimeCreated=$start.AddHours(1);ProviderName='Test';Level=2;Message='Synthetic failure'}
     }
 }
 $cursorFile = Join-Path $TempRoot 'windows.json'
 $collector = Join-Path $PSScriptRoot 'collect-windows-logs.ps1'
 $first = (& $collector -Since $start.ToString('o') -Until $finish.ToString('o') -CursorFile $cursorFile | ConvertFrom-Json)
 if ($first.events.Count -ne 256 -or $first.cursors.A.afterId -ne 256 -or $first.cursors.B.afterId -ne 0) { throw ('Full page or denied channel cursor failed: ' + ($first.sources | ConvertTo-Json -Compress)) }
+if ($first.events[0].eventId -ne 1001 -or $first.events[0].recordId -ne 1) { throw 'Native Windows event identity was lost' }
 $first.cursors | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $cursorFile -Encoding UTF8
 $global:ASATestPhase = 2
 $second = (& $collector -Since $start.ToString('o') -Until $finish.ToString('o') -CursorFile $cursorFile | ConvertFrom-Json)

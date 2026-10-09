@@ -1,0 +1,95 @@
+{
+  "exactSha": "dda9fe1c6956ace5e009b14004fd83b606b8be3a",
+  "browserRun": 37976882424,
+  "browserPassed": 132,
+  "browserFailed": 3,
+  "category": "A current composition CSS adds time-dependent second row beyond accepted1373 breakpoint",
+  "e01SemanticAnd56RawCheck": "PASS; separate root-526-final-full-raw-check.log",
+  "acceptance": "REQUEST_CHANGES_REQUIRED",
+  "compactOriginals": [
+    {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\dda9fe1c-ci\\run-37976882424\\extracted\\reports\\playwright\\electronics-simulation-com-1aa84-sizes-\u2014-blocks-\u2014-all-widths\\electronics-compact-controls-532\\blocks-all-widths\\geometry.json",
+      "sha256": "944379d8fa703cf76013eb51282f5b4d0af43e636af3c8bc06ad8fe2d1f91630",
+      "observations": 4,
+      "regressions": [
+        {
+          "phase": "1374-blocks-running",
+          "width": 1374,
+          "toolbarHeight": 96,
+          "headerGroupCount": 2,
+          "headerControls": 15,
+          "pageWidth": 1374
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\dda9fe1c-ci\\run-37976882424\\extracted\\reports\\playwright\\electronics-simulation-com-3b5ab-es-\u2014-text-\u2014-desktop-compact\\electronics-compact-controls-532\\text-desktop-compact\\geometry.json",
+      "sha256": "d3b8cc072a7777f147804a0276a4e3042f56d76ad10b6f87809fe6793c861514",
+      "observations": 26,
+      "regressions": []
+    },
+    {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\dda9fe1c-ci\\run-37976882424\\extracted\\reports\\playwright\\electronics-simulation-com-72838--\u2014-blocks-text-\u2014-all-widths\\electronics-compact-controls-532\\blocks-text-all-widths\\geometry.json",
+      "sha256": "83eeb8e4d1800c2992c16eb3f27f0ce8268a25f409d7a8244645b05e38f37a87",
+      "observations": 5,
+      "regressions": [
+        {
+          "phase": "1374-blocks-text-running",
+          "width": 1374,
+          "toolbarHeight": 96,
+          "headerGroupCount": 2,
+          "headerControls": 15,
+          "pageWidth": 1374
+        }
+      ]
+    },
+    {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\dda9fe1c-ci\\run-37976882424\\extracted\\reports\\playwright\\electronics-simulation-com-bd3d2-rawer-sizes-\u2014-text-\u2014-mobile\\electronics-compact-controls-532\\text-mobile\\geometry.json",
+      "sha256": "a6595dfa5425de79f3a6b19d1f27fdb8de947ee9b9394e748c1edd33a7029be0",
+      "observations": 9,
+      "regressions": []
+    },
+    {
+      "path": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\dda9fe1c-ci\\run-37976882424\\extracted\\reports\\playwright\\electronics-simulation-com-f48c4-sizes-\u2014-text-\u2014-desktop-wide\\electronics-compact-controls-532\\text-desktop-wide\\geometry.json",
+      "sha256": "0729c8ff91034cc9f0eed609398294f514417512131023ce92506a733d9eec76",
+      "observations": 8,
+      "regressions": [
+        {
+          "phase": "1374-running",
+          "width": 1374,
+          "toolbarHeight": 96,
+          "headerGroupCount": 2,
+          "headerControls": 15,
+          "pageWidth": 1374
+        }
+      ]
+    }
+  ],
+  "e01SemanticOriginalCheck": {
+    "originalReceiptChecks": "PASS",
+    "quietRecoveryMs": 6020,
+    "quietRequestCount": 2,
+    "quietServerRevision": 3,
+    "actualSignalToCrashMs": 29,
+    "crashServerRevision": 3,
+    "fullCrashDocumentsEqual": true,
+    "sameRendererProjectSwitch": true,
+    "oldAccountBytesPreserved": true,
+    "oldEditorRevoked": true,
+    "oldAccountAccessDenied": true,
+    "newFullServerDocumentEqual": true,
+    "lateDepartureRequestCount": 3,
+    "lateDepartureServerRevision": 5,
+    "conflictServerRevision": 3,
+    "emergencyCopyFullDocumentEqual": true,
+    "actualAffectedLayouts": 56,
+    "mandatoryWidthsAndBreakpointsFit": true
+  },
+  "browserArtifact": {
+    "id": 11640780130,
+    "bytes": 67863871,
+    "members": 285,
+    "crc": "PASS",
+    "sha256": "ba4b1ad442381aa5f7f0a9d3422b7877567b70e376da7be6b925f4dd35c02329"
+  }
+}

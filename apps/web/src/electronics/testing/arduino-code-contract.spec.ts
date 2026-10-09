@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ARDUINO_BLOCK_SUPPORT, ARDUINO_TEXT_COMMAND_SUPPORT } from '@asa-lab/electronics';
 import { ARDUINO_COMPLETIONS } from '../arduino-source-language';
+import webViteConfig from '../../../vite.config';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
 const blocksSource = readFileSync(resolve(electronicsRoot, 'arduino-blocks.ts'), 'utf8');
@@ -32,6 +33,57 @@ const editorSource = readFileSync(
 const css = readFileSync(resolve(electronicsRoot, 'workbench.css'), 'utf8');
 
 describe('Arduino programming room contract', () => {
+  it('initializes Scratch media with the same local directory as the emitted pinned assets', () => {
+    expect(panelSource).toContain(
+      "media: new URL('.', new URL(scratchZoomInUrl, document.baseURI)).href",
+    );
+    for (const name of ['sprites.png', 'zoom-in.svg', 'zoom-out.svg', 'zoom-reset.svg']) {
+      expect(panelSource).toContain(`scratch-blocks/media/${name}?url`);
+    }
+    if (typeof webViteConfig !== 'function') throw new Error('Expected the canonical Vite config');
+    const config = webViteConfig({ command: 'build', mode: 'production' });
+    if (config instanceof Promise) throw new Error('Expected synchronous Vite config');
+    const output = config.build?.rollupOptions?.output;
+    if (!output || Array.isArray(output) || typeof output.assetFileNames !== 'function') {
+      throw new Error('Expected the canonical asset filename resolver');
+    }
+    const resolver = output.assetFileNames;
+    const inlineLimit = config.build?.assetsInlineLimit;
+    if (typeof inlineLimit !== 'function') throw new Error('Expected selective asset inlining');
+    const emittedName = (path: string) =>
+      resolver({
+        type: 'asset',
+        name: path.split('/').at(-1)!,
+        names: [path.split('/').at(-1)!],
+        originalFileName: path,
+        originalFileNames: [path],
+        source: '',
+      });
+    for (const name of ['sprites.png', 'zoom-in.svg', 'zoom-out.svg', 'zoom-reset.svg']) {
+      expect(inlineLimit(`node_modules/scratch-blocks/media/${name}`, Buffer.from('vendor'))).toBe(
+        false,
+      );
+      expect(
+        inlineLimit(`node_modules/other-package/media/${name}`, Buffer.from('other')),
+      ).toBeUndefined();
+      expect(emittedName(`node_modules/scratch-blocks/media/${name}`)).toMatch(
+        /^assets\/arduino-blockly-[a-f0-9]{16}\/\[name\]\[extname\]$/,
+      );
+      expect(emittedName(`node_modules/scratch-blocks/media/${name}`)).toBe(
+        emittedName('node_modules/scratch-blocks/media/zoom-in.svg'),
+      );
+      expect(emittedName(`node_modules/other-package/media/${name}`)).toBe(
+        'assets/[name]-[hash][extname]',
+      );
+    }
+    expect(emittedName('node_modules/scratch-blocks/media/other.svg')).toBe(
+      'assets/[name]-[hash][extname]',
+    );
+    expect(emittedName('public/assets/electronics/owner-supplied/zoom-in.svg')).toBe(
+      'assets/[name]-[hash][extname]',
+    );
+  });
+
   it('uses the Scratch renderer and preserves all three editing modes', () => {
     expect(blocksSource).toContain("from 'scratch-blocks'");
     expect(panelSource).toContain('ScratchBlocks.inject(host');
@@ -241,7 +293,7 @@ describe('Arduino programming room contract', () => {
     expect(panelSource).toContain('`arduino-code-toolbar mode-${program.mode}`');
     expect(panelSource).toContain("if (program.mode === 'blocks' && commandReferenceOpen)");
     expect(panelSource).toContain("open={commandReferenceOpen && program.mode !== 'blocks'}");
-    expect(panelSource).toContain('persistTimersRef.current.get(selectedBoardId)');
+    expect(panelSource).toContain('c.updateArduinoProgram(selectedBoard.id, properties)');
     expect(panelSource).toContain('programRef.current = next');
     expect(panelSource).toContain('const activateBoard = useCallback');
     expect(panelSource).toContain('preferredBoard.id !== boardId');

@@ -635,30 +635,63 @@ function validateActiveElectronicsTask(taskCards) {
   const current = readYaml('docs/execution/current.yaml');
   if (!current) return;
   const lanes = [
-    { id: current.primary_lane?.id, task: current.task },
+    { ...current.primary_lane, task: current.task },
     ...(Array.isArray(current.parallel_lanes) ? current.parallel_lanes : []),
   ];
-  const electronics = lanes.find((lane) => lane?.id === 'electronics');
-  const task = electronics?.task;
-  if (!task || typeof task !== 'object') {
-    errors.push('canonical Electronics lane/task is missing');
+  const roots = lanes.filter((lane) => lane?.id === 'electronics');
+  if (roots.length !== 1) {
+    errors.push('canonical Electronics lane must exist exactly once');
     return;
   }
-  const taskId = String(task.id ?? '');
-  if (!taskIdPattern.test(taskId)) errors.push('canonical Electronics task ID is invalid');
-  if (requestedTask && (requestedTask !== taskId || task.status !== 'in_progress')) {
-    errors.push(
-      `requested task ${requestedTask} is not selected for execution; canonical=${taskId} status=${task.status}`,
-    );
+  if (Object.hasOwn(roots[0], 'parent_lane'))
+    errors.push('canonical Electronics root lane must not declare parent_lane');
+  if (current.primary_lane?.parent_lane === 'electronics')
+    errors.push('Electronics child lane must be declared in parallel_lanes');
+  for (const lane of lanes) {
+    if (
+      typeof lane?.id === 'string' &&
+      lane.id.startsWith('electronics-') &&
+      Object.hasOwn(lane, 'parent_lane') &&
+      lane.parent_lane !== 'electronics'
+    )
+      errors.push(`invalid Electronics parent_lane marker: ${lane.id}`);
   }
-  if (!['in_progress', 'in_review'].includes(String(task.status))) return;
-  const matches = taskCards.filter((card) => card.task_id === taskId);
-  // Reserved non-product namespaces; no list of current/future product IDs.
-  if (governanceTaskPattern.test(taskId) && matches.length === 0) return;
-  if (matches.length !== 1) {
-    errors.push(
-      `active Electronics task ${taskId} must map to exactly one task card; matches=${matches.map((card) => card.path).join(', ') || 'none'}`,
-    );
+  const children = lanes.filter((lane) => lane?.parent_lane === 'electronics');
+  const electronics = [roots[0], ...children.filter((lane) => lane !== roots[0])];
+  const laneIds = new Set();
+  const taskIds = new Set();
+  for (const lane of electronics) {
+    if (typeof lane.id !== 'string' || !/^[a-z][a-z0-9-]*$/.test(lane.id))
+      errors.push('canonical Electronics child lane ID is invalid');
+    if (laneIds.has(lane.id)) errors.push(`duplicate Electronics lane ID ${lane.id}`);
+    laneIds.add(lane.id);
+    const task = lane.task;
+    if (!isMapping(task)) {
+      errors.push(`canonical Electronics lane/task is missing: ${lane.id}`);
+      continue;
+    }
+    const taskId = String(task.id ?? '');
+    if (!taskIdPattern.test(taskId)) errors.push('canonical Electronics task ID is invalid');
+    if (taskIds.has(taskId)) errors.push(`duplicate Electronics task ID ${taskId}`);
+    taskIds.add(taskId);
+    if (!['ready', 'in_progress', 'in_review', 'blocked', 'done'].includes(task.status))
+      errors.push(`canonical Electronics task status is invalid: ${lane.id}`);
+    if (!['in_progress', 'in_review'].includes(task.status)) continue;
+    const matches = taskCards.filter((card) => card.task_id === taskId);
+    // Preserve the root's reserved governance namespace; children need concrete cards.
+    if (lane === roots[0] && governanceTaskPattern.test(taskId) && matches.length === 0) continue;
+    if (matches.length !== 1) {
+      errors.push(
+        `active Electronics task ${taskId} must map to exactly one task card; matches=${matches.map((card) => card.path).join(', ') || 'none'}`,
+      );
+    }
+  }
+  if (requestedTask) {
+    const matches = electronics.filter((lane) => lane.task?.id === requestedTask);
+    if (matches.length !== 1 || matches[0].task.status !== 'in_progress')
+      errors.push(
+        `requested task ${requestedTask} is not selected for execution; canonical=${electronics.map((lane) => `${lane.task?.id}:${lane.task?.status}`).join(', ')}`,
+      );
   }
 }
 

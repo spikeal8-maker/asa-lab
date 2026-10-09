@@ -13,6 +13,13 @@ import pg from 'pg';
 import type { RuntimeMetrics } from '@asa-lab/observability';
 import { AppModule } from './app.module.js';
 import { TOKENS } from './tokens.js';
+import { runtimeBuildMetadata } from './build-metadata.js';
+import {
+  diagnosticContext,
+  requestFailures,
+  recordServerFailure,
+  ServerDiagnosticsFilter,
+} from './server-diagnostics.js';
 import {
   isAllowedMutationOrigin,
   resolveAdditionalWebOrigins,
@@ -242,6 +249,12 @@ export async function createApiApp(
 
   const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
   const logRequests = shouldLogRequests(options.logRequests);
+  const logRevision = runtimeBuildMetadata().revision;
+  app.useGlobalFilters(new ServerDiagnosticsFilter(app.getHttpAdapter(), logRevision, pool));
+  fastify.addHook('onError', async (request, _reply, error) => {
+    if (!requestFailures.has(request))
+      recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
+  });
   const mutationAbuseProtection = new MutationAbuseProtection();
   const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
@@ -258,10 +271,13 @@ export async function createApiApp(
         `${JSON.stringify({
           time: new Date().toISOString(),
           requestId: request.id,
+          revision: logRevision,
           method: request.method,
           path,
           status: reply.statusCode,
           durationMs,
+          errorCode: requestFailures.get(request),
+          ...diagnosticContext(request),
         })}\n`,
       );
     }

@@ -1,6 +1,7 @@
 [CmdletBinding()]
-param([string]$Root = (Split-Path -Parent $PSScriptRoot))
+param([string]$Root)
 $ErrorActionPreference = 'Stop'
+if (-not $Root) { $Root = Split-Path -Parent $PSScriptRoot }
 $Root = (Resolve-Path -LiteralPath $Root).Path
 $python = (Get-Command python -ErrorAction Stop).Source
 $hiddenPython = Join-Path (Split-Path -Parent $python) 'pythonw.exe'
