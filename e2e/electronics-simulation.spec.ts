@@ -8316,6 +8316,13 @@ for (const width of [1440, 1024, 390, 320]) {
       const visual = supply.getByTestId('regulated-power-supply-runtime');
       await supply.locator('.workbench-part').press('Enter');
       const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      if (width <= 980) {
+        const catalogToggle = page.getByRole('button', { name: 'Каталог деталей', exact: true });
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'true');
+        await catalogToggle.click();
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'false');
+        await expect(inspector).toBeVisible();
+      }
       const voltage = inspector.getByLabel('Уставка напряжения лабораторного источника');
       const limit = inspector.getByLabel('Ограничение тока лабораторного источника');
       for (const input of [voltage, limit]) {
@@ -8490,6 +8497,18 @@ for (const width of [1440, 1024, 390, 320]) {
       await expect(reopened.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
       expect(await e01LocalDraft(reopened, id)).toBeNull();
       await component(reopened, 'regulated-power-supply').locator('.workbench-part').press('Enter');
+      if (width <= 980) {
+        const catalogToggle = reopened.getByRole('button', {
+          name: 'Каталог деталей',
+          exact: true,
+        });
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'true');
+        await catalogToggle.click();
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'false');
+        await expect(
+          reopened.getByRole('complementary', { name: 'Параметры выделения' }),
+        ).toBeVisible();
+      }
       const latestSupply = latest.draft.document.components.find(
         (part) => part.id === 'bench-supply',
       )!;
