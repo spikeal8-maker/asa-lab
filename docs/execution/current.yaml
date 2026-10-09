@@ -587,7 +587,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: author_stop_candidate_preserved_pending_causal_browser_and_ci545
+      checkpoint: harness_r1_mobile_native_auth_setup_only_preserve_proven_psu_stop_failure
       kind: repair
       owner_acceptance: pending
       selected_at: '2026-10-09T20:49:58Z'
@@ -598,17 +598,23 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       - docs/product/electronics/components/engine-worker-clock.yaml
-      repair_scope: Exactly hook and narrow consistent regulated-PSU value alias comparison
-        in live controller; meaningful mounted/controller tests and real full Save/autosave/cookies-only
-        reopen. Persist U/I/value, runtime-only output; preserve progressed canonical
-        state/time and intentional Stop/Start reset. No other product subsystem or school
-        actions.
+      repair_scope: 'Supporting harness R1 only common simulation browser spec and generated
+        digest: authenticate via unchanged real desktop organization login then apply
+        target viewport before every Electronics action; 1024/390/320 previously failed
+        hidden desktop banner login before product. Preserve all four full scenarios/assertions/timeouts
+        and exact043a product. No Portal or product edit; AFTER directed and final gates/review
+        mandatory.'
       preserved_candidate_sha: 043a2af92c7bac3aadb10b59fa108315e166b30e
       preserved_candidate_tree: 4e889681234b8e242e1536c0a9b5ce91705844f6
       candidate_publication: unpublished
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
+      before_probe_sha: 25d421bc3156cb4e24f2450ba3baafa004fd729d
+      before_probe_run: 37996551503
+      before_product_failure: 1440 native Stop resets U from7.5 to5; ready C=H102700->452002
+        same generation1, old runtime-only U/I not locally persisted
+      before_raw_sha256: c02136e26faa8f1c003fa312291ee33cef9725a9684ff467e624701c97faee33
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -2710,7 +2716,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: harness_author_stop_pending_single_native_causal_before_no_product_edit
+      checkpoint: r1_correct_native_before_harness_target_and_event_retention_no_product_edit
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
       repair_scope: Only Stage pointer routing and existing interactions browser spec.
@@ -2722,6 +2728,11 @@ parallel_lanes:
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
+      before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
+      before_probe_run: 37996438894
+      before_probe_conclusion: harness_precondition_failure_not_product_proof
+      before_probe_detail: Actual fixed opaque body point returned path instead of SVG root before drag; observer events absent. Preserve complete fixture and existing assertions; new bounded author repairs only native setup/evidence in interactions before another single causal probe.
+      before_raw_sha256: 50cf338b1a57e7a5e908ce9933857470268522cf3c27bc4ad162dbb2395c5400
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -2773,22 +2784,20 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r1_separate_one_time_baseline_proof_from_permanent_semantic_transport_guard
+      checkpoint: r2_reject_narrowed_required_event_filters_keep_additive_positive_test_paths
       owner_acceptance: pending
       selected_at: '2026-10-09T21:43:50Z'
-      repair_scope: R1 only guard/receipt and necessary proof-mode calls in the same five-path545
-        budget. Separate one-time exact source proof from permanent semantic transport
-        guard. Actual541 additive package/workflow registration and harmless metadata
-        must pass; immutable mapping/overlay/buildargs/effective Compose/gates/security/frozen/literaltrue/image
-        defaults remain strict. No whole-file historical hashes as ongoing foreign-module
-        authority, no altered image bytes or production defaults.
-      prior_failed_candidate_sha: 6ffb04b878f85c19c052379f434f9f927a480812
-      prior_failed_candidate_tree: ff9af43a1f2c16b80cb8d340ec3c0c493005bc0d
-      prior_candidate_branch: codex/electronics-ci-image-transport-545
+      repair_scope: 'R2 only helper and receipt inside original545 budget: reject new
+        narrowing path/branch/event filters and negative patterns relative to mandatory
+        trigger coverage; positive additive test paths still pass. Keep all existing semantic/image/gate/security/default/model/build
+        invariants; no whole-file hash lock, product or installation change.'
+      prior_failed_candidate_sha: 16997f1697c35cdfe7e34c0e251137f008478017
+      prior_failed_candidate_tree: 308bea69bce2e62bbb495a1ad30b6c645ba08cee
+      prior_candidate_branch: codex/electronics-ci-image-transport-545-r1
       independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-6ffb04b8.md
-      independent_review_original_sha256: c72d2cd69f6436a55db60b2f453defb108292f01840c61a371b047f84bd7b94b
-      prior_candidate_general_run: 37994451035
+      independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-16997f16.md
+      independent_review_original_sha256: c60970c0c226ba96026b96a8e0567b60c0654f751ba653268d2c8ccd32f73382
+      prior_candidate_general_run: 37997430335
     execution_lease:
       executor_id: electronics-ci-545
       holder: unassigned
