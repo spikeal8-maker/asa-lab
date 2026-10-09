@@ -1,0 +1,68 @@
+{
+  "result": "OUTSIDE_BUDGET_FINDING; no product edits; executor STOP",
+  "head": "9036e015195cd367c6e5f84c603a530df9d2e443",
+  "tree": "128202f062a3a0fe87d479b620051c1a1b85a212",
+  "main": "d56dc2a11d8a2ebccc7f2af185eb339e5db5c859",
+  "branch": "codex/electronics-ready-cadence-539-r1",
+  "status": "",
+  "diff_vs_preserved_c7": [
+    "docs/execution/current.yaml",
+    "docs/product/electronics/evidence/arduino-ready-cadence-539-directed-original-traces.json",
+    "docs/product/electronics/evidence/arduino-ready-cadence-539-independent-review-c7ab5fd4.md",
+    "docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001.md"
+  ],
+  "preserved_source_blobs": {
+    "apps/web/src/electronics/live-simulation-worker-controller.ts": "280799d4ab1a0e696e51831593cf0385d13be475",
+    "contexts/electronics/domain/arduino-program-runtime.ts": "2e41a257c1de70dd7cefcb01147566d4f4dfa707",
+    "contexts/electronics/domain/arduino-circuit-scheduler.ts": "7cde6bed305c55218688a8fe5b1672d75c3edbd5",
+    "e2e/electronics-ready-cadence.spec.ts": "124c5345b37c1692df458620de6434bbc1ee9a56",
+    "package.json": "a9e8374109e4f9095620d568887d518e17b74c8c",
+    ".github/workflows/electronics-r4-m1-focused.yml": "2cdd2d5a540f6f176099fe029b991d91fcbcb8a4"
+  },
+  "files": {
+    "author-539-r1-outside-budget-report.md": {
+      "bytes": 10048,
+      "sha256": "f1842fa1e3134a50e002a790a86c5afe663074023c56b079ccbb4431b8b930dc"
+    },
+    "author-539-r1-entry-preflight.log": {
+      "bytes": 1280,
+      "sha256": "097f000d0e417001a7101363873f56d4641174b387c1a4a4384c29c8d7771e0a"
+    },
+    "author-539-r1-full-preflight.log": {
+      "bytes": 3972,
+      "sha256": "7e07755adc0c584a93e32d109bf8f99ba502f4822fd74503b06f5f4828bd95bc"
+    },
+    "author-539-r1-card.log": {
+      "bytes": 21212,
+      "sha256": "102a0af2414e3aed8e07410d999281d9e3ba1f3cb1df28fac6bf0d84f2b43ca2"
+    },
+    "author-539-r1-profile.mjs": {
+      "bytes": 1509,
+      "sha256": "7a9056c8264be2db66d389f9920b9ed070c88160d66308ffaefc73947a168cc8"
+    },
+    "author-539-r1-actual-gpio-valid.cpuprofile": {
+      "bytes": 229968,
+      "sha256": "5ce7faf10c914d84fe953cbd9db89a10cc87c1bf5b5d7a73049c17c57a91c2c4"
+    },
+    "author-539-r1-profile-results.json": {
+      "bytes": 1977,
+      "sha256": "43fc638fdff4bb66274f89838b4401e42cb41d319ea90a66a75745cb083fc283"
+    },
+    "author-539-r1-profile-aggregate.py": {
+      "bytes": 1064,
+      "sha256": "ed7aa5430834488d660f61fe03c6d7ea50e74f8c46da2c8bec20feecec651a20"
+    },
+    "author-539-r1-profile-aggregate.json": {
+      "bytes": 37385,
+      "sha256": "8ab204be71ab99081d0d8d47f749b213bc6273aac04fc76f67ca5309e70f774a"
+    },
+    "author-539-r1-counts.mjs": {
+      "bytes": 2062,
+      "sha256": "39e65b15f3c80d5c4edce31de4a65e2687c82e35752ab1d4082d35d10b20111f"
+    },
+    "author-539-r1-actual-call-counts.json": {
+      "bytes": 974,
+      "sha256": "1dcd671f5dadaf6b956d02bc32c4cf55af893fc2a55f6fc804d36a2480640e67"
+    }
+  }
+}

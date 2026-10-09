@@ -594,7 +594,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: preserved_r5_final_convergence_after_accepted_530
+      checkpoint: bounded_r6_preserve_compact_normal_toolbar_after_full_e01_pass
       r4_candidate_sha: c25dd582e2856220fe893015c99257a186b982d6
       r4_candidate_tree: 33996f2118cf282ecc3a615f3b63946878150b60
       r4_candidate_branch: codex/electronics-save-recovery-526-review-r4
@@ -664,6 +664,23 @@ parallel_lanes:
       owner_approved_conflict_paths:
       - e2e/electronics-simulation.spec.ts
       - docs/product/electronics/generated/component-coverage.json
+      post_530_candidate_sha: dda9fe1c6956ace5e009b14004fd83b606b8be3a
+      post_530_candidate_tree: 46b02ae8707f329d0abf3e9f529d4ea1c94765f7
+      post_530_candidate_branch: codex/electronics-save-recovery-526-post-530
+      post_530_independent_review: request_changes
+      post_530_independent_evidence: docs/product/electronics/evidence/save-526-post-530-independent-review-dda9fe1c.md
+      post_530_independent_review_original_sha256: bf5416b038e9f4b17fc46b98844fab262485bad88c472b8a771e5359a0cb4144
+      post_530_general_run: 37976875849
+      post_530_general_conclusion: success
+      post_530_electronics_run: 37976882424
+      post_530_electronics_conclusion: failure
+      post_530_browser_passed: 132
+      post_530_browser_failed: 3
+      post_530_e01_layout_phases_passed: 56
+      r6_repair_scope: Only causal CSS qualification for normal1374 running toolbar48
+        versus current96. Preserve all persistence code, full56/denial, all old532/530
+        tests and widths/captions/native hits; no test/timeout change. NEW author then
+        final exact gates and NEW independent reviewer.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1140,28 +1157,23 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 9747d80d0e0d0f2b750ab1b88b88e08c673dd5a7
+      convergence_baseline_sha: d56dc2a11d8a2ebccc7f2af185eb339e5db5c859
       head_sha: null
-      observed_at: '2026-10-09T18:39:28Z'
+      observed_at: '2026-10-09T19:24:10Z'
       main:
         branch: main
-        sha: 9747d80d0e0d0f2b750ab1b88b88e08c673dd5a7
-      observation_note: Dated snapshot; fetch main and exact-SHA CI before writes. Technical530
-        accepted sourcef37391b1 NEW APPROVE/General37969209411 and ordinary37969211551
-        all8SUCCESS, integrated9964d8fd/closeout9747d80d and Issue530CLOSED. Freshly selected526
-        resumes preserved0dd31 R5 after accepted530; every prior source/ref/review/fullsemantic
-        receipt remains intact. NEW bounded author performs ordinary final composition
-        preserving all accepted529/531/532/533/534/530 scenarios, CSS, foreign state and
-        frozen dependencies; only known derived browser digest conflict regeneration is
-        agreed. Any additional actual conflict STOP/show. No new E01 implementation, causal
-        BEFORE repeat, timeout increase, physics weakening or yielded electrical publication.
-        Final full56 normal/denial and complete schema+sketch/quiet recovery/crash/reauth/scope/CAS/two
-        tabs/second profile/export require ordinary exact gates and NEW independent final-SHA
-        review. E01 not accepted yet. Main9747 documentation CI is a separately observed
-        workflow, not inherited sourcef373 PASS. Two production slices accepted since
-        hygiene535;526 has priority before accepting parallel537/538/539. SchoolK0 installed
-        version/full backups NOT_VERIFIED; real pupilT3/class/owner/deployment pending.
-        No installation/DB/network/backup operation.
+        sha: d56dc2a11d8a2ebccc7f2af185eb339e5db5c859
+      observation_note: 'Dated snapshot; fetch main and actual exact CI before writes.
+        NEW exactdda9 REQUEST_CHANGES after full56/denial/schema/sketch/quiet6020ms/SIGKILL29ms/reauth/scope/CAS/departure/529fast
+        PASS. General37976875849 all4SUCCESS, ordinary37976882424 focused/benchmarkSUCCESS
+        but132browserPASS3compactFAIL and imagesSKIPPED. Root and reviewer actual acceptedf3731374
+        running48 versus newdda9 normal96 in all3modes: current composition CSS1281..1536
+        time-only qualifier causes regression, categoryA. Select bounded R6 CSS-only repair,
+        preserve every persistence source/test/raw/priorcandidate and accepted532/530
+        criteria, no expectations/timeouts weakening. Parallel539R1 only controller/runtime,
+        no overlap. E01 remains priority; acceptance/full8 on new SHA required. This is
+        not acceptance3 or due-hygiene closeout yet; schoolK0/backups/T3/class/owner/deployment
+        pending.'
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
@@ -2222,43 +2234,31 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-ready-cadence-539
     owned_paths:
-    - apps/web/src/electronics/live-simulation-worker-controller.ts
-    - contexts/electronics/domain/arduino-program-runtime.ts
-    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
-    - contexts/electronics/testing/arduino-execution-clock.spec.ts
-    - e2e/electronics-ready-cadence.spec.ts
-    - docs/product/electronics/components/engine-worker-clock.yaml
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001.md
+    - contexts/electronics/domain/arduino-circuit-scheduler.ts
+    - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-SCHEDULER-SAME-TIME-001.md
     task:
-      id: TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001
-      issue: 539
+      id: TASK-ELECTRONICS-SCHEDULER-SAME-TIME-001
+      issue: 540
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_r1_confirmed_gpio_compute_throughput_repair
-      dependency_for_issue: 537
+      checkpoint: bounded_same_time_scheduler_work_preserving_full_canonical_parity
+      dependency_for_issue: 539
       owner_acceptance: pending
-      selected_at: '2026-10-09T18:13:06Z'
-      integration_priority: hold candidate until root530 then526 acceptance; preserve
-        E01 priority
-      preserved_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
-      preserved_candidate_tree: 2051369e4b1cb851621da9dedba8deaf7fac9839
-      preserved_candidate_branch: codex/electronics-ready-cadence-539-final
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/arduino-ready-cadence-539-independent-review-c7ab5fd4.md
-      independent_review_original_sha256: 9e9361dee201efb02020eea9117980c80f5aaf9ce4bf59a41a01bf59da81a32e
-      exact_general_run: 37975631829
-      exact_general_conclusion: success
-      directed_before_run: 37977684653
-      directed_after_run: 37977699930
-      directed_after_conclusion: failure
-      repair_scope: Only proven remaining compute cost inside the two existing controller/runtime
-        production paths. Keep both complete generic programs, 5s/30s assertions, all
-        canonical state/inputs/barriers/precision/budgets. New production path requires
-        a separate bounded controller decision before edits. E01 acceptance remains
-        priority; hold this candidate integration until E01 and due hygiene.
+      selected_at: '2026-10-09T19:34:20Z'
+      source_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
+      preserved_preparation_sha: 9036e015195cd367c6e5f84c603a530df9d2e443
+      integration_priority: Hold integration until root526 acceptance and due compact
+        hygiene checkpoint. No school actions.
+      evidence: docs/product/electronics/evidence/scheduler-540-proven-same-time-cost.md
+      repair_scope: Only scheduler production path and existing mapped scheduler test.
+        Remove proved redundant same-time work only with byte-exact full-state/event/observation
+        parity; preserve barriers, quantum1000us, instruction1us, budget256, quality,
+        source programs and existing timeouts. Any other production path needs a separate
+        bounded controller decision before edits.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2280,22 +2280,20 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c69265688891d3084f59add6d1188813a6764633
+      convergence_baseline_sha: 2d03a56f96ed849079f09a4aa8e0dbe6d5c7d91f
       head_sha: null
-      observed_at: '2026-10-09T19:15:50Z'
+      observed_at: '2026-10-09T19:34:20Z'
       main:
         branch: main
-        sha: c69265688891d3084f59add6d1188813a6764633
-      observation_note: 'Dated snapshot; fetch main and actual exact CI before writes. NEW independent
-        exactc7 REQUEST_CHANGES: Serial full8/save/reopen PASS, GPIO genuine ready0..1400000/100000
-        and UI0..5 only within original5s; actual compute14chunks4113.2ms, observer15/200,
-        no lost ready frame or physics quality fault. General37975631829 all4SUCCESS
-        does not accept incomplete pupil journey; Ordinary source NOT_RUN deliberately
-        after directed failure. Preserve c7/0147/1747 and original BEFORE/AFTER ZIPs.
-        New bounded R1 author investigates remaining compute cause within existing two
-        production paths; no timeout/precision/budget weakening, no incomplete frame.
-        Root526 stays independent priority; all other lanes/history preserved; school/K0/T3/class/deployment
-        pending.'
+        sha: 2d03a56f96ed849079f09a4aa8e0dbe6d5c7d91f
+      observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes.
+        Main2d03 General37980349084 in progress at observation, Governance PASS; no final
+        CI claim. Preserved c7 General all4SUCCESS but NEW independent REQUEST_CHANGES,
+        actual directed GPIO only0..5 within5s. Read-only R1 stopped outside two-path
+        budget at clean9036: actual scheduler repeated same-time solve/compile/quality
+        cost, no product edit. Separate bounded540 selected on main; preserve all539/537
+        originals, full programs, tests/timeouts/physics. Root526 R6 independent priority;
+        hold integration until E01 and due hygiene. K0/T3/class/deployment pending.'
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-ARDUINO-BITWISE-001
       issue: 537
@@ -2351,6 +2349,63 @@ parallel_lanes:
       directed_after_run: 37968776709
       full_saved_document_revision: 2->3 PASS
       browser_complete_and_reopen: not_run
+      owner_acceptance: pending
+    - task_id: TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001
+      issue: 539
+      task:
+        id: TASK-ELECTRONICS-ARDUINO-READY-CADENCE-001
+        issue: 539
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: bounded_r1_confirmed_gpio_compute_throughput_repair
+        dependency_for_issue: 537
+        owner_acceptance: pending
+        selected_at: '2026-10-09T18:13:06Z'
+        integration_priority: hold candidate until root530 then526 acceptance; preserve
+          E01 priority
+        preserved_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
+        preserved_candidate_tree: 2051369e4b1cb851621da9dedba8deaf7fac9839
+        preserved_candidate_branch: codex/electronics-ready-cadence-539-final
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/arduino-ready-cadence-539-independent-review-c7ab5fd4.md
+        independent_review_original_sha256: 9e9361dee201efb02020eea9117980c80f5aaf9ce4bf59a41a01bf59da81a32e
+        exact_general_run: 37975631829
+        exact_general_conclusion: success
+        directed_before_run: 37977684653
+        directed_after_run: 37977699930
+        directed_after_conclusion: failure
+        repair_scope: Only proven remaining compute cost inside the two existing controller/runtime
+          production paths. Keep both complete generic programs, 5s/30s assertions, all
+          canonical state/inputs/barriers/precision/budgets. New production path requires
+          a separate bounded controller decision before edits. E01 acceptance remains
+          priority; hold this candidate integration until E01 and due hygiene.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: c69265688891d3084f59add6d1188813a6764633
+        head_sha: null
+        observed_at: '2026-10-09T19:15:50Z'
+        main:
+          branch: main
+          sha: c69265688891d3084f59add6d1188813a6764633
+        observation_note: 'Dated snapshot; fetch main and actual exact CI before writes.
+          NEW independent exactc7 REQUEST_CHANGES: Serial full8/save/reopen PASS, GPIO
+          genuine ready0..1400000/100000 and UI0..5 only within original5s; actual compute14chunks4113.2ms,
+          observer15/200, no lost ready frame or physics quality fault. General37975631829
+          all4SUCCESS does not accept incomplete pupil journey; Ordinary source NOT_RUN
+          deliberately after directed failure. Preserve c7/0147/1747 and original BEFORE/AFTER
+          ZIPs. New bounded R1 author investigates remaining compute cause within existing
+          two production paths; no timeout/precision/budget weakening, no incomplete frame.
+          Root526 stays independent priority; all other lanes/history preserved; school/K0/T3/class/deployment
+          pending.'
+      status: blocked_pending_same_time_scheduler_dependency
+      dependency_issue: 540
+      candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
+      candidate_branch: codex/electronics-ready-cadence-539-final
+      preserved_merge_only_preparation_sha: 9036e015195cd367c6e5f84c603a530df9d2e443
+      outside_budget_evidence: docs/product/electronics/evidence/scheduler-540-proven-same-time-cost.md
       owner_acceptance: pending
 
   - id: electronics-wire
