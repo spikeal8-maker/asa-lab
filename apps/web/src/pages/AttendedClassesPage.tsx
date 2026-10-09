@@ -6,6 +6,7 @@ import { SeatCourses } from '../components/SeatCourses';
 import { ClassroomJoinRequests } from '../components/ClassroomJoinRequests';
 import { LearningNotificationPreferences } from '../components/LearningNotificationPreferences';
 import { StudentJournalResults } from '../components/StudentJournalResults';
+import { StudentParticipantSummary } from '../components/ClassroomParticipantPanels';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { useSchoolTime } from '../components/school-time';
 import { AtomicLearningStarter } from '../learning/atomic-learning-start';
@@ -44,6 +45,7 @@ export function AttendedClassesPage({
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [participantSeatId, setParticipantSeatId] = useState<string | null>(null);
   const destination = useLearningDestination();
   useEffect(() => {
     if (destination.assignment) setOpenId(destination.assignment);
@@ -173,6 +175,24 @@ export function AttendedClassesPage({
                   <div>
                     <strong>{entry.classroomTitle}</strong>
                     <span>Преподаватель: {entry.teacherDisplayName}</span>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      aria-expanded={participantSeatId === entry.seatId}
+                      onClick={() =>
+                        setParticipantSeatId((current) =>
+                          current === entry.seatId ? null : entry.seatId,
+                        )
+                      }
+                    >
+                      Мой рейтинг и заслуги
+                    </button>
+                    {participantSeatId === entry.seatId ? (
+                      <StudentParticipantSummary
+                        key={entry.seatId}
+                        accountSeat={{ classroomId: entry.classroomId, seatId: entry.seatId }}
+                      />
+                    ) : null}
                     <details>
                       <summary>Мои оповещения об этом классе</summary>
                       <LearningNotificationPreferences

@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type Classroom, type ClassroomStudentSeat } from '../../api';
 import { ClassroomPage } from '../../pages/ClassroomPage';
+import { participantsApi } from '../../classroom-participants-api';
 
 vi.mock('../ClassJoinQr', () => ({ ClassJoinQr: () => null }));
 const testGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
@@ -95,6 +96,26 @@ beforeEach(() => {
   );
   vi.spyOn(api, 'listClassroomRoster').mockImplementation(async (id) =>
     ok({ items: id === classroomA.id ? [codeSeat, otherSeat, accountSeat] : [seatB] }),
+  );
+  vi.spyOn(participantsApi, 'roster').mockImplementation(async (id) =>
+    ok({
+      settings: {
+        periodDays: 30,
+        revision: 0,
+        factors: { projects: false, logins: false, days: false, time: false, grades: false },
+      },
+      items: (id === classroomA.id ? [codeSeat, otherSeat, accountSeat] : [seatB]).map((seat) => ({
+        seatId: seat.id,
+        totalWorks: 0,
+        archivedWorks: 0,
+        score: null,
+        rank: null,
+        factors: { projects: 0, logins: 0, days: 0, time: 0, grades: 0 },
+        sources: { projects: 0, logins: 0, days: 0, time: 0, grades: 0 },
+        role: 'student' as const,
+        avatarUrl: null,
+      })),
+    }),
   );
   vi.spyOn(api, 'classroomAwards').mockResolvedValue(ok({ items: {} }));
   vi.spyOn(api, 'classroomProgress').mockResolvedValue(refusal);

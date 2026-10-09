@@ -4,6 +4,7 @@ import { useSchoolTime } from './school-time';
 import './seat-results.css';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import { StudentJournalResults } from './StudentJournalResults';
+import { StudentParticipantSummary } from './ClassroomParticipantPanels';
 
 export function SeatResults({
   completedOnly = false,
@@ -12,6 +13,7 @@ export function SeatResults({
 }): JSX.Element {
   return (
     <>
+      <StudentParticipantSummary />
       <StudentJournalResults scope="seat" />
       <AssignedSeatResults completedOnly={completedOnly} />
     </>
