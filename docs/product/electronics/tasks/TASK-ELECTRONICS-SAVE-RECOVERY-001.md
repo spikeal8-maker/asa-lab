@@ -134,6 +134,12 @@ Retain full-schema/sketch exports, exact older local bytes/server-versus-current
 
 Separate interactions1925 failure expects catalog missing-image status; stage failure appears, catalog status is absent. Its case and image/catalog production files are unchanged relative to main. Cause is under separate read-only classification, not declared resolved or permission for asset repair inside526. All ordinary exact gates and a NEW independent reviewer remain mandatory; no blind rerun, timeout increase or skipped assertions. Author self-review/exact unpublished SHA/report and STOP. Controller verifies/publishes, handles any separate baseline blocker and obtains final exact acceptance. No next task, school/DB/network/backup/owner/class action.
 
+## Preserved R5 — separate native-menu dependency
+
+Exact published0dd31b4d97cba4cbda935c66968e180fdc630a04/tree759fc80b7a0e423f67a247d3ba663abe363cc888 remains unchanged. General37872258062 all4SUCCESS; ordinary37872270511 focused/benchmarkSUCCESS, browser126PASS/1FAIL, review-imagesSKIPPED. NEW [independent R5 review](../evidence/save-526-r5-independent-review-0dd31b4d.md) REQUEST_CHANGES: actual native Purple swatch is hidden/intercepted by Code drawer at1024. Only2of56 normal-state layouts are captured; final denial/export/remaining54 are NOT_RUN. Other original full-document/sketch/recovery/crash/scope receipts remain preserved PASS. ProvisionalC baseline attribution uses identical main stacking rules/consumer, not an executed main-browser comparison. Original ZIP SHA8c5786856d6fefa963ef2fb1265b7e4619a4a7b3a3b71d3ce9ccaf0af229e4a2/147CRC PASS stays cached.
+
+Controller selects separate [530 bounded UI repair](TASK-ELECTRONICS-WIRE-MENU-LAYER-001.md) on canonical main; do not add its code to this preserved ref or start another526 implementation. After technical530 acceptance, root freshly selects526, safely converges the preserved candidate with accepted530/current state and obtains final ordinary exact gates/full denial+56/new independent review. No new causal BEFORE, timeout increase, weaker pointer assertions, old approval substitution or E04 activation. Original R5 review SHA256f305dc4145e1d79ffff488453d777c95fb6deebb78b58f4e01c061d18dad4dd1 before ordinary Git Markdown line-ending normalization.
+
 ## Required acceptance
 
 1. Before/after production-browser proof for both defects; exact candidate SHA and raw evidence.
