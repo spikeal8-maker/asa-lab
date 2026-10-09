@@ -106,7 +106,7 @@ function fixture(): SchematicDocument {
       rotation: 0,
       value: 2,
       pinIds: ['anode', 'cathode'],
-      stateProperties: { colour: 'red' },
+      stateProperties: { colour: 'red', ledColour: 'red', ledBrightness: 0, ledFault: 'none' },
     });
     for (const [from, fromPin, to, toPin] of [
       ['uno', `d${index + 2}`, `r${index}`, 'lead-1'],
