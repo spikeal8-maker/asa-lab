@@ -581,56 +581,99 @@ parallel_lanes:
       - tools/validate-electronics-agent-docs.mjs
       - tools/test_validate_electronics_agent_docs.mjs
     task:
-      id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
-      issue: 532
+      id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
+      issue: 533
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_bounded_independent_mode_test_packaging
-      dependency_for_issue: 530
-      upstream_readiness_issue: 531
+      checkpoint: bounded_preinject_same_origin_media_repair
+      dependency_for_issue: 532
       owner_acceptance: pending
-      first_candidate_sha: 0340d9be50ac04caf34f49206c8f18fab9fc5f9a
-      first_candidate_tree: c6220bd80d74679dfd112090c7e106ecda0ba3f6
-      first_candidate_branch: codex/electronics-compact-controls-532
-      first_independent_review: request_changes
-      first_independent_evidence: docs/product/electronics/evidence/compact-controls-532-independent-review-0340d9be.md
-      first_general_run: 37888088058
-      first_general_conclusion: success
-      first_electronics_run: 37888099694
-      first_electronics_conclusion: failure
-      first_browser_passed: 120
-      first_browser_failed: 1
-      r1_candidate_sha: 823796169da09dd3e8683bd5a3b3af5b1007b7de
-      r1_candidate_tree: b67ae45c5c2c854cdd9d07cf085f1fda8e392241
-      r1_candidate_branch: codex/electronics-compact-controls-532-r1
-      r1_independent_review: request_changes
-      r1_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r1-independent-review-82379616.md
-      r1_general_run: 37891874071
-      r1_general_status: in_progress
-      r1_general_conclusion: pending
-      r1_directed_sha: 189c424495e8b50ce5d165cf6303fad94b1e516d
-      r1_directed_run: 37891915974
-      r1_directed_conclusion: failure
-      r1_directed_completed_phases: 8
-      r1_ordinary_electronics: not_run
-      r2_candidate_sha: 07a396785ea73d06394d29b66917428c0fa23521
-      r2_candidate_tree: 5f5a910a8591caa4823692daa0dee088c43df005
-      r2_candidate_branch: codex/electronics-compact-controls-532-r2
-      r2_independent_review: request_changes
-      r2_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r2-independent-review-07a39678.md
-      r2_general_run: 37893847140
-      r2_general_status: in_progress
-      r2_general_conclusion: pending
-      r2_directed_sha: 383d60177f68f5b26d618cf1a45480722901a885
-      r2_directed_run: 37893883609
-      r2_directed_conclusion: failure
-      r2_directed_completed_phases: 75
-      r2_directed_recorded_rows: 76
-      r2_ordinary_electronics: not_run
     suspended_slices:
+      - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+        issue: 532
+        status: waiting_separate_media_dependency
+        checkpoint: r3_candidate_preserved_after_independent_request_changes
+        observed_at: '2026-10-09T07:23:04Z'
+        preserved_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+        preserved_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+        preserved_branch: codex/electronics-compact-controls-532-r3
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
+        dependency_issue: 533
+        owner_acceptance: pending
+        reason: 'Independent R3: existing product default external media requests require
+          separate repair; text cumulative30s remains packaging, not proved Stop defect.
+          Preserve all source/raw and causal CSS.'
+        resume_after: Technical533 acceptance, fresh532 selection/convergence, shorter independent
+          text viewport segments at unchanged30s preserving52text/95total and complete final
+          intent per segment; final combined exact gates and NEW review.
+        preserved_task_snapshot:
+          id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
+          issue: 532
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_progress
+          checkpoint: r3_bounded_independent_mode_test_packaging
+          dependency_for_issue: 530
+          upstream_readiness_issue: 531
+          owner_acceptance: pending
+          first_candidate_sha: 0340d9be50ac04caf34f49206c8f18fab9fc5f9a
+          first_candidate_tree: c6220bd80d74679dfd112090c7e106ecda0ba3f6
+          first_candidate_branch: codex/electronics-compact-controls-532
+          first_independent_review: request_changes
+          first_independent_evidence: docs/product/electronics/evidence/compact-controls-532-independent-review-0340d9be.md
+          first_general_run: 37888088058
+          first_general_conclusion: success
+          first_electronics_run: 37888099694
+          first_electronics_conclusion: failure
+          first_browser_passed: 120
+          first_browser_failed: 1
+          r1_candidate_sha: 823796169da09dd3e8683bd5a3b3af5b1007b7de
+          r1_candidate_tree: b67ae45c5c2c854cdd9d07cf085f1fda8e392241
+          r1_candidate_branch: codex/electronics-compact-controls-532-r1
+          r1_independent_review: request_changes
+          r1_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r1-independent-review-82379616.md
+          r1_general_run: 37891874071
+          r1_general_status: in_progress
+          r1_general_conclusion: pending
+          r1_directed_sha: 189c424495e8b50ce5d165cf6303fad94b1e516d
+          r1_directed_run: 37891915974
+          r1_directed_conclusion: failure
+          r1_directed_completed_phases: 8
+          r1_ordinary_electronics: not_run
+          r2_candidate_sha: 07a396785ea73d06394d29b66917428c0fa23521
+          r2_candidate_tree: 5f5a910a8591caa4823692daa0dee088c43df005
+          r2_candidate_branch: codex/electronics-compact-controls-532-r2
+          r2_independent_review: request_changes
+          r2_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r2-independent-review-07a39678.md
+          r2_general_run: 37893847140
+          r2_general_status: in_progress
+          r2_general_conclusion: pending
+          r2_directed_sha: 383d60177f68f5b26d618cf1a45480722901a885
+          r2_directed_run: 37893883609
+          r2_directed_conclusion: failure
+          r2_directed_completed_phases: 75
+          r2_directed_recorded_rows: 76
+          r2_ordinary_electronics: not_run
+          r3_candidate_sha: bd4074fe0326a2f51334991718cdcc544ae7386d
+          r3_candidate_tree: 345df0815be719ac057a8606b4602264f931bb0d
+          r3_candidate_branch: codex/electronics-compact-controls-532-r3
+          r3_independent_review: request_changes
+          r3_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
+          r3_general_run: 37896979603
+          r3_general_conclusion: success
+          r3_directed_sha: 7a79fa5194dac7a075cc591d0499e9c46f100303
+          r3_directed_run: 37897059035
+          r3_directed_conclusion: failure
+          r3_recorded_rows: 94
+          r3_completed_before_timeout: 88
+          r3_text_completed_before_timeout: 45
+          r3_ordinary_electronics: not_run
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
         status: suspended_by_owner_priority
@@ -772,21 +815,20 @@ parallel_lanes:
         compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 8c140a89329762a827f7ff3bbd399d0b9d2fbf3e
+      convergence_baseline_sha: c47b4914c56e89473d5eca7bd61fae3ea62b5cfe
       head_sha: null
-      observed_at: '2026-10-09T06:41:22Z'
+      observed_at: '2026-10-09T07:23:04Z'
       main:
         branch: main
-        sha: 8c140a89329762a827f7ff3bbd399d0b9d2fbf3e
+        sha: c47b4914c56e89473d5eca7bd61fae3ea62b5cfe
       observation_note: >-
-        Dated snapshot; fetch main and read live current task/exact CI before writes. Accepted531/529 and all prior results remain.
-        Published R2 source07 preserved/unaccepted; NEW independent REQUEST_CHANGES after ONE directed child383/run37893883609 failed total30000ms test budget at final320-blocks-text screenshot. Fonts loaded; no failed geometry assertion. Diagnostic is not ordinary gate or product-failure claim.
-        Actual75 completed PNG/raw phases pass bounds/hits/text/groups/source/fixture checks;76th row has no screenshot/following assertions. Text full server document/revision2to2 preserved; blocks and both final nontext intent NOT_RUN. No95PASS or acceptance.
-        Performed1181/1373/1374 originals show causal Header repair fits. Full right group561.15625 includes both8px paddings; total1373.703125 corrects historic clock-to-Share553.15625 excluding trailing8. Preserve raw history; no mainBEFORE/frequency claim.
-        R3 selects NEW bounded test-only author: replace ONLY NEW monolith with3 independent text/blocks-text/blocks real fixture cases at same default30000ms. Preserve all95 phases/PNGs/full server documents/revisions/actual source/clamp-aware input/captions/clock/whole groups, all old120/531/workflow/defaults and productCSS byte-identical07.
-        No timeout increase, deleted checks, force, fakeSDK, physics/Arduino/auth/persistence changes. ONE changed-cause directed3 NEWmode diagnostic allowed outside final source ancestry, not acceptance. Final ordinary exact all8/123 browser scenarios/full95 evidence and NEW independent review mandatory.
-        Preserve530870/5260dd/525ed4/all accepted/foreign work. After532 acceptance freshly resume530, then526 full56/denial persistence. Hygiene524 count529=1,531 test-only0; reassess after each accepted slice.
-        SchoolK0/version/fullbackups NOT_VERIFIED,T3/owner/class/release pending; no deployment/DB/network/backup authorization.
+        Dated snapshot; fetch main and read live task/exact CI before writes. Main c47 General37894982645 SUCCESS; accepted531/529 and all prior results preserved.
+        Source532 R3 bd4074 preserved/unaccepted. NEW independent REQUEST_CHANGES: ONE directed7a79/run37897059035 failed text cumulative30000ms plus existing Blockly external-media race. General37896979603 exact source all4SUCCESS; ordinary Electronics NOT_RUN.
+        Actual94 rows/PNG but only88 pre-timeout phases:45text+24mixed+19blocks. Last6text files after teardown are not accepted; final text phase/intent NOT_RUN. Both nontext full server documents/revision2to2 and actual full local draft dictionaries strictly equal separately. No95PASS or mounted-state claim.
+        Select533 separately bounded product resource initialization repair: stop default external demo-host media requests before inject; reuse existing pinned vendor bytes and same origin. No new SVG/art, protected assets, dependency/version, CSS/Header, physics/Arduino/save/auth, timeout/assertion or browser-failure allowlist changes.
+        NEW bounded author then root actual source/evidence, ONE changed-cause new media diagnostic outside final source ancestry if needed, ordinary exact all8 and NEW independent review before technical integration/closure. No deployment/DB/network/backups.
+        After533 acceptance fresh select preserved532 for shorter independent text viewport segments, all52text/95total and unchanged30000ms. Then530870 and5260dd full56/denial persistence;525ed4 remains suspended. Preserve all foreign lanes and published refs.
+        Hygiene524 count529=1,531 test-only0;533 and532/530 count only after acceptance, evaluate mandatory checkpoint at3 accepted production slices. School K0 installed version/full backups NOT_VERIFIED, real pupil T3/owner/class/release pending.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
