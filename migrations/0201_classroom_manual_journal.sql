@@ -147,8 +147,8 @@ BEGIN
  JOIN public.learner_identity_links link ON link.seat_id=seat.id AND link.status='active' AND link.disabled_at IS NULL AND link.link_kind='student_seat' AND link.learner_identity_id=learner.id AND link.tenant_id=class.tenant_id AND link.school_id=class.school_id
  WHERE col.id=NEW.column_id AND col.classroom_id=NEW.classroom_id AND col.tenant_id=NEW.tenant_id;
  IF v_preset IS NULL THEN RAISE EXCEPTION 'journal lineage invalid'; END IF;
- IF NEW.value IS NOT NULL AND NOT CASE v_preset WHEN 'hundred' THEN NEW.value BETWEEN 0 AND 100
- WHEN 'three_five' THEN NEW.value IN (3,4,5) WHEN 'five' THEN NEW.value BETWEEN 0 AND 5 ELSE NEW.value BETWEEN 1 AND 5 END
+ IF NEW.value IS NOT NULL AND NOT (CASE v_preset WHEN 'hundred' THEN NEW.value BETWEEN 0 AND 100
+ WHEN 'three_five' THEN NEW.value IN (3,4,5) WHEN 'five' THEN NEW.value BETWEEN 0 AND 5 ELSE NEW.value BETWEEN 1 AND 5 END)
  THEN RAISE EXCEPTION 'journal grade invalid'; END IF;
  IF NEW.supersedes_id IS NOT NULL THEN
  SELECT * INTO v_prior FROM public.classroom_journal_revisions WHERE id=NEW.supersedes_id;
@@ -331,8 +331,8 @@ BEGIN
  IF NOT FOUND THEN RETURN '{"error":"not_found"}'; END IF;
  SELECT * INTO v_scale FROM public.classroom_journal_scales WHERE id=v_column.scale_id;
  v_value:=(p_input->>'value')::integer;
- IF v_value IS NOT NULL AND NOT CASE v_scale.preset WHEN 'hundred' THEN v_value BETWEEN 0 AND 100
- WHEN 'three_five' THEN v_value IN (3,4,5) WHEN 'five' THEN v_value BETWEEN 0 AND 5 ELSE v_value BETWEEN 1 AND 5 END
+ IF v_value IS NOT NULL AND NOT (CASE v_scale.preset WHEN 'hundred' THEN v_value BETWEEN 0 AND 100
+ WHEN 'three_five' THEN v_value IN (3,4,5) WHEN 'five' THEN v_value BETWEEN 0 AND 5 ELSE v_value BETWEEN 1 AND 5 END)
  THEN RETURN '{"error":"invalid_grade"}'; END IF;
  SELECT * INTO v_latest FROM public.classroom_journal_revisions WHERE column_id=v_column.id AND seat_id=v_seat ORDER BY revision DESC LIMIT 1;
  IF v_latest.id IS NULL AND v_value IS NULL THEN RETURN '{"error":"invalid_grade"}'; END IF;
