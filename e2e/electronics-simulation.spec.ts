@@ -2934,6 +2934,10 @@ test('compact controls retain full desktop captions and usable Code controls at 
           ariaLabel: element.getAttribute('aria-label'),
           rect: bounds(rect),
           fontSize: style.fontSize,
+          disabled: element instanceof HTMLButtonElement && element.disabled,
+          iconRects: Array.from(element.querySelectorAll(':scope > svg'), (icon) =>
+            bounds(icon.getBoundingClientRect()),
+          ),
           textRects,
           clips,
           points,
@@ -2959,6 +2963,26 @@ test('compact controls retain full desktop captions and usable Code controls at 
           clientWidth: document.documentElement.clientWidth,
         },
         primary: inspect(primary),
+        headerControls: Array.from(
+          toolbar.querySelectorAll(
+            '.workbench-toolbar-group > button, .workbench-toolbar-group > strong, .workbench-toolbar-group > details > summary',
+          ),
+        )
+          .filter((control) => {
+            const rect = control.getBoundingClientRect();
+            return (
+              rect.width > 0 &&
+              rect.height > 0 &&
+              getComputedStyle(control).visibility === 'visible'
+            );
+          })
+          .map(inspect),
+        fixtureBlockIds: Array.from(
+          document.querySelectorAll(
+            '[data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="setup-532"], [data-testid="arduino-block-workspace"] .injectionDiv > svg.blocklySvg [data-id="loop-532"]',
+          ),
+          (block) => block.getAttribute('data-id'),
+        ).sort(),
         codeControls: Array.from(
           codeToolbar.querySelectorAll(
             ':scope > details > summary, :scope > button, :scope > select, .arduino-font-size-select > select',
@@ -3034,6 +3058,33 @@ test('compact controls retain full desktop captions and usable Code controls at 
       }
     }
     assertFits(observation.primary);
+    if ([1180, 1181].includes(observation.viewport.width)) {
+      expect(observation.toolbar.height).toBe(observation.viewport.width === 1180 ? 96 : 48);
+      expect(observation.headerControls).toHaveLength(
+        observation.view.includes('breadboard')
+          ? 15
+          : observation.view.includes('schematic')
+            ? 8
+            : 6,
+      );
+      for (const control of observation.headerControls) {
+        assertFits(control);
+        expect(control.rect.width).toBeGreaterThan(0);
+        expect(control.rect.height).toBeGreaterThan(0);
+        for (const icon of control.iconRects) {
+          expect(icon.left).toBeGreaterThanOrEqual(control.rect.left - 1);
+          expect(icon.right).toBeLessThanOrEqual(control.rect.right + 1);
+          expect(icon.top).toBeGreaterThanOrEqual(control.rect.top - 1);
+          expect(icon.bottom).toBeLessThanOrEqual(control.rect.bottom + 1);
+        }
+      }
+      if (running) {
+        expect(observation.view).toContain('breadboard');
+        expect(observation.clock!.text).toMatch(/^Время моделирования: \d{2}:\d{2}:\d{2}$/);
+        expect(observation.clock!.textRects.some((rect) => rect.width > 0)).toBe(true);
+      }
+    }
+    if (mode !== 'text') expect(observation.fixtureBlockIds).toEqual(['loop-532', 'setup-532']);
     if (desktop) {
       expect(Number.parseFloat(observation.primary.fontSize)).toBeGreaterThan(0);
       expect(observation.primary.textRects.some((rect) => rect.width > 0)).toBe(true);
@@ -3058,7 +3109,7 @@ test('compact controls retain full desktop captions and usable Code controls at 
     }
   }
 
-  for (const width of [1440, 1024, 981, 980, 390, 320]) {
+  for (const width of [1440, 1181, 1180, 1024, 981, 980, 390, 320]) {
     const desktop = width > 980;
     await page.setViewportSize({ width, height: 900 });
     await record(`${width}-stopped`, desktop, false);
@@ -3093,19 +3144,28 @@ test('compact controls retain full desktop captions and usable Code controls at 
     const beforeBox = await drawer.boundingBox();
     const handleBox = await handle.boundingBox();
     if (!beforeBox || !handleBox) throw new Error('Code drawer resize geometry is missing');
+    const maximum = Math.max(460, width - 420);
+    const minimum = Math.min(620, maximum);
+    // Ordinary drag changes width whenever the canonical interval has room.
+    // At the minimum, drag outward instead of pretending a clamped input failed.
+    const horizontalDelta = beforeBox.width - minimum > 16 ? 32 : -32;
     const x = handleBox.x + handleBox.width / 2;
     const y = handleBox.y + handleBox.height / 2;
     await page.mouse.move(x, y);
     await page.mouse.down();
-    await page.mouse.move(x + (desktop ? 32 : 0), y - (desktop ? 0 : 32), { steps: 4 });
+    await page.mouse.move(x + (desktop ? horizontalDelta : 0), y - (desktop ? 0 : 32), {
+      steps: 4,
+    });
     await page.mouse.up();
     await expect
       .poll(async () => {
         const afterBox = await drawer.boundingBox();
         if (!afterBox) return false;
         return desktop
-          ? width === 1440
-            ? afterBox.width < beforeBox.width - 16
+          ? maximum > minimum
+            ? horizontalDelta > 0
+              ? afterBox.width < beforeBox.width - 16
+              : afterBox.width > beforeBox.width + 16
             : Math.abs(afterBox.width - beforeBox.width) <= 1
           : afterBox.height > beforeBox.height + 16;
       })
@@ -3113,7 +3173,7 @@ test('compact controls retain full desktop captions and usable Code controls at 
     await record(`${width}-resized`, desktop, false);
     if (desktop) {
       const actualWidth = (await drawer.boundingBox())!.width;
-      if (width !== 1440) {
+      if (maximum === minimum) {
         // The existing drawer minimum meets its viewport-minus-420px maximum.
         // Ordinary input is clamped at these widths, not a missing interaction.
         expect(actualWidth).toBe(width - 420);
@@ -3182,37 +3242,71 @@ test('compact controls retain full desktop captions and usable Code controls at 
     await expect(page.locator('.workbench-stage')).toBeVisible();
     await page.locator('.workbench-pill.code').click();
     await expect(drawer).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
-    await expect(
-      page.getByTestId('arduino-block-workspace').locator(':scope > svg.blocklySvg'),
-    ).toBeVisible();
+    const blockSvg = page
+      .getByTestId('arduino-block-workspace')
+      .locator(':scope > .injectionDiv > svg.blocklySvg');
+    await expect(blockSvg).toBeVisible();
+    await expect(blockSvg.locator('[data-id="setup-532"]')).toBeVisible();
+    await expect(blockSvg.locator('[data-id="loop-532"]')).toBeVisible();
+    // Clean production load clears its dirty local draft. These raw before/after
+    // receipts prove draft presence/absence; null is not a mounted document snapshot.
     const modeLocalBefore = await page.evaluate((id) => {
       const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
       return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
     }, modeProjectId);
-    for (const width of [1440, 1024, 981, 980, 390, 320]) {
+    for (const width of [1440, 1181, 1180, 1024, 981, 980, 390, 320]) {
       await page.setViewportSize({ width, height: 900 });
       await record(`${width}-${mode}`, width > 980, false, mode, blockSource);
-      if (width === 1440) {
+      if ([1180, 1181].includes(width)) {
+        await run.click();
+        await expect(run).toHaveAttribute('aria-pressed', 'true');
+        await expect(run).toHaveAttribute('data-simulation-status', 'running');
+        await record(`${width}-${mode}-running`, true, true, mode, blockSource);
+        await run.click();
+        await expect(run).toHaveAttribute('aria-pressed', 'false');
+      }
+      if ([1440, 1180, 1181].includes(width)) {
         const widthHandle = page.getByRole('separator', {
           name: 'Изменить ширину редактора кода',
           exact: true,
         });
         const start = (await widthHandle.boundingBox())!;
         const initialWidth = (await drawer.boundingBox())!.width;
+        const maximum = Math.max(460, width - 420);
+        const minimum = Math.min(620, maximum);
+        const grow = width === 1440 || initialWidth - minimum <= 16;
+        const delta = grow ? -24 : 24;
         await page.mouse.move(start.x + start.width / 2, start.y + start.height / 2);
         await page.mouse.down();
-        await page.mouse.move(start.x + start.width / 2 - 24, start.y + start.height / 2, {
+        await page.mouse.move(start.x + start.width / 2 + delta, start.y + start.height / 2, {
           steps: 4,
         });
         await page.mouse.up();
         await record(`${width}-${mode}-resized`, true, false, mode, blockSource);
-        expect((await drawer.boundingBox())!.width).toBeGreaterThan(initialWidth + 16);
+        if (grow) {
+          expect((await drawer.boundingBox())!.width).toBeGreaterThan(initialWidth + 16);
+        } else {
+          expect((await drawer.boundingBox())!.width).toBeLessThan(initialWidth - 16);
+        }
+        expect(
+          Math.abs(
+            (await drawer.boundingBox())!.width -
+              Number(await widthHandle.getAttribute('aria-valuenow')),
+          ),
+        ).toBeLessThanOrEqual(1);
         if (mode === 'blocks-text') {
           await font.click();
-          await page.keyboard.press('End');
+          const size = width === 1181 ? '14' : '20';
+          if (size === '14') {
+            await page.keyboard.press('Home');
+            await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('ArrowDown');
+          } else {
+            await page.keyboard.press('End');
+          }
           await page.keyboard.press('Enter');
-          await expect(font).toHaveValue('20');
-          await expect(page.locator('.arduino-source-editor')).toHaveCSS('font-size', '20px');
+          await expect(font).toHaveValue(size);
+          await expect(page.locator('.arduino-source-editor')).toHaveCSS('font-size', `${size}px`);
           await record(`${width}-${mode}-font`, true, false, mode, blockSource);
         }
       }
