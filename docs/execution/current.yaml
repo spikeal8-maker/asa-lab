@@ -588,9 +588,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_preinject_same_origin_media_repair
+      checkpoint: r1_bounded_mixed_readonly_locator_test_repair
       dependency_for_issue: 532
       owner_acceptance: pending
+      first_candidate_sha: 680ab8bf383280ee512ac4eca358290b817c5989
+      first_candidate_tree: 04e3907c47cc763580b74fc59d0bad8da19181da
+      first_candidate_branch: codex/electronics-blockly-media-init-533
+      first_candidate_published: false
+      first_independent_review: request_changes
+      first_independent_evidence: docs/product/electronics/evidence/blockly-media-533-independent-review-680ab8bf.md
+      first_general: not_run
+      first_browser: not_run
     suspended_slices:
       - task_id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
         issue: 532
@@ -815,20 +823,20 @@ parallel_lanes:
         compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c47b4914c56e89473d5eca7bd61fae3ea62b5cfe
+      convergence_baseline_sha: 7ac2925dad9d781e15ea5a6f3852d5e2871b1fd6
       head_sha: null
-      observed_at: '2026-10-09T07:23:04Z'
+      observed_at: '2026-10-09T07:52:28Z'
       main:
         branch: main
-        sha: c47b4914c56e89473d5eca7bd61fae3ea62b5cfe
+        sha: 7ac2925dad9d781e15ea5a6f3852d5e2871b1fd6
       observation_note: >-
-        Dated snapshot; fetch main and read live task/exact CI before writes. Main c47 General37894982645 SUCCESS; accepted531/529 and all prior results preserved.
-        Source532 R3 bd4074 preserved/unaccepted. NEW independent REQUEST_CHANGES: ONE directed7a79/run37897059035 failed text cumulative30000ms plus existing Blockly external-media race. General37896979603 exact source all4SUCCESS; ordinary Electronics NOT_RUN.
-        Actual94 rows/PNG but only88 pre-timeout phases:45text+24mixed+19blocks. Last6text files after teardown are not accepted; final text phase/intent NOT_RUN. Both nontext full server documents/revision2to2 and actual full local draft dictionaries strictly equal separately. No95PASS or mounted-state claim.
-        Select533 separately bounded product resource initialization repair: stop default external demo-host media requests before inject; reuse existing pinned vendor bytes and same origin. No new SVG/art, protected assets, dependency/version, CSS/Header, physics/Arduino/save/auth, timeout/assertion or browser-failure allowlist changes.
-        NEW bounded author then root actual source/evidence, ONE changed-cause new media diagnostic outside final source ancestry if needed, ordinary exact all8 and NEW independent review before technical integration/closure. No deployment/DB/network/backups.
-        After533 acceptance fresh select preserved532 for shorter independent text viewport segments, all52text/95total and unchanged30000ms. Then530870 and5260dd full56/denial persistence;525ed4 remains suspended. Preserve all foreign lanes and published refs.
-        Hygiene524 count529=1,531 test-only0;533 and532/530 count only after acceptance, evaluate mandatory checkpoint at3 accepted production slices. School K0 installed version/full backups NOT_VERIFIED, real pupil T3/owner/class/release pending.
+        Dated snapshot; fetch main and read live task/exact CI before writes. Main7ac General37898861905 terminal all4SUCCESS; accepted and suspended history preserved.
+        First533 local source680ab8bf/tree04e3907c remains preserved UNPUBLISHED; no source CI/browser was run. NEW independent REQUEST_CHANGES before costly browser: mixed fixture passes readOnly true, actual textarea label Generated Arduino Code, but NEW test uses editable-code label at2989/3020. This is a new test selector defect, not a product timeout.
+        Root actual five-path diff/source/build-byte proof preserves old120/531/focused assertions/CSS/workflow/deps/currentstate. Product pre-inject media base and narrow four-vendor filename/inlining configuration are preserved unchanged for R1. Local type42fresh/build27fresh PASS; full focused FAIL old asset audit5987ms, single71ms probe not full gate PASS; strict8to8 equality only.
+        Select533 R1 NEW test-only author from preserved680 with ordinary selected-main convergence. Change ONLY two NEW mixed-mode selectors to actual readonly generated-code label and canonical browser digest; retain exact source assertions, all gestures/media/ten planned PNGs/full intent/old120/default30000ms. No alternate permissive locator, timeout increase, sleeps/force/fake SDK/error allowlist or product edits.
+        Root actual final source inspection then normal source publication. ONE changed-cause two-mode media diagnostic outside final ancestry allowed, not acceptance; final ordinary exact all8/actual media requests and bytes/normal zoom/reopen/full intent and NEW independent exact review remain mandatory.
+        After technical533 acceptance fresh restore532bd4074 shorter text segments preserving52text/95total and unchanged30s, then530870/5260dd full56. No reimplementation of preserved product candidates or accepted work. Hygiene529count1/531test0; evaluate after each accepted production slice.
+        School K0 installed version/full backups NOT_VERIFIED, actual pupil T3/owner/class/release pending. No school deployment/DB/network/backups; foreign bots and ownerZIP preserved.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
