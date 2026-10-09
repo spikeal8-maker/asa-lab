@@ -588,7 +588,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_bounded_running_toolbar_transition_product_repair
+      checkpoint: r3_bounded_independent_mode_test_packaging
       dependency_for_issue: 530
       upstream_readiness_issue: 531
       owner_acceptance: pending
@@ -616,6 +616,20 @@ parallel_lanes:
       r1_directed_conclusion: failure
       r1_directed_completed_phases: 8
       r1_ordinary_electronics: not_run
+      r2_candidate_sha: 07a396785ea73d06394d29b66917428c0fa23521
+      r2_candidate_tree: 5f5a910a8591caa4823692daa0dee088c43df005
+      r2_candidate_branch: codex/electronics-compact-controls-532-r2
+      r2_independent_review: request_changes
+      r2_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r2-independent-review-07a39678.md
+      r2_general_run: 37893847140
+      r2_general_status: in_progress
+      r2_general_conclusion: pending
+      r2_directed_sha: 383d60177f68f5b26d618cf1a45480722901a885
+      r2_directed_run: 37893883609
+      r2_directed_conclusion: failure
+      r2_directed_completed_phases: 75
+      r2_directed_recorded_rows: 76
+      r2_ordinary_electronics: not_run
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
@@ -758,19 +772,20 @@ parallel_lanes:
         compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 169790363b0f55c01688307a8f6a245236f5feb3
+      convergence_baseline_sha: 8c140a89329762a827f7ff3bbd399d0b9d2fbf3e
       head_sha: null
-      observed_at: '2026-10-09T06:17:41Z'
+      observed_at: '2026-10-09T06:41:22Z'
       main:
         branch: main
-        sha: 169790363b0f55c01688307a8f6a245236f5feb3
+        sha: 8c140a89329762a827f7ff3bbd399d0b9d2fbf3e
       observation_note: >-
         Dated snapshot; fetch main and read live current task/exact CI before writes. Accepted531/529 and all prior results remain.
-        Published R1 source823 preserved/unaccepted; NEW independent REQUEST_CHANGES after ONE directed child189/run37891915974 failure8.3s. Diagnostic is not ordinary gate; only8 phases ran, later1180/modes/fullintent NOT_RUN.
-        Original1181 running Stop right1278.703125 and caption1267.703125 exceed shell hidden0..1181; two right hits null, Share outside1365.703125. Controller and independent reviewer opened original PNG and parsed actual geometry/trace. Single48row above1180 cannot fit full clock/left/right controls. This proves product layout failure, not timing or need for weaker checks.
-        R2 selects NEW bounded product author: minimal workbench.css Header transition plus ONLY NEWcase/canonical browser digest. Preserve R1 Code wrap, all original/R1 widths and checks; add both sides of actual changed structural boundary in text/sharedCode modes and full running Header.
-        No timeout increase, force, fakeSDK, lost full labels, deleted controls or physical precision/Arduino/auth/persistence change. ONE changed-cause directed NEWcase diagnostic permitted outside final source ancestry, not acceptance. Final ordinary exact all8 and NEW independent review required.
-        Preserve530870/5260dd/525ed4 and all accepted/foreign work. After532 acceptance freshly resume530, then526 full56/denial/server persistence. Hygiene524 count529=1;531 test-only0; reassess after each accepted slice.
+        Published R2 source07 preserved/unaccepted; NEW independent REQUEST_CHANGES after ONE directed child383/run37893883609 failed total30000ms test budget at final320-blocks-text screenshot. Fonts loaded; no failed geometry assertion. Diagnostic is not ordinary gate or product-failure claim.
+        Actual75 completed PNG/raw phases pass bounds/hits/text/groups/source/fixture checks;76th row has no screenshot/following assertions. Text full server document/revision2to2 preserved; blocks and both final nontext intent NOT_RUN. No95PASS or acceptance.
+        Performed1181/1373/1374 originals show causal Header repair fits. Full right group561.15625 includes both8px paddings; total1373.703125 corrects historic clock-to-Share553.15625 excluding trailing8. Preserve raw history; no mainBEFORE/frequency claim.
+        R3 selects NEW bounded test-only author: replace ONLY NEW monolith with3 independent text/blocks-text/blocks real fixture cases at same default30000ms. Preserve all95 phases/PNGs/full server documents/revisions/actual source/clamp-aware input/captions/clock/whole groups, all old120/531/workflow/defaults and productCSS byte-identical07.
+        No timeout increase, deleted checks, force, fakeSDK, physics/Arduino/auth/persistence changes. ONE changed-cause directed3 NEWmode diagnostic allowed outside final source ancestry, not acceptance. Final ordinary exact all8/123 browser scenarios/full95 evidence and NEW independent review mandatory.
+        Preserve530870/5260dd/525ed4/all accepted/foreign work. After532 acceptance freshly resume530, then526 full56/denial persistence. Hygiene524 count529=1,531 test-only0; reassess after each accepted slice.
         SchoolK0/version/fullbackups NOT_VERIFIED,T3/owner/class/release pending; no deployment/DB/network/backup authorization.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
