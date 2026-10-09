@@ -394,6 +394,7 @@
     "tools/gate-governance.sh": "1606860ca226598028971bdf04affb2999bbda405bd3a136d71a74913c94aa4d"
   },
   "historical_proof_scope": "workflow_baseline_sha256 and production_defaults_sha256 are one-time original 545 diff evidence only (--baseline-proof); ongoing CI checks semantic_contract, not those full-file hashes.",
+  "trigger_coverage_scope": "R2: each required event retains its original option dimensions and all original positive path/branch patterns; negative patterns and new event filter dimensions are rejected. Positive additions to existing filters and independent new events are allowed. Null and empty mappings both mean an unfiltered event. No historical receipt hash refresh is required for additive test registrations.",
   "semantic_contract": {
     "dockerfile_defaults": {
       "Dockerfile.api": {

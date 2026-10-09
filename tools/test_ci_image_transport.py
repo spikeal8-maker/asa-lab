@@ -79,21 +79,42 @@ def semantic_step(step):
     return {key: value for key, value in step.items() if key != "name"}
 
 
-def contains_required(actual, required):
-    """Mandatory triggers survive while independent paths/events may be added."""
-    if isinstance(required, dict):
-        return isinstance(actual, dict) and all(
-            key in actual and contains_required(actual[key], value)
-            for key, value in required.items())
-    if isinstance(required, list):
-        return isinstance(actual, list) and all(value in actual for value in required)
-    return actual == required
+def covers_required_triggers(actual, required):
+    """Keep original event coverage; only positive existing filters may grow.
+
+    An extra filter dimension intersects coverage (e.g. push.paths), and a
+    later !pattern can undo an earlier positive path/branch. Neither is an
+    additive registration. Unconfigured event options remain unconfigured;
+    new independent events are allowed without restricting required events.
+    """
+    if not isinstance(actual, dict):
+        return False
+    for event, required_options in required.items():
+        if event not in actual:
+            return False
+        options = actual[event]
+        # YAML event: and event: {} are the same unfiltered event.
+        required_options = {} if required_options is None else required_options
+        options = {} if options is None else options
+        if not isinstance(options, dict) or options.keys() != required_options.keys():
+            return False
+        for name, expected in required_options.items():
+            values = options[name]
+            if isinstance(expected, list):
+                if (not isinstance(values, list)
+                        or not all(isinstance(value, str) and not value.startswith("!")
+                                   for value in values)
+                        or not all(value in values for value in expected)):
+                    return False
+            elif values != expected:
+                return False
+    return True
 
 
 def check_workflow(path, contract, receipt):
     workflow = parse_yaml(read(path))
-    require(contains_required(workflow.get("on"), contract["required_triggers"]),
-            "Missing mandatory workflow trigger: " + path)
+    require(covers_required_triggers(workflow.get("on"), contract["required_triggers"]),
+            "Missing or narrowed mandatory workflow trigger: " + path)
     for key, expected in contract["workflow_controls"].items():
         require(workflow.get(key) == expected, "Workflow control drift: " + path + ":" + key)
     for job_id, expected in contract["jobs"].items():
@@ -291,6 +312,38 @@ def check_challenges(receipt):
               "      - 'e2e/electronics-interactions.spec.ts'\n", "")}, False)
     challenge("removed main push trigger", {general: source[general].replace(
               "      - main\n", "")}, False)
+    # Reproduce the three independent R1 review failures through check_offline,
+    # retaining the original receipt and all otherwise-required workflow items.
+    def trigger_challenge(name, path, event, option, value, passes=False):
+        workflow = parse_yaml(source[path])
+        workflow["on"][event] = {**(workflow["on"][event] or {}), option: value}
+        challenge(name, {path: json.dumps(workflow)}, passes)
+
+    trigger_challenge("new General push path filter", general, "push", "paths",
+                      ["docs/never-this-file.zzz"])
+    trigger_challenge("new General push ignored paths", general, "push", "paths-ignore", ["**"])
+    paths = parse_yaml(source[focused])["on"]["pull_request"]["paths"]
+    trigger_challenge("focused trailing negative path", focused, "pull_request", "paths", paths + ["!**"])
+    branches = parse_yaml(source[general])["on"]["push"]["branches"]
+    trigger_challenge("General negative branch after positives", general, "push", "branches",
+                      branches + ["!main"])
+    trigger_challenge("General ignored required branch", general, "push", "branches-ignore", ["main"])
+    trigger_challenge("General restricted pull request activity", general, "pull_request", "types", ["opened"])
+    trigger_challenge("General new pull request path filter", general, "pull_request", "paths", ["docs/**"])
+    trigger_challenge("focused new pull request branch filter", focused, "pull_request", "branches", ["other"])
+    trigger_challenge("focused new ignored paths", focused, "pull_request", "paths-ignore", ["apps/**"])
+    trigger_challenge("focused required dispatch input", focused, "workflow_dispatch", "inputs",
+                      {"approval": {"required": True, "type": "string"}})
+    without_event = parse_yaml(source[general])
+    del without_event["on"]["pull_request"]
+    challenge("removed required pull request event", {general: json.dumps(without_event)}, False)
+    trigger_challenge("additive positive branch", general, "push", "branches",
+                      branches + ["feature/**"], True)
+    extra_event = parse_yaml(source[general])
+    extra_event["on"]["workflow_dispatch"] = None
+    challenge("additive independent event", {general: json.dumps(extra_event)}, True)
+    trigger_challenge("additive positive path", focused, "pull_request", "paths",
+                      paths + ["e2e/electronics-simulation-time.spec.ts"], True)
     challenge("additive test step", {general: source[general].replace(
               "      - name: Code gate", "      - run: pnpm additional:directed-test\n\n      - name: Code gate")}, True)
     challenge("wrong overlay digest", {OVERLAY: source[OVERLAY].replace(
