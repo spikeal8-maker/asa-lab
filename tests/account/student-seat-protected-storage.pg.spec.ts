@@ -169,6 +169,122 @@ async function addSeat(cookie: string, classroomId: string, label: string) {
 }
 
 describe('E1-FIX-02B protected Student Code storage foundation', () => {
+  it('rolls back settings and row revision after damaged protected readback, then saves the restored retry', async () => {
+    const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const { teacher, classroomId } = await teacherClass();
+      const policy = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/policies`,
+        headers: { cookie: teacher.cookie },
+        payload: { safeModeDefault: false },
+      });
+      expect(policy.statusCode, policy.body).toBe(200);
+      const seat = await addSeat(
+        teacher.cookie,
+        classroomId,
+        'Исходное имя, индивидуальная защита',
+      );
+      const snapshot = async () => ({
+        seat: (
+          await admin.query(
+            'SELECT to_jsonb(seat) AS settings, xmin::text AS row_revision FROM classroom_student_seats seat WHERE id=$1',
+            [seat.id],
+          )
+        ).rows,
+        credential: (
+          await admin.query('SELECT * FROM classroom_seat_credentials WHERE seat_id=$1', [seat.id])
+        ).rows,
+        policy: (
+          await admin.query('SELECT safe_mode_default FROM classrooms WHERE id=$1', [classroomId])
+        ).rows,
+        updates: Number(
+          (
+            await admin.query(
+              "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='classroom.student_seat_updated'",
+              [seat.id],
+            )
+          ).rows[0].count,
+        ),
+      });
+      const before = await snapshot();
+      expect(before.seat[0].settings.safe_mode).toBe(true);
+      const envelope = (
+        await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+          seat.id,
+        ])
+      ).rows;
+      const settings = {
+        displayLabel: 'Новое подтверждённое имя',
+        safeMode: false,
+        status: 'active',
+        avatarKey: null,
+      };
+      const patch = () =>
+        inject(app, {
+          method: 'PATCH',
+          url: `/api/classrooms/${classroomId}/seats/${seat.id}`,
+          headers: { cookie: teacher.cookie },
+          payload: settings,
+        });
+      await admin.query(
+        'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+        [Buffer.alloc(16), seat.id],
+      );
+      try {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const rejected = await patch();
+          expect(rejected.statusCode, rejected.body).toBe(503);
+          expect(rejected.body).toContain('credential_storage_unavailable');
+          // Includes label, policy, handle, timestamps and PostgreSQL row revision.
+          expect(await snapshot()).toEqual(before);
+        }
+      } finally {
+        await admin.query(
+          'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+          [envelope[0].encryption_tag, seat.id],
+        );
+      }
+      const saved = await patch();
+      expect(saved.statusCode, saved.body).toBe(200);
+      expect(saved.json().student).toMatchObject({
+        displayLabel: settings.displayLabel,
+        safeMode: false,
+        studentCode: seat.studentCode,
+      });
+      const after = await snapshot();
+      expect(after.seat[0].settings).toMatchObject({
+        display_label: settings.displayLabel,
+        safe_mode: false,
+        login_handle: before.seat[0].settings.login_handle,
+      });
+      expect(after.seat[0].row_revision).not.toBe(before.seat[0].row_revision);
+      expect(after.credential).toEqual(before.credential);
+      expect(after.policy).toEqual(before.policy);
+      expect(after.updates).toBe(before.updates + 1);
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+            seat.id,
+          ])
+        ).rows,
+      ).toEqual(envelope);
+      const roster = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}/roster`,
+        headers: { cookie: teacher.cookie },
+      });
+      expect(roster.statusCode, roster.body).toBe(200);
+      expect(roster.json().items.find((row: { id: string }) => row.id === seat.id)).toMatchObject(
+        saved.json().student,
+      );
+      expect(await snapshot()).toEqual(after);
+    } finally {
+      if (previousMode === undefined) delete process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+      else process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = previousMode;
+    }
+  });
   it('enforced mixed roster keeps Account-only admission and both linked Seat access paths without rotating storage', async () => {
     const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
     process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';

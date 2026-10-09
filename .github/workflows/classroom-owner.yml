@@ -82,8 +82,7 @@ jobs:
         with:
           name: classroom-owner-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: |
-            e2e/artifacts/owner-preview/access-a
-            e2e/artifacts/owner-preview/access-a-ui
+            e2e/artifacts/owner-preview
             reports/playwright
             apps/web/dist/build-metadata.json
           retention-days: 14

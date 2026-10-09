@@ -50,7 +50,8 @@ function controller(
   rows = [accountSeat, linkedSeat],
   protectedRows: ReturnType<typeof envelope>[] = [],
 ) {
-  const query = vi.fn(async (sql: string, args: unknown[]) => {
+  const query = vi.fn(async (sql: string, args: unknown[] = []) => {
+    if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
     if (sql.includes('classroom_management_summary'))
       return {
         rows: [
@@ -95,6 +96,9 @@ function controller(
     }
     throw new Error(`Unexpected query: ${sql}`);
   });
+  const clientQuery = vi.fn(query);
+  const release = vi.fn();
+  const connect = vi.fn(async () => ({ query: clientQuery, release }));
   const args = [
     {
       resolve: vi.fn(async () => ({
@@ -108,9 +112,9 @@ function controller(
     {},
     {},
     {},
-    { query },
+    { query, connect },
   ] as unknown as ConstructorParameters<typeof ClassroomsController>;
-  return { instance: new ClassroomsController(...args), query };
+  return { instance: new ClassroomsController(...args), query, clientQuery, release, connect };
 }
 beforeEach(() => {
   vi.stubEnv('ASA_STUDENT_CODE_PROTECTION_MODE', 'enforced');
@@ -186,6 +190,41 @@ describe('mixed roster credential readback', () => {
 });
 
 describe('credential-free classroom settings PATCH', () => {
+  it('rolls back a refused protected readback on the update connection and commits only the repaired retry', async () => {
+    const valid = envelope();
+    const protectedRows: ReturnType<typeof envelope>[] = [
+      { ...valid, encryption_tag: Buffer.alloc(16) },
+    ];
+    const { instance, clientQuery, release, connect } = controller([linkedSeat], protectedRows);
+    const settings = {
+      displayLabel: 'Подтверждённое имя',
+      safeMode: false,
+      status: 'active',
+      avatarKey: null,
+    };
+    await expect(
+      instance.updateSeat(request, classroomId, linkedSeat.id, settings),
+    ).rejects.toMatchObject({ status: 503 });
+    const statements = clientQuery.mock.calls.map(([sql]) => sql);
+    expect(statements[0]).toBe('BEGIN');
+    expect(statements[2]).toContain('classroom_management_update_seat');
+    expect(statements[3]).toContain('classroom_student_code_protected_read');
+    expect(statements.at(-1)).toBe('ROLLBACK');
+    expect(statements).not.toContain('COMMIT');
+    expect(release).toHaveBeenCalledOnce();
+    protectedRows[0] = valid;
+    expect(
+      (await instance.updateSeat(request, classroomId, linkedSeat.id, settings)).student,
+    ).toMatchObject({
+      safeMode: false,
+      displayLabel: settings.displayLabel,
+      studentCode: linkedSeat.login_handle,
+    });
+    expect(clientQuery.mock.calls.filter(([sql]) => sql === 'COMMIT')).toHaveLength(1);
+    expect(clientQuery.mock.calls.filter(([sql]) => sql === 'ROLLBACK')).toHaveLength(1);
+    expect(connect).toHaveBeenCalledTimes(2);
+    expect(release).toHaveBeenCalledTimes(2);
+  });
   it.each([undefined, null])(
     'updates Account-only settings with loginHandle=%s while preserving stored identity',
     async (loginHandle) => {

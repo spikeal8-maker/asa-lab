@@ -580,11 +580,12 @@ export class ClassroomsController {
     accountId: string,
     classroomId: string,
     rows: StudentSeatRow[],
+    client: pg.Pool | pg.PoolClient = this.requirePool(),
   ): Promise<StudentSeatRow[]> {
     const config = this.studentCodeProtection();
     if (!config || rows.length === 0) return rows;
     const protectedRows = (
-      await this.requirePool().query(
+      await client.query(
         `SELECT seat_id,tenant_id,classroom_id,credential_version,credential_state,
                 encryption_key_id,encryption_nonce,encryption_ciphertext,encryption_tag,lookup_key_id
            FROM classroom_student_code_protected_read($1,$2)`,
@@ -1522,22 +1523,24 @@ export class ClassroomsController {
     ) {
       throw new HttpException(error('validation_error', 'Проверьте настройки ученика.'), 400);
     }
-    const current = await this.requirePool().query(
-      `SELECT login_handle FROM classroom_management_roster($1,$2) WHERE id=$3`,
-      [context.accountId, classroomId, seatId],
-    );
-    if (!current.rows[0]) {
-      throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
-    }
-    const storedHandle = String(current.rows[0].login_handle);
-    if (typeof loginHandle === 'string' && storedHandle !== loginHandle.trim()) {
-      throw new HttpException(
-        error('student_code_endpoint_required', 'Код ученика изменяется отдельным действием.'),
-        409,
-      );
-    }
+    const client = await this.requirePool().connect();
     try {
-      const result = await this.requirePool().query(
+      await client.query('BEGIN');
+      const current = await client.query(
+        `SELECT login_handle FROM classroom_management_roster($1,$2) WHERE id=$3`,
+        [context.accountId, classroomId, seatId],
+      );
+      if (!current.rows[0]) {
+        throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
+      }
+      const storedHandle = String(current.rows[0].login_handle);
+      if (typeof loginHandle === 'string' && storedHandle !== loginHandle.trim()) {
+        throw new HttpException(
+          error('student_code_endpoint_required', 'Код ученика изменяется отдельным действием.'),
+          409,
+        );
+      }
+      const result = await client.query(
         `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
            FROM classroom_management_update_seat($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
@@ -1555,14 +1558,21 @@ export class ClassroomsController {
         context.accountId,
         classroomId,
         result.rows as StudentSeatRow[],
+        client,
       );
-      return { student: seatView(student) };
+      const response = { student: seatView(student) };
+      // A refused protected readback must not leave a saved policy behind.
+      await client.query('COMMIT');
+      return response;
     } catch (failure) {
+      await client.query('ROLLBACK');
       const message = failure instanceof Error ? failure.message : '';
       if (message.includes('unique') || message.includes('duplicate')) {
         throw new HttpException(error('handle_taken', 'Это имя для входа уже занято.'), 409);
       }
       throw failure;
+    } finally {
+      client.release();
     }
   }
 

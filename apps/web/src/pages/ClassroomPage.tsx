@@ -359,21 +359,30 @@ function BatchDialog({
   );
 }
 
-export function ClassroomPage({
-  classroomId,
-  openSeatId,
-  onBack,
-  onOpenProjects,
-  onOpenProject,
-}: {
+type ClassroomPageProps = {
   classroomId: string;
   /** Opens straight into one learner: how a teacher returns from their work. */
   openSeatId?: string;
   onBack: () => void;
   onOpenProjects: (classroomTitle: string) => void;
   onOpenProject: (projectId: string, moduleKey: string, seatId?: string) => void;
-}): JSX.Element {
+};
+
+export function ClassroomPage(props: ClassroomPageProps): JSX.Element {
+  // Every draft, credential dialog and load belongs to one route identity.
+  // Changing the hash must dispose A before any controls for B can appear.
+  return <ClassroomPageContent key={props.classroomId} {...props} />;
+}
+
+function ClassroomPageContent({
+  classroomId,
+  openSeatId,
+  onBack,
+  onOpenProjects,
+  onOpenProject,
+}: ClassroomPageProps): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
+  const loadScope = useRef({ active: false, request: 0 });
   const [tab, setTab] = useState<ClassroomTab>('students');
   const [dialog, setDialog] = useState<'single' | 'batch' | null>(null);
   const [editing, setEditing] = useState<ClassroomStudentSeat | null>(null);
@@ -443,16 +452,23 @@ export function ClassroomPage({
   const [awards, setAwards] = useState<Readonly<Record<string, string[]>>>({});
 
   const reload = useCallback(async () => {
+    if (!loadScope.current.active) return;
+    const request = ++loadScope.current.request;
+    const currentRequest = () => loadScope.current.active && loadScope.current.request === request;
     try {
       const [classroom, roster] = await Promise.all([
         api.getClassroom(classroomId),
         api.listClassroomRoster(classroomId),
       ]);
+      if (!currentRequest()) return;
       if (!classroom.ok || !roster.ok) throw new Error('load failed');
+      if (classroom.data.classroom.id !== classroomId) throw new Error('classroom mismatch');
       setPage({ kind: 'ready', classroom: classroom.data.classroom, students: roster.data.items });
+      setActionError(null);
     } catch {
+      if (!currentRequest()) return;
       setPage((current) =>
-        current.kind === 'ready'
+        current.kind === 'ready' && current.classroom.id === classroomId
           ? current
           : {
               kind: 'error',
@@ -464,7 +480,12 @@ export function ClassroomPage({
   }, [classroomId]);
 
   useEffect(() => {
+    loadScope.current.active = true;
     void reload();
+    return () => {
+      loadScope.current.active = false;
+      loadScope.current.request += 1;
+    };
   }, [reload]);
 
   useEffect(() => {
@@ -1543,6 +1564,22 @@ export function ClassroomPage({
           student={codeEditor}
           onClose={() => setCodeEditor(null)}
           onSaved={async (studentCode) => {
+            if (!loadScope.current.active) return;
+            const seatId = codeEditor.id;
+            // The confirmed code is authoritative even when the following GET fails.
+            // Preserve Account/Seat admission semantics and all canonical counters.
+            setPage((current) =>
+              current.kind === 'ready' && current.classroom.id === classroomId
+                ? {
+                    ...current,
+                    students: current.students.map((student) =>
+                      student.id === seatId && student.loginMethod === 'student_code'
+                        ? { ...student, studentCode, loginHandle: studentCode }
+                        : student,
+                    ),
+                  }
+                : current,
+            );
             setNotice(`Код ученика ${codeEditor.displayLabel} изменён: ${studentCode}.`);
             await reload();
           }}

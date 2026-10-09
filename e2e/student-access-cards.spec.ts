@@ -256,7 +256,14 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
   // substitutes a representative portable ingress host while keeping the twenty-card grid.
   await page.emulateMedia({ media: 'print' });
   await page.evaluate(() => document.body.classList.add('student-access-printing'));
-  expect(await decodeRenderedQr(firstCard.getByTestId('class-join-qr'))).toBe(decodedA);
+  // Print removes the dialog from the accessibility tree, not the visible sheet.
+  const printedFirstQr = page
+    .locator('.student-access-print-sheet .student-access-card')
+    .filter({ hasText: students[0]!.studentCode })
+    .first()
+    .getByTestId('class-join-qr');
+  await expect(printedFirstQr).toBeVisible();
+  expect(await decodeRenderedQr(printedFirstQr)).toBe(decodedA);
   for (const host of [
     new URL(portalOrigin).host,
     'classroom-really-long-installation-name.example.org',
@@ -431,6 +438,12 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     ),
   ).toBe(true);
   await page.screenshot({ path: `${evidence}/print-sheet.png`, fullPage: true });
+  await page.pdf({
+    path: `${evidence}/cards-20-a4.pdf`,
+    format: 'A4',
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
   await page.evaluate(() => document.body.classList.remove('student-access-printing'));
   await page.emulateMedia({ media: 'screen' });
 
@@ -513,7 +526,12 @@ test('Issue #272: class-only QR decodes independently, deep-links, rotates and r
     for (const student of students) expect(decoded).not.toContain(student.studentCode);
     await page.emulateMedia({ media: 'print' });
     await page.evaluate(() => document.body.classList.add('student-access-printing'));
-    expect(await decodeRenderedQr(square)).toBe(decoded);
+    const printedSquare = page
+      .locator('.student-access-print-sheet')
+      .getByTestId('class-join-qr')
+      .first();
+    await expect(printedSquare).toBeVisible();
+    expect(await decodeRenderedQr(printedSquare)).toBe(decoded);
     await page.evaluate(() => document.body.classList.remove('student-access-printing'));
     await page.emulateMedia({ media: 'screen' });
     const obsolete = await page.request.post('/api/class-join/resolve', {
@@ -621,6 +639,226 @@ test('classroom settings refuse failed saves, recover busy and retry through the
     (await (await page.request.get(`/api/classrooms/${classroom.id}`)).json()).classroom.title,
   ).toBe('Подтверждённое сервером новое название');
   expect(errors).toEqual([]);
+});
+
+test('classroom hash navigation isolates credentials on failure, retries B and ignores a late A roster', async ({
+  page,
+}) => {
+  await registerTeacher(page);
+  async function createClass(title: string) {
+    const created = await page.request.post('/api/classrooms', {
+      headers: { origin, 'idempotency-key': crypto.randomUUID() },
+      data: { title, ageBand: 'mixed', topicKeys: [], safeModeDefault: true },
+    });
+    expect(created.status(), await created.text()).toBe(201);
+    const classroom = (await created.json()).classroom as {
+      id: string;
+      title: string;
+      joinCode: string;
+    };
+    const added = await page.request.post(`/api/classrooms/${classroom.id}/seats`, {
+      headers: { origin },
+      data: { displayLabel: `${title} — личное имя`, safeMode: true },
+    });
+    expect(added.status(), await added.text()).toBe(201);
+    return {
+      classroom,
+      student: (await added.json()).student as { displayLabel: string; studentCode: string },
+    };
+  }
+  const a = await createClass('Класс A с отдельными данными');
+  const b = await createClass('Класс B после перехода');
+  await openCards(page, a.classroom.id);
+  await page.evaluate(() => {
+    (window as unknown as { classroomNavigationMarker: string }).classroomNavigationMarker =
+      'same-document';
+  });
+  const mutations: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.url().includes(`/api/classrooms/${b.classroom.id}`) &&
+      ['POST', 'PATCH', 'DELETE'].includes(request.method())
+    )
+      mutations.push(request.url());
+  });
+  let attemptsB = 0;
+  await page.route(`**/api/classrooms/${b.classroom.id}/roster`, async (route) => {
+    attemptsB += 1;
+    if (attemptsB === 1)
+      return route.fulfill({
+        status: 503,
+        json: { error: { code: 'temporary_unavailable', message: 'Реестр класса B недоступен.' } },
+      });
+    return route.continue();
+  });
+  await page.evaluate((id) => {
+    window.location.hash = `/classrooms/${id}`;
+  }, b.classroom.id);
+  await expect(page.getByRole('alert')).toContainText('Не удалось открыть класс');
+  for (const privateValue of [
+    a.classroom.title,
+    a.classroom.joinCode,
+    a.student.displayLabel,
+    a.student.studentCode,
+  ]) {
+    await expect(page.locator('body')).not.toContainText(privateValue);
+  }
+  await expect(page.locator('.student-access-dialog')).toHaveCount(0);
+  await expect(page.locator('.classroom-head')).toHaveCount(0);
+  await expect(page.getByRole('checkbox')).toHaveCount(0);
+  expect(mutations).toEqual([]);
+  await page.getByRole('button', { name: 'Повторить', exact: true }).click();
+  await expect(page.locator('.classroom-head')).toContainText(b.classroom.title);
+  await expect(page.locator('.classroom-roster-table')).toContainText(b.student.studentCode);
+  expect(attemptsB).toBe(2);
+  expect(
+    (await (await page.request.get(`/api/classrooms/${b.classroom.id}`)).json()).classroom
+      .safeModeDefault,
+  ).toBe(true);
+
+  let releaseA!: () => void;
+  const heldA = new Promise<void>((done) => {
+    releaseA = done;
+  });
+  let receivedA = false;
+  await page.route(`**/api/classrooms/${a.classroom.id}/roster`, async (route) => {
+    const response = await route.fetch();
+    receivedA = true;
+    await heldA;
+    await route.fulfill({ response });
+  });
+  await page.evaluate((id) => {
+    window.location.hash = `/classrooms/${id}`;
+  }, a.classroom.id);
+  await expect.poll(() => receivedA).toBe(true);
+  await page.evaluate((id) => {
+    window.location.hash = `/classrooms/${id}`;
+  }, b.classroom.id);
+  await expect(page.locator('.classroom-head')).toContainText(b.classroom.title);
+  const lateA = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/classrooms/${a.classroom.id}/roster`),
+  );
+  releaseA();
+  expect((await lateA).status()).toBe(200);
+  await page.evaluate(
+    () =>
+      new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  );
+  await expect(page.locator('.classroom-roster-table')).toContainText(b.student.studentCode);
+  for (const privateValue of [
+    a.classroom.title,
+    a.classroom.joinCode,
+    a.student.displayLabel,
+    a.student.studentCode,
+  ]) {
+    await expect(page.locator('body')).not.toContainText(privateValue);
+  }
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { classroomNavigationMarker: string }).classroomNavigationMarker,
+    ),
+  ).toBe('same-document');
+  expect(mutations).toEqual([]);
+});
+
+test('confirmed Student Code rotation survives a failed roster reload in copy and printed cards', async ({
+  page,
+}) => {
+  await registerTeacher(page);
+  const created = await page.request.post('/api/classrooms', {
+    headers: { origin, 'idempotency-key': crypto.randomUUID() },
+    data: {
+      title: 'Класс смены кода при отказе загрузки',
+      ageBand: 'mixed',
+      topicKeys: [],
+      safeModeDefault: false,
+    },
+  });
+  expect(created.status(), await created.text()).toBe(201);
+  const classroom = (await created.json()).classroom as { id: string; joinCode: string };
+  const students: Array<{ id: string; displayLabel: string; studentCode: string }> = [];
+  for (const displayLabel of ['Ученик с новым кодом', 'Ученик с прежним действующим кодом']) {
+    const added = await page.request.post(`/api/classrooms/${classroom.id}/seats`, {
+      headers: { origin },
+      data: { displayLabel, safeMode: true },
+    });
+    expect(added.status(), await added.text()).toBe(201);
+    students.push((await added.json()).student);
+  }
+  const [target, other] = students as [(typeof students)[number], (typeof students)[number]];
+  await page.goto(`/#/classrooms/${classroom.id}`);
+  const row = page.locator('.classroom-roster-row').filter({ hasText: target.displayLabel });
+  await expect(row.locator('.classroom-login-handle')).toHaveText(target.studentCode);
+  const copyLog: string[] = [];
+  await page.exposeFunction('captureRotatedCode', (code: string) => copyLog.push(code));
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: {
+        writeText: (code: string) =>
+          (
+            window as unknown as { captureRotatedCode(code: string): Promise<void> }
+          ).captureRotatedCode(code),
+      },
+    });
+    window.print = () => undefined;
+  });
+  await page.route(`**/api/classrooms/${classroom.id}/roster`, (route) =>
+    route.fulfill({
+      status: 503,
+      json: { error: { code: 'temporary_unavailable', message: 'Реестр временно недоступен.' } },
+    }),
+  );
+  await row.locator('.classroom-row-menu summary').click();
+  await row.getByRole('button', { name: 'Изменить код ученика', exact: true }).click();
+  const changing = page.waitForResponse((response) =>
+    response.url().endsWith(`/api/classrooms/${classroom.id}/seats/${target.id}/code`),
+  );
+  await page.getByRole('button', { name: 'Сгенерировать новый', exact: true }).click();
+  const changed = await changing;
+  expect(changed.status(), await changed.text()).toBe(201);
+  const newCode = (await changed.json()).studentCode as string;
+  expect(newCode).not.toBe(target.studentCode);
+  await expect(page.locator('.student-code-dialog')).toHaveCount(0);
+  await expect(page.getByRole('alert')).toContainText('Не удалось обновить данные класса');
+  await expect(page.locator('body')).not.toContainText(
+    'Не удалось получить подтверждение смены кода',
+  );
+  await expect(row.locator('.classroom-login-handle')).toHaveText(newCode);
+  await expect(page.locator('.classroom-roster-table')).not.toContainText(target.studentCode);
+  await expect(page.locator('.classroom-roster-table')).toContainText(other.studentCode);
+  await row.locator('.classroom-login-handle').click();
+  await expect.poll(() => copyLog).toEqual([newCode]);
+  await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+  const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
+  await expect(cards).toContainText(newCode);
+  await expect(cards).toContainText(other.studentCode);
+  await expect(cards).not.toContainText(target.studentCode);
+  await expect(cards.getByTestId('class-join-qr').first()).toBeVisible();
+  expect(await decodeRenderedQr(cards.getByTestId('class-join-qr').first())).toBe(
+    `${origin}/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`,
+  );
+  await cards.getByRole('button', { name: 'Распечатать (2)', exact: true }).click();
+  await page.emulateMedia({ media: 'print' });
+  const sheet = cards.locator('.student-access-print-sheet');
+  await expect(sheet).toContainText(newCode);
+  await expect(sheet).not.toContainText(target.studentCode);
+  expect(
+    await page.evaluate(() => document.body.classList.contains('student-access-printing')),
+  ).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+  await page.emulateMedia({ media: 'screen' });
+  const oldLogin = await page.request.post('/api/class-join/studentseat', {
+    headers: { origin },
+    data: { code: classroom.joinCode, studentCode: target.studentCode },
+  });
+  expect(oldLogin.status(), await oldLogin.text()).toBe(401);
+  const persisted = await page.request.get(`/api/classrooms/${classroom.id}/roster`);
+  expect(persisted.status(), await persisted.text()).toBe(200);
+  expect(
+    (await persisted.json()).items.find((student: { id: string }) => student.id === target.id),
+  ).toMatchObject({ studentCode: newCode, loginHandle: newCode, loginMethod: 'student_code' });
+  expect(copyLog).toEqual([newCode]);
 });
 
 test('owner classroom flow: one-click batch, exact retry and existing Account approval', async ({
