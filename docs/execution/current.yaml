@@ -588,7 +588,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r1_bounded_workspace_selector_and_breakpoint_evidence
+      checkpoint: r2_bounded_running_toolbar_transition_product_repair
       dependency_for_issue: 530
       upstream_readiness_issue: 531
       owner_acceptance: pending
@@ -603,6 +603,19 @@ parallel_lanes:
       first_electronics_conclusion: failure
       first_browser_passed: 120
       first_browser_failed: 1
+      r1_candidate_sha: 823796169da09dd3e8683bd5a3b3af5b1007b7de
+      r1_candidate_tree: b67ae45c5c2c854cdd9d07cf085f1fda8e392241
+      r1_candidate_branch: codex/electronics-compact-controls-532-r1
+      r1_independent_review: request_changes
+      r1_independent_evidence: docs/product/electronics/evidence/compact-controls-532-r1-independent-review-82379616.md
+      r1_general_run: 37891874071
+      r1_general_status: in_progress
+      r1_general_conclusion: pending
+      r1_directed_sha: 189c424495e8b50ce5d165cf6303fad94b1e516d
+      r1_directed_run: 37891915974
+      r1_directed_conclusion: failure
+      r1_directed_completed_phases: 8
+      r1_ordinary_electronics: not_run
     suspended_slices:
       - task_id: TASK-ELECTRONICS-INSTRUMENT-MIRROR-001
         issue: 525
@@ -745,20 +758,20 @@ parallel_lanes:
         compact_ui_dependency_issue: 532
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 7ded5a22ef2feb90e868cdca72577dbaf9c69ab7
+      convergence_baseline_sha: 169790363b0f55c01688307a8f6a245236f5feb3
       head_sha: null
-      observed_at: '2026-10-09T05:50:42Z'
+      observed_at: '2026-10-09T06:17:41Z'
       main:
         branch: main
-        sha: 7ded5a22ef2feb90e868cdca72577dbaf9c69ab7
+        sha: 169790363b0f55c01688307a8f6a245236f5feb3
       observation_note: >-
         Dated snapshot; fetch main and read live current task/exact CI before writes. Accepted531/529 and all prior results remain.
-        First532source0340 preserved/unaccepted: General37888088058 all4SUCCESS; ordinary37888099694 focused/benchmarkSUCCESS, browser120PASS1FAIL/imagesSKIPPED; NEW independentREQUEST_CHANGES.
-        Actual trace host contains injectionDiv > SVG before the new direct-child locator fails5000ms: A newtest selector error, not product-loading evidence. Original28text phases/fullserverdocument revision2to2 PASS; nontext/1180/1181 NOT_RUN.
-        R1 changes ONLY the NEWcase selector and significant breakpoint coverage/genuine clamp-aware input, plus canonical generated browser digest; keep candidate CSS/production byte-identical. No timeout increase/force/fakeSDK/check weakening.
-        ONE changed-cause directed NEWcase diagnostic permitted outside final source ancestry; not gate or same-code/full-suite retry. Final ordinary exact all8 and NEW independentreview mandatory.
-        Preserve530870/5260dd/525ed4 and all accepted/foreignwork. After532acceptance freshly resume530, then526full56/denial/serverpersistence. Hygiene524count529=1;531test-only0, reassess aftereachaccepted slice.
-        SchoolK0/version/backups NOT_VERIFIED,T3/owner/class/release pending; no deployment/DB/network/backup authorization.
+        Published R1 source823 preserved/unaccepted; NEW independent REQUEST_CHANGES after ONE directed child189/run37891915974 failure8.3s. Diagnostic is not ordinary gate; only8 phases ran, later1180/modes/fullintent NOT_RUN.
+        Original1181 running Stop right1278.703125 and caption1267.703125 exceed shell hidden0..1181; two right hits null, Share outside1365.703125. Controller and independent reviewer opened original PNG and parsed actual geometry/trace. Single48row above1180 cannot fit full clock/left/right controls. This proves product layout failure, not timing or need for weaker checks.
+        R2 selects NEW bounded product author: minimal workbench.css Header transition plus ONLY NEWcase/canonical browser digest. Preserve R1 Code wrap, all original/R1 widths and checks; add both sides of actual changed structural boundary in text/sharedCode modes and full running Header.
+        No timeout increase, force, fakeSDK, lost full labels, deleted controls or physical precision/Arduino/auth/persistence change. ONE changed-cause directed NEWcase diagnostic permitted outside final source ancestry, not acceptance. Final ordinary exact all8 and NEW independent review required.
+        Preserve530870/5260dd/525ed4 and all accepted/foreign work. After532 acceptance freshly resume530, then526 full56/denial/server persistence. Hygiene524 count529=1;531 test-only0; reassess after each accepted slice.
+        SchoolK0/version/fullbackups NOT_VERIFIED,T3/owner/class/release pending; no deployment/DB/network/backup authorization.
     execution_lease:
       executor_id: electronics-breadboard-performance-controller-452
       holder: unassigned
