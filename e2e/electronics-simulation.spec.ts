@@ -2986,9 +2986,9 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     await expect(svg.locator('[data-id="setup-533"]')).toBeVisible();
     await expect(svg.locator('[data-id="loop-533"]')).toBeVisible();
     if (mode === 'blocks-text')
-      await expect(page.getByRole('textbox', { name: 'Код Arduino C++', exact: true })).toHaveValue(
-        source,
-      );
+      await expect(
+        page.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true }),
+      ).toHaveValue(source);
     await expect
       .poll(() => new Set(responses.map((item) => new URL(item.url).pathname.split('/').at(-1))))
       .toEqual(new Set(mediaNames));
@@ -3017,9 +3017,9 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     await expect(svg.locator('[data-id="setup-533"]')).toBeVisible();
     await expect(svg.locator('[data-id="loop-533"]')).toBeVisible();
     if (mode === 'blocks-text')
-      await expect(page.getByRole('textbox', { name: 'Код Arduino C++', exact: true })).toHaveValue(
-        source,
-      );
+      await expect(
+        page.getByRole('textbox', { name: 'Сгенерированный код Arduino', exact: true }),
+      ).toHaveValue(source);
     await record('reopened');
     await Promise.all(responseBodies);
     for (const request of requests)
