@@ -310,6 +310,14 @@ for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await observeRealClock(page);
     await loginWithOrganization(page, teacher);
+    const sessionResponse = await page.context().request.get('/api/auth/me');
+    expect(sessionResponse.status()).toBe(200);
+    const session = (await sessionResponse.json()) as {
+      authenticated: boolean;
+      user: { id: string };
+    };
+    expect(session.authenticated).toBe(true);
+    const userId = session.user.id;
     const created = await page.context().request.post('/api/projects', {
       headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
       data: {
@@ -342,11 +350,31 @@ for (const width of [1440, 1024, 390, 320]) {
         .locator('input[type="number"]');
       await resistance.fill('333.3');
       await expect(resistance).toHaveValue('333.3');
-      const wholeEdited = await page.evaluate((id) => {
-        const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
-        if (!raw) throw new Error('Edited full local document is missing');
-        return (JSON.parse(raw) as { document: SchematicDocument }).document;
-      }, projectId);
+      const localKey = `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`;
+      const wholeEdited = await page.evaluate(
+        ({ key, id, userId }) => {
+          const raw = localStorage.getItem(key);
+          if (!raw) throw new Error('Edited full local document is missing');
+          const record = JSON.parse(raw) as {
+            schemaVersion: number;
+            identityKind: string;
+            userId: string;
+            projectId: string;
+            moduleKey: string;
+            document: SchematicDocument;
+          };
+          if (
+            record.schemaVersion !== 3 ||
+            record.identityKind !== 'account' ||
+            record.userId !== userId ||
+            record.projectId !== id ||
+            record.moduleKey !== 'electronics'
+          )
+            throw new Error('Edited full local document belongs to another identity or scope');
+          return record.document;
+        },
+        { key: localKey, id: projectId, userId },
+      );
       expect(wholeEdited.components.find((item) => item.id === 'resistor')?.value).toBe(333.3);
       const beforeSave = await projectDraft(page, projectId);
       await markAction(page, 'Save');
