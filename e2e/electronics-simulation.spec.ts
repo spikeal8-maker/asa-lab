@@ -4032,7 +4032,12 @@ async function e01EditSketch(page: Page, source: string) {
 async function e01AffectedToolbarLayouts(
   page: Page,
   evidenceDir: string,
-  state: { emergencyCopy: boolean; running: boolean; name: string },
+  state: {
+    persistenceStatus: 'dirty' | 'error';
+    emergencyCopy: boolean;
+    running: boolean;
+    name: string;
+  },
   widths = [1440, 1024, 390, 320, 980, 981, 1280, 1281, 1536, 1537],
 ) {
   const indicator = page.locator('.workbench-save-state');
@@ -4041,20 +4046,12 @@ async function e01AffectedToolbarLayouts(
   const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
   const simulationLabel = state.running ? 'Остановить моделирование' : 'Начать моделирование';
   const simulation = page.getByRole('button', { name: simulationLabel, exact: true });
-  await expect(code).toHaveAttribute('aria-pressed', 'true');
-  await expect(simulation).toHaveAttribute('aria-pressed', String(state.running));
-  if (state.emergencyCopy) await expect(emergency).toBeVisible();
-  else await expect(emergency).toHaveCount(0);
   const anchor = state.emergencyCopy ? emergency : save;
   const layouts: unknown[] = [];
   // Include both sides of the desktop/mobile and conditional desktop row boundaries.
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
-    await expect(indicator).toBeVisible();
-    if (state.emergencyCopy) await expect(save).toBeEnabled();
-    else await expect(save).toBeDisabled();
     await anchor.scrollIntoViewIfNeeded();
-    await expect(anchor).toBeVisible();
     const layout = await anchor.evaluate((button) => {
       const box = button.getBoundingClientRect();
       const style = getComputedStyle(button);
@@ -4077,6 +4074,7 @@ async function e01AffectedToolbarLayouts(
             label: entry.getAttribute('aria-label'),
             text: entry.textContent?.trim(),
             disabled: entry.disabled,
+            pressed: entry.getAttribute('aria-pressed'),
             x: bounds.x,
             y: bounds.y,
             right: bounds.right,
@@ -4096,13 +4094,39 @@ async function e01AffectedToolbarLayouts(
               parseFloat(entryStyle.paddingRight),
           };
         });
-      const indicatorBox = document.querySelector('.workbench-save-state')!.getBoundingClientRect();
+      const indicator = document.querySelector('.workbench-save-state')!;
+      const indicatorBox = indicator.getBoundingClientRect();
+      const indicatorStyle = getComputedStyle(indicator);
       const toolbarBox = button.closest('[role="toolbar"]')!.getBoundingClientRect();
       const mainBox = document.querySelector('.workbench-main')!.getBoundingClientRect();
       const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
       return {
         viewport: innerWidth,
         pageWidth: document.documentElement.scrollWidth,
+        persistence: {
+          controllerStatus: document
+            .querySelector('.workbench-main')!
+            .getAttribute('data-project-save-status'),
+          emergencyCopyPresent: toolbarButtons.some(
+            (entry) => entry.label === 'Получить аварийную копию проекта',
+          ),
+          saveDisabled: toolbarButtons.find((entry) => entry.label === 'Сохранить проект')
+            ?.disabled,
+          indicator: {
+            status: indicator.getAttribute('data-persistence-status'),
+            label: indicator.textContent,
+            detail: indicator.getAttribute('title'),
+            ariaHidden: indicator.getAttribute('aria-hidden'),
+            visibility: indicatorStyle.visibility,
+            display: indicatorStyle.display,
+            box: {
+              x: indicatorBox.x,
+              y: indicatorBox.y,
+              width: indicatorBox.width,
+              height: indicatorBox.height,
+            },
+          },
+        },
         box: { x: box.x, y: box.y, width: box.width, height: box.height },
         label: {
           text: button.textContent?.trim(),
@@ -4130,6 +4154,43 @@ async function e01AffectedToolbarLayouts(
         path: `${evidenceDir}/after-local-denial-${state.name === 'error-run' ? '' : `${state.name}-`}${width}.png`,
         fullPage: true,
       });
+    // JSON absence means the current document has a local copy, not server confirmation.
+    // Capture the real controller/presentation/geometry before any state or layout assertion.
+    expect(layout.persistence.controllerStatus).toBe(state.persistenceStatus);
+    expect(layout.persistence.emergencyCopyPresent).toBe(state.emergencyCopy);
+    expect(layout.persistence.saveDisabled).toBe(false);
+    await expect(code).toHaveAttribute('aria-pressed', 'true');
+    await expect(simulation).toHaveAttribute('aria-pressed', String(state.running));
+    await expect(save).toBeEnabled();
+    if (state.emergencyCopy) {
+      await expect(emergency).toBeVisible();
+      expect(layout.persistence.indicator.status).toBe('error');
+      await expect(indicator).toBeVisible();
+      expect(layout.persistence.indicator.detail).toMatch(
+        /Последние изменения только в открытом редакторе/,
+      );
+    } else {
+      await expect(emergency).toHaveCount(0);
+      expect(['quiet', 'saving']).toContain(layout.persistence.indicator.status);
+    }
+    const presentation = layout.persistence.indicator;
+    if (presentation.status === 'quiet') {
+      expect(presentation.visibility).toBe('hidden');
+      expect(presentation.ariaHidden).toBe('true');
+      expect(presentation.label).toBe('');
+      expect(presentation.detail).toBeNull();
+    } else {
+      expect(presentation.visibility).toBe('visible');
+      expect(presentation.display).not.toBe('none');
+      expect(presentation.box.width).toBeGreaterThan(0);
+      expect(presentation.box.height).toBeGreaterThan(0);
+      expect(presentation.ariaHidden).toBeNull();
+      if (presentation.status === 'saving') {
+        expect(presentation.label).toBe('Сохраняем…');
+        expect(presentation.detail).toBe('Изменения проекта отправляются на сервер.');
+      }
+    }
+    await expect(anchor).toBeVisible();
     expect(layout.box.width).toBeGreaterThan(0);
     expect(layout.box.height).toBeGreaterThan(0);
     expect(layout.box.x).toBeGreaterThanOrEqual(0);
@@ -4224,29 +4285,36 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
     olderCopy.document.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
   ).toBe(E01_SKETCH);
   await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
-  const savedRunLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+  const localDraftRunLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'dirty',
     emergencyCopy: false,
     running: false,
-    name: 'saved-run',
+    name: 'local-draft-run',
   });
-  const savedAffectedViewLayouts: unknown[] = [];
+  const localDraftAffectedViewLayouts: unknown[] = [];
   for (const view of ['Схемы', 'Компоненты']) {
     await page.getByRole('button', { name: view, exact: true }).click();
-    savedAffectedViewLayouts.push(
+    localDraftAffectedViewLayouts.push(
       ...(await e01AffectedToolbarLayouts(
         page,
         evidenceDir,
-        { emergencyCopy: false, running: false, name: `saved-${view}-run` },
+        {
+          persistenceStatus: 'dirty',
+          emergencyCopy: false,
+          running: false,
+          name: `local-draft-${view}-run`,
+        },
         [1440, 1024, 390, 320],
       )),
     );
   }
   await page.getByRole('button', { name: 'Цепи', exact: true }).click();
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-  const savedStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+  const localDraftStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'dirty',
     emergencyCopy: false,
     running: true,
-    name: 'saved-stop',
+    name: 'local-draft-stop',
   });
   await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
   await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
@@ -4352,6 +4420,7 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   expect(copy).toEqual(beforeAttemptCopy);
   await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
   const layouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'error',
     emergencyCopy: true,
     running: false,
     name: 'error-run',
@@ -4363,7 +4432,12 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
       ...(await e01AffectedToolbarLayouts(
         page,
         evidenceDir,
-        { emergencyCopy: true, running: false, name: `error-${view}-run` },
+        {
+          persistenceStatus: 'error',
+          emergencyCopy: true,
+          running: false,
+          name: `error-${view}-run`,
+        },
         [1440, 1024, 390, 320],
       )),
     );
@@ -4371,6 +4445,7 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
   await page.getByRole('button', { name: 'Цепи', exact: true }).click();
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
   const errorStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'error',
     emergencyCopy: true,
     running: true,
     name: 'error-stop',
@@ -4393,10 +4468,10 @@ test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local co
         requests,
         emergencyCopy: copy,
         layouts,
-        savedRunLayouts,
-        savedStopLayouts,
+        localDraftRunLayouts,
+        localDraftStopLayouts,
         errorStopLayouts,
-        savedAffectedViewLayouts,
+        localDraftAffectedViewLayouts,
         errorAffectedViewLayouts,
       },
       null,
