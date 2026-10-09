@@ -24,6 +24,7 @@ import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal
 import { ClassroomGradingScheme } from '../components/ClassroomGradingScheme';
 import { sortClassroomRoster, type ClassroomRosterSort } from '../components/classroom-roster-sort';
 import '../modules/classroom-owner-layout.css';
+import '../modules/classroom-mobile.css';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
@@ -63,6 +64,81 @@ const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
   { id: 'requests', label: 'Заявки' },
   { id: 'settings', label: 'Настройки' },
 ];
+
+const MOBILE_ROSTER_SORTS = [
+  {
+    value: 'name:asc',
+    key: 'name',
+    direction: 'asc',
+    label: 'Имя: А → Я',
+  },
+  {
+    value: 'name:desc',
+    key: 'name',
+    direction: 'desc',
+    label: 'Имя: Я → А',
+  },
+  {
+    value: 'code:asc',
+    key: 'code',
+    direction: 'asc',
+    label: 'Код: по возрастанию',
+  },
+  {
+    value: 'code:desc',
+    key: 'code',
+    direction: 'desc',
+    label: 'Код: по убыванию',
+  },
+  {
+    value: 'submitted:desc',
+    key: 'submitted',
+    direction: 'desc',
+    label: 'Больше сдано',
+  },
+  {
+    value: 'submitted:asc',
+    key: 'submitted',
+    direction: 'asc',
+    label: 'Меньше сдано',
+  },
+  {
+    value: 'awaiting:desc',
+    key: 'awaiting',
+    direction: 'desc',
+    label: 'Больше ждут проверки',
+  },
+  {
+    value: 'awaiting:asc',
+    key: 'awaiting',
+    direction: 'asc',
+    label: 'Меньше ждут проверки',
+  },
+  {
+    value: 'active:desc',
+    key: 'active',
+    direction: 'desc',
+    label: 'Недавно активны',
+  },
+  {
+    value: 'active:asc',
+    key: 'active',
+    direction: 'asc',
+    label: 'Давно не заходили',
+  },
+  {
+    value: 'safe:desc',
+    key: 'safe',
+    direction: 'desc',
+    label: 'Безопасный включён',
+  },
+  {
+    value: 'safe:asc',
+    key: 'safe',
+    direction: 'asc',
+    label: 'Безопасный выключен',
+  },
+] as const;
 
 /** 1 ученик, 2 ученика, 5 учеников — a class page that says "1 учеников" reads
  * as a machine, and this one is read by teachers every day. */
@@ -427,8 +503,13 @@ export function ClassroomPage({
   }, [reloadTeacherTeam, tab, teacherTeam.kind]);
 
   async function copy(value: string, message: string): Promise<void> {
-    await navigator.clipboard.writeText(value);
-    setNotice(message);
+    try {
+      await navigator.clipboard.writeText(value);
+      setActionError(null);
+      setNotice(message);
+    } catch {
+      setActionError('Не удалось скопировать код. Выделите и скопируйте его вручную.');
+    }
   }
 
   async function updateStudent(student: ClassroomStudentSeat): Promise<string | null> {
@@ -580,8 +661,10 @@ export function ClassroomPage({
                 type="button"
                 className="portal-create-button"
                 onClick={() => setSharing(true)}
+                aria-label="Поделиться классом"
               >
-                Поделиться классом
+                <span className="classroom-desktop-label">Поделиться классом</span>
+                <span className="classroom-mobile-label">Поделиться</span>
               </button>
             </>
           )}
@@ -598,23 +681,24 @@ export function ClassroomPage({
       {progress ? (
         <div className="classroom-progress" aria-label="Успеваемость класса">
           <span>
-            <strong>{classroom.studentCount}</strong>учеников
+            <strong>{classroom.studentCount}</strong>
+            <em>Учеников</em>
           </span>
           <span>
             <strong>{progress.assignedCount}</strong>
-            заданий выдано
+            <em>Выдано</em>
           </span>
           <span>
             <strong>{progress.submittedCount}</strong>
-            работ сдано
+            <em>Сдано</em>
           </span>
           <span className={progress.awaitingReview > 0 ? 'is-waiting' : undefined}>
             <strong>{progress.awaitingReview}</strong>
-            ждут проверки
+            <em title="Ожидают проверки">Ждут</em>
           </span>
           <span className={progress.behindCount > 0 ? 'is-behind' : undefined}>
             <strong>{progress.behindCount}</strong>
-            не сдали ничего
+            <em title="Учащиеся без сданных работ">Без работ</em>
           </span>
         </div>
       ) : null}
@@ -623,6 +707,23 @@ export function ClassroomPage({
           both are about the class as a whole, and the switch used to be a
           banner of its own that pushed the register below the fold. */}
       <div className="classroom-tabbar">
+        <label className="classroom-mobile-section">
+          <span className="sr-only">Раздел класса</span>
+          <select
+            aria-label="Раздел класса"
+            value={tab}
+            onChange={(event) => {
+              const item = TABS.find((entry) => entry.id === event.currentTarget.value);
+              if (item) setTab(item.id);
+            }}
+          >
+            {TABS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <nav className="classroom-workspace-tabs" aria-label="Разделы класса">
           {TABS.map((item) => (
             <button
@@ -716,24 +817,31 @@ export function ClassroomPage({
                 className="portal-create-button"
                 disabled={archived}
                 onClick={() => setDialog('single')}
+                aria-label="Добавить ученика"
               >
-                <PlusIcon /> Добавить ученика
+                <PlusIcon />
+                <span className="classroom-desktop-label">Добавить ученика</span>
+                <span className="classroom-mobile-label">Ученик</span>
               </button>
               <button
                 type="button"
                 className="btn-secondary"
                 disabled={archived}
                 onClick={() => setDialog('batch')}
+                aria-label="Добавить списком"
               >
-                Добавить списком
+                <span className="classroom-desktop-label">Добавить списком</span>
+                <span className="classroom-mobile-label">Списком</span>
               </button>
               <button
                 type="button"
                 className="btn-secondary"
                 disabled={students.length === 0 || !classroom.joinCode}
                 onClick={() => setAccessCardIds([])}
+                aria-label="Карточки доступа"
               >
-                Карточки доступа
+                <span className="classroom-desktop-label">Карточки доступа</span>
+                <span className="classroom-mobile-label">Карточки</span>
               </button>
             </div>
             <label className="classroom-roster-search">
@@ -744,6 +852,28 @@ export function ClassroomPage({
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
               />
+            </label>
+            <label className="classroom-mobile-sort">
+              <span className="sr-only">Сортировка учащихся</span>
+              <select
+                aria-label="Сортировка учащихся"
+                value={rosterSort + ':' + sortDirection}
+                onChange={(event) => {
+                  const option = MOBILE_ROSTER_SORTS.find(
+                    (item) => item.value === event.currentTarget.value,
+                  );
+                  if (option) {
+                    setRosterSort(option.key);
+                    setSortDirection(option.direction);
+                  }
+                }}
+              >
+                {MOBILE_ROSTER_SORTS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
             </label>
           </div>
           {students.length === 0 ? (
@@ -809,6 +939,11 @@ export function ClassroomPage({
                   </button>
                   <span className="sr-only">Действия</span>
                 </div>
+                {sortedStudents.length === 0 ? (
+                  <p className="classroom-search-empty" role="status">
+                    Учащиеся не найдены. Измените имя или код в поиске.
+                  </p>
+                ) : null}
                 {sortedStudents.map((student, index) => (
                   <div className="classroom-roster-row" role="row" key={student.id}>
                     <span className="classroom-roster-index" role="cell">
@@ -834,52 +969,61 @@ export function ClassroomPage({
                           {student.displayLabel}
                           <SeatAwardRow keys={awards[student.id] ?? []} size="small" />
                         </strong>
+                        <small className="classroom-seen-mobile">
+                          {student.lastActiveAt
+                            ? time.dateTime(student.lastActiveAt)
+                            : 'Ещё не входил'}
+                        </small>
                         {student.status === 'suspended' ? (
                           <small>Доступ приостановлен</small>
                         ) : null}
                       </span>
                     </button>
-                    <button
-                      type="button"
-                      className="classroom-login-handle"
-                      onClick={() =>
-                        void copy(student.studentCode, `Код «${student.studentCode}» скопирован.`)
-                      }
-                    >
-                      {student.studentCode}
-                    </button>
-                    {/* Сколько сдано из выданного и ждёт ли что-то ответа.
+                    <div className="classroom-row-details">
+                      <button
+                        type="button"
+                        className="classroom-login-handle"
+                        onClick={() =>
+                          void copy(student.studentCode, `Код «${student.studentCode}» скопирован.`)
+                        }
+                      >
+                        {student.studentCode}
+                      </button>
+                      {/* Сколько сдано из выданного и ждёт ли что-то ответа.
                       Преподаватель видел «ждут проверки» в списке классов,
                       заходил внутрь — и не мог понять, кто именно ждёт. */}
-                    <span className="classroom-roster-progress">
-                      <span className="classroom-roster-done">
-                        {student.submittedCount ?? 0} из {student.assignedCount ?? 0}
+                      <span className="classroom-roster-progress">
+                        <span className="classroom-roster-done">
+                          {student.submittedCount ?? 0} из {student.assignedCount ?? 0}
+                        </span>
+                        {(student.awaitingReview ?? 0) > 0 ? (
+                          <em>ждёт проверки: {student.awaitingReview}</em>
+                        ) : null}
                       </span>
-                      {(student.awaitingReview ?? 0) > 0 ? (
-                        <em>ждёт проверки: {student.awaitingReview}</em>
-                      ) : null}
-                    </span>
-                    <span className="classroom-roster-seen">
-                      {student.lastActiveAt ? time.dateTime(student.lastActiveAt) : 'Ещё не входил'}
-                    </span>
-                    <label className="classroom-seat-safe">
-                      <input
-                        type="checkbox"
-                        checked={student.safeMode}
-                        disabled={Boolean(busy) || archived}
-                        aria-label={`Безопасный режим: ${student.displayLabel}`}
-                        onChange={() =>
-                          void updateStudent({ ...student, safeMode: !student.safeMode })
-                        }
-                      />
-                      <i aria-hidden="true" />
-                      {/* On a phone the column heading is gone, so the row has to
+                      <span className="classroom-roster-seen">
+                        {student.lastActiveAt
+                          ? time.dateTime(student.lastActiveAt)
+                          : 'Ещё не входил'}
+                      </span>
+                      <label className="classroom-seat-safe">
+                        <input
+                          type="checkbox"
+                          checked={student.safeMode}
+                          disabled={Boolean(busy) || archived}
+                          aria-label={`Безопасный режим: ${student.displayLabel}`}
+                          onChange={() =>
+                            void updateStudent({ ...student, safeMode: !student.safeMode })
+                          }
+                        />
+                        <i aria-hidden="true" />
+                        {/* On a phone the column heading is gone, so the row has to
                         say what the switch is about. */}
-                      <span className="classroom-seat-safe-name" aria-hidden="true">
-                        Безопасный режим
-                      </span>
-                      <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
-                    </label>
+                        <span className="classroom-seat-safe-name" aria-hidden="true">
+                          Безопасный режим
+                        </span>
+                        <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
+                      </label>
+                    </div>
                     <Dropdown
                       className="classroom-row-menu"
                       ariaLabel={`Действия: ${student.displayLabel}`}

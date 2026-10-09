@@ -49,7 +49,7 @@ describe('StudentAccessCards class-only QR contract', () => {
       const qrUrl = html.match(/data-qr-url="([^"]+)"/)?.[1];
       expect(qrUrl).toBe(`${origin}/#/join-class?code=ABC%20DEF%20234`);
       expect(qrUrl).not.toContain(studentCode);
-      expect(html).toContain(`<span>${label}</span>`);
+      expect(html).toContain(`<span class="student-access-site">${label}</span>`);
       expect(html).toContain(`Вручную: ${label} → код класса → код ученика.`);
       expect(html).not.toContain('asa-lab.ru');
 

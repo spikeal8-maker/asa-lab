@@ -32,6 +32,7 @@ async function fixture(
     lostResponse?: boolean;
     origin?: string;
     classroomTitle?: string;
+    status?: 'active' | 'archived';
   } = {},
 ) {
   const origin = options.origin ?? 'http://127.0.0.1:4612';
@@ -55,7 +56,7 @@ async function fixture(
   const classroom = () => ({
     id: classId,
     title: options.classroomTitle ?? '7А Робототехника',
-    status: 'active',
+    status: options.status ?? 'active',
     ageBand: 'mixed',
     topicKeys: [],
     safeModeDefault: true,
@@ -131,6 +132,14 @@ async function fixture(
         behindCount: students.length,
       });
     if (path === '/api/classrooms/awaiting-review') return reply({ total: 0 });
+    if (method === 'PATCH' && path.startsWith('/api/classrooms/' + classId + '/seats/')) {
+      const id = path.split('/').pop();
+      const index = students.findIndex((row) => row.id === id);
+      if (index < 0)
+        return reply({ error: { code: 'not_found', message: 'Ученик не найден' } }, 404);
+      students[index] = { ...students[index]!, ...request.postDataJSON() };
+      return reply({ student: students[index] });
+    }
     if (path === `/api/classrooms/${classId}/seats/batch`) {
       const input = request.postDataJSON() as {
         requestId: string;
@@ -347,12 +356,16 @@ test.describe('Classroom owner fixes', () => {
         ).toBeLessThanOrEqual(38);
       await expect(page.getByText('Безопасный режим для всех', { exact: true })).toHaveCount(0);
       await page.screenshot({ path: `${evidence}/classroom-${width}.png`, fullPage: true });
-      await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+      if (width <= 1100)
+        await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
+      else await page.getByRole('button', { name: 'Настройки', exact: true }).click();
       await expect(page.getByText('Безопасный режим для всех', { exact: true })).toBeVisible();
       await expect(
         page.getByText('Шкала новых оцениваемых заданий', { exact: true }),
       ).toBeVisible();
-      await page.getByRole('button', { name: 'Заявки', exact: true }).click();
+      if (width <= 1100)
+        await page.getByLabel('Раздел класса', { exact: true }).selectOption('requests');
+      else await page.getByRole('button', { name: 'Заявки', exact: true }).click();
       await expect(page.getByText('Код позволяет подать заявку.', { exact: false })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
@@ -580,4 +593,274 @@ test.describe('Printed access-card composition', () => {
       expect(state.errors).toEqual([]);
     });
   }
+});
+
+test.describe('Owner mobile classroom: usable register', () => {
+  const output = 'reports/playwright/classroom-mobile-20261009';
+  test.beforeAll(() => mkdirSync(output, { recursive: true }));
+  for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
+    test(`30 learners: compact rows, complete controls and search at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const state = await fixture(page, 30);
+      await page.goto(`/#/classrooms/${classId}`);
+      await expect(page.locator('.classroom-roster-row')).toHaveCount(30);
+      await page.evaluate(() => document.fonts.ready);
+      const geometry = await page.evaluate(() => {
+        const rows = [...document.querySelectorAll<HTMLElement>('.classroom-roster-row')];
+        const bounds = rows.map((row) => row.getBoundingClientRect().toJSON());
+        const controls = [
+          ...document.querySelectorAll<HTMLElement>('.classroom-roster-actions > button'),
+        ].map((node) => node.getBoundingClientRect().toJSON());
+        const main = document.querySelector<HTMLElement>('.classroom-owner-workspace')!;
+        return {
+          width: innerWidth,
+          documentWidth: document.documentElement.scrollWidth,
+          mainWidth: main.clientWidth,
+          mainScrollWidth: main.scrollWidth,
+          firstRow: bounds[0],
+          maxRowHeight: Math.max(...bounds.map((row) => row.height)),
+          visibleRows: bounds.filter((row) => row.bottom <= innerHeight && row.top >= 0).length,
+          controls,
+          nameSize: getComputedStyle(rows[0]!.querySelector('.classroom-student-name')!).fontSize,
+          statisticsHeight: document.querySelector('.classroom-progress')!.getBoundingClientRect()
+            .height,
+        };
+      });
+      writeFileSync(`${output}/geometry-${width}.json`, JSON.stringify(geometry, null, 2));
+      await page.screenshot({ path: `${output}/classroom-${width}.png` });
+      expect(geometry.documentWidth).toBeLessThanOrEqual(width);
+      expect(geometry.mainScrollWidth).toBeLessThanOrEqual(geometry.mainWidth + 1);
+      expect(geometry.nameSize).toBe('16px');
+      if (width <= 1100) {
+        expect(geometry.maxRowHeight).toBeLessThanOrEqual(110);
+        expect(geometry.firstRow.top).toBeLessThanOrEqual(430);
+        expect(geometry.statisticsHeight).toBeLessThanOrEqual(65);
+        expect(geometry.visibleRows).toBeGreaterThanOrEqual(4);
+        expect(
+          Math.max(...geometry.controls.map((c) => c.y)) -
+            Math.min(...geometry.controls.map((c) => c.y)),
+        ).toBeLessThan(1);
+        for (const control of geometry.controls) {
+          expect(control.height).toBeGreaterThanOrEqual(44);
+          expect(control.width).toBeGreaterThanOrEqual(44);
+        }
+        await expect(page.getByLabel('Раздел класса', { exact: true })).toBeVisible();
+        await expect(
+          page.getByLabel('Раздел класса', { exact: true }).locator('option'),
+        ).toHaveCount(8);
+        await expect(
+          page.getByLabel('Сортировка учащихся', { exact: true }).locator('option'),
+        ).toHaveCount(12);
+      } else {
+        expect(geometry.maxRowHeight).toBeLessThanOrEqual(40);
+        await expect(page.getByRole('navigation', { name: 'Разделы класса' })).toBeVisible();
+      }
+      await page.getByRole('searchbox', { name: 'Поиск учащихся' }).fill('Ученик 03');
+      await expect(page.locator('.classroom-roster-row')).toHaveCount(1);
+      await expect(page.locator('.classroom-roster-index')).toHaveText(['1']);
+      await page.getByRole('searchbox', { name: 'Поиск учащихся' }).fill('Несуществующий учащийся');
+      await expect(
+        page.getByRole('status').filter({ hasText: 'Учащиеся не найдены' }),
+      ).toBeVisible();
+      await page.getByRole('searchbox', { name: 'Поиск учащихся' }).clear();
+      await expect(page.locator('.classroom-roster-row')).toHaveCount(30);
+      expect(state.errors).toEqual([]);
+      expect(state.mutations).toEqual([]);
+    });
+  }
+  test('phone sorting, numbering and selected section survive viewport changes', async ({
+    page,
+  }) => {
+    const state = await fixture(page, 6);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    const sort = page.getByLabel('Сортировка учащихся', { exact: true });
+    await sort.selectOption('name:desc');
+    await expect(page.locator('.classroom-student-name strong')).toHaveText([
+      'Ученик 06',
+      'Ученик 05',
+      'Ученик 04',
+      'Ученик 03',
+      'Ученик 02',
+      'Ученик 01',
+    ]);
+    await expect(page.locator('.classroom-roster-index')).toHaveText([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+    ]);
+    await sort.selectOption('submitted:desc');
+    await expect(page.locator('.classroom-roster-done')).toHaveText([
+      '2 из 3',
+      '2 из 3',
+      '1 из 3',
+      '1 из 3',
+      '0 из 3',
+      '0 из 3',
+    ]);
+    await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
+    await expect(
+      page.getByRole('heading', { name: 'Настройки класса', exact: true }),
+    ).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.getByRole('button', { name: 'Настройки', exact: true })).toHaveClass(
+      'active',
+    );
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByLabel('Раздел класса', { exact: true })).toHaveValue('settings');
+    await page.getByLabel('Раздел класса', { exact: true }).selectOption('requests');
+    await expect(page.getByRole('button', { name: 'Обновить заявки', exact: true })).toBeVisible();
+    expect(state.errors).toEqual([]);
+    expect(state.mutations).toEqual([]);
+  });
+  test('phone safe-mode control calls the existing API and reflects the returned student', async ({
+    page,
+  }) => {
+    const state = await fixture(page, 2);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    const control = page.getByRole('checkbox', {
+      name: 'Безопасный режим: Ученик 01',
+      exact: true,
+    });
+    await expect(control).toBeChecked();
+    await control.click();
+    await expect(control).not.toBeChecked();
+    await control.click();
+    await expect(control).toBeChecked();
+    expect(state.mutations).toHaveLength(2);
+    expect(state.mutations.every((mutation) => mutation.path.endsWith('/seats/seat-0'))).toBe(true);
+    expect(state.errors).toEqual([]);
+  });
+  test('long learner names remain readable and row actions remain on screen', async ({ page }) => {
+    const state = await fixture(page, 3, {
+      classroomTitle: '7А — Робототехника и исследовательские проекты',
+    });
+    state.students()[0]!.displayLabel = 'Александра Иванова-Петрова';
+    state.students()[1]!.displayLabel = 'Константин Александрович Очень-Длинная-Фамилия';
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    await expect(page.locator('.classroom-roster-row')).toHaveCount(3);
+    await page.evaluate(() => document.fonts.ready);
+    const problems = await page.locator('.classroom-roster-row').evaluateAll((rows) =>
+      rows.flatMap((row) => {
+        const bounds = row.getBoundingClientRect();
+        return [
+          ...row.querySelectorAll<HTMLElement>(
+            '.classroom-student-name strong,.classroom-row-menu > summary,.classroom-login-handle',
+          ),
+        ].flatMap((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.left < bounds.left - 1 ||
+            rect.right > bounds.right + 1 ||
+            element.scrollWidth > element.clientWidth + 1
+            ? [element.className || element.tagName]
+            : [];
+        });
+      }),
+    );
+    expect(problems).toEqual([]);
+    await page.screenshot({ path: `${output}/classroom-long-names-320.png` });
+    expect(state.errors).toEqual([]);
+  });
+  test('denied clipboard has a visible explanation rather than an unhandled failure', async ({
+    page,
+  }) => {
+    const state = await fixture(page, 1);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    await page.evaluate(() =>
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: {
+          writeText: async () => {
+            throw new Error('denied');
+          },
+        },
+      }),
+    );
+    await page.locator('.classroom-login-handle').click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Не удалось скопировать код' }),
+    ).toBeVisible();
+    expect(state.errors).toEqual([]);
+  });
+});
+
+test.describe('Mobile classroom navigation and restrictions', () => {
+  test('single header keeps all global actions and a working drawer', async ({ page }) => {
+    const state = await fixture(page, 3);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    await expect(page.locator('.classroom-roster-row')).toHaveCount(3);
+    const header = page.locator('.portal-header');
+    expect((await header.boundingBox())!.height).toBe(56);
+    const controls = header.locator(
+      '.portal-menu-toggle,.portal-global-nav a,.portal-quick-create > summary,.portal-account > summary',
+    );
+    await expect(controls).toHaveCount(5);
+    for (const control of await controls.all()) {
+      await expect(control).toBeVisible();
+      const box = (await control.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(320);
+    }
+    await page.getByRole('button', { name: 'Открыть меню', exact: true }).click();
+    await expect(page.locator('.portal-sidebar.mobile-open')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.portal-sidebar.mobile-open')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Открыть меню', exact: true })).toBeFocused();
+    expect(state.errors).toEqual([]);
+  });
+  test('archived class retains disabled mutation controls on a small phone', async ({ page }) => {
+    const state = await fixture(page, 2, { status: 'archived' });
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    await expect(
+      page.getByRole('button', { name: 'Добавить ученика', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Добавить списком', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('checkbox', { name: 'Безопасный режим: Ученик 01', exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.getByRole('button', { name: 'Вернуть из архива', exact: true }),
+    ).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+      320,
+    );
+    expect(state.mutations).toEqual([]);
+  });
+  test('pending reviews remain visible without colliding with code or safety control', async ({
+    page,
+  }) => {
+    const state = await fixture(page, 2);
+    state.students()[0]!.awaitingReview = 15;
+    state.students()[0]!.assignedCount = 30;
+    state.students()[0]!.submittedCount = 15;
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto(`/#/classrooms/${classId}`);
+    const row = page.locator('.classroom-roster-row').first();
+    await expect(row.locator('.classroom-roster-progress')).toContainText('ждёт проверки: 15');
+    const boxes = await row
+      .locator('.classroom-row-details')
+      .evaluate((element) =>
+        ['.classroom-login-handle', '.classroom-roster-progress', '.classroom-seat-safe'].map(
+          (selector) => element.querySelector(selector)!.getBoundingClientRect().toJSON(),
+        ),
+      );
+    expect(boxes[0]!.right).toBeLessThanOrEqual(boxes[1]!.left);
+    expect(boxes[1]!.right).toBeLessThanOrEqual(boxes[2]!.left);
+    expect(boxes[2]!.right).toBeLessThanOrEqual(320);
+    expect(state.errors).toEqual([]);
+  });
 });
