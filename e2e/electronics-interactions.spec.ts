@@ -2081,9 +2081,106 @@ test.describe('asset recovery in the built editor', () => {
   });
   test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
     page,
-  }) => {
+  }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    // Passive observation only: retain the actual native ingress even when the
+    // existing assertion fails. Resource events end at Document, not Window.
+    await page.addInitScript((targetAsset) => {
+      const nativeEvents: unknown[] = [];
+      const identities = new WeakMap<Element, number>();
+      let nextIdentity = 0;
+      const identity = (element: Element): number => {
+        let value = identities.get(element);
+        if (value === undefined) {
+          value = ++nextIdentity;
+          identities.set(element, value);
+        }
+        return value;
+      };
+      const describe = (element: Element) => ({
+        identity: identity(element),
+        tag: element.tagName,
+        href: element.getAttribute('href') ?? element.getAttribute('src'),
+        connected: element.isConnected,
+        componentId: element.closest('[data-component-id]')?.getAttribute('data-component-id'),
+        familyId: element.closest('[data-family-id]')?.getAttribute('data-family-id'),
+        selectedVariant: element
+          .closest('[data-selected-variant]')
+          ?.getAttribute('data-selected-variant'),
+        status: element.getAttribute('data-owner-image-status'),
+        outerHTML: element.outerHTML,
+      });
+      (
+        window as unknown as {
+          __asaOrdinaryImageIngress: {
+            nativeEvents: unknown[];
+            describe: typeof describe;
+          };
+        }
+      ).__asaOrdinaryImageIngress = { nativeEvents, describe };
+      for (const kind of ['error', 'load']) {
+        document.addEventListener(
+          kind,
+          (event) => {
+            const target = event.target;
+            if (!(target instanceof SVGImageElement)) return;
+            const href = target.getAttribute('href');
+            if (!href || new URL(href, document.baseURI).pathname !== targetAsset) return;
+            nativeEvents.push({
+              kind: event.type,
+              trusted: event.isTrusted,
+              atMs: performance.now(),
+              timeOrigin: performance.timeOrigin,
+              target: describe(target),
+            });
+          },
+          true,
+        );
+      }
+    }, asset);
+    const network: {
+      url: string;
+      method: string;
+      resourceType: string;
+      requestedAt: number;
+      status?: number;
+      respondedAt?: number;
+      finishedAt?: number;
+      failedAt?: number;
+      failure?: string;
+    }[] = [];
+    const observedRequests = new Map<Request, (typeof network)[number]>();
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname !== asset) return;
+      const record = {
+        url: request.url(),
+        method: request.method(),
+        resourceType: request.resourceType(),
+        requestedAt: Date.now(),
+      };
+      network.push(record);
+      observedRequests.set(request, record);
+    });
+    page.on('response', (response) => {
+      const record = observedRequests.get(response.request());
+      if (record) {
+        record.status = response.status();
+        record.respondedAt = Date.now();
+      }
+    });
+    page.on('requestfinished', (request) => {
+      const record = observedRequests.get(request);
+      if (record) record.finishedAt = Date.now();
+    });
+    page.on('requestfailed', (request) => {
+      const record = observedRequests.get(request);
+      if (record) {
+        record.failedAt = Date.now();
+        const failure = request.failure();
+        if (failure) record.failure = failure.errorText;
+      }
+    });
     let imageRequests = 0;
     await page.route(
       (url) => url.pathname === asset,
@@ -2099,28 +2196,87 @@ test.describe('asset recovery in the built editor', () => {
       { x: 790, y: 450 },
       'holder',
     ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
-    const initial = readDocument();
-    const stageError = part(page, 'holder').getByRole('status', {
-      name: 'Изображение детали не загрузилось',
-    });
-    await expect(stageError).toBeVisible({ timeout: 10_000 });
-    await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
-    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toBeVisible();
-    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
-    await card.scrollIntoViewIfNeeded();
-    await expect(
-      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
-    ).toBeVisible();
-    const requestsAtFailure = imageRequests;
-    await page.waitForTimeout(800);
-    expect(imageRequests).toBe(requestsAtFailure);
-    // Stage and catalog each load the original and validated retry URL; the
-    // shared recovery promise makes at most three probe requests between them.
-    expect(imageRequests).toBeLessThanOrEqual(7);
-    expect(readDocument()).toEqual(initial);
-    expect(requests).toHaveLength(0);
-    expect(errors).toEqual([]);
+    let editor: Awaited<ReturnType<typeof openEditor>> | undefined;
+    try {
+      const { readDocument, requests, errors } = (editor = await openEditor(page, doc));
+      const initial = readDocument();
+      const stageError = part(page, 'holder').getByRole('status', {
+        name: 'Изображение детали не загрузилось',
+      });
+      await expect(stageError).toBeVisible({ timeout: 10_000 });
+      await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+      await expect(
+        part(page, 'holder').locator('[data-owner-image-status="failed"]'),
+      ).toBeVisible();
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      await card.scrollIntoViewIfNeeded();
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      const requestsAtFailure = imageRequests;
+      await page.waitForTimeout(800);
+      expect(imageRequests).toBe(requestsAtFailure);
+      // Stage and catalog each load the original and validated retry URL; the
+      // shared recovery promise makes at most three probe requests between them.
+      expect(imageRequests).toBeLessThanOrEqual(7);
+      expect(readDocument()).toEqual(initial);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } finally {
+      const browser = page.isClosed()
+        ? { closed: true }
+        : await page
+            .evaluate((targetAsset) => {
+              const observation = (
+                window as unknown as {
+                  __asaOrdinaryImageIngress?: {
+                    nativeEvents: unknown[];
+                    describe: (element: Element) => unknown;
+                  };
+                }
+              ).__asaOrdinaryImageIngress;
+              const images = [...document.querySelectorAll('image')].filter((image) => {
+                const href = image.getAttribute('href');
+                return href && new URL(href, document.baseURI).pathname === targetAsset;
+              });
+              return {
+                atMs: performance.now(),
+                timeOrigin: performance.timeOrigin,
+                nativeEvents: observation?.nativeEvents ?? null,
+                images: images.map((image) => observation?.describe(image) ?? image.outerHTML),
+                fullDOM: document.documentElement.outerHTML,
+                localDrafts: Object.fromEntries(
+                  Object.keys(localStorage)
+                    .filter((key) => key.startsWith('asa-project-local-draft:'))
+                    .map((key) => [key, localStorage.getItem(key)]),
+                ),
+              };
+            }, asset)
+            .catch((error: unknown) => ({ observationError: String(error) }));
+      const receipt = {
+        asset,
+        imageRequests,
+        network,
+        initialDocument: doc,
+        serverDocument: editor?.readDocument() ?? null,
+        editorDocument:
+          editor && !page.isClosed()
+            ? await editor
+                .readEditorDocument()
+                .catch((error: unknown) => ({ observationError: String(error) }))
+            : null,
+        draftRequests: editor?.requests ?? null,
+        pageErrors: editor?.errors ?? null,
+        browser,
+      };
+      const receiptPath = testInfo.outputPath('ordinary-image-native-ingress.json');
+      const { writeFileSync } = await import('node:fs');
+      writeFileSync(receiptPath, JSON.stringify(receipt, null, 2));
+      await testInfo.attach('ordinary-image-native-ingress', {
+        path: receiptPath,
+        contentType: 'application/json',
+      });
+    }
   });
 
   test('a late ordinary image error stays visible after shared permanent recovery stops', async ({
