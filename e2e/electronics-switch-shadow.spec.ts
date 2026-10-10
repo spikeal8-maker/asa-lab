@@ -43,6 +43,7 @@ type ShadowProbe = {
     target: { tag: string | null; className: string | null; testId: string | null };
     x: number | null;
     y: number | null;
+    pointerId: number | null;
     at: number;
   }>;
   geometry: unknown[];
@@ -101,7 +102,14 @@ async function installObserver(page: Page) {
   await page.addInitScript(() => {
     const probe: ShadowProbe = { frames: [], latest: null, inputs: [], geometry: [] };
     (window as ProbeWindow).__switchShadowProbe = probe;
-    for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
+    for (const type of [
+      'pointerdown',
+      'pointerup',
+      'click',
+      'keydown',
+      'gotpointercapture',
+      'lostpointercapture',
+    ]) {
       document.addEventListener(
         type,
         (event) => {
@@ -123,6 +131,7 @@ async function installObserver(page: Page) {
             },
             x: event instanceof MouseEvent ? event.clientX : null,
             y: event instanceof MouseEvent ? event.clientY : null,
+            pointerId: event instanceof PointerEvent ? event.pointerId : null,
             at: performance.now(),
           });
           if (probe.inputs.length > 2000) throw new Error('SPDT native input observer overflow');
@@ -407,6 +416,43 @@ async function actuate(page: Page, on: boolean) {
   ).toBe(true);
 }
 
+async function actuateStopped(page: Page) {
+  const geometry = await actuatorGeometry(page, 'native-actuate-stopped');
+  assertActuatorGeometry(geometry);
+  if (!geometry.point) throw new Error('No visible native stopped SPDT actuator point');
+  const before = await page.evaluate(
+    () => (window as ProbeWindow).__switchShadowProbe!.inputs.length,
+  );
+  await page.mouse.click(geometry.point.x, geometry.point.y);
+  const inputs = await page.evaluate(
+    (before) => (window as ProbeWindow).__switchShadowProbe!.inputs.slice(before),
+    before,
+  );
+  // Stopped body presses follow the ordinary component drag/canvas capture
+  // route. A zero-distance native press must leave the runtime switch alone.
+  const gesture = inputs.filter((event) =>
+    ['pointerdown', 'pointerup', 'click'].includes(event.type),
+  );
+  expect(gesture.map((event) => event.type)).toEqual(['pointerdown', 'pointerup', 'click']);
+  expect(gesture[0]).toMatchObject({
+    trusted: true,
+    component: SWITCH,
+    actuator: SWITCH,
+    x: geometry.point.x,
+    y: geometry.point.y,
+  });
+  for (const event of gesture.slice(1)) {
+    expect(event).toMatchObject({
+      trusted: true,
+      component: null,
+      actuator: null,
+      target: { tag: 'svg', className: 'workbench-canvas', testId: null },
+      x: geometry.point.x,
+      y: geometry.point.y,
+    });
+  }
+}
+
 async function runReady(page: Page) {
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
   await expect(
@@ -524,7 +570,7 @@ async function matrix(
     const stoppedUnselected = await capture(page, `${phase}-stopped-unselected`, info, samples);
     expect(stoppedUnselected.selected).toBe(false);
     expect(stoppedUnselected.selectionMarks).toBe(0);
-    await actuate(page, false);
+    await actuateStopped(page);
     const stoppedClick = await capture(page, `${phase}-stopped-click`, info, samples);
     expect(stoppedClick.active).toBe(false);
     expect(stoppedClick.actuatorTransform).toBe(stopped.actuatorTransform);
