@@ -3068,16 +3068,16 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_stopped_capture_scenario_r2_before_product_css
+      checkpoint: causal_before_complete_single_selector_product_repair
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY e2e/electronics-switch-shadow.spec.ts on preserved b196. Separate
-        strict stopped native capture contract; keep Running actuate byte-exact, whole
-        fixture/all matrix assertions/timeouts/native pan/full Save/reopen. No CSS/product/registrations.
-        ONE unpublished SHA thenSTOP.
+      repair_scope: 'ONLY existing active selector in apps/web/src/electronics/workbench.css:
+        exclude data-component-type switch-spdt with :not; declaration/base shadow/focus/selection/diagnostics/control
+        button unchanged. Preserve exact8ccd scenario/registrations/physics/persistence/timeouts.
+        ONE unpublished product SHA and focused evidence thenSTOP.'
       program_issue: 452
       owner_problem: E09
       parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543
@@ -3093,17 +3093,18 @@ parallel_lanes:
       causal_before_probe_sha: ba0564d1c1a58932e165ae7c4bb3961b3574a44c
       causal_before_run: 38012635802
       causal_before_conclusion: failure_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T02:14:34Z'
-      next_action: NEW bounded scenario R2 author adds separate positive stopped contract
-        and optional passive pointerId/capture observer; root actualchecks one SHA then
-        ONE changed-cause full8 BEFORE. CSS remains read-only until complete matrix; final
-        product gates and NEW final independent review still required.
-      before_independent_report_sha256: dc98d371de617593baa5b35c05c0396ce71d833894a15de413779d776d1220d8
-      before_independent_manifest_sha256: 65f954aa8fa846fadaa4a68b8d50284d99033e2c545cb7019ff7eda564e57eb2
-      before_actual: 10 equal-focus OFF/ON native pairs prove extra active blue filter,194
-        complete ready C=H frames.1024 light/dark whole Save/reopen PASS.1440 zoom actuator
-        clips below900px;390/320 center hit not actuator. Full matrix NOT ready; no product
-        pointer defect proven.
+      controller_observed_at: '2026-10-10T02:38:51Z'
+      next_action: NEW bounded CSS author on preserved8ccd changes one existing selector
+        only, narrow source/specificity/consumer checks then sequential literaltrue focused
+        fresh no shared reinstall. Root actualchecks then ONE clean final convergence,
+        changed-cause full8AFTER and ordinary exact all8; NEW independent FINAL product
+        reviewer. Controller continues programme; no school actions.
+      before_independent_report_sha256: 018fb85c090ece50f4cbebaa02a7a7e85de6668c0eae31651ffa5c8e650fe46f
+      before_independent_manifest_sha256: 2bf177265ec28286acaaa2eb99c6e5febd2b3257a25df101ba78239db5f5ef36
+      before_actual: FULL_BEFORE_READY_WITH_EXPECTED_PRODUCT_FAILURES:8x32samples,32same-focus
+        causal pairs,585complete ready C=H/finite/quality,96nativeRunning/32positiveStoppedcaptures,8wholeSave
+        onePUT2to3/cookies-onlyreopen. Original owner screenshot unavailable; no school
+        frequency or product acceptance claim.
       r1_candidate_sha: b1967d4a60e6a8d18b03b1e5f129d2a678d93c87
       r1_candidate_tree: bbd1e000fd09f4a0e1bbc219cc4fe0ca36aa3327
       r1_candidate_branch: codex/electronics-547-native-scenario-r1
@@ -3123,6 +3124,17 @@ parallel_lanes:
         R1 helper erroneously requires Running click actuator in Stopped. Capture inferred
         from unchanged handlers, not directly logged. Full BEFORE NOT_READY; no product
         pointer defect.
+      before_source: 8ccd8c6787d9a725a8424b9d22dd79c2ffe56e45
+      before_probe: 23b8d8c47a01061a0b8eba8bb01fd93b6875ec33
+      before_run: 38016807993
+      before_conclusion: failure:96 EXPECTED blue-filter soft assertions;0 unexpected
+        hard errors
+      baseline_ci_note: Main699 General38016363479 FAILED categoryC independent Portal
+        public-chunk recovery1024 attempts1vs2 at4495;285PASS/1FAIL. Concrete failure
+        sent to authorized Portal owner. No Electronics product change caused it; no scope
+        expansion/rerun/claim that red is green. Exact391 wire General38016578210 SUCCESS
+        with identical Portal bytes is control evidence, not repair. Final exact required
+        gates still mandatory.
     execution_lease:
       executor_id: electronics-spdt-shadow-547
       holder: unassigned
