@@ -169,6 +169,432 @@ async function addSeat(cookie: string, classroomId: string, label: string) {
 }
 
 describe('E1-FIX-02B protected Student Code storage foundation', () => {
+  it('reads an archived protected roster without reopening login, mutations or foreign-class access', async () => {
+    const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const { teacher, classroomId, classCode } = await teacherClass();
+      const student = await addSeat(teacher.cookie, classroomId, 'Архивный ученик');
+      const other = await teacherClass();
+      const persisted = async () =>
+        (
+          await admin.query(
+            'SELECT to_jsonb(p) AS value FROM classroom_student_code_protected p WHERE seat_id=$1',
+            [student.id],
+          )
+        ).rows[0].value;
+      const protectedBefore = await persisted();
+      const roster = () =>
+        inject(app, {
+          method: 'GET',
+          url: `/api/classrooms/${classroomId}/roster`,
+          headers: { cookie: teacher.cookie },
+        });
+      expect((await roster()).statusCode).toBe(200);
+      const status = (value: string) =>
+        inject(app, {
+          method: 'POST',
+          url: `/api/classrooms/${classroomId}/status`,
+          headers: { cookie: teacher.cookie },
+          payload: { status: value },
+        });
+      const archived = await status('archived');
+      expect(archived.statusCode, archived.body).toBe(201);
+      const read = await roster();
+      expect(read.statusCode, read.body).toBe(200);
+      expect(
+        read.json().items.find((item: { id: string }) => item.id === student.id),
+      ).toMatchObject({ studentCode: student.studentCode, loginMethod: 'student_code' });
+      expect(await persisted()).toEqual(protectedBefore);
+
+      const foreign = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}/roster`,
+        headers: { cookie: other.teacher.cookie },
+      });
+      expect(foreign.statusCode, foreign.body).toBe(404);
+      const foreignAccount = (
+        await admin.query(
+          "SELECT account_id FROM classroom_memberships WHERE classroom_id=$1 AND member_role='owner'",
+          [other.classroomId],
+        )
+      ).rows[0].account_id;
+      expect(
+        (
+          await runtime.query('SELECT * FROM classroom_student_code_protected_read($1,$2)', [
+            foreignAccount,
+            classroomId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      const hidden = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/resolve',
+        payload: { code: classCode },
+      });
+      expect(hidden.statusCode, hidden.body).toBe(404);
+      const deniedLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: student.studentCode },
+      });
+      expect(deniedLogin.statusCode).toBeGreaterThanOrEqual(400);
+      expect(deniedLogin.statusCode).toBeLessThan(500);
+      const deniedEdit = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/seats/${student.id}`,
+        headers: { cookie: teacher.cookie },
+        payload: {
+          displayLabel: 'Не должно сохраниться',
+          safeMode: false,
+          status: 'active',
+          avatarKey: null,
+        },
+      });
+      expect(deniedEdit.statusCode, deniedEdit.body).toBe(404);
+      const deniedRotate = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/join-code/rotate`,
+        headers: { cookie: teacher.cookie },
+        payload: {},
+      });
+      expect(deniedRotate.statusCode, deniedRotate.body).toBe(409);
+      expect(await persisted()).toEqual(protectedBefore);
+      const untouched = await roster();
+      expect(untouched.statusCode, untouched.body).toBe(200);
+      expect(
+        untouched.json().items.find((item: { id: string }) => item.id === student.id),
+      ).toMatchObject({
+        displayLabel: 'Архивный ученик',
+        safeMode: true,
+        studentCode: student.studentCode,
+      });
+
+      const restored = await status('active');
+      expect(restored.statusCode, restored.body).toBe(201);
+      // Restoration deliberately does not resurrect last year's circulated class code.
+      const staleCode = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/resolve',
+        payload: { code: classCode },
+      });
+      expect(staleCode.statusCode, staleCode.body).toBe(404);
+      const newCode = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/join-code/rotate`,
+        headers: { cookie: teacher.cookie },
+        payload: {},
+      });
+      expect(newCode.statusCode, newCode.body).toBe(201);
+      const reopened = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}`,
+        headers: { cookie: teacher.cookie },
+      });
+      expect(reopened.statusCode, reopened.body).toBe(200);
+      const reopenedCode = reopened.json().classroom.joinCode as string;
+      expect(reopenedCode).not.toBe(classCode);
+      const login = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: reopenedCode, studentCode: student.studentCode },
+      });
+      expect(login.statusCode, login.body).toBe(200);
+      expect(await persisted()).toEqual(protectedBefore);
+      const removed = await status('deleted');
+      expect(removed.statusCode, removed.body).toBe(201);
+      expect((await roster()).statusCode).toBe(404);
+      const ownerAccount = (
+        await admin.query(
+          "SELECT account_id FROM classroom_memberships WHERE classroom_id=$1 AND member_role='owner'",
+          [classroomId],
+        )
+      ).rows[0].account_id;
+      expect(
+        (
+          await runtime.query('SELECT * FROM classroom_student_code_protected_read($1,$2)', [
+            ownerAccount,
+            classroomId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      expect(await persisted()).toEqual(protectedBefore);
+    } finally {
+      if (previousMode === undefined) delete process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+      else process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = previousMode;
+    }
+  });
+
+  it('rolls back settings and row revision after damaged protected readback, then saves the restored retry', async () => {
+    const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const { teacher, classroomId } = await teacherClass();
+      const policy = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/policies`,
+        headers: { cookie: teacher.cookie },
+        payload: { safeModeDefault: false },
+      });
+      expect(policy.statusCode, policy.body).toBe(200);
+      const seat = await addSeat(
+        teacher.cookie,
+        classroomId,
+        'Исходное имя, индивидуальная защита',
+      );
+      const snapshot = async () => ({
+        seat: (
+          await admin.query(
+            'SELECT to_jsonb(seat) AS settings, xmin::text AS row_revision FROM classroom_student_seats seat WHERE id=$1',
+            [seat.id],
+          )
+        ).rows,
+        credential: (
+          await admin.query('SELECT * FROM classroom_seat_credentials WHERE seat_id=$1', [seat.id])
+        ).rows,
+        policy: (
+          await admin.query('SELECT safe_mode_default FROM classrooms WHERE id=$1', [classroomId])
+        ).rows,
+        updates: Number(
+          (
+            await admin.query(
+              "SELECT count(*) FROM audit_events WHERE entity_id=$1 AND action='classroom.student_seat_updated'",
+              [seat.id],
+            )
+          ).rows[0].count,
+        ),
+      });
+      const before = await snapshot();
+      expect(before.seat[0].settings.safe_mode).toBe(true);
+      const envelope = (
+        await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+          seat.id,
+        ])
+      ).rows;
+      const settings = {
+        displayLabel: 'Новое подтверждённое имя',
+        safeMode: false,
+        status: 'active',
+        avatarKey: null,
+      };
+      const patch = () =>
+        inject(app, {
+          method: 'PATCH',
+          url: `/api/classrooms/${classroomId}/seats/${seat.id}`,
+          headers: { cookie: teacher.cookie },
+          payload: settings,
+        });
+      await admin.query(
+        'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+        [Buffer.alloc(16), seat.id],
+      );
+      try {
+        for (let attempt = 0; attempt < 2; attempt += 1) {
+          const rejected = await patch();
+          expect(rejected.statusCode, rejected.body).toBe(503);
+          expect(rejected.body).toContain('credential_storage_unavailable');
+          // Includes label, policy, handle, timestamps and PostgreSQL row revision.
+          expect(await snapshot()).toEqual(before);
+        }
+      } finally {
+        await admin.query(
+          'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+          [envelope[0].encryption_tag, seat.id],
+        );
+      }
+      const saved = await patch();
+      expect(saved.statusCode, saved.body).toBe(200);
+      expect(saved.json().student).toMatchObject({
+        displayLabel: settings.displayLabel,
+        safeMode: false,
+        studentCode: seat.studentCode,
+      });
+      const after = await snapshot();
+      expect(after.seat[0].settings).toMatchObject({
+        display_label: settings.displayLabel,
+        safe_mode: false,
+        login_handle: before.seat[0].settings.login_handle,
+      });
+      expect(after.seat[0].row_revision).not.toBe(before.seat[0].row_revision);
+      expect(after.credential).toEqual(before.credential);
+      expect(after.policy).toEqual(before.policy);
+      expect(after.updates).toBe(before.updates + 1);
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+            seat.id,
+          ])
+        ).rows,
+      ).toEqual(envelope);
+      const roster = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}/roster`,
+        headers: { cookie: teacher.cookie },
+      });
+      expect(roster.statusCode, roster.body).toBe(200);
+      expect(roster.json().items.find((row: { id: string }) => row.id === seat.id)).toMatchObject(
+        saved.json().student,
+      );
+      expect(await snapshot()).toEqual(after);
+    } finally {
+      if (previousMode === undefined) delete process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+      else process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = previousMode;
+    }
+  });
+  it('enforced mixed roster keeps Account-only admission and both linked Seat access paths without rotating storage', async () => {
+    const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const { teacher, classroomId, classCode } = await teacherClass();
+      const codeSeat = await addSeat(
+        teacher.cookie,
+        classroomId,
+        'Связанный ученик с коротким кодом',
+      );
+      const accountOnly = await account();
+      const requested = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/account',
+        headers: { cookie: accountOnly.cookie },
+        payload: { code: classCode },
+      });
+      expect(requested.statusCode, requested.body).toBe(200);
+      expect(requested.json().status).toBe('pending');
+      const decided = await inject(app, {
+        method: 'POST',
+        url: `/api/class-join/requests/${classroomId}/${requested.json().requestId}/decision`,
+        headers: { cookie: teacher.cookie },
+        payload: { decision: 'approved' },
+      });
+      expect(decided.statusCode, decided.body).toBe(201);
+      const linkedAccount = await account();
+      const linkedSession = await inject(app, {
+        method: 'GET',
+        url: '/api/auth/me',
+        headers: { cookie: linkedAccount.cookie },
+      });
+      expect(linkedSession.statusCode, linkedSession.body).toBe(200);
+      // Seed the existing Account+Seat relation in this disposable database.
+      // This is a credential-preservation test, not a claim of a new linking journey.
+      await admin.query('UPDATE classroom_student_seats SET account_id=$1 WHERE id=$2', [
+        linkedSession.json().account.id,
+        codeSeat.id,
+      ]);
+      const before = await admin.query(
+        'SELECT * FROM classroom_student_code_protected WHERE seat_id=$1',
+        [codeSeat.id],
+      );
+      const readRoster = () =>
+        inject(app, {
+          method: 'GET',
+          url: `/api/classrooms/${classroomId}/roster`,
+          headers: { cookie: teacher.cookie },
+        });
+      const roster = await readRoster();
+      expect(roster.statusCode, roster.body).toBe(200);
+      expect(roster.body).not.toContain('acc:');
+      const codeRow = roster.json().items.find((row: { id: string }) => row.id === codeSeat.id);
+      const accountRow = roster
+        .json()
+        .items.find((row: { loginMethod: string }) => row.loginMethod === 'account');
+      expect(codeRow).toMatchObject({
+        studentCode: codeSeat.studentCode,
+        loginHandle: codeSeat.studentCode,
+        loginMethod: 'student_code',
+      });
+      expect(accountRow).toMatchObject({
+        studentCode: null,
+        loginHandle: null,
+        loginMethod: 'account',
+      });
+      const accountStored = await admin.query(
+        'SELECT login_handle FROM classroom_student_seats WHERE id=$1',
+        [accountRow.id],
+      );
+      expect(accountStored.rows[0].login_handle).toMatch(/^acc:/);
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+            accountRow.id,
+          ])
+        ).rowCount,
+      ).toBe(0);
+      const changed = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/seats/${accountRow.id}`,
+        headers: { cookie: teacher.cookie },
+        payload: {
+          displayLabel: 'Участник через аккаунт',
+          safeMode: false,
+          status: 'active',
+          avatarKey: null,
+        },
+      });
+      expect(changed.statusCode, changed.body).toBe(200);
+      expect(changed.json().student).toMatchObject({
+        studentCode: null,
+        loginHandle: null,
+        loginMethod: 'account',
+        safeMode: false,
+      });
+      const linkedChanged = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/seats/${codeSeat.id}`,
+        headers: { cookie: teacher.cookie },
+        payload: {
+          displayLabel: 'Связанный ученик',
+          safeMode: true,
+          status: 'active',
+          avatarKey: null,
+        },
+      });
+      expect(linkedChanged.statusCode, linkedChanged.body).toBe(200);
+      expect(linkedChanged.json().student.studentCode).toBe(codeSeat.studentCode);
+      const codeLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: codeSeat.studentCode },
+      });
+      expect(codeLogin.statusCode, codeLogin.body).toBe(200);
+      const linkedClasses = await inject(app, {
+        method: 'GET',
+        url: '/api/class-join/account/classes',
+        headers: { cookie: linkedAccount.cookie },
+      });
+      expect(linkedClasses.statusCode, linkedClasses.body).toBe(200);
+      expect(
+        linkedClasses
+          .json()
+          .items.some((row: { classroomId: string }) => row.classroomId === classroomId),
+      ).toBe(true);
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_student_code_protected WHERE seat_id=$1', [
+            codeSeat.id,
+          ])
+        ).rows,
+      ).toEqual(before.rows);
+      const originalTag = before.rows[0].encryption_tag;
+      await admin.query(
+        'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+        [Buffer.alloc(16), codeSeat.id],
+      );
+      try {
+        const corruptRoster = await readRoster();
+        expect(corruptRoster.statusCode, corruptRoster.body).toBe(503);
+        expect(corruptRoster.body).toContain('credential_storage_unavailable');
+      } finally {
+        await admin.query(
+          'UPDATE classroom_student_code_protected SET encryption_tag=$1 WHERE seat_id=$2',
+          [originalTag, codeSeat.id],
+        );
+      }
+      expect((await readRoster()).statusCode).toBe(200);
+    } finally {
+      if (previousMode === undefined) delete process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+      else process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = previousMode;
+    }
+  });
   it('compat dual-writes protected envelope, decrypts current readback, and signs in by HMAC lookup', async () => {
     const { teacher, classroomId, classCode } = await teacherClass();
     const seat = await addSeat(teacher.cookie, classroomId, 'Protected learner');

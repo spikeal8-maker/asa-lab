@@ -226,6 +226,9 @@ importers:
       pg:
         specifier: 8.13.1
         version: 8.13.1
+      pngjs:
+        specifier: 7.0.0
+        version: 7.0.0
       reflect-metadata:
         specifier: 0.2.2
         version: 0.2.2

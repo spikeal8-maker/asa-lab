@@ -220,8 +220,12 @@ it('upgrades populated baseline 0106 without rewriting projects, course versions
       )
     ).rows;
     expect(
-      afterSeats.map(
-        ({ login_handle: _login, normalized_login_handle: _normalized, ...stable }) => stable,
+      afterSeats.map((row) =>
+        Object.fromEntries(
+          Object.entries(row).filter(
+            ([key]) => key !== 'login_handle' && key !== 'normalized_login_handle',
+          ),
+        ),
       ),
     ).toEqual(beforeSeatAccess.seats);
     for (const row of afterSeats) {
@@ -629,7 +633,13 @@ it('preserves legacy decisions and notification history through 0132 to integrat
           [oldNotifications.map((item) => item.row.id)],
         )
       ).rows,
-    ).toEqual(oldNotifications);
+    ).toEqual(
+      oldNotifications.map(({ row }) => ({
+        // Additive journal FK is unset for every old event; all historic fields
+        // (IDs, recipients, delivery/read state and timestamps) remain exact.
+        row: { ...row, journal_revision_id: null },
+      })),
+    );
     expect(
       (
         await isolated.query(

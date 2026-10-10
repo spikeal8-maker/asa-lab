@@ -1,0 +1,132 @@
+/* Owner-requested compact classroom layout. Font sizes remain inherited. */
+.classroom-owner-list .classroom-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+}
+.classroom-owner-list .classroom-title-row h1 {
+  margin: 0;
+}
+.classroom-owner-list .classroom-title-row .classroom-progress {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.classroom-owner-list .classroom-list-row {
+  min-height: 32px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  border-radius: 5px;
+}
+.classroom-owner-list .classroom-row-title {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}
+.classroom-owner-list .classroom-row-menu > summary {
+  height: 28px;
+  min-height: 28px;
+}
+.classroom-owner-workspace .classroom-head-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+}
+.classroom-owner-workspace .classroom-head-title {
+  flex: 1;
+  min-width: 160px;
+}
+.classroom-owner-workspace .classroom-head-title h1 {
+  margin: 0;
+}
+.classroom-owner-workspace .classroom-head-title h1 small {
+  margin-left: 10px;
+}
+.classroom-owner-workspace .classroom-tab-panel,
+.classroom-owner-workspace .classroom-roster-panel {
+  padding: 12px;
+}
+.classroom-owner-workspace .classroom-settings-panel {
+  display: grid;
+  gap: 16px;
+}
+.classroom-owner-workspace .classroom-settings-panel > .btn-secondary {
+  justify-self: start;
+}
+.classroom-owner-workspace .classroom-settings-panel .classroom-safe-switch {
+  justify-self: start;
+}
+.classroom-owner-workspace .classroom-roster-row {
+  min-height: 34px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+}
+.classroom-owner-workspace .classroom-seat-avatar {
+  width: 26px;
+  height: 26px;
+}
+.classroom-owner-workspace .classroom-student-name {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.classroom-owner-workspace .classroom-row-menu > summary {
+  height: 26px;
+  min-height: 26px;
+}
+.classroom-owner-workspace .classroom-roster-index {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-muted);
+}
+@media (min-width: 1101px) {
+  .classroom-owner-workspace .classroom-roster-head,
+  .classroom-owner-workspace .classroom-roster-row {
+    grid-template-columns:
+      28px minmax(180px, 1.1fr) minmax(100px, 0.6fr) minmax(110px, 0.6fr)
+      minmax(130px, 0.6fr) 132px 40px;
+    gap: 8px;
+  }
+}
+@media (max-width: 1100px) {
+  .classroom-owner-workspace .classroom-roster-row {
+    position: relative;
+    padding-left: 36px;
+  }
+  .classroom-owner-workspace .classroom-roster-index {
+    position: absolute;
+    left: 10px;
+    top: 10px;
+  }
+  .classroom-owner-workspace .classroom-roster-head > span:first-child {
+    display: none;
+  }
+}
+@media (max-width: 820px) {
+  .classroom-owner-list .classroom-title-row {
+    align-items: flex-start;
+  }
+  .classroom-owner-workspace .classroom-head-code {
+    margin-left: auto;
+  }
+  .classroom-owner-workspace .classroom-workspace-tabs {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}
+
+/* Form-label margins must not enlarge compact table rows. */
+.classroom-owner-list .classroom-row-select,
+.classroom-owner-workspace .classroom-seat-safe {
+  margin: 0;
+}
+
+.classroom-owner-workspace .classroom-login-handle {
+  padding-top: 2px;
+  padding-bottom: 2px;
+}

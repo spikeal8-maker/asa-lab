@@ -17,6 +17,17 @@ const titles: Record<string, string> = {
   NF15: 'Курс завершён',
 };
 function destination(item: LearningNotification): string {
+  const journal = item as LearningNotification & {
+    journalRevisionId?: string | null;
+    journalDate?: string | null;
+    journalColumnId?: string | null;
+  };
+  if (journal.journalRevisionId) {
+    const query = new URLSearchParams({ journal: '1' });
+    if (journal.journalDate) query.set('journalMonth', journal.journalDate.slice(0, 7));
+    if (journal.journalColumnId) query.set('journalColumn', journal.journalColumnId);
+    return `#/learning?${query.toString()}`;
+  }
   const query = new URLSearchParams();
   if (item.assignmentId) query.set('assignment', item.assignmentId);
   if (item.seatId) query.set('learner', item.seatId);

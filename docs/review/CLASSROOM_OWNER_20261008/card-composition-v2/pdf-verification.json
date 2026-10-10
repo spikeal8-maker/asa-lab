@@ -1,0 +1,20 @@
+[
+  {
+    "cards": 20,
+    "pages": 1,
+    "a4": true,
+    "code_labels": 20
+  },
+  {
+    "cards": 30,
+    "pages": 2,
+    "a4": true,
+    "code_labels": 30
+  },
+  {
+    "cards": 40,
+    "pages": 2,
+    "a4": true,
+    "code_labels": 40
+  }
+]
