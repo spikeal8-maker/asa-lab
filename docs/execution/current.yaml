@@ -2667,19 +2667,33 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_native_observer_acceptance_repair
+      checkpoint: one_final_convergence_preserved_native_candidate
       dependency_issue: 536
       owner_acceptance: pending
       dependency_status: technical_accepted
       selected_at: '2026-10-09T16:49:06Z'
-      preserved_candidate_sha: 42c4e1f17634ffedbb955d16298b0f4f3a74dfc3
+      preserved_candidate_sha: 51991c0339009f3e358bf405fddb8c48743262ef
       independent_review: request_changes
       independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-42c4e1f1.md
       independent_review_original_sha256: 41decf335ee5b2d36d3a76f3b0e1c3f6d64df4341ad718f193101fc06e1d458e
-      repair_scope: Only existing interactions observer installation before first navigation
-        or actual-current-document setup plus explicit presence. Keep trusted native events,
-        full geometry/netlist/document, save/reopen and limits; causal product line unchanged.
-        Preserve proved browser BEFORE without repeat.
+      repair_scope: ONE non-destructive final convergence of preserved519 native-tested
+        product with current canonical main. Read-only merge-tree is clean, four task
+        paths only. No reimplementation or repeat BEFORE/measurements; preserve all accepted
+        main/foreign scenarios. No product/test changes absent newly proven defect. Final
+        exact focused/ordinary all8 plus NEW independent reviewer before integration.
+      preserved_candidate_tree: f68d6a4980a89b5c5c756396ccf73104e5657d06
+      preserved_candidate_branch: codex/electronics-538-native-observer-r1
+      preserved_review: approved_source_only_not_new_composition_acceptance
+      preserved_review_original_sha256: ceff96e4aea0168acdc697ea163a8008dbaa814a77c9b4b90b5ebeb81d99d2fa
+      preserved_general_run: 37969136934
+      preserved_electronics_run: 37970573601
+      preserved_all8: success
+      controller_observed_at: '2026-10-10T01:47:00Z'
+      next_action: NEW bounded convergence author, clean dedicated538 checkout; one new
+        unpublished final composition SHA/selfreview thenSTOP. Root actual scope/foreign
+        proof, publish exact General/Electronics all8 and NEW final independent reviewer.
+        Old source APPROVE does not accept combined version. Owner-original E07 input
+        and school remain pending.
     execution_lease:
       executor_id: electronics-wire-538
       holder: unassigned
