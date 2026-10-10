@@ -214,8 +214,14 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     );
     await studentContext.addCookies(await page.context().cookies());
     const mixed = await student.request.get('/api/class-join/participants/me');
-    expect(mixed.ok()).toBe(true);
-    expect((await mixed.json()).metrics.seatId).toBe(seatId);
+    expect(mixed.status(), await mixed.text()).toBe(409);
+    expect(await mixed.json()).toMatchObject({ error: { code: 'session_conflict' } });
+    expect((await mixed.json()).metrics).toBeUndefined();
+    await studentContext.clearCookies({ name: 'asa_session' });
+    await studentContext.clearCookies({ name: 'asa_refresh' });
+    const seatOnly = await student.request.get('/api/class-join/participants/me');
+    expect(seatOnly.ok(), await seatOnly.text()).toBe(true);
+    expect((await seatOnly.json()).metrics.seatId).toBe(seatId);
     await student.reload();
     expect(
       (await (await student.request.get('/api/class-join/participants/me')).json()).metrics

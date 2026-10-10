@@ -304,7 +304,15 @@ test('real manual date journal survives retries, corrections, presets and both l
       await learner.goto('/#/learning');
       await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
       await expect(grades.locator('li b')).toHaveText('5');
-      await post(learner, '/api/class-join/logout', {});
+      const loggedOut = await post(learner, '/api/class-join/logout', {});
+      expect(loggedOut.status(), await loggedOut.text()).toBe(200);
+      expect(
+        (await context.cookies()).some((cookie) => cookie.name === 'asa_student_session'),
+      ).toBe(false);
+      expect((await learner.request.get('/api/class-join/journal/results')).status()).toBe(401);
+      // The request context logs out out-of-band; reload resets the SPA's old
+      // session just as a fresh visit would before testing an actual new login.
+      await learner.reload();
       await learner.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
       await learner.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
       await learner.getByRole('button', { name: 'Войти', exact: true }).click();
@@ -355,8 +363,9 @@ test('real manual date journal survives retries, corrections, presets and both l
   await accountPage.reload();
   await accountGrades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
   await expect(accountGrades.locator('li b')).toHaveText('4');
-  // Real mixed cookies: the two already-mounted surfaces keep their explicit
-  // identity. No mocked auth/results response and no reload to mask the defect.
+  // The platform deliberately rejects dual session cookies before routing.
+  // Preserve that guard: conflict responses disclose no grades, and each
+  // already-mounted surface clears stale data without falling back identities.
   const accountCookies = (await accountContext.cookies()).filter((c) =>
     ['asa_session', 'asa_refresh'].includes(c.name),
   );
@@ -364,31 +373,31 @@ test('real manual date journal survives retries, corrections, presets and both l
   const seatPage = contexts[0].pages()[0];
   const seatGrades = seatPage.getByRole('region', { name: 'Мои оценки по датам' });
   await contexts[0].addCookies(accountCookies);
+  for (const path of ['/api/class-join/journal/results', '/api/learning/journal/results']) {
+    const response = await seatPage.request.get(path + '?from=2026-10-01&to=2026-10-31');
+    expect(response.status(), await response.text()).toBe(409);
+    expect(await response.json()).toMatchObject({ error: { code: 'session_conflict' } });
+    expect((await response.json()).items).toBeUndefined();
+  }
   await seatPage.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(seatGrades.locator('li b')).toHaveText('5');
-  expect(
-    (
-      await seatPage.request
-        .get('/api/class-join/journal/results?from=2026-10-01&to=2026-10-31')
-        .then((r) => r.json())
-    ).items.map((g: { value: number }) => g.value),
-  ).toEqual([5]);
-  expect(
-    (
-      await seatPage.request
-        .get('/api/learning/journal/results?from=2026-10-01&to=2026-10-31')
-        .then((r) => r.json())
-    ).items.map((g: { value: number }) => g.value),
-  ).toEqual([4]);
+  await expect(seatGrades.getByRole('alert')).toContainText('два разных входа');
+  await expect(seatGrades.locator('li')).toHaveCount(0);
   await accountContext.addCookies(seatCookies);
   await accountPage.evaluate(() => window.dispatchEvent(new Event('focus')));
-  await expect(accountGrades.locator('li b')).toHaveText('4');
+  await expect(accountGrades.getByRole('alert')).toContainText('два разных входа');
+  await expect(accountGrades.locator('li')).toHaveCount(0);
   await contexts[0].clearCookies({ name: 'asa_student_session' });
   expect((await seatPage.request.get('/api/class-join/journal/results')).status()).toBe(401);
-  expect((await seatPage.request.get('/api/learning/journal/results')).ok()).toBe(true);
+  const accountOnly = await seatPage.request.get(
+    '/api/learning/journal/results?from=2026-10-01&to=2026-10-31',
+  );
+  expect(accountOnly.ok()).toBe(true);
+  expect((await accountOnly.json()).items.map((g: { value: number }) => g.value)).toEqual([4]);
   await seatPage.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(seatGrades.getByRole('alert')).toBeVisible();
   await expect(seatGrades.locator('li')).toHaveCount(0);
+  await contexts[0].clearCookies({ name: 'asa_session' });
+  await contexts[0].clearCookies({ name: 'asa_refresh' });
   await contexts[0].addCookies(seatCookies);
   await seatPage.evaluate(() => window.dispatchEvent(new Event('focus')));
   await expect(seatGrades.locator('li b')).toHaveText('5');

@@ -156,15 +156,38 @@ jobs:
       # One gate per result: `pnpm gate:data` is migrations, the complete Vitest
       # suite and the explicit RLS gate. Running it here as one command is what
       # makes a local PASS mean the same thing as this job.
+      # Observe the disposable test container; keep the mandatory gate itself
+      # byte-for-byte unchanged, including command, environment and exit status.
+      - name: Capture disposable test container output
+        env:
+          COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: |
+          mkdir -p reports/checks
+          nohup bash -c '
+            for attempt in $(seq 1 180); do
+              id=$(docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" --filter "label=com.docker.compose.service=test-runner" | head -n 1)
+              if [ -n "$id" ]; then
+                exec docker logs --follow "$id"
+              fi
+              sleep 1
+            done
+            echo "No test-runner container observed."
+          ' > reports/checks/full-data-gate.log 2>&1 &
+          echo "$!" > reports/checks/log-observer.pid
+
       - name: Data gate
         env:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
+        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
+
+      - name: Stop this job's log observer
+        if: always()
         run: |
-          mkdir -p reports/checks
-          set -o pipefail
-          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:data 2>&1 | tee reports/checks/full-data-gate.log
+          if [ -f reports/checks/log-observer.pid ]; then
+            kill "$(cat reports/checks/log-observer.pid)" 2>/dev/null || true
+          fi
 
       - name: Preserve full data gate evidence
         if: always()
