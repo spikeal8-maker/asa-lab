@@ -2365,36 +2365,36 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r1_proven_static_observation_routing_bounded_implementation
+      checkpoint: r2_proven_full_snapshot_deadline_compact_observer_only
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: Only existing solver.ts immutable exact-document nonlinear branch/ordered
-        terminal/component routing and solve-local dynamic branch/result indexes; existing
-        solver/scheduler specs meaningful byte-parity/stale/dynamic challenges. Preserve
-        every numeric solve, summation/order/quality/state/precision/quantum/budget/original
-        fullprogram/timeout. No numeric/matrix/solution/runtime/frame cache, simulation.ts
-        quality or other module edits.
+      repair_scope: 'ONLY e2e/electronics-ready-cadence.spec.ts polling: compute identical
+        source-matched ready GPIO0..7/Serial and UI predicates inside browser, transport
+        compact results; retain full raw separately on success/failure. Preserve old5000/30000ms,
+        full programs/fixtures/all assertions/nativeSave/cookies-reopen/physics/product.
+        No new solver optimization or other file edits.'
       preserved_candidate_sha: 7f2faad8b36b62c17fa57c100d4e7f20d62822e3
       preserved_candidate_tree: 90b0c0535f24b80f8a1337ad46f116b865cb2762
-      candidate_publication: unpublished
-      candidate_acceptance: pending
+      candidate_publication: published
+      candidate_acceptance: pending_required_observer_repair
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
-      final_candidate_sha: 067702ae655707b71d3c096d6cca8073367eab96
-      final_candidate_tree: 34ddabae5138d8b50dd294e7781cb568d283a351
+      final_candidate_sha: 0fd0ba3da17401e10ce81554fa842c60af7e0812
+      final_candidate_tree: 3cee2ebb8f8dd03510ff7850eac70acb1fd0f736
       independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/solver-preparation-546-independent-review-067702ae.md
-      independent_review_original_sha256: 9481a396a22aadc96048877c014c69af5431e5e631fad1d16546c80cbcf7abe9
-      exact_general_run: 37999952858
-      exact_general_conclusion: success
-      exact_electronics_run: 37999954611
-      exact_electronics_conclusion: failure
+      independent_evidence: docs/product/electronics/evidence/solver-preparation-546-independent-review-0fd0ba3d.md
+      independent_review_original_sha256: 0fba3d975704d3e5a2cb60c38c978f6263af7d2042b27f3e95362745411b03b4
+      exact_general_run: 38006466273
+      exact_general_conclusion: pending
+      exact_electronics_run: null
+      exact_electronics_conclusion: not_dispatched_after_directed_fail
       browser_passed: 136
       browser_failed: 1
-      residual_cause: 'First GPIO initial Run before reopen: assertion0..2/5000ms; later
-        retained observation11ready C=H0..1s/UI0..3,0yielded/fault, compute4228.8ms max865,
-        UI5.2..39.1ms after ready. Runner contention versus ownCPU and school frequency
-        not proved.'
+      residual_cause: Cookies-only reopened poll deadline22819.185ms; genuine ready7/UI7
+        upper bounds21455.795/21479.895ms; fullsnapshot final evaluate22588.763..22848.810ms
+        crosses olddeadline29.625ms. Initial GPIO full0..7/Serial Save-reopen PASS; GPIO
+        final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause observer
+        repair needed.
       residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
       residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
       residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct
@@ -2403,6 +2403,12 @@ parallel_lanes:
       implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus
         stale/dynamic/state challenges and focused gate before unchanged fullGPIO/Serial
         browser; no claimed sufficiency until actual directed and ordinary exact all8/newreview.
+      r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
+      r1_directed_run: 38006467707
+      r1_directed_conclusion: failure
+      r1_failure_classification: 'D: full observation transport/poll deadline race; all8
+        genuine ready and UI already exist before old deadline; new compute defect NOT
+        proved'
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
