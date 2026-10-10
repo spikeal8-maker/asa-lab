@@ -78,6 +78,7 @@ const fixtureDocument: SchematicDocument = {
   simulation: { running: false, maxIterations: 24 },
 };
 let initialDocument: SchematicDocument;
+const userId = 'sketch-durability-user';
 
 let host: HTMLDivElement | null = null;
 let root: Root | null = null;
@@ -90,7 +91,7 @@ function controller() {
 }
 
 function Probe({ projectId }: { projectId: string }) {
-  current = useElectronicsWorkbench(projectId);
+  current = useElectronicsWorkbench(projectId, userId);
   return current.status === 'ready'
     ? createElement(ArduinoCodePanel, {
         controller: current,
@@ -118,6 +119,11 @@ async function prepare() {
   vi.setSystemTime(0);
   localStorage.clear();
   stored = new Map();
+  vi.spyOn(api, 'me').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: { authenticated: true, user: { id: userId } },
+  } as Awaited<ReturnType<typeof api.me>>);
   let revision = 1;
   vi.spyOn(api, 'openProject').mockImplementation(
     async (projectId) =>
@@ -175,7 +181,8 @@ function switchBoard(id: string) {
 }
 
 function localDocument(projectId = 'first') {
-  return readLocalProjectDraft<SchematicDocument>(localStorage, projectId, 'electronics')?.document;
+  return readLocalProjectDraft<SchematicDocument>(localStorage, projectId, 'electronics', userId)
+    ?.document;
 }
 
 afterEach(async () => {

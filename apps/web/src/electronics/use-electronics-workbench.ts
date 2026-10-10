@@ -182,8 +182,8 @@ function writeLocalElectronicsViewport(projectId: string, viewport: Viewport): v
   }
 }
 
-export function useElectronicsWorkbench(projectId: string) {
-  const projectState = useWorkbenchProjectState(projectId);
+export function useElectronicsWorkbench(projectId: string, userId: string, seatLearner = false) {
+  const projectState = useWorkbenchProjectState(projectId, userId, seatLearner);
   const {
     project,
     document,
@@ -195,6 +195,9 @@ export function useElectronicsWorkbench(projectId: string) {
     saveStatus,
     saveError,
     saveIssue,
+    localCopySaved,
+    exportEmergencyCopy,
+    saveBeforeLeave,
     notice,
     setNotice,
     simulationRunning,
@@ -1177,12 +1180,14 @@ export function useElectronicsWorkbench(projectId: string) {
       readonly outputEnabled?: boolean;
     },
   ): void {
-    if (!document || !runtimeDocument) return;
-    const component = runtimeDocument.components.find((item) => item.id === componentId);
+    const currentDocument = getCurrentDocument();
+    if (!currentDocument) return;
+    const component = currentDocument.components.find((item) => item.id === componentId);
     if (!component || component.componentTypeId !== 'regulated-power-supply') return;
     if (
       (patch.voltageSetpointVolt !== undefined && !Number.isFinite(patch.voltageSetpointVolt)) ||
-      (patch.currentLimitAmp !== undefined && !Number.isFinite(patch.currentLimitAmp))
+      (patch.currentLimitAmp !== undefined && !Number.isFinite(patch.currentLimitAmp)) ||
+      (patch.outputEnabled !== undefined && typeof patch.outputEnabled !== 'boolean')
     ) {
       return;
     }
@@ -1195,24 +1200,43 @@ export function useElectronicsWorkbench(projectId: string) {
         : { currentLimitAmp: clamp(patch.currentLimitAmp, 0, 5) }),
       ...(patch.outputEnabled === undefined ? {} : { outputEnabled: patch.outputEnabled }),
     };
-    if (simulationRunning) {
-      setRuntimeComponentOverride(componentId, { stateProperties: normalized });
-      return;
+    // U/I are pupil settings. Only the live output switch is temporary; never
+    // copy measured values or the other runtime overlays into the saved schema.
+    const persisted = simulationRunning
+      ? {
+          ...(normalized.voltageSetpointVolt === undefined
+            ? {}
+            : { voltageSetpointVolt: normalized.voltageSetpointVolt }),
+          ...(normalized.currentLimitAmp === undefined
+            ? {}
+            : { currentLimitAmp: normalized.currentLimitAmp }),
+        }
+      : normalized;
+    if (simulationRunning && normalized.outputEnabled !== undefined) {
+      setRuntimeComponentOverride(componentId, {
+        stateProperties: { outputEnabled: normalized.outputEnabled },
+      });
     }
+    const unchanged =
+      Object.entries(persisted).every(
+        ([key, value]) => component.stateProperties?.[key] === value,
+      ) &&
+      (persisted.voltageSetpointVolt === undefined ||
+        component.value === persisted.voltageSetpointVolt) &&
+      (!('outputEnabled' in persisted) || component.state === persisted.outputEnabled);
+    if (unchanged) return;
     commitDocument(
       {
-        ...document,
-        components: document.components.map((item) =>
+        ...currentDocument,
+        components: currentDocument.components.map((item) =>
           item.id === componentId
             ? {
                 ...item,
-                ...(normalized.voltageSetpointVolt === undefined
+                ...(persisted.voltageSetpointVolt === undefined
                   ? {}
-                  : { value: normalized.voltageSetpointVolt }),
-                ...(normalized.outputEnabled === undefined
-                  ? {}
-                  : { state: normalized.outputEnabled }),
-                stateProperties: { ...item.stateProperties, ...normalized },
+                  : { value: persisted.voltageSetpointVolt }),
+                ...(!('outputEnabled' in persisted) ? {} : { state: persisted.outputEnabled }),
+                stateProperties: { ...item.stateProperties, ...persisted },
               }
             : item,
         ),
@@ -2792,6 +2816,9 @@ export function useElectronicsWorkbench(projectId: string) {
     saveStatus,
     saveError,
     saveIssue,
+    localCopySaved,
+    exportEmergencyCopy,
+    saveBeforeLeave,
     notice,
     setNotice,
     selection,

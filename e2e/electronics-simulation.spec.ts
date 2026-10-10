@@ -2972,6 +2972,9 @@ for (const { mode, segment, widths } of compactControlSegments) {
           width: rect.width,
           height: rect.height,
         });
+        const nativeMenu = document.querySelector(
+          '.workbench-wire-color[open] > .workbench-wire-color-menu[role="menu"][aria-label="Цвет провода"]',
+        );
         function inspect(element: Element) {
           const rect = element.getBoundingClientRect();
           const style = getComputedStyle(element);
@@ -3010,11 +3013,24 @@ for (const { mode, segment, widths } of compactControlSegments) {
             [rect.left + rect.width / 2, rect.top + rect.height / 2],
           ].map(([x, y]) => {
             const hit = document.elementFromPoint(x!, y!);
+            const hitAncestry = [];
+            for (let ancestor = hit; ancestor; ancestor = ancestor.parentElement) {
+              hitAncestry.push({
+                selector: `${ancestor.tagName}.${ancestor.className}`,
+                role: ancestor.getAttribute('role'),
+                ariaLabel: ancestor.getAttribute('aria-label'),
+              });
+            }
             return {
               x,
               y,
               owned: hit !== null && (hit === element || element.contains(hit)),
               hit: hit ? `${hit.tagName}.${hit.className}` : null,
+              hitAncestry,
+              ownedByOpenNativeMenu:
+                nativeMenu !== null &&
+                hit !== null &&
+                hit.closest('.workbench-wire-color-menu') === nativeMenu,
             };
           });
           const selectedText =
@@ -3112,6 +3128,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
                 rect: bounds(
                   document.querySelector('.workbench-wire-color-menu')!.getBoundingClientRect(),
                 ),
+                purple: inspect(document.querySelector('[aria-label="Цвет провода: Фиолетовый"]')!),
               }
             : null,
           codeBody: bounds(document.querySelector('.arduino-code-body')!.getBoundingClientRect()),
@@ -3143,12 +3160,31 @@ for (const { mode, segment, widths } of compactControlSegments) {
       const caption = running ? 'Остановить моделирование' : 'Начать моделирование';
       expect(observation.primary.ariaLabel).toBe(caption);
       expect(observation.primary.text).toBe(caption);
-      function assertFits(control: typeof observation.primary) {
+      function assertFits(control: typeof observation.primary, allowNativeMenuCorners = false) {
         expect(control.rect.left).toBeGreaterThanOrEqual(0);
         expect(control.rect.right).toBeLessThanOrEqual(observation.viewport.width + 1);
         expect(control.rect.top).toBeGreaterThanOrEqual(0);
         expect(control.rect.bottom).toBeLessThanOrEqual(observation.viewport.height + 1);
-        expect(control.points.every((point) => point.owned)).toBe(true);
+        expect(
+          control.points.every((point, index) => {
+            if (point.owned) return true;
+            const menu = observation.nativeWireMenu;
+            // An open popup owns its actual pixels. Only underlying Code corners
+            // may belong to this concrete native menu; the centre stays usable.
+            return (
+              allowNativeMenuCorners &&
+              phase === '981-native-open' &&
+              observation.viewport.width === 981 &&
+              menu?.open === true &&
+              index < 4 &&
+              point.ownedByOpenNativeMenu &&
+              point.x! >= menu.rect.left &&
+              point.x! <= menu.rect.right &&
+              point.y! >= menu.rect.top &&
+              point.y! <= menu.rect.bottom
+            );
+          }),
+        ).toBe(true);
         for (const clip of control.clips) {
           if (['hidden', 'clip', 'auto', 'scroll'].includes(clip.overflowX)) {
             expect(control.rect.left).toBeGreaterThanOrEqual(clip.left - 1);
@@ -3216,7 +3252,13 @@ for (const { mode, segment, widths } of compactControlSegments) {
       expect(observation.codeControls).toHaveLength(
         mode === 'text' ? 7 : mode === 'blocks-text' ? 6 : 3,
       );
-      for (const control of observation.codeControls) assertFits(control);
+      if (phase === '981-native-open') {
+        expect(observation.nativeWireMenu?.open).toBe(true);
+        const purple = observation.nativeWireMenu!.purple;
+        assertFits(purple);
+        expect(purple.points.every((point) => point.ownedByOpenNativeMenu)).toBe(true);
+      }
+      for (const control of observation.codeControls) assertFits(control, true);
       if (mode !== 'blocks') {
         const fontControl = observation.codeControls.find(
           (control) => control.ariaLabel === 'Размер текста Arduino',
@@ -3237,6 +3279,7 @@ for (const { mode, segment, widths } of compactControlSegments) {
           await record(`${width}-native-open`, desktop, false);
           await nativeMenu.locator('summary').click();
           await expect(nativeMenu).not.toHaveAttribute('open', '');
+          await record(`${width}-native-closed`, desktop, false);
         }
         const size = (await font.inputValue()) === '14' ? '16' : '14';
         await font.click();
@@ -3913,6 +3956,202 @@ for (const mode of ['blocks-text', 'blocks'] as const) {
     failures.assertEmpty();
   });
 }
+
+test('native wire colour menu accepts Purple beside Code across desktop and mobile layouts', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+  const evidenceDir = 'reports/playwright/electronics-wire-menu-530';
+  mkdirSync(evidenceDir, { recursive: true });
+  const observations: unknown[] = [];
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'Native wire menu beside Code');
+  await saveDocument(page, projectId, arduinoInputDocument('button', '2'));
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  const code = page.locator('.workbench-pill.code');
+  const drawer = page.locator('.arduino-code-panel');
+  const details = page.locator('.workbench-wire-color');
+  const summary = details.locator('summary');
+  const purple = details.locator('[aria-label="Цвет провода: Фиолетовый"]');
+  const blue = details.locator('[aria-label="Цвет провода: Синий"]');
+  const widthHandle = page.getByRole('separator', { name: 'Изменить ширину редактора кода' });
+  const heightHandle = page.getByRole('separator', { name: 'Изменить высоту редактора кода' });
+  await code.click();
+  await expect(drawer).toHaveClass(/open/);
+  await expect(drawer).toHaveCSS('transform', 'matrix(1, 0, 0, 1, 0, 0)');
+
+  async function record(phase: string) {
+    const observation = await page.evaluate((phase) => {
+      function inspect(selector: string) {
+        const element = document.querySelector<HTMLElement>(selector);
+        if (!element) throw new Error(`Missing wire menu consumer: ${selector}`);
+        const bounds = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        const points = [
+          [bounds.x + bounds.width / 2, bounds.y + bounds.height / 2],
+          [bounds.left + 4, bounds.top + 4],
+          [bounds.right - 4, bounds.top + 4],
+          [bounds.left + 4, bounds.bottom - 4],
+          [bounds.right - 4, bounds.bottom - 4],
+        ].map(([x, y]) => {
+          const top = document.elementFromPoint(x, y);
+          return {
+            x,
+            y,
+            owned: top === element || Boolean(top && element.contains(top)),
+            target: top?.closest('button, summary, [role="separator"]')?.outerHTML ?? top?.tagName,
+          };
+        });
+        return {
+          bounds: { x: bounds.x, y: bounds.y, width: bounds.width, height: bounds.height },
+          display: style.display,
+          visibility: style.visibility,
+          overflowX: style.overflowX,
+          overflowY: style.overflowY,
+          zIndex: style.zIndex,
+          scrollWidth: element.scrollWidth,
+          clientWidth: element.clientWidth,
+          ariaValueNow: element.getAttribute('aria-valuenow'),
+          checked: element.getAttribute('aria-checked'),
+          pressed: element.getAttribute('aria-pressed'),
+          points,
+        };
+      }
+      return {
+        phase,
+        viewport: { width: innerWidth, height: innerHeight },
+        pageWidth: document.documentElement.scrollWidth,
+        clientWidth: document.documentElement.clientWidth,
+        menuOpen: document.querySelector<HTMLDetailsElement>('.workbench-wire-color')?.open,
+        toolbar: inspect('.workbench-toolbar'),
+        tools: inspect('.workbench-breadboard-tools'),
+        summary: inspect('.workbench-wire-color summary'),
+        menu: inspect('.workbench-wire-color-menu'),
+        purple: inspect('[aria-label="Цвет провода: Фиолетовый"]'),
+        code: inspect('.workbench-pill.code'),
+        drawer: inspect('.arduino-code-panel'),
+        widthHandle: inspect('.arduino-drawer-resize-handle'),
+        heightHandle: inspect('.arduino-mobile-panel-grip'),
+      };
+    }, phase);
+    observations.push(observation);
+    writeFileSync(`${evidenceDir}/geometry.json`, JSON.stringify(observations, null, 2));
+    await page.screenshot({ path: `${evidenceDir}/${phase}.png`, fullPage: true });
+    return observation;
+  }
+
+  function assertFits(bounds: { x: number; y: number; width: number; height: number }) {
+    const viewport = page.viewportSize()!;
+    expect(bounds.width).toBeGreaterThan(0);
+    expect(bounds.height).toBeGreaterThan(0);
+    expect(bounds.x).toBeGreaterThanOrEqual(0);
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(viewport.width);
+    expect(bounds.y + bounds.height).toBeLessThanOrEqual(viewport.height);
+  }
+
+  // At 1440 the drawer has room to change width; at 1024 its existing clamp
+  // fixes it at 604px. Exercise real resizing where the control permits it.
+  await summary.click();
+  const openResize = await record('1440-open-before-resize');
+  expect(openResize.menuOpen).toBe(true);
+  expect(openResize.widthHandle.points[0].owned).toBe(true);
+  const resizePoint = {
+    x: openResize.widthHandle.bounds.x + openResize.widthHandle.bounds.width / 2,
+    y: openResize.drawer.bounds.y + openResize.drawer.bounds.height / 2,
+  };
+  expect(resizePoint.y).toBeGreaterThan(openResize.menu.bounds.y + openResize.menu.bounds.height);
+  await page.mouse.move(resizePoint.x, resizePoint.y);
+  await page.mouse.down();
+  await page.mouse.move(resizePoint.x + 32, resizePoint.y, { steps: 8 });
+  await page.mouse.up();
+  const resizedOpen = await record('1440-after-open-menu-resize');
+  expect(Number(resizedOpen.widthHandle.ariaValueNow)).toBe(
+    Number(openResize.widthHandle.ariaValueNow) - 32,
+  );
+  expect(resizedOpen.drawer.bounds.width).toBe(openResize.drawer.bounds.width - 32);
+  if (await details.evaluate((element) => (element as HTMLDetailsElement).open)) {
+    await summary.click();
+  }
+  const closedResize = await record('1440-closed-before-resize');
+  expect(closedResize.menuOpen).toBe(false);
+  expect(closedResize.widthHandle.points[0].owned).toBe(true);
+  const closedPoint = {
+    x: closedResize.widthHandle.bounds.x + closedResize.widthHandle.bounds.width / 2,
+    y: resizePoint.y,
+  };
+  await page.mouse.move(closedPoint.x, closedPoint.y);
+  await page.mouse.down();
+  await page.mouse.move(closedPoint.x + 32, closedPoint.y, { steps: 8 });
+  await page.mouse.up();
+  const resizedClosed = await record('1440-after-closed-menu-resize');
+  expect(Number(resizedClosed.widthHandle.ariaValueNow)).toBe(
+    Number(closedResize.widthHandle.ariaValueNow) - 32,
+  );
+  expect(resizedClosed.drawer.bounds.width).toBe(closedResize.drawer.bounds.width - 32);
+
+  for (const width of [1440, 1024, 981]) {
+    await page.setViewportSize({ width, height: 900 });
+    await summary.click();
+    await blue.click();
+    await summary.click();
+    const before = await record(`${width}-before-purple`);
+    expect(before.menuOpen).toBe(true);
+    expect(before.code.pressed).toBe('true');
+    expect(before.purple.checked).toBe('false');
+    expect(before.pageWidth).toBeLessThanOrEqual(before.clientWidth);
+    assertFits(before.menu.bounds);
+    assertFits(before.purple.bounds);
+    expect(before.menu.points.every((point) => point.owned)).toBe(true);
+    expect(before.purple.points.every((point) => point.owned)).toBe(true);
+    await purple.click({ trial: true });
+    await purple.click();
+    const after = await record(`${width}-after-purple`);
+    expect(after.purple.checked).toBe('true');
+    expect(after.menuOpen).toBe(false);
+    await expect(purple).toHaveAttribute('aria-checked', 'true');
+    await expect(summary.locator('span')).toHaveCSS('background-color', 'rgb(141, 69, 199)');
+    await expect(code).toHaveAttribute('aria-pressed', 'true');
+    await expect(widthHandle).toBeVisible();
+  }
+
+  // Native dropdown presentation is intentionally clipped on mobile. Check its
+  // actual toolbar/Code consumers and the bottom panel's real height gesture.
+  for (const width of [980, 390, 320]) {
+    await page.setViewportSize({ width, height: 844 });
+    const before = await record(`${width}-mobile-before-resize`);
+    expect(before.menuOpen).toBe(false);
+    expect(before.pageWidth).toBeLessThanOrEqual(before.clientWidth);
+    expect(before.toolbar.overflowX).toBe('hidden');
+    expect(before.tools.overflowX).toBe('auto');
+    expect(before.widthHandle.display).toBe('none');
+    expect(before.code.pressed).toBe('true');
+    assertFits(before.toolbar.bounds);
+    assertFits(before.code.bounds);
+    assertFits(before.drawer.bounds);
+    assertFits(before.heightHandle.bounds);
+    expect(before.code.points.every((point) => point.owned)).toBe(true);
+    expect(before.heightHandle.points[0].owned).toBe(true);
+    await expect(heightHandle).toBeVisible();
+    const point = before.heightHandle.points[0];
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.down();
+    await page.mouse.move(point.x, point.y - 32, { steps: 8 });
+    await page.mouse.up();
+    const after = await record(`${width}-mobile-after-resize`);
+    expect(Number(after.heightHandle.ariaValueNow)).toBeGreaterThan(
+      Number(before.heightHandle.ariaValueNow),
+    );
+    expect(after.drawer.bounds.height).toBeGreaterThan(before.drawer.bounds.height);
+    assertFits(after.drawer.bounds);
+    await expect(code).toHaveAttribute('aria-pressed', 'true');
+    await expect(widthHandle).toBeHidden();
+  }
+  failures.assertEmpty();
+});
 
 test('component inspector separates compact settings, live state and educational help', async ({
   page,
@@ -5058,8 +5297,1335 @@ async function leaveSavedWorkbench(page: Page, projectId: string): Promise<void>
   expect(
     await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
   ).toBeNull();
+  expect(await e01LocalDraft(page, projectId)).toBeNull();
   await page.goto('/#/projects');
 }
+
+const E01_SKETCH = '// E01 pupil original\nvoid setup() {}\nvoid loop() {}';
+const E01_CHANGED_SKETCH = '// E01 pupil changed\nvoid setup() {}\nvoid loop() {}';
+
+function e01Document(): SchematicDocument {
+  const base = circuitDocument({ switchClosed: false, resistorOhms: 50, reversedLed: false });
+  const board = arduinoInputDocument('button').components.find((c) => c.id === 'uno')!;
+  return {
+    ...base,
+    components: [
+      ...base.components,
+      {
+        ...board,
+        position: { x: 1100, y: 550 },
+        stateProperties: { ...board.stateProperties, arduinoSource: E01_SKETCH },
+      },
+    ],
+  };
+}
+
+async function e01LocalDraft(page: Page, projectId: string): Promise<string | null> {
+  const me = await page.context().request.get('/api/auth/me');
+  const session = (await me.json()) as { authenticated: boolean; user?: { id: string } };
+  expect(session.authenticated).toBe(true);
+  const key = `asa-project-local-draft:user:account:${encodeURIComponent(session.user!.id)}:${encodeURIComponent(projectId)}`;
+  return page.evaluate((key) => localStorage.getItem(key), key);
+}
+
+async function e01Server(page: Page, projectId: string) {
+  const response = await page.context().request.get(`/api/projects/${projectId}`, {
+    headers: { origin: new URL(page.url()).origin },
+  });
+  expect(response.status()).toBe(200);
+  return response.json() as Promise<{ draft: { revision: number; document: SchematicDocument } }>;
+}
+
+async function e01Resistance(page: Page) {
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  return page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+}
+
+async function e01EditSketch(page: Page, source: string) {
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await page.getByLabel('Код Arduino C++', { exact: true }).fill(source);
+  await expect(page.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(source);
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+}
+
+async function e01AffectedToolbarLayouts(
+  page: Page,
+  evidenceDir: string,
+  state: {
+    persistenceStatus: 'dirty' | 'error';
+    emergencyCopy: boolean;
+    running: boolean;
+    name: string;
+  },
+  widths = [1440, 1024, 390, 320, 980, 981, 1280, 1281, 1536, 1537],
+) {
+  const indicator = page.locator('.workbench-save-state');
+  const emergency = page.getByRole('button', { name: 'Получить аварийную копию проекта' });
+  const code = page.getByRole('button', { name: 'Закрыть редактор кода', exact: true });
+  const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+  const simulationLabel = state.running ? 'Остановить моделирование' : 'Начать моделирование';
+  const simulation = page.getByRole('button', { name: simulationLabel, exact: true });
+  const anchor = state.emergencyCopy ? emergency : save;
+  const layouts: unknown[] = [];
+  // Include both sides of the desktop/mobile and conditional desktop row boundaries.
+  for (const width of widths) {
+    await page.setViewportSize({ width, height: 900 });
+    await anchor.scrollIntoViewIfNeeded();
+    const layout = await anchor.evaluate((button) => {
+      const box = button.getBoundingClientRect();
+      const style = getComputedStyle(button);
+      const label = document.createRange();
+      label.selectNodeContents(button);
+      const labelBox = label.getBoundingClientRect();
+      const toolbarButtons = Array.from(button.parentElement!.querySelectorAll('button'))
+        .filter((entry) => entry.getClientRects().length > 0)
+        .map((entry) => {
+          const bounds = entry.getBoundingClientRect();
+          const entryStyle = getComputedStyle(entry);
+          const caption = document.createRange();
+          caption.selectNodeContents(entry);
+          const captionBox = caption.getBoundingClientRect();
+          const hit = document.elementFromPoint(
+            bounds.x + bounds.width / 2,
+            bounds.y + bounds.height / 2,
+          );
+          return {
+            label: entry.getAttribute('aria-label'),
+            text: entry.textContent?.trim(),
+            disabled: entry.disabled,
+            pressed: entry.getAttribute('aria-pressed'),
+            x: bounds.x,
+            y: bounds.y,
+            right: bounds.right,
+            bottom: bounds.bottom,
+            width: bounds.width,
+            height: bounds.height,
+            unobstructed: hit !== null && entry.contains(hit),
+            captionVisible: parseFloat(entryStyle.fontSize) > 0,
+            caption: { x: captionBox.x, right: captionBox.right },
+            contentLeft:
+              bounds.left +
+              parseFloat(entryStyle.borderLeftWidth) +
+              parseFloat(entryStyle.paddingLeft),
+            contentRight:
+              bounds.right -
+              parseFloat(entryStyle.borderRightWidth) -
+              parseFloat(entryStyle.paddingRight),
+          };
+        });
+      const indicator = document.querySelector('.workbench-save-state')!;
+      const indicatorBox = indicator.getBoundingClientRect();
+      const indicatorStyle = getComputedStyle(indicator);
+      const toolbarBox = button.closest('[role="toolbar"]')!.getBoundingClientRect();
+      const mainBox = document.querySelector('.workbench-main')!.getBoundingClientRect();
+      const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+      return {
+        viewport: innerWidth,
+        pageWidth: document.documentElement.scrollWidth,
+        persistence: {
+          controllerStatus: document
+            .querySelector('.workbench-main')!
+            .getAttribute('data-project-save-status'),
+          emergencyCopyPresent: toolbarButtons.some(
+            (entry) => entry.label === 'Получить аварийную копию проекта',
+          ),
+          saveDisabled: toolbarButtons.find((entry) => entry.label === 'Сохранить проект')
+            ?.disabled,
+          indicator: {
+            status: indicator.getAttribute('data-persistence-status'),
+            label: indicator.textContent,
+            detail: indicator.getAttribute('title'),
+            ariaHidden: indicator.getAttribute('aria-hidden'),
+            visibility: indicatorStyle.visibility,
+            display: indicatorStyle.display,
+            box: {
+              x: indicatorBox.x,
+              y: indicatorBox.y,
+              width: indicatorBox.width,
+              height: indicatorBox.height,
+            },
+          },
+        },
+        box: { x: box.x, y: box.y, width: box.width, height: box.height },
+        label: {
+          text: button.textContent?.trim(),
+          x: labelBox.x,
+          right: labelBox.right,
+          contentLeft: box.left + parseFloat(style.borderLeftWidth) + parseFloat(style.paddingLeft),
+          contentRight:
+            box.right - parseFloat(style.borderRightWidth) - parseFloat(style.paddingRight),
+        },
+        toolbarButtons,
+        scene: { top: mainBox.top, bottom: mainBox.bottom, toolbarBottom: toolbarBox.bottom },
+        unobstructed: hit !== null && button.contains(hit),
+        indicatorOverlap:
+          Math.min(box.right, indicatorBox.right) > Math.max(box.left, indicatorBox.left) &&
+          Math.min(box.bottom, indicatorBox.bottom) > Math.max(box.top, indicatorBox.top),
+      };
+    });
+    layouts.push({ width, state: state.name, ...layout });
+    writeFileSync(
+      `${evidenceDir}/after-toolbar-${state.name}.json`,
+      JSON.stringify(layouts, null, 2),
+    );
+    if ([1440, 1024, 390, 320].includes(width))
+      await page.screenshot({
+        path: `${evidenceDir}/after-local-denial-${state.name === 'error-run' ? '' : `${state.name}-`}${width}.png`,
+        fullPage: true,
+      });
+    // JSON absence means the current document has a local copy, not server confirmation.
+    // Capture the real controller/presentation/geometry before any state or layout assertion.
+    expect(layout.persistence.controllerStatus).toBe(state.persistenceStatus);
+    expect(layout.persistence.emergencyCopyPresent).toBe(state.emergencyCopy);
+    expect(layout.persistence.saveDisabled).toBe(false);
+    await expect(code).toHaveAttribute('aria-pressed', 'true');
+    await expect(simulation).toHaveAttribute('aria-pressed', String(state.running));
+    await expect(save).toBeEnabled();
+    if (state.emergencyCopy) {
+      await expect(emergency).toBeVisible();
+      expect(layout.persistence.indicator.status).toBe('error');
+      await expect(indicator).toBeVisible();
+      expect(layout.persistence.indicator.detail).toMatch(
+        /Последние изменения только в открытом редакторе/,
+      );
+    } else {
+      await expect(emergency).toHaveCount(0);
+      expect(['quiet', 'saving']).toContain(layout.persistence.indicator.status);
+    }
+    const presentation = layout.persistence.indicator;
+    if (presentation.status === 'quiet') {
+      expect(presentation.visibility).toBe('hidden');
+      expect(presentation.ariaHidden).toBe('true');
+      expect(presentation.label).toBe('');
+      expect(presentation.detail).toBeNull();
+    } else {
+      expect(presentation.visibility).toBe('visible');
+      expect(presentation.display).not.toBe('none');
+      expect(presentation.box.width).toBeGreaterThan(0);
+      expect(presentation.box.height).toBeGreaterThan(0);
+      expect(presentation.ariaHidden).toBeNull();
+      if (presentation.status === 'saving') {
+        expect(presentation.label).toBe('Сохраняем…');
+        expect(presentation.detail).toBe('Изменения проекта отправляются на сервер.');
+      }
+    }
+    await expect(anchor).toBeVisible();
+    expect(layout.box.width).toBeGreaterThan(0);
+    expect(layout.box.height).toBeGreaterThan(0);
+    expect(layout.box.x).toBeGreaterThanOrEqual(0);
+    expect(layout.box.x + layout.box.width).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.pageWidth).toBeLessThanOrEqual(layout.viewport);
+    expect(layout.unobstructed).toBe(true);
+    expect(layout.indicatorOverlap).toBe(false);
+    expect(layout.scene.top).toBeGreaterThanOrEqual(layout.scene.toolbarBottom);
+    expect(layout.scene.top).toBeLessThanOrEqual(layout.scene.toolbarBottom + 1);
+    expect(layout.scene.bottom).toBeLessThanOrEqual(902);
+    expect(layout.label.text).toBe(state.emergencyCopy ? 'Копия JSON' : 'Сохранить');
+    if (state.emergencyCopy || width > 980) {
+      expect(layout.label.x).toBeGreaterThanOrEqual(layout.label.contentLeft - 0.5);
+      expect(layout.label.right).toBeLessThanOrEqual(layout.label.contentRight + 0.5);
+    }
+    for (const [index, button] of layout.toolbarButtons.entries()) {
+      expect(button.width).toBeGreaterThan(0);
+      if (index > 0)
+        expect(button.x).toBeGreaterThanOrEqual(layout.toolbarButtons[index - 1]!.right);
+    }
+    for (const [label, caption] of [
+      ['Закрыть редактор кода', 'Код'],
+      ['Сохранить проект', 'Сохранить'],
+      [simulationLabel, simulationLabel],
+      ...(state.emergencyCopy ? [['Получить аварийную копию проекта', 'Копия JSON']] : []),
+    ]) {
+      const action = layout.toolbarButtons.find((button) => button.label === label);
+      expect(action, `${label} at ${width} in ${state.name}`).toBeDefined();
+      expect(action!.text).toBe(caption);
+      expect(action!.x).toBeGreaterThanOrEqual(0);
+      expect(action!.right).toBeLessThanOrEqual(layout.viewport);
+      expect(action!.y).toBeGreaterThanOrEqual(0);
+      expect(action!.height).toBeGreaterThan(0);
+      expect(action!.bottom).toBeLessThanOrEqual(900);
+      expect(action!.unobstructed).toBe(true);
+      // Existing mobile actions intentionally show icons and retain full accessible names.
+      if (width > 980 || label === 'Получить аварийную копию проекта') {
+        expect(action!.captionVisible).toBe(true);
+        expect(action!.caption.x).toBeGreaterThanOrEqual(action!.contentLeft - 0.5);
+        expect(action!.caption.right).toBeLessThanOrEqual(action!.contentRight + 0.5);
+      }
+      if (!action!.disabled)
+        await page.getByRole('button', { name: label, exact: true }).click({ trial: true });
+    }
+    const wireSummary = page.locator('summary[aria-label="Цвет провода"]');
+    if (width > 980 && (await wireSummary.count()) > 0) {
+      const swatch = page.getByRole('menuitemradio', { name: 'Цвет провода: Фиолетовый' });
+      await wireSummary.click();
+      await expect(page.getByRole('menu').filter({ has: swatch })).toBeVisible();
+      await swatch.click({ trial: true });
+      await wireSummary.click();
+    }
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+  return layouts;
+}
+
+test('ELECTRONICS-E01 AFTER denied local storage never claims a durable local copy', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 denied local copy');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  const beforeDenialLocal = await e01LocalDraft(page, projectId);
+  expect(beforeDenialLocal).not.toBeNull();
+  const olderCopy = JSON.parse(beforeDenialLocal!) as {
+    schemaVersion: number;
+    identityKind: string;
+    projectId: string;
+    moduleKey: string;
+    document: SchematicDocument;
+  };
+  expect(olderCopy).toMatchObject({
+    schemaVersion: 3,
+    identityKind: 'account',
+    projectId,
+    moduleKey: 'electronics',
+  });
+  expect(olderCopy.document.components.find((c) => c.id === 'resistor')?.value).toBe(50);
+  expect(
+    olderCopy.document.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
+  ).toBe(E01_SKETCH);
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  const localDraftRunLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'dirty',
+    emergencyCopy: false,
+    running: false,
+    name: 'local-draft-run',
+  });
+  const localDraftAffectedViewLayouts: unknown[] = [];
+  for (const view of ['Схемы', 'Компоненты']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    localDraftAffectedViewLayouts.push(
+      ...(await e01AffectedToolbarLayouts(
+        page,
+        evidenceDir,
+        {
+          persistenceStatus: 'dirty',
+          emergencyCopy: false,
+          running: false,
+          name: `local-draft-${view}-run`,
+        },
+        [1440, 1024, 390, 320],
+      )),
+    );
+  }
+  await page.getByRole('button', { name: 'Цепи', exact: true }).click();
+  await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+  const localDraftStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'dirty',
+    emergencyCopy: false,
+    running: true,
+    name: 'local-draft-stop',
+  });
+  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  expect(await e01LocalDraft(page, projectId)).toBe(beforeDenialLocal);
+  await page.evaluate(() => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key.startsWith('asa-project-local-draft:'))
+        throw new DOMException('E01 controlled local storage denial', 'QuotaExceededError');
+      original.call(this, key, value);
+    };
+  });
+  const requests: unknown[] = [];
+  page.on('requestfailed', (request) => {
+    if (new URL(request.url()).pathname === `/api/projects/${projectId}/draft`)
+      requests.push({
+        at: Date.now(),
+        method: request.method(),
+        body: request.postDataJSON(),
+        failure: request.failure(),
+      });
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await expect(
+    page.getByRole('button', { name: 'Получить аварийную копию проекта' }),
+  ).toBeVisible();
+  const beforeSaveDownload = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Получить аварийную копию проекта' }).click();
+  await (await beforeSaveDownload).saveAs(`${evidenceDir}/after-before-server-attempt.json`);
+  const beforeAttemptCopy = JSON.parse(
+    readFileSync(`${evidenceDir}/after-before-server-attempt.json`, 'utf8'),
+  ) as SchematicDocument;
+  expect(beforeAttemptCopy.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
+  expect(
+    beforeAttemptCopy.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(beforeAttemptCopy).not.toEqual(olderCopy.document);
+  expect(requests).toEqual([]);
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect.poll(() => requests.length).toBe(1);
+  const indicator = page.locator('.workbench-save-state');
+  await expect(indicator).toHaveAttribute('data-persistence-status', 'error');
+  const server = await page
+    .context()
+    .request.get(`/api/projects/${projectId}`, { headers: { origin: new URL(page.url()).origin } });
+  expect(server.ok()).toBe(true);
+  const serverPayload = (await server.json()) as { draft: { document: SchematicDocument } };
+  expect(serverPayload.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(50);
+  expect(
+    serverPayload.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_SKETCH);
+  const local = await e01LocalDraft(page, projectId);
+  writeFileSync(
+    `${evidenceDir}/after-local-denial.json`,
+    JSON.stringify(
+      {
+        projectId,
+        requests,
+        beforeDenialLocal,
+        beforeAttemptCopy,
+        local,
+        server: serverPayload,
+        dom: {
+          status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
+          label: await indicator.textContent(),
+          detail: await indicator.getAttribute('title'),
+          resistor: await value.inputValue(),
+        },
+      },
+      null,
+      2,
+    ),
+  );
+  await page.screenshot({ path: `${evidenceDir}/after-local-denial-1440.png`, fullPage: true });
+  expect(local).toBe(beforeDenialLocal);
+  await expect(indicator).toHaveAttribute(
+    'title',
+    /Последние изменения только в открытом редакторе/,
+  );
+  const download = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Получить аварийную копию проекта' }).click();
+  const downloaded = await download;
+  const copyPath = `${evidenceDir}/after-emergency-document.json`;
+  await downloaded.saveAs(copyPath);
+  const copy = JSON.parse(readFileSync(copyPath, 'utf8')) as SchematicDocument;
+  expect(copy.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
+  expect(copy.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource']).toBe(
+    E01_CHANGED_SKETCH,
+  );
+  expect(copy.connections).toEqual(e01Document().connections);
+  expect(copy).toEqual(beforeAttemptCopy);
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  const layouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'error',
+    emergencyCopy: true,
+    running: false,
+    name: 'error-run',
+  });
+  const errorAffectedViewLayouts: unknown[] = [];
+  for (const view of ['Схемы', 'Компоненты']) {
+    await page.getByRole('button', { name: view, exact: true }).click();
+    errorAffectedViewLayouts.push(
+      ...(await e01AffectedToolbarLayouts(
+        page,
+        evidenceDir,
+        {
+          persistenceStatus: 'error',
+          emergencyCopy: true,
+          running: false,
+          name: `error-${view}-run`,
+        },
+        [1440, 1024, 390, 320],
+      )),
+    );
+  }
+  await page.getByRole('button', { name: 'Цепи', exact: true }).click();
+  await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+  const errorStopLayouts = await e01AffectedToolbarLayouts(page, evidenceDir, {
+    persistenceStatus: 'error',
+    emergencyCopy: true,
+    running: true,
+    name: 'error-stop',
+  });
+  await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await expect(value).toHaveValue('166.7');
+  await expect(indicator).not.toHaveAttribute(
+    'title',
+    /сохранена на этом устройстве|сохранены в браузере/,
+  );
+  const receipt = JSON.parse(
+    readFileSync(`${evidenceDir}/after-local-denial.json`, 'utf8'),
+  ) as Record<string, unknown>;
+  writeFileSync(
+    `${evidenceDir}/after-local-denial.json`,
+    JSON.stringify(
+      {
+        ...receipt,
+        requests,
+        emergencyCopy: copy,
+        layouts,
+        localDraftRunLayouts,
+        localDraftStopLayouts,
+        errorStopLayouts,
+        localDraftAffectedViewLayouts,
+        errorAffectedViewLayouts,
+      },
+      null,
+      2,
+    ),
+  );
+});
+
+test('ELECTRONICS-E01 AFTER latest failed save recovers quietly without another edit', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 quiet network recovery');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  const value = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(value).toHaveValue('50');
+  const requests: unknown[] = [];
+  const replies: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      requests.push({ at: Date.now(), body: request.postDataJSON() });
+  });
+  page.on('response', (response) => {
+    if (
+      response.request().method() === 'PUT' &&
+      new URL(response.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      replies.push({ at: Date.now(), status: response.status() });
+  });
+  await page.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  await value.fill('166.7');
+  await expect(value).toHaveValue('166.7');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  expect(requests).toHaveLength(1);
+  await page.unroute(`**/api/projects/${projectId}/draft`);
+  const transportRestoredAt = Date.now();
+  try {
+    // Real browser time, no focus/online event, page reload, clock injection or new edit.
+    await expect
+      .poll(() => replies.filter((reply) => (reply as { status: number }).status === 200).length, {
+        timeout: 70_000,
+        intervals: [1_000],
+      })
+      .toBe(1);
+  } finally {
+    const server = await page.context().request.get(`/api/projects/${projectId}`, {
+      headers: { origin: new URL(page.url()).origin },
+    });
+    expect(server.ok()).toBe(true);
+    writeFileSync(
+      `${evidenceDir}/after-quiet-recovery.json`,
+      JSON.stringify(
+        {
+          projectId,
+          transportRestoredAt,
+          capturedAt: Date.now(),
+          requests,
+          replies,
+          local: await e01LocalDraft(page, projectId),
+          server: await server.json(),
+          dom: {
+            status: await page.locator('.workbench-main').getAttribute('data-project-save-status'),
+            detail: await page.locator('.workbench-save-state').getAttribute('title'),
+            resistor: await value.inputValue(),
+          },
+        },
+        null,
+        2,
+      ),
+    );
+    await page.screenshot({
+      path: `${evidenceDir}/after-quiet-recovery-1440.png`,
+      fullPage: true,
+    });
+  }
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const confirmed = await e01Server(page, projectId);
+  expect(confirmed.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(166.7);
+  expect(
+    confirmed.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(confirmed.draft.revision).toBeGreaterThan(1);
+  const profile = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  try {
+    const independent = await profile.newPage();
+    await loginWithOrganization(independent, teacher);
+    expect(await e01LocalDraft(independent, projectId)).toBeNull();
+    await independent.goto(`/#/home/${projectId}`);
+    await expect(await e01Resistance(independent)).toHaveValue('166.7');
+    await independent.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(independent.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
+      E01_CHANGED_SKETCH,
+    );
+    writeFileSync(
+      `${evidenceDir}/after-second-profile.json`,
+      JSON.stringify(
+        {
+          projectId,
+          server: await e01Server(independent, projectId),
+          local: await e01LocalDraft(independent, projectId),
+          sketch: await independent.getByLabel('Код Arduino C++', { exact: true }).inputValue(),
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    try {
+      await profile.request.post('/api/auth/logout', {
+        headers: { origin: new URL(page.url()).origin },
+      });
+    } finally {
+      await profile.close();
+    }
+  }
+});
+
+test('ELECTRONICS-E01 SAV02/08 restores the attributed schema and sketch after a renderer crash', async ({
+  page,
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 crash recovery');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  const safetySubmissions: unknown[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      safetySubmissions.push({ at: Date.now(), body: request.postDataJSON() });
+  });
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await (await e01Resistance(page)).fill('177.7');
+  const local = JSON.parse((await e01LocalDraft(page, projectId))!);
+  expect(local.document.components.find((c: { id: string }) => c.id === 'resistor').value).toBe(
+    177.7,
+  );
+  expect(
+    local.document.components.find((c: { id: string }) => c.id === 'uno').stateProperties
+      .arduinoSource,
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(
+    (await e01Server(page, projectId)).draft.document.components.find((c) => c.id === 'resistor')
+      ?.value,
+  ).toBe(50);
+  const lifecycle: string[] = [];
+  page.on('console', (message) => {
+    if (message.text() === 'E01 pagehide') lifecycle.push('pagehide');
+  });
+  await page.evaluate(() => window.addEventListener('pagehide', () => console.log('E01 pagehide')));
+  // The pinned Linux runner's fatal/debug-URL path stalled before termination.
+  // Bind this editor's unique timing mark to its own renderer, then terminate
+  // only that verified process. A signal alone still does not prove a crash.
+  const browserCdp = await browser.newBrowserCDPSession();
+  const version = await browserCdp.send('Browser.getVersion');
+  const marker = `e01-current-editor-${Date.now()}-${process.pid}`;
+  const traceEvents: Array<Record<string, string>> = [];
+  let markerEvents: Array<Record<string, string>> = [];
+  let mappedPids: number[] = [];
+  let traceDataLoss: boolean | null = null;
+  let browserPid: number | undefined;
+  let observedCrashAt: number | null = null;
+  const freshAncestry: Array<{ pid: number; parentPid: number; namespacePids: string }> = [];
+  const injectionOutcome: {
+    status: string;
+    method: string;
+    signal: string;
+    rendererPid?: number;
+    at?: number;
+    signalAccepted?: boolean;
+    error?: string;
+  } = { status: 'not-attempted', method: 'own-page-renderer-signal', signal: 'SIGKILL' };
+  const writeInjectionEvidence = () => {
+    mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+    writeFileSync(
+      'reports/playwright/electronics-e01/renderer-crash-injection.json',
+      JSON.stringify(
+        {
+          version,
+          marker,
+          markerEvents,
+          mappedPids,
+          traceDataLoss,
+          browserPid,
+          freshAncestry,
+          observedCrashAt,
+          injectionOutcome,
+          lifecycle,
+          safetySubmissions,
+        },
+        null,
+        2,
+      ),
+    );
+  };
+  writeInjectionEvidence();
+  try {
+    browserCdp.on('Tracing.dataCollected', (event) => traceEvents.push(...event.value));
+    const traceComplete = new Promise<{ dataLossOccurred: boolean }>((resolve) =>
+      browserCdp.once('Tracing.tracingComplete', resolve),
+    );
+    await browserCdp.send('Tracing.start', {
+      categories: 'blink.user_timing',
+      transferMode: 'ReportEvents',
+    });
+    await page.evaluate((name) => performance.mark(name), marker);
+    await browserCdp.send('Tracing.end');
+    traceDataLoss = (await traceComplete).dataLossOccurred;
+    markerEvents = traceEvents.filter(
+      (event) => event.name === marker && event.cat?.split(',').includes('blink.user_timing'),
+    );
+    mappedPids = [...new Set(markerEvents.map((event) => Number(event.pid)))];
+    writeInjectionEvidence();
+    expect(traceDataLoss).toBe(false);
+    expect(mappedPids).toHaveLength(1);
+    const rendererPid = mappedPids[0]!;
+    expect(process.platform).toBe('linux');
+    expect(Number.isSafeInteger(rendererPid) && rendererPid > 1).toBe(true);
+    expect(rendererPid).not.toBe(process.pid);
+    const { processInfo } = await browserCdp.send('SystemInfo.getProcessInfo');
+    browserPid = processInfo.find((entry) => entry.type === 'browser')?.id;
+    expect(Number.isSafeInteger(browserPid) && browserPid! > 1).toBe(true);
+    expect(rendererPid).not.toBe(browserPid);
+    expect(processInfo.some((entry) => entry.type === 'renderer' && entry.id === rendererPid)).toBe(
+      true,
+    );
+    writeInjectionEvidence();
+    // Read only the identified renderer's fresh ancestry, never a global scan.
+    // No await follows this guard before the single signal.
+    let owned = false;
+    for (let ancestor = rendererPid, depth = 0; depth < 12; depth += 1) {
+      const status = readFileSync(`/proc/${ancestor}/status`, 'utf8');
+      const parentPid = Number(/^PPid:\s*(\d+)$/m.exec(status)?.[1]);
+      const namespacePids = /^NSpid:\s*(.+)$/m.exec(status)?.[1]?.trim() ?? '';
+      freshAncestry.push({ pid: ancestor, parentPid, namespacePids });
+      expect(namespacePids).toBe(String(ancestor));
+      if (ancestor === browserPid) {
+        owned = true;
+        break;
+      }
+      expect(Number.isSafeInteger(parentPid) && parentPid > 1 && parentPid !== ancestor).toBe(true);
+      ancestor = parentPid;
+    }
+    expect(owned).toBe(true);
+    const crash = page.waitForEvent('crash');
+    void crash.catch(() => undefined); // Do not orphan the waiter if the signal fails.
+    injectionOutcome.rendererPid = rendererPid;
+    injectionOutcome.at = Date.now();
+    injectionOutcome.status = 'attempting';
+    injectionOutcome.signalAccepted = process.kill(rendererPid, 'SIGKILL');
+    injectionOutcome.status = 'signal-sent';
+    expect(await crash).toBe(page);
+    observedCrashAt = Date.now();
+  } catch (error) {
+    injectionOutcome.error = String(error);
+    throw error;
+  } finally {
+    writeInjectionEvidence();
+  }
+  await expect(page.evaluate(() => document.title)).rejects.toThrow(/crash/i);
+  expect(lifecycle).toEqual([]);
+  expect(safetySubmissions).toEqual([]);
+  const reopened = await page.context().newPage();
+  await reopened.goto(`/#/home/${projectId}`);
+  await expect(await e01Resistance(reopened)).toHaveValue('177.7');
+  const recoveredLocal = JSON.parse((await e01LocalDraft(reopened, projectId))!);
+  expect(recoveredLocal.document).toEqual(local.document);
+  await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(
+    E01_CHANGED_SKETCH,
+  );
+  await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await reopened.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(reopened.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const server = await e01Server(reopened, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(177.7);
+  expect(
+    server.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(server.draft.document).toEqual(local.document);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-renderer-crash.json',
+    JSON.stringify(
+      {
+        projectId,
+        local,
+        recoveredLocal,
+        lifecycle,
+        injectionOutcome,
+        safetySubmissions,
+        crash: true,
+        server,
+      },
+      null,
+      2,
+    ),
+  );
+  await reopened.close();
+});
+
+test('ELECTRONICS-E01 SAV04 reauthenticates the same actor and restores only its attributed work', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 expired session');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await (await e01Resistance(page)).fill('188.8');
+  const before = await e01LocalDraft(page, projectId);
+  await page.context().clearCookies();
+  const puts: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PUT' &&
+      new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+    )
+      puts.push(request.url());
+  });
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-save-state')).toHaveText('Нужно войти');
+  expect(puts).toEqual([]);
+  await loginWithOrganization(page, teacher);
+  await page.goto(`/#/home/${projectId}`);
+  await expect(await e01Resistance(page)).toHaveValue('188.8');
+  await page.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  await expect(page.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(E01_CHANGED_SKETCH);
+  await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const server = await e01Server(page, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(188.8);
+  expect(
+    server.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-reauth.json',
+    JSON.stringify({ projectId, before, puts, server }, null, 2),
+  );
+});
+
+test('ELECTRONICS-E01 SAV05/09 keeps the latest edit local after a late reply and serializes departure', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 late response and leave');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  const input = await e01Resistance(page);
+  let release!: () => void;
+  let received!: () => void;
+  let gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let reached = new Promise<void>((resolve) => {
+    received = resolve;
+  });
+  const requests: unknown[] = [];
+  let held = false;
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    requests.push(route.request().postDataJSON());
+    const response = await route.fetch();
+    if (!held) {
+      held = true;
+      received();
+      await gate;
+    }
+    await route.fulfill({ response });
+  });
+  await input.fill('111.1');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await reached;
+  await input.fill('222.2');
+  release();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'dirty',
+  );
+  expect(
+    JSON.parse((await e01LocalDraft(page, projectId))!).document.components.find(
+      (c: { id: string }) => c.id === 'resistor',
+    ).value,
+  ).toBe(222.2);
+  expect(
+    (await e01Server(page, projectId)).draft.document.components.find((c) => c.id === 'resistor')
+      ?.value,
+  ).toBe(111.1);
+  held = false;
+  gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  reached = new Promise<void>((resolve) => {
+    received = resolve;
+  });
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await reached;
+  await e01EditSketch(page, E01_CHANGED_SKETCH);
+  await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
+  await input.fill('333.3');
+  await page.getByRole('button', { name: 'ASA Lab', exact: true }).click();
+  release();
+  await expect(page).toHaveURL(/\/#\/home$/);
+  const server = await e01Server(page, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(333.3);
+  expect(
+    server.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(E01_CHANGED_SKETCH);
+  expect(requests).toHaveLength(3);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-late-reply-departure.json',
+    JSON.stringify({ projectId, requests, server }, null, 2),
+  );
+});
+
+test('ELECTRONICS-E01 SAV10 isolates real projects and accounts while old save replies are pending', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  const evidenceDir = 'reports/playwright/electronics-e01';
+  mkdirSync(evidenceDir, { recursive: true });
+  await loginWithOrganization(page, teacher);
+  const actor = async () => {
+    const response = await page.context().request.get('/api/auth/me');
+    expect(response.status()).toBe(200);
+    const session = (await response.json()) as {
+      authenticated: boolean;
+      user: { id: string; email: string; displayName: string };
+    };
+    expect(session.authenticated).toBe(true);
+    return session.user;
+  };
+  const actorA = await actor();
+  expect(actorA.email).toBe(teacher.email);
+  const firstProject = await createProject(page, 'E01 SAV10 A first');
+  const secondProject = await createProject(page, 'E01 SAV10 A second');
+  await saveDocument(page, firstProject, e01Document());
+  const secondDocument = e01Document();
+  secondDocument.components = secondDocument.components.map((c) =>
+    c.id === 'resistor' ? { ...c, value: 70 } : c,
+  );
+  await saveDocument(page, secondProject, secondDocument);
+  const localKey = (userId: string, projectId: string) =>
+    `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`;
+  const local = async (userId: string, projectId: string) => {
+    const key = localKey(userId, projectId);
+    const raw = await page.evaluate((key) => localStorage.getItem(key), key);
+    if (raw === null) return { key, raw, record: null };
+    const record = JSON.parse(raw) as {
+      schemaVersion: number;
+      identityKind: string;
+      userId: string;
+      projectId: string;
+      moduleKey: string;
+      document: SchematicDocument;
+    };
+    expect(record).toMatchObject({
+      schemaVersion: 3,
+      identityKind: 'account',
+      userId,
+      projectId,
+      moduleKey: 'electronics',
+    });
+    return { key, raw, record };
+  };
+  const assertContent = (document: SchematicDocument, resistance: number, sketch: string) => {
+    expect(document.components.find((c) => c.id === 'resistor')?.value).toBe(resistance);
+    expect(
+      document.components.find((c) => c.id === 'uno')?.stateProperties?.['arduinoSource'],
+    ).toBe(sketch);
+    expect(document.connections).toEqual(e01Document().connections);
+    expect(document.components.map((c) => c.id)).toEqual(e01Document().components.map((c) => c.id));
+  };
+  const ui = async (target: Page, resistance: string, sketch: string, expectedActor = actorA) => {
+    await expect(target.locator('.workbench-avatar')).toHaveAttribute(
+      'title',
+      expectedActor.displayName,
+    );
+    await expect(await e01Resistance(target)).toHaveValue(resistance);
+    await target.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+    await expect(target.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(sketch);
+    await target.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+    return {
+      url: target.url(),
+      resistance,
+      sketch,
+      principalLabel: await target.locator('.workbench-avatar').getAttribute('aria-label'),
+      status: await target.locator('.workbench-main').getAttribute('data-project-save-status'),
+    };
+  };
+  let phase = 'actor-A';
+  const requests: unknown[] = [];
+  const heldReplies: unknown[] = [];
+  const holdReply = async (projectId: string) => {
+    let release!: () => void;
+    let received!: () => void;
+    let delivered!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const reached = new Promise<void>((resolve) => {
+      received = resolve;
+    });
+    const finished = new Promise<void>((resolve) => {
+      delivered = resolve;
+    });
+    let first = true;
+    await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+      const identity = await actor();
+      const request = {
+        phase,
+        at: Date.now(),
+        projectId,
+        actor: identity,
+        body: route.request().postDataJSON(),
+      };
+      requests.push(request);
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      if (first) {
+        first = false;
+        const serverResponse: unknown = await response.json();
+        received();
+        await gate;
+        await route.fulfill({ response });
+        heldReplies.push({
+          request,
+          serverResponse,
+          deliveryPhase: phase,
+          deliveredAt: Date.now(),
+          outcome: 'delivered',
+        });
+        delivered();
+      } else await route.fulfill({ response });
+    });
+    return { reached, release, finished };
+  };
+  const oldBrowserPuts: Array<{ phase: string; projectId: string; body: unknown }> = [];
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname;
+    if (request.method() === 'PUT' && path.endsWith('/draft'))
+      oldBrowserPuts.push({ phase, projectId: path.split('/')[3]!, body: request.postDataJSON() });
+  });
+  await page.goto(`/#/home/${firstProject}`);
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${firstProject}/electronics/edit\\?returnTo=%23%2Fhome$`),
+  );
+  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(
+    'E01 SAV10 A first',
+  );
+  const firstEditorUrl = page.url();
+  const sameRendererTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+  // Prepare a real same-document Forward entry before any pending save.
+  // A hash alone cannot override the first editor's canonical pathname.
+  await page.evaluate((id) => {
+    const index = Number(window.history.state?.asaRouteIndex ?? 0);
+    window.history.pushState(
+      { ...window.history.state, asaRouteIndex: index + 1 },
+      '',
+      `/projects/${encodeURIComponent(id)}/electronics/edit?returnTo=%23%2Fhome`,
+    );
+    window.history.back();
+  }, secondProject);
+  await expect(page).toHaveURL(firstEditorUrl);
+  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(
+    'E01 SAV10 A first',
+  );
+  const projectReply = await holdReply(firstProject);
+  const firstSketch = `${E01_CHANGED_SKETCH}\n// first project sent`;
+  const latestFirstSketch = `${E01_CHANGED_SKETCH}\n// first project latest`;
+  await e01EditSketch(page, firstSketch);
+  await (await e01Resistance(page)).fill('111.1');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await projectReply.reached;
+  const committedFirst = await e01Server(page, firstProject);
+  assertContent(committedFirst.draft.document, 111.1, firstSketch);
+  await e01EditSketch(page, latestFirstSketch);
+  await (await e01Resistance(page)).fill('222.2');
+  const beforeProjectSwitch = await local(actorA.id, firstProject);
+  assertContent(beforeProjectSwitch.record!.document, 222.2, latestFirstSketch);
+  // Native history traversal delivers the canonical route without a reload,
+  // synthetic route event, or abandoning the held first-project response.
+  await page.evaluate(() => window.history.forward());
+  await expect(page).toHaveURL(
+    new RegExp(`/projects/${secondProject}/electronics/edit\\?returnTo=%23%2Fhome$`),
+  );
+  await expect(page.getByLabel('Название проекта', { exact: true })).toHaveValue(
+    'E01 SAV10 A second',
+  );
+  const afterSwitchTimeOrigin = await page.evaluate(() => performance.timeOrigin);
+  expect(afterSwitchTimeOrigin).toBe(sameRendererTimeOrigin);
+  expect(heldReplies).toEqual([]);
+  const secondBeforeReply = await ui(page, '70', E01_SKETCH);
+  const secondServerBeforeReply = await e01Server(page, secondProject);
+  phase = 'actor-A-second-project';
+  projectReply.release();
+  await projectReply.finished;
+  const secondAfterReply = await ui(page, '70', E01_SKETCH);
+  expect(secondAfterReply).toEqual(secondBeforeReply);
+  expect(await e01Server(page, secondProject)).toEqual(secondServerBeforeReply);
+  const afterProjectSwitch = await local(actorA.id, firstProject);
+  expect(afterProjectSwitch.raw).toBe(beforeProjectSwitch.raw);
+
+  const accountReply = await holdReply(secondProject);
+  const sentSecondSketch = `${E01_CHANGED_SKETCH}\n// second project sent`;
+  const latestSecondSketch = `${E01_CHANGED_SKETCH}\n// second project latest`;
+  await e01EditSketch(page, sentSecondSketch);
+  await (await e01Resistance(page)).fill('333.3');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await accountReply.reached;
+  const committedSecond = await e01Server(page, secondProject);
+  assertContent(committedSecond.draft.document, 333.3, sentSecondSketch);
+  await e01EditSketch(page, latestSecondSketch);
+  await (await e01Resistance(page)).fill('444.4');
+  const beforeAccountSwitch = await local(actorA.id, secondProject);
+  assertContent(beforeAccountSwitch.record!.document, 444.4, latestSecondSketch);
+  const otherTeacher = await seedTeacher(admin, 'e2e-electronics-sav10-other-actor');
+  const other = await page.context().newPage();
+  try {
+    // Real logout revokes the old page through the existing session channel;
+    // its editor must stay unmounted while its old reply is delivered later.
+    await other.goto('/#/home');
+    await other
+      .getByRole('banner')
+      .getByLabel(/^Меню аккаунта /)
+      .click();
+    await other.getByRole('button', { name: 'Выход', exact: true }).click();
+    await expect(
+      other.getByRole('banner').getByRole('button', { name: 'Войти', exact: true }),
+    ).toBeVisible();
+    const revokedUi = async () => {
+      await expect(
+        page.getByRole('banner').getByRole('button', { name: 'Войти', exact: true }),
+      ).toBeVisible();
+      await expect(page.locator('.workbench-main')).toHaveCount(0);
+      await expect(page.getByLabel('Код Arduino C++', { exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Сохранить проект', exact: true })).toHaveCount(
+        0,
+      );
+      return { url: page.url(), loginVisible: true, editorCount: 0, codeCount: 0, saveCount: 0 };
+    };
+    const oldUiAfterLogout = await revokedUi();
+    const oldLocalAfterLogout = await local(actorA.id, secondProject);
+    expect(oldLocalAfterLogout.raw).toBe(beforeAccountSwitch.raw);
+    assertContent(oldLocalAfterLogout.record!.document, 444.4, latestSecondSketch);
+    await loginWithOrganization(other, otherTeacher);
+    const actorB = await actor();
+    expect(actorB.email).toBe(otherTeacher.email);
+    expect(actorB.id).not.toBe(actorA.id);
+    phase = 'actor-B';
+    const newProject = await createProject(other, 'E01 SAV10 B project');
+    await saveDocument(other, newProject, e01Document());
+    await other.goto(`/#/home/${newProject}`);
+    const newSketch = `${E01_CHANGED_SKETCH}\n// different account`;
+    await e01EditSketch(other, newSketch);
+    await (await e01Resistance(other)).fill('888.8');
+    const newLocalBefore = await local(actorB.id, newProject);
+    assertContent(newLocalBefore.record!.document, 888.8, newSketch);
+    await other.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+    await expect(other.locator('.workbench-main')).toHaveAttribute(
+      'data-project-save-status',
+      'saved',
+    );
+    const newServerBeforeReply = await e01Server(other, newProject);
+    assertContent(newServerBeforeReply.draft.document, 888.8, newSketch);
+    expect(newServerBeforeReply.draft.document).toEqual(newLocalBefore.record!.document);
+    const newUiBeforeReply = await ui(other, '888.8', newSketch, actorB);
+    const oldPutCountAtB = oldBrowserPuts.length;
+    accountReply.release();
+    await accountReply.finished;
+    const oldUiAfterReply = await revokedUi();
+    expect(oldUiAfterReply).toEqual(oldUiAfterLogout);
+    expect(await ui(other, '888.8', newSketch, actorB)).toEqual(newUiBeforeReply);
+    expect(await e01Server(other, newProject)).toEqual(newServerBeforeReply);
+    expect(oldBrowserPuts).toHaveLength(oldPutCountAtB);
+    expect(oldBrowserPuts.filter((request) => request.phase === 'actor-B')).toEqual([]);
+    const oldLocalAfterReply = await local(actorA.id, secondProject);
+    expect(oldLocalAfterReply.raw).toBe(beforeAccountSwitch.raw);
+    assertContent(oldLocalAfterReply.record!.document, 444.4, latestSecondSketch);
+    expect(await local(actorB.id, secondProject)).toMatchObject({ raw: null, record: null });
+    const deniedProjects: unknown[] = [];
+    for (const projectId of [firstProject, secondProject]) {
+      const response = await other.context().request.get(`/api/projects/${projectId}`);
+      expect([403, 404]).toContain(response.status());
+      deniedProjects.push({ projectId, status: response.status() });
+    }
+    // A normal bootstrap now renders B in the old page; no fake principal/event.
+    await page.goto(`/#/home/${newProject}`);
+    const bootstrappedActorB = await actor();
+    expect(bootstrappedActorB).toEqual(actorB);
+    const bootstrappedUi = await ui(page, '888.8', newSketch, actorB);
+    expect(bootstrappedUi.status).toBe('saved');
+    const oldLocalAfterBootstrap = await local(actorA.id, secondProject);
+    expect(oldLocalAfterBootstrap.raw).toBe(beforeAccountSwitch.raw);
+    assertContent(oldLocalAfterBootstrap.record!.document, 444.4, latestSecondSketch);
+    expect(oldBrowserPuts.filter((request) => request.phase === 'actor-B')).toEqual([]);
+    writeFileSync(
+      `${evidenceDir}/after-project-account-isolation.json`,
+      JSON.stringify(
+        {
+          actorA,
+          actorB,
+          firstProject,
+          secondProject,
+          newProject,
+          firstEditorUrl,
+          sameRendererTimeOrigin,
+          afterSwitchTimeOrigin,
+          requests,
+          oldBrowserPuts,
+          heldReplies,
+          committedFirst,
+          committedSecond,
+          beforeProjectSwitch,
+          afterProjectSwitch,
+          secondBeforeReply,
+          secondAfterReply,
+          secondServerBeforeReply,
+          beforeAccountSwitch,
+          oldUiAfterLogout,
+          oldLocalAfterLogout,
+          oldUiAfterReply,
+          oldLocalAfterReply,
+          oldLocalAfterBootstrap,
+          newLocalBefore,
+          newServerBeforeReply,
+          newUiBeforeReply,
+          deniedProjects,
+          bootstrappedActorB,
+          bootstrappedUi,
+        },
+        null,
+        2,
+      ),
+    );
+  } finally {
+    projectReply.release();
+    accountReply.release();
+    await other.close();
+  }
+});
+
+test('ELECTRONICS-E01 SAV06 does not clear a real two-tab conflict by editing again', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 two tabs conflict');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  const first = await e01Resistance(page);
+  await first.fill('444.4');
+  const other = await page.context().newPage();
+  await other.goto(`/#/home/${projectId}`);
+  await (await e01Resistance(other)).fill('555.5');
+  await other.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(other.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  await expect(page.locator('.workbench-save-state')).toHaveAttribute(
+    'title',
+    /другую версию.*отправка остановлена/,
+  );
+  await first.fill('666.6');
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'error',
+  );
+  const local = JSON.parse((await e01LocalDraft(page, projectId))!);
+  expect(local.document.components.find((c: { id: string }) => c.id === 'resistor').value).toBe(
+    666.6,
+  );
+  const server = await e01Server(page, projectId);
+  expect(server.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(555.5);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/after-two-tabs-conflict.json',
+    JSON.stringify({ projectId, local, server }, null, 2),
+  );
+  await other.close();
+});
 
 for (const action of ['manual Save', 'genuine departure'] as const) {
   test(`Arduino sketch durability: fast input followed by ${action}`, async ({ page }) => {
@@ -5067,7 +6633,16 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
     const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
     await page.setViewportSize({ width: 1600, height: 1000 });
     await loginWithOrganization(page, teacher);
+    const sessionResponse = await page.context().request.get('/api/auth/me');
+    expect(sessionResponse.status()).toBe(200);
+    const session = (await sessionResponse.json()) as {
+      authenticated: boolean;
+      user: { id: string };
+    };
+    expect(session.authenticated).toBe(true);
+    const userId = session.user.id;
     const projectId = await createProject(page, `Sketch durability ${action}`);
+    const localKey = `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`;
     const fixture = arduinoInputDocument('button', '2');
     await saveDocument(page, projectId, fixture);
     await page.goto(`/#/home/${projectId}`);
@@ -5091,11 +6666,30 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
       .locator('input[type="number"]');
     await resistance.fill('333.3');
     await expect(resistance).toHaveValue('333.3');
-    const base = await page.evaluate((id) => {
-      const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
-      if (!raw) throw new Error('The preparatory resistor edit has no local document');
-      return (JSON.parse(raw) as { document: SchematicDocument }).document;
-    }, projectId);
+    const base = await page.evaluate(
+      ({ key, id, userId }) => {
+        const raw = localStorage.getItem(key);
+        if (!raw) throw new Error('The preparatory resistor edit has no local document');
+        const record = JSON.parse(raw) as {
+          schemaVersion: number;
+          identityKind: string;
+          userId: string;
+          projectId: string;
+          moduleKey: string;
+          document: SchematicDocument;
+        };
+        if (
+          record.schemaVersion !== 3 ||
+          record.identityKind !== 'account' ||
+          record.userId !== userId ||
+          record.projectId !== id ||
+          record.moduleKey !== 'electronics'
+        )
+          throw new Error('The preparatory local document belongs to another identity or scope');
+        return record.document;
+      },
+      { key: localKey, id: projectId, userId },
+    );
     expect(base.components.find((entry) => entry.id === 'resistor')?.value).toBe(333.3);
     const changedSource = `// latest sketch before ${action}\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(10);}\n`;
     const expected = {
@@ -5127,7 +6721,7 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
     await expect(page.getByRole('button', { name: actionLabel, exact: true })).toBeEnabled();
     expect(puts).toHaveLength(0);
     await page.evaluate(
-      ({ id, label }) => {
+      ({ key, id, userId, label }) => {
         const receipt = {
           inputAt: null as number | null,
           actionAt: null as number | null,
@@ -5135,8 +6729,25 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
           actionLocal: null as { document: SchematicDocument } | null,
         };
         const local = () => {
-          const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
-          return raw ? (JSON.parse(raw) as { document: SchematicDocument }) : null;
+          const raw = localStorage.getItem(key);
+          if (!raw) return null;
+          const record = JSON.parse(raw) as {
+            schemaVersion: number;
+            identityKind: string;
+            userId: string;
+            projectId: string;
+            moduleKey: string;
+            document: SchematicDocument;
+          };
+          if (
+            record.schemaVersion !== 3 ||
+            record.identityKind !== 'account' ||
+            record.userId !== userId ||
+            record.projectId !== id ||
+            record.moduleKey !== 'electronics'
+          )
+            throw new Error('The input/action local document belongs to another identity or scope');
+          return record;
         };
         Object.assign(window, { __sketchDurability529: receipt });
         document.addEventListener('input', (event) => {
@@ -5157,7 +6768,7 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
           true,
         );
       },
-      { id: projectId, label: actionLabel },
+      { key: localKey, id: projectId, userId, label: actionLabel },
     );
     const saved = page.waitForResponse(
       (response) =>
@@ -5213,9 +6824,7 @@ for (const action of ['manual Save', 'genuine departure'] as const) {
     await page.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
     await component(page, 'resistor-axial').locator('.workbench-part').press('Enter');
     await expect(resistance).toHaveValue('333.3');
-    expect(
-      await page.evaluate((id) => localStorage.getItem(`asa-project-local-draft:${id}`), projectId),
-    ).toBeNull();
+    expect(await page.evaluate((key) => localStorage.getItem(key), localKey)).toBeNull();
     const report = { projectId, action, elapsedMs, receipt, expected, puts, server };
     await test.info().attach(`sketch-529-${action.replaceAll(' ', '-')}.json`, {
       body: Buffer.from(JSON.stringify(report, null, 2)),
@@ -6323,8 +7932,7 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
     fullPage: true,
   });
 
-  // Persist the owner setting explicitly. The runtime-only 0.2 A adjustment
-  // must not replace the saved 0.1 A setting.
+  // U/I are now persistent pupil settings; the live output remains temporary.
   await saveEditorNow(page);
   await expect
     .poll(
@@ -6341,7 +7949,7 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
     )
     .toMatchObject({
       voltageSetpointVolt: 12,
-      currentLimitAmp: 0.1,
+      currentLimitAmp: 0.2,
       outputEnabled: true,
     });
   await expect(visual).toHaveAttribute('data-current-limit', '0.2');
@@ -6349,10 +7957,10 @@ test('MATH-10B regulated supply operates its owner controls and transitions betw
   await page.reload();
   await expect(page.getByRole('button', { name: 'Начать моделирование' })).toBeVisible();
   await expect(visual).toHaveAttribute('data-voltage-setpoint', '12');
-  await expect(visual).toHaveAttribute('data-current-limit', '0.1');
+  await expect(visual).toHaveAttribute('data-current-limit', '0.2');
   await expect(visual).toHaveAttribute('data-output-enabled', 'true');
   await page.getByRole('button', { name: 'Начать моделирование' }).click();
-  await expect(visual).toHaveAttribute('data-regulation-mode', 'cc');
+  await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
   failures.assertEmpty();
 });
 
@@ -6498,6 +8106,12 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   await expect(page.getByRole('button', { name: 'Остановить моделирование' })).toBeVisible();
   await expect(page.locator('.workbench-simulation-message')).toHaveCount(0);
 
+  // Use the normal save queue, never a request for each live knob adjustment.
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
   const saved = await page.context().request.get(`/api/projects/${projectId}`, {
     headers: { origin: new URL(page.url()).origin },
   });
@@ -6506,7 +8120,7 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   expect(
     persisted.draft.document.components.find((item) => item.id === 'bench-supply')
       ?.stateProperties?.['voltageSetpointVolt'],
-  ).toBe(5);
+  ).toBe(8);
   expect(
     persisted.draft.document.components.find((item) => item.id === 'scope')?.stateProperties?.[
       'voltsPerDivision'
@@ -6515,6 +8129,496 @@ test('live supply and oscilloscope controls keep one canonical generation and th
   expect(persisted.draft.document.connections).toEqual(circuit.connections);
   failures.assertEmpty();
 });
+
+// Observe genuine Worker messages without changing transport, continuation,
+// budgets, clock or result. Explicit files below survive a passing test with
+// the repository's list reporter and retain-on-failure trace policy.
+async function observePsuPersistenceWorker(page: Page) {
+  await page.addInitScript(() => {
+    const probe = window as Window & { __psu543?: unknown[] };
+    const records: unknown[] = [];
+    probe.__psu543 = records;
+    const push = (record: unknown) => {
+      records.push(record);
+      if (records.length > 200) records.shift();
+    };
+    window.Worker = new Proxy(window.Worker, {
+      construct(target, args, newTarget) {
+        const worker = Reflect.construct(target, args, newTarget) as Worker;
+        if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
+          return worker;
+        const post = worker.postMessage.bind(worker);
+        worker.postMessage = ((request: {
+          kind?: string;
+          generationId?: number;
+          requestedHorizonMicroseconds?: number;
+          inputEvents?: unknown;
+          state?: {
+            continuation?: { committedHorizonMicroseconds?: number; serializedState?: string };
+          };
+        }) => {
+          if (request.kind === 'advance')
+            push({
+              direction: 'request',
+              at: performance.now(),
+              generationId: request.generationId,
+              requested: request.requestedHorizonMicroseconds,
+              previousCommitted: request.state?.continuation?.committedHorizonMicroseconds ?? 0,
+              inputEvents: request.inputEvents ?? [],
+              previousState: request.state?.continuation?.serializedState ?? null,
+            });
+          post(request);
+        }) as Worker['postMessage'];
+        worker.addEventListener('message', (event: MessageEvent) => {
+          const response = event.data as {
+            ok?: boolean;
+            kind?: string;
+            generationId?: number;
+            metrics?: unknown;
+            advance?: {
+              executionStatus: string;
+              requestedHorizonMicroseconds: number;
+              committedHorizonMicroseconds: number;
+              state: { continuation?: { serializedState?: string } };
+              result?: {
+                solved?: boolean;
+                status?: string;
+                quality?: { finite: boolean; passed: boolean };
+                components?: Array<{
+                  componentId: string;
+                  voltageDrop: number;
+                  current: number;
+                  regulationMode?: string;
+                }>;
+              };
+              serial?: unknown;
+            };
+          };
+          if (!response.ok || response.kind !== 'advance' || !response.advance) return;
+          push({
+            direction: 'response',
+            at: performance.now(),
+            generationId: response.generationId,
+            status: response.advance.executionStatus,
+            requested: response.advance.requestedHorizonMicroseconds,
+            committed: response.advance.committedHorizonMicroseconds,
+            serializedState: response.advance.state.continuation?.serializedState ?? null,
+            solved: response.advance.result?.solved ?? false,
+            resultStatus: response.advance.result?.status,
+            quality: response.advance.result?.quality,
+            supplyResult:
+              response.advance.result?.components?.find(
+                (component) => component.componentId === 'bench-supply',
+              ) ?? null,
+            serial: response.advance.serial,
+            metrics: response.metrics,
+            uiClockBeforePublication: document.querySelector('.workbench-simulation-time')
+              ?.textContent,
+          });
+        });
+        return worker;
+      },
+    });
+  });
+}
+
+type Psu543Sample = {
+  direction: 'request' | 'response';
+  generationId: number;
+  status?: string;
+  requested: number;
+  committed?: number;
+  serializedState?: string;
+  previousState?: string;
+  previousCommitted?: number;
+  inputEvents?: Array<{ operation: string; payload: unknown; atMicroseconds: number }>;
+  solved?: boolean;
+  resultStatus?: string;
+  quality?: { finite: boolean; passed: boolean };
+  supplyResult?: {
+    componentId: string;
+    voltageDrop: number;
+    current: number;
+    regulationMode?: string;
+  } | null;
+  metrics?: unknown;
+};
+async function psu543Records(page: Page): Promise<Psu543Sample[]> {
+  return page.evaluate(() => (window as Window & { __psu543?: Psu543Sample[] }).__psu543 ?? []);
+}
+
+for (const width of [1440, 1024, 390, 320]) {
+  test(`ELECTRONICS-E04 PSU settings survive live edits Stop Save and cookies-only reopen at ${width}px`, async ({
+    page,
+    browser,
+  }, testInfo) => {
+    test.setTimeout(120_000);
+    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+    const evidenceDir = `${ARTIFACT_DIR}/psu-setpoints-543`;
+    mkdirSync(evidenceDir, { recursive: true });
+    const audit: Record<string, unknown> = { width, canonicalTimeAndTimeoutsUnchanged: true };
+    const puts: Array<{ at: number; document: SchematicDocument; baseRevision: number }> = [];
+    const snapshots: unknown[] = [];
+    let profile: Awaited<ReturnType<typeof browser.newContext>> | null = null;
+    let reopened: Page | null = null;
+    // The shared native organization login uses the desktop public banner.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await observePsuPersistenceWorker(page);
+    await loginWithOrganization(page, teacher);
+    // Every project/editor action still runs at the requested pupil viewport.
+    await page.setViewportSize({ width, height: 900 });
+    const id = await createProject(page, `E04 pupil settings ${width}`);
+    const source =
+      '// E04 whole pupil sketch\nint cycles=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}\nvoid loop(){cycles++;delay(100);}\n';
+    const board = arduinoInputDocument('button').components.find((part) => part.id === 'uno')!;
+    const base = regulatedPowerSupplyDocument();
+    const initial: SchematicDocument = {
+      ...base,
+      components: [
+        ...base.components.map((part) =>
+          part.id === 'bench-supply'
+            ? {
+                ...part,
+                state: true,
+                stateProperties: { ...part.stateProperties, outputEnabled: true },
+              }
+            : {
+                ...part,
+                stateProperties: {
+                  tolerancePercent: 5,
+                  resistanceUnit: 'Ω',
+                  ...part.stateProperties,
+                },
+              },
+        ),
+        {
+          ...board,
+          position: { x: 1000, y: 550 },
+          stateProperties: {
+            ...board.stateProperties,
+            arduinoCodeMode: 'text',
+            arduinoSource: source,
+            arduinoWorkspace: '{"blocks":{"blocks":[]}}',
+          },
+        },
+      ],
+    };
+    await saveDocument(page, id, initial);
+    const seeded = await e01Server(page, id);
+    audit.seeded = seeded;
+    const expected = (voltage: number, limit: number): SchematicDocument => ({
+      ...seeded.draft.document,
+      components: seeded.draft.document.components.map((part) =>
+        part.id === 'bench-supply'
+          ? {
+              ...part,
+              value: voltage,
+              stateProperties: {
+                ...part.stateProperties,
+                voltageSetpointVolt: voltage,
+                currentLimitAmp: limit,
+              },
+            }
+          : part,
+      ),
+    });
+    page.on('request', (request) => {
+      if (
+        request.method() === 'PUT' &&
+        new URL(request.url()).pathname === `/api/projects/${id}/draft`
+      ) {
+        const body = request.postDataJSON() as {
+          document: SchematicDocument;
+          baseRevision: number;
+        };
+        puts.push({ at: Date.now(), ...body });
+      }
+    });
+    try {
+      await page.goto(`/#/home/${id}`);
+      await expect(page.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      const supply = component(page, 'regulated-power-supply');
+      const visual = supply.getByTestId('regulated-power-supply-runtime');
+      await supply.locator('.workbench-part').press('Enter');
+      const inspector = page.getByRole('complementary', { name: 'Параметры выделения' });
+      if (width <= 980) {
+        const catalogToggle = page.getByRole('button', { name: 'Каталог деталей', exact: true });
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'true');
+        await catalogToggle.click();
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'false');
+        await expect(inspector).toBeVisible();
+      }
+      const voltage = inspector.getByLabel('Уставка напряжения лабораторного источника');
+      const limit = inspector.getByLabel('Ограничение тока лабораторного источника');
+      for (const input of [voltage, limit]) {
+        await input.scrollIntoViewIfNeeded();
+        const layout = await input.evaluate((element) => {
+          const rect = element.getBoundingClientRect();
+          return {
+            tag: element.tagName,
+            type: (element as HTMLInputElement).type,
+            x: rect.x,
+            right: rect.right,
+            width: rect.width,
+            hit:
+              document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2) ===
+              element,
+            pageOverflow: document.documentElement.scrollWidth > innerWidth + 1,
+          };
+        });
+        snapshots.push(layout);
+        expect(layout.tag).toBe('INPUT');
+        expect(layout.type).toBe('number');
+        expect(layout.width).toBeGreaterThan(0);
+        expect(layout.x).toBeGreaterThanOrEqual(0);
+        expect(layout.right).toBeLessThanOrEqual(width + 1);
+        expect(layout.hit).toBe(true);
+        expect(layout.pageOverflow).toBe(false);
+      }
+      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect
+        .poll(
+          async () =>
+            (await psu543Records(page))
+              .filter((record) => record.direction === 'response' && record.status === 'ready')
+              .at(-1)?.committed ?? 0,
+          { timeout: 15_000 },
+        )
+        .toBeGreaterThan(100_000);
+      const before = (await psu543Records(page))
+        .filter((record) => record.direction === 'response' && record.status === 'ready')
+        .at(-1)!;
+      audit.beforeLiveEdit = before;
+      await voltage.fill('7.5');
+      await limit.fill('0.15');
+      await expect(visual).toHaveAttribute('data-voltage-setpoint', '7.5');
+      await expect(visual).toHaveAttribute('data-current-limit', '0.15');
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect(visual.locator('.workbench-regulated-supply-reading').nth(0)).toContainText(
+        '7.50 V',
+      );
+      await expect(visual.locator('.workbench-regulated-supply-reading').nth(1)).toContainText(
+        '0.075 A',
+      );
+      await expect
+        .poll(
+          async () =>
+            (await psu543Records(page))
+              .filter((record) => record.direction === 'response' && record.status === 'ready')
+              .at(-1)?.committed ?? 0,
+          { timeout: 15_000 },
+        )
+        .toBeGreaterThan(before.committed!);
+      const after = (await psu543Records(page))
+        .filter((record) => record.direction === 'response' && record.status === 'ready')
+        .at(-1)!;
+      audit.afterLiveEdit = after;
+      expect(after.generationId).toBe(before.generationId);
+      expect(after.committed).toBe(after.requested);
+      expect(after.solved).toBe(true);
+      const beforeState = JSON.parse(before.serializedState!);
+      const afterState = JSON.parse(after.serializedState!);
+      expect(afterState.boards[0].runtime.virtualTimeMs).toBeGreaterThanOrEqual(
+        beforeState.boards[0].runtime.virtualTimeMs,
+      );
+      expect(afterState.boards[0].runtime.pinModes).toEqual(beforeState.boards[0].runtime.pinModes);
+      expect(afterState.physicalState.simulationTimeMs).toBeGreaterThan(
+        beforeState.physicalState.simulationTimeMs,
+      );
+      const requests = (await psu543Records(page)).filter(
+        (record) => record.direction === 'request',
+      );
+      expect(
+        requests
+          .flatMap((record) => record.inputEvents ?? [])
+          .some((event) => event.operation === 'voltageSetpointVolt' && event.payload === 7.5),
+      ).toBe(true);
+      expect(
+        requests
+          .flatMap((record) => record.inputEvents ?? [])
+          .some((event) => event.operation === 'currentLimitAmp' && event.payload === 0.15),
+      ).toBe(true);
+      // Output stays runtime-only while both saved settings are already local.
+      await inspector.getByLabel('Включить выход лабораторного источника').uncheck();
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'off');
+      audit.localWhileOutputOff = JSON.parse((await e01LocalDraft(page, id))!);
+      expect(puts).toHaveLength(0);
+      await page.screenshot({ path: `${evidenceDir}/psu-${width}-running.png`, fullPage: true });
+      audit.beforeStopRecords = await psu543Records(page);
+      await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+      // The old product loses U/I at this exact pupil action; keep these asserts.
+      await expect(voltage).toHaveValue('7.5');
+      await expect(limit).toHaveValue('0.15');
+      expect((audit.localWhileOutputOff as { document: SchematicDocument }).document).toEqual(
+        expected(7.5, 0.15),
+      );
+      await expect(visual).toHaveAttribute('data-output-enabled', 'true');
+      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      await expect(visual).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect
+        .poll(async () =>
+          (await psu543Records(page)).some(
+            (record) =>
+              record.direction === 'response' &&
+              record.generationId !== before.generationId &&
+              record.status === 'ready' &&
+              record.committed === 0 &&
+              record.requested === 0,
+          ),
+        )
+        .toBe(true);
+      await expect(voltage).toHaveValue('7.5');
+      await expect(limit).toHaveValue('0.15');
+      const save = page.getByRole('button', { name: 'Сохранить проект', exact: true });
+      await save.click();
+      await expect(page.locator('.workbench-main')).toHaveAttribute(
+        'data-project-save-status',
+        'saved',
+      );
+      const manual = await e01Server(page, id);
+      audit.manualSave = manual;
+      expect(manual.draft.document).toEqual(expected(7.5, 0.15));
+      expect(manual.draft.revision).toBe(seeded.draft.revision + 1);
+      expect(puts).toHaveLength(1);
+      expect(puts[0]!.document).toEqual(manual.draft.document);
+      await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+      let latest = manual;
+      if (width === 1440) {
+        // Real quiet minute, with no clock install/fastForward, pagehide, focus,
+        // reload or additional edit used to cause the eventual request.
+        await voltage.fill('6.5');
+        await limit.fill('0.12');
+        const quietStarted = Date.now();
+        expect(puts).toHaveLength(1);
+        await expect.poll(() => puts.length, { timeout: 65_000 }).toBe(2);
+        await expect(page.locator('.workbench-main')).toHaveAttribute(
+          'data-project-save-status',
+          'saved',
+        );
+        latest = await e01Server(page, id);
+        audit.quietAutosave = {
+          quietStarted,
+          sentAt: puts[1]!.at,
+          elapsed: puts[1]!.at - quietStarted,
+          server: latest,
+        };
+        expect(puts[1]!.at - quietStarted).toBeGreaterThanOrEqual(59_000);
+        expect(latest.draft.document).toEqual(expected(6.5, 0.12));
+        expect(latest.draft.revision).toBe(manual.draft.revision + 1);
+        expect(puts[1]!.document).toEqual(latest.draft.document);
+      }
+      expect(await e01LocalDraft(page, id)).toBeNull();
+      profile = await browser.newContext({
+        baseURL: new URL(page.url()).origin,
+        viewport: { width, height: 900 },
+      });
+      await profile.addCookies(await page.context().cookies());
+      reopened = await profile.newPage();
+      await observePsuPersistenceWorker(reopened);
+      const reopenedFailures = collectBrowserFailures(reopened, {
+        allowAnonymousSessionProbe: true,
+      });
+      await reopened.goto(`/#/home/${id}`);
+      await expect(reopened.locator('.workbench-stage')).toBeVisible({ timeout: 15_000 });
+      expect(await e01LocalDraft(reopened, id)).toBeNull();
+      await component(reopened, 'regulated-power-supply').locator('.workbench-part').press('Enter');
+      if (width <= 980) {
+        const catalogToggle = reopened.getByRole('button', {
+          name: 'Каталог деталей',
+          exact: true,
+        });
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'true');
+        await catalogToggle.click();
+        await expect(catalogToggle).toHaveAttribute('aria-pressed', 'false');
+        await expect(
+          reopened.getByRole('complementary', { name: 'Параметры выделения' }),
+        ).toBeVisible();
+      }
+      const latestSupply = latest.draft.document.components.find(
+        (part) => part.id === 'bench-supply',
+      )!;
+      await expect(reopened.getByLabel('Уставка напряжения лабораторного источника')).toHaveValue(
+        String(latestSupply.value),
+      );
+      await expect(reopened.getByLabel('Ограничение тока лабораторного источника')).toHaveValue(
+        String(latestSupply.stateProperties!.currentLimitAmp),
+      );
+      audit.cookiesOnlyServer = await e01Server(reopened, id);
+      expect((audit.cookiesOnlyServer as typeof latest).draft).toEqual(latest.draft);
+      await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+      await expect(reopened.getByLabel('Код Arduino C++', { exact: true })).toHaveValue(source);
+      await reopened.getByRole('button', { name: 'Закрыть редактор кода', exact: true }).click();
+      await reopened.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+      const load = latest.draft.document.components.find((part) => part.id === 'load')!;
+      const outputResistance = Number(latestSupply.stateProperties!.outputResistanceOhm);
+      const expectedCurrent = Number(latestSupply.value) / (load.value + outputResistance);
+      const expectedVoltage = expectedCurrent * load.value;
+      // CV alone can be a pre-ready fallback. Require a genuine complete
+      // electrical frame from this new page before checking its publication.
+      await expect
+        .poll(async () =>
+          (await psu543Records(reopened!)).some(
+            (record) =>
+              record.direction === 'response' &&
+              record.status === 'ready' &&
+              record.committed === record.requested &&
+              record.solved === true &&
+              record.resultStatus === 'solved' &&
+              record.quality?.finite === true &&
+              record.quality.passed === true &&
+              record.supplyResult?.regulationMode === 'cv' &&
+              Number.isFinite(record.supplyResult.voltageDrop) &&
+              Number.isFinite(record.supplyResult.current) &&
+              Math.abs(record.supplyResult.voltageDrop - expectedVoltage) < 1e-9 &&
+              Math.abs(Math.abs(record.supplyResult.current) - expectedCurrent) < 1e-9,
+          ),
+        )
+        .toBe(true);
+      const reopenedVisual = component(reopened, 'regulated-power-supply').getByTestId(
+        'regulated-power-supply-runtime',
+      );
+      await expect(
+        component(reopened, 'regulated-power-supply').getByTestId('regulated-power-supply-runtime'),
+      ).toHaveAttribute('data-regulation-mode', 'cv');
+      await expect(
+        reopenedVisual.locator('.workbench-regulated-supply-reading').nth(0),
+      ).toContainText(`${expectedVoltage.toFixed(2)} V`);
+      await expect(
+        reopenedVisual.locator('.workbench-regulated-supply-reading').nth(1),
+      ).toContainText(`${expectedCurrent.toFixed(3)} A`);
+      audit.reopenedElectricalPublication = await reopened.evaluate(() => {
+        const records = (window as Window & { __psu543?: Psu543Sample[] }).__psu543 ?? [];
+        const visual = document.querySelector('[data-testid="regulated-power-supply-runtime"]');
+        return {
+          at: performance.now(),
+          latestReady: records
+            .filter((record) => record.direction === 'response' && record.status === 'ready')
+            .at(-1),
+          voltageText: visual?.querySelectorAll('.workbench-regulated-supply-reading')[0]
+            ?.textContent,
+          currentText: visual?.querySelectorAll('.workbench-regulated-supply-reading')[1]
+            ?.textContent,
+        };
+      });
+      await reopened.screenshot({
+        path: `${evidenceDir}/psu-${width}-reopened.png`,
+        fullPage: true,
+      });
+      reopenedFailures.assertEmpty();
+      failures.assertEmpty();
+    } finally {
+      audit.workerRecords = await psu543Records(page).catch(() => []);
+      audit.reopenedWorkerRecords = reopened ? await psu543Records(reopened).catch(() => []) : [];
+      audit.puts = puts;
+      audit.layouts = snapshots;
+      const path = `${evidenceDir}/psu-${width}-raw.json`;
+      writeFileSync(path, JSON.stringify(audit, null, 2));
+      await testInfo.attach(`psu-${width}-raw`, { path, contentType: 'application/json' });
+      await profile?.close();
+    }
+  });
+}
 
 test('live generator waveform and frequency reach the scope calculation without a new generation', async ({
   page,

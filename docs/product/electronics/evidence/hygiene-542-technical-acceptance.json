@@ -1,0 +1,174 @@
+{
+  "exactSha": "cffba38eb7a3a043fa71295db62716f2648baa13",
+  "exactTree": "90ac7403916102b55a409d1723382e3386c23eee",
+  "reviewedMain": "3134650d808e698a9524515388d1793b0841a677",
+  "independentReviewSha256": "825cc54f30cee28282c19154c9660823f65a8dd6dc2b0d064e11fee3de2dd481",
+  "exactGeneralRun": 37987374023,
+  "exactGeneralJobs": [
+    {
+      "id": 114012619519,
+      "name": "Governance contracts",
+      "conclusion": "success"
+    },
+    {
+      "id": 114013091385,
+      "name": "Format lint types contracts build",
+      "conclusion": "success"
+    },
+    {
+      "id": 114014399540,
+      "name": "PostgreSQL tests and RLS",
+      "conclusion": "success"
+    },
+    {
+      "id": 114014399755,
+      "name": "Access A real browser journeys",
+      "conclusion": "success"
+    }
+  ],
+  "rootOwnGitProof": {
+    "exactSha": "cffba38eb7a3a043fa71295db62716f2648baa13",
+    "tree": "90ac7403916102b55a409d1723382e3386c23eee",
+    "reviewedMain": "3134650d808e698a9524515388d1793b0841a677",
+    "onlyAddedEvidence": "docs/product/electronics/evidence/hygiene-checkpoint-stabilization-005.yaml",
+    "all3775ForeignEntriesIdentical": true,
+    "rootOwnGitBlobSizes": [
+      {
+        "path": "contexts/electronics/domain/solver.ts",
+        "bytes": 184413,
+        "growth": 2.59
+      },
+      {
+        "path": "apps/web/src/electronics/workbench.css",
+        "bytes": 136006,
+        "growth": 12.71
+      },
+      {
+        "path": "apps/web/src/electronics/WorkbenchSidebars.tsx",
+        "bytes": 113843,
+        "growth": 9.48
+      },
+      {
+        "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+        "bytes": 106325,
+        "growth": 2.84
+      },
+      {
+        "path": "contexts/electronics/domain/arduino-program-runtime.ts",
+        "bytes": 84880,
+        "growth": -0.06
+      },
+      {
+        "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+        "bytes": 61250,
+        "growth": -4.12
+      },
+      {
+        "path": "apps/web/src/electronics/ProductionComponentVisual.tsx",
+        "bytes": 72775,
+        "growth": 0.47
+      },
+      {
+        "path": "apps/web/src/electronics/WorkbenchStage.tsx",
+        "bytes": 62462,
+        "growth": 13.82
+      }
+    ],
+    "onlyGeneratedDigestFieldChanged": true,
+    "canonicalDigest": "dd2bc599ca5209285f7dc7a85d5cfcc1b8d6b907ffe712dab311a337f09da4ae",
+    "protectedAndLegacyMediaBlobsPreserved": true,
+    "actualRemovals": [],
+    "sourcePublished": true,
+    "exactGeneral": "success",
+    "independentReview": "approved",
+    "schoolDeployment": "not_run"
+  },
+  "reviewerOwnGitProof": {
+    "verdict": "PASS",
+    "head": "cffba38eb7a3a043fa71295db62716f2648baa13",
+    "tree": "90ac7403916102b55a409d1723382e3386c23eee",
+    "base": "3134650d808e698a9524515388d1793b0841a677",
+    "previous": "8bc337be3ec84b8e33faefedc825742b48a7ddef",
+    "one_added_path": "docs/product/electronics/evidence/hygiene-checkpoint-stabilization-005.yaml",
+    "unchanged_mode_blob_entries": 3775,
+    "large_sources": [
+      {
+        "path": "contexts/electronics/domain/solver.ts",
+        "bytes": 184413,
+        "growth_percent": 2.59
+      },
+      {
+        "path": "apps/web/src/electronics/workbench.css",
+        "bytes": 136006,
+        "growth_percent": 12.71
+      },
+      {
+        "path": "apps/web/src/electronics/WorkbenchSidebars.tsx",
+        "bytes": 113843,
+        "growth_percent": 9.48
+      },
+      {
+        "path": "apps/web/src/electronics/use-electronics-workbench.ts",
+        "bytes": 106325,
+        "growth_percent": 2.84
+      },
+      {
+        "path": "contexts/electronics/domain/arduino-program-runtime.ts",
+        "bytes": 84880,
+        "growth_percent": -0.06
+      },
+      {
+        "path": "apps/web/src/electronics/ArduinoCodePanel.tsx",
+        "bytes": 61250,
+        "growth_percent": -4.12
+      },
+      {
+        "path": "apps/web/src/electronics/ProductionComponentVisual.tsx",
+        "bytes": 72775,
+        "growth_percent": 0.47
+      },
+      {
+        "path": "apps/web/src/electronics/WorkbenchStage.tsx",
+        "bytes": 62462,
+        "growth_percent": 13.82
+      }
+    ],
+    "all_large_sources_count": 8,
+    "actual_production_delta": [
+      "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "apps/web/src/electronics/use-electronics-workbench.ts",
+      "apps/web/src/electronics/use-workbench-project-state.ts",
+      "apps/web/src/electronics/workbench-autosave.ts",
+      "apps/web/src/electronics/workbench.css"
+    ],
+    "generated_sha256": "dd2bc599ca5209285f7dc7a85d5cfcc1b8d6b907ffe712dab311a337f09da4ae",
+    "generated_only_digest_changed": true,
+    "component_route_count": 4,
+    "unchanged_named_concerns": [
+      "docs/product/electronics/evidence/hygiene-baseline.yaml",
+      "docs/product/electronics/COMPONENT_MAP.yaml",
+      "apps/web/src/electronics/live-simulation.ts",
+      "contexts/electronics/domain/arduino-program-runtime.ts",
+      "contexts/electronics/domain/arduino-model.ts",
+      "contexts/electronics/domain/solver.ts",
+      "apps/web/src/electronics/ArduinoCodePanel.tsx",
+      "apps/web/vite.config.ts",
+      "tools/generate-electronics-component-coverage.mjs",
+      "tools/validate-electronics-component-information.mjs",
+      "docs/product/electronics/AGENT_GUIDE.md",
+      "docs/product/electronics/DEVELOPMENT_SPEC.md",
+      "docs/product/electronics/README.md",
+      "docs/product/electronics/contracts/ENGINEERING_HYGIENE_CONTRACT.md",
+      "pnpm-lock.yaml",
+      "apps/web/package.json",
+      ".gitignore",
+      "playwright.config.ts"
+    ],
+    "legacy_test_calls": 13,
+    "legacy_tool_calls": 3,
+    "protected_and_historical_preserved": true
+  },
+  "productionChanged": false,
+  "schoolDeployment": "not_run",
+  "ownerAcceptance": "pending"
+}

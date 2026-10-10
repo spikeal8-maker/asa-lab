@@ -2199,6 +2199,13 @@
   background: #fff;
   box-shadow: inset 0 0 0 1px #cbd4db;
 }
+/* The native menu must escape the toolbar's layer below the Code drawer (45).
+   Mobile keeps its intentional clipped, horizontally scrolling toolbar. */
+@media (min-width: 981px) {
+  .workbench-toolbar:has(.workbench-wire-color[open]) {
+    z-index: 46;
+  }
+}
 .workbench-wire-color-menu {
   position: absolute;
   z-index: 80;
@@ -2275,6 +2282,10 @@
   box-sizing: border-box;
   width: 77px;
   padding: 0 6px;
+}
+.workbench-toolbar-group.right .workbench-pill.emergency-copy {
+  width: auto;
+  flex: 0 0 auto;
 }
 .workbench-toolbar-group.right .workbench-pill:first-child svg,
 .workbench-toolbar-group.right .workbench-pill.simulate svg {
@@ -3338,7 +3349,7 @@
   height: 21px;
 }
 .workbench-toolbar-group.right .workbench-pill.simulate {
-  width: 222px;
+  width: max-content;
   min-width: 222px;
   height: 36px;
   min-height: 36px;
@@ -4892,6 +4903,39 @@ html.arduino-palette-resizing * {
 }
 .arduino-serial-monitor.open {
   flex-basis: min(230px, 35%);
+}
+
+/* Keep desktop action captions intact when the tool row and save actions no
+   longer fit together. Reserve the same two rows in the editor's height model;
+   the native wire menu can still open outside its tool row. */
+@media (min-width: 981px) and (max-width: 1280px) {
+  .workbench-shell {
+    --wb-toolbar-height: 96px;
+  }
+  .workbench-toolbar {
+    flex-wrap: wrap;
+  }
+  .workbench-toolbar-group.right {
+    box-sizing: border-box;
+    flex: 0 0 100%;
+    height: 48px;
+    justify-content: flex-end;
+  }
+}
+@media (min-width: 1281px) and (max-width: 1536px) {
+  .workbench-shell:has(.workbench-simulation-time):has(.emergency-copy) {
+    --wb-toolbar-height: 96px;
+  }
+  .workbench-toolbar:has(.workbench-simulation-time):has(.emergency-copy) {
+    flex-wrap: wrap;
+  }
+  .workbench-toolbar:has(.workbench-simulation-time):has(.emergency-copy)
+    .workbench-toolbar-group.right {
+    box-sizing: border-box;
+    flex: 0 0 100%;
+    height: 48px;
+    justify-content: flex-end;
+  }
 }
 
 /* Phones and tablets: a scrollable part strip and a resizable code sheet. */

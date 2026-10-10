@@ -1,4 +1,5 @@
 import {
+  advanceElectronicsToHorizon,
   resetElectronicsTimedState,
   type ElectronicsTimedInputEvent,
   type ElectronicsTimedState,
@@ -489,6 +490,7 @@ describe('Electronics canonical Worker controller', () => {
         component.id === 'supply'
           ? {
               ...component,
+              value: 8,
               stateProperties: {
                 ...component.stateProperties,
                 voltageSetpointVolt: 8,
@@ -519,6 +521,216 @@ describe('Electronics canonical Worker controller', () => {
       executor.advances.at(-1)!.document.components.find((component) => component.id === 'supply')
         ?.stateProperties?.voltageSetpointVolt,
     ).toBe(5);
+  });
+
+  it.each([
+    'inconsistent-alias',
+    'legacy-fallback',
+    'non-finite-explicit',
+    'other-source',
+    'resistor',
+    'psu-resistance',
+  ])('keeps %s electrical changes structural', async (change) => {
+    const supply = {
+      id: 'supply',
+      kind: 'source' as const,
+      value: 5,
+      position: { x: 100, y: 0 },
+      componentTypeId: 'regulated-power-supply',
+      stateProperties: {
+        ...(change === 'legacy-fallback'
+          ? {}
+          : { voltageSetpointVolt: change === 'non-finite-explicit' ? Infinity : 5 }),
+        currentLimitAmp: 1,
+        outputEnabled: true,
+        outputResistanceOhm: 0.05,
+      },
+    };
+    const base: SchematicDocument = { ...circuit, components: [...circuit.components, supply] };
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', base, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(base, 20_000);
+    executor.advances.at(-1)!.deferred.resolve(timedAdvance('ready', 20_000, 20_000));
+    await flush();
+    const changed: SchematicDocument = {
+      ...base,
+      components: base.components.map((component) => {
+        if (change === 'other-source' && component.id === 'source')
+          return { ...component, value: 8 };
+        if (change === 'resistor' && component.id === 'resistor')
+          return { ...component, value: 2000 };
+        if (component.id !== 'supply' || change === 'other-source' || change === 'resistor')
+          return component;
+        if (change === 'psu-resistance')
+          return {
+            ...component,
+            stateProperties: { ...component.stateProperties, outputResistanceOhm: 0.1 },
+          };
+        // An explicit U with a mismatching value is not a safe alias; a missing
+        // U still uses value as the electrical fallback.
+        return { ...component, value: 8 };
+      }),
+    };
+    controller.update(changed, 20_000);
+    expect(executor.generation).toBe(2);
+    expect(executor.preflights).toHaveLength(2);
+    controller.dispose();
+  });
+
+  it('forwards the real complete electrothermal/Arduino/RC/motor continuation on a persisted PSU edit and resets only on Stop/Start', async () => {
+    const part = (
+      id: string,
+      kind: SchematicDocument['components'][number]['kind'],
+      value: number,
+      componentTypeId?: string,
+    ): SchematicDocument['components'][number] => ({
+      id,
+      kind,
+      value,
+      position: { x: 0, y: 0 },
+      ...(componentTypeId ? { componentTypeId } : {}),
+    });
+    const base: SchematicDocument = {
+      schemaVersion: 4,
+      components: [
+        {
+          ...part('supply', 'source', 5, 'regulated-power-supply'),
+          pinIds: ['positive', 'negative'],
+          stateProperties: { voltageSetpointVolt: 5, currentLimitAmp: 1, outputEnabled: true },
+        },
+        part('rc-r', 'resistor', 1000),
+        {
+          ...part('cap', 'visual', 100, 'electrolytic-capacitor'),
+          pinIds: ['positive', 'negative'],
+          stateProperties: { initialVoltageVolt: 0, voltageRatingVolt: 25 },
+        },
+        part('led-r', 'resistor', 10),
+        { ...part('led', 'led', 0.02), stateProperties: { color: 'red' } },
+        { ...part('motor', 'visual', 6, 'dc-motor'), pinIds: ['positive', 'negative'] },
+        {
+          ...part('uno', 'visual', 5, 'arduino-uno'),
+          pinIds: ['d13', 'power-gnd-1', 'power-5v', 'power-3v3'],
+          stateProperties: {
+            arduinoSource:
+              'int cycles=0;void setup(){pinMode(13,OUTPUT);digitalWrite(13,HIGH);}void loop(){cycles++;delay(1);}',
+          },
+        },
+      ],
+      connections: [
+        ['supply', 'positive', 'rc-r', 'a'],
+        ['rc-r', 'b', 'cap', 'positive'],
+        ['cap', 'negative', 'supply', 'negative'],
+        ['supply', 'positive', 'led-r', 'a'],
+        ['led-r', 'b', 'led', 'anode'],
+        ['led', 'cathode', 'supply', 'negative'],
+        ['supply', 'positive', 'motor', 'positive'],
+        ['motor', 'negative', 'supply', 'negative'],
+      ].map(([from, a, to, b], index) => ({
+        id: `w${index}`,
+        from: { componentId: from!, terminal: a! },
+        to: { componentId: to!, terminal: b! },
+      })),
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: true, maxIterations: 24 },
+    };
+    const progressed = advanceElectronicsToHorizon(base, {
+      state: resetElectronicsTimedState(),
+      requestedHorizonMicroseconds: 20_000,
+    });
+    expect(progressed.diagnostics).toEqual([]);
+    expect(progressed.executionStatus).toBe('ready');
+    expect(progressed.observation?.solved).toBe(true);
+    const serialized = JSON.parse(progressed.state.continuation!.serializedState);
+    expect(serialized.physicalState).toBeDefined();
+    expect(serialized.boards[0].runtime).toBeDefined();
+    expect(serialized.physicalState.capacitors).toHaveLength(1);
+    expect(serialized.physicalState.thermal.length).toBeGreaterThan(0);
+    expect(serialized.physicalState.motors[0].motorAngularVelocityRadPerSecond).toBeGreaterThan(0);
+    const executor = new FakeExecutor();
+    const controller = new ElectronicsLiveSimulationWorkerController(executor);
+    controller.start('project-a', base, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 1);
+    controller.update(base, 20_000);
+    executor.advances
+      .at(-1)!
+      .deferred.resolve({ ...timedAdvance('ready', 20_000, 20_000), state: progressed.state });
+    await flush();
+    const changed = {
+      ...base,
+      components: base.components.map((component) =>
+        component.id === 'supply'
+          ? {
+              ...component,
+              value: 7.5,
+              stateProperties: {
+                ...component.stateProperties,
+                voltageSetpointVolt: 7.5,
+                currentLimitAmp: 0.15,
+              },
+            }
+          : component,
+      ),
+    };
+    controller.update(changed, 20_000);
+    expect(executor.generation).toBe(1);
+    const next = executor.advances.at(-1)!;
+    expect(next.state).toBe(progressed.state);
+    expect(next.state.continuation!.serializedState).toBe(
+      progressed.state.continuation!.serializedState,
+    );
+    expect(next.inputEvents).toEqual([
+      {
+        atMicroseconds: 20_001,
+        targetId: 'supply',
+        operation: 'voltageSetpointVolt',
+        payload: 7.5,
+      },
+      { atMicroseconds: 20_001, targetId: 'supply', operation: 'currentLimitAmp', payload: 0.15 },
+    ]);
+    const continued = advanceElectronicsToHorizon(next.document, {
+      state: next.state,
+      requestedHorizonMicroseconds: 21_000,
+      inputEvents: next.inputEvents,
+    });
+    expect(continued.executionStatus).toBe('ready');
+    expect(continued.observation?.solved).toBe(true);
+    const after = JSON.parse(continued.state.continuation!.serializedState);
+    expect(after.boards[0].runtime).not.toEqual(
+      JSON.parse(
+        advanceElectronicsToHorizon(base, {
+          state: resetElectronicsTimedState(),
+          requestedHorizonMicroseconds: 0,
+        }).state.continuation!.serializedState,
+      ).boards[0].runtime,
+    );
+    expect(after.physicalState.simulationTimeMs).toBeGreaterThan(
+      serialized.physicalState.simulationTimeMs,
+    );
+    expect(after.physicalState.motors[0].simulationTimeSeconds).toBeGreaterThan(
+      serialized.physicalState.motors[0].simulationTimeSeconds,
+    );
+    expect(after.physicalState.capacitors[0].voltageVolt).toBeGreaterThan(0);
+    for (const beforeThermal of serialized.physicalState.thermal) {
+      const nextThermal = after.physicalState.thermal.find(
+        (entry: { componentId: string }) => entry.componentId === beforeThermal.componentId,
+      );
+      expect(nextThermal.accumulatedDamage).toBeGreaterThanOrEqual(beforeThermal.accumulatedDamage);
+      expect(nextThermal.temperatureCelsius).toBeGreaterThanOrEqual(
+        beforeThermal.temperatureCelsius,
+      );
+    }
+    controller.stop();
+    controller.start('project-a', changed, { onResult: vi.fn(), onFailure: vi.fn() });
+    await completeCanonicalStart(executor, 2);
+    const reset = executor.advances.find((call) => call.generationId === 2)!;
+    expect(reset.requestedHorizonMicroseconds).toBe(0);
+    expect(reset.state).toEqual(resetElectronicsTimedState());
+    expect(reset.document.components.find((component) => component.id === 'supply')!.value).toBe(
+      7.5,
+    );
+    controller.dispose();
   });
 
   it('sends live meter modes through one progressed canonical generation', async () => {

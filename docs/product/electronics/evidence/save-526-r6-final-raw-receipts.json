@@ -1,0 +1,160 @@
+{
+  "exactSha": "185d723b900b5e497bf1fc323ed64409c095d0f6",
+  "rootIntegration": {
+    "source": "185d723b900b5e497bf1fc323ed64409c095d0f6",
+    "integratedSha": "1d7a14d780cefc555e78d8e65579723fcef291d5",
+    "mainBefore": "2d0b7557a34bf39fe9cef4876c43b83aed274698",
+    "sourceTree": "cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6",
+    "acceptedSourcePaths": [
+      "apps/web/src/components/editor-chrome/EditorPersistenceIndicator.tsx",
+      "apps/web/src/components/editor-chrome/testing/editor-persistence-indicator.spec.ts",
+      "apps/web/src/electronics/WorkbenchHeader.tsx",
+      "apps/web/src/electronics/testing/arduino-code-panel-persistence.spec.ts",
+      "apps/web/src/electronics/testing/workbench-presentation.spec.ts",
+      "apps/web/src/electronics/testing/workbench-project-state.spec.ts",
+      "apps/web/src/electronics/use-electronics-workbench.ts",
+      "apps/web/src/electronics/use-workbench-project-state.ts",
+      "apps/web/src/electronics/workbench-autosave.ts",
+      "apps/web/src/electronics/workbench.css",
+      "apps/web/src/modules/project-local-draft.ts",
+      "apps/web/src/modules/testing/project-local-draft.spec.ts",
+      "apps/web/src/pages/SchematicEditor.tsx",
+      "docs/product/electronics/generated/component-coverage.json",
+      "e2e/electronics-interactions.spec.ts",
+      "e2e/electronics-simulation.spec.ts"
+    ],
+    "all16SourceEntriesIdentical": true,
+    "foreignStateByteIdentical": true,
+    "otherEntriesPreserved": 3755
+  },
+  "rootFullRawCheck": "root-526-r6-full-raw-check.log PASS",
+  "rootNativeCheck": "root-530-raw-check.py actual185d native16 PASS",
+  "rootViewedNormal1374": true,
+  "independentOriginals": {
+    "sha": "185d723b900b5e497bf1fc323ed64409c095d0f6",
+    "originalZip": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\185d723b-ci\\run-37981556181\\browser-artifact-11641587740.zip",
+    "bytes": 36928168,
+    "sha256": "76a155cf11c5a8b8a199a16514f6361d7fb3991ab1919d74947449dfe5010b37",
+    "members": 326,
+    "CRC": "PASS",
+    "full56Layouts": "PASS",
+    "wholeSchemaSketchEmergency": "PASS",
+    "olderLocalBytesPreserved": "PASS",
+    "quietRecoveryMs": 6017,
+    "secondProfileFullDocument": "PASS",
+    "actualRendererCrashMs": 24,
+    "noPagehideNoSafetyPUT": "PASS",
+    "sameActorReauth": "PASS",
+    "sameRendererScopeActorIsolation": "PASS",
+    "lateReplyDeparture": "PASS",
+    "twoTabCAS": "PASS",
+    "rawFileHashes": {
+      "after-before-server-attempt.json": "9fa067da50641ab9e15b3b5ca3d131553c88fd8b07538e7e539d82a16f59742b",
+      "after-emergency-document.json": "9fa067da50641ab9e15b3b5ca3d131553c88fd8b07538e7e539d82a16f59742b",
+      "after-late-reply-departure.json": "9fb7ac114a89d6114c462bacd5ff30695768300f8c05a3d458bfc47fa998778d",
+      "after-local-denial.json": "bc96d212e493c4a6541bc91695ad5bccc34704fc1b1a77cd3f706d75840ef748",
+      "after-project-account-isolation.json": "b30b71bc270b25fdee8beb34344d613f762a8fd7206881e7423f175feaec2949",
+      "after-quiet-recovery.json": "2dd981c4580dd5b9dcaedcebb0f3786fff0b85ab68a783b8537f91084dbbc18a",
+      "after-reauth.json": "b9674d4d8c77e65ddeb88af953edec71c26acd550f180a5631b2958a6bdf0a04",
+      "after-renderer-crash.json": "ffb70476afa024613fb7063cf4b7df88542c7b49588d2fecedd07288e0815943",
+      "after-second-profile.json": "cdef9e9c6ddeb6bbb4c78592b02734afa71420cf761d2d2cf56e9e7537af619a",
+      "after-toolbar-error-run.json": "47869c62fb058d0faf1c7cd25f99181e13a499c6028bf85dfba8289792bcd074",
+      "after-toolbar-error-stop.json": "61c9852a7e61f8974df1ec19ee080d3b717e88e47ca47e03b330d6c923fd46ca",
+      "after-toolbar-error-\u041a\u043e\u043c\u043f\u043e\u043d\u0435\u043d\u0442\u044b-run.json": "c1b6e3a2b815b84140dea82f946a861ea093b84a32bab09674c5c19489e4c1ae",
+      "after-toolbar-error-\u0421\u0445\u0435\u043c\u044b-run.json": "037ef4e52169d8b5646f3c04e7f27c8ad966bc56f305d858fbfb66ca8063d3c7",
+      "after-toolbar-local-draft-run.json": "9ebe552665c424411457fa01bb9d64efe1e92f1f3fd85f744704a35574466074",
+      "after-toolbar-local-draft-stop.json": "9583fe33fd9d8ff216e2cccaf535c91828af68ded31eb5d7062a2866bb8b4d58",
+      "after-toolbar-local-draft-\u041a\u043e\u043c\u043f\u043e\u043d\u0435\u043d\u0442\u044b-run.json": "9f3650967339891dc26bf224b34cdb7bd7694520f5905e61bca9f1651d6be48a",
+      "after-toolbar-local-draft-\u0421\u0445\u0435\u043c\u044b-run.json": "5bbf62a89a97df0e032007f40ab1f9afab838bfdc754b108b867cda488e60fa7",
+      "after-two-tabs-conflict.json": "34eabf527f8060e71a4b0d91921061395a0e1a7ff3f121fef0974f081d1700cb",
+      "renderer-crash-injection.json": "6a7479b8f280cb3e3c6ad4744e589575472d0fa94f069c1e6f7f3bf40a0eb6e8"
+    },
+    "deniedRequests": 3,
+    "deniedRetryIntervalsMs": [
+      5036,
+      10052
+    ],
+    "compactPhases": 96,
+    "restored1374": [
+      {
+        "phase": "1374-blocks-running",
+        "height": 48
+      },
+      {
+        "phase": "1374-blocks-text-running",
+        "height": 48
+      },
+      {
+        "phase": "1374-running",
+        "height": 48
+      }
+    ],
+    "wholeIntentReceipts": [
+      {
+        "mode": "blocks",
+        "segment": "all-widths",
+        "revision": 2
+      },
+      {
+        "mode": "text",
+        "segment": "desktop-compact",
+        "revision": 2
+      },
+      {
+        "mode": "blocks-text",
+        "segment": "all-widths",
+        "revision": 2
+      },
+      {
+        "mode": "text",
+        "segment": "mobile",
+        "revision": 2
+      },
+      {
+        "mode": "text",
+        "segment": "desktop-wide",
+        "revision": 2
+      }
+    ],
+    "fast529": [
+      {
+        "action": "genuine departure",
+        "elapsedMs": 69.30000000004657
+      },
+      {
+        "action": "manual Save",
+        "elapsedMs": 73.29999999993015
+      }
+    ],
+    "native530Phases": 16,
+    "blockly533": [
+      {
+        "mode": "blocks",
+        "phases": 7
+      },
+      {
+        "mode": "blocks-text",
+        "phases": 7
+      }
+    ]
+  },
+  "independentManifest": {
+    "verdict": "APPROVE",
+    "head": "185d723b900b5e497bf1fc323ed64409c095d0f6",
+    "tree": "cb3cc356ca304b66fc86c9bfbaf2e0a544b6dfc6",
+    "report": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\independent-review-526-r6-185d723b.md",
+    "bytes": 19281,
+    "sha256": "2cb25cee5c1f224bf0c1645669ff90b70009a48bc51785f27b4c71ae824caa1d",
+    "proofs": {
+      "reviewer-526-r6-own-causal-before-proof.json": "1db4b5b0d905be750be099b9d0a568278186e0c75d84394733ae55cf8de55a88",
+      "reviewer-526-r6-own-exact-image-proof.json": "2277f9e9a37829e65b4779942d34391a7555c970ab05dd85a61037787127d432",
+      "reviewer-526-r6-own-focused-benchmark-proof.json": "5e688198d6e98976d9c83d89766aef982fe4e572e321b43ee5407e5542a01435",
+      "reviewer-526-r6-own-general-benchmark-zips.json": "d20db6e360a4ca34ab44262ccb6bfc45feb2ad76ff38546f43a34216953fa029",
+      "reviewer-526-r6-own-originals-proof.json": "fd7f632c4265d0e87aef9a399e9d96e8ed55ff9d3af1211ce8207797064f24f7",
+      "reviewer-526-r6-own-regression-media-proof.json": "a35cd2dc20991adb6a3eb724f376de37f9b1eea0e055cdd5f58605e9dcd4a8a0",
+      "reviewer-526-r6-own-scenarios.json": "175b2ddcaca8bfd62631cd60a8048477f6a5b48da7985a22a124d0012404de3c",
+      "reviewer-526-r6-own-source-proof.json": "67eef2aca0005adf880ff16475431e9f99aa36b136742e095ba2512d268e713b"
+    }
+  },
+  "deployment": "not_run"
+}
