@@ -10,7 +10,7 @@ export function JournalMonthNavigation({
   onChange: (month: string) => void;
 }) {
   return (
-    <nav className="manual-journal-toolbar" aria-label="Месяц журнала">
+    <nav className="manual-journal-toolbar" aria-label="Навигация по месяцам журнала">
       <button
         disabled={disabled || !month || month <= '2000-01'}
         onClick={() => onChange(journalShiftMonth(month, -1))}

@@ -418,7 +418,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
     .locator('.student-access-card.is-account-entry')
     .filter({ hasText: accountOnly!.displayLabel });
   await expect(accountCard).toContainText('Вход через аккаунт');
-  await expect(accountCard).toContainText('Войдите в свой аккаунт ASA Lab');
+  await expect(accountCard).toContainText('Войдите в ASA Lab');
   await expect(accountCard.locator('.student-access-student-code code')).toHaveCount(0);
   await cards.locator('.student-access-selection summary').click();
   await expect(cards.locator('.student-access-selector')).not.toContainText('acc:');

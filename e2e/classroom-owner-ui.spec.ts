@@ -956,3 +956,70 @@ test.describe('Mobile classroom navigation and restrictions', () => {
     expect(state.errors).toEqual([]);
   });
 });
+
+test('Account-only access card keeps full name, class and instruction inside its physical ticket', async ({
+  page,
+}) => {
+  await fixture(page, 1, { classroomTitle: 'Класс для проверки списка и заявок' });
+  const name = 'Александра Константиновна Иванова-Петрова — участник через аккаунт';
+  await page.route('**/api/classrooms/' + classId + '/roster', (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            ...seat(0, name),
+            loginMethod: 'account',
+            studentCode: null,
+            loginHandle: null,
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto('/#/classrooms/' + classId);
+  await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+  await expect(page.getByTestId('class-join-qr')).toBeVisible();
+  await page.emulateMedia({ media: 'print' });
+  await page.evaluate(() => document.body.classList.add('student-access-printing'));
+  const card = page.locator('.student-access-print-sheet .is-account-entry');
+  await expect(card).toContainText(name);
+  await expect(card).toContainText('Войдите в ASA Lab → Моё обучение.');
+  const geometry = await card.evaluate((node) => {
+    const bounds = node.getBoundingClientRect();
+    const selectors = [
+      '.student-access-topline',
+      '.student-access-identity',
+      '.student-access-codes',
+    ];
+    const zones = selectors.map((selector) => {
+      const element = node.querySelector(selector)!;
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return range.getBoundingClientRect().toJSON();
+    });
+    return {
+      height: bounds.height,
+      overflowX: node.scrollWidth - node.clientWidth,
+      overflowY: node.scrollHeight - node.clientHeight,
+      zones: zones.map((r) => ({ top: r.top - bounds.top, bottom: r.bottom - bounds.top })),
+      text: node.textContent,
+    };
+  });
+  writeFileSync(
+    test.info().outputPath('account-print-geometry.json'),
+    JSON.stringify(geometry, null, 2),
+  );
+  expect(geometry.overflowX).toBeLessThanOrEqual(1);
+  expect(geometry.overflowY).toBeLessThanOrEqual(1);
+  for (let i = 0; i < geometry.zones.length; i++) {
+    expect(geometry.zones[i]!.bottom).toBeLessThanOrEqual(geometry.height + 1);
+    if (i > 0)
+      expect(geometry.zones[i]!.top).toBeGreaterThanOrEqual(geometry.zones[i - 1]!.bottom - 1);
+  }
+  await page.pdf({
+    path: test.info().outputPath('account-card-a4.pdf'),
+    format: 'A4',
+    preferCSSPageSize: true,
+    printBackground: true,
+  });
+});

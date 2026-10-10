@@ -198,7 +198,7 @@ export function StudentAccessCards({
                           <>
                             <span className="student-access-account-label">Вход через аккаунт</span>
                             <p className="student-access-instruction">
-                              Войдите в свой аккаунт ASA Lab → Моё обучение → этот класс.
+                              Войдите в ASA Lab → Моё обучение.
                             </p>
                           </>
                         ) : (

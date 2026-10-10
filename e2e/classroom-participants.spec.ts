@@ -61,12 +61,32 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await student.goto(`/#/join-class?code=${encodeURIComponent(shareCode)}`);
     await student.getByLabel('Код ученика', { exact: true }).fill(code);
     await student.getByRole('button', { name: 'Войти', exact: true }).click();
-    await student.getByRole('button', { name: 'Создать', exact: true }).first().click();
-    await student.getByLabel('Название проекта').fill('Модель участницы');
-    await student.locator('.module-tile').filter({ hasText: 'ASA 3D' }).click();
-    await student.getByRole('dialog').getByRole('button', { name: 'Создать проект' }).click();
+    const createMenu = student.locator('.portal-header .portal-quick-create');
+    await createMenu.locator('> summary').click();
+    const createdProject = student.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/api/projects'),
+    );
+    await createMenu.getByRole('button', { name: /^3D модель/ }).click();
+    const creation = await createdProject;
+    expect(creation.ok(), await creation.text()).toBe(true);
+    const project = (await creation.json()).project;
     await expect(student.getByTestId('asa3d-viewport')).toBeVisible({ timeout: 30_000 });
-    await student.getByRole('button', { name: 'К проектам', exact: true }).click();
+    await expect(student.getByTestId('asa3d-viewport')).toHaveAttribute(
+      'data-runtime-ready',
+      'true',
+    );
+    const titleField = student.getByLabel('Название проекта', { exact: true });
+    await titleField.fill('Модель участницы');
+    const renamed = student.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        response.url().endsWith('/api/projects/' + project.id),
+    );
+    await titleField.press('Enter');
+    expect((await renamed).ok()).toBe(true);
+    await expect(titleField).toHaveValue('Модель участницы');
+    await student.goto('/#/projects');
 
     await page.reload();
     await expect(row.getByLabel('Всего работ: Анна Участница')).toContainText('1');

@@ -64,7 +64,7 @@ describe('Account and linked Seat access card interactions', () => {
     const accountCard = dialog.querySelector<HTMLElement>('.is-account-entry')!;
     expect(accountCard.textContent).toContain('Вход через аккаунт');
     expect(accountCard.querySelector('.student-access-instruction')?.textContent).toContain(
-      'Войдите в свой аккаунт ASA Lab',
+      'Войдите в ASA Lab',
     );
     expect(accountCard.querySelector('code')).toBeNull();
     const codes = [...dialog.querySelectorAll('.student-access-selector code')].map(

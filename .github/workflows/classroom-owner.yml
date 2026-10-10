@@ -80,6 +80,18 @@ jobs:
       - name: Real teacher and pupil browser journeys
         if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}
         run: pnpm e2e:access-a
+      - name: Preserve real journey evidence before layout suite
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-journeys-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: |
+            reports/checks
+            reports/playwright/access-a
+            reports/playwright/access-a-summary.json
+            e2e/artifacts/owner-preview
+            apps/web/dist/build-metadata.json
+          retention-days: 14
       - name: Account settings layout regression
         if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}
         run: pnpm e2e:settings-ui

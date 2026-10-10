@@ -97,7 +97,7 @@ describe('twenty-card A4 pagination', () => {
     );
     expect(html).toContain(studentCode);
     expect(html).toContain('Вход через аккаунт');
-    expect(html).toContain('Войдите в свой аккаунт ASA Lab → Моё обучение → этот класс.');
+    expect(html).toContain('Войдите в ASA Lab → Моё обучение.');
     expect(html).not.toContain('acc:');
     expect(html.match(/data-qr-url=/g)).toHaveLength(2);
     expect(html.match(/data-card-count="2"/g)).toHaveLength(1);

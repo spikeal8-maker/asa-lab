@@ -1134,9 +1134,7 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     await expect(accountCard).toHaveCount(1);
     await expect(accountCard).toContainText('Вход через аккаунт');
     await expect(accountCard.locator('.student-access-student-code code')).toHaveCount(0);
-    await expect(accountCard).toContainText(
-      'Войдите в свой аккаунт ASA Lab → Моё обучение → этот класс.',
-    );
+    await expect(accountCard).toContainText('Войдите в ASA Lab → Моё обучение.');
     await expect(mixedCards.locator('.student-access-selector')).toContainText(
       'Вход через аккаунт',
     );
