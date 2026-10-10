@@ -231,77 +231,93 @@ async function observation(page: Page) {
     ui: (window as ProbeWindow).__bitwiseUi ?? [],
   }));
 }
-function highIndex(row: WorkerReceipt): number {
-  if (row.advance.executionStatus !== 'ready' || !row.advance.result?.solved) return -1;
-  const board = row.boards.find((board) => board.componentId === 'uno');
-  if (!board) return -1;
-  const voltages = Array.from(
-    { length: 8 },
-    (_, index) => board.runtime.outputVoltages[`d${index + 2}` as 'd2'] ?? 0,
+// Keep polling beside the full receipts: transporting their canonical state on
+// every attempt can cross the deadline after the required frame already exists.
+function compactObservation({
+  source,
+  raw,
+}: {
+  source: string;
+  raw?: { worker: WorkerReceipt[]; ui: UiReceipt[] };
+}) {
+  const observed = raw ?? {
+    worker: (window as ProbeWindow).__bitwiseWorker ?? [],
+    ui: (window as ProbeWindow).__bitwiseUi ?? [],
+  };
+  function highIndex(row: WorkerReceipt): number {
+    if (row.advance.executionStatus !== 'ready' || !row.advance.result?.solved) return -1;
+    const board = row.boards.find((board) => board.componentId === 'uno');
+    if (!board) return -1;
+    const voltages = Array.from(
+      { length: 8 },
+      (_, index) => board.runtime.outputVoltages[`d${index + 2}` as 'd2'] ?? 0,
+    );
+    const high = voltages
+      .map((value, index) => (value === 5 ? index : -1))
+      .filter((index) => index >= 0);
+    return high.length === 1 && voltages.every((value) => value === 0 || value === 5)
+      ? high[0]!
+      : -1;
+  }
+  function visibleIndices(rows: UiReceipt[]): number[] {
+    return [
+      ...new Set(
+        rows.flatMap((row) => {
+          const high = row.brightness
+            .map((value, index) => (value > 0 ? index : -1))
+            .filter((index) => index >= 0);
+          return high.length === 1 ? high : [];
+        }),
+      ),
+    ].sort((a, b) => a - b);
+  }
+  const ready = observed.worker.filter(
+    (row) =>
+      row.requestSource === source &&
+      row.advance.executionStatus === 'ready' &&
+      row.advance.committedHorizonMicroseconds === row.advance.requestedHorizonMicroseconds,
   );
-  const high = voltages
-    .map((value, index) => (value === 5 ? index : -1))
-    .filter((index) => index >= 0);
-  return high.length === 1 && voltages.every((value) => value === 0 || value === 5) ? high[0]! : -1;
-}
-function visibleIndices(rows: UiReceipt[]): number[] {
-  return [
-    ...new Set(
-      rows.flatMap((row) => {
-        const high = row.brightness
-          .map((value, index) => (value > 0 ? index : -1))
-          .filter((index) => index >= 0);
-        return high.length === 1 ? high : [];
-      }),
-    ),
-  ].sort((a, b) => a - b);
+  return {
+    serial:
+      ready
+        .at(-1)
+        ?.advance.serial.find((board) => board.componentId === 'uno')
+        ?.tx.map((entry) => entry.text) ?? [],
+    gpio: [...new Set(ready.map(highIndex).filter((index) => index >= 0))].sort((a, b) => a - b),
+    visible: visibleIndices(observed.ui),
+  };
 }
 async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: string, path: string) {
-  await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-  if (kind === 'serial') {
-    await expect
-      .poll(async () => {
-        const rows = (await observation(page)).worker;
-        return (
-          rows
-            .filter(
-              (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
-            )
-            .at(-1)
-            ?.advance.serial.find((board) => board.componentId === 'uno')
-            ?.tx.map((entry) => entry.text) ?? []
-        );
-      })
-      .toEqual([1, 2, 4, 8, 16, 32, 64, 128].map((value) => `${value}\n`));
-    await expect(page.locator('.arduino-serial-output > div')).toHaveText(
-      [1, 2, 4, 8, 16, 32, 64, 128].map(String),
+  let raw: Awaited<ReturnType<typeof observation>>;
+  try {
+    await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+    if (kind === 'serial') {
+      await expect
+        .poll(async () => (await page.evaluate(compactObservation, { source })).serial)
+        .toEqual([1, 2, 4, 8, 16, 32, 64, 128].map((value) => `${value}\n`));
+      await expect(page.locator('.arduino-serial-output > div')).toHaveText(
+        [1, 2, 4, 8, 16, 32, 64, 128].map(String),
+      );
+    } else {
+      await expect
+        .poll(async () => (await page.evaluate(compactObservation, { source })).gpio)
+        .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+      await expect
+        .poll(async () => (await page.evaluate(compactObservation, { source })).visible)
+        .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    }
+  } finally {
+    // Preserve complete canonical state/events/quality even when a predicate fails.
+    raw = await observation(page);
+    writeFileSync(
+      `${path}.json`,
+      JSON.stringify(
+        { kind, source, sourceSha256: createHash('sha256').update(source).digest('hex'), ...raw },
+        null,
+        2,
+      ) + '\n',
     );
-  } else {
-    await expect
-      .poll(async () =>
-        [
-          ...new Set(
-            (await observation(page)).worker
-              .filter((row) => row.requestSource === source)
-              .map(highIndex)
-              .filter((index) => index >= 0),
-          ),
-        ].sort((a, b) => a - b),
-      )
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
-    await expect
-      .poll(async () => visibleIndices((await observation(page)).ui))
-      .toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
   }
-  const raw = await observation(page);
-  writeFileSync(
-    `${path}.json`,
-    JSON.stringify(
-      { kind, source, sourceSha256: createHash('sha256').update(source).digest('hex'), ...raw },
-      null,
-      2,
-    ) + '\n',
-  );
   await page.screenshot({ path: `${path}.png` });
   const ready = raw.worker.filter(
     (row) => row.requestSource === source && row.advance.executionStatus === 'ready',
@@ -324,7 +340,9 @@ async function runActualSketch(page: Page, kind: 'serial' | 'gpio', source: stri
     expect(row.advance.result).toBeNull();
   if (kind === 'gpio') {
     for (let index = 0; index < 8; index++) {
-      const row = ready.find((row) => highIndex(row) === index)!;
+      const row = ready.find((row) =>
+        compactObservation({ source, raw: { worker: [row], ui: [] } }).gpio.includes(index),
+      )!;
       for (let led = 0; led < 8; led++) {
         const result = row.advance.result!.components.find(
           (component) => component.componentId === `led${led}`,
