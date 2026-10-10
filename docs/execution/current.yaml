@@ -584,7 +584,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: causal_before_directed_originals_pending_analysis
+      checkpoint: native_ingress_analysis_complete_no_causal_repair_proven
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -612,11 +612,18 @@ parallel_lanes:
       causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
       causal_before_run: 38012528685
       causal_before_conclusion: success_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T01:21:47Z'
-      next_action: Read actual original directed built-browser events/whole documents
-        before selecting any product repair; unchanged production and test-only evidence
-        cannot be claimed repaired or accepted. Preserve all old candidates/timeouts/assertions;
-        no unchanged suite retry.
+      controller_observed_at: '2026-10-10T01:42:10Z'
+      next_action: Preserve observer candidate and original cached traces; no unchanged
+        browser rerun, fixture change, eager probe or failure broadcast to successful
+        peers. Select a separate causal regression only with a concrete untested mechanism,
+        or safely resume an independent ready complaint. No product repair/acceptance
+        claimed.
+      causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
+      causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
+      causal_actual: 'Unchanged production observer run: three trusted errors, all three
+        mounted consumers failed;7 image GET404/no HEAD,whole5-component server/editor
+        unchanged,zeroPUT/errors. Old failed run native ingress missing; causal defect
+        NOT_PROVED. PASS does not repair or lift544 acceptance blocker.'
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -3028,17 +3035,18 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: causal_before_directed_originals_pending_analysis
+      checkpoint: native_scenario_r1_before_product_css
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: First phase ONLY new registered browser scenario and additive package/workflow/component-map
-        registrations. CSS READ ONLY until actual built BEFORE proves extra active SPDT
-        filter with same focus. Preserve all existing registrations/tests/timeouts/owner
-        assets/physics/persistence/auth. One unpublished scenario SHA/self-review then
-        STOP; controller owns publication/CI and subsequent explicit CSS phase.
+      repair_scope: ONLY e2e/electronics-switch-shadow.spec.ts on preserved2190 source.
+        Repair actual native hit-point/viewport scenario geometry and retain failing raw
+        before assertions; same fixture/strong assertions/timeouts/physics/native Save/cookies-only
+        reopen. No CSS/product/registration changes. One unpublished scenario SHA/selfreview
+        thenSTOP; root actualcheck and ONE changed-cause full8 BEFORE before separate
+        CSS phase.
       program_issue: 452
       owner_problem: E09
       parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543
@@ -3054,11 +3062,18 @@ parallel_lanes:
       causal_before_probe_sha: ba0564d1c1a58932e165ae7c4bb3961b3574a44c
       causal_before_run: 38012635802
       causal_before_conclusion: failure_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T01:21:47Z'
-      next_action: Read actual original directed built-browser events/whole documents
-        before selecting any product repair; unchanged production and test-only evidence
-        cannot be claimed repaired or accepted. Preserve all old candidates/timeouts/assertions;
-        no unchanged suite retry.
+      controller_observed_at: '2026-10-10T01:42:10Z'
+      next_action: NEW bounded scenario author uses reachable native actuator point with
+        actual elementFromPoint identity and native pan for clipped zoom, preserving full
+        fixture/assertions. Root checks one final scenario SHA; directed BEFORE changed
+        cause only. CSS remains read-only until full BEFORE matrix; independent final
+        product review still required.
+      before_independent_report_sha256: dc98d371de617593baa5b35c05c0396ce71d833894a15de413779d776d1220d8
+      before_independent_manifest_sha256: 65f954aa8fa846fadaa4a68b8d50284d99033e2c545cb7019ff7eda564e57eb2
+      before_actual: 10 equal-focus OFF/ON native pairs prove extra active blue filter,194
+        complete ready C=H frames.1024 light/dark whole Save/reopen PASS.1440 zoom actuator
+        clips below900px;390/320 center hit not actuator. Full matrix NOT ready; no product
+        pointer defect proven.
     execution_lease:
       executor_id: electronics-spdt-shadow-547
       holder: unassigned
