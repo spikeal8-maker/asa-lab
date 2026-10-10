@@ -4524,7 +4524,12 @@ for (const width of [1440, 1024, 390, 320]) {
     await expect(
       page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
     ).toBeVisible();
-    expect(attempts).toBe(2); // Original global recovery reloads once; its bounded second failure reaches our boundary.
+    // The boundary may paint before the global recovery starts its one reload.
+    // Wait for the same exact two requests, then for the replacement document's boundary.
+    await expect.poll(() => attempts).toBe(2);
+    await expect(
+      page.getByRole('heading', { name: 'Страница не загрузилась', exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole('alert')).not.toContainText(chunk);
     await startupCapture(page, `entry-${width}-error`);
     fail = false;
