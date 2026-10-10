@@ -244,18 +244,21 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
         method: 'PATCH',
         url: `/api/classrooms/${classroomId}/seats/${student.id}`,
         headers: { cookie: teacher.cookie },
-        payload: { displayLabel: 'Не должно сохраниться', safeMode: false },
+        payload: {
+          displayLabel: 'Не должно сохраниться',
+          safeMode: false,
+          status: 'active',
+          avatarKey: null,
+        },
       });
-      expect(deniedEdit.statusCode).toBeGreaterThanOrEqual(400);
-      expect(deniedEdit.statusCode).toBeLessThan(500);
+      expect(deniedEdit.statusCode, deniedEdit.body).toBe(404);
       const deniedRotate = await inject(app, {
         method: 'POST',
         url: `/api/classrooms/${classroomId}/join-code/rotate`,
         headers: { cookie: teacher.cookie },
         payload: {},
       });
-      expect(deniedRotate.statusCode).toBeGreaterThanOrEqual(400);
-      expect(deniedRotate.statusCode).toBeLessThan(500);
+      expect(deniedRotate.statusCode, deniedRotate.body).toBe(409);
       expect(await persisted()).toEqual(protectedBefore);
       const untouched = await roster();
       expect(untouched.statusCode, untouched.body).toBe(200);
@@ -269,10 +272,32 @@ describe('E1-FIX-02B protected Student Code storage foundation', () => {
 
       const restored = await status('active');
       expect(restored.statusCode, restored.body).toBe(201);
+      // Restoration deliberately does not resurrect last year's circulated class code.
+      const staleCode = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/resolve',
+        payload: { code: classCode },
+      });
+      expect(staleCode.statusCode, staleCode.body).toBe(404);
+      const newCode = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/join-code/rotate`,
+        headers: { cookie: teacher.cookie },
+        payload: {},
+      });
+      expect(newCode.statusCode, newCode.body).toBe(201);
+      const reopened = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}`,
+        headers: { cookie: teacher.cookie },
+      });
+      expect(reopened.statusCode, reopened.body).toBe(200);
+      const reopenedCode = reopened.json().classroom.joinCode as string;
+      expect(reopenedCode).not.toBe(classCode);
       const login = await inject(app, {
         method: 'POST',
         url: '/api/class-join/studentseat',
-        payload: { code: classCode, studentCode: student.studentCode },
+        payload: { code: reopenedCode, studentCode: student.studentCode },
       });
       expect(login.statusCode, login.body).toBe(200);
       expect(await persisted()).toEqual(protectedBefore);

@@ -4028,23 +4028,89 @@ paths:
       - name: classroomId
         in: path
         required: true
-        schema: { type: string, format: uuid }
+        schema:
+          type: string
+          format: uuid
     post:
       operationId: rotateClassroomJoinCode
       summary: Revoke the previous code and issue a new deterministic code
       responses:
-        '200': { description: New class code issued }
+        '201':
+          description: New class code issued
+        '400':
+          description: Invalid classroom identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Account session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Active teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Classroom unavailable to this teacher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived classroom is read-only; no class code is issued or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/classrooms/{classroomId}/join-code:
     parameters:
       - name: classroomId
         in: path
         required: true
-        schema: { type: string, format: uuid }
+        schema:
+          type: string
+          format: uuid
     delete:
       operationId: revokeClassroomJoinCode
       summary: Close new StudentSeat sign-in for the classroom
       responses:
-        '200': { description: Class code revoked }
+        '200':
+          description: Class code revoked
+        '400':
+          description: Invalid classroom identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Account session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Active teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Classroom unavailable to this teacher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived classroom is read-only; no class code is issued or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/classrooms/{classroomId}/teachers:
     parameters:
       - name: classroomId
