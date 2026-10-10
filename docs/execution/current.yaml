@@ -3068,18 +3068,16 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_scenario_r1_before_product_css
+      checkpoint: native_stopped_capture_scenario_r2_before_product_css
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY e2e/electronics-switch-shadow.spec.ts on preserved2190 source.
-        Repair actual native hit-point/viewport scenario geometry and retain failing raw
-        before assertions; same fixture/strong assertions/timeouts/physics/native Save/cookies-only
-        reopen. No CSS/product/registration changes. One unpublished scenario SHA/selfreview
-        thenSTOP; root actualcheck and ONE changed-cause full8 BEFORE before separate
-        CSS phase.
+      repair_scope: ONLY e2e/electronics-switch-shadow.spec.ts on preserved b196. Separate
+        strict stopped native capture contract; keep Running actuate byte-exact, whole
+        fixture/all matrix assertions/timeouts/native pan/full Save/reopen. No CSS/product/registrations.
+        ONE unpublished SHA thenSTOP.
       program_issue: 452
       owner_problem: E09
       parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543
@@ -3095,12 +3093,11 @@ parallel_lanes:
       causal_before_probe_sha: ba0564d1c1a58932e165ae7c4bb3961b3574a44c
       causal_before_run: 38012635802
       causal_before_conclusion: failure_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T02:00:19Z'
-      next_action: NEW bounded scenario author uses reachable native actuator point with
-        actual elementFromPoint identity and native pan for clipped zoom, preserving full
-        fixture/assertions. Root checks one final scenario SHA; directed BEFORE changed
-        cause only. CSS remains read-only until full BEFORE matrix; independent final
-        product review still required.
+      controller_observed_at: '2026-10-10T02:14:34Z'
+      next_action: NEW bounded scenario R2 author adds separate positive stopped contract
+        and optional passive pointerId/capture observer; root actualchecks one SHA then
+        ONE changed-cause full8 BEFORE. CSS remains read-only until complete matrix; final
+        product gates and NEW final independent review still required.
       before_independent_report_sha256: dc98d371de617593baa5b35c05c0396ce71d833894a15de413779d776d1220d8
       before_independent_manifest_sha256: 65f954aa8fa846fadaa4a68b8d50284d99033e2c545cb7019ff7eda564e57eb2
       before_actual: 10 equal-focus OFF/ON native pairs prove extra active blue filter,194
@@ -3117,6 +3114,15 @@ parallel_lanes:
       r1_root_actual: 8originals/3803foreignentries/allfixture and case Save-reopen bytes/allmatrix
         assertions preserved; actualusednativehitpoint identity/trustedcoordinates stronger;
         native middle-pan existingproduction gesture; CSS unchanged.
+      stopped_r1_source: b1967d4a60e6a8d18b03b1e5f129d2a678d93c87
+      stopped_r1_probe: 03a88981602ddd996a52fbccfedcdb41451ee346
+      stopped_r1_run: 38015124303
+      stopped_independent_report_sha256: b34e2fa4052399bed7be5f019116fbf30669e94da986e3621a094588224d75a0
+      stopped_causal_actual: All8 trusted down actuator then up/click canvas at same actual
+        native point; unchanged actuator/runtime/whole server revision2 and zeroPUT. New
+        R1 helper erroneously requires Running click actuator in Stopped. Capture inferred
+        from unchanged handlers, not directly logged. Full BEFORE NOT_READY; no product
+        pointer defect.
     execution_lease:
       executor_id: electronics-spdt-shadow-547
       holder: unassigned
