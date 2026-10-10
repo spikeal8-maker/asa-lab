@@ -2397,7 +2397,7 @@ parallel_lanes:
       preserved_candidate_tree: fa3c4fa75b6c74840f8a395257fec2a62b26bbe8
       candidate_publication: published
       candidate_acceptance: pending
-      controller_observed_at: '2026-10-10T01:21:47Z'
+      controller_observed_at: '2026-10-10T02:00:19Z'
       acceptance_dependency_issue: 545
       final_candidate_sha: 0fd0ba3da17401e10ce81554fa842c60af7e0812
       final_candidate_tree: 3cee2ebb8f8dd03510ff7850eac70acb1fd0f736
@@ -2448,6 +2448,17 @@ parallel_lanes:
       r3_profile_actual: ONE instrumented local fullGPIO17parts24wires/21ready C=H0to2s/0yielded;
         solveLinear14743calls907of2970selfSamples30.539pct. Coverage overhead; no speedup/browser/school/5s
         sufficiency claim.
+      r3_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
+      r3_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
+      r3_candidate_branch: codex/electronics-546-r3-linear-rows
+      r3_candidate_publication: published
+      r3_directed_probe_sha: 8893bc6c712d375641919a85f6fe26430580f2ea
+      r3_directed_run: 38014843498
+      r3_directed_conclusion: success_directed_not_final_acceptance
+      r3_root_actual: 64originals/3796foreignentries/11255fullreturns281groups/399GPIO-Serialraw
+        verified; rebuilt40-input bundles and rootexecuted12038directcases. Directedfull17/24GPIOinitial21/reopen20ready
+        all8GPIO+UI,Serialall8lines;wholeSave/rev+1/cookies-onlyfinaldraft equal,yieldednull.
+        Finalmaincomposition/ordinaryall8/NEWreviewpending.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2667,7 +2678,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: one_final_convergence_preserved_native_candidate
+      checkpoint: bounded_attributed_draft_reader_composition_repair
       dependency_issue: 536
       owner_acceptance: pending
       dependency_status: technical_accepted
@@ -2676,11 +2687,12 @@ parallel_lanes:
       independent_review: request_changes
       independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-42c4e1f1.md
       independent_review_original_sha256: 41decf335ee5b2d36d3a76f3b0e1c3f6d64df4341ad718f193101fc06e1d458e
-      repair_scope: ONE non-destructive final convergence of preserved519 native-tested
-        product with current canonical main. Read-only merge-tree is clean, four task
-        paths only. No reimplementation or repeat BEFORE/measurements; preserve all accepted
-        main/foreign scenarios. No product/test changes absent newly proven defect. Final
-        exact focused/ordinary all8 plus NEW independent reviewer before integration.
+      repair_scope: 'ONLY E07 setup and localDocument in e2e/electronics-interactions.spec.ts:
+        actual /api/auth/me session.user.id, encoded attributed account key and strict
+        schema3/user/identity/project/module/baseRevision/document validation. Null only
+        for genuinely absent local draft after Save/reopen; no fallback/legacy adoption.
+        Preserve every other E07 assertion/whole documents/native gestures/oldtimeouts
+        and all foreign code.'
       preserved_candidate_tree: f68d6a4980a89b5c5c756396ccf73104e5657d06
       preserved_candidate_branch: codex/electronics-538-native-observer-r1
       preserved_review: approved_source_only_not_new_composition_acceptance
@@ -2688,12 +2700,19 @@ parallel_lanes:
       preserved_general_run: 37969136934
       preserved_electronics_run: 37970573601
       preserved_all8: success
-      controller_observed_at: '2026-10-10T01:47:00Z'
-      next_action: NEW bounded convergence author, clean dedicated538 checkout; one new
-        unpublished final composition SHA/selfreview thenSTOP. Root actual scope/foreign
-        proof, publish exact General/Electronics all8 and NEW final independent reviewer.
-        Old source APPROVE does not accept combined version. Owner-original E07 input
-        and school remain pending.
+      controller_observed_at: '2026-10-10T02:00:19Z'
+      next_action: NEW bounded test-only author on clean6a0 composition, current canonical
+        phase read remotely. No main chase/second merge during repair. One unpublished
+        SHA/selfreview/focused thenSTOP. Root actualcheck, ONE justified directed mouse/touch
+        fullSave/reopen and ordinaryexactall8/NEWfinalreview before integration. Root
+        handles only final metadata convergence if needed; no product reimplementation.
+      preserved_composition_sha: 6a0edfc99c185ebad02c5f81536d98b15f7c76ee
+      preserved_composition_tree: 572ef954785dd6843e5f8949eb735a46685dc9ab
+      preserved_composition_branch: codex/electronics-538-final-main-convergence
+      composition_cause: Actual clean merge retained old E07 legacy localStorage key;
+        accepted E01 writer uses schema3 user/identityKind/account scope. E07 seedTeacher
+        teacherId is not authenticated accounts.id. Whole-document native assertions would
+        read null; test reader only is necessary, product repair unchanged.
     execution_lease:
       executor_id: electronics-wire-538
       holder: unassigned
@@ -3076,7 +3095,7 @@ parallel_lanes:
       causal_before_probe_sha: ba0564d1c1a58932e165ae7c4bb3961b3574a44c
       causal_before_run: 38012635802
       causal_before_conclusion: failure_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T01:42:10Z'
+      controller_observed_at: '2026-10-10T02:00:19Z'
       next_action: NEW bounded scenario author uses reachable native actuator point with
         actual elementFromPoint identity and native pan for clipped zoom, preserving full
         fixture/assertions. Root checks one final scenario SHA; directed BEFORE changed
@@ -3088,6 +3107,16 @@ parallel_lanes:
         complete ready C=H frames.1024 light/dark whole Save/reopen PASS.1440 zoom actuator
         clips below900px;390/320 center hit not actuator. Full matrix NOT ready; no product
         pointer defect proven.
+      r1_candidate_sha: b1967d4a60e6a8d18b03b1e5f129d2a678d93c87
+      r1_candidate_tree: bbd1e000fd09f4a0e1bbc219cc4fe0ca36aa3327
+      r1_candidate_branch: codex/electronics-547-native-scenario-r1
+      r1_candidate_publication: published
+      r1_directed_probe_sha: 03a88981602ddd996a52fbccfedcdb41451ee346
+      r1_directed_run: 38015124303
+      r1_directed_conclusion: pending_not_acceptance
+      r1_root_actual: 8originals/3803foreignentries/allfixture and case Save-reopen bytes/allmatrix
+        assertions preserved; actualusednativehitpoint identity/trustedcoordinates stronger;
+        native middle-pan existingproduction gesture; CSS unchanged.
     execution_lease:
       executor_id: electronics-spdt-shadow-547
       holder: unassigned
