@@ -159,7 +159,17 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       .setInputFiles({ name: 'raster.png', mimeType: 'image/png', buffer: PNG.sync.write(image) });
     await page.getByRole('button', { name: 'Загрузить 1', exact: true }).click();
     await page.getByRole('button', { name: 'Выбрать Секретный мастер', exact: true }).click();
+    const avatarSaved = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/participants/actions/avatar_choose'),
+    );
     await page.getByRole('button', { name: 'Сохранить аватар', exact: true }).click();
+    const savedResponse = await avatarSaved;
+    expect(savedResponse.status(), await savedResponse.text()).toBe(201);
+    await expect(
+      page.getByRole('button', { name: 'Выбрать Секретный мастер', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
     const ownBefore = (await (
       await student.request.get('/api/class-join/participants/me')
     ).json()) as { metrics: { seatId: string; avatarUrl: string }; avatars: Array<{ id: string }> };
@@ -171,6 +181,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     const invalid = await page.request.post(
       `/api/classrooms/${classId}/participants/actions/avatar`,
       {
+        headers: { origin: new URL(page.url()).origin },
         data: {
           requestId: randomUUID(),
           title: 'Bad',
@@ -183,6 +194,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     const oversized = await page.request.post(
       `/api/classrooms/${classId}/participants/actions/avatar`,
       {
+        headers: { origin: new URL(page.url()).origin },
         data: {
           requestId: randomUUID(),
           title: 'Big',
@@ -209,7 +221,15 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
       (await (await student.request.get('/api/class-join/participants/me')).json()).metrics
         .avatarUrl,
     ).toBe(ownBefore.metrics.avatarUrl);
+    const meritRevoked = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        response.url().endsWith('/participants/actions/merit_grant'),
+    );
     await merit.getByRole('button', { name: 'Отозвать', exact: true }).click();
+    const revokedResponse = await meritRevoked;
+    expect(revokedResponse.status(), await revokedResponse.text()).toBe(201);
+    await expect(merit.getByRole('button', { name: 'Выдать', exact: true })).toBeVisible();
     const revoked = await (await student.request.get('/api/class-join/participants/me')).json();
     expect(revoked.avatars).toEqual([]);
     expect(revoked.metrics.avatarUrl).toBeNull();

@@ -161,7 +161,18 @@ jobs:
           ASA_BUILD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
           ASA_IMAGE_TAG: ${{ github.event.pull_request.head.sha || github.sha }}
           COMPOSE_PROJECT_NAME: asa-lab-ci-${{ github.run_id }}
-        run: docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:data
+        run: |
+          mkdir -p reports/checks
+          set -o pipefail
+          docker compose -f compose.yaml -f compose.test.yaml -f .github/compose.registry-ci.yaml --profile test run --rm --no-deps test-runner pnpm gate:data 2>&1 | tee reports/checks/full-data-gate.log
+
+      - name: Preserve full data gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: full-data-gate-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/checks/full-data-gate.log
+          retention-days: 14
 
       - name: Cleanup isolated test environment
         if: always()

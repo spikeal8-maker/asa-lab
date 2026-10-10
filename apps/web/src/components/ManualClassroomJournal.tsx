@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import {
   journalApi,
   journalAccessibleLabel,
@@ -36,6 +36,7 @@ function CellEditor({
   onRefresh: () => void;
   timeZone: string;
 }) {
+  const valueInputId = useId();
   const [value, setValue] = useState(grade?.value == null ? '' : String(grade.value));
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
@@ -108,17 +109,20 @@ function CellEditor({
       </p>
       <form onSubmit={(e) => void save(e)}>
         <fieldset disabled={busy || archived || conflict}>
-          <label>
-            Оценка{' '}
-            <select autoFocus value={value} onChange={(e) => setValue(e.target.value)}>
-              <option value="">Нет оценки (очистить)</option>
-              {journalLevels(column.preset).map((v) => (
-                <option key={v} value={v}>
-                  {journalAccessibleLabel(column.preset, v)}
-                </option>
-              ))}
-            </select>
-          </label>
+          <label htmlFor={valueInputId}>Оценка</label>
+          <select
+            id={valueInputId}
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+          >
+            <option value="">Нет оценки (очистить)</option>
+            {journalLevels(column.preset).map((v) => (
+              <option key={v} value={v}>
+                {journalAccessibleLabel(column.preset, v)}
+              </option>
+            ))}
+          </select>
           {['smileys', 'symbols'].includes(column.preset) ? (
             <p>Уровни возрастают от 1 до 5.</p>
           ) : null}
