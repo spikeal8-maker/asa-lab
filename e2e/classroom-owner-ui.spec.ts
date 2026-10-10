@@ -1023,3 +1023,60 @@ test('Account-only access card keeps full name, class and instruction inside its
     printBackground: true,
   });
 });
+
+test('dated journal keeps the first pupil visible on a phone without shrinking text', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  const state = await fixture(page, 3);
+  await page.route('**/api/classrooms/' + classId + '/journal?*', (route) =>
+    route.fulfill({
+      json: {
+        status: 'active',
+        timeZone: 'Europe/Moscow',
+        scale: { preset: 'five', version: 1 },
+        offset: 0,
+        nextOffset: null,
+        range: {
+          from: '2026-10-01',
+          to: '2026-10-31',
+          today: '2026-10-09',
+          timeZone: 'Europe/Moscow',
+        },
+        students: state
+          .students()
+          .map((s) => ({ id: s.id, name: s.displayLabel, status: s.status })),
+        columns: Array.from({ length: 6 }, (_, i) => ({
+          id: 'column-' + i,
+          date: '2026-10-' + String(i + 1).padStart(2, '0'),
+          category: 'Работа на уроке',
+          preset: 'five',
+          scaleVersion: 1,
+        })),
+        grades: [],
+      },
+    }),
+  );
+  await page.goto('/#/classrooms/' + classId);
+  await page.getByLabel('Раздел класса', { exact: true }).selectOption('gradebook');
+  const table = page.getByRole('region', { name: 'Таблица оценок по датам', exact: true });
+  await expect(table.getByRole('rowheader').first()).toBeVisible();
+  const geometry = await table.evaluate((element) => ({
+    width: innerWidth,
+    document: document.documentElement.scrollWidth,
+    tableTop: element.getBoundingClientRect().top,
+    firstRowBottom: element.querySelector('tbody tr')!.getBoundingClientRect().bottom,
+    font: getComputedStyle(element.querySelector('tbody th')!).fontSize,
+  }));
+  expect(geometry.document).toBeLessThanOrEqual(geometry.width);
+  expect(geometry.firstRowBottom).toBeLessThanOrEqual(844);
+  expect(geometry.font).toBe('16px');
+  await expect(page.getByRole('button', { name: 'Предыдущий месяц', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Следующий месяц', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Обновить журнал', exact: true })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath('journal-phone.png'), fullPage: true });
+  writeFileSync(
+    test.info().outputPath('journal-phone-geometry.json'),
+    JSON.stringify(geometry, null, 2),
+  );
+});

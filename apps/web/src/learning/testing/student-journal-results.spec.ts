@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
-import { createElement } from 'react';
-import { act } from 'react-dom/test-utils';
+import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { StudentJournalResults } from '../../components/StudentJournalResults';
@@ -65,7 +64,9 @@ async function render(scope: 'seat' | 'account') {
   await act(async () => root.render(createElement(StudentJournalResults, { scope })));
 }
 async function click(text: string) {
-  const button = [...host.querySelectorAll('button')].find((item) => item.textContent === text);
+  const button = [...host.querySelectorAll('button')].find(
+    (item) => (item.getAttribute('aria-label') ?? item.textContent) === text,
+  );
   expect(button).toBeDefined();
   await act(async () => button!.click());
 }

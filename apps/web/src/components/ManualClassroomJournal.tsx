@@ -297,7 +297,7 @@ function Journal({ classroomId }: { classroomId: string }) {
           setCategoryFilter('');
         }}
       />
-      <div className="manual-journal-toolbar">
+      <div className="manual-journal-toolbar manual-journal-filters">
         <label>
           Поиск ученика{' '}
           <input type="search" value={search} onChange={(e) => setSearch(e.target.value)} />
@@ -312,6 +312,9 @@ function Journal({ classroomId }: { classroomId: string }) {
           </select>
         </label>
         <button
+          type="button"
+          aria-label="Обновить журнал"
+          title="Обновить журнал"
           disabled={busy || loadBusy}
           onClick={() => {
             setOpened(null);
@@ -319,7 +322,7 @@ function Journal({ classroomId }: { classroomId: string }) {
             void load();
           }}
         >
-          Обновить журнал
+          <span aria-hidden="true">↻</span>
         </button>
       </div>
       {error ? (
@@ -377,10 +380,13 @@ function Journal({ classroomId }: { classroomId: string }) {
               </button>
             </form>
           )}
-          <p className="manual-journal-hint">
-            Нажмите ячейку, чтобы поставить оценку. Пусто — нет оценки. Ноль — отдельная оценка.{' '}
-            Даты класса: {data.timeZone}. Прежние занятия доступны через выбор месяца.
-          </p>
+          <details className="manual-journal-hint">
+            <summary>Как ставить оценки</summary>
+            <p>
+              Нажмите ячейку. «—» — нет оценки, 0 — отдельная оценка. Даты класса: {data.timeZone}.
+              Прежние занятия доступны через выбор месяца.
+            </p>
+          </details>
           <div
             className="manual-journal-scroll"
             tabIndex={0}

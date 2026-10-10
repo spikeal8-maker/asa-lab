@@ -10,12 +10,15 @@ export function JournalMonthNavigation({
   onChange: (month: string) => void;
 }) {
   return (
-    <nav className="manual-journal-toolbar" aria-label="Навигация по месяцам журнала">
+    <nav className="manual-journal-monthbar" aria-label="Навигация по месяцам журнала">
       <button
+        type="button"
+        aria-label="Предыдущий месяц"
+        title="Предыдущий месяц"
         disabled={disabled || !month || month <= '2000-01'}
         onClick={() => onChange(journalShiftMonth(month, -1))}
       >
-        Предыдущий месяц
+        <span aria-hidden="true">‹</span>
       </button>
       <label>
         Месяц журнала{' '}
@@ -32,10 +35,13 @@ export function JournalMonthNavigation({
         />
       </label>
       <button
+        type="button"
+        aria-label="Следующий месяц"
+        title="Следующий месяц"
         disabled={disabled || !month || month >= '2100-12'}
         onClick={() => onChange(journalShiftMonth(month, 1))}
       >
-        Следующий месяц
+        <span aria-hidden="true">›</span>
       </button>
     </nav>
   );

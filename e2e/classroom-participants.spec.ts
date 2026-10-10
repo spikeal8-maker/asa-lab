@@ -9,7 +9,7 @@ import { loginWithOrganization } from './organization-login';
 // Real API + isolated *_test PostgreSQL. No successful endpoint is mocked.
 let admin: pg.Pool;
 let teacher: SeededTeacher;
-const evidence = 'e2e/artifacts/classroom-participants';
+const evidence = 'e2e/artifacts/owner-preview/classroom-participants';
 test.beforeAll(async () => {
   admin = e2eAdminPool();
   teacher = await seedTeacher(admin, 'participants');
