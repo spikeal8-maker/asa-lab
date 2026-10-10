@@ -140,7 +140,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   await expect(editor.getByRole('alert')).toContainText('сервер недоступен');
   await expect(journal.getByText('Оценка сохранена.', { exact: true })).toHaveCount(0);
   await editor.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
-  await expect(journal.getByRole('status')).toContainText('Оценка сохранена');
+  await expect(journal.getByRole('status').filter({ hasText: 'Оценка сохранена.' })).toBeVisible();
   await page.unroute(`**/api/classrooms/${classId}/journal/grade`);
   await expect(
     journal.getByRole('button', { name: new RegExp(`^${pupils[0].name},.*: 0$`) }),

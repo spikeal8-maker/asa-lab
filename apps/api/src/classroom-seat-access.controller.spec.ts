@@ -49,6 +49,7 @@ function envelope() {
 function controller(
   rows = [accountSeat, linkedSeat],
   protectedRows: ReturnType<typeof envelope>[] = [],
+  classStatus: 'active' | 'archived' = 'active',
 ) {
   const query = vi.fn(async (sql: string, args: unknown[] = []) => {
     if (['BEGIN', 'COMMIT', 'ROLLBACK'].includes(sql)) return { rows: [] };
@@ -58,7 +59,7 @@ function controller(
           {
             id: classroomId,
             title: 'Смешанный класс',
-            status: 'active',
+            status: classStatus,
             age_band: 'mixed',
             topic_keys: [],
             safe_mode_default: true,
@@ -79,6 +80,7 @@ function controller(
       };
     if (sql.includes('classroom_student_code_protected_read')) return { rows: protectedRows };
     if (sql.includes('classroom_management_update_seat')) {
+      if (classStatus === 'archived') throw new Error('classroom unavailable');
       const current = rows.find((row) => row.id === args[2]);
       if (!current || current.login_handle !== args[4])
         throw new Error('stored handle must be preserved');
@@ -136,6 +138,39 @@ afterEach(() => {
 });
 
 describe('mixed roster credential readback', () => {
+  it('reads the archived roster but rolls back an unavailable mutation with a client error', async () => {
+    const { instance, clientQuery, release } = controller([linkedSeat], [envelope()], 'archived');
+    expect((await instance.roster(request, classroomId)).items[0].studentCode).toBe(
+      linkedSeat.login_handle,
+    );
+    await expect(
+      instance.updateSeat(request, classroomId, linkedSeat.id, {
+        displayLabel: 'Не сохранять',
+        safeMode: false,
+        status: 'active',
+        avatarKey: null,
+      }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(clientQuery.mock.calls.map(([sql]) => sql)).toContain('ROLLBACK');
+    expect(clientQuery.mock.calls.map(([sql]) => sql)).not.toContain('COMMIT');
+    expect(release).toHaveBeenCalledOnce();
+  });
+  it.each(['rotateJoinCode', 'revokeJoinCode'] as const)(
+    'rejects %s for an archive before changing credentials',
+    async (method) => {
+      const { instance, query } = controller([linkedSeat], [envelope()], 'archived');
+      await expect(instance[method](request, classroomId)).rejects.toMatchObject({
+        status: 409,
+        response: { error: { code: 'classroom_archived' } },
+      });
+      expect(
+        query.mock.calls.some(([sql]) =>
+          /classroom_management_(rotate|revoke)_join_code/.test(sql),
+        ),
+      ).toBe(false);
+    },
+  );
+
   it.each(['compat', 'enforced'])(
     'reads Account-only beside an encrypted Account-linked code in %s mode',
     async (mode) => {

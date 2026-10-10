@@ -2105,8 +2105,13 @@ for (const module of ['electronics', 'three-d'])
     }
     await learner.setViewportSize({ width: 1440, height: 900 });
     await switchAccountWorkspace(learner, organizationWorkspaceId);
-    await page.getByRole('button', { name: /^Оповещения/ }).click();
-    const inbox = page.getByRole('dialog', { name: 'Учебные оповещения' });
+    // Notifications live in Account settings; keep the exact submitted-work link proof.
+    await page.goto('/#/account');
+    await page
+      .getByLabel('Разделы настроек')
+      .getByRole('button', { name: 'Уведомления', exact: true })
+      .click();
+    const inbox = page.getByRole('region', { name: 'События уведомлений', exact: true });
     const event = inbox
       .locator('li')
       .filter({ hasText: 'Работа сдана' })

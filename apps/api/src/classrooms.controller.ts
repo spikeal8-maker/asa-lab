@@ -1567,6 +1567,15 @@ export class ClassroomsController {
     } catch (failure) {
       await client.query('ROLLBACK');
       const message = failure instanceof Error ? failure.message : '';
+      if (
+        message.includes('classroom unavailable') ||
+        message.includes('student seat unavailable')
+      ) {
+        throw new HttpException(
+          error('classroom_not_found', 'Класс или ученик недоступен для изменения.'),
+          404,
+        );
+      }
       if (message.includes('unique') || message.includes('duplicate')) {
         throw new HttpException(error('handle_taken', 'Это имя для входа уже занято.'), 409);
       }
@@ -1960,6 +1969,12 @@ export class ClassroomsController {
   async rotateJoinCode(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     const current = await this.summary(context, classroomId);
+    if (current.status !== 'active') {
+      throw new HttpException(
+        error('classroom_archived', 'Архивный класс доступен только для чтения.'),
+        409,
+      );
+    }
     const version = (current.joinCodeVersion ?? 0) + 1;
     const joinCode = classroomCodeFor(classroomId, version, classroomCodeSecret());
     await this.requirePool().query(`SELECT classroom_management_rotate_join_code($1, $2, $3, $4)`, [
@@ -1974,7 +1989,13 @@ export class ClassroomsController {
   @Delete(':classroomId/join-code')
   async revokeJoinCode(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
-    this.requireUuid(classroomId, 'classroom');
+    const current = await this.summary(context, classroomId);
+    if (current.status !== 'active') {
+      throw new HttpException(
+        error('classroom_archived', 'Архивный класс доступен только для чтения.'),
+        409,
+      );
+    }
     await this.requirePool().query(`SELECT classroom_management_revoke_join_code($1, $2)`, [
       context.accountId,
       classroomId,

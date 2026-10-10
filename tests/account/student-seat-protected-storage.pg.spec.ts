@@ -169,6 +169,137 @@ async function addSeat(cookie: string, classroomId: string, label: string) {
 }
 
 describe('E1-FIX-02B protected Student Code storage foundation', () => {
+  it('reads an archived protected roster without reopening login, mutations or foreign-class access', async () => {
+    const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+    process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
+    try {
+      const { teacher, classroomId, classCode } = await teacherClass();
+      const student = await addSeat(teacher.cookie, classroomId, 'Архивный ученик');
+      const other = await teacherClass();
+      const persisted = async () =>
+        (
+          await admin.query(
+            'SELECT to_jsonb(p) AS value FROM classroom_student_code_protected p WHERE seat_id=$1',
+            [student.id],
+          )
+        ).rows[0].value;
+      const protectedBefore = await persisted();
+      const roster = () =>
+        inject(app, {
+          method: 'GET',
+          url: `/api/classrooms/${classroomId}/roster`,
+          headers: { cookie: teacher.cookie },
+        });
+      expect((await roster()).statusCode).toBe(200);
+      const status = (value: string) =>
+        inject(app, {
+          method: 'POST',
+          url: `/api/classrooms/${classroomId}/status`,
+          headers: { cookie: teacher.cookie },
+          payload: { status: value },
+        });
+      const archived = await status('archived');
+      expect(archived.statusCode, archived.body).toBe(201);
+      const read = await roster();
+      expect(read.statusCode, read.body).toBe(200);
+      expect(
+        read.json().items.find((item: { id: string }) => item.id === student.id),
+      ).toMatchObject({ studentCode: student.studentCode, loginMethod: 'student_code' });
+      expect(await persisted()).toEqual(protectedBefore);
+
+      const foreign = await inject(app, {
+        method: 'GET',
+        url: `/api/classrooms/${classroomId}/roster`,
+        headers: { cookie: other.teacher.cookie },
+      });
+      expect(foreign.statusCode, foreign.body).toBe(404);
+      const foreignAccount = (
+        await admin.query(
+          "SELECT account_id FROM classroom_memberships WHERE classroom_id=$1 AND member_role='owner'",
+          [other.classroomId],
+        )
+      ).rows[0].account_id;
+      expect(
+        (
+          await runtime.query('SELECT * FROM classroom_student_code_protected_read($1,$2)', [
+            foreignAccount,
+            classroomId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      const hidden = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/resolve',
+        payload: { code: classCode },
+      });
+      expect(hidden.statusCode, hidden.body).toBe(404);
+      const deniedLogin = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: student.studentCode },
+      });
+      expect(deniedLogin.statusCode).toBeGreaterThanOrEqual(400);
+      expect(deniedLogin.statusCode).toBeLessThan(500);
+      const deniedEdit = await inject(app, {
+        method: 'PATCH',
+        url: `/api/classrooms/${classroomId}/seats/${student.id}`,
+        headers: { cookie: teacher.cookie },
+        payload: { displayLabel: 'Не должно сохраниться', safeMode: false },
+      });
+      expect(deniedEdit.statusCode).toBeGreaterThanOrEqual(400);
+      expect(deniedEdit.statusCode).toBeLessThan(500);
+      const deniedRotate = await inject(app, {
+        method: 'POST',
+        url: `/api/classrooms/${classroomId}/join-code/rotate`,
+        headers: { cookie: teacher.cookie },
+        payload: {},
+      });
+      expect(deniedRotate.statusCode).toBeGreaterThanOrEqual(400);
+      expect(deniedRotate.statusCode).toBeLessThan(500);
+      expect(await persisted()).toEqual(protectedBefore);
+      const untouched = await roster();
+      expect(untouched.statusCode, untouched.body).toBe(200);
+      expect(
+        untouched.json().items.find((item: { id: string }) => item.id === student.id),
+      ).toMatchObject({
+        displayLabel: 'Архивный ученик',
+        safeMode: true,
+        studentCode: student.studentCode,
+      });
+
+      const restored = await status('active');
+      expect(restored.statusCode, restored.body).toBe(201);
+      const login = await inject(app, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code: classCode, studentCode: student.studentCode },
+      });
+      expect(login.statusCode, login.body).toBe(200);
+      expect(await persisted()).toEqual(protectedBefore);
+      const removed = await status('deleted');
+      expect(removed.statusCode, removed.body).toBe(201);
+      expect((await roster()).statusCode).toBe(404);
+      const ownerAccount = (
+        await admin.query(
+          "SELECT account_id FROM classroom_memberships WHERE classroom_id=$1 AND member_role='owner'",
+          [classroomId],
+        )
+      ).rows[0].account_id;
+      expect(
+        (
+          await runtime.query('SELECT * FROM classroom_student_code_protected_read($1,$2)', [
+            ownerAccount,
+            classroomId,
+          ])
+        ).rows,
+      ).toEqual([]);
+      expect(await persisted()).toEqual(protectedBefore);
+    } finally {
+      if (previousMode === undefined) delete process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
+      else process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = previousMode;
+    }
+  });
+
   it('rolls back settings and row revision after damaged protected readback, then saves the restored retry', async () => {
     const previousMode = process.env['ASA_STUDENT_CODE_PROTECTION_MODE'];
     process.env['ASA_STUDENT_CODE_PROTECTION_MODE'] = 'enforced';
