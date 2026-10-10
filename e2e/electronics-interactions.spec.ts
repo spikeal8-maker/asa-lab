@@ -4920,6 +4920,21 @@ test.describe('E07 saved legacy wire segments with the real API', () => {
         const account = await seedTeacher(legacyAdmin, `e07-${input}-${testInfo.workerIndex}`);
         await loginWithOrganization(page, account);
         const origin = new URL(page.url()).origin;
+        const sessionResponse = await page.context().request.get('/api/auth/me', {
+          headers: { origin },
+        });
+        expect(sessionResponse.status()).toBe(200);
+        const session = (await sessionResponse.json()) as {
+          authenticated: boolean;
+          user: { id: string };
+          account: { id: string };
+        };
+        expect(session.authenticated).toBe(true);
+        expect(session.user?.id).toMatch(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        );
+        expect(session.account?.id).toBe(session.user.id);
+        const userId = session.user.id;
         const created = await page.context().request.post('/api/projects', {
           headers: { origin, 'idempotency-key': `legacy-wire-${crypto.randomUUID()}` },
           data: {
@@ -5001,10 +5016,34 @@ test.describe('E07 saved legacy wire segments with the real API', () => {
         mkdirSync(output, { recursive: true });
         const phases: unknown[] = [];
         const localDocument = (target = page) =>
-          target.evaluate((id) => {
-            const raw = localStorage.getItem(`asa-project-local-draft:${id}`);
-            return raw ? (JSON.parse(raw) as { document: SchematicDocument }).document : null;
-          }, projectId);
+          target.evaluate(
+            ({ projectId, userId }) => {
+              const raw = localStorage.getItem(
+                `asa-project-local-draft:user:account:${encodeURIComponent(userId)}:${encodeURIComponent(projectId)}`,
+              );
+              if (raw === null) return null;
+              const record = JSON.parse(raw) as Record<string, unknown>;
+              if (
+                typeof record !== 'object' ||
+                record === null ||
+                Array.isArray(record) ||
+                record['schemaVersion'] !== 3 ||
+                record['identityKind'] !== 'account' ||
+                record['userId'] !== userId ||
+                record['projectId'] !== projectId ||
+                record['moduleKey'] !== 'electronics' ||
+                !Number.isSafeInteger(record['baseRevision']) ||
+                typeof record['updatedAt'] !== 'string' ||
+                typeof record['document'] !== 'object' ||
+                record['document'] === null ||
+                Array.isArray(record['document'])
+              ) {
+                throw new Error('E07 read an invalid attributed Electronics draft');
+              }
+              return record['document'] as SchematicDocument;
+            },
+            { projectId, userId },
+          );
         const segments = (target = page) =>
           target.locator('[data-testid="wire-segment"][data-wire-id="saved-legacy-wire"]');
         const record = async (phase: string, target = page, server: SavedDraft | null = null) => {
