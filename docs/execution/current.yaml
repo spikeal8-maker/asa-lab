@@ -584,7 +584,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: saved_trace_native_error_ingress_before_observer_only
+      checkpoint: causal_before_directed_originals_pending_analysis
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -606,6 +606,17 @@ parallel_lanes:
         write. Advisory owned_paths excludes historical wire538 scope; inspect actual
         complete path budget and dirty worktrees. Wire author STOP/clean candidate preserved;
         no second writer.
+      preserved_candidate_sha: 5fde66cfe5d7bf7bd3a32ea7c13a99cb25c54652
+      candidate_publication: published
+      candidate_acceptance: pending
+      causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
+      causal_before_run: 38012528685
+      causal_before_conclusion: success_unchanged_product_not_acceptance
+      controller_observed_at: '2026-10-10T01:21:47Z'
+      next_action: Read actual original directed built-browser events/whole documents
+        before selecting any product repair; unchanged production and test-only evidence
+        cannot be claimed repaired or accepted. Preserve all old candidates/timeouts/assertions;
+        no unchanged suite retry.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -2364,19 +2375,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_exact037_remaining_gpio_cpu_call_localization_only
+      checkpoint: r3_linear_row_lookup_product_parity_before_browser
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: READ ONLY exact037 full GPIO CPU/call localization from newly retained
-        ordinary failure; one directed profile/counters of unchanged fulldocument/fullsketch,
-        classify repeated preparation/solve/quality vs host waits; propose exact bounded
-        optimization and full-return parity challenge before product edits. No product/source/test/timeout/fixture/horizon/physics
-        edits in this phase, no unchanged whole rerun.
+      repair_scope: ONLY domain/linear-system.ts mechanical local row-reference lookups
+        after pivot swaps; new testing/linear-system.spec.ts and existing solver/scheduler
+        specs only meaningful exact parity; additive engine-worker-clock.yaml test registration
+        allowed. Preserve literal arithmetic/order/pivot thresholds/copy/null/exceptions,
+        no numerical/state/matrix/solution cache, skipped solve/quality, timeout/horizon/quantum/precision/program
+        change. One bounded author/source and full-return parity/focused/selfreview thenSTOP;
+        root actualcheck/direct fullGPIO+Serial/exact all8/NEW independent review before
+        acceptance.
       preserved_candidate_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
       preserved_candidate_tree: fa3c4fa75b6c74840f8a395257fec2a62b26bbe8
       candidate_publication: published
       candidate_acceptance: pending
-      controller_observed_at: '2026-10-09T21:43:50Z'
+      controller_observed_at: '2026-10-10T01:21:47Z'
       acceptance_dependency_issue: 545
       final_candidate_sha: 0fd0ba3da17401e10ce81554fa842c60af7e0812
       final_candidate_tree: 3cee2ebb8f8dd03510ff7850eac70acb1fd0f736
@@ -2415,10 +2429,18 @@ parallel_lanes:
       actual_new_failure: FIRST initialGPIO before reopen,14ready C=H0to1.3s/0yielded/solvedQualityPASS,indices0to5;computeSum4098.4ms/max698.2ms.
         Fullfinally returns before olddeadline; not prior latefullsnapshotD. Precise CPU/host
         split and exact-deadline absence notproved.
-      next_action: NEW bounded localization author returns one exact-source profile/proposal
-        thenSTOP; controller selects only demonstrated nextrepair with new independent
-        acceptance. Original537 programs remain separate. Future merge with PSU has one
-        import conflict; await specific owner agreement before actualmerge.
+      next_action: NEW bounded product author implements exact row-reference-only proposal
+        on preserved037 source, remotely selected canonical card authoritative. One final
+        convergence with accepted main remains separate and awaits existing specific import-conflict
+        agreement; no actual merge/conflict resolution before answer. Preserve all accepted
+        and suspended candidates; original537 programmes separately checked after dependency
+        acceptance.
+      r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
+      r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
+      r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
+      r3_profile_actual: ONE instrumented local fullGPIO17parts24wires/21ready C=H0to2s/0yielded;
+        solveLinear14743calls907of2970selfSamples30.539pct. Coverage overhead; no speedup/browser/school/5s
+        sufficiency claim.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -3006,7 +3028,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: causal_built_browser_before_scenario_only_no_css_edit
+      checkpoint: causal_before_directed_originals_pending_analysis
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3026,6 +3048,17 @@ parallel_lanes:
         named by card; advisory owned_paths lists exclusive paths. Check actual dirty
         full registration paths and preserve accepted/parallel registrations. No guard
         disabled.
+      preserved_candidate_sha: 2190efccfbda348709ab82bb8249d9b2ac3ad332
+      candidate_publication: published
+      candidate_acceptance: pending
+      causal_before_probe_sha: ba0564d1c1a58932e165ae7c4bb3961b3574a44c
+      causal_before_run: 38012635802
+      causal_before_conclusion: failure_unchanged_product_not_acceptance
+      controller_observed_at: '2026-10-10T01:21:47Z'
+      next_action: Read actual original directed built-browser events/whole documents
+        before selecting any product repair; unchanged production and test-only evidence
+        cannot be claimed repaired or accepted. Preserve all old candidates/timeouts/assertions;
+        no unchanged suite retry.
     execution_lease:
       executor_id: electronics-spdt-shadow-547
       holder: unassigned
