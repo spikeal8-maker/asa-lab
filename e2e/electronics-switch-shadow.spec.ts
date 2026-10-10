@@ -35,7 +35,17 @@ type ReadyFrame = {
 type ShadowProbe = {
   frames: Array<{ at: number; response: unknown }>;
   latest: ReadyFrame | null;
-  inputs: Array<{ type: string; trusted: boolean; component: string | null; at: number }>;
+  inputs: Array<{
+    type: string;
+    trusted: boolean;
+    component: string | null;
+    actuator: string | null;
+    target: { tag: string | null; className: string | null; testId: string | null };
+    x: number | null;
+    y: number | null;
+    at: number;
+  }>;
+  geometry: unknown[];
 };
 type ProbeWindow = Window & { __switchShadowProbe?: ShadowProbe };
 
@@ -89,7 +99,7 @@ function documentFixture(): SchematicDocument {
 
 async function installObserver(page: Page) {
   await page.addInitScript(() => {
-    const probe: ShadowProbe = { frames: [], latest: null, inputs: [] };
+    const probe: ShadowProbe = { frames: [], latest: null, inputs: [], geometry: [] };
     (window as ProbeWindow).__switchShadowProbe = probe;
     for (const type of ['pointerdown', 'pointerup', 'click', 'keydown']) {
       document.addEventListener(
@@ -101,6 +111,18 @@ async function installObserver(page: Page) {
             trusted: event.isTrusted,
             component:
               target?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+            actuator:
+              target
+                ?.closest('[data-testid="spdt-actuator"]')
+                ?.closest('[data-component-id]')
+                ?.getAttribute('data-component-id') ?? null,
+            target: {
+              tag: target?.tagName ?? null,
+              className: target?.getAttribute('class') ?? null,
+              testId: target?.getAttribute('data-testid') ?? null,
+            },
+            x: event instanceof MouseEvent ? event.clientX : null,
+            y: event instanceof MouseEvent ? event.clientY : null,
             at: performance.now(),
           });
           if (probe.inputs.length > 2000) throw new Error('SPDT native input observer overflow');
@@ -172,7 +194,141 @@ async function neutralSelection(page: Page) {
   await expect(component(page, SWITCH)).not.toHaveClass(/workbench-component-selected/);
 }
 
-async function capture(page: Page, phase: string, info: TestInfo) {
+async function actuatorGeometry(page: Page, phase: string) {
+  return component(page, SWITCH)
+    .getByTestId('spdt-actuator')
+    .evaluate((actuator, phase) => {
+      const rect = actuator.getBoundingClientRect();
+      // The coarse terminal overlay may cover the centre. Sample real painted
+      // actuator points; retain every actual topmost identity before asserting.
+      const hits = [0.5, 0.15, 0.25, 0.35, 0.65, 0.75, 0.85].flatMap((ry) =>
+        [0.5, 0.25, 0.75, 0.1, 0.9].map((rx) => {
+          const x = Math.round(rect.left + rect.width * rx);
+          const y = Math.round(rect.top + rect.height * ry);
+          const hit = document.elementFromPoint(x, y);
+          return {
+            x,
+            y,
+            sameActuator:
+              x > rect.left &&
+              x < rect.right &&
+              y > rect.top &&
+              y < rect.bottom &&
+              hit?.closest('[data-testid="spdt-actuator"]') === actuator,
+            identity: {
+              tag: hit?.tagName ?? null,
+              className: hit?.getAttribute('class') ?? null,
+              testId: hit?.getAttribute('data-testid') ?? null,
+              component:
+                hit?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
+              terminal: hit?.getAttribute('data-terminal-id') ?? null,
+              terminalComponent: hit?.getAttribute('data-terminal-component-id') ?? null,
+            },
+          };
+        }),
+      );
+      const point = hits.find((hit) => hit.sameActuator) ?? null;
+      const geometry = {
+        phase,
+        rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
+        viewport: {
+          width: innerWidth,
+          height: innerHeight,
+          pageWidth: document.documentElement.scrollWidth,
+        },
+        point,
+        hits,
+        actuatorHit: point !== null,
+        viewBox: document.querySelector('.workbench-canvas')?.getAttribute('viewBox'),
+      };
+      (window as ProbeWindow).__switchShadowProbe!.geometry.push(geometry);
+      return geometry;
+    }, phase);
+}
+
+function assertActuatorGeometry(sample: Awaited<ReturnType<typeof actuatorGeometry>>) {
+  expect(sample.rect.width).toBeGreaterThan(0);
+  expect(sample.rect.x).toBeGreaterThanOrEqual(0);
+  expect(sample.rect.y).toBeGreaterThanOrEqual(0);
+  expect(sample.rect.x + sample.rect.width).toBeLessThanOrEqual(sample.viewport.width);
+  expect(sample.rect.y + sample.rect.height).toBeLessThanOrEqual(sample.viewport.height);
+  expect(sample.actuatorHit).toBe(true);
+  expect(sample.viewport.pageWidth).toBeLessThanOrEqual(sample.viewport.width + 1);
+}
+
+async function panTargetsIntoView(page: Page, phase: string) {
+  const pan = await page.locator('.workbench-canvas').evaluate((canvas, phase) => {
+    const stage = canvas.getBoundingClientRect();
+    const bounds = {
+      left: Math.max(0, stage.left) + 8,
+      top: Math.max(0, stage.top) + 8,
+      right: Math.min(innerWidth, stage.right) - 8,
+      bottom: Math.min(innerHeight, stage.bottom) - 8,
+    };
+    const rects = [
+      '[data-component-id="shadow-switch"] [data-testid="spdt-actuator"]',
+      '[data-component-id="control-button"] .workbench-part',
+    ].map((selector) => {
+      const rect = canvas.querySelector(selector)!.getBoundingClientRect();
+      return { left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom };
+    });
+    const union = {
+      left: Math.min(...rects.map((r) => r.left)),
+      top: Math.min(...rects.map((r) => r.top)),
+      right: Math.max(...rects.map((r) => r.right)),
+      bottom: Math.max(...rects.map((r) => r.bottom)),
+    };
+    const dx =
+      union.left < bounds.left ? bounds.left - union.left : Math.min(0, bounds.right - union.right);
+    const dy =
+      union.top < bounds.top ? bounds.top - union.top : Math.min(0, bounds.bottom - union.bottom);
+    let start: { x: number; y: number } | null = null;
+    for (const ry of [0.5, 0.25, 0.75, 0.15, 0.85]) {
+      for (const rx of [0.5, 0.25, 0.75, 0.15, 0.85]) {
+        const x = bounds.left + (bounds.right - bounds.left) * rx;
+        const y = bounds.top + (bounds.bottom - bounds.top) * ry;
+        if (
+          x + dx >= bounds.left &&
+          x + dx <= bounds.right &&
+          y + dy >= bounds.top &&
+          y + dy <= bounds.bottom &&
+          document.elementFromPoint(x, y)?.classList.contains('workbench-grid-hit')
+        ) {
+          start = { x, y };
+          break;
+        }
+      }
+      if (start) break;
+    }
+    const pan = {
+      phase,
+      bounds,
+      rects,
+      union,
+      dx,
+      dy,
+      start,
+      viewBox: canvas.getAttribute('viewBox'),
+    };
+    (window as ProbeWindow).__switchShadowProbe!.geometry.push(pan);
+    return pan;
+  }, phase);
+  if (pan.dx === 0 && pan.dy === 0) return;
+  expect(pan.union.right - pan.union.left).toBeLessThanOrEqual(pan.bounds.right - pan.bounds.left);
+  expect(pan.union.bottom - pan.union.top).toBeLessThanOrEqual(pan.bounds.bottom - pan.bounds.top);
+  if (!pan.start) throw new Error('No reachable empty-grid native pan path');
+  await page.mouse.move(pan.start.x, pan.start.y);
+  await page.mouse.down({ button: 'middle' });
+  try {
+    await page.mouse.move(pan.start.x + pan.dx, pan.start.y + pan.dy, { steps: 5 });
+  } finally {
+    await page.mouse.up({ button: 'middle' });
+  }
+  await expect(page.locator('.workbench-canvas')).not.toHaveAttribute('viewBox', pan.viewBox!);
+}
+
+async function capture(page: Page, phase: string, info: TestInfo, samples: unknown[]) {
+  const geometry = await actuatorGeometry(page, phase);
   const sample = await component(page, SWITCH).evaluate(async (group) => {
     const part = group.querySelector<SVGGraphicsElement>('.workbench-part')!;
     // Read the computed style to flush the real CSS transition, then wait only
@@ -180,8 +336,6 @@ async function capture(page: Page, phase: string, info: TestInfo) {
     const transitionFilter = getComputedStyle(part).filter;
     await Promise.all(part.getAnimations().map((animation) => animation.finished));
     const actuator = group.querySelector('[data-testid="spdt-actuator"] > g')!;
-    const rect = group.querySelector('[data-testid="spdt-actuator"]')!.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
     const active = document.activeElement;
     return {
       transitionFilter,
@@ -198,13 +352,6 @@ async function capture(page: Page, phase: string, info: TestInfo) {
           active?.closest('[data-component-id]')?.getAttribute('data-component-id') ?? null,
         partFocused: active === part,
       },
-      rect: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-      viewport: {
-        width: innerWidth,
-        height: innerHeight,
-        pageWidth: document.documentElement.scrollWidth,
-      },
-      actuatorHit: Boolean(hit?.closest('[data-testid="spdt-actuator"]')),
       darkPreference: matchMedia('(prefers-color-scheme: dark)').matches,
       stageBackground: getComputedStyle(document.querySelector('.workbench-stage')!)
         .backgroundColor,
@@ -212,25 +359,24 @@ async function capture(page: Page, phase: string, info: TestInfo) {
       ready: (window as ProbeWindow).__switchShadowProbe?.latest,
     };
   });
-  expect(sample.rect.width).toBeGreaterThan(0);
-  expect(sample.rect.x).toBeGreaterThanOrEqual(0);
-  expect(sample.rect.y).toBeGreaterThanOrEqual(0);
-  expect(sample.rect.x + sample.rect.width).toBeLessThanOrEqual(sample.viewport.width);
-  expect(sample.rect.y + sample.rect.height).toBeLessThanOrEqual(sample.viewport.height);
-  expect(sample.actuatorHit).toBe(true);
-  expect(sample.viewport.pageWidth).toBeLessThanOrEqual(sample.viewport.width + 1);
+  const recorded = { ...geometry, ...sample };
+  samples.push(recorded);
   const path = info.outputPath(`${phase}.png`);
   await page.screenshot({ path });
   await info.attach(phase, { path, contentType: 'image/png' });
-  return { phase, ...sample };
+  assertActuatorGeometry(geometry);
+  return recorded;
 }
 
 async function actuate(page: Page, on: boolean) {
   const group = component(page, SWITCH);
+  const geometry = await actuatorGeometry(page, `native-actuate-${on ? 'on' : 'off'}`);
+  assertActuatorGeometry(geometry);
+  if (!geometry.point) throw new Error('No visible native SPDT actuator point');
   const before = await page.evaluate(
     () => (window as ProbeWindow).__switchShadowProbe!.inputs.length,
   );
-  await group.getByTestId('spdt-actuator').click();
+  await page.mouse.click(geometry.point.x, geometry.point.y);
   if (on) await expect(group).toHaveClass(/workbench-component-actuator-active/);
   else await expect(group).not.toHaveClass(/workbench-component-actuator-active/);
   const inputs = await page.evaluate(
@@ -239,11 +385,25 @@ async function actuate(page: Page, on: boolean) {
   );
   expect(
     inputs.some(
-      (event) => event.type === 'pointerdown' && event.trusted && event.component === SWITCH,
+      (event) =>
+        event.type === 'pointerdown' &&
+        event.trusted &&
+        event.component === SWITCH &&
+        event.actuator === SWITCH &&
+        event.x === geometry.point!.x &&
+        event.y === geometry.point!.y,
     ),
   ).toBe(true);
   expect(
-    inputs.some((event) => event.type === 'click' && event.trusted && event.component === SWITCH),
+    inputs.some(
+      (event) =>
+        event.type === 'click' &&
+        event.trusted &&
+        event.component === SWITCH &&
+        event.actuator === SWITCH &&
+        event.x === geometry.point!.x &&
+        event.y === geometry.point!.y,
+    ),
   ).toBe(true);
 }
 
@@ -315,16 +475,15 @@ async function matrix(
     if (zoom === 'out')
       await page.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
     const phase = `${prefix}-${zoom}`;
+    await panTargetsIntoView(page, phase);
     await runReady(page);
     await neutralSelection(page);
-    const off = await capture(page, `${phase}-off-unselected`, info);
-    samples.push(off);
+    const off = await capture(page, `${phase}-off-unselected`, info, samples);
     expect(off.active).toBe(false);
     expect(off.selectionMarks).toBe(0);
     await actuate(page, true);
     await neutralSelection(page);
-    const on = await capture(page, `${phase}-on-unselected`, info);
-    samples.push(on);
+    const on = await capture(page, `${phase}-on-unselected`, info, samples);
     expect(on.active).toBe(true);
     expect(on.selectionMarks).toBe(0);
     expect(on.actuatorTransform).not.toBe(off.actuatorTransform);
@@ -339,13 +498,11 @@ async function matrix(
       .soft(on.filter, `${phase}: SPDT has no extra generic blue active glow`)
       .not.toMatch(glow);
     await component(page, SWITCH).locator('.workbench-part').press('Enter');
-    const selectedOn = await capture(page, `${phase}-on-selected`, info);
-    samples.push(selectedOn);
+    const selectedOn = await capture(page, `${phase}-on-selected`, info, samples);
     expect(selectedOn.selected).toBe(true);
     expect(selectedOn.selectionMarks).toBeGreaterThan(0);
     await actuate(page, false);
-    const selectedOff = await capture(page, `${phase}-off-selected`, info);
-    samples.push(selectedOff);
+    const selectedOff = await capture(page, `${phase}-off-selected`, info, samples);
     expect(selectedOff.selected).toBe(true);
     expect(selectedOff.selectionMarks).toBe(selectedOn.selectionMarks);
     expect(selectedOff.actuatorTransform).toBe(off.actuatorTransform);
@@ -359,19 +516,16 @@ async function matrix(
     await expect(
       page.getByRole('button', { name: 'Начать моделирование', exact: true }),
     ).toBeVisible();
-    const stopped = await capture(page, `${phase}-stopped`, info);
-    samples.push(stopped);
+    const stopped = await capture(page, `${phase}-stopped`, info, samples);
     expect(stopped.active).toBe(false);
     expect(stopped.filter).not.toMatch(glow);
     expect(stopped.actuatorTransform).toBe(off.actuatorTransform);
     await neutralSelection(page);
-    const stoppedUnselected = await capture(page, `${phase}-stopped-unselected`, info);
-    samples.push(stoppedUnselected);
+    const stoppedUnselected = await capture(page, `${phase}-stopped-unselected`, info, samples);
     expect(stoppedUnselected.selected).toBe(false);
     expect(stoppedUnselected.selectionMarks).toBe(0);
-    await component(page, SWITCH).getByTestId('spdt-actuator').click();
-    const stoppedClick = await capture(page, `${phase}-stopped-click`, info);
-    samples.push(stoppedClick);
+    await actuate(page, false);
+    const stoppedClick = await capture(page, `${phase}-stopped-click`, info, samples);
     expect(stoppedClick.active).toBe(false);
     expect(stoppedClick.actuatorTransform).toBe(stopped.actuatorTransform);
   }
