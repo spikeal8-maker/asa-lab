@@ -570,65 +570,42 @@ parallel_lanes:
         live_database_operations: not_performed
 
   - id: electronics
-    worktree_id: electronics-main
+    worktree_id: electronics-asset-baseline-548
     owned_paths:
-    - apps/web/src/electronics/use-electronics-workbench.ts
-    - apps/web/src/electronics/live-simulation-worker-controller.ts
-    - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
-    - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
-    - e2e/electronics-simulation.spec.ts
-    - docs/product/electronics/generated/component-coverage.json
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
+    - apps/web/src/electronics/ProductionComponentVisual.tsx
+    - apps/web/src/electronics/production-asset-contracts.ts
+    - apps/web/src/electronics/testing/asset-recovery.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
     task:
-      id: TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001
-      issue: 543
+      id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
+      issue: 548
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: harness_r3_cookies_reopen_actual_ready_electrical_evidence_only
+      checkpoint: saved_trace_native_error_ingress_before_observer_only
       kind: repair
       owner_acceptance: pending
-      selected_at: '2026-10-09T20:49:58Z'
-      technical_prerequisites:
-      - 526
-      - 542
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      - docs/product/electronics/components/engine-worker-clock.yaml
-      repair_scope: 'TEST ONLY existing PSU common spec and generated digest: observer
-        on cookies-only reopened page before goto, actual ready C=H/solved/finite and
-        expected electrical load readings after native Start, save reopened Worker/raw
-        and PNG after UI ready publication. Preserve all previous full fixtures/sketch/assertions/timeouts;
-        no product change without a proven defect.'
-      harness_r1_candidate_sha: f3f23ae0ce754b6369bd9a9130f4d1f0c70d96ac
-      directed_after_probe_sha: 592c1e9b144cae2735f032143f146d396a9d83f9
-      directed_after_run: 37999511262
-      directed_review: REQUEST_CHANGES mobile setup only;1440/1024 full Save/reopen/continuity
-        independently PASS;390/320 fail before Run because open catalog hides inspector
-        via existing max980 CSS.
-      directed_review_original_sha256: ede22f6c53ca0ea461de4556c2d37a6b96b353c91465467b145095959fff2422
-      preserved_candidate_sha: 043a2af92c7bac3aadb10b59fa108315e166b30e
-      preserved_candidate_tree: 4e889681234b8e242e1536c0a9b5ce91705844f6
-      candidate_publication: unpublished
-      candidate_acceptance: pending
-      controller_observed_at: '2026-10-09T21:43:50Z'
-      acceptance_dependency_issue: 545
-      before_probe_sha: 25d421bc3156cb4e24f2450ba3baafa004fd729d
-      before_probe_run: 37996551503
-      before_product_failure: 1440 native Stop resets U from7.5 to5; ready C=H102700->452002
-        same generation1, old runtime-only U/I not locally persisted
-      before_raw_sha256: c02136e26faa8f1c003fa312291ee33cef9725a9684ff467e624701c97faee33
-      independent_review: request_changes
-      rejected_candidate_sha: 3018f034412d9c3b36849c4cdecd07ed9b81b15c
-      independent_evidence: docs/product/electronics/evidence/psu-setpoints-543-independent-review-3018f034.md
-      independent_review_original_sha256: d9acefbce0f4ad1a69b4057b4848e2ad1e844e2077ff2d9a82343d4e0462feef
-      previous_evidence: Four directed widths full persistence/Save/revision/reopen supported;
-        new Run after reopen not proven because cv has fallback without ready. Ordinary3018
-        run38004513837 cancelled after independent evidence gap, neither PASS nor productFAIL.
-        Product4blobs remain exact043a.
+      - e2e/electronics-interactions.spec.ts
+      repair_scope: ONLY existing permanent ordinary-image2084 test passive native error/load/network/fullfinally
+        receipts; everyoldassertion/default5000/stage10000/800ms/max7 retained. Product
+        unchanged until causal directed evidence and explicitly selected nextphase. One
+        unpublished observerSHA/selfreview thenSTOP; controller runs ONE directedcase,
+        no hopeful fullrerun.
+      dependency_for_issue: 544
+      programme_issue: 452
+      source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
+      source_report_original_sha256: 1cba43d0755366743dc33676e04468af1340086b2d8ab9d63907e6261ee0dcf6
+      accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS;
+        production source retained
+      shared_write_contract: Selected card explicitly names existing interactions supporting
+        write. Advisory owned_paths excludes historical wire538 scope; inspect actual
+        complete path budget and dirty worktrees. Wire author STOP/clean candidate preserved;
+        no second writer.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1122,7 +1099,7 @@ parallel_lanes:
         not later docs composition CI. K0/T3/class/owner/deployment pending; no school
         actions.
     execution_lease:
-      executor_id: electronics-breadboard-performance-controller-452
+      executor_id: electronics-asset-baseline-548
       holder: unassigned
       acquired_at: null
       expires_at: null
@@ -1977,6 +1954,28 @@ parallel_lanes:
         full_hygiene_checkpoint: false
         owner_acceptance: pending
         deployment: not_run
+      - task_id: TASK-ELECTRONICS-PSU-SETPOINT-PERSISTENCE-001
+        issue: 543
+        status: technical_accepted
+        accepted_candidate_sha: 53a8c7efdafeea6f145217339973593e594e2000
+        candidate_tree: a4e6c06d45c6927410f1e68ad1df7a911aa6d4b4
+        integrated_sha: 5bfbf852f1e8bd9a870a7798f11300126c9b1e8c
+        independent_review: approved
+        independent_evidence: docs/product/electronics/evidence/psu-setpoints-543-independent-review-53a8c7ef.md
+        independent_review_original_sha256: 0fcc1100742d492c42b0c963c8e2fc0529821b7d55a36bde4b448454e4ec87ba
+        exact_candidate_general_run: 38007240510
+        exact_candidate_electronics_run: 38007826968
+        exact_candidate_all8: success
+        exact_main_general_run: 38009872770
+        exact_main_general_conclusion: success
+        browser_scenarios_passed: 143
+        nx_fresh_tasks: 325
+        nx_cache_hits: 0
+        whole_save_revision_reopen: PASS four widths, genuine reopened ready/published U/I,
+          quiet minute and manual Save
+        owner_acceptance: pending
+        deployment: not_run
+        production_slices_since_hygiene542: 2
 
   - id: chess
     worktree_id: chess-r2-puzzles-learning
@@ -2365,25 +2364,25 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_proven_full_snapshot_deadline_compact_observer_only
+      checkpoint: r3_exact037_remaining_gpio_cpu_call_localization_only
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: 'ONLY e2e/electronics-ready-cadence.spec.ts polling: compute identical
-        source-matched ready GPIO0..7/Serial and UI predicates inside browser, transport
-        compact results; retain full raw separately on success/failure. Preserve old5000/30000ms,
-        full programs/fixtures/all assertions/nativeSave/cookies-reopen/physics/product.
-        No new solver optimization or other file edits.'
-      preserved_candidate_sha: 7f2faad8b36b62c17fa57c100d4e7f20d62822e3
-      preserved_candidate_tree: 90b0c0535f24b80f8a1337ad46f116b865cb2762
+      repair_scope: READ ONLY exact037 full GPIO CPU/call localization from newly retained
+        ordinary failure; one directed profile/counters of unchanged fulldocument/fullsketch,
+        classify repeated preparation/solve/quality vs host waits; propose exact bounded
+        optimization and full-return parity challenge before product edits. No product/source/test/timeout/fixture/horizon/physics
+        edits in this phase, no unchanged whole rerun.
+      preserved_candidate_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
+      preserved_candidate_tree: fa3c4fa75b6c74840f8a395257fec2a62b26bbe8
       candidate_publication: published
-      candidate_acceptance: pending_required_observer_repair
+      candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
       final_candidate_sha: 0fd0ba3da17401e10ce81554fa842c60af7e0812
       final_candidate_tree: 3cee2ebb8f8dd03510ff7850eac70acb1fd0f736
       independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/solver-preparation-546-independent-review-0fd0ba3d.md
-      independent_review_original_sha256: 0fba3d975704d3e5a2cb60c38c978f6263af7d2042b27f3e95362745411b03b4
+      independent_evidence: docs/product/electronics/evidence/solver-preparation-546-independent-review-037ebb37.md
+      independent_review_original_sha256: 23718a90d1dc1f2c5123df0d1afaa3939c6d62a27be5dba9becd104a434bd4cb
       exact_general_run: 38006466273
       exact_general_conclusion: pending
       exact_electronics_run: null
@@ -2409,6 +2408,17 @@ parallel_lanes:
       r1_failure_classification: 'D: full observation transport/poll deadline race; all8
         genuine ready and UI already exist before old deadline; new compute defect NOT
         proved'
+      exact_candidate_general_run: 38008510546
+      exact_candidate_general_conclusion: success
+      exact_candidate_electronics_run: 38009043770
+      exact_candidate_electronics_conclusion: failure
+      actual_new_failure: FIRST initialGPIO before reopen,14ready C=H0to1.3s/0yielded/solvedQualityPASS,indices0to5;computeSum4098.4ms/max698.2ms.
+        Fullfinally returns before olddeadline; not prior latefullsnapshotD. Precise CPU/host
+        split and exact-deadline absence notproved.
+      next_action: NEW bounded localization author returns one exact-source profile/proposal
+        thenSTOP; controller selects only demonstrated nextrepair with new independent
+        acceptance. Original537 programs remain separate. Future merge with PSU has one
+        import conflict; await specific owner agreement before actualmerge.
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2800,8 +2810,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: r3_full_expected_dragged_empty_binding_harness_only
+      status: blocked
+      checkpoint: field32_pass_independent_asset_baseline_required_gate_blocked
       owner_acceptance: pending
       selected_at: '2026-10-09T21:17:44Z'
       repair_scope: 'ONLY e2e/electronics-interactions.spec.ts first full expected after
@@ -2809,9 +2819,9 @@ parallel_lanes:
         Preserve entire deep equality/originalfixture/nativeevents/precision4/32cases/all
         assertions/timeout/Save/revision/cookies-reopen/regrab. No product/helper/CSS/fixture
         normalization/partial match or cleanup.'
-      preserved_candidate_sha: 88103655410c490fa00cf657dbd666793ab45029
+      preserved_candidate_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
       preserved_candidate_tree: 834bad21f7f2b58b15505d6a6b4bc75898c1fa4d
-      candidate_publication: unpublished
+      candidate_publication: published
       candidate_acceptance: pending
       controller_observed_at: '2026-10-09T21:43:50Z'
       acceptance_dependency_issue: 545
@@ -2847,8 +2857,8 @@ parallel_lanes:
       preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
       preserved_product_candidate_tree: f2a87f5230b5ae84860e40bfd10ffa2ff29cee08
       independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-1ee34813.md
-      independent_review_original_sha256: cb3f9533f01b5d865690e000589fb22e29694f74f8d4f893489b9d3c0d27f03c
+      independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+      independent_review_original_sha256: c14a0531255a87924293b212eb8d144d74b071a4ca5e18a00df86156108207b8
       r2_actual_after_probe: 14c33dbd95530cc687cfbd3b70b81b4ff2a3014a
       r2_actual_after_run: 38004803405
       r2_actual_raw_sha256: 1e631476187acccc5669c4b01e72bd3b6164ac34ae06bb10b093b55b74d777ee
@@ -2856,6 +2866,19 @@ parallel_lanes:
         viewport and wholeotherdocument unchanged. Full equality fails only selected empty
         holeBindings, existing translatedDragDocument normalization from6b1ff210 unchanged.
         Save/reopen NOT_REACHED, no fullacceptance.
+      exact_candidate_general_run: 38007112131
+      exact_candidate_general_conclusion: success
+      exact_candidate_electronics_run: 38008086985
+      exact_candidate_electronics_conclusion: failure
+      required_gate_failure_class: C independent unchanged asset baseline; permanent missing
+        catalog badge absent at original5000ms; exact cause under separate narrow investigation
+      field_actual_evidence: Full32 directed and full32 ordinary raw allPASS;64 native
+        gestures/32wholePUT/revision2to3/cookies-only fullSave/regrab. Not technical acceptance
+        while required gate red.
+      next_action: Separate canonical bounded asset baseline cause/repair/review; then
+        one controlled convergence preserving accepted PSU hook/map and field changes,
+        required final exact gates and NEW review. Do not repeat unchanged suite or change
+        timeout.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -2968,6 +2991,73 @@ parallel_lanes:
         product edits, separate546 preparation scope selected. 544 native field cause
         must first be proved in built browser. All acceptance/release claims pending
         exact evidence/NEW review; K0/T3/class/school/deployment pending.'
+  - id: electronics-shadow
+    parent_lane: electronics
+    worktree_id: electronics-spdt-shadow-547
+    owned_paths:
+    - apps/web/src/electronics/workbench.css
+    - e2e/electronics-switch-shadow.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
+    task:
+      id: TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001
+      issue: 547
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: causal_built_browser_before_scenario_only_no_css_edit
+      kind: repair
+      owner_acceptance: pending
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: First phase ONLY new registered browser scenario and additive package/workflow/component-map
+        registrations. CSS READ ONLY until actual built BEFORE proves extra active SPDT
+        filter with same focus. Preserve all existing registrations/tests/timeouts/owner
+        assets/physics/persistence/auth. One unpublished scenario SHA/self-review then
+        STOP; controller owns publication/CI and subsequent explicit CSS phase.
+      program_issue: 452
+      owner_problem: E09
+      parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543
+        accepted,544 candidateblockedindependentassetbaseline,546 candidateunderreview;
+        all preserved.
+      shared_write_contract: Only additive package/workflow/map registrations explicitly
+        named by card; advisory owned_paths lists exclusive paths. Check actual dirty
+        full registration paths and preserve accepted/parallel registrations. No guard
+        disabled.
+    execution_lease:
+      executor_id: electronics-spdt-shadow-547
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 5bfbf852f1e8bd9a870a7798f11300126c9b1e8c
+      head_sha: null
+      observed_at: '2026-10-10T00:58:36Z'
+      main:
+        branch: main
+        sha: 5bfbf852f1e8bd9a870a7798f11300126c9b1e8c
+      observation_note: Dated observation; fetch main and exact CI/current before writes.547
+        causal browser BEFORE phase only; CSS unchanged. Supporting shared registrations
+        use explicit card budget and actual dirty-path checks, no guard disabled. School
+        actions none.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
