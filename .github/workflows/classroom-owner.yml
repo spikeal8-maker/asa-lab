@@ -92,6 +92,15 @@ jobs:
             e2e/artifacts/owner-preview
             apps/web/dist/build-metadata.json
           retention-days: 14
+      - name: Existing course journeys through updated classroom controls
+        if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: reports/playwright/classroom-learning-summary.json
+        run: >-
+          pnpm exec playwright test e2e/learning-course-01.spec.ts
+          --grep 'matrix 30|private authored course'
+          --workers=1 --reporter=list,json
+          --output=reports/playwright/classroom-learning
       - name: Account settings layout regression
         if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}
         run: pnpm e2e:settings-ui
@@ -102,6 +111,7 @@ jobs:
           name: classroom-owner-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: |
             e2e/artifacts/owner-preview
+            e2e/artifacts/learning
             reports/playwright
             reports/checks
             apps/web/dist/build-metadata.json

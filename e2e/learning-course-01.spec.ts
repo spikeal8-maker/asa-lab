@@ -471,11 +471,17 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
     .fill(
       Array.from({ length: 30 }, (_, i) => `Ученик ${String(i + 1).padStart(2, '0')}`).join('\n'),
     );
-  await roster.getByRole('button', { name: 'Проверить список', exact: true }).click();
-  await expect(roster.getByText('Список проверен сервером')).toBeVisible();
-  await roster.getByRole('button', { name: 'Добавить учеников (30)', exact: true }).click();
-  await expect(roster.getByRole('heading', { name: 'Ученики добавлены: 30' })).toBeVisible();
-  await roster.getByRole('button', { name: 'Карточки новых учеников', exact: true }).click();
+  // Classroom owner flow is one confirmed server request, then automatic cards.
+  // Retain the 30-pupil / 300-cell assertions below, not obsolete confirmations.
+  await expect(roster.getByRole('button', { name: 'Проверить список', exact: true })).toHaveCount(
+    0,
+  );
+  const added = page.waitForResponse(
+    (response) => response.url().endsWith('/seats/batch') && response.request().method() === 'POST',
+  );
+  await roster.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const batch = await added;
+  expect(batch.ok(), await batch.text()).toBe(true);
   await expect(roster).toBeHidden();
   const accessCards = page.getByRole('dialog', { name: 'Карточки доступа' });
   await expect(accessCards.locator('.student-access-card')).toHaveCount(30);
@@ -1939,7 +1945,7 @@ for (const module of ['electronics', 'three-d'])
     await page.goto(classUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
-      .getByRole('button', { name: 'Учащиеся', exact: true })
+      .getByRole('button', { name: 'Заявки', exact: true })
       .click();
     await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
     await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();

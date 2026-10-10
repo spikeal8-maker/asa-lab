@@ -1208,7 +1208,7 @@ function ClassroomPageContent({
                           ? time.dateTime(student.lastActiveAt)
                           : 'Ещё не входил'}
                       </span>
-                      <label className="classroom-seat-safe">
+                      <label className="classroom-seat-safe" title="Безопасный режим">
                         <input
                           type="checkbox"
                           checked={student.safeMode}
@@ -1222,7 +1222,7 @@ function ClassroomPageContent({
                         {/* On a phone the column heading is gone, so the row has to
                         say what the switch is about. */}
                         <span className="classroom-seat-safe-name" aria-hidden="true">
-                          Безопасный режим
+                          Защита
                         </span>
                         <span>{student.safeMode ? 'Включён' : 'Выключен'}</span>
                       </label>

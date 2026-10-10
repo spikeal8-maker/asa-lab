@@ -361,7 +361,13 @@
   }
   .classroom-owner-workspace .classroom-seat-safe .classroom-seat-safe-name {
     min-width: 0;
-    overflow-wrap: anywhere;
+    white-space: nowrap;
+  }
+  .classroom-owner-workspace .classroom-row-details > .classroom-seat-safe {
+    flex-direction: column;
+    justify-content: center;
+    min-width: 44px;
+    gap: 2px;
   }
   .classroom-owner-workspace .classroom-row-details > .classroom-login-handle {
     min-width: 0;

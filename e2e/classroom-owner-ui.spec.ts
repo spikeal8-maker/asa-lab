@@ -700,6 +700,25 @@ test.describe('Owner mobile classroom: usable register', () => {
       expect(geometry.documentWidth).toBeLessThanOrEqual(width);
       expect(geometry.mainScrollWidth).toBeLessThanOrEqual(geometry.mainWidth + 1);
       expect(geometry.nameSize).toBe('16px');
+      if (width <= 600) {
+        const protection = page
+          .locator('.classroom-roster-row')
+          .first()
+          .locator('.classroom-seat-safe');
+        const label = protection.locator('.classroom-seat-safe-name');
+        await expect(label).toHaveText('Защита');
+        const labelMetrics = await label.evaluate((element) => ({
+          width: element.getBoundingClientRect().width,
+          scrollWidth: element.scrollWidth,
+          height: element.getBoundingClientRect().height,
+          lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
+        }));
+        expect(labelMetrics.scrollWidth).toBeLessThanOrEqual(labelMetrics.width + 1);
+        expect(labelMetrics.height).toBeLessThanOrEqual(labelMetrics.lineHeight + 1);
+        const target = await protection.locator('input').boundingBox();
+        expect(target!.width).toBeGreaterThanOrEqual(44);
+        expect(target!.height).toBeGreaterThanOrEqual(44);
+      }
       if (width <= 1100) {
         expect(geometry.maxRowHeight).toBeLessThanOrEqual(110);
         expect(geometry.firstRow.top).toBeLessThanOrEqual(430);
