@@ -133,7 +133,8 @@ paths:
               properties:
                 classroomIds:
                   type: array
-                  maxItems: 500
+                  maxItems: 200
+                  uniqueItems: true
                   items:
                     type: string
                     format: uuid

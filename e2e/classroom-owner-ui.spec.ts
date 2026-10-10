@@ -123,6 +123,54 @@ async function fixture(
     if (path === '/api/classrooms') return reply({ items: [classroom()], meta: { total: 1 } });
     if (path === `/api/classrooms/${classId}`) return reply({ classroom: classroom() });
     if (path === `/api/classrooms/${classId}/roster`) return reply({ items: students });
+    if (path === '/api/classrooms/participants/summary')
+      return reply(
+        { classCount: 1, studentCount: students.length, totalWorks: 0, archivedWorks: 0 },
+        201,
+      );
+    if (path === `/api/classrooms/${classId}/participants`)
+      return reply({
+        settings: {
+          periodDays: 30,
+          revision: 0,
+          factors: { projects: true, logins: true, days: true, time: true, grades: true },
+        },
+        items: students.map((student) => ({
+          seatId: student.id,
+          totalWorks: 0,
+          archivedWorks: 0,
+          score: 0,
+          rank: 1,
+          role: 'student',
+          avatarUrl: null,
+          factors: { projects: 0, logins: 0, days: 0, time: 0, grades: 0 },
+          sources: { projects: 0, logins: 0, days: 0, time: 0, grades: 0 },
+        })),
+      });
+    if (path === `/api/classrooms/${classId}/participants/managers`) return reply([]);
+    if (path === `/api/classrooms/${classId}/journal/settings`)
+      return reply({ status: classroom().status, scale: { preset: 'five', version: 0 } });
+    if (path === `/api/classrooms/${classId}/journal`)
+      return reply({
+        status: classroom().status,
+        timeZone: 'Europe/Moscow',
+        scale: { preset: 'five', version: 0 },
+        students: students.map((student) => ({
+          id: student.id,
+          name: student.displayLabel,
+          status: student.status,
+        })),
+        columns: [],
+        grades: [],
+        offset: 0,
+        nextOffset: null,
+        range: {
+          from: '2026-10-01',
+          to: '2026-10-31',
+          today: '2026-10-09',
+          timeZone: 'Europe/Moscow',
+        },
+      });
     if (path.endsWith('/awards')) return reply({ items: {} });
     if (path.endsWith('/progress'))
       return reply({
@@ -625,6 +673,23 @@ test.describe('Owner mobile classroom: usable register', () => {
           maxRowHeight: Math.max(...bounds.map((row) => row.height)),
           visibleRows: bounds.filter((row) => row.bottom <= innerHeight && row.top >= 0).length,
           controls,
+          cells: [...rows[0]!.querySelectorAll<HTMLElement>('*')].map((cell) => {
+            const style = getComputedStyle(cell);
+            const rect = cell.getBoundingClientRect();
+            return {
+              class: cell.className,
+              text: cell.textContent?.slice(0, 70),
+              width: rect.width,
+              height: rect.height,
+              x: rect.x,
+              y: rect.y,
+              display: style.display,
+              columns: style.gridTemplateColumns,
+              row: style.gridRow,
+              column: style.gridColumn,
+              minWidth: style.minWidth,
+            };
+          }),
           nameSize: getComputedStyle(rows[0]!.querySelector('.classroom-student-name')!).fontSize,
           statisticsHeight: document.querySelector('.classroom-progress')!.getBoundingClientRect()
             .height,
@@ -654,7 +719,32 @@ test.describe('Owner mobile classroom: usable register', () => {
         ).toHaveCount(8);
         await expect(
           page.getByLabel('Сортировка учащихся', { exact: true }).locator('option'),
-        ).toHaveCount(12);
+        ).toHaveCount(16);
+        expect(
+          await page
+            .getByLabel('Сортировка учащихся', { exact: true })
+            .locator('option')
+            .evaluateAll((options) =>
+              options.map((node) => (node as HTMLOptionElement).value).sort(),
+            ),
+        ).toEqual([
+          'active:asc',
+          'active:desc',
+          'awaiting:asc',
+          'awaiting:desc',
+          'code:asc',
+          'code:desc',
+          'name:asc',
+          'name:desc',
+          'rating:asc',
+          'rating:desc',
+          'safe:asc',
+          'safe:desc',
+          'submitted:asc',
+          'submitted:desc',
+          'works:asc',
+          'works:desc',
+        ]);
       } else {
         expect(geometry.maxRowHeight).toBeLessThanOrEqual(40);
         await expect(page.getByRole('navigation', { name: 'Разделы класса' })).toBeVisible();

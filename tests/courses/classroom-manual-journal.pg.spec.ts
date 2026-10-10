@@ -319,7 +319,7 @@ describe('manual classroom journal: real restricted PostgreSQL', () => {
       await admin.query(
         `INSERT INTO course_versions(tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
       VALUES($1,$2,1,'Inbox course','{"sections":[]}'::jsonb,$3,$4) RETURNING id`,
-        [owner.tenantId, course, randomUUID(), teacherActor],
+        [owner.tenantId, course, randomUUID().replaceAll('-', ''), teacherActor],
       )
     ).rows[0].id;
     const run = (

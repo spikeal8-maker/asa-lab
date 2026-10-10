@@ -1171,10 +1171,7 @@ function ClassroomPageContent({
                               '…'
                             )
                           ) : (
-                            <strong>
-                              {participantMetrics.get(student.id)?.score}{' '}
-                              <small>#{participantMetrics.get(student.id)?.rank}</small>
-                            </strong>
+                            <strong>{participantMetrics.get(student.id)?.score}</strong>
                           )}
                         </span>
                       </span>

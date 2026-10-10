@@ -25,7 +25,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
 }) => {
   test.setTimeout(240_000);
   await loginWithOrganization(page, teacher);
-  await page.getByRole('button', { name: 'Классы', exact: true }).click();
+  await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await page.getByRole('button', { name: 'Создать класс' }).first().click();
   const dialog = page.getByRole('dialog', { name: 'Создать класс' });
   const title = `Участники ${randomUUID().slice(0, 8)}`;

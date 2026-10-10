@@ -1099,7 +1099,10 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     );
     expect(renamed.status(), await renamed.text()).toBe(200);
     expect((await renamed.json()).student.studentCode).toBe(longCodeSeat.studentCode);
-    await page.goto(`/#/classrooms/${classroom.id}`);
+    // Same-hash navigation preserves the current Requests tab; explicitly
+    // reload server-renamed students and choose the roster under test.
+    await page.reload();
+    await page.getByRole('button', { name: 'Учащиеся', exact: true }).click();
     const copyLog: string[] = [];
     await page.exposeFunction('captureClassroomCopy', (value: string) => copyLog.push(value));
     await page.evaluate(() => {

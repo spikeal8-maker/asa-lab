@@ -16,13 +16,16 @@ test.beforeAll(async () => {
   owner = await seedTeacher(admin, 'manual-journal-e2e');
   accountLearner = await seedTeacher(admin, 'manual-journal-account');
   foreign = await seedTeacher(admin, 'manual-journal-foreign');
-  mkdirSync('e2e/artifacts/classroom-manual-journal', { recursive: true });
+  mkdirSync('e2e/artifacts/owner-preview/classroom-manual-journal', { recursive: true });
 });
 test.afterAll(async () => {
   await admin?.end();
 });
 async function post(page: Page, path: string, body: unknown) {
-  return page.request.post(path, { data: body });
+  return page.request.post(path, {
+    headers: { origin: new URL(page.url()).origin },
+    data: body,
+  });
 }
 async function setGrade(page: Page, name: string, value: string, reason?: string) {
   await page
@@ -76,7 +79,7 @@ test('real manual date journal survives retries, corrections, presets and both l
       displayLabel: name,
       safeMode: true,
     });
-    expect(created.status()).toBe(201);
+    expect(created.status(), await created.text()).toBe(201);
     const seat = (await created.json()).student;
     const code = await post(page, `/api/classrooms/${classId}/seats/${seat.id}/code`, {
       requestId: randomUUID(),
@@ -226,7 +229,7 @@ test('real manual date journal survives retries, corrections, presets and both l
     .evaluate((element) => ({ width: element.clientWidth, content: element.scrollWidth }));
   expect(geometry.content).toBeGreaterThan(geometry.width);
   await page.screenshot({
-    path: 'e2e/artifacts/classroom-manual-journal/teacher-390.png',
+    path: 'e2e/artifacts/owner-preview/classroom-manual-journal/teacher-390.png',
     fullPage: true,
   });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -267,7 +270,7 @@ test('real manual date journal survives retries, corrections, presets and both l
     await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
     await expect(grades.locator('li')).toHaveCount(1);
     await learner.screenshot({
-      path: `e2e/artifacts/classroom-manual-journal/pupil-${pupil.id}.png`,
+      path: `e2e/artifacts/owner-preview/classroom-manual-journal/pupil-${pupil.id}.png`,
       fullPage: true,
     });
     if (pupil.id === pupils[0].id) {
@@ -301,7 +304,7 @@ test('real manual date journal survives retries, corrections, presets and both l
       await learner.goto('/#/learning');
       await grades.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
       await expect(grades.locator('li b')).toHaveText('5');
-      await learner.request.post('/api/class-join/logout', { data: {} });
+      await post(learner, '/api/class-join/logout', {});
       await learner.goto(`/#/join-class?code=${encodeURIComponent(joinCode)}`);
       await learner.getByLabel('Код ученика', { exact: true }).fill(pupil.studentCode);
       await learner.getByRole('button', { name: 'Войти', exact: true }).click();

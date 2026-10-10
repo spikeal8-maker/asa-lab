@@ -815,6 +815,32 @@ async function fixture(
       return awardsFailure
         ? reply({ error: { code: 'unavailable', message: 'Unavailable' } }, 503)
         : reply({ items: [] });
+    // Explicit new contract fixtures; generic {items:[]} is not a journal page.
+    if (path === '/api/learning/journal/results' || path === '/api/class-join/journal/results')
+      return reply({
+        items: [],
+        offset: 0,
+        nextOffset: null,
+        range: {
+          from: '2026-10-01',
+          to: '2026-10-31',
+          today: '2026-10-09',
+          timeZone: 'Europe/Moscow',
+        },
+      });
+    if (path === '/api/classrooms/class-1/journal/settings')
+      return reply({ status: 'active', scale: { preset: 'five', version: 0 } });
+    if (path === '/api/classrooms/class-1/participants')
+      return reply({
+        settings: {
+          periodDays: 30,
+          revision: 0,
+          factors: { projects: false, logins: false, days: false, time: false, grades: false },
+        },
+        items: [],
+      });
+    if (path === '/api/classrooms/participants/summary')
+      return reply({ classCount: 0, studentCount: 0, totalWorks: 0, archivedWorks: 0 }, 201);
     if (path === '/api/class-join/account/classes')
       return reply({
         items: [
@@ -2027,12 +2053,18 @@ for (const width of [1440, 1024, 390, 320])
     await page.setViewportSize({ width, height: 900 });
     for (const route of ['/#/attending', '/#/classrooms/class-1']) {
       await page.goto(route);
-      const summary = page.locator('summary').filter({
-        hasText: route.includes('attending')
-          ? /^Мои оповещения об этом классе$/
-          : /^Настройки учебных оповещений$/,
-      });
-      await summary.click();
+      if (route.includes('/classrooms/')) {
+        if (width <= 1100)
+          await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
+        else await page.getByRole('button', { name: 'Настройки', exact: true }).click();
+      }
+      if (route.includes('attending')) {
+        await page
+          .locator('summary')
+          .filter({ hasText: /^Мои оповещения об этом классе$/ })
+          .click();
+      }
+      // Staff preferences are directly visible in the dedicated Settings tab.
       const form = page.getByRole('region', {
         name: 'Учебные оповещения — только для меня',
         exact: true,
