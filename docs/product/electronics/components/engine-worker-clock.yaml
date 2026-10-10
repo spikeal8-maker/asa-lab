@@ -69,6 +69,7 @@ components:
     tests:
     - contexts/electronics/testing/solver.spec.ts
     - contexts/electronics/testing/benchmark-corpus.spec.ts
+    - contexts/electronics/testing/linear-system.spec.ts
     dependencies:
     - electronics.engine.netlist
     - electronics.engine.device-model

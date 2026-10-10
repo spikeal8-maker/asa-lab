@@ -14,17 +14,18 @@ export function solveLinear(matrix: number[][], rhs: number[]): number[] | null 
       augmented[pivot] as number[],
       augmented[column] as number[],
     ];
-    const divisor = augmented[column]?.[column] as number;
+    const pivotRow = augmented[column] as number[];
+    const divisor = pivotRow?.[column] as number;
     for (let cell = column; cell <= size; cell += 1) {
-      (augmented[column] as number[])[cell] = (augmented[column]?.[cell] as number) / divisor;
+      pivotRow[cell] = (pivotRow?.[cell] as number) / divisor;
     }
     for (let row = 0; row < size; row += 1) {
       if (row === column) continue;
-      const factor = augmented[row]?.[column] as number;
+      const targetRow = augmented[row] as number[];
+      const factor = targetRow?.[column] as number;
       if (Math.abs(factor) < 1e-18) continue;
       for (let cell = column; cell <= size; cell += 1) {
-        (augmented[row] as number[])[cell] =
-          (augmented[row]?.[cell] as number) - factor * (augmented[column]?.[cell] as number);
+        targetRow[cell] = (targetRow?.[cell] as number) - factor * (pivotRow?.[cell] as number);
       }
     }
   }
