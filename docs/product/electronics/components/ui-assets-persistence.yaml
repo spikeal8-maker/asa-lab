@@ -32,6 +32,7 @@ components:
     - e2e/electronics-interactions.spec.ts
     - e2e/electronics-simulation.spec.ts
     - e2e/electronics-simulation-time.spec.ts
+    - e2e/electronics-switch-shadow.spec.ts
     dependencies:
     - electronics.worker.live-controller
     notes: UI renders committed engine results; it must not compute electrical truth itself. Read only the selected task's exact sources, not every mapped file.
