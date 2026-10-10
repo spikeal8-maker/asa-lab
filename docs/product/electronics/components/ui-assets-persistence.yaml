@@ -22,6 +22,7 @@ components:
     - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
+    - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
     - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
     - apps/web/src/electronics/testing/workbench-presentation.spec.ts
