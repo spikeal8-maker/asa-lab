@@ -23,6 +23,8 @@ import {
   ParticipantGradeHistory,
 } from '../components/ClassroomParticipantPanels';
 import { newClientId } from '../client-id';
+import { onSessionLoggedOut } from '../session-fetch';
+import { ParticipantAssignmentsList } from '../components/ParticipantAssignmentsList';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
 
@@ -99,13 +101,14 @@ export function ClassroomStudentPage({
   scope.current = `${classroomId}:${seatId}`;
   const time = useSchoolTime();
   const module = TABS.find((t) => t.key === tab)?.module ?? null;
-  const showsWorks = !['merits', 'grades', 'activity'].includes(tab);
+  const showsWorks = !['assignments', 'merits', 'grades', 'activity'].includes(tab);
   const load = useCallback(async () => {
     if (scope.current !== `${classroomId}:${seatId}`) return;
     const token = ++profileGeneration.current;
     setProfileError(null);
+    setProfile(null);
     const result = await participantsApi.profile(classroomId, seatId);
-    if (token !== profileGeneration.current) return;
+    if (token !== profileGeneration.current || scope.current !== `${classroomId}:${seatId}`) return;
     if (result.ok) {
       setProfile(result.data);
       setAwardKeys(result.data.builtinAwards.map((award) => award.awardKey));
@@ -126,9 +129,26 @@ export function ClassroomStudentPage({
     setTab('all');
     setResponding(null);
     setAwardKeys([]);
+    setArchive(false);
+    setRoleBusy(false);
     void load();
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener('focus', refresh);
+    const unsubscribe = onSessionLoggedOut(() => {
+      profileGeneration.current++;
+      generation.current++;
+      setProfile(null);
+      setWorks(null);
+      setResponding(null);
+      setAwardKeys([]);
+      setProfileError('Войдите, чтобы открыть профиль.');
+    });
     return () => {
       profileGeneration.current++;
+      window.removeEventListener('focus', refresh);
+      unsubscribe();
     };
   }, [load]);
   useEffect(() => {
@@ -146,14 +166,7 @@ export function ClassroomStudentPage({
       const token = ++generation.current;
       setWorkLoading(true);
       setWorksError(null);
-      const result = await participantsApi.works(
-        classroomId,
-        seatId,
-        module,
-        archive,
-        offset,
-        tab === 'assignments',
-      );
+      const result = await participantsApi.works(classroomId, seatId, module, archive, offset);
       if (generation.current !== token) return;
       setWorkLoading(false);
       if (result.ok)
@@ -180,7 +193,7 @@ export function ClassroomStudentPage({
     };
   }, [loadWorks, showsWorks]);
 
-  if (!profile)
+  if (!profile || profile.student.id !== seatId)
     return (
       <main className="portal-content" id="main-content" tabIndex={-1}>
         {profileError ? (
@@ -270,6 +283,29 @@ export function ClassroomStudentPage({
           </select>
         </label>
       </section>
+      {metrics.role === 'helper' ? (
+        <section className="participant-helper-classes" aria-label="Классы помощника">
+          <h2>Классы помощника</h2>
+          {(profile.helperClasses ?? []).length === 0 ? (
+            <p>Нет действующих классов помощника, доступных вам обоим.</p>
+          ) : (
+            <ul>
+              {profile.helperClasses.map((entry) => (
+                <li key={entry.id}>
+                  <a href={`#/classrooms/${entry.id}`}>{entry.title}</a> · Помощник
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : (
+        <ParticipantGradeHistory
+          key={`${classroomId}:${seatId}:summary`}
+          classroomId={classroomId}
+          seatId={seatId}
+          compact
+        />
+      )}
       <p className="participant-role-hint">
         Помощник помогает организовать занятия в этом классе, без доступа к чужим оценкам и
         управлению. Преподавателей добавляют через приглашение коллег.
@@ -322,9 +358,7 @@ export function ClassroomStudentPage({
               {works.visibleWorks < works.totalWorks
                 ? ' Остальные работы закрыты. Счётчик включает их, но не даёт права просмотра.'
                 : ''}
-              {tab === 'assignments'
-                ? ' Здесь работы по заданиям; оценки и история — в соседней вкладке.'
-                : ` По фильтру: ${works.filteredWorks}.`}
+              {` По фильтру: ${works.filteredWorks}.`}
             </p>
           ) : null}
           {worksError ? (
@@ -391,6 +425,15 @@ export function ClassroomStudentPage({
           ) : null}
         </section>
       ) : null}
+      {tab === 'assignments' ? (
+        <ParticipantAssignmentsList
+          key={`${classroomId}:${seatId}`}
+          classroomId={classroomId}
+          seatId={seatId}
+          readOnly={readOnly}
+          onOpenProject={onOpenProject}
+        />
+      ) : null}
       {tab === 'merits' ? (
         <>
           <SeatAwardPanel
@@ -409,7 +452,11 @@ export function ClassroomStudentPage({
         </>
       ) : null}
       {tab === 'grades' ? (
-        <ParticipantGradeHistory classroomId={classroomId} seatId={seatId} />
+        <ParticipantGradeHistory
+          key={`${classroomId}:${seatId}`}
+          classroomId={classroomId}
+          seatId={seatId}
+        />
       ) : null}
       {tab === 'activity' ? (
         <section className="classroom-student-section">

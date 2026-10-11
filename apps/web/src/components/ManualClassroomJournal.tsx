@@ -3,6 +3,7 @@ import {
   journalApi,
   journalAccessibleLabel,
   journalGradeLabel,
+  journalRevisionLabel,
   journalLevels,
   journalPresets,
   journalMonthRange,
@@ -168,7 +169,7 @@ function CellEditor({
         <ol>
           {history?.map((r) => (
             <li key={r.id}>
-              <strong>{journalAccessibleLabel(column.preset, r.value)}</strong> · {r.authorName} ·{' '}
+              <strong>{journalRevisionLabel(column.preset, r.value)}</strong> · {r.authorName} ·{' '}
               {schoolTimeFormats(timeZone).dateTime(r.publishedAt)}
               <p>{r.reason}</p>
             </li>
@@ -422,13 +423,17 @@ function Journal({ classroomId }: { classroomId: string }) {
                           <button
                             disabled={busy}
                             className="manual-journal-cell"
-                            aria-label={`${s.name}, ${c.date}, ${c.category}: ${journalAccessibleLabel(c.preset, grade?.value ?? null)}`}
+                            aria-label={`${s.name}, ${c.date}, ${c.category}: ${grade ? journalRevisionLabel(c.preset, grade.value) : journalAccessibleLabel(c.preset, null)}`}
                             onClick={() => {
                               setOpened({ column: c, student: s });
                               setNotice('');
                             }}
                           >
-                            {grade?.value == null ? '—' : journalGradeLabel(c.preset, grade.value)}
+                            {grade?.value == null
+                              ? grade
+                                ? journalRevisionLabel(c.preset, null)
+                                : '—'
+                              : journalGradeLabel(c.preset, grade.value)}
                           </button>
                         </td>
                       );

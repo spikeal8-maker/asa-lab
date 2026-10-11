@@ -28,6 +28,110 @@ function fixture() {
   return { controller, account, seat, query, request };
 }
 describe('participant credential routes', () => {
+  it('uses the revalidated Seat for all self reads, validates pages and never falls back to Account credentials', async () => {
+    const f = fixture();
+    f.query.mockResolvedValue({ rows: [{ data: { offset: 0, nextOffset: null, items: [] } }] });
+    await f.controller.seatAssignments(f.request, '30');
+    expect(f.query.mock.calls.at(-1)?.[1]).toEqual(['seat-principal', classId, seatId, 30]);
+    await f.controller.seatGrades(f.request, '0', '30');
+    expect(f.query.mock.calls.at(-1)?.[1]).toEqual(['seat-principal', classId, seatId, 0, 30]);
+    await f.controller.seatHistory(f.request, seatId, '5');
+    expect(f.query.mock.calls.at(-1)?.[1]).toEqual(['seat-principal', classId, seatId, seatId, 5]);
+    await f.controller.seatResultHistory(f.request, seatId, '30');
+    expect(f.query.mock.calls.at(-1)?.[1]).toEqual(['seat-principal', classId, seatId, seatId, 30]);
+    expect(f.account.resolve).not.toHaveBeenCalled();
+    f.query.mockClear();
+    await expect(f.controller.seatAssignments(f.request, '100001')).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(f.controller.seatHistory(f.request, seatId, '0')).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(f.query).not.toHaveBeenCalled();
+    f.seat.resolve.mockResolvedValue(null);
+    await expect(f.controller.seatGrades(f.request, undefined, undefined)).rejects.toMatchObject({
+      status: 401,
+    });
+    await expect(f.controller.seatAssignments(f.request, undefined)).rejects.toMatchObject({
+      status: 401,
+    });
+    expect(f.account.resolve).not.toHaveBeenCalled();
+  });
+  it('returns assignments without preparing/mutating learners, exposes theory progress and strips internal evidence', async () => {
+    const f = fixture();
+    const evidence = {
+      tenantId: classId,
+      schoolId: classId,
+      classroomId: classId,
+      classroomAssignmentId: seatId,
+      kind: 'direct_project',
+      dueAt: null,
+      assignmentStatus: 'open',
+      seatId,
+      accountId: null,
+      principalId: 'seat-principal',
+      learnerId: seatId,
+      identityResolution: 'learner_identity',
+      seatStatus: 'active',
+      classroomAccess: 'active',
+      legacyWork: null,
+      courseProgressPresent: false,
+      attempt: null,
+      selectedAttemptExists: false,
+      resultSelectionSource: 'none',
+      selectedAttemptId: null,
+      selectedResult: null,
+      selectionConflict: null,
+      validUnselectedResultCount: 0,
+      compatibilityGradingUnknown: false,
+      reusableAuthoredContent: true,
+      participation: { applicable: true, status: 'assigned', excused: false },
+    };
+    f.query.mockResolvedValue({
+      rows: [
+        {
+          data: {
+            offset: 0,
+            nextOffset: null,
+            items: [
+              {
+                id: seatId,
+                title: 'Не открыто',
+                assignmentId: seatId,
+                courseRunId: null,
+                kind: 'project',
+                completedAt: null,
+                dueAt: '2026-10-20T12:00:00Z',
+                evidence,
+              },
+              {
+                id: classId,
+                title: 'Теория',
+                assignmentId: null,
+                courseRunId: classId,
+                kind: 'theory',
+                completedAt: '2026-10-10',
+                dueAt: null,
+                evidence: null,
+              },
+            ],
+          },
+        },
+      ],
+    });
+    const page = await f.controller.assignments(f.request, classId, seatId, '0');
+    expect(page.items.map((item) => item.status)).toEqual(['not_started', 'completed']);
+    expect(page.items[0]?.projectId).toBeNull();
+    expect(page.items[0]?.dueAt).toBeNull(); // Canonical removal of a deadline is authoritative.
+    expect(page.items.every((item) => !('evidence' in item))).toBe(true);
+    expect(f.query).toHaveBeenCalledTimes(1);
+    expect(f.query.mock.calls[0]?.[0]).toContain('classroom_participant_assignments');
+    expect(f.query.mock.calls[0]?.[1]).toEqual(['account-principal', classId, seatId, 0]);
+    f.query.mockResolvedValue({ rows: [{ data: null }] });
+    await expect(f.controller.assignments(f.request, classId, seatId, '0')).rejects.toMatchObject({
+      status: 404,
+    });
+  });
   it('Seat profile and avatar use only the Seat cookie despite a neighbouring Account', async () => {
     const f = fixture();
     await f.controller.seatProfile(f.request);

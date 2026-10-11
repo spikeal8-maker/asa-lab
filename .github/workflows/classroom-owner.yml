@@ -2,7 +2,7 @@ name: Classroom Owner Real Scenarios
 
 "on":
   push:
-    branches: ["assistant/classroom-owner-fixes-20261008"]
+    branches: ["assistant/classroom-owner-fixes-20261008", "assistant/classroom-completion-20261011"]
   pull_request:
     paths:
       - ".github/workflows/classroom-owner.yml"

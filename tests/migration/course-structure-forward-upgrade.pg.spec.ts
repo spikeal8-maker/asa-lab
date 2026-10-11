@@ -76,6 +76,8 @@ describe('Course Builder structure forward upgrade', () => {
         '0201', // Manual journal is part of the actual forward-upgrade path.
         '0202', // Participant settings, merits and avatars remain additive.
         '0203', // Archived roster can read protected credentials without enabling writes.
+        '0204', // Participant assignment/profile/history projections remain read-only.
+        '0205', // Scratch reuses bounded ProductAnalytics sessions and existing data.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);

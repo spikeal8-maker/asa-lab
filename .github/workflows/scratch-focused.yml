@@ -167,6 +167,16 @@ jobs:
           docker exec asa-lab-scratch-editor grep -F 'SCRATCH_EDITOR_COMMIT=82c5fea6d3e60c781f25c09b375045f9b46a43f7' /usr/share/nginx/html/licenses/scratch-editor-upstream.env
           curl --fail --silent --show-error --output /dev/null http://127.0.0.1:4613/vendor/scratch/scratch-gui-standalone.js
 
+      - name: Real pinned Scratch activity and minute-save regression
+        env:
+          BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
+          BLOCKS_PARENT_PORT: 4612
+          PLAYWRIGHT_JSON_OUTPUT_NAME: reports/blocks/scratch-activity-proof.json
+        run: >-
+          pnpm exec playwright test --config tools/blocks/browser/playwright.config.mjs
+          --grep 'real Scratch input reaches bounded analytics'
+          --reporter=list,json
+
       - name: Browser smoke parent/iframe protocol
         env:
           BLOCKS_RUNTIME_URL: http://127.0.0.1:4613

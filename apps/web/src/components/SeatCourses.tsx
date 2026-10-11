@@ -107,10 +107,12 @@ export function SeatCourses({
         r.sections.some((s) =>
           s.lessons.some(
             (l) =>
-              l.classroomAssignmentId === destination.assignment ||
-              l.activityOccurrences.some(
-                (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
-              ),
+              l.id === destination.lesson ||
+              (destination.assignment !== null &&
+                (l.classroomAssignmentId === destination.assignment ||
+                  l.activityOccurrences.some(
+                    (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
+                  ))),
           ),
         ),
     );
@@ -121,14 +123,16 @@ export function SeatCourses({
           .flatMap((s) => s.lessons)
           .find(
             (l) =>
-              l.classroomAssignmentId === destination.assignment ||
-              l.activityOccurrences.some(
-                (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
-              ),
+              l.id === destination.lesson ||
+              (destination.assignment !== null &&
+                (l.classroomAssignmentId === destination.assignment ||
+                  l.activityOccurrences.some(
+                    (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
+                  ))),
           )?.id ?? null,
       );
     }
-  }, [runs, destination.courseRun, destination.assignment]);
+  }, [runs, destination.courseRun, destination.assignment, destination.lesson]);
   const [busy, setBusy] = useState<string | null>(null);
   const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);

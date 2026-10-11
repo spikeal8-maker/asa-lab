@@ -11,6 +11,9 @@ import {
   type ParticipantResultHistory,
 } from '../classroom-participants-api';
 import { newClientId } from '../client-id';
+import { journalRevisionLabel } from '../classroom-journal-api';
+import { onSessionLoggedOut } from '../session-fetch';
+import { ParticipantAssignmentsList } from './ParticipantAssignmentsList';
 import { avatarFileError, createAvatarDataUrl } from '../creator-portal/avatar-file';
 import { SEAT_AWARDS, SeatAwardRow } from './SeatAwards';
 import './classroom-participants.css';
@@ -349,15 +352,17 @@ export function ParticipantMeritsAndAvatars({
   return (
     <div className="participant-recognition">
       {error ? <p role="alert">{error}</p> : null}
-      {profile.metrics.role === 'helper' ? (
+      {!readOnly && profile.metrics.role === 'helper' ? (
         <p>
           Помощник помогает с организацией занятий в этом классе. Эта роль не даёт доступа к чужим
           работам, оценкам, управлению классом или учительскому API.
         </p>
       ) : null}
       <section>
-        <h3>Заслуги преподавателя</h3>
-        {profile.merits.length === 0 ? <p>Собственных заслуг пока нет.</p> : null}
+        <h3>{readOnly ? 'Мои заслуги' : 'Заслуги преподавателя'}</h3>
+        {profile.merits.length === 0 ? (
+          <p>{readOnly ? 'Здесь появятся твои достижения.' : 'Собственных заслуг пока нет.'}</p>
+        ) : null}
         <ul className="participant-merits">
           {profile.merits.map((merit) => (
             <li key={merit.id}>
@@ -426,8 +431,12 @@ export function ParticipantMeritsAndAvatars({
         ) : null}
       </section>
       <section>
-        <h3>Аватары класса</h3>
-        <p>Выбор относится к этому классу и сохраняет личный аватар аккаунта.</p>
+        <h3>{readOnly ? 'Доступные мне аватары' : 'Аватары класса'}</h3>
+        <p>
+          {readOnly
+            ? 'Выбери аватар для занятий в этом классе.'
+            : 'Выбор относится к этому классу и сохраняет личный аватар аккаунта.'}
+        </p>
         {profile.avatars.length === 0 ? <p>Аватаров класса пока нет.</p> : null}
         <div className="participant-avatar-grid">
           {profile.avatars.map((avatar) => (
@@ -618,9 +627,13 @@ export function ParticipantMeritsAndAvatars({
 export function ParticipantGradeHistory({
   classroomId,
   seatId,
+  seatSession = false,
+  compact = false,
 }: {
   classroomId: string;
   seatId: string;
+  seatSession?: boolean;
+  compact?: boolean;
 }): JSX.Element {
   const [data, setData] = useState<ParticipantGrades | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -632,6 +645,10 @@ export function ParticipantGradeHistory({
   const [loading, setLoading] = useState(false);
   const generation = useRef(0);
   const historyGeneration = useRef(0);
+  const identity = `${classroomId}:${seatId}:${seatSession}`;
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  const [loadedIdentity, setLoadedIdentity] = useState(identity);
   async function showResultHistory(assignmentId: string, offset = 0): Promise<void> {
     const scope = generation.current;
     const token = ++historyGeneration.current;
@@ -640,7 +657,9 @@ export function ParticipantGradeHistory({
     setHistory(null);
     setHistoryAssignment(assignmentId);
     setHistoryLoading(true);
-    const r = await participantsApi.resultHistory(classroomId, seatId, assignmentId, offset);
+    const r = seatSession
+      ? await participantsApi.seatResultHistory(assignmentId, offset)
+      : await participantsApi.resultHistory(classroomId, seatId, assignmentId, offset);
     if (scope !== generation.current || token !== historyGeneration.current) return;
     setHistoryLoading(false);
     if (r.ok)
@@ -657,7 +676,9 @@ export function ParticipantGradeHistory({
     setResultHistory(null);
     setHistoryColumn(columnId);
     setHistoryLoading(true);
-    const r = await participantsApi.history(classroomId, seatId, columnId, beforeRevision);
+    const r = seatSession
+      ? await participantsApi.seatHistory(columnId, beforeRevision)
+      : await participantsApi.history(classroomId, seatId, columnId, beforeRevision);
     if (scope !== generation.current || token !== historyGeneration.current) return;
     setHistoryLoading(false);
     if (r.ok)
@@ -671,9 +692,19 @@ export function ParticipantGradeHistory({
       const token = ++generation.current;
       setError(null);
       setLoading(true);
-      const result = await participantsApi.grades(classroomId, seatId, offset, resultOffset);
-      if (token !== generation.current) return;
+      if (!offset && !resultOffset) {
+        setData(null);
+        setHistory(null);
+        setResultHistory(null);
+        setHistoryLoading(false);
+        historyGeneration.current++;
+      }
+      const result = seatSession
+        ? await participantsApi.seatGrades(offset, resultOffset)
+        : await participantsApi.grades(classroomId, seatId, offset, resultOffset);
+      if (token !== generation.current || identity !== currentIdentity.current) return;
       setLoading(false);
+      setLoadedIdentity(identity);
       if (result.ok)
         setData((old) =>
           (offset || resultOffset) && old
@@ -700,7 +731,7 @@ export function ParticipantGradeHistory({
         setError(result.error.message);
       }
     },
-    [classroomId, seatId],
+    [classroomId, seatId, seatSession, identity],
   );
   useEffect(() => {
     setData(null);
@@ -708,14 +739,32 @@ export function ParticipantGradeHistory({
     setResultHistory(null);
     setHistoryLoading(false);
     void load();
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener('focus', refresh);
+    const unsubscribe = onSessionLoggedOut(() => {
+      generation.current++;
+      historyGeneration.current++;
+      setData(null);
+      setHistory(null);
+      setResultHistory(null);
+      setError('Войдите, чтобы открыть оценки.');
+    });
     return () => {
       generation.current++;
       historyGeneration.current++;
+      window.removeEventListener('focus', refresh);
+      unsubscribe();
     };
   }, [load]);
+  if (loadedIdentity !== identity) return <p role="status">Загружаем оценки…</p>;
   return (
-    <section className="participant-grades">
-      <h2>Оценки и история</h2>
+    <section
+      className={`participant-grades${compact ? ' participant-grade-summary' : ''}`}
+      aria-label={compact ? 'Последние оценки' : 'Оценки и история'}
+    >
+      <h2>{compact ? 'Последние оценки' : 'Оценки и история'}</h2>
       {error ? (
         <p role="alert">
           {error}
@@ -728,33 +777,28 @@ export function ParticipantGradeHistory({
       {data ? (
         <>
           <ul>
-            {data.journal.grades.map((grade) => {
+            {(compact ? data.journal.grades.slice(0, 3) : data.journal.grades).map((grade) => {
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
-              const value =
-                grade.value === null
-                  ? 'Отозвана'
-                  : column?.preset === 'smileys'
-                    ? ['😞', '😕', '😐', '🙂', '😃'][grade.value - 1]
-                    : column?.preset === 'symbols'
-                      ? ['●', '◆', '▲', '★', '🏆'][grade.value - 1]
-                      : String(grade.value);
+              const value = journalRevisionLabel(column?.preset, grade.value);
               return (
                 <li key={grade.id}>
                   {column?.date} · {column?.category} <strong>{value}</strong>{' '}
                   <small>{grade.authorName}</small>
-                  <button
-                    type="button"
-                    disabled={historyLoading}
-                    onClick={() => void showManualHistory(grade.columnId)}
-                  >
-                    История
-                  </button>
+                  {!compact ? (
+                    <button
+                      type="button"
+                      disabled={historyLoading}
+                      onClick={() => void showManualHistory(grade.columnId)}
+                    >
+                      История
+                    </button>
+                  ) : null}
                 </li>
               );
             })}
           </ul>
           <ul>
-            {data.results.map((result) => (
+            {(compact ? data.results.slice(0, 3) : data.results).map((result) => (
               <li key={result.assignment_id}>
                 {result.assignment_title}{' '}
                 <strong>
@@ -764,20 +808,22 @@ export function ParticipantGradeHistory({
                       : `${result.raw_points} / ${result.max_points}`)}
                 </strong>
                 {result.feedback ? <p>{result.feedback}</p> : null}
-                <button
-                  type="button"
-                  disabled={historyLoading}
-                  onClick={() => void showResultHistory(result.assignment_id)}
-                >
-                  История результата
-                </button>
+                {!compact ? (
+                  <button
+                    type="button"
+                    disabled={historyLoading}
+                    onClick={() => void showResultHistory(result.assignment_id)}
+                  >
+                    История результата
+                  </button>
+                ) : null}
               </li>
             ))}
           </ul>
           {data.journal.grades.length + data.results.length === 0 ? <p>Оценок пока нет.</p> : null}
         </>
       ) : null}
-      {data?.journal.nextOffset != null ? (
+      {!compact && data?.journal.nextOffset != null ? (
         <button
           type="button"
           disabled={loading || historyLoading}
@@ -786,7 +832,7 @@ export function ParticipantGradeHistory({
           Ещё ручные оценки
         </button>
       ) : null}
-      {data?.nextResultOffset != null ? (
+      {!compact && data?.nextResultOffset != null ? (
         <button
           type="button"
           disabled={loading || historyLoading}
@@ -801,8 +847,13 @@ export function ParticipantGradeHistory({
           <ol>
             {history.items.map((grade) => (
               <li key={grade.id}>
-                Версия {grade.revision}: {grade.value ?? 'Отозвана'} · {grade.authorName} ·{' '}
-                {grade.publishedAt}
+                Версия {grade.revision}:{' '}
+                {journalRevisionLabel(
+                  history.preset ??
+                    data?.journal.columns.find((column) => column.id === historyColumn)?.preset,
+                  grade.value,
+                )}{' '}
+                · {grade.authorName} · {grade.publishedAt}
                 {grade.reason ? <p>{grade.reason}</p> : null}
               </li>
             ))}
@@ -878,25 +929,42 @@ export function StudentParticipantSummary({
   const generation = useRef(0);
   const accountClassId = accountSeat?.classroomId;
   const accountSeatId = accountSeat?.seatId;
+  const identity = `${accountClassId ?? 'seat'}:${accountSeatId ?? 'self'}`;
+  const currentIdentity = useRef(identity);
+  currentIdentity.current = identity;
+  const [loadedIdentity, setLoadedIdentity] = useState(identity);
   const load = useCallback(async () => {
     const token = ++generation.current;
     setError(null);
+    setProfile(null);
     const r =
       accountClassId && accountSeatId
         ? await participantsApi.profile(accountClassId, accountSeatId)
         : await participantsApi.seatProfile();
-    if (token !== generation.current) return;
+    if (token !== generation.current || currentIdentity.current !== identity) return;
+    setLoadedIdentity(identity);
     if (r.ok) setProfile(r.data);
     else {
       setProfile(null);
       setError(r.error.message);
     }
-  }, [accountClassId, accountSeatId]);
+  }, [accountClassId, accountSeatId, identity]);
   useEffect(() => {
     setProfile(null);
     void load();
+    const refresh = () => {
+      void load();
+    };
+    window.addEventListener('focus', refresh);
+    const unsubscribe = onSessionLoggedOut(() => {
+      generation.current++;
+      setProfile(null);
+      setError('Войдите, чтобы открыть профиль.');
+    });
     return () => {
       generation.current++;
+      window.removeEventListener('focus', refresh);
+      unsubscribe();
     };
   }, [load]);
   return (
@@ -910,7 +978,7 @@ export function StudentParticipantSummary({
         </p>
       ) : null}
       {!profile && !error ? <p role="status">Загружаем показатели…</p> : null}
-      {profile ? (
+      {profile && loadedIdentity === identity ? (
         <>
           <p>
             Всего работ: <strong>{profile.metrics.totalWorks}</strong> · в архиве{' '}
@@ -918,6 +986,48 @@ export function StudentParticipantSummary({
           </p>
           <ParticipantRating metrics={profile.metrics} settings={profile.settings} />
           <SeatAwardRow keys={profile.builtinAwards.map((award) => award.awardKey)} />
+          {profile.metrics.role === 'helper' ? (
+            <section className="participant-helper-classes" aria-label="Мои классы помощника">
+              <h2>Мои классы помощника</h2>
+              {(profile.helperClasses ?? []).length ? (
+                <ul>
+                  {profile.helperClasses.map((entry) => (
+                    <li key={entry.id}>{entry.title} · Помощник</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>Сейчас нет действующих классов помощника.</p>
+              )}
+            </section>
+          ) : (
+            <ParticipantGradeHistory
+              key={`${accountClassId}:${profile.metrics.seatId}:summary`}
+              classroomId={accountClassId ?? ''}
+              seatId={profile.metrics.seatId}
+              seatSession={!accountSeat}
+              compact
+            />
+          )}
+          <details>
+            <summary>Оценки и история</summary>
+            <ParticipantGradeHistory
+              key={`${accountClassId}:${profile.metrics.seatId}:history`}
+              classroomId={accountClassId ?? ''}
+              seatId={profile.metrics.seatId}
+              seatSession={!accountSeat}
+            />
+          </details>
+          <details>
+            <summary>Задания</summary>
+            <ParticipantAssignmentsList
+              key={`${accountClassId}:${profile.metrics.seatId}:assignments`}
+              classroomId={accountClassId ?? ''}
+              seatId={profile.metrics.seatId}
+              seatSession={!accountSeat}
+              learner
+              readOnly={profile.status !== 'active'}
+            />
+          </details>
           <ParticipantMeritsAndAvatars
             classroomId={accountSeat?.classroomId ?? ''}
             seatId={profile.metrics.seatId}

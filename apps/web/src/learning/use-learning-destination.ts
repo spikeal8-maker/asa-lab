@@ -14,6 +14,7 @@ export function useLearningDestination() {
     seat: params.get('learner'),
     attempt: params.get('attempt'),
     courseRun: params.get('courseRun'),
+    lesson: params.get('lesson'),
     joinRequest: params.get('joinRequest'),
   };
 }

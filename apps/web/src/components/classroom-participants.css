@@ -36,14 +36,16 @@
 }
 .participant-tabs {
   display: flex;
+  flex-wrap: wrap;
   gap: 4px;
-  overflow-x: auto;
   max-width: 100%;
   padding: 8px 0;
   margin-bottom: 12px;
 }
 .participant-tabs button {
   flex: 0 0 auto;
+  max-width: 100%;
+  font-size: 16px;
   min-height: 44px;
   padding: 7px 12px;
   border: 1px solid var(--border, #dde4ea);
@@ -373,4 +375,67 @@
     min-width: 0;
     padding-inline: 4px;
   }
+}
+.participant-assignments,
+.participant-helper-classes,
+.participant-grade-summary {
+  min-width: 0;
+  margin-block: 12px;
+  padding: 12px;
+  border: 1px solid var(--line, #e0e7ea);
+  border-radius: 12px;
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.participant-assignment-head,
+.participant-assignments li,
+.participant-grade-summary li {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.participant-assignment-head h2 {
+  margin: 0;
+  flex: 1;
+}
+.participant-assignments ul,
+.participant-grade-summary ul {
+  padding: 0;
+  list-style: none;
+  margin-block: 8px;
+}
+.participant-assignments li {
+  padding-block: 10px;
+  border-top: 1px solid var(--line, #e0e7ea);
+}
+.participant-assignments li > div:first-child {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+.participant-assignments li > div:first-child > span {
+  display: block;
+  color: var(--ink-muted);
+}
+.participant-assignments a,
+.participant-helper-classes a,
+.participant-grade-summary button {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  max-width: 100%;
+}
+.participant-assignments .participant-actions {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+.participant-grade-summary h2,
+.participant-helper-classes h2 {
+  font-size: 20px;
+  margin: 0 0 8px;
+}
+.participant-assignments button,
+.participant-role select {
+  font-size: 16px;
+  max-width: 100%;
 }
