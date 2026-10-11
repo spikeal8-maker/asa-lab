@@ -3287,13 +3287,13 @@ parallel_lanes:
     execution_lease: {}
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 5d2278584a9c90ecebdc7447c05a8eb15926763d
+      convergence_baseline_sha: c8545ceca6690b7314a857aef606cd24397edd80
       head_sha: null
-      observed_at: '2026-10-11T10:35:00Z'
+      observed_at: '2026-10-11T11:46:12Z'
       main:
         branch: main
-        sha: 5d2278584a9c90ecebdc7447c05a8eb15926763d
-      observation_note: Dated programme entry only; fetch main and read exact-SHA CI before each slice.
+        sha: c8545ceca6690b7314a857aef606cd24397edd80
+      observation_note: Dated OBS2 selection after exact OBS3A main CI success; fetch main and exact CI before writes.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
     task:
@@ -3304,7 +3304,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs3a_telemetry_transport_implementation
+      checkpoint: obs2_portable_collector_implementation
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -3312,10 +3312,10 @@ parallel_lanes:
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
-      selected_slice: OBS3A
+      selected_slice: OBS2
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B, OBS4, OBS5, OBS6]
-      completed_slices: [OBS1]
-      remaining_slices: [OBS3A, OBS2, OBS3B, OBS4, OBS5, OBS6]
+      completed_slices: [OBS1, OBS3A]
+      remaining_slices: [OBS2, OBS3B, OBS4, OBS5, OBS6]
       slice_results:
         OBS1: trustworthy_client_addresses_and_request_limits
         OBS3A: telemetry_transport_does_not_refresh_or_log_out_users
@@ -3333,10 +3333,20 @@ parallel_lanes:
           general_ci_conclusion: success
           observed_at: '2026-10-11T11:13:40Z'
           runtime_evidence: exact_image_and_public_frp_provenance_required_in_OBS6
+        OBS3A:
+          source_sha: 168d1a048f08c2582fc33559f7694970bcde8e9f
+          integrated_ci_sha: c8545ceca6690b7314a857aef606cd24397edd80
+          independent_review: pass_source_and_bounded_focused_ci_wiring
+          focused: canonical_pnpm_test_admin_logs_ci_step_success_24_transport_author_tests_pass
+          general_ci_run: 38135902291
+          general_ci_conclusion: success
+          observed_at: '2026-10-11T11:45:40Z'
+          runtime_evidence: pending_OBS6_guarded_release_and_browser_reload
       priority_note: >-
-        Read-only analytics preparation found that analytics401 can invoke Account refresh and a global logout.
-        Select the bounded transport-only OBS3A repair before collector lifecycle OBS2; keep the remaining
-        analytics work in OBS3B. This is a proven code path, not a confirmed cause of the historical school outage.
+        OBS3A source and independent review passed; canonical focused and full repository CI succeeded on
+        c8545ce. Select automatic portable collector lifecycle and host diagnostics OBS2. Preserve later
+        analytics OBS3B and module/admin dependencies. No historical school root cause or production release
+        is claimed by this development acceptance.
       deployment_authorized: true
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
