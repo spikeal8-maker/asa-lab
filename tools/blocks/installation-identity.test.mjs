@@ -214,7 +214,19 @@ test('startup guards precede environment mutation and both updaters recheck befo
         ];
     const checkedOrder = commands.join('\n');
     const normalizedUpdate = update.split('\n').map((line) => line.trim()).join('\n');
-    assert.equal(normalizedUpdate.split(checkedOrder).length, 2, `${extension}: one checked replacement block`);
+    const checkedBlockCount = (source) => {
+      const lines = source.split('\n');
+      return lines.reduce(
+        (count, _line, index) =>
+          count + Number(commands.every((command, offset) => lines[index + offset] === command)),
+        0,
+      );
+    };
+    const hasOneCheckedBlock = (source) => checkedBlockCount(source) === 1;
+    assert.ok(hasOneCheckedBlock(normalizedUpdate), `${extension}: one checked replacement block`);
+    const duplicateUpdate = `${normalizedUpdate}\n${checkedOrder}`;
+    assert.equal(checkedBlockCount(duplicateUpdate), 2, `${extension}: duplicate block fixture`);
+    assert.ok(!hasOneCheckedBlock(duplicateUpdate), `${extension}: reject duplicate replacement block`);
     const collectorIndex = extension === 'ps1' ? 2 : 1;
     const collectorLength = extension === 'ps1' ? 2 : 1;
     const beforeIdentity = [...commands];
@@ -233,10 +245,13 @@ test('startup guards precede environment mutation and both updaters recheck befo
       ['collector after migration plan', afterPlan],
       ['missing collector failure check', missingExitCheck],
       ['replacement before migration plan', reversedReplacement],
+      ['commented identity command', [`# ${commands[0]}`, ...commands.slice(1)]],
+      ['commented replacement command', [...commands.slice(0, -1), `# ${commands.at(-1)}`]],
+      ['extra text after replacement command', [...commands.slice(0, -1), `${commands.at(-1)} # extra`]],
     ]) {
       const brokenUpdate = normalizedUpdate.replace(checkedOrder, brokenCommands.join('\n'));
       assert.notEqual(brokenUpdate, normalizedUpdate, `${extension}: ${reason} fixture changes source`);
-      assert.ok(!brokenUpdate.includes(checkedOrder), `${extension}: reject ${reason}`);
+      assert.ok(!hasOneCheckedBlock(brokenUpdate), `${extension}: reject ${reason}`);
     }
   }
 });
