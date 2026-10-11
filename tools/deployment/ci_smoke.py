@@ -94,7 +94,10 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         # No trusted public ingress by default: forged headers must not turn a
         # Docker gateway into a visitor, nor inject an arbitrary external IP.
         login_provenance('198.51.100.23', 'unknown|proxy')
-        web = install.identity()['web']['id']
+        # records was fully attested before the intentional restored-test DB
+        # override. Web was not recreated; a fresh identity() here must reject
+        # that API/migration target mismatch, as it would in production.
+        web = records['web']['id']
         gateways = run(['docker', 'inspect', '--format', '{{range .NetworkSettings.Networks}}{{println .Gateway}}{{end}}', web], capture=True).split()
         require(bool(gateways), 'CLIENT_PROVENANCE', 'Disposable ingress gateway is missing.')
         previous_ingress = install.process_env.get('ASA_INGRESS_TRUSTED_PROXY_CIDRS')

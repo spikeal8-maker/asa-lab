@@ -336,7 +336,8 @@ class IdentityTests(unittest.TestCase):
         config = compose_config()
         attest_database_targets(config, {"POSTGRES_DB": "asalab"}, config["services"]["api"]["environment"])
         for service, key in (("api", "APP_DATABASE_URL"), ("migration", "MIGRATION_DATABASE_URL")):
-            for url in ("postgres://user:synthetic@external:5432/asalab", "postgres://user:synthetic@postgres:5432/other"):
+            for url in ("postgres://user:synthetic@external:5432/asalab", "postgres://user:synthetic@postgres:5432/other",
+                        "postgres://user:synthetic@postgres:5432/asalab_delivery_restore_test"):
                 candidate = compose_config()
                 candidate["services"][service]["environment"][key] = url
                 with self.subTest(service=service, url=url), self.assertRaises(Blocked):
