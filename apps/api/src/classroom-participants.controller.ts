@@ -17,7 +17,11 @@ import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { checkBodyShape } from './validation.js';
 import { canonicalClassroomAvatar } from './classroom-participant-avatar.js';
-import { LearningCanonicalProjectionService } from './learning-canonical-projection.service.js';
+import {
+  LearningCanonicalProjectionService,
+  canonicalProjectionFromEvidence,
+  type EvidenceRow,
+} from './learning-canonical-projection.service.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 function fail(code: string, message: string, status: number): never {
@@ -61,6 +65,91 @@ export class ClassroomParticipantsController {
     if (data === null || data === undefined)
       fail('not_found', 'Участник или класс недоступен.', 404);
     return data;
+  }
+  private async withHelperClasses(data: unknown, actor: string, classId: string, seatId: string) {
+    const helperClasses = await this.read('classroom_participant_helper_classes', [
+      actor,
+      classId,
+      seatId,
+    ]);
+    return { ...(data as Record<string, unknown>), helperClasses };
+  }
+  private pageOffset(offset: string | undefined): number {
+    if (offset !== undefined && (!/^\d{1,6}$/.test(offset) || Number(offset) > 100000))
+      fail('validation_error', 'Некорректная страница заданий.', 400);
+    return Number(offset ?? 0);
+  }
+  private async assignmentPage(actor: string, classId: string, seatId: string, offset: number) {
+    const page = (await this.read('classroom_participant_assignments', [
+      actor,
+      classId,
+      seatId,
+      offset,
+    ])) as {
+      offset: number;
+      nextOffset: number | null;
+      items: Array<{
+        id: string;
+        assignmentId: string | null;
+        courseRunId: string | null;
+        kind: string;
+        completedAt: string | null;
+        dueAt: string | null;
+        evidence: EvidenceRow | null;
+      }>;
+    };
+    const asOf = new Date().toISOString();
+    return {
+      ...page,
+      items: page.items.map(({ evidence, completedAt, ...item }) => {
+        const projection = evidence
+          ? canonicalProjectionFromEvidence(evidence, item.id, asOf, 'learner')
+          : null;
+        // The destination performs its own authorization. Route families continue
+        // to choose the credential explicitly when both cookies are present.
+        return {
+          ...item,
+          dueAt: projection ? (projection.surface.effectiveDueAt ?? null) : item.dueAt,
+          canonicalState: projection?.surface ?? null,
+          status:
+            item.kind === 'theory'
+              ? completedAt
+                ? 'completed'
+                : 'not_started'
+              : projection?.surface.flags.includes('excused')
+                ? 'excused'
+                : (projection?.surface.workflowState ?? 'unavailable'),
+          projectId: projection?.projectId ?? null,
+        };
+      }),
+    };
+  }
+  @Get('classrooms/:classId/participants/:seatId/assignments')
+  async assignments(
+    @Req() request: FastifyRequest,
+    @Param('classId') classId: string,
+    @Param('seatId') seatId: string,
+    @Query('offset') offset: string | undefined,
+  ) {
+    return this.assignmentPage(
+      await this.account(request),
+      this.uuid(classId),
+      this.uuid(seatId),
+      this.pageOffset(offset),
+    );
+  }
+  @Get('class-join/participants/assignments')
+  async seatAssignments(
+    @Req() request: FastifyRequest,
+    @Query('offset') offset: string | undefined,
+  ) {
+    const seat = await this.seat(request);
+    return this.assignmentPage(
+      seat.principalId,
+      seat.classroomId,
+      seat.seatId,
+      this.pageOffset(offset),
+    );
   }
   @Get('classrooms/:classId/participants')
   async roster(@Req() request: FastifyRequest, @Param('classId') classId: string) {
@@ -117,7 +206,7 @@ export class ClassroomParticipantsController {
         (p) => p.surface.workflowState === 'waiting_review',
       ).length;
     }
-    return data;
+    return this.withHelperClasses(data, actor, classId, seatId);
   }
   @Get('classrooms/:classId/participants/staff/:accountId')
   async staff(
@@ -210,7 +299,7 @@ export class ClassroomParticipantsController {
       )
     )
       fail('validation_error', 'Некорректная страница оценок.', 400);
-    const data = (await this.read('classroom_participant_grades', [
+    const data = (await this.read('classroom_participant_profile_grades', [
       await this.account(request),
       this.uuid(classId),
       this.uuid(seatId),
@@ -235,14 +324,44 @@ export class ClassroomParticipantsController {
     if (beforeRevision !== undefined && !/^[1-9]\d{0,8}$/.test(beforeRevision))
       fail('validation_error', 'Некорректная страница истории.', 400);
     const actor = await this.account(request);
-    await this.read('classroom_participant_grades', [actor, this.uuid(classId), this.uuid(seatId)]);
-    return this.read('classroom_journal_history', [
+    return this.read('classroom_participant_manual_history', [
       actor,
-      classId,
+      this.uuid(classId),
+      this.uuid(seatId),
       this.uuid(columnId),
-      seatId,
       beforeRevision ? Number(beforeRevision) : null,
-      20,
+    ]);
+  }
+  @Get('class-join/participants/grades')
+  async seatGrades(
+    @Req() request: FastifyRequest,
+    @Query('offset') offset: string | undefined,
+    @Query('resultOffset') resultOffset: string | undefined,
+  ) {
+    const seat = await this.seat(request);
+    return this.read('classroom_participant_profile_grades', [
+      seat.principalId,
+      seat.classroomId,
+      seat.seatId,
+      this.pageOffset(offset),
+      this.pageOffset(resultOffset),
+    ]);
+  }
+  @Get('class-join/participants/history/:columnId')
+  async seatHistory(
+    @Req() request: FastifyRequest,
+    @Param('columnId') columnId: string,
+    @Query('beforeRevision') beforeRevision: string | undefined,
+  ) {
+    const seat = await this.seat(request);
+    if (beforeRevision !== undefined && !/^[1-9]\d{0,8}$/.test(beforeRevision))
+      fail('validation_error', 'Некорректная страница истории.', 400);
+    return this.read('classroom_participant_manual_history', [
+      seat.principalId,
+      seat.classroomId,
+      seat.seatId,
+      this.uuid(columnId),
+      beforeRevision ? Number(beforeRevision) : null,
     ]);
   }
   private async write(actor: string, classId: string, action: string, body: unknown) {
@@ -336,7 +455,7 @@ export class ClassroomParticipantsController {
   ) {
     if (offset !== undefined && (!/^\d{1,6}$/.test(offset) || Number(offset) > 100000))
       fail('validation_error', 'Некорректная страница истории.', 400);
-    return this.read('classroom_participant_result_history', [
+    return this.read('classroom_participant_profile_result_history', [
       await this.account(request),
       this.uuid(classId),
       this.uuid(seatId),
@@ -344,15 +463,31 @@ export class ClassroomParticipantsController {
       Number(offset ?? 0),
     ]);
   }
+  @Get('class-join/participants/result-history/:assignmentId')
+  async seatResultHistory(
+    @Req() request: FastifyRequest,
+    @Param('assignmentId') assignmentId: string,
+    @Query('offset') offset: string | undefined,
+  ) {
+    const seat = await this.seat(request);
+    return this.read('classroom_participant_profile_result_history', [
+      seat.principalId,
+      seat.classroomId,
+      seat.seatId,
+      this.uuid(assignmentId),
+      this.pageOffset(offset),
+    ]);
+  }
   @Get('class-join/participants/me')
   async seatProfile(@Req() request: FastifyRequest) {
     const seat = await this.seat(request);
     await this.read('classroom_participant_prepare', [seat.principalId, [seat.classroomId]]);
-    return this.read('classroom_participant_profile', [
+    const data = await this.read('classroom_participant_profile', [
       seat.principalId,
       seat.classroomId,
       seat.seatId,
     ]);
+    return this.withHelperClasses(data, seat.principalId, seat.classroomId, seat.seatId);
   }
   private async image(
     reply: FastifyReply,

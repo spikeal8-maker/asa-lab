@@ -57,6 +57,8 @@ describe('rendered ClassJoinQr lifecycle', () => {
     expect(container.querySelector('svg')).toBeNull();
     await act(async () => first.resolve(pathsA));
     expect(container.querySelector('path')?.getAttribute('d')).toBe(pathsA.d);
+    expect(container.querySelector('svg')?.getAttribute('width')).toBe('82');
+    expect(container.querySelector('svg')?.getAttribute('height')).toBe('82');
     await act(async () => {
       flushSync(() => render(urlB));
       // Check before the new async encoder can settle, including React's first render.
@@ -85,6 +87,8 @@ describe('rendered ClassJoinQr lifecycle', () => {
     await act(async () => container.querySelector<HTMLButtonElement>('button')!.click());
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(container.querySelector('path')?.getAttribute('d')).toBe(pathsB.d);
+    expect(container.querySelector('svg')?.getAttribute('width')).toBe('90');
+    expect(container.querySelector('svg')?.getAttribute('height')).toBe('90');
     expect(container.querySelector('svg')?.getAttribute('shape-rendering')).toBe('crispEdges');
     expect(container.querySelector('rect')?.getAttribute('fill')).toBe('#ffffff');
     expect(container.querySelector('path')?.getAttribute('fill')).toBe('#000000');

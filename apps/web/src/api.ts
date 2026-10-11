@@ -1988,7 +1988,7 @@ export const api = {
       ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
       : result;
   },
-  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers') =>
+  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks') =>
     call<{ accepted: true }>('/api/analytics/v1/module-opened', {
       method: 'POST',
       body: JSON.stringify({ moduleKey }),
@@ -1996,7 +1996,7 @@ export const api = {
   startModuleSession: (
     sessionId: string,
     projectId: string,
-    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers',
+    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks',
   ) =>
     call<{ accepted: boolean; sessionId: string }>('/api/analytics/v1/module-session/start', {
       method: 'POST',

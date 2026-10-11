@@ -93,7 +93,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await page.getByRole('button', { name: 'Настройки', exact: true }).click();
     const rating = page.getByRole('region', { name: 'Настройки рейтинга' });
     await rating.getByLabel('Период рейтинга').selectOption('7');
-    for (const factor of ['Активные дни', 'Активное время', 'Оценки', 'Входы / занятия'])
+    for (const factor of ['Активные дни', 'Активное время', 'Оценки', 'Дни со входом'])
       await rating.getByLabel(factor, { exact: true }).uncheck();
     await rating.getByLabel('Проекты', { exact: true }).check();
     await rating.getByRole('button', { name: 'Сохранить рейтинг' }).click();
@@ -139,6 +139,20 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await page.getByRole('button', { name: 'Заслуги', exact: true }).click();
     await page.getByLabel('Название заслуги').fill('Мастер класса');
     await page.getByLabel('Описание', { exact: true }).fill('Аккуратная работа');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveAccessibleName('Описание');
+    const refreshProfile = async () => {
+      const refreshedProfile = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().endsWith(`/classrooms/${classId}/participants/${seatId}/profile`),
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      expect((await refreshedProfile).ok()).toBe(true);
+    };
+    await refreshProfile();
+    await expect(page.getByLabel('Название заслуги')).toHaveValue('Мастер класса');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveValue('Аккуратная работа');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveAccessibleName('Описание');
     await page.getByRole('button', { name: 'Создать заслугу' }).click();
     const merit = page.locator('.participant-merits li').filter({ hasText: 'Мастер класса' });
     await merit.getByRole('button', { name: 'Выдать', exact: true }).click();
@@ -157,8 +171,20 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await page
       .getByLabel('Файлы аватаров')
       .setInputFiles({ name: 'raster.png', mimeType: 'image/png', buffer: PNG.sync.write(image) });
+    await expect(page.getByRole('button', { name: 'Загрузить 1', exact: true })).toBeVisible();
+    await refreshProfile();
+    await expect(page.getByLabel('Название аватара')).toHaveValue('Секретный мастер');
+    await expect(page.getByLabel('Секретный аватар', { exact: true })).toBeChecked();
+    await expect(page.getByLabel('Открыть при достижении')).toHaveValue(
+      `custom:${beforeUpload.merits[0]!.id}`,
+    );
+    await expect(page.getByRole('button', { name: 'Загрузить 1', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Загрузить 1', exact: true }).click();
     await page.getByRole('button', { name: 'Выбрать Секретный мастер', exact: true }).click();
+    await refreshProfile();
+    await expect(
+      page.getByRole('button', { name: 'Выбрать Секретный мастер', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
     const avatarSaved = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&

@@ -34,6 +34,7 @@ async function fixture(
     origin?: string;
     classroomTitle?: string;
     status?: 'active' | 'archived';
+    classCode?: string;
   } = {},
 ) {
   const origin = options.origin ?? 'http://127.0.0.1:4612';
@@ -64,7 +65,7 @@ async function fixture(
     studentCount: students.length,
     joinCodeVersion: 1,
     joinCodeStatus: 'active',
-    joinCode: classCode,
+    joinCode: options.classCode ?? classCode,
     teacherRole: 'owner',
     workspaceKind: 'personal',
     workspaceTitle: 'Личное пространство',
@@ -442,6 +443,129 @@ test.describe('Classroom owner fixes', () => {
     expect(state.mutations[1]!.body).toEqual({ code: classCode });
     expect(state.errors).toEqual([]);
   });
+});
+
+test.describe('Access-card QR raster regression', () => {
+  const samples = [
+    { portal: origin, code: '3HS FND GXZ' },
+    { portal: origin, code: 'ABC DEF 234' },
+    { portal: 'https://demo.asa.test', code: 'ZZZ ZZZ ZZZ' },
+    {
+      portal: 'https://classroom-really-long-installation-name.example.org',
+      code: '3HS FND GXZ',
+    },
+  ];
+  for (const deviceScaleFactor of [1, 2]) {
+    for (const { portal, code } of samples) {
+      test(`shipping QR decodes ${portal} / ${code} at DPR ${deviceScaleFactor}`, async ({
+        browser,
+      }) => {
+        const context = await browser.newContext({
+          viewport: { width: 1440, height: 900 },
+          deviceScaleFactor,
+        });
+        try {
+          const page = await context.newPage();
+          const state = await fixture(page, 20, { origin: portal, classCode: code });
+          await page.goto(`${portal}/#/classrooms/${classId}`);
+          await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
+          const squares = page.getByTestId('class-join-qr');
+          await expect(squares).toHaveCount(20);
+          const square = squares.first();
+          const payload = `${portal}/#/join-class?code=${encodeURIComponent(code)}`;
+          for (const width of [1440, 390, 320]) {
+            await page.setViewportSize({ width, height: 900 });
+            const geometry = await square.evaluate((svg: SVGSVGElement) => {
+              const card = svg.closest('.student-access-card')!;
+              const bounds = svg.getBoundingClientRect();
+              const cardBounds = card.getBoundingClientRect();
+              const dark = svg.querySelector('path')!.getBBox();
+              const modules = svg.viewBox.baseVal.width;
+              return {
+                modules,
+                quietMargins: [
+                  dark.x,
+                  dark.y,
+                  modules - dark.x - dark.width,
+                  modules - dark.y - dark.height,
+                ],
+                width: bounds.width,
+                height: bounds.height,
+                inside: bounds.left >= cardBounds.left && bounds.right <= cardBounds.right,
+                overflow: card.scrollWidth - card.clientWidth,
+                documentOverflow: document.documentElement.scrollWidth - innerWidth,
+              };
+            });
+            // Decode the unscaled shipping SVG screenshot, never an encoder-side raster.
+            const png = PNG.sync.read(await square.screenshot());
+            expect(jsQR(new Uint8ClampedArray(png.data), png.width, png.height)?.data).toBe(
+              payload,
+            );
+            expect(geometry.width).toBe(geometry.modules * 2);
+            expect(geometry.height).toBe(geometry.width);
+            expect(geometry.quietMargins).toEqual([4, 4, 4, 4]);
+            expect(geometry.inside).toBe(true);
+            expect(geometry.overflow).toBeLessThanOrEqual(1);
+            expect(geometry.documentOverflow).toBeLessThanOrEqual(1);
+            let nonMonochrome = 0;
+            let darkQuietZone = 0;
+            // Fractional element positions can add one cropped pixel at the boundary.
+            const quiet = 4 * 2 * deviceScaleFactor - 1;
+            for (let y = 0; y < png.height; y++) {
+              for (let x = 0; x < png.width; x++) {
+                const index = (y * png.width + x) * 4;
+                const value = png.data[index]!;
+                if (
+                  ![0, 255].includes(value) ||
+                  png.data[index + 1] !== value ||
+                  png.data[index + 2] !== value ||
+                  png.data[index + 3] !== 255
+                )
+                  nonMonochrome++;
+                if (
+                  (x < quiet || y < quiet || x >= png.width - quiet || y >= png.height - quiet) &&
+                  value !== 255
+                )
+                  darkQuietZone++;
+              }
+            }
+            expect(nonMonochrome).toBe(0);
+            expect(darkQuietZone).toBe(0);
+          }
+          const vector = await square.evaluate((svg) => svg.innerHTML);
+          await page.emulateMedia({ media: 'print' });
+          await page.evaluate(() => document.body.classList.add('student-access-printing'));
+          const print = await square.evaluate((svg) => {
+            const card = svg.closest('.student-access-card')!;
+            const bounds = svg.getBoundingClientRect();
+            return {
+              width: bounds.width,
+              height: bounds.height,
+              cardHeight: card.getBoundingClientRect().height,
+              longSite: card.classList.contains('is-long-site'),
+              count: card
+                .closest('.student-access-print-page')!
+                .querySelectorAll('.student-access-card').length,
+              rect: svg.querySelector('rect')!.getAttribute('fill'),
+              path: svg.querySelector('path')!.getAttribute('fill'),
+              vector: svg.innerHTML,
+            };
+          });
+          expect(print.width).toBeCloseTo(((print.longSite ? 16 : 20) * 96) / 25.4, 1);
+          expect(print.height).toBeCloseTo(print.width, 1);
+          expect(print.cardHeight).toBeCloseTo((27 * 96) / 25.4, 1);
+          expect(print.count).toBe(20);
+          expect(print.rect).toBe('#ffffff');
+          expect(print.path).toBe('#000000');
+          expect(print.vector).toBe(vector);
+          expect(state.mutations).toEqual([]);
+          expect(state.errors).toEqual([]);
+        } finally {
+          await context.close();
+        }
+      });
+    }
+  }
 });
 
 test.describe('Printed access-card composition', () => {
