@@ -440,6 +440,9 @@ class UpdateBoundaryTests(unittest.TestCase):
             install.identity.return_value = {name: {"image": ref} for name, ref in candidate["images"].items()}
             with patch.object(asa_manager, "doctor"), patch.object(asa_manager, "clean_checkout"), \
                     patch.object(asa_manager, "discover_release", return_value=candidate), \
+                    patch.object(asa_manager, "prepare_collector", return_value={'readerGroupChanged': False}), \
+                    patch.object(asa_manager, "reconcile_collector") as collector, \
+                    patch.object(asa_manager, "Installation", return_value=install), \
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "verify_embedded_entry_http"), \
                     patch.object(asa_manager, "export_backup") as backup, \
                     patch.object(asa_manager, "selected_source") as switch:
@@ -447,6 +450,7 @@ class UpdateBoundaryTests(unittest.TestCase):
             backup.assert_not_called()
             switch.assert_not_called()
             install.compose.assert_not_called()
+            collector.assert_called_once_with(install)
 
     def test_backup_failure_never_switches_running_services(self):
         from unittest.mock import MagicMock
@@ -459,14 +463,16 @@ class UpdateBoundaryTests(unittest.TestCase):
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
             with patch.object(asa_manager, "doctor"), patch.object(asa_manager, "clean_checkout"), \
                     patch.object(asa_manager, "discover_release", return_value=release()), \
+                    patch.object(asa_manager, "prepare_collector", return_value={'readerGroupChanged': True}), \
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "fetch_images"), \
                     patch.object(asa_manager, "selected_source"), patch.object(asa_manager, "Installation", return_value=install), \
                     patch.object(asa_manager, "apply_release_environment"), patch.object(asa_manager, "validate_resolved_images"), \
-                    patch.object(asa_manager, "export_backup", side_effect=Blocked("BACKUP", "disk full", "free space")), \
+                    patch.object(asa_manager, "export_backup", side_effect=Blocked("BACKUP", "disk full", "free space")) as backup, \
                     self.assertRaises(Blocked):
                 asa_manager.update(install)
             self.assertFalse(any(call.args[0] in ("up", "stop") for call in install.compose.call_args_list))
             self.assertFalse((install.state / "installed-release.json").exists())
+            backup.assert_called_once_with(install)
 
     def test_outside_window_does_not_touch_docker_or_network(self):
         from unittest.mock import MagicMock

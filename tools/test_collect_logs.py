@@ -11,10 +11,83 @@ import time
 from unittest.mock import patch
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health
+from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health, linux_resources, resource_warnings
 
 
 class CollectorTests(unittest.TestCase):
+    def test_linux_proc_memory_cpu_delta_and_pressure_are_advisory_samples(self):
+        with tempfile.TemporaryDirectory() as directory:
+            proc = Path(directory); (proc/'sys/vm').mkdir(parents=True)
+            (proc/'meminfo').write_text('MemTotal: 67108864 kB\nMemAvailable: 6291456 kB\nCommitLimit: 71827456 kB\nCommitted_AS: 66060288 kB\nSwapTotal: 4194304 kB\nSwapFree: 2097152 kB\n')
+            (proc/'sys/vm/overcommit_memory').write_text('0')
+            (proc/'stat').write_text('cpu 100 0 100 800 0 0 0 0 10 0\n')
+            first, counters = linux_resources(proc)
+            self.assertNotIn('cpuPercent', first)
+            self.assertEqual(first['memoryAvailableBytes'], 6291456*1024)
+            self.assertIn('host_commit_pressure', resource_warnings(first))
+            self.assertNotIn('host_memory_low', resource_warnings(first))
+            (proc/'stat').write_text('cpu 150 0 100 850 0 0 0 0 10 0\n')
+            second, _ = linux_resources(proc, counters); self.assertEqual(second['cpuPercent'], 50)
+            self.assertNotIn('host_commit_pressure', resource_warnings({**first, 'commitAvailableBytes': first['commitLimitBytes']//2}))
+            self.assertNotIn('host_commit_pressure', resource_warnings({**first, 'commitPolicy': 1}))
+            self.assertIn('host_memory_low', resource_warnings({**first, 'memoryAvailableBytes': first['memoryTotalBytes']//100}))
+            (proc/'meminfo').write_text('MemTotal: 1 kB\n')
+            with self.assertRaises(ValueError): linux_resources(proc)
+
+    def test_journal_bounded_cursor_permission_reset_dedup_and_kernel_oom(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {})
+            at = datetime.now(timezone.utc)
+            row = {'__CURSOR': 'opaque-cursor-1', '__REALTIME_TIMESTAMP': str(int(at.timestamp()*1000000)),
+                   '_TRANSPORT': 'kernel', 'PRIORITY': '3', 'MESSAGE': 'Out of memory: Killed process 123 password=private-value'}
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', return_value=([row], True)):
+                c.linux()
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+            self.assertEqual(source['state'], 'pending'); self.assertEqual(c.state('linux:journal:cursor'), row['__CURSOR'])
+            entry = json.loads(gzip.decompress(c.db.execute('SELECT payload FROM events').fetchone()[0]))
+            self.assertEqual(entry['subsystem'], 'host'); self.assertIn('kernel_oom', entry['message']); self.assertNotIn('private-value', entry['message'])
+            c.set_state('linux:journal:last', 0)
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', side_effect=[RuntimeError('Failed to seek cursor'), ([row], False)]):
+                c.linux()
+            self.assertTrue(c.state('linux:journal:gap')); self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            cursor = c.state('linux:journal:cursor'); c.set_state('linux:journal:last', 0)
+            with patch('collect_logs.sys.platform', 'linux'), patch('collect_logs.shutil.which', return_value='/usr/bin/journalctl'), patch.object(c, 'journal_batch', side_effect=PermissionError('system journal access denied')):
+                c.linux()
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='linux:journal'").fetchone()[0])
+            self.assertEqual(source['state'], 'unavailable'); self.assertEqual(c.state('linux:journal:cursor'), cursor)
+            self.assertTrue(Collector.host_segment({'sources': ['linux:journal', 'docker-lifecycle']})); c.db.close()
+
+    def test_docker_lifecycle_is_root_scoped_deduplicated_and_excludes_labels(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {'project': 'asa-owned'}); c.postgres = 'fixture'
+            attrs = {'com.docker.compose.project': 'asa-owned', 'com.docker.compose.project.working_dir': str(c.root),
+                     'com.docker.compose.service': 'api', 'secret': 'private-value'}
+            stamp = int(time.time()*1e9)
+            rows = [dict(Action='oom', timeNano=stamp, Actor={'ID': 'owned', 'Attributes': attrs}),
+                    dict(Action='die', timeNano=stamp, Actor={'ID': 'foreign', 'Attributes': {**attrs, 'com.docker.compose.project.working_dir': '/foreign'}})]
+            c.command = lambda *args, **kwargs: '\n'.join(json.dumps(row) for row in rows).encode()
+            c.lifecycle(); c.lifecycle()
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+            entry = json.loads(gzip.decompress(c.db.execute('SELECT payload FROM events').fetchone()[0]))
+            self.assertEqual(entry['level'], 'error'); self.assertEqual(entry['subsystem'], 'host'); self.assertNotIn('private-value', entry['message'])
+            cursor = c.state('docker:lifecycle:through')
+            c.command = lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError('unavailable'))
+            c.lifecycle(); self.assertEqual(c.state('docker:lifecycle:through'), cursor); c.db.close()
+
+    def test_removed_container_records_possible_known_or_unknown_tail_window(self):
+        with tempfile.TemporaryDirectory() as directory:
+            c = Collector(Path(directory), {'project': 'asa-owned'}); c.postgres = 'fixture'
+            at = datetime.now(timezone.utc); before = (at-timedelta(seconds=20)).isoformat()
+            c.set_state('docker:known:recent', before)
+            attrs = {'com.docker.compose.project': 'asa-owned', 'com.docker.compose.project.working_dir': str(c.root), 'com.docker.compose.service': 'api'}
+            rows = [dict(Action='destroy', timeNano=int(at.timestamp()*1e9), Actor={'ID': cid, 'Attributes': attrs}) for cid in ('known', 'unknown')]
+            c.command = lambda *a, **k: '\n'.join(json.dumps(row) for row in rows).encode()
+            c.lifecycle(); c.lifecycle()
+            windows = c.state('docker:lifecycle:coverage'); self.assertEqual(len(windows), 2)
+            self.assertIsNotNone(windows[0]['possibleUncollectedFrom']); self.assertIsNone(windows[1]['possibleUncollectedFrom'])
+            source = json.loads(c.db.execute("SELECT payload FROM sources WHERE name='docker-lifecycle'").fetchone()[0]); self.assertTrue(source['possibleCoverageGap'])
+            self.assertEqual(c.db.execute('SELECT count(*) FROM events').fetchone()[0], 2); c.db.close()
+
     def test_historical_invitation_path_is_redacted_before_retention(self):
         entry = normalize('api', json.dumps({'path':'/api/classroom-teacher-invitations/private-capability/accept'}), now(), 'fixture')
         self.assertNotIn('private-capability', entry['message'])

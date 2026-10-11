@@ -12,6 +12,7 @@ import re
 import shutil
 import sqlite3
 import subprocess
+import threading
 import sys
 import tempfile
 import time
@@ -28,6 +29,13 @@ SENSITIVE = re.compile(r"password|passwd|secret|cookie|authorization|credential|
 
 def now() -> str:
     return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+
+
+def safe_store_paths(root):
+    for name in ('.asa', '.asa/diagnostics', '.asa/diagnostics/store', '.asa/diagnostics/private'):
+        path = root / name
+        if path.is_symlink() or getattr(path, 'is_junction', lambda: False)():
+            raise ValueError('Diagnostic paths must not be symlinks or junctions')
 
 
 def clean(value):
@@ -121,7 +129,7 @@ def subsystem(source: str, payload=None, origin="") -> str:
         if route == 'assignments': return 'learning'
         if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
         return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "chess", "checkers", "three-d") else "api"
-    if source.startswith("windows:") or source == "docker-desktop": return "host"
+    if source.startswith(("windows:", "linux:")) or source in ("docker-desktop", "docker-lifecycle"): return "host"
     if source in ("postgres", "migration"): return "database"
     if source.startswith("minio"): return "storage"
     if source == "tunnel": return "network"
@@ -167,9 +175,42 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
 
 
+def linux_resources(proc=Path('/proc'), previous=None):
+    memory = {}
+    for line in (proc / 'meminfo').read_text()[:65536].splitlines():
+        match = re.fullmatch(r'([A-Za-z_()]+):\s+(\d+)\s+kB', line.strip())
+        if match: memory[match[1]] = int(match[2]) * 1024
+    if not memory.get('MemTotal') or 'MemAvailable' not in memory:
+        raise ValueError('Linux memory sample is missing MemTotal/MemAvailable')
+    host = dict(memoryTotalBytes=memory['MemTotal'], memoryAvailableBytes=memory['MemAvailable'],
+                swapTotalBytes=memory.get('SwapTotal'), swapFreeBytes=memory.get('SwapFree'))
+    if 'CommitLimit' in memory and 'Committed_AS' in memory:
+        host.update(commitLimitBytes=memory['CommitLimit'], memoryCommittedBytes=memory['Committed_AS'],
+                    commitAvailableBytes=max(0, memory['CommitLimit'] - memory['Committed_AS']))
+    try: host['commitPolicy'] = int((proc / 'sys/vm/overcommit_memory').read_text().strip())
+    except (OSError, ValueError): host['commitPolicy'] = None
+    line = (proc / 'stat').read_text()[:65536].splitlines()[0].split()
+    if not line or line[0] != 'cpu' or len(line) < 5: raise ValueError('Invalid Linux CPU sample')
+    values = [int(v) for v in line[1:9]]
+    counters = [values[3] + (values[4] if len(values) > 4 else 0), sum(values)]
+    if previous and counters[1] > previous[1] and counters[0] >= previous[0]:
+        host['cpuPercent'] = round(max(0, min(100, 100 * (1 - (counters[0]-previous[0])/(counters[1]-previous[1])))), 2)
+    return host, counters
+
+
+def resource_warnings(host):
+    warnings = []
+    if host.get('diskFreeBytes', 2**63) < 1024**3: warnings.append('host_disk_low')
+    if host.get('memoryAvailableBytes', 2**63) < max(512 * 1024**2, host.get('memoryTotalBytes', 0) // 20): warnings.append('host_memory_low')
+    if host.get('commitLimitBytes', 0) > 0 and host.get('commitPolicy') != 1 and host.get('commitAvailableBytes', 2**63) <= host['commitLimitBytes'] // 10:
+        warnings.append('host_commit_pressure')
+    return warnings
+
+
 class Collector:
     def __init__(self, root: Path, config: dict):
         self.root = root.resolve()
+        safe_store_paths(self.root)
         self.config = config
         self.reader_format = 1
         self.reader_formats = {}
@@ -258,6 +299,11 @@ class Collector:
         previous = self.db.execute("SELECT payload FROM sources WHERE name=?", (source,)).fetchone()
         prior = json.loads(previous[0]) if previous else {}
         value = dict(source=source, state=state, checkedAt=now(), lastCollectedAt=now() if state == "ok" else prior.get("lastCollectedAt"), collectedThrough=collected_through or prior.get("collectedThrough"), detail=clean(str(detail))[:500])
+        value['applicable'] = not (source.startswith('windows') and os.name != 'nt' or source.startswith('linux:') and not sys.platform.startswith('linux'))
+        if source == 'docker-lifecycle':
+            value['possibleCoverageGap'] = bool(self.state('docker:lifecycle:coverage', []))
+        if source == 'linux:journal':
+            value['possibleCoverageGap'] = bool(self.state('linux:journal:gap', False))
         self.db.execute("INSERT OR REPLACE INTO sources VALUES(?,?)", (source, json.dumps(value)))
 
     def add(self, event):
@@ -529,9 +575,137 @@ class Collector:
         except Exception as exc:
             self.status("windows", "error", str(exc))
 
+    def journal_batch(self, args, *, limit=500, byte_limit=2 * 1024**2):
+        """Read a bounded chronological batch; advance only to consumed cursors."""
+        import select
+        environment = dict(os.environ, LC_ALL='C')
+        with tempfile.TemporaryFile() as errors:
+            child = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=errors, env=environment)
+            rows, pending, size, limited = [], b'', 0, False
+            deadline = time.monotonic() + 15
+            try:
+                while True:
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0: raise TimeoutError('Journal batch exceeded 15 seconds; cursor retained')
+                    readable, _, _ = select.select([child.stdout], [], [], remaining)
+                    if not readable: continue
+                    block = os.read(child.stdout.fileno(), min(65536, byte_limit - size + 1))
+                    if not block: break
+                    size += len(block); pending += block
+                    if size > byte_limit:
+                        limited = True; break
+                    while b'\n' in pending:
+                        line, pending = pending.split(b'\n', 1)
+                        if line: rows.append(json.loads(line))
+                        if len(rows) >= limit: limited = True; break
+                    if limited: break
+                if limited: child.terminate()
+                child.wait(timeout=3)
+                errors.seek(0); detail = errors.read(4096).decode(errors='replace')
+                if 'not seeing messages from other users' in detail.lower() or 'insufficient permissions' in detail.lower():
+                    raise PermissionError('Host system journal is not readable by the collector operator')
+                if child.returncode and not limited: raise RuntimeError(detail or 'Journal query failed')
+                if limited and not rows: raise RuntimeError('Journal record exceeds the bounded batch; cursor retained')
+                return rows, limited
+            finally:
+                if child.poll() is None: child.kill(); child.wait(timeout=3)
+                child.stdout.close()
+
+    def linux(self):
+        if not sys.platform.startswith('linux'):
+            self.status('linux:journal', 'unavailable', 'Linux journal is not available on this host')
+            return
+        if time.time() - self.state('linux:journal:last', 0) < 60: return
+        self.set_state('linux:journal:last', time.time())
+        if not shutil.which('journalctl'):
+            self.status('linux:journal', 'unavailable', 'journalctl is not installed; Docker/application sources remain separate')
+            return
+        cursor = self.state('linux:journal:cursor')
+        start = self.state('linux:journal:through', (datetime.now(UTC) - timedelta(days=7)).isoformat())
+        until = now()
+        args = ['journalctl', '--no-pager', '--output=json', '--all', '--priority=warning', '--until', until]
+        try:
+            try:
+                rows, limited = self.journal_batch(args + (['--after-cursor', cursor] if cursor else ['--since', start]))
+            except RuntimeError as exc:
+                if not cursor or not re.search(r'cursor|seek', str(exc), re.I): raise
+                self.set_state('linux:journal:gap', True)
+                rows, limited = self.journal_batch(args + ['--since', start])
+            for row in rows:
+                identity = row.get('__CURSOR')
+                micros = row.get('__REALTIME_TIMESTAMP')
+                if not isinstance(identity, str) or len(identity) > 4096 or not str(micros).isdecimal():
+                    raise ValueError('Invalid journal identity; cursor retained')
+                stamp = datetime.fromtimestamp(int(micros) / 1000000, UTC).isoformat()
+                raw = row.get('MESSAGE', '')
+                if not isinstance(raw, str): raw = '[non-text journal message]'
+                unit = row.get('_SYSTEMD_UNIT', '')
+                if not isinstance(unit, str) or not re.fullmatch(r'[A-Za-z0-9@_.:-]{1,200}', unit): unit = None
+                kernel_oom = row.get('_TRANSPORT') == 'kernel' and bool(re.search(r'out of memory|oom.kill|killed process', raw, re.I))
+                kind = 'kernel_oom' if kernel_oom else 'system_service_failure' if unit and re.search(r'failed|failure', raw, re.I) else 'system_journal'
+                priority = int(row.get('PRIORITY', 4))
+                payload = dict(kind=kind, module='system', level='error' if priority <= 3 else 'warn', message=raw[:16384], unit=unit)
+                origin = unit or ('kernel' if row.get('_TRANSPORT') == 'kernel' else 'system')
+                self.add(normalize('linux:journal', json.dumps(payload), timestamp(stamp, until), identity, origin))
+                self.set_state('linux:journal:cursor', identity)
+                self.set_state('linux:journal:through', stamp)
+            if not limited: self.set_state('linux:journal:through', until)
+            detail = 'Warning/error system journal, bounded to 500 records/2 MiB per cycle'
+            if self.state('linux:journal:gap'): detail += '; journal cursor was lost/vacuumed: historical coverage has a gap'
+            self.status('linux:journal', 'pending' if limited else 'ok', detail, self.state('linux:journal:through', start))
+        except (PermissionError, FileNotFoundError) as exc:
+            self.status('linux:journal', 'unavailable', str(exc))
+        except Exception as exc:
+            self.status('linux:journal', 'error', str(exc))
+
+    def lifecycle(self):
+        if not getattr(self, 'postgres', None):
+            self.status('docker-lifecycle', 'unavailable', 'Canonical installation was not identified')
+            return
+        until = now()
+        start = self.state('docker:lifecycle:through', (datetime.now(UTC) - timedelta(minutes=5)).isoformat())
+        try:
+            output = self.command(['docker', 'events', '--since', start, '--until', until,
+                                   '--filter', 'type=container', '--filter', 'label=com.docker.compose.project=' + self.config.get('project', 'asa-lab-dev'),
+                                   '--format', '{{json .}}'], timeout=15)
+            rows = output.decode().splitlines()
+            if len(rows) > 500: raise RuntimeError('Docker lifecycle batch exceeds 500; cursor retained')
+            for line in rows:
+                event = json.loads(line); actor = event.get('Actor', {}); attrs = actor.get('Attributes', {})
+                if attrs.get('com.docker.compose.project') != self.config.get('project', 'asa-lab-dev'): continue
+                root = attrs.get('com.docker.compose.project.working_dir', '')
+                if not root or os.path.normcase(os.path.abspath(root)) != os.path.normcase(str(self.root)): continue
+                action = event.get('Action', event.get('status', ''))
+                if action not in ('oom', 'die', 'restart', 'start', 'stop', 'kill', 'destroy', 'health_status: unhealthy', 'health_status: healthy'): continue
+                nanos = event.get('timeNano')
+                if type(nanos) is not int or nanos <= 0: raise ValueError('Invalid Docker lifecycle timestamp')
+                stamp = datetime.fromtimestamp(nanos / 1e9, UTC).isoformat()
+                payload = dict(kind='container_lifecycle', module='system', action=action,
+                               level='error' if action in ('oom', 'health_status: unhealthy') or action == 'die' and attrs.get('exitCode', '0') != '0' else 'info',
+                               service=attrs.get('com.docker.compose.service', 'unknown'), exitCode=attrs.get('exitCode'))
+                if action in ('die', 'destroy'):
+                    cid = str(actor.get('ID', ''))
+                    cursors = [self.state('docker:' + cid + suffix) for suffix in ('', ':recent')]
+                    stamps = [timestamp(value, '') for value in cursors if isinstance(value, str)]
+                    through = max((value for value in stamps if value), default=None)
+                    event_at = timestamp(stamp, until)
+                    if through is None or through < event_at:
+                        payload.update(possibleUncollectedFrom=through, possibleUncollectedTo=event_at,
+                                       coverage='removed_container_possible_stdout_tail_gap' if action == 'destroy' else 'stopped_container_pending_stdout_reconciliation')
+                        if action == 'destroy':
+                            windows = self.state('docker:lifecycle:coverage', [])
+                            window = dict(container=cid[:12], **{k: payload[k] for k in ('possibleUncollectedFrom', 'possibleUncollectedTo')})
+                            if window not in windows: self.set_state('docker:lifecycle:coverage', [*windows, window][-20:])
+                self.add(normalize('docker-lifecycle', json.dumps(payload), timestamp(stamp, until), str(actor.get('ID')) + ':' + action + ':' + str(nanos)))
+            self.set_state('docker:lifecycle:through', until)
+            detail = 'Installation-scoped events; Docker retains only its last 256 events, earlier/lost daemon history is not recoverable'
+            if self.state('docker:lifecycle:coverage', []): detail += '; removed containers have possible uncollected stdout-tail windows (not a proven lost count)'
+            self.status('docker-lifecycle', 'ok', detail, until)
+        except Exception as exc: self.status('docker-lifecycle', 'error', str(exc))
+
     @staticmethod
     def host_segment(meta):
-        return all(s in ("docker-desktop", "metrics") or s.startswith("windows:") for s in meta["sources"])
+        return all(s in ("docker-desktop", "metrics", "docker-lifecycle") or s.startswith(("windows:", "linux:")) for s in meta["sources"])
 
     @staticmethod
     def source_ranges(events, key="source"):
@@ -812,13 +986,15 @@ class Collector:
         self.files()
         self.database()
         self.windows()
+        self.linux()
+        self.lifecycle()
         self.telemetry()
         self.publish()
 
     def telemetry(self):
         if time.time() - self.state("metrics:last", 0) < 60: return
         measured = now()
-        metrics = dict(kind="runtime_metrics", module="system", host=dict(diskFreeBytes=shutil.disk_usage(self.root).free))
+        metrics = dict(kind="runtime_metrics", module="system", sampledAt=measured, host=dict(diskFreeBytes=shutil.disk_usage(self.root).free))
         try:
             if os.name == "nt":
                 import ctypes
@@ -836,13 +1012,16 @@ class Collector:
                     previous = self.state("metrics:cpu")
                     if previous and counters[1] > previous[1]: metrics["host"]["cpuPercent"] = round(100*(1-(counters[0]-previous[0])/(counters[1]-previous[1])), 2)
                     self.set_state("metrics:cpu", counters)
-            else:
+            elif sys.platform.startswith('linux'):
+                try:
+                    sample, counters = linux_resources(previous=self.state('metrics:cpu-linux'))
+                    metrics['host'].update(sample); self.set_state('metrics:cpu-linux', counters)
+                except Exception:
+                    metrics.setdefault('failedComponents', []).append('host')
                 metrics["host"]["loadAverage"] = list(os.getloadavg())
-            warnings = []
-            host = metrics['host']
-            if host['diskFreeBytes'] < 1024**3: warnings.append('host_disk_low')
-            if host.get('memoryAvailableBytes', 2**63) < 256 * 1024**2: warnings.append('host_memory_low')
-            if host.get('commitAvailableBytes', 2**63) < max(256 * 1024**2, host.get('commitLimitBytes', 0) // 50): warnings.append('host_commit_low')
+            else:
+                metrics.setdefault('failedComponents', []).append('host')
+            warnings = resource_warnings(metrics['host'])
             if warnings: metrics.update(resourceWarnings=warnings, level='warn')
             ids = list(getattr(self, "containers", {}))
             if ids:
@@ -850,7 +1029,7 @@ class Collector:
                     output = self.command(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids], timeout=15)
                     metrics["containers"] = [{k: v for k, v in json.loads(line).items() if k in ("Name", "CPUPerc", "MemUsage", "MemPerc", "PIDs")} for line in output.decode("utf-8").splitlines()]
                 except Exception:
-                    metrics["failedComponents"] = ["containers"]
+                    metrics.setdefault("failedComponents", []).append("containers")
             if getattr(self, "postgres", None):
                 sql = '''BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; COPY (SELECT json_build_object('connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),'waits',(SELECT json_agg(t) FROM (SELECT state,wait_event_type,count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state,wait_event_type) t))) TO STDOUT WITH CSV; ROLLBACK;'''
                 output = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=10)
@@ -859,7 +1038,7 @@ class Collector:
                 sample = json.loads(rows[0][0])
                 if not isinstance(sample, dict) or type(sample.get("connections")) is not int or not isinstance(sample.get("waits"), (list, type(None))): raise ValueError("Invalid database metric sample")
                 metrics["database"] = sample
-            if metrics.get("failedComponents"): raise RuntimeError("Container resource metrics unavailable; database sample retained")
+            if metrics.get("failedComponents"): raise RuntimeError("Some resource metrics are unavailable; available samples retained")
             self.add(normalize("metrics", json.dumps(metrics), measured, measured))
             self.status("metrics", "ok", "Runtime resource sample", measured)
         except Exception as exc:
@@ -870,7 +1049,8 @@ class Collector:
         self.set_state("metrics:last", time.time())
 
 
-def write_collector_health(root, state, last_success=None, detail="", duration=None):
+def write_collector_health(root, state, last_success=None, detail="", duration=None, sources=None):
+    safe_store_paths(root)
     store = root / ".asa" / "diagnostics" / "store"
     store.mkdir(parents=True, exist_ok=True)
     target = store / "collector-health.json"
@@ -878,10 +1058,36 @@ def write_collector_health(root, state, last_success=None, detail="", duration=N
         try: last_success = json.loads(target.read_text(encoding="utf-8")).get("lastSuccessAt")
         except (OSError, ValueError): pass
     value = dict(version=1, state=state, checkedAt=now(), lastSuccessAt=last_success, detail=clean(str(detail))[:500], durationMs=duration)
+    if sources is not None:
+        applicable = [s for s in sources if s.get('applicable', True)]
+        value['excludedNotApplicable'] = len(sources) - len(applicable)
+        value['sourceStates'] = {state: sum(s.get('state') == state for s in applicable) for state in ('ok', 'pending', 'unavailable', 'error')}
+        value['coverageComplete'] = bool(applicable) and not any(s.get('state') != 'ok' or s.get('possibleCoverageGap') for s in applicable)
     temporary = target.with_suffix(".tmp")
     temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
     if os.name != "nt": os.chmod(temporary, 0o640)
     os.replace(temporary, target)
+
+
+def process_identity(root, project):
+    from deployment.collector import digest
+    revision = None
+    try:
+        revision = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=root, capture_output=True, text=True, timeout=5,
+                                  creationflags=0x08000000 if os.name == 'nt' else 0).stdout.strip()
+    except (OSError, subprocess.SubprocessError): pass
+    if not isinstance(revision, str) or not re.fullmatch(r'[a-f0-9]{40}', revision): revision = None
+    return dict(version=1, root=str(root.resolve()), project=project, pid=os.getpid(), nonce=uuid.uuid4().hex,
+                startedAt=now(), revision=revision, scriptDigest=digest(root))
+
+
+def write_process_health(root, identity):
+    safe_store_paths(root)
+    target = root / '.asa/diagnostics/store/collector-process.json'
+    temp = target.with_suffix('.tmp')
+    temp.write_text(json.dumps({**identity, 'checkedAt': now()}), encoding='utf-8')
+    if os.name != 'nt': os.chmod(temp, 0o640)
+    os.replace(temp, target)
 
 
 def main():
@@ -890,16 +1096,28 @@ def main():
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--import-history", type=Path, help="Recover retained history from an existing normalized ASA log ZIP")
     args = parser.parse_args()
+    args.root = args.root.resolve()
     try:
         config_path = args.root / ".asa" / "log-collector.json"
         config = json.loads(config_path.read_text(encoding="utf-8-sig")) if config_path.exists() else {}
         installation = json.loads((args.root / ".asa" / "installation.json").read_text(encoding="utf-8-sig"))
         config.setdefault("project", installation["project"])
+        if config['project'] != installation['project']: raise ValueError('Collector project differs from installation metadata')
+        from deployment.collector import validate_config, safe_paths
+        from types import SimpleNamespace
+        if not isinstance(installation.get('project'), str) or not re.fullmatch(r'[a-z0-9][a-z0-9_-]*', installation['project']):
+            raise ValueError('Invalid installation project')
+        # The running collector needs public installation identity, not .env
+        # credentials. Canonical Docker labels are checked on every cycle.
+        install = SimpleNamespace(root=args.root, state=args.root / '.asa', project=installation['project'])
+        safe_paths(install)
+        validate_config(install)
         for key, lower, upper in (("retentionDays", 1, 365), ("maxBytes", 16 * 1024 * 1024, 10 * 1024 * 1024 * 1024), ("intervalSeconds", 10, 300)):
             if key in config and (type(config[key]) is not int or not lower <= config[key] <= upper):
                 raise ValueError(f"Invalid collector setting: {key}")
     except Exception as exc:
-        write_collector_health(args.root, "error", detail=exc)
+        try: write_collector_health(args.root, "error", detail=exc)
+        except (OSError, ValueError): pass
         raise
     script_version = Path(__file__).stat().st_mtime_ns
     # Only one collector may publish the installation's catalog at a time.
@@ -917,9 +1135,19 @@ def main():
             fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except OSError:
         raise SystemExit("Another log collector is already running")
+    (args.root / '.asa/diagnostics/store').mkdir(parents=True, exist_ok=True)
+    identity = process_identity(args.root, config['project'])
+    write_process_health(args.root, identity)
+    stop_heartbeat = threading.Event()
+    def heartbeat():
+        while not stop_heartbeat.wait(20):
+            try: write_process_health(args.root, identity)
+            except OSError: pass  # A failed write becomes observably stale.
+    threading.Thread(target=heartbeat, name='asa-collector-heartbeat', daemon=True).start()
     try:
         collector = Collector(args.root, config)
     except Exception as exc:
+        stop_heartbeat.set()
         write_collector_health(args.root, "error", detail=exc)
         raise
     if args.import_history:
@@ -931,7 +1159,8 @@ def main():
         cycle_start = time.monotonic()
         try:
             collector.cycle()
-            write_collector_health(args.root, "ok", now(), duration=round((time.monotonic()-cycle_start)*1000))
+            sources = [json.loads(row[0]) for row in collector.db.execute('SELECT payload FROM sources')]
+            write_collector_health(args.root, "ok", now(), duration=round((time.monotonic()-cycle_start)*1000), sources=sources)
         except Exception as exc:
             collector.db.rollback()
             write_collector_health(args.root, "error", detail=exc)
@@ -940,6 +1169,9 @@ def main():
         if args.once: break
         if Path(__file__).stat().st_mtime_ns != script_version: break
         time.sleep(max(10, config.get("intervalSeconds", 20)))
+    stop_heartbeat.set()
+    collector.db.close()
+    stream.close()
 
 
 if __name__ == "__main__":
