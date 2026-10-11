@@ -40,6 +40,16 @@ type Pcm = {
   gainId: number;
   samples: number[];
 };
+type NativeResume = {
+  promiseId: number;
+  contextId: number;
+  gestureOrder: number | null;
+  invocationOrder: number;
+  invocationState: AudioContextState;
+  callbackObservation: 'NOT_OBSERVED' | 'FULFILLED' | 'REJECTED';
+  settlementOrder: number | null;
+};
+type NativeSuspend = { contextId: number; state: AudioContextState; order: number };
 type Probe = {
   actions: Array<{ at: number; order: number; type: string; trusted: boolean }>;
   audio: Array<{
@@ -48,12 +58,15 @@ type Probe = {
     contextId: number;
     state: AudioContextState;
     userActive: boolean;
+    order: number;
   }>;
+  resumes: Array<NativeResume & { order: number; error: string | null }>;
   requests: Array<{
     at: number;
     order: number;
     workerId: number;
     request: ElectronicsSimulationWorkerRequest;
+    nativeResumes: Array<NativeResume & { contextState: AudioContextState }>;
   }>;
   frames: Frame[];
   lifecycles: Array<{ order: number; workerId: number; type: 'terminated' }>;
@@ -66,6 +79,7 @@ type Probe = {
 type ObservedWindow = Window & {
   __startupAudio?: Probe;
   __sampleStartupPcm?: () => Pcm[];
+  __suspendStartupAudio?: () => Promise<NativeSuspend>;
   __recordStartupAudio?: (record: { field: string; value: unknown }) => Promise<void>;
 };
 
@@ -337,6 +351,7 @@ async function observe(page: Page, originals: Evidence, pageName: string) {
     const probe: Probe = {
       actions: [],
       audio: [],
+      resumes: [],
       requests: [],
       frames: [],
       lifecycles: [],
@@ -380,6 +395,8 @@ async function observe(page: Page, originals: Evidence, pageName: string) {
     let activeRun: Run | null = null;
     let order = 0;
     let workerId = 0;
+    const nativeContexts = new Map<number, AudioContext>();
+    const nativeResumes = new Map<number, NativeResume>();
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
         const worker = Reflect.construct(target, args, newTarget) as Worker;
@@ -416,6 +433,15 @@ async function observe(page: Page, originals: Evidence, pageName: string) {
               order: requestOrder,
               workerId: id,
               request: structuredClone(request),
+              // This snapshot is taken AT the real postMessage call, not when
+              // Node later reads the probe. NOT_OBSERVED describes our callback,
+              // never introspection of the native Promise's internal state.
+              nativeResumes: [...nativeResumes.values()]
+                .filter((entry) => entry.gestureOrder === probe.actions.at(-1)?.order)
+                .map((entry) => ({
+                  ...entry,
+                  contextState: nativeContexts.get(entry.contextId)!.state,
+                })),
             });
             return Reflect.apply(target, thisArg, messages);
           },
@@ -432,12 +458,14 @@ async function observe(page: Page, originals: Evidence, pageName: string) {
     });
     const analysers: Array<{ context: AudioContext; analyser: AnalyserNode; gainId: number }> = [];
     let contextId = 0;
+    let promiseId = 0;
     let gainId = 0;
     const NativeAudioContext = window.AudioContext;
     window.AudioContext = new Proxy(NativeAudioContext, {
       construct(target, args, newTarget) {
         const context = Reflect.construct(target, args, newTarget) as AudioContext;
         const id = ++contextId;
+        nativeContexts.set(id, context);
         const record = (type: string) =>
           append(probe.audio, {
             at: performance.now(),
@@ -445,14 +473,46 @@ async function observe(page: Page, originals: Evidence, pageName: string) {
             contextId: id,
             state: context.state,
             userActive: navigator.userActivation.isActive,
+            order: ++order,
           });
         record('constructed');
         context.addEventListener('statechange', () => record('statechange'));
         context.resume = new Proxy(context.resume, {
           apply(target, thisArg, argumentsList) {
             record('resume-invoked');
-            // Preserve the SAME native promise, including its rejection semantics.
-            return Reflect.apply(target, thisArg, argumentsList);
+            const invocationState = context.state;
+            const nativePromise = Reflect.apply(target, thisArg, argumentsList) as Promise<void>;
+            const identity = ++promiseId;
+            const invocation: NativeResume = {
+              promiseId: identity,
+              contextId: id,
+              gestureOrder: probe.actions.at(-1)?.order ?? null,
+              invocationOrder: ++order,
+              invocationState,
+              callbackObservation: 'NOT_OBSERVED',
+              settlementOrder: null,
+            };
+            nativeResumes.set(identity, invocation);
+            append(probe.resumes, { ...invocation, order, error: null });
+            const settled = (callbackObservation: 'FULFILLED' | 'REJECTED', error: unknown) => {
+              const settlementOrder = ++order;
+              const observation = { ...invocation, callbackObservation, settlementOrder };
+              nativeResumes.set(identity, observation);
+              append(probe.resumes, {
+                ...observation,
+                order: settlementOrder,
+                error: callbackObservation === 'REJECTED' ? String(error) : null,
+              });
+            };
+            // Register before the product's await/catch, consume rejection only
+            // on our OWN observation branch, and return the SAME native promise.
+            void nativePromise
+              .then(
+                () => settled('FULFILLED', null),
+                (error) => settled('REJECTED', error),
+              )
+              .catch((error) => probe.errors.push(`resume observer: ${String(error)}`));
+            return nativePromise;
           },
         });
         context.createGain = new Proxy(context.createGain, {
@@ -486,6 +546,23 @@ async function observe(page: Page, originals: Evidence, pageName: string) {
         return context;
       },
     });
+    (window as ObservedWindow).__suspendStartupAudio = async () => {
+      if (nativeContexts.size !== 1) throw new Error('Expected one actual native audio context');
+      const [id, context] = [...nativeContexts.entries()][0];
+      // Test setup uses the actual native operation, with no deferred promise,
+      // replacement context, product marker, timer or change to the Run gesture.
+      await context.suspend();
+      const certificate = { contextId: id, state: context.state, order: ++order };
+      append(probe.audio, {
+        at: performance.now(),
+        type: 'native-suspend-completed',
+        contextId: id,
+        state: context.state,
+        userActive: navigator.userActivation.isActive,
+        order: certificate.order,
+      });
+      return certificate;
+    };
     (window as ObservedWindow).__sampleStartupPcm = () =>
       analysers.map(({ context, analyser, gainId }) => {
         const buffer = new Float32Array(analyser.fftSize);
@@ -677,16 +754,93 @@ function assertFrames(observation: Probe) {
     expect(candidates.length).toBeGreaterThan(0);
   }
 }
+function assertNativeResumeAdmission(observation: Probe, before: Probe, suspended: NativeSuspend) {
+  expect(suspended.state).toBe('suspended');
+  const gestures = observation.actions.slice(before.actions.length);
+  expect(gestures).toHaveLength(1);
+  const gesture = gestures[0];
+  expect(gesture.trusted).toBe(true);
+  expect(gesture.type.trim()).toBe('Начать моделирование');
+  expect(suspended.order).toBeLessThan(gesture.order);
+  const preflights = observation.requests
+    .slice(before.requests.length)
+    .filter((entry) => entry.request.kind === 'preflight');
+  expect(preflights).toHaveLength(1);
+  const preflight = preflights[0];
+  const invocations = observation.resumes.filter(
+    (entry) => entry.gestureOrder === gesture.order && entry.callbackObservation === 'NOT_OBSERVED',
+  );
+  expect(
+    invocations,
+    'NOT_DISCRIMINATING: this trusted Run did not invoke native resume',
+  ).toHaveLength(1);
+  const invoked = invocations[0];
+  expect(invoked.contextId).toBe(suspended.contextId);
+  expect(invoked.invocationState).toBe('suspended');
+  expect(gesture.order).toBeLessThan(invoked.invocationOrder);
+  expect(invoked.invocationOrder).toBeLessThan(preflight.order);
+  expect(preflight.nativeResumes).toHaveLength(1);
+  const atPostMessage = preflight.nativeResumes[0];
+  expect(atPostMessage).toMatchObject({
+    promiseId: invoked.promiseId,
+    contextId: invoked.contextId,
+    gestureOrder: gesture.order,
+    invocationOrder: invoked.invocationOrder,
+    invocationState: 'suspended',
+  });
+  expect(
+    atPostMessage.callbackObservation,
+    'NOT_DISCRIMINATING: native resume callback was already observed at Worker preflight',
+  ).toBe('NOT_OBSERVED');
+  expect(atPostMessage.settlementOrder).toBeNull();
+  const settlements = observation.resumes.filter(
+    (entry) =>
+      entry.promiseId === invoked.promiseId && entry.callbackObservation !== 'NOT_OBSERVED',
+  );
+  expect(settlements.length).toBeLessThanOrEqual(1);
+  for (const settled of settlements) {
+    expect(settled.contextId).toBe(invoked.contextId);
+    expect(settled.gestureOrder).toBe(gesture.order);
+    expect(settled.settlementOrder).toBeGreaterThan(preflight.order);
+  }
+  // Old unlock awaits THIS promise. Our reaction was registered before that
+  // await, so its fulfillment/rejection observation must precede old preflight.
+  // Passing establishes callback order only, not a prolonged internally pending
+  // promise, a pre-settlement LED deadline or a school incident's frequency.
+  return { suspended, gesture, invoked, preflight, settlements };
+}
 async function runStop(
   page: Page,
   scenario: Scenario,
   name: string,
   info: TestInfo,
   originals: Evidence,
+  suspended?: NativeSuspend,
 ) {
   await originals.checkpoint(`before:run:${name}`);
   const before = await probe(page);
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+  if (suspended) {
+    await expect
+      .poll(
+        async () =>
+          (await probe(page)).requests
+            .slice(before.requests.length)
+            .filter((entry) => entry.request.kind === 'preflight').length,
+      )
+      .toBe(1);
+    const admission = await probe(page);
+    // Preserve the actual at-postMessage snapshot BEFORE this discriminating
+    // assertion or any LED/PNG/server await can fail.
+    originals.record.supplements.nativeResumeAdmission = { suspended, before, admission };
+    await originals.checkpoint('warm-native-preflight-originals');
+    originals.record.supplements.nativeResumeVerdict = assertNativeResumeAdmission(
+      admission,
+      before,
+      suspended,
+    );
+    await originals.checkpoint('warm-native-admission-verified');
+  }
   const stop = page.getByRole('button', { name: 'Остановить моделирование', exact: true });
   await expect(stop).toHaveAttribute('data-simulation-status', 'running');
   await expect
@@ -763,8 +917,11 @@ test.afterAll(async () => {
 });
 
 for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
-  for (const width of [1440, 390]) {
-    test(`optional audio natural ${scenario} startup and whole save reopen at ${width}px`, async ({
+  for (const { width, nativeResumeAdmission } of [
+    ...[1440, 390].map((width) => ({ width, nativeResumeAdmission: false })),
+    ...(scenario === 'immediate-high' ? [{ width: 1440, nativeResumeAdmission: true }] : []),
+  ]) {
+    test(`optional audio ${nativeResumeAdmission ? 'native suspend warm admission' : 'natural'} ${scenario} startup and whole save reopen at ${width}px`, async ({
       page,
       browser,
     }, info) => {
@@ -773,12 +930,16 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
       const originals = evidence(info, `startup-audio-${scenario}-${width}-raw.json`, {
         scenario,
         width,
+        nativeResumeAdmission,
         phases,
         puts,
         fixture: fixture(scenario),
         limitations: {
-          nativeCharacterizationOnly: true,
+          nativeCharacterizationOnly: !nativeResumeAdmission,
           conditionalPendingEvidenceIsSeparateMountedTest: true,
+          nativeAdmissionObservation: nativeResumeAdmission
+            ? 'Actual native suspend and same-promise callback/preflight order; no internal Promise-state introspection or prolonged-pending claim.'
+            : 'Natural characterization; not a discriminating built regression.',
           schoolCauseAndFrequency: 'NOT_PROVED',
           physicalSpeakerAudibility: 'NOT_VERIFIED',
           actualSchoolDeviceT3: 'PENDING',
@@ -791,7 +952,7 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
         await originals.checkpoint('before:seed');
         const teacher = await seedTeacher(
           admin,
-          `e2e-startup-audio-${scenario}-${width}-${info.workerIndex}`,
+          `e2e-startup-audio-${scenario}-${width}-${nativeResumeAdmission ? 'admission-' : ''}${info.workerIndex}`,
         );
         const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
         await observe(page, originals, 'initial');
@@ -834,7 +995,19 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
         const initial = await draft(page, id);
         phases.push({ initial });
         phases.push(await runStop(page, scenario, 'cold', info, originals));
-        phases.push(await runStop(page, scenario, 'warm', info, originals));
+        let suspended: NativeSuspend | undefined;
+        if (nativeResumeAdmission) {
+          await originals.checkpoint('before:native-suspend');
+          suspended = await page.evaluate(async () => {
+            const suspend = (window as ObservedWindow).__suspendStartupAudio;
+            if (!suspend) throw new Error('Actual native suspend operation unavailable');
+            return suspend();
+          });
+          originals.record.supplements.nativeSuspend = suspended;
+          await originals.checkpoint('actual-native-suspend-completed');
+          expect(suspended.state).toBe('suspended');
+        }
+        phases.push(await runStop(page, scenario, 'warm', info, originals, suspended));
         expect((await draft(page, id)).draft).toEqual(initial.draft);
         expect(puts).toHaveLength(0);
         // Make the sole persistent pupil edit at the existing desktop inspector.
@@ -949,7 +1122,8 @@ test('optional audio native tone PCM, noTone and Stop preserve the canonical clo
   const originals = evidence(info, 'startup-audio-tone-raw.json', {
     fixture: fixture('tone'),
     limitations: {
-      currentPiezoClockAdmission: 'KNOWN_INDEPENDENT_BLOCKER_NOT_REPAIRED_HERE',
+      currentPiezoClockAdmission:
+        'PREREQUISITE_553_ACCEPTED_e1328940fd215b1aec48975c33d42bda22e01e2e',
       syntheticPcm: false,
       headlessDigitalPcmIsNotSchoolSpeakerAudibility: true,
     },
