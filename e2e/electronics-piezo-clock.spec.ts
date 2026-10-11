@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
@@ -143,6 +144,49 @@ function evidence(info: TestInfo, scenario: Scenario) {
     primaryFailure: null as string | null,
     limitations: { schoolFrequency: 'NOT_PROVED', schoolAudibility: 'NOT_VERIFIED', T3: 'PENDING' },
   };
+  // This separate journal cannot be overwritten by an older queued async snapshot.
+  const primaryPath = info.outputPath(`piezo-${scenario}-primary-failure.json`);
+  const flushPrimary = () => {
+    try {
+      writeFileSync(primaryPath, JSON.stringify(raw, null, 2));
+    } catch (error) {
+      raw.errors.push(`primary journal write: ${String(error)}`);
+      console.error(error);
+    }
+  };
+  const recordPrimary = (error: unknown, name: string) => {
+    raw.primaryFailure ??= String(error);
+    raw.lastCheckpoint = name;
+    flushPrimary();
+  };
+  const skipAfterFailure = (names: string[]) => {
+    for (const name of names) {
+      raw.supplements[name] = {
+        status: 'NOT_AVAILABLE',
+        reason: 'primary failure already recorded',
+      };
+    }
+    flushPrimary();
+  };
+  const closeAfterFailure = (operation: () => Promise<unknown>) => {
+    const name = 'cookies-context-close';
+    raw.supplements[name] = { status: 'PENDING' };
+    flushPrimary();
+    const failed = (error: unknown) => {
+      raw.supplements[name] = { status: 'NOT_AVAILABLE', error: String(error) };
+      raw.errors.push(`${name}: ${String(error)}`);
+      console.error(error);
+      flushPrimary();
+    };
+    try {
+      void operation().then(() => {
+        raw.supplements[name] = { status: 'CAPTURED' };
+        flushPrimary();
+      }, failed);
+    } catch (error) {
+      failed(error);
+    }
+  };
   let pending = Promise.resolve();
   const persist = () =>
     (pending = pending.then(async () => {
@@ -172,6 +216,9 @@ function evidence(info: TestInfo, scenario: Scenario) {
     persist,
     checkpoint,
     guard,
+    recordPrimary,
+    skipAfterFailure,
+    closeAfterFailure,
     async receive(page: string, entry: RecordEntry) {
       raw.records.push({ page, ...entry });
       if (entry.field === 'capture-error') raw.errors.push(String(entry.value));
@@ -701,40 +748,56 @@ for (const scenario of ['original-active', 'piezo-passive-buzzer', 'piezo-disc']
         expect((await draft(reopened, id)).draft).toEqual(saved.draft);
         freshFailures.assertEmpty();
       } catch (error) {
+        original.recordPrimary(error, 'catch:cookies-primary');
         reopenFailure = error;
       } finally {
-        await original.checkpoint('finally:cookies-node-originals');
-        if (reopened) {
-          const retained = reopened;
-          await original.guard('cookies-dom', () =>
-            retained.locator('body').evaluate((body) => body.outerHTML),
-          );
-          await original.guard('cookies-png', () =>
-            retained.screenshot({ path: info.outputPath('cookies-final.png'), fullPage: true }),
-          );
+        if (reopenFailure !== undefined) {
+          original.skipAfterFailure(['cookies-dom', 'cookies-png']);
+          original.closeAfterFailure(() => fresh.close());
+        } else {
+          await original.checkpoint('finally:cookies-node-originals');
+          if (reopened) {
+            const retained = reopened;
+            await original.guard('cookies-dom', () =>
+              retained.locator('body').evaluate((body) => body.outerHTML),
+            );
+            await original.guard('cookies-png', () =>
+              retained.screenshot({ path: info.outputPath('cookies-final.png'), fullPage: true }),
+            );
+          }
+          await original.guard('cookies-context-close', () => fresh.close());
         }
-        await original.guard('cookies-context-close', () => fresh.close());
       }
       if (reopenFailure !== undefined) throw reopenFailure;
       failures.assertEmpty();
     } catch (error) {
+      original.recordPrimary(error, 'catch:scenario-primary');
       primary = error;
     } finally {
-      original.raw.primaryFailure = primary === undefined ? null : String(primary);
-      await original.checkpoint('finally:node-originals');
-      await original.guard('final-dom', () =>
-        page.locator('body').evaluate((body) => body.outerHTML),
-      );
-      await original.guard('final-png', () =>
-        page.screenshot({ path: info.outputPath('final.png'), fullPage: true }),
-      );
-      if (id) await original.guard('final-server-document', () => draft(page, id!));
-      await original.guard('raw-attachment', () =>
-        info.attach('piezo-originals', {
-          path: info.outputPath(`piezo-${scenario}-originals.json`),
-          contentType: 'application/json',
-        }),
-      );
+      if (primary !== undefined) {
+        original.skipAfterFailure([
+          'final-dom',
+          'final-png',
+          'final-server-document',
+          'raw-attachment',
+        ]);
+      } else {
+        original.raw.primaryFailure = null;
+        await original.checkpoint('finally:node-originals');
+        await original.guard('final-dom', () =>
+          page.locator('body').evaluate((body) => body.outerHTML),
+        );
+        await original.guard('final-png', () =>
+          page.screenshot({ path: info.outputPath('final.png'), fullPage: true }),
+        );
+        if (id) await original.guard('final-server-document', () => draft(page, id!));
+        await original.guard('raw-attachment', () =>
+          info.attach('piezo-originals', {
+            path: info.outputPath(`piezo-${scenario}-originals.json`),
+            contentType: 'application/json',
+          }),
+        );
+      }
     }
     if (primary !== undefined) throw primary;
     expect(original.raw.errors).toEqual([]);
