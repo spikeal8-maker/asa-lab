@@ -410,6 +410,7 @@ main() {
     fi
   fi
   if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity &&
+    python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile" &&
     compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan &&
     compose up -d --no-build && wait_exact_readiness && assert_embedded_entry_reachable &&
     [ -z "$(mixed_origin_services)" ]; then
@@ -421,6 +422,8 @@ main() {
       "rollback_api_image=$rollback_api" "rollback_web_image=$rollback_web" \
       "rollback_scratch_image=$rollback_scratch" "scratch_revision=$new_revision" \
       "entry_origin=$entry_origin" 'entry_http=pass' 'user_flow=not_run'
+    python3 tools/log_collector.py reconcile --root "$repo_root" --profile "$profile" ||
+      printf '%s\n' 'ASA ready; diagnostic collection is degraded. Inspect .asa/collector-operation.json.' >&2
   else
     write_receipt "$receipt_path" \
       'status=failed_after_backup' "updated_at_utc=$stamp" "compose_project=$project_name" \

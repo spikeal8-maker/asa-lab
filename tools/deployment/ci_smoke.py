@@ -11,6 +11,7 @@ import subprocess
 import tarfile
 import time
 import urllib.request
+import getpass
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from asa_manager import first_environment
@@ -18,6 +19,7 @@ from deployment.backup import export_backup, restore_check
 from deployment.contracts import require, verify_backup
 from deployment.releases import apply_release_environment, validate_resolved_images
 from deployment.system import Installation, run
+from deployment.collector import reader_probe, verify_effective_exec
 
 require(os.environ.get("GITHUB_ACTIONS") == "true", "CI_ONLY", "This test is only allowed in an isolated GitHub runner.")
 release = json.loads(Path(sys.argv[1]).read_text())
@@ -29,15 +31,53 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
     (root / ".asa" / "diagnostics" / "store").mkdir(parents=True)
     for file in ("compose.yaml", "compose.dev.yaml"):
         shutil.copyfile(source / file, root / file)
+    (root / 'tools').mkdir()
+    for file in ('collect_logs.py', 'collect-windows-logs.ps1', 'collector-scheduler.ps1', 'log_collector.py'):
+        shutil.copyfile(source / 'tools' / file, root / 'tools' / file)
+    shutil.copytree(source / 'tools/deployment', root / 'tools/deployment', ignore=shutil.ignore_patterns('__pycache__'))
     first_environment(root, "dev")
     env = root / ".env"
     env.write_text(env.read_text().replace("COMPOSE_PROJECT_NAME=asa-lab-dev", "COMPOSE_PROJECT_NAME=asa-lab-ci-delivery"))
     install = Installation(root, "dev")
+    # Existing sudo permission is a property of the disposable GitHub runner,
+    # not an automatic privilege elevation performed by the product manager.
+    operator = getpass.getuser()
+    collector_cli = ['sudo', '-n', 'env', 'SUDO_USER=' + operator, 'PYTHONDONTWRITEBYTECODE=1', sys.executable, str(root / 'tools/log_collector.py')]
+    run(collector_cli + ['prepare', '--root', str(root), '--profile', 'dev'])
+    install = Installation(root, 'dev')
     apply_release_environment(install, release)
     validate_resolved_images(install, release)
     try:
         install.compose("up", "-d", "--no-build")
         install.wait_ready(release["revision"], release["schema"])
+        # Test actual systemd registration, process identity and non-1000 host
+        # reader group before the later intentional restored-test DB override.
+        run(collector_cli + ['reconcile', '--root', str(root), '--profile', 'dev'])
+        verify_effective_exec({'mode': 'system', 'name': 'asa-log-collector-asa-lab-ci-delivery.service', 'root': str(root)}, sys.executable)
+        reader_probe(install)
+        deadline = time.monotonic() + 240
+        while True:
+            health_path = root / '.asa/diagnostics/store/collector-health.json'
+            catalog_path = root / '.asa/diagnostics/store/catalog.json'
+            if health_path.exists() and catalog_path.exists():
+                health = json.loads(health_path.read_text()); catalog = json.loads(catalog_path.read_text())
+                if health.get('state') == 'ok' and catalog.get('segments'): break
+            require(time.monotonic() < deadline, 'COLLECTOR_SMOKE', 'Collector did not finish a cycle in the disposable runner.')
+            time.sleep(1)
+        installed_process = json.loads((root / '.asa/diagnostics/store/collector-process.json').read_text())
+        require(installed_process['project'] == install.project and installed_process['root'] == str(root), 'COLLECTOR_SMOKE', 'Running collector belongs to another installation.')
+        require(any(s['source'] == 'linux:journal' and s['state'] in ('ok', 'pending', 'unavailable') for s in catalog['sources']),
+                'COLLECTOR_SMOKE', 'Linux journal access was not honestly classified.')
+        read_catalog = install.compose('exec', '-T', 'api', 'node', '-e',
+            "const c=JSON.parse(require('node:fs').readFileSync('/var/lib/asa-logs/catalog.json','utf8'));process.stdout.write(String(c.version))", capture=True)
+        require(read_catalog == '1', 'COLLECTOR_SMOKE', 'The restricted API cannot read the actual catalog.')
+        # An unchanged reconcile must preserve process identity and existing history.
+        nonce = installed_process['nonce']; retained = {item['file']: item['sha256'] for item in catalog['segments']}
+        run(collector_cli + ['reconcile', '--root', str(root), '--profile', 'dev'])
+        observed = json.loads((root / '.asa/diagnostics/store/collector-process.json').read_text())
+        require(observed['nonce'] == nonce, 'COLLECTOR_SMOKE', 'Idempotent reconcile restarted the healthy owned runner.')
+        require(all((root / '.asa/diagnostics/store' / file).exists() for file in retained), 'COLLECTOR_SMOKE', 'Reconcile removed retained history.')
+        print('COLLECTOR_SMOKE PASS: actual typed systemd executable/argv, process, scoped cycle, Linux access classification, supplemental reader GID, actual API catalog open, idempotent reconcile')
         # Real object-storage write through the S3 client, not a fake volume file.
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "/bin/sh", "minio-init", "-eu", "-c",
                         'mc alias set local http://minio:9000 "$ASA_OBJECT_STORAGE_ACCESS_KEY" "$ASA_OBJECT_STORAGE_SECRET_KEY"; printf "synthetic-project-media" | mc pipe "local/$ASA_OBJECT_STORAGE_BUCKET/delivery-fixture.txt"')
@@ -187,5 +227,21 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         require(any(e.get('path') == '/internal/blocks/' and e.get('status') == 200 for e in access), 'ACCESS_LOG', 'The original embedded editor path was lost after rewriting.')
         print("PORTABLE_SMOKE PASS: prebuilt boot, complete backup, ACL/RLS restore, restricted-role login, origins, private web access logs")
     finally:
-        # Only this explicitly disposable CI project. No host/developer volumes.
-        install.compose("down", "--volumes")
+        unit = 'asa-log-collector-asa-lab-ci-delivery.service'
+        try:
+            unit_path = Path('/etc/systemd/system') / unit
+            if unit_path.exists():
+                require(str(root / 'tools/collect_logs.py') in unit_path.read_text(), 'COLLECTOR_CLEANUP', 'Refusing to change a foreign CI runner unit.')
+                run(['sudo', '-n', 'systemctl', 'stop', unit])
+                run(['sudo', '-n', 'systemctl', 'disable', unit])
+                run(['sudo', '-n', sys.executable, '-c', 'from pathlib import Path; Path("/etc/systemd/system/asa-log-collector-asa-lab-ci-delivery.service").unlink(missing_ok=True)'])
+                run(['sudo', '-n', 'systemctl', 'daemon-reload'])
+            # Root helper imports must not leave a root-owned __pycache__ that
+            # prevents the ordinary runner from removing its own temp tree.
+            for path in [root / 'tools', *(root / 'tools').rglob('*')]:
+                require(path.lstat().st_uid == os.getuid(), 'COLLECTOR_CLEANUP_OWNERSHIP',
+                        f'Collector CI tool path has a foreign owner: {path.relative_to(root)}')
+            print('COLLECTOR_CLEANUP PASS: copied tools/cache remain owned by the disposable runner')
+        finally:
+            # Only this explicitly disposable CI project. No host/developer volumes.
+            install.compose("down", "--volumes")
