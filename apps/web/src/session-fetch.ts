@@ -5,6 +5,9 @@ const LOCAL_LOGOUT_EVENT = 'asa-session-logout';
 let refreshInFlight: Promise<boolean> | null = null;
 
 function canRefresh(path: string): boolean {
+  // Observability is best-effort and cannot rotate credentials or log out the
+  // user, including a StudentSeat without an Account refresh credential.
+  if (/^\/api\/(?:analytics|diagnostics)(?:\/|\?|$)/.test(path)) return false;
   // Preview must not refresh or rotate authentication state after a 401.
   if (/^\/api\/learning\/activities\/[^/]+\/preview(?:\?|$)/.test(path)) return false;
   // A StudentSeat has its own session, never an Account refresh credential.

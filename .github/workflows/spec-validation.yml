@@ -89,6 +89,15 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Set up Python for observability checks
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      # The canonical focused gate includes collector and browser transport tests.
+      - name: Observability focused gate
+        run: pnpm test:admin-logs
+
       # One gate per result: identical to `pnpm gate:code` locally.
       - name: Code gate
         run: pnpm gate:code

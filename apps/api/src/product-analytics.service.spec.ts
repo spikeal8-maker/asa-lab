@@ -68,6 +68,20 @@ describe('product analytics writer', () => {
     expect(query.mock.calls[0]?.[1]?.[12]).toBe('unknown');
   });
 
+  it('stores an unresolved proxy visitor as NULL instead of a Docker gateway', async () => {
+    const query = vi.fn(async () => ({ rows: [] }));
+    const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
+    await service.record({
+      actor: { kind: 'anonymous' },
+      eventType: 'auth.login',
+      outcome: 'failed',
+      address: 'unknown',
+      networkKind: 'proxy',
+    });
+    expect(query.mock.calls[0]?.[1]?.[10]).toBeNull();
+    expect(query.mock.calls[0]?.[1]?.[12]).toBe('proxy');
+  });
+
   it('starts a project-bound module session with network provenance', async () => {
     const query = vi.fn(async () => ({ rows: [{ analytics_start_module_session: 'session' }] }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
