@@ -351,15 +351,6 @@ export function WorkbenchStage({
   const [hoveredBreadboardNet, setHoveredBreadboardNet] = useState<BreadboardHover>(null);
   const controllerRef = useRef(c);
   controllerRef.current = c;
-  // React delegates wheel passively. Navigation must cancel the native default
-  // on this SVG only; rebind after each commit to cover a replaced stage node.
-  useLayoutEffect(() => {
-    const stage = c.stageRef.current;
-    if (!stage) return;
-    const handleWheel = (event: WheelEvent) => controllerRef.current.handleWheel(event);
-    stage.addEventListener('wheel', handleWheel, { passive: false });
-    return () => stage.removeEventListener('wheel', handleWheel);
-  });
   const [, setHitMaskRevision] = useState(0);
   const pointerSequenceRef = useRef(0);
   const lastWireClick = useRef<{
@@ -1258,6 +1249,7 @@ export function WorkbenchStage({
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
         onPointerCancel={handleStagePointerCancel}
+        onWheel={c.handleWheel}
       >
         <defs>
           <pattern id="asa-grid-small" width="20" height="20" patternUnits="userSpaceOnUse">
