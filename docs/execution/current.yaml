@@ -584,18 +584,16 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: controlled_late_sidebar_native_ingress_experiment
+      checkpoint: controlled_late_sidebar_complete_no_proven_cause
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       - e2e/electronics-interactions.spec.ts
-      repair_scope: ONE browser-file diagnostic on unchanged current production. Reuse observer5fde existing
-        permanent case; gate only real lazy WorkbenchSidebars script until actual retry0 cycle1 image404 then
-        continue unchanged bytes. Preserve every old assertion/timeout5000/stage10000/800/max7/fullscheme/zeroPUT/errors.
-        Passive native/node/network/CDP identity and fullfinally receipts. No product observer or repair in
-        this phase.
+      repair_scope: No product or fixture repair justified by completed controlled experiment. Preserve source2382/probe7adc
+        and originals. Existing538/544 acceptance blockers remain. No unchanged rerun, broadcast failure,
+        eager fetch, timeout/physics change.
       dependency_for_issue: 544
       programme_issue: 452
       source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
@@ -612,11 +610,9 @@ parallel_lanes:
       causal_before_run: 38012528685
       causal_before_conclusion: success_unchanged_product_not_acceptance
       controller_observed_at: '2026-10-11T06:59:21Z'
-      next_action: NEW bounded diagnostic author from clean main0c, transplant only saved observer2084 and
-        add actual-response-controlled sidebar gate/passive identity. ONE unpublished SHA/fullinverse/selfreview
-        thenSTOP. Root validates source and runs ONE directed frozen isolated browser case. ORDER_NOT_ESTABLISHED
-        cannot be product PASS/FAIL; no hopeful repeats. Cause must be proved before separate product repair
-        selection.
+      next_action: Controller continues independent ready E11 lane. Any548 source-branch ingress observation
+        requires a separately selected bounded phase; no product observer/write authorized by completed browser-only
+        phase. Old failed trace native/React ingress missing, cause unproved.
       causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
       causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
       causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
@@ -632,6 +628,18 @@ parallel_lanes:
         is not proven native recovery. No causal product repair proved.
       new_causal_report: docs/product/electronics/evidence/ordinary-image-548-new1b-causal-analysis.md
       new_causal_report_sha256: f4e14370c6acab73747b1ffcdab47ae39c27c9721acb8b32c48e25e0b6b3e299
+      controlled_source_sha: 2382badba66fee795ee306685eb01a4e06d6efe9
+      controlled_probe_sha: 7adc80ff1830a14523b0c5e68ba75d435c469c2e
+      controlled_run: 38120687997
+      controlled_conclusion: SUCCESS directed diagnostic only; NOT product repair or acceptance
+      controlled_independent_report: docs/product/electronics/evidence/ordinary-image-548-controlled-independent-review.md
+      controlled_independent_report_sha256: 09a1d49201c570243ff10b8edb797fb6fd84ead8d6f317cb3d7d6b6be3c8537c
+      controlled_independent_manifest_sha256: ece596310cb3fc04abd2cbb1377db362d151e70f314b90114db8875f295dc9b0
+      controlled_actual: 'ORDER_ESTABLISHED: connected catalog ID3 afterretry0 beforeterminalretry2 received
+        trusted native error and failed on same ID, no replacement.7image404,9oldassertionsPASS,whole5parts0wires
+        initial/server/editor exact,0PUT/errors. Late mount alone insufficient; old failure native/React ingress
+        absent. Full original ZIP/raw/17hashes root checked. CDP internal timestamps anomalous/not used for
+        causal order.'
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -3178,6 +3186,75 @@ parallel_lanes:
         causal browser BEFORE phase only; CSS unchanged. Supporting shared registrations
         use explicit card budget and actual dirty-path checks, no guard disabled. School
         actions none.
+
+  - id: electronics-selection
+    parent_lane: electronics
+    worktree_id: electronics-selection-outline
+    owned_paths:
+    - apps/web/src/electronics/testing/selection-outline.spec.tsx
+    - e2e/electronics-selection-outline.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
+    task:
+      id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
+      issue: 549
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_outline_product_candidate_and_identical_before_after_scenario
+      kind: repair
+      owner_acceptance: pending
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      program_issue: 452
+      owner_problem: E11
+      repair_scope: Only existing measured resistor/button/switch outward selection geometry/zoom parity
+        in Visual; mounted regression plus one new browser journey. Same test bytes against baseline/candidate;
+        root runs one causal BEFORE and AFTER. Eight owner families plus tactile button at1440/1024/390/320,
+        native selection/group/zoom/transforms/runtime and wholeSave/cookies-onlyreopen. No physics/assets/Stage/CSS/548
+        observer edits.
+      next_action: 'NEW bounded product author: fresh preflight/card, one unpublished candidate/selfreview/hashmanifest
+        thenSTOP; root actualsource and causal browser checks, final exact required gates then NEW independent
+        final reviewer. No school actions or closure claim.'
+      preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged.
+        No resolution of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted
+        production slice before later new production phase.
+      shared_write_contract: Visual is already in legacy parent owned_paths. Root verified all relevant
+        worktrees CLEAN and all548/525 Visual writers STOP/held; only549 author may write selected measured
+        selection branches. No protection disabled; advisory owned_paths does not grant authority. Three
+        additive registrations are budgeted by card.
+    execution_lease:
+      executor_id: electronics-selection-outline
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 0fb17bd9ce02eef510c5249f63a4016e27b53e86
+      head_sha: null
+      observed_at: '2026-10-11T07:32:45.593725+00:00'
+      main:
+        branch: main
+        sha: 0fb17bd9ce02eef510c5249f63a4016e27b53e86
+      observation_note: Dated observation only. Fresh fetch main/current and exact CI before writes; main0fb
+        General38120088582 all4SUCCESS. E11 not accepted, school pending; preserved candidates and all foreign
+        lanes unchanged.
 
 integration:
   owner_lane: visual-programming
