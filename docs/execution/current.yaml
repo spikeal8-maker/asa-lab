@@ -2984,9 +2984,9 @@ parallel_lanes:
         precision, product code, whole Save/CAS/cookies, console and all waits.
       preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
         sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
-      next_action: STOP this accepted wheel slice. Programme controller selects mandatory checkpoint006/556
-        before later new product phase; preserve549 source and wait fresh selected dependency phase. No
-        blanket field/layout or school acceptance.
+      next_action: STOP accepted wheel slice. Mandatory checkpoint006/556 accepted separately; controller
+        may fresh-select held549 dependency phase. Full field/layout, school/device/owner/deployment acceptance
+        remain pending.
       frozen_directed_evidence:
         candidate: d247eb0677007f73006125fa7626af8e3042100a
         before_run: 38160845832
@@ -3007,7 +3007,9 @@ parallel_lanes:
       exact_candidate_focused_conclusion: success
       acceptance: technical_accepted
       production_slices_since_hygiene542: 3
-      hygiene006_due: true
+      hygiene006_due: false
+      hygiene006_resolved_by_issue: 556
+      hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -3252,8 +3254,8 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: mandatory_compact_full_hygiene_after_541_543_554
+      status: done
+      checkpoint: compact_checkpoint006_exact_general_new_independent_approved_integrated
       kind: plan/governance
       owner_acceptance: pending
       full_hygiene_checkpoint: true
@@ -3271,10 +3273,20 @@ parallel_lanes:
       repair_scope: ONLY compact seven-category checkpoint006 on actual accepted main delta since005; no
         product, test, generated, policy, workflow, dependency or protected changes/removals. No repeated
         browser/device measurement. Baseline extension only after actual proof and controller coordination.
-      next_action: One bounded author writes ONLY new checkpoint006; focused governance/routing/control/diff/self-review,
-        ONE unpublished exactSHA thenSTOP. Controller verifies original facts, exact General ALL4 and NEW
-        independent review. Preserve full555/545, allotherlanes/candidates including553548549552 and approved
-        mutual553554 union. Fetch main and actual exact-SHA CI before writes.
+      next_action: STOP this docs-only checkpoint. Programme controller fresh-selects separate548 ordinary-image
+        observation after saved NO_PROVEN_CAUSE; preserve553549552 and owner-approved mutual553554 registration
+        union. No next product is authorized by this closeout alone. School/device/owner/deployment pending.
+      accepted_candidate_sha: 05e122aff108d05670416fd2b55273d56243e397
+      candidate_tree: 670d8e25fa29d3bc1500b28325ba0eda22c4ef7d
+      integrated_sha: 05e122aff108d05670416fd2b55273d56243e397
+      independent_review: approved
+      independent_evidence: docs/product/electronics/evidence/hygiene-556-independent-review-05e122af.md
+      independent_review_original_sha256: 4f6c1d82bec0110435d30e0719ff4b4fe828f8e010bbeffe185e413800d39f5c
+      exact_candidate_general_run: 38166383399
+      exact_candidate_general_conclusion: success
+      acceptance: technical_accepted
+      production_slices_since_hygiene556: 0
+      hygiene006_due: false
     execution_lease:
       executor_id: electronics-hygiene-556
       holder: unassigned
