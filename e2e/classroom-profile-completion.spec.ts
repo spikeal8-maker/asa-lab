@@ -22,6 +22,44 @@ const screenshots = 'e2e/artifacts/owner-preview/classroom-profile-completion';
 test.beforeAll(async () => {
   admin = e2eAdminPool();
   owner = await seedTeacher(admin, 'profile-completion');
+  // seedTeacher is a migrated organization account; unlike registration it has
+  // no personal workspace. Bootstrap only that isolated test membership. All
+  // switching, class creation and course assignment below use production commands.
+  const actor = await profileTeacherIdentity(admin, owner);
+  const personal = await admin.query('SELECT * FROM auth_personal_workspace($1)', [
+    actor.account_id,
+  ]);
+  if (personal.rows.length === 0) {
+    const tenantId = randomUUID(),
+      workspaceId = randomUUID();
+    const client = await admin.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('INSERT INTO tenants(id,title,workspace_slug) VALUES($1,$2,$3)', [
+        tenantId,
+        'Личные классы автора',
+        'profile-personal-' + tenantId,
+      ]);
+      await client.query(
+        "INSERT INTO tenant_placements(tenant_id,mode) VALUES($1,'SHARED_CLUSTER')",
+        [tenantId],
+      );
+      await client.query(
+        "INSERT INTO workspaces(id,tenant_id,kind,title) VALUES($1,$2,'personal','Личное пространство')",
+        [workspaceId, tenantId],
+      );
+      await client.query(
+        "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
+        [actor.account_id, workspaceId],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   outsider = await seedTeacher(admin, 'profile-foreign');
   mkdirSync(screenshots, { recursive: true });
 });
