@@ -2502,7 +2502,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
     event.preventDefault();
   }
 
-  function handleWheel(event: globalThis.WheelEvent): void {
+  function handleWheel(event: WheelEvent<SVGSVGElement>): void {
     event.preventDefault();
     if (
       componentDragRef.current ||
@@ -2511,7 +2511,7 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
       pinchRef.current
     )
       return;
-    const rect = (event.currentTarget as SVGSVGElement).getBoundingClientRect();
+    const rect = event.currentTarget.getBoundingClientRect();
     const current = panViewportRef.current ?? viewport;
     const zoom = clamp(current.zoom * (event.deltaY > 0 ? 0.88 : 1.14), MIN_ZOOM, MAX_ZOOM);
     const anchor = { x: event.clientX, y: event.clientY };
