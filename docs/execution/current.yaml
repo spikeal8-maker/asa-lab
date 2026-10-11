@@ -581,7 +581,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_psu_entry_source_and_strict_browser_witness
+      checkpoint: r1_pending_destination_and_primary_failure_preservation
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -590,9 +590,10 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
       - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Only localized visible/hittable approach of existing wire to regulated PSU terminals
-        and matching drag/pending preview; no global wire lift or second electrical entity. Exact card budget,
-        strict built BEFORE/AFTER, new independent source and product reviews. No Arduino/full466 closure.
+      repair_scope: Only existing workbench-drag-preview.ts canonical pending destination, existing presentation
+        unit, new E06 simulation e2 evidence/coverage and unchanged generated browser digest. Stage and
+        geometry byte-exactfe919. Preserve all old assertions/physics/timeouts/foreign candidates; no new
+        resolver/runtime state/asset changes.
       acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
       source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
       historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
@@ -606,11 +607,24 @@ parallel_lanes:
         Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
         actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
         sources remain immutable and no simultaneous overlapping writer is authorized.
-      next_action: NEW bounded implementer implements only this selected PSU-entry slice and strict real
-        browser witness, meaningful local checks/self-review/full foreign-tree proof and ONE unpublished
-        SHA thenSTOP. Root actual verification and NEW independent source challenge before ONE genuine frozen
-        built BEFORE; only valid expected original defect permits AFTER, required exact gates and NEW independent
-        PRODUCT review. No school actions;552 conflict decision pending independently.
+      next_action: NEW bounded R1 author inherits canonical main proper merge preserving fe919 and all foreign
+        bytes. Repair canonical pending target in preview only; real regression both directions/terminals
+        and robust primary FAIL evidence before awaits. PreserveStage/geometry and oldcases; unchanged generator
+        browserdigest only. One local frozen dependency install permitted if needed to restore exact installed
+        graph, no school/services. Narrow checks/self-review/ONEunpublishedSHA thenSTOP. Root actual checks
+        and NEW independent SOURCE review before genuine frozen BEFORE/AFTER; final exact gates/NEW PRODUCT
+        review mandatory. Keep466OPEN, no school actions.
+      preserved_candidate_sha: fe9193b947076b8e2d006044d24c907ce2c62f43
+      preserved_candidate_tree: b31cb876ef3b433308bcdd1288cf6d1bf3c521c1
+      candidate_branch: codex/electronics-e06-psu-entry
+      independent_source_challenge: 'REQUEST_CHANGES: missing canonical pending arrival to PSU; primary
+        FAIL not flushed before browser awaits and unguarded collector masks original.'
+      independent_source_report_sha256: 3741474256e97d96661cbb64231d391b87defd56d46ef38e5647675d32e3e992
+      independent_source_manifest_sha256: 0855af4aa830a377301ba1eba29601b9962aa94866dc015cde9373e040ddc48f
+      independent_source_review: docs/product/electronics/evidence/psu-wire-entry-e06-source-review-fe9193b9.md
+      independent_source_actual: Root verified12external10Git reviewer originals; separately48author originals+6Git/3940foreign/sourcepreservation.
+        Actual installed lock differs only API pngjs importer;4physicalweb/testpackageversions exact, no
+        complete local frozen-graph claim. No browser/CI sourceacceptance yet.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1085,16 +1099,16 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+      convergence_baseline_sha: 7bf4722f45d64c1298b3db2d02ba7d6222e4ac62
       head_sha: null
-      observed_at: '2026-10-11T20:51:10.032920+00:00'
+      observed_at: '2026-10-11T21:59:18.937810+00:00'
       main:
         branch: main
-        sha: 7e75954ae4d01102376b361ffba4fde9c8713707
-      observation_note: Dated E06 selection after accepted553e132 all8SUCCESS/newAPPROVE/root original checks
-        and553 CLOSED. Closeout7e759 General38173652849 still in_progress at selection, not PASS. Fresh
-        fetch main and actual exact CI before writes.548 full snapshot and blockers preserved;552 requires
-        separate owner-coordinated final composition. No school deployment/DB/server/network/backup actions.
+        sha: 7bf4722f45d64c1298b3db2d02ba7d6222e4ac62
+      observation_note: 'Dated R1 selection: fetch main and exact CI before writes.7bf General38177385130
+        in_progress/PENDING; unfinished not PASS.16a901 General38176028705 all4SUCCESS. fe919 unpublished/noCI;
+        NEW independent source REQUEST_CHANGES with actual counterexample. 552R3clean7baehandoff; all startup/foreign
+        task/card/blockers exact. No school deployment/DB/server/network/backup actions.'
     execution_lease:
       executor_id: electronics-asset-baseline-548
       holder: unassigned
@@ -2224,6 +2238,63 @@ parallel_lanes:
       reason: R2 experiment completed NO_PROVEN_CAUSE; retain all sources/originals and blockers. No repeated
         experiment or548repair selected. Programme controller selects independently proven existing E06
         PSU-entry slice.
+    - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+      issue: 466
+      task:
+        id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+        issue: 466
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: bounded_psu_entry_source_and_strict_browser_witness
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E06 connected/pending PSU terminal approach only
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+        - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: Only localized visible/hittable approach of existing wire to regulated PSU terminals
+          and matching drag/pending preview; no global wire lift or second electrical entity. Exact card
+          budget, strict built BEFORE/AFTER, new independent source and product reviews. No Arduino/full466
+          closure.
+        acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
+        source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
+        historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
+        historical_visual_run: 38007826968
+        current_render_layers_byte_equal_historical: true
+        production_slices_since_hygiene556: 1
+        shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
+          Existing simulation test add only this scenario; generator only canonical digest, no package/workflow/lock/CSS/owner
+          assets. Check every worktree dirty path before writing.
+        scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
+          Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected
+          card; actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
+          sources remain immutable and no simultaneous overlapping writer is authorized.
+        next_action: NEW bounded implementer implements only this selected PSU-entry slice and strict real
+          browser witness, meaningful local checks/self-review/full foreign-tree proof and ONE unpublished
+          SHA thenSTOP. Root actual verification and NEW independent source challenge before ONE genuine
+          frozen built BEFORE; only valid expected original defect permits AFTER, required exact gates and
+          NEW independent PRODUCT review. No school actions;552 conflict decision pending independently.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+        head_sha: null
+        observed_at: '2026-10-11T20:51:10.032920+00:00'
+        main:
+          branch: main
+          sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+        observation_note: Dated E06 selection after accepted553e132 all8SUCCESS/newAPPROVE/root original
+          checks and553 CLOSED. Closeout7e759 General38173652849 still in_progress at selection, not PASS.
+          Fresh fetch main and actual exact CI before writes.548 full snapshot and blockers preserved;552
+          requires separate owner-coordinated final composition. No school deployment/DB/server/network/backup
+          actions.
+      reason: 'Preserve first E06candidatefe919 and all originals. NEW source REQUEST_CHANGES: canonical
+        arriving pending endpoint missing and primary browser failure can be masked. Select one minimal
+        R1 repair, no full466 closure.'
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
