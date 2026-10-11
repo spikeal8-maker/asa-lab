@@ -3202,7 +3202,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_outline_product_candidate_and_identical_before_after_scenario
+      checkpoint: native_hit_helper_repair_r2_after_invalid_before
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3210,14 +3210,14 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: Only existing measured resistor/button/switch outward selection geometry/zoom parity
-        in Visual; mounted regression plus one new browser journey. Same test bytes against baseline/candidate;
-        root runs one causal BEFORE and AFTER. Eight owner families plus tactile button at1440/1024/390/320,
-        native selection/group/zoom/transforms/runtime and wholeSave/cookies-onlyreopen. No physics/assets/Stage/CSS/548
-        observer edits.
-      next_action: 'NEW bounded product author: fresh preflight/card, one unpublished candidate/selfreview/hashmanifest
-        thenSTOP; root actualsource and causal browser checks, final exact required gates then NEW independent
-        final reviewer. No school actions or closure claim.'
+      repair_scope: 'Separate R2 test-only cycle: e2e/electronics-selection-outline.spec.ts nativePoint
+        accepts actual owner-alpha grid delegation and chooses exposed existing measured body points outside
+        terminal hit circles. Preserve real Stopped pointer, all strict selections, fixture, assertions,
+        waits, whole Save/CAS/cookies/runtime and product bytes. No product repair justified by these two
+        harness defects.'
+      next_action: New R2 author returns one unpublished child of81d then STOP; controller checks actual
+        source and NEW independent source challenge before ONE identical new BEFORE/AFTER. Final composition/gates/review
+        remain required; no old source approval or incomplete journey acceptance.
       preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged.
         No resolution of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted
         production slice before later new production phase.
@@ -3225,6 +3225,25 @@ parallel_lanes:
         worktrees CLEAN and all548/525 Visual writers STOP/held; only549 author may write selected measured
         selection branches. No protection disabled; advisory owned_paths does not grant authority. Three
         additive registrations are budgeted by card.
+      preserved_candidate_sha: 81d90459527236fd8a14d9e8b179e7ea1fedecdc
+      preserved_candidate_tree: 0c83093f93f67a2f2d82262c47327867c28ff801
+      candidate_branch: codex/electronics-549-outline-final-logging-baseline
+      candidate_publication: published
+      candidate_acceptance: pending
+      causal_before_probe_sha: 8815ec02b79b3b62109c125d40b51fcd686ac0fa
+      causal_before_run: 38126450338
+      causal_before_conclusion: failure_new_helper_not_causal_valid
+      causal_before_report_sha256: 00b9cbde4c49b6ad1d027089a6d2e8783e22ef3ba7821d91e5ff239c90090080
+      causal_before_manifest_sha256: 4cd685057883d9c6862e2a09de938523e5c10dbfafdbc27b6d3eee96fb634509
+      causal_after: NOT_RUN; invalid BEFORE does not authorize AFTER
+      foreign_general_blocker: 4ee General38125655126 failed only Admin Logs locator; separate owner334146b2
+        fixes Admin CSS/test only. General38127285724 snapshot in_progress/; no PASS claimed and no Electronics
+        scope expansion.
+      actual_before: All4 whole9-component7-wire documents unchanged and0PUT; runtime/Save/CAS/cookies NOT_REACHED.
+        Native PNG/trace originals cached once; no rerun of invalid test.
+      controlled_repeat_note: 81d automatic proper merge5e+4ee consumed previous integration-only controlled
+        repeat. R2 is a NEW bounded test repair justified by exact hard failures; no unchanged main chase
+        or published rewrite.
     execution_lease:
       executor_id: electronics-selection-outline
       holder: unassigned
@@ -3246,15 +3265,15 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 0fb17bd9ce02eef510c5249f63a4016e27b53e86
+      convergence_baseline_sha: 334146b2aa1dca55cee1ac9ebce8e0759ba0321e
       head_sha: null
-      observed_at: '2026-10-11T07:32:45.593725+00:00'
+      observed_at: '2026-10-11T09:10:58.834785+00:00'
       main:
         branch: main
-        sha: 0fb17bd9ce02eef510c5249f63a4016e27b53e86
-      observation_note: Dated observation only. Fresh fetch main/current and exact CI before writes; main0fb
-        General38120088582 all4SUCCESS. E11 not accepted, school pending; preserved candidates and all foreign
-        lanes unchanged.
+        sha: 334146b2aa1dca55cee1ac9ebce8e0759ba0321e
+      observation_note: 'Dated snapshot only: main334 General38127285724 in_progress/. Published81d/invalid
+        BEFORE preserved; R2 test-only repair selected, acceptance pending. Fresh fetch main and actual exact-SHA CI before writes;
+        school actions none.'
 
 integration:
   owner_lane: visual-programming
