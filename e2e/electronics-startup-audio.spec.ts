@@ -1,4 +1,5 @@
 import { expect, test, type Page, type TestInfo } from '@playwright/test';
+import { writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
@@ -70,14 +71,17 @@ type ObservedWindow = Window & {
 
 function evidence(info: TestInfo, filename: string, metadata: Record<string, unknown>) {
   const path = info.outputPath(filename);
+  const primaryPath = info.outputPath(filename.replace(/\.json$/, '-primary-failure.json'));
   const record = {
     ...metadata,
+    primaryOriginalsPath: primaryPath,
     lastCheckpoint: 'created',
     checkpoints: [] as string[],
     observed: {} as Record<string, Record<string, unknown[]>>,
     supplements: {} as Record<string, unknown>,
     captureErrors: [] as Array<{ step: string; error: string }>,
     primaryFailure: null as string | null,
+    primaryStack: null as string | null,
   };
   let pending = Promise.resolve();
   const failure = (step: string, error: unknown) => {
@@ -100,6 +104,53 @@ function evidence(info: TestInfo, filename: string, metadata: Record<string, unk
     record.checkpoints.push(name);
     return persist();
   };
+  const writePrimary = () => {
+    // A distinct Node-owned file cannot be overwritten by a previously started
+    // async raw write, and reporting a primary never waits for that queue.
+    try {
+      writeFileSync(primaryPath, JSON.stringify(record, null, 2));
+    } catch (error) {
+      failure('primary-raw-write', error);
+    }
+  };
+  const notePrimary = (error: unknown, name: string) => {
+    record.primaryFailure = String(error);
+    record.primaryStack = error instanceof Error ? (error.stack ?? null) : null;
+    record.lastCheckpoint = name;
+    record.checkpoints.push(name);
+    writePrimary();
+  };
+  const omit = (name: string) => {
+    record.supplements[name] = {
+      status: 'NOT_AVAILABLE',
+      reason: 'Optional capture omitted to report the original primary failure immediately.',
+      lastCheckpoint: record.lastCheckpoint,
+    };
+  };
+  const cleanupWithoutWaiting = (name: string, cleanup: () => Promise<unknown>) => {
+    record.supplements[name] = {
+      status: 'PENDING',
+      reason: 'Cleanup requested; reporting the primary does not await its settlement.',
+    };
+    writePrimary();
+    try {
+      void cleanup().then(
+        () => {
+          record.supplements[name] = { status: 'CAPTURED', value: 'cleanup completed' };
+          writePrimary();
+        },
+        (error) => {
+          record.supplements[name] = { status: 'NOT_AVAILABLE', error: String(error) };
+          failure(name, error);
+          writePrimary();
+        },
+      );
+    } catch (error) {
+      record.supplements[name] = { status: 'NOT_AVAILABLE', error: String(error) };
+      failure(name, error);
+      writePrimary();
+    }
+  };
   const guard = async (name: string, capture: () => Promise<unknown>) => {
     // Flush Node-owned originals BEFORE any optional browser/server operation.
     await checkpoint(`before:${name}`);
@@ -112,6 +163,12 @@ function evidence(info: TestInfo, filename: string, metadata: Record<string, unk
     await persist();
   };
   const finish = async (primary: unknown, supplements: () => Promise<void>) => {
+    if (primary !== undefined) {
+      omit('final-supplements');
+      omit('raw-attachment');
+      notePrimary(primary, 'finally:primary-originals');
+      throw primary;
+    }
     record.primaryFailure = primary === undefined ? null : String(primary);
     await checkpoint('finally:node-originals');
     await guard('final-supplements', supplements);
@@ -120,12 +177,14 @@ function evidence(info: TestInfo, filename: string, metadata: Record<string, unk
       info.attach('startup-originals', { path, contentType: 'application/json' }),
     );
     await persist();
-    if (primary !== undefined) throw primary;
     if (record.captureErrors.length) throw new Error(JSON.stringify(record.captureErrors));
   };
   return {
     record,
     checkpoint,
+    notePrimary,
+    omit,
+    cleanupWithoutWaiting,
     guard,
     finish,
     receive(pageName: string, field: string, value: unknown) {
@@ -833,24 +892,33 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
           freshFailures.assertEmpty();
         } catch (error) {
           reopenFailure = error;
+          originals.notePrimary(error, 'cookies:primary-catch');
         } finally {
-          await originals.checkpoint('finally:cookies-node-originals');
-          if (reopened) {
-            const retainedPage = reopened;
-            await originals.guard('cookies-probe', async () => {
-              reopenedRaw = await probe(retainedPage);
-              return reopenedRaw;
-            });
-            await originals.guard('cookies-png', () =>
-              snapshot(retainedPage, `${scenario}-cookies-final`, info),
-            );
+          if (reopenFailure !== undefined) {
+            originals.omit('cookies-probe');
+            originals.omit('cookies-png');
+            originals.cleanupWithoutWaiting('cookies-context-close', () => fresh.close());
+            originals.notePrimary(reopenFailure, 'finally:cookies-primary-originals');
+          } else {
+            await originals.checkpoint('finally:cookies-node-originals');
+            if (reopened) {
+              const retainedPage = reopened;
+              await originals.guard('cookies-probe', async () => {
+                reopenedRaw = await probe(retainedPage);
+                return reopenedRaw;
+              });
+              await originals.guard('cookies-png', () =>
+                snapshot(retainedPage, `${scenario}-cookies-final`, info),
+              );
+            }
+            await originals.guard('cookies-context-close', () => fresh.close());
           }
-          await originals.guard('cookies-context-close', () => fresh.close());
         }
         if (reopenFailure !== undefined) throw reopenFailure;
         failures.assertEmpty();
       } catch (error) {
         primaryFailure = error;
+        originals.notePrimary(error, 'startup:primary-catch');
       } finally {
         originals.record.supplements.reopenedLastKnown = reopenedRaw ?? { status: 'NOT_AVAILABLE' };
         await originals.finish(primaryFailure, async () => {
@@ -982,6 +1050,7 @@ test('optional audio native tone PCM, noTone and Stop preserve the canonical clo
     failures.assertEmpty();
   } catch (error) {
     primaryFailure = error;
+    originals.notePrimary(error, 'tone:primary-catch');
   } finally {
     await originals.finish(primaryFailure, async () => {
       await originals.guard('tone-final-probe', () => probe(page));
