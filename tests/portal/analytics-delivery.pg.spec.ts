@@ -452,12 +452,9 @@ describe('real PostgreSQL observability delivery receipts', () => {
     const tenantId = (
       await admin.query('SELECT tenant_id FROM workspaces WHERE id=$1', [owner.workspaceId])
     ).rows[0].tenant_id;
-    const secondWorkspace = (
-      await admin.query(
-        "INSERT INTO workspaces(tenant_id,kind,title) VALUES($1,'organization','Second actual workspace') RETURNING id",
-        [tenantId],
-      )
-    ).rows[0].id;
+    // Workspaces retain the existing one-workspace-per-tenant constraint.
+    // The same Account may have active memberships in distinct workspaces.
+    const secondWorkspace = foreign.workspaceId;
     await admin.query(
       "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'educator')",
       [owner.accountId, secondWorkspace],
