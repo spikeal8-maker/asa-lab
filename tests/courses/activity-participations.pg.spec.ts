@@ -4996,7 +4996,10 @@ describe('A4-3b immutable-origin Project Submission', () => {
       await admin.query('SELECT seat_id FROM principals WHERE id=$1', [learnerPrincipal])
     ).rows[0].seat_id as string;
     const listed = await inTenant(owner.tenantId, (client) =>
-      client.query('SELECT context,evidence FROM learning_origin_learner_list($1,NULL)', [seatId]),
+      client.query(
+        "SELECT context,evidence FROM learning_origin_learner_list($1,NULL) ORDER BY context->>'courseBlockId'",
+        [seatId],
+      ),
     );
     const exactRows = listed.rows.filter((row) => row.context.courseRunId === source.courseRun);
     expect(
