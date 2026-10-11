@@ -116,7 +116,7 @@ describe('product analytics writer', () => {
   });
 
   it('stores an unresolved proxy visitor as NULL instead of a Docker gateway', async () => {
-    const query = vi.fn(async () => ({ rows: [] }));
+    const query = vi.fn<AnalyticsQuery>(async () => ({ rows: [] }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
     await service.record({
       actor: { kind: 'anonymous' },
