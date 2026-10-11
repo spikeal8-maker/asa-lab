@@ -15,6 +15,7 @@ import {
 import {
   ParticipantGradeHistory,
   ParticipantMeritsAndAvatars,
+  StudentParticipantSummary,
 } from '../ClassroomParticipantPanels';
 import { ParticipantAssignmentsList } from '../ParticipantAssignmentsList';
 import { ManualClassroomJournal } from '../ManualClassroomJournal';
@@ -154,7 +155,197 @@ const assigned = (id: string, title: string): ParticipantAssignments => ({
   ],
 });
 
+function ownProfile(id = 'seat-a'): ParticipantProfile {
+  const data = profile('student', id);
+  data.avatars = ['saved', 'draft'].map((key) => ({
+    id: key,
+    title: key,
+    url: `/avatar/${key}`,
+    secret: false,
+    available: true,
+    selected: key === 'saved',
+    permitted: true,
+  }));
+  return data;
+}
+
+function summaryReads(mode: 'Account' | 'Seat') {
+  const accountProfile = vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(ownProfile()));
+  const seatProfile = vi.spyOn(participantsApi, 'seatProfile').mockResolvedValue(ok(ownProfile()));
+  const accountGrades = vi
+    .spyOn(participantsApi, 'grades')
+    .mockResolvedValue(ok(grades('five', [0])));
+  const seatGrades = vi
+    .spyOn(participantsApi, 'seatGrades')
+    .mockResolvedValue(ok(grades('five', [0])));
+  const history = ok<ParticipantManualHistory>({
+    preset: 'five',
+    items: [{ ...grade(0), reason: 'История моего профиля' }],
+    nextBeforeRevision: null,
+  });
+  const accountHistory = vi.spyOn(participantsApi, 'history').mockResolvedValue(history);
+  const seatHistory = vi.spyOn(participantsApi, 'seatHistory').mockResolvedValue(history);
+  const empty = ok<ParticipantAssignments>({ offset: 0, nextOffset: null, items: [] });
+  const accountAssignments = vi.spyOn(participantsApi, 'assignments').mockResolvedValue(empty);
+  const seatAssignments = vi.spyOn(participantsApi, 'seatAssignments').mockResolvedValue(empty);
+  return {
+    read: mode === 'Account' ? accountProfile : seatProfile,
+    historyRead: mode === 'Account' ? accountHistory : seatHistory,
+    forbidden:
+      mode === 'Account'
+        ? [seatProfile, seatGrades, seatHistory, seatAssignments]
+        : [accountProfile, accountGrades, accountHistory, accountAssignments],
+  };
+}
+
+function ownHistoryDetails(): HTMLDetailsElement {
+  const details = [...host.querySelectorAll<HTMLDetailsElement>('details')].find((element) =>
+    element.querySelector('.participant-grades'),
+  );
+  expect(details, 'the grade-history panel, not the rating explanation').toBeDefined();
+  return details!;
+}
+async function openOwnSummary() {
+  const details = ownHistoryDetails();
+  await act(async () => details.querySelector('summary')!.click());
+  expect(details.open).toBe(true);
+  await click('История');
+  const draft = host.querySelector<HTMLButtonElement>('[aria-label="Выбрать draft"]')!;
+  await act(async () => draft.click());
+  return {
+    details,
+    draft,
+    recognition: host.querySelector('.participant-recognition')!,
+    history: host.querySelector('.participant-history')!,
+  };
+}
+
 describe('participant completion DOM behavior', () => {
+  for (const mode of ['Account', 'Seat'] as const) {
+    const props =
+      mode === 'Account' ? { accountSeat: { classroomId: 'class', seatId: 'seat-a' } } : {};
+
+    it(`${mode} summary keeps mounted recognition, selected avatar and open history during and after same-identity focus refresh`, async () => {
+      const reads = summaryReads(mode);
+      await render(createElement(StudentParticipantSummary, props));
+      const before = await openOwnSummary();
+      let resolveRefresh!: (value: ApiResult<ParticipantProfile>) => void;
+      reads.read.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve;
+          }),
+      );
+      await act(async () => window.dispatchEvent(new Event('focus')));
+      const expectPreserved = () => {
+        expect(host.querySelector('.participant-recognition')).toBe(before.recognition);
+        expect(before.recognition.isConnected).toBe(true);
+        expect(ownHistoryDetails()).toBe(before.details);
+        expect(before.details.open).toBe(true);
+        expect(host.querySelector('.participant-history')).toBe(before.history);
+        expect(before.history.isConnected).toBe(true);
+        expect(host.querySelector('[aria-label="Выбрать draft"]')).toBe(before.draft);
+        expect(before.draft.getAttribute('aria-pressed')).toBe('true');
+      };
+      expectPreserved();
+      const updated = ownProfile();
+      updated.metrics.totalWorks = 7;
+      await act(async () => resolveRefresh(ok(updated)));
+      expectPreserved();
+      expect(host.textContent).toContain('Всего работ: 7');
+      expect(reads.read).toHaveBeenCalledTimes(2);
+      expect(reads.historyRead).toHaveBeenCalledOnce();
+      if (mode === 'Account') expect(reads.read).toHaveBeenLastCalledWith('class', 'seat-a');
+      else expect(reads.read).toHaveBeenLastCalledWith();
+      for (const forbidden of reads.forbidden) expect(forbidden).not.toHaveBeenCalled();
+    });
+
+    for (const boundary of ['logout', 'denied', 'error', 'scope', 'returned-seat'] as const) {
+      // Seat identity is supplied by /me, so its scope change is the returned-seat case.
+      if (mode === 'Seat' && boundary === 'scope') continue;
+      it(`${mode} summary clears child state at ${boundary} and ignores the older profile response`, async () => {
+        const reads = summaryReads(mode);
+        await render(createElement(StudentParticipantSummary, props));
+        const before = await openOwnSummary();
+        let resolveOld!: (value: ApiResult<ParticipantProfile>) => void;
+        reads.read.mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveOld = resolve;
+            }),
+        );
+        await act(async () => window.dispatchEvent(new Event('focus')));
+        expect(before.recognition.isConnected).toBe(true);
+        expect(before.history.isConnected).toBe(true);
+        if (boundary === 'logout') {
+          await act(async () => notifySessionLoggedOut());
+          expect(host.textContent).toContain('Войдите, чтобы открыть профиль.');
+        } else if (boundary === 'denied' || boundary === 'error') {
+          reads.read.mockResolvedValue({
+            ok: false,
+            status: boundary === 'denied' ? 403 : 500,
+            error: { code: 'unavailable', message: 'Профиль недоступен' },
+          });
+          await act(async () => window.dispatchEvent(new Event('focus')));
+          expect(host.textContent).toContain('Профиль недоступен');
+        } else {
+          const next = ownProfile('seat-b');
+          next.merits = [
+            {
+              id: 'new',
+              title: 'Заслуга нового ученика',
+              description: '',
+              granted: true,
+              grantedAt: null,
+            },
+          ];
+          reads.read.mockResolvedValue(ok(next));
+          if (boundary === 'scope' && mode === 'Account') {
+            await render(
+              createElement(StudentParticipantSummary, {
+                accountSeat: { classroomId: 'other-class', seatId: 'seat-b' },
+              }),
+            );
+            expect(reads.read).toHaveBeenLastCalledWith('other-class', 'seat-b');
+          } else await act(async () => window.dispatchEvent(new Event('focus')));
+          expect(host.textContent).toContain('Заслуга нового ученика');
+          expect(ownHistoryDetails().open).toBe(false);
+          expect(
+            host.querySelector('[aria-label="Выбрать saved"]')?.getAttribute('aria-pressed'),
+          ).toBe('true');
+        }
+        expect(before.recognition.isConnected).toBe(false);
+        expect(before.history.isConnected).toBe(false);
+        expect(before.details.isConnected).toBe(false);
+        const old = ownProfile();
+        old.merits = [
+          {
+            id: 'old',
+            title: 'Запоздавший прежний профиль',
+            description: '',
+            granted: true,
+            grantedAt: null,
+          },
+        ];
+        await act(async () => resolveOld(ok(old)));
+        expect(host.textContent).not.toContain('Запоздавший прежний профиль');
+        expect(host.textContent).not.toContain('История моего профиля');
+        expect(host.querySelector('.participant-history')).toBeNull();
+        if (boundary === 'logout' || boundary === 'denied' || boundary === 'error') {
+          expect(host.querySelector('.participant-recognition')).toBeNull();
+          reads.read.mockResolvedValue(ok(ownProfile()));
+          await click('Повторить');
+          expect(ownHistoryDetails().open).toBe(false);
+          expect(
+            host.querySelector('[aria-label="Выбрать saved"]')?.getAttribute('aria-pressed'),
+          ).toBe('true');
+          expect(host.querySelector('.participant-history')).toBeNull();
+        }
+        for (const forbidden of reads.forbidden) expect(forbidden).not.toHaveBeenCalled();
+      });
+    }
+  }
+
   it('keeps exact labels, merit drafts, avatar choice and prepared upload across awards and focus refreshes, clearing them on denial/logout', async () => {
     const data = profile();
     data.avatars = ['saved', 'draft'].map((id) => ({

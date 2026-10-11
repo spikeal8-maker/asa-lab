@@ -86,9 +86,17 @@ export async function seedProfileTheory(
       [sourceSection, teacher.tenantId, sourceCourseId],
     );
     await client.query(
-      `INSERT INTO course_lessons(id,tenant_id,course_id,section_id,title,kind,position,content)
-      VALUES($1,$2,$3,$4,$5,'material',0,'Прочитай материал.')`,
-      [sourceLesson, teacher.tenantId, sourceCourseId, sourceSection, title],
+      // Published outlines derive content from blocks, not the legacy content column.
+      `INSERT INTO course_lessons(id,tenant_id,course_id,section_id,title,kind,position,content,blocks)
+      VALUES($1,$2,$3,$4,$5,'material',0,'Прочитай материал.',$6::jsonb)`,
+      [
+        sourceLesson,
+        teacher.tenantId,
+        sourceCourseId,
+        sourceSection,
+        title,
+        JSON.stringify([{ id: randomUUID(), type: 'paragraph', text: 'Прочитай материал.' }]),
+      ],
     );
     const sourceVersion = (
       await client.query('SELECT * FROM course_publish($1,$2)', [

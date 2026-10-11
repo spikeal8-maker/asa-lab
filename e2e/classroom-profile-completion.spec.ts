@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
+import { PNG } from 'pngjs';
 import { expect, test, type Page } from '@playwright/test';
 import type pg from 'pg';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
@@ -42,6 +43,15 @@ async function get<T>(page: Page, path: string): Promise<T> {
 }
 async function createClass(page: Page) {
   await loginWithOrganization(page, owner);
+  // This scenario deliberately tests an organization author teaching in a personal class.
+  const session = await get<{ workspaces: Array<{ workspaceId: string; kind: string }> }>(
+    page,
+    '/api/auth/me',
+  );
+  const personal = session.workspaces.find((workspace) => workspace.kind === 'personal');
+  expect(personal, 'The author has a personal teaching workspace').toBeDefined();
+  await post(page, '/api/session/context', { workspaceId: personal!.workspaceId });
+  await page.reload();
   await page.getByRole('link', { name: 'Классы', exact: true }).click();
   await page
     .getByRole('button', { name: /^Создать (новый )?класс$/ })
@@ -476,6 +486,59 @@ test('real full Account and Seat manual history preserves zero and all five leve
         )
       ).journal.grades.every((g) => g.seatId === ownId),
     ).toBe(true);
+    const avatarTitle = `Несохранённый выбор ${randomUUID().slice(0, 8)}`;
+    const image = new PNG({ width: 32, height: 32 });
+    image.data.fill(255);
+    await post(page, `/api/classrooms/${classroom.id}/participants/actions/avatar`, {
+      requestId: randomUUID(),
+      title: avatarTitle,
+      secret: false,
+      dataUrl: `data:image/png;base64,${PNG.sync.write(image).toString('base64')}`,
+    });
+    for (const [learner, route, profilePath] of [
+      [account, '/#/attending', `/api/classrooms/${classroom.id}/participants/${ownId}/profile`],
+      [seat, '/#/learning', '/api/class-join/participants/me'],
+    ] as const) {
+      await learner.goto(route);
+      if (learner === account)
+        await learner.getByRole('button', { name: 'Мой рейтинг и заслуги', exact: true }).click();
+      const summary = learner.getByRole('region', { name: 'Мои показатели', exact: true });
+      const details = summary
+        .locator('details')
+        .filter({ has: learner.locator('.participant-grades') });
+      await details.locator('summary').click();
+      await details
+        .locator('.participant-grade-row')
+        .filter({ hasText: 'symbols' })
+        .getByRole('button', { name: 'История', exact: true })
+        .click();
+      await expect(details.locator('.participant-history ol li')).toHaveCount(5);
+      const draft = summary.getByRole('button', { name: `Выбрать ${avatarTitle}`, exact: true });
+      await draft.click();
+      await expect(draft).toHaveAttribute('aria-pressed', 'true');
+      const mounted = await Promise.all([
+        details.elementHandle(),
+        details.locator('.participant-history').elementHandle(),
+        summary.locator('.participant-recognition').elementHandle(),
+        draft.elementHandle(),
+      ]);
+      const refreshed = learner.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' && new URL(response.url()).pathname === profilePath,
+      );
+      await learner.evaluate(() => window.dispatchEvent(new Event('focus')));
+      const response = await refreshed;
+      expect(response.ok()).toBe(true);
+      expect(await response.finished()).toBeNull();
+      await expect(draft).toHaveAttribute('aria-pressed', 'true');
+      await expect(details).toHaveAttribute('open', '');
+      await expect(details.locator('.participant-history ol li')).toHaveCount(5);
+      for (const node of mounted) {
+        expect(node).not.toBeNull();
+        expect(await node!.evaluate((element) => element.isConnected)).toBe(true);
+        await node!.dispose();
+      }
+    }
     await openProfile(page, classroom.id, a.name);
     await page.getByRole('button', { name: 'Оценки и история', exact: true }).click();
     const gradesRegion = page.getByRole('region', { name: 'Оценки и история' });

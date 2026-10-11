@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   participantsApi,
   PARTICIPANT_FACTORS,
@@ -1016,7 +1016,9 @@ export function ParticipantGradeHistory({
  * The endpoint uses only the Seat cookie and exposes no classmates' data. */
 export function StudentParticipantSummary({
   accountSeat,
-}: { accountSeat?: { classroomId: string; seatId: string } } = {}): JSX.Element {
+}: {
+  accountSeat?: { classroomId: string; seatId: string };
+}): JSX.Element {
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
   const generation = useRef(0);
@@ -1029,7 +1031,6 @@ export function StudentParticipantSummary({
   const load = useCallback(async () => {
     const token = ++generation.current;
     setError(null);
-    setProfile(null);
     const r =
       accountClassId && accountSeatId
         ? await participantsApi.profile(accountClassId, accountSeatId)
@@ -1072,7 +1073,7 @@ export function StudentParticipantSummary({
       ) : null}
       {!profile && !error ? <p role="status">Загружаем показатели…</p> : null}
       {profile && loadedIdentity === identity ? (
-        <>
+        <Fragment key={`${identity}:${profile.metrics.seatId}`}>
           <p>
             Всего работ: <strong>{profile.metrics.totalWorks}</strong> · в архиве{' '}
             {profile.metrics.archivedWorks}
@@ -1130,7 +1131,7 @@ export function StudentParticipantSummary({
             learnerView
             accountLearner={Boolean(accountSeat)}
           />
-        </>
+        </Fragment>
       ) : null}
     </section>
   );
