@@ -81,7 +81,11 @@ function rawFixture(scenario: Scenario): SchematicDocument {
         position: { x: 520, y: 280 },
         value: 0,
         pinIds: ['positive', 'negative'],
-        stateProperties: { piezoMode: 'passive' },
+        stateProperties: {
+          piezoMode: 'passive',
+          piezoVariant: scenario === 'piezo-disc' ? 'disc' : 'enclosed',
+          waveform: scenario === 'piezo-disc' ? 'sine' : 'square',
+        },
       },
       {
         id: 'resistor',
@@ -92,7 +96,7 @@ function rawFixture(scenario: Scenario): SchematicDocument {
         position: { x: 700, y: 150 },
         value: 220,
         pinIds: ['lead-1', 'lead-2'],
-        stateProperties: { powerRatingWatt: 0.25 },
+        stateProperties: { powerRatingWatt: 0.25, resistanceUnit: 'Ω', tolerancePercent: 5 },
       },
     ],
     connections: [
@@ -141,8 +145,8 @@ function evidence(info: TestInfo, scenario: Scenario) {
   const raw = {
     fixture: fixture(scenario),
     lastCheckpoint: 'created',
-    requests: [] as RequestRecord[],
-    responses: [] as ResponseRecord[],
+    requests: [] as Array<RequestRecord & { page: string }>,
+    responses: [] as Array<ResponseRecord & { page: string }>,
     records: [] as Array<{ page: string; field: string; value: unknown }>,
     puts: [] as unknown[],
     documents: [] as unknown[],
@@ -229,8 +233,9 @@ function evidence(info: TestInfo, scenario: Scenario) {
     async receive(page: string, entry: RecordEntry) {
       raw.records.push({ page, ...entry });
       if (entry.field === 'capture-error') raw.errors.push(String(entry.value));
-      if (entry.field === 'request') raw.requests.push(entry.value as RequestRecord);
-      if (entry.field === 'response') raw.responses.push(entry.value as ResponseRecord);
+      if (entry.field === 'request') raw.requests.push({ ...(entry.value as RequestRecord), page });
+      if (entry.field === 'response')
+        raw.responses.push({ ...(entry.value as ResponseRecord), page });
       await persist();
     },
   };
@@ -451,26 +456,31 @@ function spectral(samples: Pcm) {
 async function pcm(page: Page) {
   return page.evaluate(() => (window as ObservedWindow).__piezoPcm?.() ?? []);
 }
-function advances(original: Evidence, start: number) {
+function advances(original: Evidence, start: number, pageName: string) {
   return original.raw.responses.slice(start).filter(
     (
       record,
     ): record is ResponseRecord & {
+      page: string;
       response: Extract<ElectronicsSimulationWorkerResponse, { ok: true; kind: 'advance' }>;
-    } => record.response.ok && record.response.kind === 'advance',
+    } => record.page === pageName && record.response.ok && record.response.kind === 'advance',
   );
 }
-function assertComplete(original: Evidence, start: number) {
-  const frames = advances(original, start);
+function assertComplete(original: Evidence, start: number, pageName: string) {
+  const frames = advances(original, start, pageName);
   expect(frames.length).toBeGreaterThan(0);
-  for (const { workerId, response } of frames) {
-    const request = original.raw.requests.find(
+  for (const { page, order, workerId, response } of frames) {
+    const matches = original.raw.requests.filter(
       (entry) =>
+        entry.page === page &&
+        entry.order < order &&
         entry.workerId === workerId &&
         entry.request.requestId === response.requestId &&
         entry.request.generationId === response.generationId &&
         entry.request.projectSessionId === response.projectSessionId,
-    )?.request;
+    );
+    expect(matches, 'Unique prior request from the same page and Worker run').toHaveLength(1);
+    const request = matches[0]?.request;
     expect(request).toBeDefined();
     expect(request!.kind).toBe('advance');
     if (request!.kind !== 'advance') throw new Error('Missing real advance request');
@@ -494,7 +504,9 @@ function assertComplete(original: Evidence, start: number) {
       );
     }
   }
-  const publications = original.raw.records.filter((entry) => entry.field === 'publication');
+  const publications = original.raw.records.filter(
+    (entry) => entry.page === pageName && entry.field === 'publication',
+  );
   expect(
     publications.some((entry) => {
       const value = entry.value as Publication;
@@ -542,6 +554,7 @@ function assertComplete(original: Evidence, start: number) {
   }
 }
 async function run(page: Page, original: Evidence, scenario: Scenario, name: string) {
+  const pageName = name;
   const start = original.raw.responses.length;
   await original.checkpoint(`before:${name}:run`);
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
@@ -550,7 +563,7 @@ async function run(page: Page, original: Evidence, scenario: Scenario, name: str
   const expectedFrequency = scenario === 'original-active' ? 2300 : 1000;
   await expect
     .poll(() =>
-      advances(original, start).some(
+      advances(original, start, pageName).some(
         ({ response }) =>
           response.advance.executionStatus === 'ready' &&
           response.advance.result?.components.some(
@@ -566,7 +579,7 @@ async function run(page: Page, original: Evidence, scenario: Scenario, name: str
     .first();
   await expect(visual).toHaveAttribute('data-piezo-frequency', String(expectedFrequency));
   await expect(visual).toHaveAttribute('data-piezo-sounding', 'true');
-  assertComplete(original, start);
+  assertComplete(original, start, pageName);
   let sounding: Pcm[] = [];
   await expect
     .poll(async () => {
@@ -589,7 +602,7 @@ async function run(page: Page, original: Evidence, scenario: Scenario, name: str
   if (scenario !== 'original-active') {
     await expect
       .poll(() =>
-        advances(original, start).some(
+        advances(original, start, pageName).some(
           ({ response }) =>
             response.advance.executionStatus === 'ready' &&
             response.advance.committedHorizonMicroseconds >= 1_000_000 &&
@@ -630,7 +643,7 @@ async function run(page: Page, original: Evidence, scenario: Scenario, name: str
       return samples.length > 0 && samples.every((sample) => spectral(sample).rms < 0.00001);
     })
     .toBe(true);
-  assertComplete(original, start);
+  assertComplete(original, start, pageName);
   expect(
     original.raw.records
       .filter((entry) => entry.field === 'action')
