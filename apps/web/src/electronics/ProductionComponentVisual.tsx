@@ -358,6 +358,41 @@ function recoverOwnerImage(asset: string): Promise<string> {
   return pending;
 }
 
+function ownerImageObservationEnabled(): boolean {
+  try {
+    return (
+      typeof (globalThis as { __asaOwnerImageDiagnostic?: unknown }).__asaOwnerImageDiagnostic ===
+      'function'
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Optional observation only; an absent or throwing sink cannot affect recovery.
+function observeOwnerImage(
+  phase: string,
+  asset: string,
+  token: object,
+  details?: Readonly<Record<string, unknown>>,
+): void {
+  try {
+    const sink = (
+      globalThis as typeof globalThis & {
+        __asaOwnerImageDiagnostic?: (
+          phase: string,
+          asset: string,
+          token: object,
+          details?: Readonly<Record<string, unknown>>,
+        ) => void;
+      }
+    ).__asaOwnerImageDiagnostic;
+    if (typeof sink === 'function') sink(phase, asset, token, details);
+  } catch {
+    // Observation is never a prerequisite for the existing handler.
+  }
+}
+
 function useOwnerImageHref(asset: string): {
   readonly href: string;
   readonly failed: boolean;
@@ -370,22 +405,39 @@ function useOwnerImageHref(asset: string): {
   const handlers = useRef<{ asset: string; error: () => void; load: () => void } | null>(null);
   const earlyEvent = useRef<{ asset: string; kind: 'error' | 'load' } | null>(null);
   useEffect(() => {
+    observeOwnerImage('effect-setup', asset, handlers, {
+      currentAsset: current.current.asset,
+      currentHref: current.current.href,
+      currentFailed: current.current.failed,
+      queuedAsset: earlyEvent.current?.asset,
+      queuedKind: earlyEvent.current?.kind,
+    });
     let active = true;
     let pending: Promise<boolean> | null = null;
     const load = (): Promise<boolean> => {
+      observeOwnerImage('load-enter', asset, handlers, { active, pending: pending !== null });
       if (pending) return pending;
       setLoaded({ asset, href: asset, failed: false });
       pending = recoverOwnerImage(asset)
         .then((href) => {
+          observeOwnerImage('load-resolved', asset, handlers, { active, href });
           if (active && isCurrentOwnerImageHref(asset, href))
             setLoaded({ asset, href, failed: false });
           return true;
         })
         .catch(() => {
+          observeOwnerImage('load-rejected', asset, handlers, {
+            active,
+            pending: pending !== null,
+            currentAsset: current.current.asset,
+            currentHref: current.current.href,
+            currentFailed: current.current.failed,
+          });
           if (active) setLoaded({ asset, href: asset, failed: true });
           return false;
         })
         .finally(() => {
+          observeOwnerImage('load-settled', asset, handlers, { active });
           pending = null;
         });
       return pending;
@@ -405,24 +457,35 @@ function useOwnerImageHref(asset: string): {
       () => {
         void recoverOwnerImage(asset)
           .then((href) => {
+            observeOwnerImage('quiet-publish-resolved', asset, handlers, { active, href });
             if (active && isCurrentOwnerImageHref(asset, href))
               setLoaded({ asset, href, failed: false });
           })
           .catch(() => {
+            observeOwnerImage('quiet-publish-rejected', asset, handlers, { active });
             if (active) setLoaded({ asset, href: asset, failed: true });
           });
       },
       asset,
     );
     const start = (): void => {
+      observeOwnerImage('start-enter', asset, handlers);
       if (recovery.permanent()) return;
       void load().then((ready) => {
         if (active && !ready) recovery.failed();
       });
     };
     const recover = (): void => {
+      observeOwnerImage('recover-enter', asset, handlers, {
+        active,
+        pending: pending !== null,
+        currentAsset: current.current.asset,
+        currentHref: current.current.href,
+        currentFailed: current.current.failed,
+      });
       if (!active || pending) return;
       if (recovery.permanent()) {
+        observeOwnerImage('recover-permanent', asset, handlers);
         // A late mounted image still owns its error indication after shared
         // recovery stops. Publish the error without starting another request.
         setLoaded({
@@ -440,6 +503,7 @@ function useOwnerImageHref(asset: string): {
         !failedOwnerImages.has(asset)
       ) {
         // The validated retry URL failed in this mounted SVG image consumer.
+        observeOwnerImage('recover-validated-url-failed', asset, handlers);
         recoveredOwnerImages.delete(asset);
         failedOwnerImages.add(asset);
         setLoaded({ asset, href: current.current.href, failed: true });
@@ -460,6 +524,7 @@ function useOwnerImageHref(asset: string): {
     // only this resource's latest event; a newer resource owns its own event.
     if (earlyEvent.current?.asset === asset) {
       const kind = earlyEvent.current.kind;
+      observeOwnerImage('early-replay', asset, handlers, { kind });
       earlyEvent.current = null;
       mountedHandlers[kind]();
     }
@@ -473,6 +538,13 @@ function useOwnerImageHref(asset: string): {
     window.addEventListener('focus', retry);
     document.addEventListener('visibilitychange', retryWhenVisible);
     return () => {
+      observeOwnerImage('effect-cleanup', asset, handlers, {
+        active,
+        pending: pending !== null,
+        currentAsset: current.current.asset,
+        currentHref: current.current.href,
+        currentFailed: current.current.failed,
+      });
       active = false;
       recovery.cancel();
       if (handlers.current === mountedHandlers) handlers.current = null;
@@ -483,14 +555,31 @@ function useOwnerImageHref(asset: string): {
     };
   }, [asset]);
   const notify = (kind: 'error' | 'load'): void => {
-    if (handlers.current?.asset === asset) handlers.current[kind]();
-    else earlyEvent.current = { asset, kind };
+    observeOwnerImage('notify', asset, handlers, { kind });
+    if (handlers.current?.asset === asset) {
+      observeOwnerImage('notify-deliver', asset, handlers, { kind });
+      handlers.current[kind]();
+    } else {
+      observeOwnerImage('notify-queue', asset, handlers, { kind });
+      earlyEvent.current = { asset, kind };
+    }
   };
+  const onError = () => notify('error');
+  const onLoad = () => notify('load');
+  observeOwnerImage('render-bind', asset, handlers, {
+    onError,
+    onLoad,
+    loadedAsset: loaded.asset,
+    loadedHref: loaded.href,
+    loadedFailed: loaded.failed,
+    returnedHref: loaded.asset === asset ? loaded.href : asset,
+    returnedFailed: loaded.asset === asset && loaded.failed,
+  });
   return {
     href: loaded.asset === asset ? loaded.href : asset,
     failed: loaded.asset === asset && loaded.failed,
-    onError: () => notify('error'),
-    onLoad: () => notify('load'),
+    onError,
+    onLoad,
   };
 }
 
@@ -1783,8 +1872,39 @@ export function ProductionComponentVisual({
               <image
                 className={entry.key === 'led-5mm' ? 'workbench-led-asset' : undefined}
                 href={ownerImage.href}
-                onError={ownerImage.onError}
-                onLoad={ownerImage.onLoad}
+                onError={
+                  ownerImageObservationEnabled()
+                    ? (event) => {
+                        observeOwnerImage('react-error', asset, ownerImage.onError, {
+                          node: event.currentTarget,
+                          trusted: event.nativeEvent.isTrusted,
+                        });
+                        ownerImage.onError();
+                      }
+                    : ownerImage.onError
+                }
+                onLoad={
+                  ownerImageObservationEnabled()
+                    ? (event) => {
+                        observeOwnerImage('react-load', asset, ownerImage.onLoad, {
+                          node: event.currentTarget,
+                          trusted: event.nativeEvent.isTrusted,
+                        });
+                        ownerImage.onLoad();
+                      }
+                    : ownerImage.onLoad
+                }
+                ref={
+                  ownerImageObservationEnabled()
+                    ? (node) => {
+                        observeOwnerImage('ordinary-commit-ref', asset, ownerImage.onError, {
+                          node,
+                          returnedHref: ownerImage.href,
+                          returnedFailed: ownerImage.failed,
+                        });
+                      }
+                    : undefined
+                }
                 data-owner-image-status={ownerImage.failed ? 'failed' : undefined}
                 y={ownerAssetY}
                 width={ownerAssetWidth}

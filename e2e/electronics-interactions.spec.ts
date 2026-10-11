@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
@@ -2081,46 +2081,442 @@ test.describe('asset recovery in the built editor', () => {
   });
   test('a permanently missing ordinary image shows an accessible failure on stage and catalog', async ({
     page,
-  }) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
+  }, testInfo) => {
     const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    let imageRequests = 0;
-    await page.route(
-      (url) => url.pathname === asset,
-      async (route) => {
-        if (route.request().resourceType() !== 'image') return route.continue();
-        imageRequests += 1;
-        await route.fulfill({ status: 404, body: 'missing' });
-      },
-    );
-    const doc = addComponentToDocument(
-      documentFixture(),
-      'battery-holder-aa-2',
-      { x: 790, y: 450 },
-      'holder',
-    ).document;
-    const { readDocument, requests, errors } = await openEditor(page, doc);
-    const initial = readDocument();
-    const stageError = part(page, 'holder').getByRole('status', {
-      name: 'Изображение детали не загрузилось',
+    const rawPath = testInfo.outputPath('548-ordinary-primary.jsonl');
+    mkdirSync(resolve(rawPath, '..'), { recursive: true });
+    writeFileSync(rawPath, '');
+    let nodeSequence = 0;
+    let primaryFailed = false;
+    let evidenceFailed: boolean;
+    let lastCheckpoint = 'initial';
+    const writeErrors: string[] = [];
+    const secondaryErrors: { name: string; message: string }[] = [];
+    const appendPrimary = (kind: string, value: unknown): void => {
+      const record = { nodeSequence: ++nodeSequence, nodeAtMs: Date.now(), kind, value };
+      try {
+        appendFileSync(rawPath, JSON.stringify(record) + '\n');
+      } catch (error) {
+        writeErrors.push(String(error));
+      }
+    };
+    const checkpoint = (name: string, value: unknown = null): void => {
+      lastCheckpoint = name;
+      appendPrimary('checkpoint', { name, value });
+    };
+    // This initial original exists before any optional browser/evidence await.
+    appendPrimary('initial', {
+      purpose: 'observation-only-existing-permanent-case',
+      primaryError: 'NOT_AVAILABLE',
+      browserSupplement: 'NOT_AVAILABLE',
+      editorDocument: 'NOT_AVAILABLE',
+      nativePng: 'NOT_AVAILABLE',
+      dropped: 'NOT_AVAILABLE',
     });
-    await expect(stageError).toBeVisible({ timeout: 10_000 });
-    await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
-    await expect(part(page, 'holder').locator('[data-owner-image-status="failed"]')).toBeVisible();
-    const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
-    await card.scrollIntoViewIfNeeded();
-    await expect(
-      card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
-    ).toBeVisible();
-    const requestsAtFailure = imageRequests;
-    await page.waitForTimeout(800);
-    expect(imageRequests).toBe(requestsAtFailure);
-    // Stage and catalog each load the original and validated retry URL; the
-    // shared recovery promise makes at most three probe requests between them.
-    expect(imageRequests).toBeLessThanOrEqual(7);
-    expect(readDocument()).toEqual(initial);
-    expect(requests).toHaveLength(0);
-    expect(errors).toEqual([]);
+    let readCurrentDocument: (() => SchematicDocument) | undefined;
+    let readCurrentEditorDocument: (() => Promise<SchematicDocument>) | undefined;
+    let observedPuts: unknown[] | undefined;
+    let observedErrors: unknown[] | undefined;
+    const network = new Map<Request, number>();
+    page.on('request', (request) => {
+      if (new URL(request.url()).pathname !== asset && request.method() !== 'PUT') return;
+      const id = network.size + 1;
+      network.set(request, id);
+      appendPrimary('network-request', {
+        id,
+        url: request.url(),
+        method: request.method(),
+        resourceType: request.resourceType(),
+        postData: request.method() === 'PUT' ? request.postData() : null,
+      });
+    });
+    page.on('response', (response) => {
+      const id = network.get(response.request());
+      if (id !== undefined) appendPrimary('network-response', { id, status: response.status() });
+    });
+    page.on('requestfinished', (request) => {
+      const id = network.get(request);
+      if (id !== undefined) appendPrimary('network-finished', { id });
+    });
+    page.on('requestfailed', (request) => {
+      const id = network.get(request);
+      if (id !== undefined) appendPrimary('network-failed', { id, failure: request.failure() });
+    });
+    page.on('pageerror', (error) => appendPrimary('pageerror', String(error)));
+    page.on('console', (message) => {
+      if (message.type() === 'error') appendPrimary('console-error', message.text());
+    });
+    try {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      await page.exposeBinding('__asaOrdinary548Record', (_source, record: unknown) => {
+        appendPrimary('browser', record);
+      });
+      await page.addInitScript((targetAsset) => {
+        const identities = new WeakMap<object, number>();
+        const created = new WeakSet<object>();
+        const committed = new WeakSet<object>();
+        const pending = new Set<Promise<unknown>>();
+        const records: unknown[] = [];
+        const dropped: Record<string, number> = {};
+        let nextIdentity = 0;
+        let sequence = 0;
+        let delivered = 0;
+        let transportErrors = 0;
+        let observerErrors = 0;
+        let listenersAttached = 0;
+        const identity = (value: object): number => {
+          let id = identities.get(value);
+          if (id === undefined) {
+            id = ++nextIdentity;
+            identities.set(value, id);
+          }
+          return id;
+        };
+        const stamp = () => ({ atMs: performance.now(), timeOrigin: performance.timeOrigin });
+        const observedWindow = window as unknown as {
+          __asaOrdinary548Record: (record: unknown) => Promise<unknown>;
+          __asaOwnerImageDiagnostic: (
+            phase: string,
+            asset: string,
+            token: object,
+            details?: Readonly<Record<string, unknown>>,
+          ) => void;
+          __asaOrdinary548Observation: {
+            collect: () => Promise<unknown>;
+          };
+        };
+        const emit = (channel: string, value: unknown): void => {
+          if (records.length >= 8192) {
+            dropped[channel] = (dropped[channel] ?? 0) + 1;
+            return;
+          }
+          const record = { sequence: ++sequence, channel, ...stamp(), value };
+          records.push(record);
+          try {
+            const delivery = observedWindow
+              .__asaOrdinary548Record(record)
+              .then(() => {
+                delivered += 1;
+              })
+              .catch(() => {
+                transportErrors += 1;
+              })
+              .finally(() => {
+                pending.delete(delivery);
+              });
+            pending.add(delivery);
+          } catch {
+            transportErrors += 1;
+          }
+        };
+        const describe = (node: Element) => {
+          const catalog = node.closest('.workbench-catalog-card');
+          const stage = node.closest('[data-testid="schematic-component"]');
+          const consumerRoot = catalog ?? stage;
+          const root = node.getRootNode();
+          return {
+            identity: identity(node),
+            tag: node.tagName,
+            href: node.getAttribute('href') ?? node.getAttribute('src'),
+            connected: node.isConnected,
+            documentRoot: root === document,
+            rootIdentity: identity(root),
+            ownerDocumentIsCurrent: node.ownerDocument === document,
+            consumer: catalog ? 'catalog' : stage ? 'stage' : 'other',
+            consumerRootIdentity: consumerRoot ? identity(consumerRoot) : null,
+            consumerRootClass: consumerRoot?.getAttribute('class') ?? null,
+            componentId: stage?.getAttribute('data-component-id') ?? null,
+            familyId: catalog?.getAttribute('data-family-id') ?? null,
+            selectedVariant: catalog?.getAttribute('data-selected-variant') ?? null,
+            status: node.getAttribute('data-owner-image-status'),
+            filter: node.getAttribute('filter'),
+            parentClass: node.parentElement?.getAttribute('class') ?? null,
+            createdViaObservedCreateElementNS: created.has(node),
+            ordinaryReactCommitObserved: committed.has(node),
+            cloneClassification: 'NOT_INFERRED',
+          };
+        };
+        const isTarget = (node: Element): boolean => {
+          if (!(node instanceof SVGImageElement)) return false;
+          const href = node.getAttribute('href');
+          return Boolean(href && new URL(href, document.baseURI).pathname === targetAsset);
+        };
+        observedWindow.__asaOwnerImageDiagnostic = (phase, asset, token, details) => {
+          try {
+            if (new URL(asset, document.baseURI).pathname !== targetAsset) return;
+            const { node, onError, onLoad, ...values } = details ?? {};
+            if (phase === 'ordinary-commit-ref' && node instanceof Element) committed.add(node);
+            emit('react-hook', {
+              phase,
+              asset,
+              token: identity(token),
+              ...values,
+              node: node instanceof Element ? describe(node) : (node ?? null),
+              onError: typeof onError === 'function' ? identity(onError) : null,
+              onLoad: typeof onLoad === 'function' ? identity(onLoad) : null,
+            });
+          } catch {
+            observerErrors += 1;
+          }
+        };
+        const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'createElementNS');
+        const original = Document.prototype.createElementNS;
+        if (!descriptor) throw new Error('createElementNS descriptor is unavailable');
+        Object.defineProperty(Document.prototype, 'createElementNS', {
+          ...descriptor,
+          value: function (this: Document, ...args: unknown[]): Element {
+            const node = Reflect.apply(original, this, args) as Element;
+            try {
+              if (node instanceof SVGImageElement) {
+                created.add(node);
+                emit('creation', {
+                  target: describe(node),
+                  hrefAtAttachment: node.getAttribute('href'),
+                });
+                for (const kind of ['error', 'load']) {
+                  node.addEventListener(
+                    kind,
+                    (event) => {
+                      try {
+                        if (event.target !== node || !isTarget(node)) return;
+                        emit('native-same-node', {
+                          kind: event.type,
+                          trusted: event.isTrusted,
+                          cancelable: event.cancelable,
+                          defaultPrevented: event.defaultPrevented,
+                          eventTimeStamp: event.timeStamp,
+                          target: describe(node),
+                        });
+                      } catch {
+                        observerErrors += 1;
+                      }
+                    },
+                    { passive: true },
+                  );
+                  listenersAttached += 1;
+                }
+                emit('creation-listeners-attached', {
+                  target: describe(node),
+                  hrefAtAttachment: node.getAttribute('href'),
+                  kinds: ['error', 'load'],
+                  passive: true,
+                });
+              }
+            } catch {
+              observerErrors += 1;
+            }
+            return node;
+          },
+        });
+        const recordNode = (kind: string, node: Node): void => {
+          if (!(node instanceof Element)) return;
+          for (const image of [node, ...node.querySelectorAll('image')]) {
+            if (isTarget(image)) emit('dom', { kind, target: describe(image) });
+          }
+        };
+        new MutationObserver((mutations) => {
+          try {
+            for (const mutation of mutations) {
+              if (mutation.type === 'childList') {
+                for (const node of mutation.addedNodes) recordNode('added-observed', node);
+                for (const node of mutation.removedNodes) recordNode('removed-observed', node);
+              } else if (mutation.target instanceof Element && isTarget(mutation.target)) {
+                emit('dom', {
+                  kind: 'attribute-observed',
+                  attribute: mutation.attributeName,
+                  oldValue: mutation.oldValue,
+                  target: describe(mutation.target),
+                });
+              }
+            }
+          } catch {
+            observerErrors += 1;
+          }
+        }).observe(document, {
+          childList: true,
+          subtree: true,
+          attributes: true,
+          attributeOldValue: true,
+          attributeFilter: ['href', 'data-owner-image-status'],
+        });
+        observedWindow.__asaOrdinary548Observation = {
+          collect: async () => {
+            // Only after the original case terminates: flush existing deliveries,
+            // never await this transport inside native/React/hook callbacks.
+            await Promise.all(Array.from(pending));
+            return {
+              collectedAt: stamp(),
+              lastSequence: sequence,
+              recordsMayContinueAfterCollection: true,
+              records,
+              dropped,
+              delivered,
+              produced: sequence,
+              pending: pending.size,
+              transportErrors,
+              observerErrors,
+              listenersAttached,
+              currentNodes: Array.from(document.querySelectorAll('image'))
+                .filter(isTarget)
+                .map(describe),
+              rootHtml: document.documentElement.outerHTML,
+              localStorage: Object.fromEntries(
+                Object.keys(localStorage)
+                  .filter((key) => /draft|schematic|electronics/i.test(key))
+                  .map((key) => [key, localStorage.getItem(key)]),
+              ),
+            };
+          },
+        };
+        emit('installed', { listenerBeforeHref: true, noStimulusChanges: true });
+      }, asset);
+      checkpoint('observer-installed');
+      let imageRequests = 0;
+      await page.route(
+        (url) => url.pathname === asset,
+        async (route) => {
+          if (route.request().resourceType() !== 'image') return route.continue();
+          imageRequests += 1;
+          await route.fulfill({ status: 404, body: 'missing' });
+        },
+      );
+      const doc = addComponentToDocument(
+        documentFixture(),
+        'battery-holder-aa-2',
+        { x: 790, y: 450 },
+        'holder',
+      ).document;
+      const { readDocument, readEditorDocument, requests, errors } = await openEditor(page, doc);
+      readCurrentDocument = readDocument;
+      readCurrentEditorDocument = readEditorDocument;
+      observedPuts = requests;
+      observedErrors = errors;
+      const initial = readDocument();
+      checkpoint('editor-opened', { initial, fixture: doc });
+      const stageError = part(page, 'holder').getByRole('status', {
+        name: 'Изображение детали не загрузилось',
+      });
+      checkpoint('before-stage-assertion');
+      await expect(stageError).toBeVisible({ timeout: 10_000 });
+      await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+      await expect(
+        part(page, 'holder').locator('[data-owner-image-status="failed"]'),
+      ).toBeVisible();
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      checkpoint('before-catalog-scroll');
+      await card.scrollIntoViewIfNeeded();
+      checkpoint('before-catalog-assertion');
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      checkpoint('catalog-failure-visible');
+      const requestsAtFailure = imageRequests;
+      await page.waitForTimeout(800);
+      expect(imageRequests).toBe(requestsAtFailure);
+      // Stage and catalog each load the original and validated retry URL; the
+      // shared recovery promise makes at most three probe requests between them.
+      expect(imageRequests).toBeLessThanOrEqual(7);
+      expect(readDocument()).toEqual(initial);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+      checkpoint('original-case-all-assertions-complete', { imageRequests });
+    } catch (error) {
+      primaryFailed = true;
+      appendPrimary('primary-error', {
+        lastCheckpoint,
+        name: error instanceof Error ? error.name : typeof error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : null,
+      });
+      throw error;
+    } finally {
+      // Retain Node originals first. A cancelled/hanging browser supplement
+      // cannot prevent the already appended primary error/checkpoints/network.
+      appendPrimary('finally-enter', {
+        primaryFailed,
+        lastCheckpoint,
+        browserSupplement: 'NOT_AVAILABLE',
+        editorDocument: 'NOT_AVAILABLE',
+        nativePng: 'NOT_AVAILABLE',
+        dropped: 'NOT_AVAILABLE',
+      });
+      const supplement = async (name: string, capture: () => Promise<unknown>): Promise<void> => {
+        appendPrimary('supplement-start', { name, status: 'NOT_AVAILABLE' });
+        try {
+          const value = await capture();
+          appendPrimary('supplement', { name, status: 'CAPTURED', value });
+        } catch (error) {
+          const message = String(error);
+          secondaryErrors.push({ name, message });
+          appendPrimary('supplement', { name, status: 'NOT_AVAILABLE', error: message });
+        }
+      };
+      try {
+        try {
+          appendPrimary('node-final', {
+            document: readCurrentDocument ? readCurrentDocument() : 'NOT_AVAILABLE',
+            puts: observedPuts ?? 'NOT_AVAILABLE',
+            errors: observedErrors ?? 'NOT_AVAILABLE',
+          });
+        } catch (error) {
+          secondaryErrors.push({ name: 'node-final', message: String(error) });
+          appendPrimary('node-final', { status: 'NOT_AVAILABLE', error: String(error) });
+        }
+        await supplement('browser', async () => {
+          const value = await page.evaluate(async () => {
+            const observer = (
+              window as unknown as {
+                __asaOrdinary548Observation?: { collect: () => Promise<unknown> };
+              }
+            ).__asaOrdinary548Observation;
+            if (!observer) throw new Error('548 browser observer NOT_AVAILABLE');
+            return observer.collect();
+          });
+          const receipt = value as {
+            produced: number;
+            delivered: number;
+            pending: number;
+            dropped: Record<string, number>;
+            transportErrors: number;
+            observerErrors: number;
+          };
+          // Capture full actual evidence before evaluating observation validity.
+          appendPrimary('browser-full-receipt', receipt);
+          if (
+            receipt.pending !== 0 ||
+            receipt.delivered !== receipt.produced ||
+            Object.values(receipt.dropped).some((count) => count !== 0) ||
+            receipt.transportErrors !== 0 ||
+            receipt.observerErrors !== 0
+          )
+            throw new Error('548 observation incomplete: lost/dropped/throwing transport');
+          return value;
+        });
+        await supplement('editor-document', async () => {
+          if (!readCurrentEditorDocument) throw new Error('editor reader NOT_AVAILABLE');
+          return readCurrentEditorDocument();
+        });
+        await supplement('native-png', async () => {
+          const path = testInfo.outputPath('548-ordinary-native.png');
+          await page.screenshot({ path });
+          return { path };
+        });
+        await supplement('attach-raw', async () => {
+          await testInfo.attach('548-ordinary-primary', {
+            path: rawPath,
+            contentType: 'application/x-ndjson',
+          });
+          return { path: rawPath };
+        });
+      } catch (error) {
+        secondaryErrors.push({ name: 'finally-guard', message: String(error) });
+        appendPrimary('finally-guard', { status: 'NOT_AVAILABLE', error: String(error) });
+      }
+      appendPrimary('final', { primaryFailed, secondaryErrors, writeErrors, lastCheckpoint });
+      evidenceFailed = secondaryErrors.length !== 0 || writeErrors.length !== 0;
+    }
+    if (evidenceFailed)
+      throw new Error('548 mandatory observation evidence incomplete; see primary JSONL');
   });
 
   test('a late ordinary image error stays visible after shared permanent recovery stops', async ({
