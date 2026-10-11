@@ -584,16 +584,17 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: catalog_search_remount_regression_after_ingress_no_cause
+      checkpoint: r1_catalog_search_node_owned_failure_evidence_test_only
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       - e2e/electronics-interactions.spec.ts
-      repair_scope: ONE new catalog-search remove/remount browser regression during actual finite recovery, ONLY
-        e2e/electronics-interactions.spec.ts; optional mechanical passive helper extraction with old permanent
-        case byte-exact inverse. Production Visual EXACTf67, no recovery repair or timing/request/assertion change.
+      repair_scope: R1 TEST ONLY new search case/evidence mechanics in e2e/electronics-interactions.spec.ts. Node-owned
+        incremental raw before supplemental awaits, guarded captures/write/attach/detach preserve original primary
+        error; missing evidence never PASS. Keep whole-file old-case inverse/assertions/defaults/fixtures/product
+        exactly. No lifecycle timing/requestbudget/native action/product repair change.
       dependency_for_issue: 544
       programme_issue: 452
       source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
@@ -610,11 +611,10 @@ parallel_lanes:
       causal_before_run: 38012528685
       causal_before_conclusion: success_unchanged_product_not_acceptance
       controller_observed_at: '2026-10-11T11:29:35.870495+00:00'
-      next_action: New bounded author inherits this canonical phase and verified foreign security baseline through
-        one automatic proper merge; conflict STOP. One unpublished test-only child, whole old-case inverse/foreign-tree
-        proof/narrow checks/hashmanifest/STOP. Root actual source and NEW independent source challenge precede
-        ONE new real-search built case; missing order means NO_PROVEN_CAUSE/STOP without rerun. Separate product
-        repair only after actual cause.
+      next_action: New bounded test-only author inherits actual canonical/shared main automatically with conflict
+        STOP; one unpublished exact SHA/narrow checks/inverse/hashmanifest/selfreview thenSTOP. NEW different independent
+        source challenge before ONE new frozen built Search case. Missing desired order/native evidence yields
+        NO_PROVEN_CAUSE/STOP, never hopeful rerun; no blocker closure or pupil acceptance.
       causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
       causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
       causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers failed;7
@@ -662,6 +662,12 @@ parallel_lanes:
         verified. Instrumentation overhead and absent target order forbid historical cause/frequency claims. No
         blocker lifted.
       search_design_report_sha256: 4a3db63151e242352ac9c342ea5a4acba3c679aaabde85dc51ff7967ea0dea11
+      preserved_search_candidate_sha: 1b71996b1f28666f6511f9d40dfce383eb7f61f2
+      preserved_search_candidate_tree: 4ba0b32f64e9a108f0f792af085f66a01004bde2
+      search_independent_source_verdict: request_changes_test_evidence_only
+      search_independent_report_sha256: 748a0e5e6bf2a20ce7af6e346bd914f3d9c2fcc4c8ef6532c32406b831acb0f1
+      search_independent_manifest_sha256: 88aace9f825e3706fb96827956dbc19a2e25e2f23da874bfebab2eace4f8bfa1
+
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1135,17 +1141,18 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 168d1a048f08c2582fc33559f7694970bcde8e9f
+      convergence_baseline_sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
       head_sha: null
-      observed_at: '2026-10-11T11:29:35.870495+00:00'
+      observed_at: '2026-10-11T12:28:56.577577+00:00'
       main:
         branch: main
-        sha: 168d1a048f08c2582fc33559f7694970bcde8e9f
-      observation_note: 'Dated snapshot: fetch main and exact GitHub CI before writes. Verified runtime3f7 General38133960039
-        all4SUCCESS;168d session-fetch security baseline inherited with General38135629769 pending, not acceptance.
-        Selected separate548 real-search regression and549 R5 bounded harness;552 author independent optional-audio
-        repair. All held candidates/other lanes/typed blockers/accepted production count2 preserved. School actions
-        NONE.'
+        sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
+      observation_note: Dated bounded test-only selection. New independent source NEEDS_FIX for failure-evidence
+        mechanics; no product cause/acceptance. Actual main72c shared Classroom/Scratch/API/security baseline inherited,
+        General38138858098 pending at preparation; old134 General cancelled(E), olde51 all4SUCCESS history only.
+        Preserve all other lanes/candidates/blockers/count2/school pending; fetch main and actual exact-SHA CI
+        before writes.
+
     execution_lease:
       executor_id: electronics-asset-baseline-548
       holder: unassigned
@@ -3266,7 +3273,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r5_bounded_native_accessibility_coherent_lamp_and_evidence_harness
+      checkpoint: r6_test_only_preserve_primary_failure_during_artifact_errors
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3274,15 +3281,14 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R5 test-only new outline spec: coherent complete-ready brightness-to-asset oracle, fixed existing
-        native eight-wheel exposure before transformed LED selection, four independent phase cases at each original
-        width under unchanged30000ms, incremental Node-owned originals. Preserve all old invariants, full9parts7wiresUNO
-        fixture, R4 binary64 whole oracle, nativePoint authority, physics and product bytes.'
-      next_action: New bounded author inherits published5da and this canonical R5 plus verified foreign security
-        baseline via one automatic proper merge; conflict STOP. Only new outline spec, one unpublished child/invariant
-        matrix/full foreign proof/narrow checks/hashmanifest/STOP. Root actual and NEW independent source challenge
-        before ONE identical built BEFORE; AFTER forbidden until complete strict journey with old-outline-only
-        soft failures. Final exact General/ordinary Electronics/NEW product review still required.
+      repair_scope: 'R6 TEST ONLY e2e/electronics-selection-outline.spec.ts: guard artifact writes/attachment/reopen
+        cleanup and retain original Error; supplemental errors recorded, absent mandatory evidence leaves FAIL
+        if no primary. Preserve all R5 16 cases/fixtures/native actions/77 assertions/71 old invariant expressions/wholeSaveCAScookies/30000ms
+        and other5 source blobs exactly. No product repair or timeout/assertion weakening.'
+      next_action: New bounded test-only author inherits actual canonical/shared main automatically with conflict
+        STOP. One unpublished exact SHA/narrow checks/source inverse/hashmanifest/selfreview thenSTOP; NEW different
+        source reviewer before ONE new identical strict BEFORE. AFTER forbidden until full valid BEFORE; exact
+        gates/new final product review remain mandatory.
       preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged. No resolution
         of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted production slice
         before later new production phase.
@@ -3317,6 +3323,12 @@ parallel_lanes:
       candidate_general_conclusion: success_all4; source only, not product acceptance
       previous_invalid_before_probe_sha: e47874c9962316e90192e30ffe3741e69b1e6e09
       previous_invalid_before_run: 38131377773
+      preserved_r5_candidate_sha: baba38683cde48e26ef740574ebf0ef70fcbcba9
+      preserved_r5_candidate_tree: 318a15d43b3c76fee3697253210586ca2d4ef794
+      r5_independent_source_verdict: request_changes_test_evidence_only
+      r5_independent_report_sha256: d2b57f98765c4a05538a275a2170fe16aff370172e2ed10779136cdc18712ae8
+      r5_independent_manifest_sha256: 37cd9dcb37a24aecab4b1adfadaa7839c5fb4cdcd55f472362b1c1e06c6d1817
+
     execution_lease:
       executor_id: electronics-selection-outline
       holder: unassigned
@@ -3338,17 +3350,18 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 168d1a048f08c2582fc33559f7694970bcde8e9f
+      convergence_baseline_sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
       head_sha: null
-      observed_at: '2026-10-11T11:29:35.870495+00:00'
+      observed_at: '2026-10-11T12:28:56.580251+00:00'
       main:
         branch: main
-        sha: 168d1a048f08c2582fc33559f7694970bcde8e9f
-      observation_note: 'Dated snapshot: fetch main and exact GitHub CI before writes. Verified runtime3f7 General38133960039
-        all4SUCCESS;168d session-fetch security baseline inherited with General38135629769 pending, not acceptance.
-        Selected separate548 real-search regression and549 R5 bounded harness;552 author independent optional-audio
-        repair. All held candidates/other lanes/typed blockers/accepted production count2 preserved. School actions
-        NONE.'
+        sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
+      observation_note: Dated bounded test-only selection. New independent source NEEDS_FIX for failure-evidence
+        mechanics; no product cause/acceptance. Actual main72c shared Classroom/Scratch/API/security baseline inherited,
+        General38138858098 pending at preparation; old134 General cancelled(E), olde51 all4SUCCESS history only.
+        Preserve all other lanes/candidates/blockers/count2/school pending; fetch main and actual exact-SHA CI
+        before writes.
+
   - id: observability
     worktree_id: observability-authoring
     execution_lease: {}
