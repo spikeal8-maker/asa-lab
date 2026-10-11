@@ -2419,7 +2419,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_existing_piezo_clock_repair_selected
+      checkpoint: r3_test_only_schema_valid_normalized_piezo_fixtures
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2428,9 +2428,10 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
       dependency_for_issue: 552
-      repair_scope: Only canonical scheduler coupling for the already installed algebraic piezo model; exact7path
-        budget in card. Directed DC observation-cache counterexample first, narrow guard only if proved. No audio/solver/model/schema/quantum/budget/timeout
-        change. Preserve fail-closed and all canonical physical/Arduino state.
+      repair_scope: 'R3 TEST ONLY e2e/electronics-piezo-clock.spec.ts: replace two invalid shorthand wire colours
+        with equivalent six-digit colours and construct normalized complete fixtures with the existing parser
+        before seeding. Prevalidate all3 fixtures and parser idempotence locally before any browser; preserve
+        all physical values, identities, topology, original active source and full equality/CAS/native assertions.'
       shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552 source
         preserved and its separate browser witness repair coordinated only after independent finding.548 ONLYoldinteractions/549
         ONLYnewoutline. Actual dirty-path checks, no shared writes over another author.
@@ -2438,9 +2439,10 @@ parallel_lanes:
       scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all legacy
         owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact card
         write path including shared registrations.
-      next_action: Fresh canonical preflight/card, new bounded product author after552 author STOP; one exact unpublished
-        candidate/full evidence/narrow+selfreview thenSTOP. NEW independent reviewer and full exact source CI/built
-        BEFORE-AFTER/PCM/wholeSaveCAScookies required; no acceptance from whitelist alone.
+      next_action: Preserve published8b955 and invalid R2 BEFORE1d42/run38145345087. New bounded test-only author,
+        one automatic current-main inheritance conflict STOP; actual parser conformance for all3 source fixtures,
+        exact source inverse/frozen6/foreign-tree/narrow+selfreview/hashmanifest thenSTOP. NEW independent exact
+        source/fixture review before ONE strict corrected BEFORE; no AFTER without valid runtime fault.
       preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual accepted
         production count2 since542, hygiene006 due after third accepted product before later new product phase.
         No school operations.
