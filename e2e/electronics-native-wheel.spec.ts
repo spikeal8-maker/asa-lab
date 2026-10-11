@@ -289,6 +289,35 @@ function world(
   const oy = (rect.height - (980 / view.zoom) * scale) / 2;
   return { x: view.x + (x - rect.left - ox) / scale, y: view.y + (y - rect.top - oy) / scale };
 }
+async function revealCompactInspector(
+  page: Page,
+  width: number,
+  phases: unknown[],
+  checkpoint: string,
+) {
+  if (width !== 390 && width !== 320) return;
+  const shell = page.locator('.workbench-shell');
+  const collapse = page.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
+  await expect(collapse).toBeVisible();
+  const receipt: Record<string, unknown> = {
+    checkpoint,
+    width,
+    action: 'Свернуть библиотеку',
+    beforeClass: await shell.getAttribute('class'),
+  };
+  phases.push({ compactInspector: receipt });
+  await collapse.click();
+  await expect(shell).toHaveClass(/(?:^|\s)library-collapsed(?:\s|$)/);
+  await expect(page.getByRole('button', { name: 'Открыть библиотеку', exact: true })).toBeVisible();
+  const resistance = page
+    .locator('.workbench-inspector label')
+    .filter({ hasText: 'Сопротивление' })
+    .locator('input[type="number"]');
+  await expect(resistance).toBeVisible();
+  receipt['afterClass'] = await shell.getAttribute('class');
+  receipt['resistanceVisible'] = await resistance.isVisible();
+}
+
 let admin: pg.Pool;
 test.beforeAll(() => {
   admin = e2eAdminPool();
@@ -462,6 +491,8 @@ for (const width of [1440, 1024, 390, 320]) {
           .locator('.workbench-inspector label')
           .filter({ hasText: 'Сопротивление' })
           .locator('input[type="number"]');
+        await revealCompactInspector(page, width, phases, 'before-parameter-edit');
+        await expect(resistance).toBeVisible();
         await resistance.fill('333.3');
         await expect(resistance).toHaveValue('333.3');
         expect(await localDocument(page, user, project, true)).toEqual(expected);
@@ -518,6 +549,13 @@ for (const width of [1440, 1024, 390, 320]) {
         expect(await localDocument(reopened, user, project, false)).toEqual(expected);
         expect((await serverDraft(reopened, project)).draft).toEqual(saved.draft);
         await reopened.locator('[data-component-id="load"] .workbench-part').press('Enter');
+        await revealCompactInspector(reopened, width, phases, 'after-cookies-reopen');
+        await expect(
+          reopened
+            .locator('.workbench-inspector label')
+            .filter({ hasText: 'Сопротивление' })
+            .locator('input[type="number"]'),
+        ).toBeVisible();
         await expect(
           reopened
             .locator('.workbench-inspector label')
