@@ -125,7 +125,12 @@ export function ParticipantAssignmentsList({
     <section className="participant-assignments" aria-label="Задания участника">
       <div className="participant-assignment-head">
         <h2>Задания</h2>
-        <button type="button" disabled={loading} onClick={() => void load()}>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={loading}
+          onClick={() => void load()}
+        >
           Обновить задания
         </button>
       </div>
@@ -133,7 +138,7 @@ export function ParticipantAssignmentsList({
       {error ? (
         <p role="alert">
           {error}{' '}
-          <button type="button" onClick={() => void load()}>
+          <button type="button" className="btn-secondary" onClick={() => void load()}>
             Повторить
           </button>
         </p>
@@ -160,11 +165,15 @@ export function ParticipantAssignmentsList({
             </span>
             <span>{item.dueAt ? `Срок: ${time.longDateTime(item.dueAt)}` : 'Без срока'}</span>
             <div className="participant-actions">
-              <a href={participantAssignmentHref(item, classroomId, seatId, learner)}>
+              <a
+                className="btn-secondary"
+                href={participantAssignmentHref(item, classroomId, seatId, learner)}
+              >
                 {learner || item.kind === 'theory' ? 'Открыть задание' : 'Открыть проверку'}
               </a>
               {item.projectId && item.moduleKey ? (
                 <a
+                  className="btn-secondary"
                   href={`#/projects/${encodeURIComponent(item.projectId)}`}
                   onClick={
                     onOpenProject
@@ -183,7 +192,12 @@ export function ParticipantAssignmentsList({
         ))}
       </ul>
       {visiblePage?.nextOffset != null ? (
-        <button type="button" disabled={loading} onClick={() => void load(visiblePage.nextOffset!)}>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={loading}
+          onClick={() => void load(visiblePage.nextOffset!)}
+        >
           Ещё задания
         </button>
       ) : null}

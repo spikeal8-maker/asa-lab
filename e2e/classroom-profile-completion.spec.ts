@@ -169,7 +169,11 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(rect).not.toBeNull();
     expect(rect!.x).toBeGreaterThanOrEqual(0);
     expect(rect!.x + rect!.width).toBeLessThanOrEqual(width + 1);
-    if (await control.evaluate((element) => Boolean(element.closest('.participant-grades')))) {
+    if (
+      await control.evaluate((element) =>
+        Boolean(element.closest('.participant-grades, .participant-assignments')),
+      )
+    ) {
       expect(rect!.width).toBeGreaterThanOrEqual(44);
       expect(rect!.height).toBeGreaterThanOrEqual(44);
     }
