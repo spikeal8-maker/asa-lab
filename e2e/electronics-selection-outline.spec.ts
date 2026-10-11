@@ -355,6 +355,10 @@ async function fitAndPlace(page: Page, id: string) {
 }
 
 async function placeInUnobscuredCanvas(page: Page, id: string) {
+  // Middle-grid pan clears selection. Measure the same unselected body on both
+  // sides of that native gesture, after real Escape and the existing render fence.
+  await page.keyboard.press('Escape');
+  await frames(page);
   const box = await page.locator('.workbench-canvas').boundingBox();
   const body = await part(page, id).locator('.workbench-production-visual').boundingBox();
   if (!box || !body) throw new Error('No actual canvas/body bounds');
