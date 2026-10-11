@@ -1,6 +1,13 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { test, expect, type Locator, type Page, type Request } from '@playwright/test';
+import {
+  test,
+  expect,
+  type Locator,
+  type Page,
+  type Request,
+  type TestInfo,
+} from '@playwright/test';
 import { buildNetlist, terminalKey } from '../contexts/electronics/domain/netlist';
 import type { SchematicDocument } from '../apps/web/src/api';
 import {
@@ -1309,6 +1316,300 @@ async function pointOnBody(page: Page, id: string) {
     });
 }
 
+async function installOrdinaryImageIngress(page: Page, asset: string) {
+  // Passive same-node ingress; no load, recovery, scheduling or layout changes.
+  await page.addInitScript((targetAsset) => {
+    const nativeEvents: unknown[] = [];
+    const reactEvents: unknown[] = [];
+    const domEvents: unknown[] = [];
+    const creationEvents: unknown[] = [];
+    const identities = new WeakMap<object, number>();
+    const dropped: Record<string, number> = {};
+    let nextIdentity = 0;
+    const identity = (object: object): number => {
+      let value = identities.get(object);
+      if (value === undefined) {
+        value = ++nextIdentity;
+        identities.set(object, value);
+      }
+      return value;
+    };
+    const append = (name: string, buffer: unknown[], record: unknown): void => {
+      if (buffer.length < 4096) buffer.push(record);
+      else dropped[name] = (dropped[name] ?? 0) + 1;
+    };
+    const describe = (element: Element) => ({
+      identity: identity(element),
+      tag: element.tagName,
+      href: element.getAttribute('href') ?? element.getAttribute('src'),
+      connected: element.isConnected,
+      consumer: element.closest('.workbench-catalog-card')
+        ? 'catalog'
+        : element.closest('[data-testid="schematic-component"]')
+          ? 'stage'
+          : 'other',
+      componentId: element.closest('[data-component-id]')?.getAttribute('data-component-id'),
+      familyId: element.closest('[data-family-id]')?.getAttribute('data-family-id'),
+      selectedVariant: element
+        .closest('[data-selected-variant]')
+        ?.getAttribute('data-selected-variant'),
+      status: element.getAttribute('data-owner-image-status'),
+    });
+    const isTarget = (element: Element): boolean => {
+      if (!(element instanceof SVGImageElement)) return false;
+      const href = element.getAttribute('href');
+      return Boolean(href && new URL(href, document.baseURI).pathname === targetAsset);
+    };
+    const timestamp = () => ({ atMs: performance.now(), timeOrigin: performance.timeOrigin });
+    const diagnostic = (
+      phase: string,
+      asset: string,
+      token: object,
+      details?: Readonly<Record<string, unknown>>,
+    ): void => {
+      if (new URL(asset, document.baseURI).pathname !== targetAsset) return;
+      const { node, onError, onLoad, ...values } = details ?? {};
+      append('react', reactEvents, {
+        phase,
+        asset,
+        token: identity(token),
+        ...timestamp(),
+        ...values,
+        node: node instanceof Element ? describe(node) : node,
+        onError: typeof onError === 'function' ? identity(onError) : undefined,
+        onLoad: typeof onLoad === 'function' ? identity(onLoad) : undefined,
+      });
+    };
+    const observedWindow = window as unknown as {
+      __asaOwnerImageDiagnostic: typeof diagnostic;
+      __asaOrdinaryImageIngress: {
+        nativeEvents: unknown[];
+        reactEvents: unknown[];
+        domEvents: unknown[];
+        creationEvents: unknown[];
+        dropped: typeof dropped;
+        describe: typeof describe;
+      };
+    };
+    observedWindow.__asaOwnerImageDiagnostic = diagnostic;
+    observedWindow.__asaOrdinaryImageIngress = {
+      nativeEvents,
+      reactEvents,
+      domEvents,
+      creationEvents,
+      dropped,
+      describe,
+    };
+    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'createElementNS')!;
+    const createElementNS = Document.prototype.createElementNS;
+    Object.defineProperty(Document.prototype, 'createElementNS', {
+      ...descriptor,
+      value: function (this: Document, ...args: unknown[]): Element {
+        // Exceptions from the original call propagate unchanged. Observation
+        // starts only after the original result and never replaces that node.
+        const node = Reflect.apply(createElementNS, this, args) as Element;
+        try {
+          if (node instanceof SVGImageElement) {
+            append('creation', creationEvents, { ...timestamp(), target: describe(node) });
+            for (const kind of ['error', 'load']) {
+              node.addEventListener(
+                kind,
+                (event) => {
+                  try {
+                    const target = event.target;
+                    if (target !== node || !isTarget(node)) return;
+                    append('native', nativeEvents, {
+                      kind: event.type,
+                      trusted: event.isTrusted,
+                      ...timestamp(),
+                      target: describe(node),
+                    });
+                  } catch {
+                    // No observer failure changes native propagation.
+                  }
+                },
+                { passive: true },
+              );
+            }
+          }
+        } catch {
+          // The original result is still returned if observation fails.
+        }
+        return node;
+      },
+    });
+    const recordNode = (kind: string, node: Node): void => {
+      if (!(node instanceof Element)) return;
+      for (const image of [node, ...node.querySelectorAll('image')]) {
+        if (isTarget(image))
+          append('dom', domEvents, { kind, ...timestamp(), target: describe(image) });
+      }
+    };
+    new MutationObserver((records) => {
+      for (const record of records) {
+        if (record.type === 'childList') {
+          for (const node of record.addedNodes) recordNode('added', node);
+          for (const node of record.removedNodes) recordNode('removed', node);
+        } else if (record.target instanceof Element && isTarget(record.target)) {
+          append('dom', domEvents, {
+            kind: 'attribute',
+            attribute: record.attributeName,
+            oldValue: record.oldValue,
+            ...timestamp(),
+            target: describe(record.target),
+          });
+        }
+      }
+    }).observe(document, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeOldValue: true,
+      attributeFilter: ['href', 'data-owner-image-status'],
+    });
+  }, asset);
+  const network: {
+    url: string;
+    method: string;
+    resourceType: string;
+    requestedAt: number;
+    status?: number;
+    respondedAt?: number;
+    finishedAt?: number;
+    failedAt?: number;
+    failure?: string;
+  }[] = [];
+  const observedRequests = new Map<Request, (typeof network)[number]>();
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname !== asset) return;
+    const record = {
+      url: request.url(),
+      method: request.method(),
+      resourceType: request.resourceType(),
+      requestedAt: Date.now(),
+    };
+    network.push(record);
+    observedRequests.set(request, record);
+  });
+  page.on('response', (response) => {
+    const record = observedRequests.get(response.request());
+    if (record) {
+      record.status = response.status();
+      record.respondedAt = Date.now();
+    }
+  });
+  page.on('requestfinished', (request) => {
+    const record = observedRequests.get(request);
+    if (record) record.finishedAt = Date.now();
+  });
+  page.on('requestfailed', (request) => {
+    const record = observedRequests.get(request);
+    if (record) {
+      record.failedAt = Date.now();
+      const failure = request.failure();
+      if (failure) record.failure = failure.errorText;
+    }
+  });
+  return network;
+}
+
+async function retainOrdinaryImageIngress(
+  page: Page,
+  asset: string,
+  imageRequests: number,
+  network: Awaited<ReturnType<typeof installOrdinaryImageIngress>>,
+  doc: SchematicDocument,
+  editor: Awaited<ReturnType<typeof openEditor>> | undefined,
+  testInfo: TestInfo,
+  options: { name?: string; extra?: Readonly<Record<string, unknown>>; nativePNG?: boolean } = {},
+) {
+  const capture: Record<string, unknown> = {};
+  if (options.nativePNG && !page.isClosed()) {
+    capture['startedAt'] = Date.now();
+    try {
+      const path = testInfo.outputPath('ordinary-image-search-remount-native.png');
+      await page.screenshot({ path, animations: 'allow', caret: 'initial' });
+      await testInfo.attach('ordinary-image-search-remount-native', {
+        path,
+        contentType: 'image/png',
+      });
+      capture['path'] = path;
+    } catch (error: unknown) {
+      capture['error'] = String(error);
+    }
+    capture['finishedAt'] = Date.now();
+  }
+  const browser = page.isClosed()
+    ? { closed: true }
+    : await page
+        .evaluate((targetAsset) => {
+          const observation = (
+            window as unknown as {
+              __asaOrdinaryImageIngress?: {
+                nativeEvents: unknown[];
+                reactEvents: unknown[];
+                domEvents: unknown[];
+                creationEvents: unknown[];
+                dropped: Record<string, number>;
+                describe: (element: Element) => unknown;
+              };
+            }
+          ).__asaOrdinaryImageIngress;
+          const images = [...document.querySelectorAll('image')].filter((image) => {
+            const href = image.getAttribute('href');
+            return href && new URL(href, document.baseURI).pathname === targetAsset;
+          });
+          return {
+            atMs: performance.now(),
+            timeOrigin: performance.timeOrigin,
+            nativeEvents: observation?.nativeEvents ?? null,
+            reactEvents: observation?.reactEvents ?? null,
+            domEvents: observation?.domEvents ?? null,
+            creationEvents: observation?.creationEvents ?? null,
+            dropped: observation?.dropped ?? null,
+            images: images.map((image) => ({
+              observed: observation?.describe(image),
+              outerHTML: image.outerHTML,
+            })),
+            fullDOM: document.documentElement.outerHTML,
+            localDrafts: Object.fromEntries(
+              Object.keys(localStorage)
+                .filter((key) => key.startsWith('asa-project-local-draft:'))
+                .map((key) => [key, localStorage.getItem(key)]),
+            ),
+          };
+        }, asset)
+        .catch((error: unknown) => ({ observationError: String(error) }));
+  const receipt = {
+    asset,
+    imageRequests,
+    network,
+    diagnosticOutcome: 'EXECUTION_ORDER_REQUIRES_INDEPENDENT_ANALYSIS',
+    instrumentationLimitation:
+      'Passive listeners and synchronous sink add overhead; no race frequency or cause is inferred.',
+    initialDocument: doc,
+    serverDocument: editor?.readDocument() ?? null,
+    editorDocument:
+      editor && !page.isClosed()
+        ? await editor
+            .readEditorDocument()
+            .catch((error: unknown) => ({ observationError: String(error) }))
+        : null,
+    draftRequests: editor?.requests ?? null,
+    pageErrors: editor?.errors ?? null,
+    browser,
+    ...(options.extra ? { extra: options.extra, capture } : {}),
+  };
+  const name = options.name ?? 'ordinary-image-native-react-ingress';
+  const receiptPath = testInfo.outputPath(name + '.json');
+  const { writeFileSync } = await import('node:fs');
+  writeFileSync(receiptPath, JSON.stringify(receipt, null, 2));
+  await testInfo.attach(name, {
+    path: receiptPath,
+    contentType: 'application/json',
+  });
+}
+
 test.describe('asset recovery in the built editor', () => {
   test('one failed mask request recovers two LEDs without enlarging their hit area', async ({
     page,
@@ -2084,199 +2385,7 @@ test.describe('asset recovery in the built editor', () => {
   }, testInfo) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    // Passive same-node ingress; no load, recovery, scheduling or layout changes.
-    await page.addInitScript((targetAsset) => {
-      const nativeEvents: unknown[] = [];
-      const reactEvents: unknown[] = [];
-      const domEvents: unknown[] = [];
-      const creationEvents: unknown[] = [];
-      const identities = new WeakMap<object, number>();
-      const dropped: Record<string, number> = {};
-      let nextIdentity = 0;
-      const identity = (object: object): number => {
-        let value = identities.get(object);
-        if (value === undefined) {
-          value = ++nextIdentity;
-          identities.set(object, value);
-        }
-        return value;
-      };
-      const append = (name: string, buffer: unknown[], record: unknown): void => {
-        if (buffer.length < 4096) buffer.push(record);
-        else dropped[name] = (dropped[name] ?? 0) + 1;
-      };
-      const describe = (element: Element) => ({
-        identity: identity(element),
-        tag: element.tagName,
-        href: element.getAttribute('href') ?? element.getAttribute('src'),
-        connected: element.isConnected,
-        consumer: element.closest('.workbench-catalog-card')
-          ? 'catalog'
-          : element.closest('[data-testid="schematic-component"]')
-            ? 'stage'
-            : 'other',
-        componentId: element.closest('[data-component-id]')?.getAttribute('data-component-id'),
-        familyId: element.closest('[data-family-id]')?.getAttribute('data-family-id'),
-        selectedVariant: element
-          .closest('[data-selected-variant]')
-          ?.getAttribute('data-selected-variant'),
-        status: element.getAttribute('data-owner-image-status'),
-      });
-      const isTarget = (element: Element): boolean => {
-        if (!(element instanceof SVGImageElement)) return false;
-        const href = element.getAttribute('href');
-        return Boolean(href && new URL(href, document.baseURI).pathname === targetAsset);
-      };
-      const timestamp = () => ({ atMs: performance.now(), timeOrigin: performance.timeOrigin });
-      const diagnostic = (
-        phase: string,
-        asset: string,
-        token: object,
-        details?: Readonly<Record<string, unknown>>,
-      ): void => {
-        if (new URL(asset, document.baseURI).pathname !== targetAsset) return;
-        const { node, onError, onLoad, ...values } = details ?? {};
-        append('react', reactEvents, {
-          phase,
-          asset,
-          token: identity(token),
-          ...timestamp(),
-          ...values,
-          node: node instanceof Element ? describe(node) : node,
-          onError: typeof onError === 'function' ? identity(onError) : undefined,
-          onLoad: typeof onLoad === 'function' ? identity(onLoad) : undefined,
-        });
-      };
-      const observedWindow = window as unknown as {
-        __asaOwnerImageDiagnostic: typeof diagnostic;
-        __asaOrdinaryImageIngress: {
-          nativeEvents: unknown[];
-          reactEvents: unknown[];
-          domEvents: unknown[];
-          creationEvents: unknown[];
-          dropped: typeof dropped;
-          describe: typeof describe;
-        };
-      };
-      observedWindow.__asaOwnerImageDiagnostic = diagnostic;
-      observedWindow.__asaOrdinaryImageIngress = {
-        nativeEvents,
-        reactEvents,
-        domEvents,
-        creationEvents,
-        dropped,
-        describe,
-      };
-      const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'createElementNS')!;
-      const createElementNS = Document.prototype.createElementNS;
-      Object.defineProperty(Document.prototype, 'createElementNS', {
-        ...descriptor,
-        value: function (this: Document, ...args: unknown[]): Element {
-          // Exceptions from the original call propagate unchanged. Observation
-          // starts only after the original result and never replaces that node.
-          const node = Reflect.apply(createElementNS, this, args) as Element;
-          try {
-            if (node instanceof SVGImageElement) {
-              append('creation', creationEvents, { ...timestamp(), target: describe(node) });
-              for (const kind of ['error', 'load']) {
-                node.addEventListener(
-                  kind,
-                  (event) => {
-                    try {
-                      const target = event.target;
-                      if (target !== node || !isTarget(node)) return;
-                      append('native', nativeEvents, {
-                        kind: event.type,
-                        trusted: event.isTrusted,
-                        ...timestamp(),
-                        target: describe(node),
-                      });
-                    } catch {
-                      // No observer failure changes native propagation.
-                    }
-                  },
-                  { passive: true },
-                );
-              }
-            }
-          } catch {
-            // The original result is still returned if observation fails.
-          }
-          return node;
-        },
-      });
-      const recordNode = (kind: string, node: Node): void => {
-        if (!(node instanceof Element)) return;
-        for (const image of [node, ...node.querySelectorAll('image')]) {
-          if (isTarget(image))
-            append('dom', domEvents, { kind, ...timestamp(), target: describe(image) });
-        }
-      };
-      new MutationObserver((records) => {
-        for (const record of records) {
-          if (record.type === 'childList') {
-            for (const node of record.addedNodes) recordNode('added', node);
-            for (const node of record.removedNodes) recordNode('removed', node);
-          } else if (record.target instanceof Element && isTarget(record.target)) {
-            append('dom', domEvents, {
-              kind: 'attribute',
-              attribute: record.attributeName,
-              oldValue: record.oldValue,
-              ...timestamp(),
-              target: describe(record.target),
-            });
-          }
-        }
-      }).observe(document, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeOldValue: true,
-        attributeFilter: ['href', 'data-owner-image-status'],
-      });
-    }, asset);
-    const network: {
-      url: string;
-      method: string;
-      resourceType: string;
-      requestedAt: number;
-      status?: number;
-      respondedAt?: number;
-      finishedAt?: number;
-      failedAt?: number;
-      failure?: string;
-    }[] = [];
-    const observedRequests = new Map<Request, (typeof network)[number]>();
-    page.on('request', (request) => {
-      if (new URL(request.url()).pathname !== asset) return;
-      const record = {
-        url: request.url(),
-        method: request.method(),
-        resourceType: request.resourceType(),
-        requestedAt: Date.now(),
-      };
-      network.push(record);
-      observedRequests.set(request, record);
-    });
-    page.on('response', (response) => {
-      const record = observedRequests.get(response.request());
-      if (record) {
-        record.status = response.status();
-        record.respondedAt = Date.now();
-      }
-    });
-    page.on('requestfinished', (request) => {
-      const record = observedRequests.get(request);
-      if (record) record.finishedAt = Date.now();
-    });
-    page.on('requestfailed', (request) => {
-      const record = observedRequests.get(request);
-      if (record) {
-        record.failedAt = Date.now();
-        const failure = request.failure();
-        if (failure) record.failure = failure.errorText;
-      }
-    });
+    const network = await installOrdinaryImageIngress(page, asset);
     let imageRequests = 0;
     await page.route(
       (url) => url.pathname === asset,
@@ -2319,73 +2428,261 @@ test.describe('asset recovery in the built editor', () => {
       expect(requests).toHaveLength(0);
       expect(errors).toEqual([]);
     } finally {
-      const browser = page.isClosed()
-        ? { closed: true }
-        : await page
-            .evaluate((targetAsset) => {
-              const observation = (
-                window as unknown as {
-                  __asaOrdinaryImageIngress?: {
-                    nativeEvents: unknown[];
-                    reactEvents: unknown[];
-                    domEvents: unknown[];
-                    creationEvents: unknown[];
-                    dropped: Record<string, number>;
-                    describe: (element: Element) => unknown;
-                  };
-                }
-              ).__asaOrdinaryImageIngress;
-              const images = [...document.querySelectorAll('image')].filter((image) => {
-                const href = image.getAttribute('href');
-                return href && new URL(href, document.baseURI).pathname === targetAsset;
-              });
-              return {
-                atMs: performance.now(),
-                timeOrigin: performance.timeOrigin,
-                nativeEvents: observation?.nativeEvents ?? null,
-                reactEvents: observation?.reactEvents ?? null,
-                domEvents: observation?.domEvents ?? null,
-                creationEvents: observation?.creationEvents ?? null,
-                dropped: observation?.dropped ?? null,
-                images: images.map((image) => ({
-                  observed: observation?.describe(image),
-                  outerHTML: image.outerHTML,
-                })),
-                fullDOM: document.documentElement.outerHTML,
-                localDrafts: Object.fromEntries(
-                  Object.keys(localStorage)
-                    .filter((key) => key.startsWith('asa-project-local-draft:'))
-                    .map((key) => [key, localStorage.getItem(key)]),
-                ),
-              };
-            }, asset)
-            .catch((error: unknown) => ({ observationError: String(error) }));
-      const receipt = {
-        asset,
-        imageRequests,
-        network,
-        diagnosticOutcome: 'EXECUTION_ORDER_REQUIRES_INDEPENDENT_ANALYSIS',
-        instrumentationLimitation:
-          'Passive listeners and synchronous sink add overhead; no race frequency or cause is inferred.',
-        initialDocument: doc,
-        serverDocument: editor?.readDocument() ?? null,
-        editorDocument:
-          editor && !page.isClosed()
-            ? await editor
-                .readEditorDocument()
-                .catch((error: unknown) => ({ observationError: String(error) }))
-            : null,
-        draftRequests: editor?.requests ?? null,
-        pageErrors: editor?.errors ?? null,
-        browser,
-      };
-      const receiptPath = testInfo.outputPath('ordinary-image-native-react-ingress.json');
-      const { writeFileSync } = await import('node:fs');
-      writeFileSync(receiptPath, JSON.stringify(receipt, null, 2));
-      await testInfo.attach('ordinary-image-native-react-ingress', {
-        path: receiptPath,
-        contentType: 'application/json',
+      await retainOrdinaryImageIngress(page, asset, imageRequests, network, doc, editor, testInfo);
+    }
+  });
+
+  test('catalog search remounts an ordinary image during the existing finite recovery', async ({
+    page,
+  }, testInfo) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    const asset = catalogEntry('battery-holder-aa-2')!.asset;
+    const network = await installOrdinaryImageIngress(page, asset);
+    const actions: unknown[] = [];
+    const lifecycle: Record<string, unknown> = {};
+    const cdpRequests: unknown[] = [];
+    let cdp: { detach: () => Promise<void> } | undefined;
+    let cdpState: string;
+    try {
+      const session = await page.context().newCDPSession(page);
+      cdp = session;
+      session.on('Network.requestWillBeSent', (event) => {
+        if (new URL(event.request.url).pathname !== asset) return;
+        cdpRequests.push({
+          requestId: event.requestId,
+          url: event.request.url,
+          method: event.request.method,
+          type: event.type,
+          timestamp: event.timestamp,
+          wallTime: event.wallTime,
+          initiator: event.initiator,
+        });
       });
+      await session.send('Network.enable');
+      cdpState = 'supported';
+    } catch (error: unknown) {
+      cdpState = `unsupported: ${String(error)}`;
+    }
+    // The signal is observed before navigation; no request is held or retried.
+    const retry1Signal = page
+      .waitForResponse((response) => {
+        const url = new URL(response.url());
+        return (
+          url.pathname === asset &&
+          response.request().resourceType() === 'image' &&
+          response.status() === 404 &&
+          url.searchParams.get('asa-image-retry') === '1' &&
+          url.searchParams.get('asa-image-cycle') === '1'
+        );
+      })
+      .then((response) => ({
+        url: response.url(),
+        status: response.status(),
+        receivedAt: Date.now(),
+      }))
+      .catch((error: unknown) => ({ signalError: String(error) }));
+    let imageRequests = 0;
+    await page.route(
+      (url) => url.pathname === asset,
+      async (route) => {
+        if (route.request().resourceType() !== 'image') return route.continue();
+        imageRequests += 1;
+        await route.fulfill({ status: 404, body: 'missing' });
+      },
+    );
+    const doc = addComponentToDocument(
+      documentFixture(),
+      'battery-holder-aa-2',
+      { x: 790, y: 450 },
+      'holder',
+    ).document;
+    const readLifecycle = async () => {
+      const nodeStartedAt = Date.now();
+      const browser = await page.evaluate((targetAsset) => {
+        type ImageDescription = { identity: number; consumer: string; connected: boolean };
+        type HookEvent = {
+          phase: string;
+          token: number;
+          onError?: number;
+          node?: ImageDescription | null;
+        };
+        const observation = (
+          window as unknown as {
+            __asaOrdinaryImageIngress?: {
+              describe: (node: Element) => ImageDescription;
+              reactEvents: HookEvent[];
+              nativeEvents: { kind: string; trusted: boolean; target: ImageDescription }[];
+              dropped: Record<string, number>;
+            };
+          }
+        ).__asaOrdinaryImageIngress;
+        const images = [...document.querySelectorAll('image')].filter((image) => {
+          const href = image.getAttribute('href');
+          return href && new URL(href, document.baseURI).pathname === targetAsset;
+        });
+        const descriptions = images.flatMap((image) => {
+          if (!observation) return [];
+          const description = observation.describe(image);
+          const commits = observation.reactEvents.filter(
+            (event) =>
+              event.phase === 'ordinary-commit-ref' &&
+              event.node?.identity === description.identity &&
+              event.node.connected,
+          );
+          const hookTokens = [
+            ...new Set(
+              observation.reactEvents
+                .filter(
+                  (event) =>
+                    event.phase === 'render-bind' &&
+                    commits.some((commit) => commit.token === event.onError),
+                )
+                .map((event) => event.token),
+            ),
+          ].sort((a, b) => a - b);
+          return [
+            {
+              identity: description.identity,
+              consumer: description.consumer,
+              connected: description.connected,
+              hookTokens,
+            },
+          ];
+        });
+        return {
+          browserDateNow: Date.now(),
+          atMs: performance.now(),
+          timeOrigin: performance.timeOrigin,
+          observerMissing: !observation,
+          catalog: descriptions.filter((image) => image.consumer === 'catalog'),
+          stage: descriptions.filter((image) => image.consumer === 'stage'),
+          nativeErrors:
+            observation?.nativeEvents
+              .filter((event) => event.kind === 'error' && event.trusted)
+              .map((event) => event.target.identity) ?? [],
+          cleanups:
+            observation?.reactEvents.filter((event) => event.phase === 'effect-cleanup') ?? [],
+          dropped: observation?.dropped ?? null,
+          localDrafts: Object.fromEntries(
+            Object.keys(localStorage)
+              .filter((key) => key.startsWith('asa-project-local-draft:'))
+              .map((key) => [key, localStorage.getItem(key)]),
+          ),
+        };
+      }, asset);
+      return { nodeStartedAt, nodeFinishedAt: Date.now(), ...browser };
+    };
+    let editor: Awaited<ReturnType<typeof openEditor>> | undefined;
+    try {
+      const { readDocument, readEditorDocument, requests, errors } = (editor = await openEditor(
+        page,
+        doc,
+      ));
+      const initial = structuredClone(readDocument());
+      const initialEditor = structuredClone(await readEditorDocument());
+      const trigger = await retry1Signal;
+      lifecycle['trigger'] = trigger;
+      const beforeSearch = await readLifecycle();
+      lifecycle['beforeSearch'] = beforeSearch;
+      const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
+      const search = page.getByRole('textbox', { name: 'Поиск компонентов' });
+      const ready =
+        !('signalError' in trigger) &&
+        beforeSearch.catalog.length === 1 &&
+        beforeSearch.catalog[0]!.hookTokens.length === 1 &&
+        beforeSearch.nativeErrors.includes(beforeSearch.catalog[0]!.identity) &&
+        beforeSearch.stage.length > 0 &&
+        beforeSearch.dropped !== null &&
+        Object.keys(beforeSearch.dropped).length === 0 &&
+        !network.some(
+          (record) =>
+            record.status === 404 &&
+            new URL(record.url).searchParams.get('asa-image-retry') === '2',
+        ) &&
+        (await search.isVisible());
+      if (ready) {
+        actions.push({ kind: 'search-start', at: Date.now() });
+        await search.click();
+        await search.pressSequentially('zz548');
+        await expect(card).toHaveCount(0);
+        actions.push({ kind: 'catalog-removed', at: Date.now() });
+        await search.press('ControlOrMeta+A');
+        await search.press('Backspace');
+        await expect(card).toHaveCount(1);
+        actions.push({ kind: 'catalog-restored', at: Date.now() });
+        lifecycle['afterRemount'] = await readLifecycle();
+      } else {
+        lifecycle['outcome'] = 'ORDER_NOT_ESTABLISHED';
+        lifecycle['reason'] =
+          'Original catalog native ingress/hook, buffers or real search were not ready.';
+      }
+      const stageError = part(page, 'holder').getByRole('status', {
+        name: 'Изображение детали не загрузилось',
+      });
+      await expect(stageError).toBeVisible({ timeout: 10_000 });
+      await expect(stageError).toHaveAttribute('data-testid', 'owner-image-error');
+      await expect(
+        part(page, 'holder').locator('[data-owner-image-status="failed"]'),
+      ).toBeVisible();
+      await card.scrollIntoViewIfNeeded();
+      await expect(
+        card.getByRole('status', { name: 'Изображение детали не загрузилось' }),
+      ).toBeVisible();
+      await expect(card.locator('[data-owner-image-status="failed"]')).toBeVisible();
+      const requestsAtFailure = imageRequests;
+      await page.waitForTimeout(800);
+      expect(imageRequests).toBe(requestsAtFailure);
+      const shared = network.filter((record) => {
+        const url = new URL(record.url);
+        return record.resourceType === 'image' && url.searchParams.has('asa-image-retry');
+      });
+      expect(
+        shared.map((record) => new URL(record.url).searchParams.get('asa-image-retry')),
+      ).toEqual(['0', '1', '2']);
+      expect([
+        ...new Set(shared.map((record) => new URL(record.url).searchParams.get('asa-image-cycle'))),
+      ]).toEqual(['1']);
+      const finalLifecycle = await readLifecycle();
+      lifecycle['final'] = finalLifecycle;
+      expect(finalLifecycle.stage).toEqual(beforeSearch.stage);
+      expect(finalLifecycle.localDrafts).toEqual(beforeSearch.localDrafts);
+      expect(readDocument()).toEqual(initial);
+      expect(await readEditorDocument()).toEqual(initialEditor);
+      expect(initialEditor).toEqual(doc);
+      expect(requests).toHaveLength(0);
+      expect(errors).toEqual([]);
+    } finally {
+      const sharedImageProbes = network.filter((record) =>
+        new URL(record.url).searchParams.has('asa-image-retry'),
+      );
+      const originalImageRequests = network.filter(
+        (record) =>
+          record.resourceType === 'image' &&
+          !new URL(record.url).searchParams.has('asa-image-retry'),
+      );
+      const otherTargetRequests = network.filter((record) => record.resourceType !== 'image');
+      await retainOrdinaryImageIngress(page, asset, imageRequests, network, doc, editor, testInfo, {
+        name: 'ordinary-image-catalog-search-remount',
+        nativePNG: true,
+        extra: {
+          actions,
+          lifecycle,
+          cdpState,
+          cdpRequests,
+          requestAccounting: {
+            sharedImageProbes,
+            originalImageRequests,
+            otherTargetRequests,
+            attributionLimit:
+              'Original image requests may be mounted consumers or masks; CDP initiators and actual node chains decide. Snapshot fetches are separate and never native recovery.',
+            oldPermanentMax7Unchanged: true,
+          },
+          expectedWindow:
+            'Actual retry1 image404 → real search cleanup/remount/new commit → terminal retry2 response; missing evidence is ORDER_NOT_ESTABLISHED, never a cause claim.',
+          refNullIsNotUnmount: true,
+        },
+      });
+      await cdp?.detach().catch(() => {});
     }
   });
 
