@@ -11,6 +11,82 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/analytics/v2/events:
+    post:
+      operationId: observeProductVisit
+      description: Protected visits only; canonical module start is the sole new-client module-open writer. Current authentication is checked before receipt replay.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './product-analytics-v2.schema.json#/$defs/Visit' }
+      responses:
+        '200':
+          description: Confirmed original database receipt
+          content:
+            application/json:
+              schema: { $ref: './product-analytics-v2.schema.json#/$defs/Receipt' }
+        '400': { description: Invalid fixed envelope }
+        '401': { description: No current authenticated actor }
+        '403': { description: Current canonical context denied }
+        '409': { description: Actor context or operation UUID binding conflict }
+        '429': { description: Bounded delivery capacity exhausted }
+        '503': { description: Persistence unavailable; retry the same operation UUID }
+  /api/analytics/v2/module-session:
+    post:
+      operationId: persistProductModuleOperation
+      description: Bounded confirmed persistence. Fresh authentication and canonical project access precede immutable replay; original results survive session close without reopening it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './product-analytics-v2.schema.json#/$defs/ModuleOperation' }
+      responses:
+        '200':
+          description: Confirmed original database receipt and credited interval bounds
+          content:
+            application/json:
+              schema: { $ref: './product-analytics-v2.schema.json#/$defs/Receipt' }
+        '400': { description: Invalid fixed envelope }
+        '401': { description: No current authenticated actor }
+        '403': { description: Current canonical project access denied }
+        '409': { description: Actor context or operation UUID binding conflict }
+        '429': { description: Bounded delivery capacity exhausted }
+        '503': { description: Persistence unavailable; retry the same operation UUID }
+  /api/analytics/v2/quality:
+    post:
+      operationId: persistProductDeliveryQuality
+      description: Protected actor-bound cumulative snapshots. Exact older UUID replay returns the original result; a new UUID for an old stream sequence conflicts.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './product-analytics-v2.schema.json#/$defs/Quality' }
+      responses:
+        '200':
+          description: Confirmed original database quality receipt
+          content:
+            application/json:
+              schema: { $ref: './product-analytics-v2.schema.json#/$defs/Receipt' }
+        '400': { description: Invalid cumulative snapshot }
+        '401': { description: No current authenticated actor }
+        '403': { description: Current canonical context denied }
+        '409': { description: Actor context, UUID binding or stream sequence conflict }
+        '429': { description: Bounded delivery capacity exhausted }
+        '503': { description: Persistence unavailable; retry the same operation UUID }
+  /api/diagnostics/quality:
+    post:
+      operationId: acknowledgeAnonymousDiagnosticQuality
+      description: Anonymous untrusted technical quality; HTTP 202 acknowledges stdout intake only, never database persistence.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: './product-analytics-v2.schema.json#/$defs/AnonymousQuality' }
+      responses:
+        '202': { description: Anonymous stdout intake acknowledged only }
+        '400': { description: Invalid fixed snapshot }
+        '429': { description: Anonymous intake rate exhausted }
   /api/analytics/v1/module-opened:
     post:
       operationId: recordProductModuleOpened
@@ -27,14 +103,14 @@ paths:
                 moduleKey: { type: string, enum: [electronics, three-d, chess, checkers, blocks] }
       responses:
         '202':
-          description: Accepted
+          description: Confirmed persistence result; accepted false when telemetry fails
           content:
             application/json:
               schema:
                 type: object
                 required: [accepted]
                 properties:
-                  accepted: { type: boolean, const: true }
+                  accepted: { type: boolean }
         '400': { description: Invalid module key or body }
         '401': { description: No active session }
         '409': { description: Conflicting active Account and StudentSeat sessions }

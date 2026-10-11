@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import type { ActiveContext } from '@asa-lab/identity';
 import { ProductAnalyticsService } from './product-analytics.service.js';
+import { AnalyticsDeliveryQueue } from './analytics-delivery-queue.js';
 
 type AnalyticsQuery = (
   sql: string,
@@ -21,6 +22,128 @@ const CONTEXT: ActiveContext = {
 };
 
 describe('product analytics writer', () => {
+  it('confirms a legacy start UUID independently of its accepted letter case', async () => {
+    const lower = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+    const query = vi.fn<AnalyticsQuery>(async () => ({
+      rows: [{ analytics_start_module_session: lower }],
+    }));
+    const service = new ProductAnalyticsService(
+      { query } as unknown as pg.Pool,
+      new AnalyticsDeliveryQueue(true, Date.now, () => undefined),
+    );
+    await expect(
+      service.startModuleSession({
+        sessionId: lower.toUpperCase(),
+        projectId: lower,
+        actor: { kind: 'account', context: CONTEXT },
+        moduleKey: 'blocks',
+      }),
+    ).resolves.toBe(true);
+    await service.shutdown();
+  });
+  it('persists a real v2 actor envelope and rejects a queued or misbound database acknowledgement', async () => {
+    const eventId = '50000000-0000-4000-8000-000000000001';
+    const receivedAt = '2026-10-11T10:00:00.000Z';
+    const receipt = {
+      accepted: true,
+      state: 'persisted',
+      schemaVersion: 2,
+      eventId,
+      receiptId: eventId,
+      operation: 'visit.observed',
+      receivedAt,
+      persistedAt: receivedAt,
+    };
+    const query = vi.fn<AnalyticsQuery>(async () => ({ rows: [{ receipt }] }));
+    const service = new ProductAnalyticsService(
+      { query } as unknown as pg.Pool,
+      new AnalyticsDeliveryQueue(true, Date.now, () => undefined),
+    );
+    const run = () =>
+      service.persistOperation(
+        eventId,
+        { kind: 'account', context: CONTEXT },
+        'visit.observed',
+        { outcome: 'succeeded' },
+        {},
+        receivedAt,
+      );
+    await expect(run()).resolves.toEqual(receipt);
+    expect(query.mock.calls[0]![1]!.slice(0, 8)).toEqual([
+      eventId,
+      'account',
+      CONTEXT.accountId,
+      CONTEXT.principalId,
+      null,
+      CONTEXT.workspaceId,
+      null,
+      'visit.observed',
+    ]);
+    query.mockResolvedValueOnce({ rows: [{ receipt: { ...receipt, state: 'queued' } }] });
+    await expect(run()).rejects.toMatchObject({ code: 'telemetry_unavailable' });
+    query.mockResolvedValueOnce({ rows: [{ receipt: { ...receipt, eventId: 'foreign' } }] });
+    await expect(run()).rejects.toMatchObject({ code: 'telemetry_unavailable' });
+    await service.shutdown();
+  });
+  it('returns background queue admission without waiting for SQL, and freezes normalized receipt facts', async () => {
+    let release!: (value: { rows: Record<string, unknown>[] }) => void;
+    const pending = new Promise<{ rows: Record<string, unknown>[] }>((resolve) => {
+      release = resolve;
+    });
+    const query = vi.fn<AnalyticsQuery>(() => pending);
+    const queue = new AnalyticsDeliveryQueue(true, Date.now, () => undefined);
+    const service = new ProductAnalyticsService({ query } as unknown as pg.Pool, queue);
+    const receivedAt = '2026-10-11T10:00:00Z';
+    const actor = { kind: 'account' as const, context: { ...CONTEXT } };
+    expect(
+      service.enqueueEvent({
+        actor,
+        eventType: 'auth.login',
+        outcome: 'succeeded',
+        receivedAt,
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0) Chrome/130.0 raw-private-tail',
+        address: '203.0.113.10',
+        networkKind: 'public',
+      }),
+    ).toEqual({ state: 'queued' });
+    actor.context.accountId = 'mutated after admission';
+    await Promise.resolve();
+    expect(queue.counters.persisted).toBe(0);
+    const args = query.mock.calls[0]![1]!;
+    expect(args[2]).toBe(CONTEXT.accountId);
+    expect(args[10]).toBe(receivedAt);
+    expect(JSON.stringify(args)).not.toContain('raw-private-tail');
+    expect(JSON.stringify(args)).not.toContain(CONTEXT.email);
+    const eventId = args[0] as string;
+    release({
+      rows: [
+        {
+          receipt: {
+            accepted: true,
+            state: 'persisted',
+            schemaVersion: 2,
+            eventId,
+            receiptId: eventId,
+            operation: 'auth.login',
+            receivedAt,
+            persistedAt: receivedAt,
+          },
+        },
+      ],
+    });
+    await queue.shutdown();
+    expect(queue.counters.persisted).toBe(1);
+  });
+  it('does not turn an unconfirmed legacy database result into accepted persistence', async () => {
+    const query = vi.fn<AnalyticsQuery>(async () => ({ rows: [{ analytics_record_event: null }] }));
+    const service = new ProductAnalyticsService(
+      { query } as unknown as pg.Pool,
+      new AnalyticsDeliveryQueue(true, Date.now, () => undefined),
+    );
+    await expect(
+      service.record({ actor: { kind: 'anonymous' }, eventType: 'auth.login', outcome: 'failed' }),
+    ).resolves.toBe(false);
+  });
   it('fails closed for null touches, anonymous actors and database failure', async () => {
     const query = vi.fn<AnalyticsQuery>(async () => ({
       rows: [{ analytics_touch_module_session: null }],

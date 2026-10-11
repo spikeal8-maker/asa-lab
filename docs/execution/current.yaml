@@ -2419,7 +2419,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_test_only_schema_valid_normalized_piezo_fixtures
+      checkpoint: r4_test_only_complete_fixture_and_page_scoped_worker_oracles
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2428,10 +2428,10 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
       dependency_for_issue: 552
-      repair_scope: 'R3 TEST ONLY e2e/electronics-piezo-clock.spec.ts: replace two invalid shorthand wire colours
-        with equivalent six-digit colours and construct normalized complete fixtures with the existing parser
-        before seeding. Prevalidate all3 fixtures and parser idempotence locally before any browser; preserve
-        all physical values, identities, topology, original active source and full equality/CAS/native assertions.'
+      repair_scope: 'R4 TEST ONLY e2e/electronics-piezo-clock.spec.ts: explicitly include four existing passive
+        editor-default properties before parser/API seeding and scope recorded real Worker request-response
+        identity by browser page. Preserve all original physical values, topology, Arduino and strict whole
+        equality/CAS/native PCM/ready/yielded assertions. No product/runtime/timeout changes.'
       shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552 source
         preserved and its separate browser witness repair coordinated only after independent finding.548 ONLYoldinteractions/549
         ONLYnewoutline. Actual dirty-path checks, no shared writes over another author.
@@ -2439,10 +2439,11 @@ parallel_lanes:
       scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all legacy
         owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact card
         write path including shared registrations.
-      next_action: Preserve published8b955 and invalid R2 BEFORE1d42/run38145345087. New bounded test-only author,
-        one automatic current-main inheritance conflict STOP; actual parser conformance for all3 source fixtures,
-        exact source inverse/frozen6/foreign-tree/narrow+selfreview/hashmanifest thenSTOP. NEW independent exact
-        source/fixture review before ONE strict corrected BEFORE; no AFTER without valid runtime fault.
+      next_action: Preserve published9396 and valid R3 BEFORE084d/run38153898162; R3 AFTERfb6d/run38155253389
+        has genuine native sound and page-correct ready frames but fails two proven test oracles. One bounded
+        test-only author; explicit complete independent fixtures and page-scoped fail-closed joins with
+        directed counterexamples, narrow checks/selfreview/hashmanifest thenSTOP. NEW independent source
+        review before one corrected same-bytes BEFORE and AFTER. Shared-path convergence requires coordination.
       preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual accepted
         production count2 since542, hygiene006 due after third accepted product before later new product phase.
         No school operations.
@@ -3418,7 +3419,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r7_test_only_saved_state_setup_and_native_control_oracles
+      checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3426,14 +3427,13 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R7 TEST ONLY e2e/electronics-selection-outline.spec.ts: fix proven invalid BEFORE setup
-        label, clean saved-document oracle and ambiguous/native control hit authority; retain full actual local
-        whole document checks, zero hidden edits/PUT, exact transforms, complete ready/yielded, wholeSaveCAScookies,
-        primary-original evidence and all default deadlines. No product repair or expected-value fallback.'
-      next_action: New bounded test-only author inherits actual canonical/shared main automatically with conflict
-        STOP. Preserve published R6 source7e77 and invalid BEFOREaa4b/run38142368828. One unpublished exact SHA,
-        narrow checks/full foreign-tree/selfreview/hashmanifest thenSTOP; NEW independent source challenge before
-        ONE new strict frozen BEFORE. AFTER forbidden until valid BEFORE; final exact gates/product review remain.
+      repair_scope: 'R8 TEST ONLY e2e/electronics-selection-outline.spec.ts: disambiguate existing native multimeter single
+        existing voltage mode click to its unique painted mode-button hit path. Preserve all16 cases/whole9parts7wiresUNO/nativeactions/all78asserts/defaultwaits/primaryjournals;
+        allother5sourceblobs exact9d. No product/physics/collector change.'
+      next_action: New bounded test-only author inherits canonical current-main once automatically conflictSTOP. Preserve
+        published9d/R7BEFORE37e48/run38145444404. One unpublished exactSHA/fullinverse/78assertAST/narrow/selfreview/hashmanifest
+        thenSTOP; NEWindependent source check. NO new browser until separate554productwheel dependency technicallyaccepted;
+        then one final controlledcomposition/exactgates/newfrozenstrictBEFORE, noAFTER withoutvalidall16journey.
       preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged. No resolution
         of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted production slice
         before later new production phase.
@@ -3474,6 +3474,12 @@ parallel_lanes:
       r5_independent_report_sha256: d2b57f98765c4a05538a275a2170fe16aff370172e2ed10779136cdc18712ae8
       r5_independent_manifest_sha256: 37cd9dcb37a24aecab4b1adfadaa7839c5fb4cdcd55f472362b1c1e06c6d1817
 
+      wheel_dependency_issue: 554
+      r7_before_probe_sha: 37e48f2ec372dccdf44bb8ebaaa1db501ecf8905
+      r7_before_run: 38145444404
+      r7_before_conclusion: invalid_globally;4Acomplete_only_expected_outline_failure;8BCwholeSave_thenpassivewheelconsole;4Dmeterselector2paths
+      r7_before_report_sha256: f83472cb9dff0593feb1fe88a82f188dc48f4f54d5af07dc760d61d30f3f3658
+      r7_before_manifest_sha256: df5e8f474c672c99b2a60c6973c985155fe7f769e33ace15f5bedeffa50c47af
     execution_lease:
       executor_id: electronics-selection-outline
       holder: unassigned
@@ -3512,13 +3518,13 @@ parallel_lanes:
     execution_lease: {}
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ac7bf5be6dd76ec50aa4ceffc4b8f075120e8f55
+      convergence_baseline_sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
       head_sha: null
-      observed_at: '2026-10-11T14:06:21Z'
+      observed_at: '2026-10-11T16:17:00Z'
       main:
         branch: main
-        sha: ac7bf5be6dd76ec50aa4ceffc4b8f075120e8f55
-      observation_note: Dated OBS2 acceptance after exact integrated Linux and repository CI; select SERVER before CLIENT. Fetch main and exact CI before writes.
+        sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
+      observation_note: Dated SERVER acceptance after exact aab integrated CI and independently reviewed source-equivalent 3e09 main integration; select CLIENT only. Full CI belongs to aab, not 3e09. Fetch main and exact CI before writes.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
     task:
@@ -3529,7 +3535,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs3b_server_reliable_analytics_implementation
+      checkpoint: obs3b_client_reliable_analytics_implementation
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -3537,10 +3543,10 @@ parallel_lanes:
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
-      selected_slice: OBS3B-SERVER
+      selected_slice: OBS3B-CLIENT
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
-      completed_slices: [OBS1, OBS3A, OBS2]
-      remaining_slices: [OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
+      completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
+      remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
       slice_results:
         OBS1: trustworthy_client_addresses_and_request_limits
         OBS3A: telemetry_transport_does_not_refresh_or_log_out_users
@@ -3581,14 +3587,31 @@ parallel_lanes:
           observed_at: '2026-10-11T14:06:21Z'
           runtime_evidence: actual_Linux_owned_service_first_start_typed_argv_arrays_PID_nonce_cycle_API_catalog_read_idempotent_reconcile_history_preservation_and_cleanup_pass
           production_evidence: pending_OBS6_guarded_release_and_Windows_running_collector_verification
+        OBS3B-SERVER:
+          source_sha: 556725f353849f743e772ffbbb0eedfc257410b8
+          integrated_ci_sha: aab188e5231f6e539c15b57c35544388ac089d83
+          main_integration_sha: 3e09f7b45957c0c69c7c80e3ad7418cced6a7313
+          independent_review: pass_source_final_repairs_and_both_document_only_integrations
+          focused: canonical_pnpm_test_admin_logs_success_33_plus_69_python_and_207_vitest
+          general_ci_run: 38153517593
+          general_ci_conclusion: success
+          source_general_ci_run: 38152161144
+          source_general_ci_conclusion: success
+          main_integration_evidence: product_source_tests_schema_dependencies_and_workflows_byte_identical_to_aab_four_python_validators_pass_no_full_3e09_CI_claim
+          observed_at: '2026-10-11T16:17:00Z'
+          runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
+          production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS2 source, independent review, actual Windows/Linux contracts and Linux systemd/container smoke
-        passed on ac7bf5be; full repository and canonical focused CI also succeeded. Select only OBS3B-SERVER:
-        bounded DB telemetry queue, atomic stable receipts, scoped safe browser metadata and owned pool lifecycle.
-        Preserve released migrations and old clients, canonical Account/Seat authority, academic edit-qualified
-        intervals and transactional project activity. SERVER implementation and independent exact-SHA review
-        precede a separately selected CLIENT executor. Aggregate OBS3B acceptance requires both. Retain module
-        privacy projection before release. No historical school root cause or production release is claimed.
+        SERVER source and independent review passed; exact integrated aab General all four jobs succeeded.
+        Main integration 3e09 preserves byte-identical product source and the later foreign documents,
+        with independent preservation review and four Python validators; no full 3e09 CI is claimed.
+        Select only OBS3B-CLIENT: actor-scoped bounded browser delivery, stable retry identities,
+        confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
+        Preserve canonical Account/Seat authority, existing Scratch single-writer ownership, telemetry
+        exclusion from auth refresh, academic edit-qualified intervals and transactional project activity.
+        Aggregate OBS3B acceptance still requires CLIENT. Module coverage, safe legacy DB-log projection,
+        administrator scope/UI and integrated guarded release remain subsequent slices. No historical
+        school root cause, classroom acceptance or production release is claimed.
       deployment_authorized: true
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run

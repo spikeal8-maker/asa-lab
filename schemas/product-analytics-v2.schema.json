@@ -1,0 +1,231 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://asa-lab.dev/schemas/product-analytics-v2.schema.json",
+  "title": "Protected analytics v2 and anonymous diagnostic intake",
+  "type": "object",
+  "$defs": {
+    "Id": { "type": "string", "format": "uuid" },
+    "Time": { "type": "string", "format": "date-time", "maxLength": 40 },
+    "Actor": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "accountId", "workspaceId"],
+          "properties": {
+            "kind": { "const": "account" },
+            "accountId": { "$ref": "#/$defs/Id" },
+            "workspaceId": { "$ref": "#/$defs/Id" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "seatId", "classId"],
+          "properties": {
+            "kind": { "const": "student" },
+            "seatId": { "$ref": "#/$defs/Id" },
+            "classId": { "$ref": "#/$defs/Id" }
+          }
+        }
+      ]
+    },
+    "Core": {
+      "type": "object",
+      "required": ["schemaVersion", "eventId", "actorExpectation"],
+      "properties": {
+        "schemaVersion": { "const": 2 },
+        "eventId": { "$ref": "#/$defs/Id" },
+        "actorExpectation": { "$ref": "#/$defs/Actor" }
+      }
+    },
+    "Visit": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "allOf": [
+        { "$ref": "#/$defs/Core" },
+        {
+          "required": ["eventType", "visitId", "clientOccurredAt", "entryRoute", "referrerOrigin"],
+          "properties": {
+            "eventType": { "const": "visit.observed" },
+            "visitId": { "$ref": "#/$defs/Id" },
+            "clientOccurredAt": { "$ref": "#/$defs/Time" },
+            "entryRoute": {
+              "enum": [
+                "home",
+                "projects",
+                "editor.electronics",
+                "editor.three-d",
+                "editor.chess",
+                "editor.checkers",
+                "editor.blocks",
+                "games",
+                "classes",
+                "learning",
+                "account",
+                "admin",
+                "public",
+                "unknown"
+              ]
+            },
+            "referrerOrigin": {
+              "type": ["string", "null"],
+              "maxLength": 512,
+              "description": "HTTP(S) URL is reduced to its origin; credentials are rejected; empty is unknown."
+            }
+          }
+        }
+      ]
+    },
+    "ModuleOperation": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "allOf": [
+        { "$ref": "#/$defs/Core" },
+        {
+          "required": ["operation", "sessionId", "visitId", "clientOccurredAt"],
+          "properties": {
+            "sessionId": { "$ref": "#/$defs/Id" },
+            "visitId": { "$ref": "#/$defs/Id" },
+            "clientOccurredAt": { "$ref": "#/$defs/Time" }
+          },
+          "oneOf": [
+            {
+              "required": ["projectId", "moduleKey"],
+              "properties": {
+                "operation": { "const": "start" },
+                "projectId": { "$ref": "#/$defs/Id" },
+                "moduleKey": { "enum": ["electronics", "three-d", "chess", "checkers", "blocks"] }
+              }
+            },
+            { "properties": { "operation": { "enum": ["touch", "close"] } } }
+          ]
+        }
+      ]
+    },
+    "Counter": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+    "QualityFields": {
+      "type": "object",
+      "required": [
+        "pipeline",
+        "streamId",
+        "sequence",
+        "streamStartedAt",
+        "clientObservedAt",
+        "acknowledgementStage",
+        "counters",
+        "gauges",
+        "coverage"
+      ],
+      "properties": {
+        "pipeline": { "enum": ["product-analytics", "client-diagnostics"] },
+        "streamId": { "$ref": "#/$defs/Id" },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "streamStartedAt": { "$ref": "#/$defs/Time" },
+        "clientObservedAt": { "$ref": "#/$defs/Time" },
+        "acknowledgementStage": { "enum": ["persisted", "intake_acknowledged"] },
+        "counters": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "attempted",
+            "enqueued",
+            "acknowledged",
+            "retried",
+            "expired",
+            "evicted",
+            "permanentRejected",
+            "invalidStored",
+            "invalidEnvelope",
+            "deduplicated",
+            "suppressed",
+            "coalesced",
+            "storageUnavailable"
+          ],
+          "properties": {
+            "attempted": { "$ref": "#/$defs/Counter" },
+            "enqueued": { "$ref": "#/$defs/Counter" },
+            "acknowledged": { "$ref": "#/$defs/Counter" },
+            "retried": { "$ref": "#/$defs/Counter" },
+            "expired": { "$ref": "#/$defs/Counter" },
+            "evicted": { "$ref": "#/$defs/Counter" },
+            "permanentRejected": { "$ref": "#/$defs/Counter" },
+            "invalidStored": { "$ref": "#/$defs/Counter" },
+            "invalidEnvelope": { "$ref": "#/$defs/Counter" },
+            "deduplicated": { "$ref": "#/$defs/Counter" },
+            "suppressed": { "$ref": "#/$defs/Counter" },
+            "coalesced": { "$ref": "#/$defs/Counter" },
+            "storageUnavailable": { "$ref": "#/$defs/Counter" }
+          }
+        },
+        "gauges": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["pending", "inFlight"],
+          "properties": {
+            "pending": { "type": "integer", "minimum": 0, "maximum": 256 },
+            "inFlight": { "type": "integer", "minimum": 0, "maximum": 256 }
+          }
+        },
+        "coverage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["persistenceUnavailable", "uncleanEnd", "final", "counterSaturated"],
+          "properties": {
+            "persistenceUnavailable": { "type": "boolean" },
+            "uncleanEnd": { "type": "boolean" },
+            "final": { "type": "boolean" },
+            "counterSaturated": { "type": "boolean" }
+          }
+        }
+      },
+      "if": { "properties": { "pipeline": { "const": "product-analytics" } } },
+      "then": { "properties": { "acknowledgementStage": { "const": "persisted" } } },
+      "else": { "properties": { "acknowledgementStage": { "const": "intake_acknowledged" } } }
+    },
+    "Quality": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "allOf": [{ "$ref": "#/$defs/Core" }, { "$ref": "#/$defs/QualityFields" }]
+    },
+    "AnonymousQuality": {
+      "type": "object",
+      "unevaluatedProperties": false,
+      "allOf": [
+        { "$ref": "#/$defs/QualityFields" },
+        {
+          "required": ["schemaVersion", "eventId"],
+          "properties": {
+            "schemaVersion": { "const": 2 },
+            "eventId": { "$ref": "#/$defs/Id" },
+            "pipeline": { "const": "client-diagnostics" }
+          }
+        }
+      ]
+    },
+    "Receipt": {
+      "type": "object",
+      "required": [
+        "accepted",
+        "state",
+        "schemaVersion",
+        "eventId",
+        "operation",
+        "receiptId",
+        "receivedAt",
+        "persistedAt"
+      ],
+      "properties": {
+        "accepted": { "const": true },
+        "state": { "const": "persisted" },
+        "schemaVersion": { "const": 2 },
+        "eventId": { "$ref": "#/$defs/Id" },
+        "receiptId": { "$ref": "#/$defs/Id" },
+        "operation": { "type": "string" },
+        "receivedAt": { "$ref": "#/$defs/Time" },
+        "persistedAt": { "$ref": "#/$defs/Time" },
+        "sessionId": { "$ref": "#/$defs/Id" }
+      }
+    }
+  }
+}
