@@ -632,7 +632,7 @@ async function run(page: Page, original: Evidence, scenario: Scenario, name: str
   await original.checkpoint(`${name}:stopped-native-silence`);
 }
 async function draft(page: Page, id: string) {
-  const response = await page.context().request.get(`/api/projects/${id}/draft`);
+  const response = await page.context().request.get(`/api/projects/${id}`);
   expect(response.status()).toBe(200);
   return (await response.json()) as { draft: { revision: number; document: SchematicDocument } };
 }
