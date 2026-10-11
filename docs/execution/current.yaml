@@ -3426,8 +3426,8 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R8 TEST ONLY e2e/electronics-selection-outline.spec.ts: disambiguate existing native multimeter voltage/current
-        mode clicks to their unique painted mode-button hit path. Preserve all16 cases/whole9parts7wiresUNO/nativeactions/all78asserts/defaultwaits/primaryjournals;
+      repair_scope: 'R8 TEST ONLY e2e/electronics-selection-outline.spec.ts: disambiguate existing native multimeter single
+        existing voltage mode click to its unique painted mode-button hit path. Preserve all16 cases/whole9parts7wiresUNO/nativeactions/all78asserts/defaultwaits/primaryjournals;
         allother5sourceblobs exact9d. No product/physics/collector change.'
       next_action: New bounded test-only author inherits canonical current-main once automatically conflictSTOP. Preserve
         published9d/R7BEFORE37e48/run38145444404. One unpublished exactSHA/fullinverse/78assertAST/narrow/selfreview/hashmanifest
