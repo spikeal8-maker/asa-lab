@@ -28,6 +28,9 @@
       projectDirty(generation) {
         return post('ASA_BLOCKS_STATUS', { status: 'project-dirty', generation });
       },
+      userActivity() {
+        return post('ASA_BLOCKS_USER_ACTIVITY');
+      },
       tokenRefreshRequired() {
         return post('ASA_BLOCKS_TOKEN_REFRESH_REQUIRED');
       },

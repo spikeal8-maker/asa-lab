@@ -11,6 +11,91 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/analytics/v1/module-opened:
+    post:
+      operationId: recordProductModuleOpened
+      description: Best-effort ProductAnalytics using the authenticated Account or StudentSeat; simultaneous active identities are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [moduleKey]
+              properties:
+                moduleKey: { type: string, enum: [electronics, three-d, chess, checkers, blocks] }
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean, const: true }
+        '400': { description: Invalid module key or body }
+        '401': { description: No active session }
+        '409': { description: Conflicting active Account and StudentSeat sessions }
+  /api/analytics/v1/module-session/start:
+    post:
+      operationId: startProductModuleSession
+      description: Server-derived actor and timestamps; real project access and module are checked. Telemetry rejection returns accepted false and must not interrupt editing or save.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId, projectId, moduleKey]
+              properties:
+                sessionId: { type: string, format: uuid }
+                projectId: { type: string, format: uuid }
+                moduleKey: { type: string, enum: [electronics, three-d, chess, checkers, blocks] }
+      responses:
+        '202':
+          description: Best-effort start result; closed or foreign session IDs cannot be reused
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, sessionId]
+                properties:
+                  accepted: { type: boolean }
+                  sessionId: { type: string, format: uuid }
+        '400': { description: Invalid session or body }
+        '401': { description: No active session }
+        '409': { description: Conflicting active Account and StudentSeat sessions }
+  /api/analytics/v1/module-session/touch:
+    post:
+      operationId: touchProductModuleSession
+      description: Touch or close the authenticated actor's session using server time; only intervals from 5 to 90 seconds produce slices. Closed-session replay adds no activity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId]
+              properties:
+                sessionId: { type: string, format: uuid }
+                closed: { type: boolean, default: false }
+      responses:
+        '202':
+          description: Best-effort result; foreign session or revoked project access returns accepted false
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean }
+        '400': { description: Invalid session or body }
+        '401': { description: No active session }
+        '409': { description: Conflicting active Account and StudentSeat sessions }
   /api/classrooms/{classId}/participants:
     parameters:
       - name: classId
@@ -540,7 +625,8 @@ paths:
       description:
         Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
         is checked server-side against the current principal, exact classroom and active canonical learner
-        links. The helper display role does not grant teacher privileges.
+        links. Current teachers and the linked learner may read only this participant. The helper display
+        role does not grant teacher privileges.
       responses:
         '200':
           description: Success
@@ -5332,6 +5418,337 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/{seatId}/assignments:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getClassroomParticipantAssignments
+      summary: Assigned direct work, course activities and theory, including not started work
+      description:
+        'Account credentials only: current exact-class teacher or linked self. Canonical identity and
+        audience checks precede the page. Stable created_at DESC/id order, at most 30 items. Disabled and
+        withdrawn assignments are excluded. GET never creates a project, attempt or submission.'
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantAssignments'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100000
+            default: 0
+  /api/class-join/participants/grades:
+    parameters:
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+      - name: resultOffset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+    get:
+      operationId: getCurrentSeatParticipantGrades
+      summary: Manual grades and assigned-work results
+      description:
+        StudentSeat credentials only, including with a neighbouring Account cookie. The revalidated Seat
+        session supplies class and learner identity. No client scope or Account fallback. Read-only bounded
+        page.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantGrades'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/class-join/participants/history/{columnId}:
+    parameters:
+      - name: columnId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: beforeRevision
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 999999999
+    get:
+      operationId: getCurrentSeatParticipantGradeHistory
+      summary: One page of immutable manual-grade history
+      description:
+        StudentSeat credentials only, including with a neighbouring Account cookie. The revalidated Seat
+        session supplies class and learner identity. No client scope or Account fallback. Read-only bounded
+        page.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantManualHistory'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/class-join/participants/result-history/{assignmentId}:
+    parameters:
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+    get:
+      operationId: getCurrentSeatParticipantResultHistory
+      summary: Immutable assigned-work result history
+      description:
+        StudentSeat credentials only, including with a neighbouring Account cookie. The revalidated Seat
+        session supplies class and learner identity. No client scope or Account fallback. Read-only bounded
+        page.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantResultHistory'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/class-join/participants/assignments:
+    parameters: []
+    get:
+      operationId: getCurrentSeatParticipantAssignments
+      summary: Assigned direct work, course activities and theory, including not started work
+      description:
+        StudentSeat credentials only, including with a neighbouring Account cookie. The revalidated Seat
+        session supplies class and learner identity. No client scope or Account fallback. Read-only bounded
+        page.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantAssignments'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      parameters:
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100000
+            default: 0
 components:
   parameters:
     ProjectId:
@@ -8349,7 +8766,20 @@ components:
         - awaitingReview
         - merits
         - avatars
+        - helperClasses
       properties:
+        helperClasses:
+          type: array
+          description:
+            Current helper classes intersected with viewer access and canonical learner links. Seat
+            credentials are confined to their own class.
+          items:
+            type: object
+            additionalProperties: false
+            required: [id, title]
+            properties:
+              id: { type: string, format: uuid }
+              title: { type: string }
         status:
           type: string
           enum:
@@ -8558,6 +8988,11 @@ components:
             - columns
             - grades
           properties:
+            students:
+              type: array
+              maxItems: 0
+              items: {}
+              description: Always empty; this endpoint never returns a class roster.
             offset:
               type: integer
               minimum: 0
@@ -8587,6 +9022,7 @@ components:
                     type: string
                   preset:
                     type: string
+                    enum: [five, hundred, three_five, smileys, symbols]
             grades:
               type: array
               items:
@@ -8610,7 +9046,12 @@ components:
       required:
         - items
         - nextBeforeRevision
+        - preset
       properties:
+        preset:
+          type: string
+          enum: [five, hundred, three_five, smileys, symbols]
+          description: Immutable preset pinned to this column, independent of current class settings.
         items:
           type: array
           items:
@@ -8738,3 +9179,86 @@ components:
         and optional meritId or builtinAward; avatar_choose: seatId/id. Cross-action fields are rejected.
         requestId binds a retry to the exact actor, class and payload; replay cannot repeat the effect. Avatar
         input is decoded, dimension/byte/CRC checked and re-encoded before storage.'
+    ClassroomParticipantAssignments:
+      type: object
+      additionalProperties: false
+      required:
+        - offset
+        - nextOffset
+        - items
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+          maximum: 100000
+        nextOffset:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        items:
+          type: array
+          maxItems: 30
+          items:
+            $ref: '#/components/schemas/ClassroomParticipantAssignment'
+    ClassroomParticipantAssignment:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - kind
+        - moduleKey
+        - dueAt
+        - assignmentId
+        - courseRunId
+        - activityRunId
+        - projectId
+        - status
+        - canonicalState
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        kind:
+          type: string
+          enum:
+            - project
+            - quiz
+            - theory
+        moduleKey:
+          type:
+            - string
+            - 'null'
+        dueAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        assignmentId: &a1
+          type:
+            - string
+            - 'null'
+          format: uuid
+        courseRunId: *a1
+        activityRunId: *a1
+        projectId: *a1
+        status:
+          type: string
+          enum:
+            - not_applicable
+            - not_started
+            - in_progress
+            - submitted
+            - waiting_review
+            - changes_requested
+            - completed
+            - invalidated
+            - excused
+            - unavailable
+        canonicalState:
+          oneOf:
+            - $ref: '#/components/schemas/CanonicalLearningSurfaceState'
+            - type: 'null'
