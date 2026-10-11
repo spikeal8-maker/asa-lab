@@ -570,241 +570,47 @@ parallel_lanes:
         live_database_operations: not_performed
 
   - id: electronics
-    worktree_id: electronics-548-r2-ordinary-observation
+    worktree_id: electronics-e06-psu-wire-entry
     owned_paths:
-    - apps/web/src/electronics/ProductionComponentVisual.tsx
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
     task:
-      id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
-      issue: 548
+      id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+      issue: 466
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_observation_completed_no_proven_cause
+      checkpoint: bounded_psu_entry_source_and_strict_browser_witness
       kind: repair
       owner_acceptance: pending
-      context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
-      - docs/product/electronics/evidence/ordinary-image-548-new9f-cause-report.md
-      - docs/product/electronics/evidence/ordinary-image-548-r2-observation-preparation.md
-      - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY guarded optional observation in ProductionComponentVisual.tsx and passive Node-owned
-        incremental journal in EXISTING permanent ordinary-image case2082, additive fs imports. No newSearch
-        case/stimulus, no recovery/state/cache/promise/condition policy edits. All9 old assertions/404route/fixture/default5000/stage10000/quiet800/max7/full-document/zeroPUT/errors
-        unchanged; allothercases and foreignpaths byte-exact. Exact source NEW independent review before
-        ONE directed existing-case run. No closure/productfix claim without cause.
-      dependency_for_issue: 544
       programme_issue: 452
-      source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
-      source_report_original_sha256: 1cba43d0755366743dc33676e04468af1340086b2d8ab9d63907e6261ee0dcf6
-      accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS;
-        production source retained
-      shared_write_contract: 548 ONLY Visual optional observation +existing old permanent case in interactions.549/552/553
-        held unchanged. Historical f67 observer is NOT in current main; optional delta has complete inverse
-        to selected main. No concurrent overlapping dirty writes or common registrations/current/card edits
-        by author. Advisory owned_paths lists exclusive paths only; old interactions remains historical
-        electronics-wire mapping. Its precise existing-case write is declared by this selected card and
-        must independently check ALL dirty worktree paths. No concurrent wire/548 edits or ownership transfer.
-      preserved_candidate_sha: f67d7e5b34b3c9742d8a913ef3a443be1789831f
-      candidate_publication: published
-      candidate_acceptance: pending
-      causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
-      causal_before_run: 38012528685
-      causal_before_conclusion: success_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-11T20:01:09.957092+00:00'
-      next_action: STOP this diagnostic experiment. Natural PASS, trusted same-node native after ref/effect
-        and normal reject/failed rendering; no historical cause/fix or blocker closure. Do not repeat unchanged
-        scenario/full suite hopefully. Preserve all originals and source-only observer outside main. Controller
-        may select independent bounded integration work under its own canonical scope; no548 product change
-        authorized.
-      causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
-      causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
-      causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
-        failed;7 image GET404/no HEAD,whole5-component server/editor unchanged,zeroPUT/errors. Old failed
-        run native ingress missing; causal defect NOT_PROVED. PASS does not repair or lift544 acceptance
-        blocker.'
-      new_failure_candidate_sha: 1b0491ea7b6924c8ebc12ec834653617b8bdc360
-      new_failure_run: 38118290466
-      new_failure_browser_job: 114407851393
-      new_failure_trace_sha256: fbe84720d6e60a342029a4b50714e07a7f3b32dc1aa700bba8c86f3a36cd312c
-      new_failure_independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
-      new_failure_actual: Mounted catalog lacks failure badge at unchanged5000ms; stage failed.8 imageGET404
-        plus one continuedGET200 Accept:*/*. Native error/load and shared subscription ingress absent; HTTP200
-        is not proven native recovery. No causal product repair proved.
-      new_causal_report: docs/product/electronics/evidence/ordinary-image-548-new1b-causal-analysis.md
-      new_causal_report_sha256: f4e14370c6acab73747b1ffcdab47ae39c27c9721acb8b32c48e25e0b6b3e299
-      controlled_source_sha: 2382badba66fee795ee306685eb01a4e06d6efe9
-      controlled_probe_sha: 7adc80ff1830a14523b0c5e68ba75d435c469c2e
-      controlled_run: 38120687997
-      controlled_conclusion: SUCCESS directed diagnostic only; NOT product repair or acceptance
-      controlled_independent_report: docs/product/electronics/evidence/ordinary-image-548-controlled-independent-review.md
-      controlled_independent_report_sha256: 09a1d49201c570243ff10b8edb797fb6fd84ead8d6f317cb3d7d6b6be3c8537c
-      controlled_independent_manifest_sha256: ece596310cb3fc04abd2cbb1377db362d151e70f314b90114db8875f295dc9b0
-      controlled_actual: 'ORDER_ESTABLISHED: connected catalog ID3 afterretry0 beforeterminalretry2 received
-        trusted native error and failed on same ID, no replacement.7image404,9oldassertionsPASS,whole5parts0wires
-        initial/server/editor exact,0PUT/errors. Late mount alone insufficient; old failure native/React
-        ingress absent. Full original ZIP/raw/17hashes root checked. CDP internal timestamps anomalous/not
-        used for causal order.'
-      source_branch_report_sha256: 3f44b53e310ce4c82797a299fd839de7f48c3c6e02ae50fe63c50bfcbc2d7e82
-      source_branch_state: SOURCE_BRANCH_PLAUSIBLE_NOT_EXECUTION_PROVEN; React precommit target gating is
-        source fact, actual native/React ingress and same-node later commit unproved. Prior controlled late
-        mount passed and alone insufficient.
-      observation_purpose: Observe same connected catalog node native-before-ref, real React currentTarget,
-        function-to-hook token, later ordinary ref/effect/queue/replay/reject/failed commit. Ref callback
-        is not entire React commit; refnull is notcleanup. Clone/network origin NOT_INFERRED; missing IDs/lost
-        records forbid causal claims. Instrumentation can change timing.
-      preserved_candidate_tree: b8ad639e257788f789d253e07f45cf49c629bdb5
-      candidate_branch: codex/electronics-548-native-react-ingress
-      ingress_probe_sha: c472d96433b0751d7d754fc2a27ae6b82ffcdd81
-      ingress_run: 38132800426
-      ingress_conclusion: SUCCESS diagnostic only; ORDER_NOT_ESTABLISHED/NO_PROVEN_CAUSE
-      ingress_independent_report_sha256: fabc72643ff0e3e8389993dd527f57014d67d392f1d5573d8bc07b3793f7df03
-      ingress_independent_manifest_sha256: 57ececea44a1723f1cf140aff7734d90d5a30e99a8081720690934d319d56667
-      ingress_actual: All3 native errors followed same-node ordinary commit/effect and reached React/hook/failed
-        DOM; whole5parts0wires original/server/editor exact,0PUT/errors/drafts,7imageGET404. Root54 originals/hashes/CRC
-        verified. Instrumentation overhead and absent target order forbid historical cause/frequency claims.
-        No blocker lifted.
-      search_design_report_sha256: 4a3db63151e242352ac9c342ea5a4acba3c679aaabde85dc51ff7967ea0dea11
-      preserved_search_candidate_sha: 1b71996b1f28666f6511f9d40dfce383eb7f61f2
-      preserved_search_candidate_tree: 4ba0b32f64e9a108f0f792af085f66a01004bde2
-      search_independent_source_verdict: request_changes_test_evidence_only
-      search_independent_report_sha256: 748a0e5e6bf2a20ce7af6e346bd914f3d9c2fcc4c8ef6532c32406b831acb0f1
-      search_independent_manifest_sha256: 88aace9f825e3706fb96827956dbc19a2e25e2f23da874bfebab2eace4f8bfa1
-      diagnostic_phase_history:
-      - checkpoint: r1_catalog_search_node_owned_failure_evidence_test_only
-        task_snapshot:
-          id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
-          issue: 548
-          branch: main
-          base_branch: main
-          pr: null
-          pr_draft: false
-          status: in_progress
-          checkpoint: r1_catalog_search_node_owned_failure_evidence_test_only
-          kind: repair
-          owner_acceptance: pending
-          context_hints:
-          - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
-          - docs/product/electronics/components/ui-assets-persistence.yaml
-          - e2e/electronics-interactions.spec.ts
-          repair_scope: R1 TEST ONLY new search case/evidence mechanics in e2e/electronics-interactions.spec.ts.
-            Node-owned incremental raw before supplemental awaits, guarded captures/write/attach/detach
-            preserve original primary error; missing evidence never PASS. Keep whole-file old-case inverse/assertions/defaults/fixtures/product
-            exactly. No lifecycle timing/requestbudget/native action/product repair change.
-          dependency_for_issue: 544
-          programme_issue: 452
-          source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
-          source_report_original_sha256: 1cba43d0755366743dc33676e04468af1340086b2d8ab9d63907e6261ee0dcf6
-          accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS;
-            production source retained
-          shared_write_contract: 548 ONLY old interactions spec new separate case; 549 ONLY new outline
-            spec harness; 552 ONLY optional audio hook/new tests and additive mappings/registrations. No
-            concurrent overlapping dirty writes. Existing Visual passive observer remains EXACTf67; no controller/shared
-            metadata writes by authors.
-          preserved_candidate_sha: f67d7e5b34b3c9742d8a913ef3a443be1789831f
-          candidate_publication: published
-          candidate_acceptance: pending
-          causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
-          causal_before_run: 38012528685
-          causal_before_conclusion: success_unchanged_product_not_acceptance
-          controller_observed_at: '2026-10-11T11:29:35.870495+00:00'
-          next_action: New bounded test-only author inherits actual canonical/shared main automatically
-            with conflict STOP; one unpublished exact SHA/narrow checks/inverse/hashmanifest/selfreview
-            thenSTOP. NEW different independent source challenge before ONE new frozen built Search case.
-            Missing desired order/native evidence yields NO_PROVEN_CAUSE/STOP, never hopeful rerun; no blocker
-            closure or pupil acceptance.
-          causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
-          causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
-          causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
-            failed;7 image GET404/no HEAD,whole5-component server/editor unchanged,zeroPUT/errors. Old failed
-            run native ingress missing; causal defect NOT_PROVED. PASS does not repair or lift544 acceptance
-            blocker.'
-          new_failure_candidate_sha: 1b0491ea7b6924c8ebc12ec834653617b8bdc360
-          new_failure_run: 38118290466
-          new_failure_browser_job: 114407851393
-          new_failure_trace_sha256: fbe84720d6e60a342029a4b50714e07a7f3b32dc1aa700bba8c86f3a36cd312c
-          new_failure_independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
-          new_failure_actual: Mounted catalog lacks failure badge at unchanged5000ms; stage failed.8 imageGET404
-            plus one continuedGET200 Accept:*/*. Native error/load and shared subscription ingress absent;
-            HTTP200 is not proven native recovery. No causal product repair proved.
-          new_causal_report: docs/product/electronics/evidence/ordinary-image-548-new1b-causal-analysis.md
-          new_causal_report_sha256: f4e14370c6acab73747b1ffcdab47ae39c27c9721acb8b32c48e25e0b6b3e299
-          controlled_source_sha: 2382badba66fee795ee306685eb01a4e06d6efe9
-          controlled_probe_sha: 7adc80ff1830a14523b0c5e68ba75d435c469c2e
-          controlled_run: 38120687997
-          controlled_conclusion: SUCCESS directed diagnostic only; NOT product repair or acceptance
-          controlled_independent_report: docs/product/electronics/evidence/ordinary-image-548-controlled-independent-review.md
-          controlled_independent_report_sha256: 09a1d49201c570243ff10b8edb797fb6fd84ead8d6f317cb3d7d6b6be3c8537c
-          controlled_independent_manifest_sha256: ece596310cb3fc04abd2cbb1377db362d151e70f314b90114db8875f295dc9b0
-          controlled_actual: 'ORDER_ESTABLISHED: connected catalog ID3 afterretry0 beforeterminalretry2
-            received trusted native error and failed on same ID, no replacement.7image404,9oldassertionsPASS,whole5parts0wires
-            initial/server/editor exact,0PUT/errors. Late mount alone insufficient; old failure native/React
-            ingress absent. Full original ZIP/raw/17hashes root checked. CDP internal timestamps anomalous/not
-            used for causal order.'
-          source_branch_report_sha256: 3f44b53e310ce4c82797a299fd839de7f48c3c6e02ae50fe63c50bfcbc2d7e82
-          source_branch_state: SOURCE_BRANCH_PLAUSIBLE_NOT_EXECUTION_PROVEN; React precommit target gating
-            is source fact, actual native/React ingress and same-node later commit unproved. Prior controlled
-            late mount passed and alone insufficient.
-          observation_purpose: ONE real keyboard search removes AA2 after actual retry1/cycle1 and restores
-            it before terminal retry2. Require old cleanup/new DOM+hook identity/ordinary commit/native
-            receipts/stage identity; dropped or absent order is NO_PROVEN_CAUSE. Same5-part fixture, default
-            waits/800quiet/fullwhole0PUT/errors; original permanent case9 assertions/max7 unchanged. Preserve
-            separate legitimate remount request accounting and raw/DOM/nativePNG on PASS/FAIL.
-          preserved_candidate_tree: b8ad639e257788f789d253e07f45cf49c629bdb5
-          candidate_branch: codex/electronics-548-native-react-ingress
-          ingress_probe_sha: c472d96433b0751d7d754fc2a27ae6b82ffcdd81
-          ingress_run: 38132800426
-          ingress_conclusion: SUCCESS diagnostic only; ORDER_NOT_ESTABLISHED/NO_PROVEN_CAUSE
-          ingress_independent_report_sha256: fabc72643ff0e3e8389993dd527f57014d67d392f1d5573d8bc07b3793f7df03
-          ingress_independent_manifest_sha256: 57ececea44a1723f1cf140aff7734d90d5a30e99a8081720690934d319d56667
-          ingress_actual: All3 native errors followed same-node ordinary commit/effect and reached React/hook/failed
-            DOM; whole5parts0wires original/server/editor exact,0PUT/errors/drafts,7imageGET404. Root54
-            originals/hashes/CRC verified. Instrumentation overhead and absent target order forbid historical
-            cause/frequency claims. No blocker lifted.
-          search_design_report_sha256: 4a3db63151e242352ac9c342ea5a4acba3c679aaabde85dc51ff7967ea0dea11
-          preserved_search_candidate_sha: 1b71996b1f28666f6511f9d40dfce383eb7f61f2
-          preserved_search_candidate_tree: 4ba0b32f64e9a108f0f792af085f66a01004bde2
-          search_independent_source_verdict: request_changes_test_evidence_only
-          search_independent_report_sha256: 748a0e5e6bf2a20ce7af6e346bd914f3d9c2fcc4c8ef6532c32406b831acb0f1
-          search_independent_manifest_sha256: 88aace9f825e3706fb96827956dbc19a2e25e2f23da874bfebab2eace4f8bfa1
-        reason: R1/Search originals retained; saved new9f ordinary failure NO_PROVEN_CAUSE. Next selected
-          phase observes unchanged old permanent case only, no repeat Search stimulus.
-        revision_snapshot:
-          kind: observed_snapshot
-          convergence_baseline_sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
-          head_sha: null
-          observed_at: '2026-10-11T12:28:56.577577+00:00'
-          main:
-            branch: main
-            sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
-          observation_note: Dated bounded test-only selection. New independent source NEEDS_FIX for failure-evidence
-            mechanics; no product cause/acceptance. Actual main72c shared Classroom/Scratch/API/security
-            baseline inherited, General38138858098 pending at preparation; old134 General cancelled(E),
-            olde51 all4SUCCESS history only. Preserve all other lanes/candidates/blockers/count2/school
-            pending; fetch main and actual exact-SHA CI before writes.
-      new9f_failure_candidate_sha: 9f9505f9e7a84b7a869e5a2fd93583742c27abdd
-      new9f_failure_run: 38163496163
-      new9f_failure_browser_job: 114541736981
-      new9f_cause_report: docs/product/electronics/evidence/ordinary-image-548-new9f-cause-report.md
-      new9f_cause_report_sha256: 59f37c823a9b1d833bbb39f4b2bbf1f0a7c147785bf4a0c42471287a9d090040
-      new9f_cause_verdict: NO_PROVEN_CAUSE; AA2 exacttarget proven; nativeReacthookchain absent.10image404+separate200
-        NOTnative recovery; quiet/max7/fullDoc/0PUT assertions not reached.
-      external_preparation_report: docs/product/electronics/evidence/ordinary-image-548-r2-observation-preparation.md
-      external_preparation_original_sha256: eeb85f5ed6eabcd0da4503c9e0a05cf612a585cc008bcb58175891ae020d1d5b
-      external_preparation_manifest_sha256: d0965227d9c20a294e90f013c2096e33eade5bec4f6bbb0777475128efde0130
-      mandatory_hygiene006_issue: 556
-      mandatory_hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
-      r2_observation_source_sha: b16e7a6d3d8796ab14d8a84fa8f83f072a2355d5
-      r2_directed_probe_sha: 7af3502c3af3cdf9584d4315bfdc542b7e2e4f0a
-      r2_directed_run: 38169594858
-      r2_directed_conclusion: success_natural_pass_not_product_acceptance
-      r2_independent_verdict: NO_PROVEN_CAUSE
-      r2_independent_report: docs/product/electronics/evidence/ordinary-image-548-r2-directed-independent-review.md
-      r2_independent_report_original_sha256: edee6c0f47dfcb9a45625c41c93f6e86a698e00cf14c7828fc58e11d7db293ba
-      r2_independent_manifest_sha256: da9a4905478afa4ae2b1057cb058a49c60ceb520073b62b15bbd872746fbec48
-      r2_root_originals_verified: true
+      owner_problem: E06 connected/pending PSU terminal approach only
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+      - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: Only localized visible/hittable approach of existing wire to regulated PSU terminals
+        and matching drag/pending preview; no global wire lift or second electrical entity. Exact card budget,
+        strict built BEFORE/AFTER, new independent source and product reviews. No Arduino/full466 closure.
+      acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
+      source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
+      historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
+      historical_visual_run: 38007826968
+      current_render_layers_byte_equal_historical: true
+      production_slices_since_hygiene556: 1
+      shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
+        Existing simulation test add only this scenario; generator only canonical digest, no package/workflow/lock/CSS/owner
+        assets. Check every worktree dirty path before writing.
+      scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
+        Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
+        actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
+        sources remain immutable and no simultaneous overlapping writer is authorized.
+      next_action: NEW bounded implementer implements only this selected PSU-entry slice and strict real
+        browser witness, meaningful local checks/self-review/full foreign-tree proof and ONE unpublished
+        SHA thenSTOP. Root actual verification and NEW independent source challenge before ONE genuine frozen
+        built BEFORE; only valid expected original defect permits AFTER, required exact gates and NEW independent
+        PRODUCT review. No school actions;552 conflict decision pending independently.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1279,17 +1085,16 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: ad01d88b0419f43b797a7296323c57f3813ade00
+      convergence_baseline_sha: 7e75954ae4d01102376b361ffba4fde9c8713707
       head_sha: null
-      observed_at: '2026-10-11T19:27:24.668240+00:00'
+      observed_at: '2026-10-11T20:51:10.032920+00:00'
       main:
         branch: main
-        sha: ad01d88b0419f43b797a7296323c57f3813ade00
-      observation_note: Dated R2 source-only selection. Accepted556 source05e General38166383399 ALL4/new
-        APPROVE integrated; docs closeoutad01 General38167920024 IN_PROGRESS at snapshot, not PASS. Old548/Search
-        run NO_PROVEN_CAUSE retained; new9f ordinary cause also NO_PROVEN_CAUSE. Current Visual and old
-        permanent case byteexact prepared20d. No recovery repair/acceptance or rerun authorized before NEW
-        source review. Fetch main and exact Git/CI before writes.
+        sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+      observation_note: Dated E06 selection after accepted553e132 all8SUCCESS/newAPPROVE/root original checks
+        and553 CLOSED. Closeout7e759 General38173652849 still in_progress at selection, not PASS. Fresh
+        fetch main and actual exact CI before writes.548 full snapshot and blockers preserved;552 requires
+        separate owner-coordinated final composition. No school deployment/DB/server/network/backup actions.
     execution_lease:
       executor_id: electronics-asset-baseline-548
       holder: unassigned
@@ -2169,6 +1974,256 @@ parallel_lanes:
       owner_acceptance: pending
       deployment: not_run
       production_slices_since_hygiene542: 2
+    suspended_tasks:
+    - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
+      issue: 548
+      task:
+        id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
+        issue: 548
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r2_observation_completed_no_proven_cause
+        kind: repair
+        owner_acceptance: pending
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
+        - docs/product/electronics/evidence/ordinary-image-548-new9f-cause-report.md
+        - docs/product/electronics/evidence/ordinary-image-548-r2-observation-preparation.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: ONLY guarded optional observation in ProductionComponentVisual.tsx and passive Node-owned
+          incremental journal in EXISTING permanent ordinary-image case2082, additive fs imports. No newSearch
+          case/stimulus, no recovery/state/cache/promise/condition policy edits. All9 old assertions/404route/fixture/default5000/stage10000/quiet800/max7/full-document/zeroPUT/errors
+          unchanged; allothercases and foreignpaths byte-exact. Exact source NEW independent review before
+          ONE directed existing-case run. No closure/productfix claim without cause.
+        dependency_for_issue: 544
+        programme_issue: 452
+        source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
+        source_report_original_sha256: 1cba43d0755366743dc33676e04468af1340086b2d8ab9d63907e6261ee0dcf6
+        accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS;
+          production source retained
+        shared_write_contract: 548 ONLY Visual optional observation +existing old permanent case in interactions.549/552/553
+          held unchanged. Historical f67 observer is NOT in current main; optional delta has complete inverse
+          to selected main. No concurrent overlapping dirty writes or common registrations/current/card
+          edits by author. Advisory owned_paths lists exclusive paths only; old interactions remains historical
+          electronics-wire mapping. Its precise existing-case write is declared by this selected card and
+          must independently check ALL dirty worktree paths. No concurrent wire/548 edits or ownership transfer.
+        preserved_candidate_sha: f67d7e5b34b3c9742d8a913ef3a443be1789831f
+        candidate_publication: published
+        candidate_acceptance: pending
+        causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
+        causal_before_run: 38012528685
+        causal_before_conclusion: success_unchanged_product_not_acceptance
+        controller_observed_at: '2026-10-11T20:01:09.957092+00:00'
+        next_action: STOP this diagnostic experiment. Natural PASS, trusted same-node native after ref/effect
+          and normal reject/failed rendering; no historical cause/fix or blocker closure. Do not repeat
+          unchanged scenario/full suite hopefully. Preserve all originals and source-only observer outside
+          main. Controller may select independent bounded integration work under its own canonical scope;
+          no548 product change authorized.
+        causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
+        causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
+        causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
+          failed;7 image GET404/no HEAD,whole5-component server/editor unchanged,zeroPUT/errors. Old failed
+          run native ingress missing; causal defect NOT_PROVED. PASS does not repair or lift544 acceptance
+          blocker.'
+        new_failure_candidate_sha: 1b0491ea7b6924c8ebc12ec834653617b8bdc360
+        new_failure_run: 38118290466
+        new_failure_browser_job: 114407851393
+        new_failure_trace_sha256: fbe84720d6e60a342029a4b50714e07a7f3b32dc1aa700bba8c86f3a36cd312c
+        new_failure_independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
+        new_failure_actual: Mounted catalog lacks failure badge at unchanged5000ms; stage failed.8 imageGET404
+          plus one continuedGET200 Accept:*/*. Native error/load and shared subscription ingress absent;
+          HTTP200 is not proven native recovery. No causal product repair proved.
+        new_causal_report: docs/product/electronics/evidence/ordinary-image-548-new1b-causal-analysis.md
+        new_causal_report_sha256: f4e14370c6acab73747b1ffcdab47ae39c27c9721acb8b32c48e25e0b6b3e299
+        controlled_source_sha: 2382badba66fee795ee306685eb01a4e06d6efe9
+        controlled_probe_sha: 7adc80ff1830a14523b0c5e68ba75d435c469c2e
+        controlled_run: 38120687997
+        controlled_conclusion: SUCCESS directed diagnostic only; NOT product repair or acceptance
+        controlled_independent_report: docs/product/electronics/evidence/ordinary-image-548-controlled-independent-review.md
+        controlled_independent_report_sha256: 09a1d49201c570243ff10b8edb797fb6fd84ead8d6f317cb3d7d6b6be3c8537c
+        controlled_independent_manifest_sha256: ece596310cb3fc04abd2cbb1377db362d151e70f314b90114db8875f295dc9b0
+        controlled_actual: 'ORDER_ESTABLISHED: connected catalog ID3 afterretry0 beforeterminalretry2 received
+          trusted native error and failed on same ID, no replacement.7image404,9oldassertionsPASS,whole5parts0wires
+          initial/server/editor exact,0PUT/errors. Late mount alone insufficient; old failure native/React
+          ingress absent. Full original ZIP/raw/17hashes root checked. CDP internal timestamps anomalous/not
+          used for causal order.'
+        source_branch_report_sha256: 3f44b53e310ce4c82797a299fd839de7f48c3c6e02ae50fe63c50bfcbc2d7e82
+        source_branch_state: SOURCE_BRANCH_PLAUSIBLE_NOT_EXECUTION_PROVEN; React precommit target gating
+          is source fact, actual native/React ingress and same-node later commit unproved. Prior controlled
+          late mount passed and alone insufficient.
+        observation_purpose: Observe same connected catalog node native-before-ref, real React currentTarget,
+          function-to-hook token, later ordinary ref/effect/queue/replay/reject/failed commit. Ref callback
+          is not entire React commit; refnull is notcleanup. Clone/network origin NOT_INFERRED; missing
+          IDs/lost records forbid causal claims. Instrumentation can change timing.
+        preserved_candidate_tree: b8ad639e257788f789d253e07f45cf49c629bdb5
+        candidate_branch: codex/electronics-548-native-react-ingress
+        ingress_probe_sha: c472d96433b0751d7d754fc2a27ae6b82ffcdd81
+        ingress_run: 38132800426
+        ingress_conclusion: SUCCESS diagnostic only; ORDER_NOT_ESTABLISHED/NO_PROVEN_CAUSE
+        ingress_independent_report_sha256: fabc72643ff0e3e8389993dd527f57014d67d392f1d5573d8bc07b3793f7df03
+        ingress_independent_manifest_sha256: 57ececea44a1723f1cf140aff7734d90d5a30e99a8081720690934d319d56667
+        ingress_actual: All3 native errors followed same-node ordinary commit/effect and reached React/hook/failed
+          DOM; whole5parts0wires original/server/editor exact,0PUT/errors/drafts,7imageGET404. Root54 originals/hashes/CRC
+          verified. Instrumentation overhead and absent target order forbid historical cause/frequency claims.
+          No blocker lifted.
+        search_design_report_sha256: 4a3db63151e242352ac9c342ea5a4acba3c679aaabde85dc51ff7967ea0dea11
+        preserved_search_candidate_sha: 1b71996b1f28666f6511f9d40dfce383eb7f61f2
+        preserved_search_candidate_tree: 4ba0b32f64e9a108f0f792af085f66a01004bde2
+        search_independent_source_verdict: request_changes_test_evidence_only
+        search_independent_report_sha256: 748a0e5e6bf2a20ce7af6e346bd914f3d9c2fcc4c8ef6532c32406b831acb0f1
+        search_independent_manifest_sha256: 88aace9f825e3706fb96827956dbc19a2e25e2f23da874bfebab2eace4f8bfa1
+        diagnostic_phase_history:
+        - checkpoint: r1_catalog_search_node_owned_failure_evidence_test_only
+          task_snapshot:
+            id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
+            issue: 548
+            branch: main
+            base_branch: main
+            pr: null
+            pr_draft: false
+            status: in_progress
+            checkpoint: r1_catalog_search_node_owned_failure_evidence_test_only
+            kind: repair
+            owner_acceptance: pending
+            context_hints:
+            - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
+            - docs/product/electronics/components/ui-assets-persistence.yaml
+            - e2e/electronics-interactions.spec.ts
+            repair_scope: R1 TEST ONLY new search case/evidence mechanics in e2e/electronics-interactions.spec.ts.
+              Node-owned incremental raw before supplemental awaits, guarded captures/write/attach/detach
+              preserve original primary error; missing evidence never PASS. Keep whole-file old-case inverse/assertions/defaults/fixtures/product
+              exactly. No lifecycle timing/requestbudget/native action/product repair change.
+            dependency_for_issue: 544
+            programme_issue: 452
+            source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
+            source_report_original_sha256: 1cba43d0755366743dc33676e04468af1340086b2d8ab9d63907e6261ee0dcf6
+            accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS;
+              production source retained
+            shared_write_contract: 548 ONLY old interactions spec new separate case; 549 ONLY new outline
+              spec harness; 552 ONLY optional audio hook/new tests and additive mappings/registrations.
+              No concurrent overlapping dirty writes. Existing Visual passive observer remains EXACTf67;
+              no controller/shared metadata writes by authors.
+            preserved_candidate_sha: f67d7e5b34b3c9742d8a913ef3a443be1789831f
+            candidate_publication: published
+            candidate_acceptance: pending
+            causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
+            causal_before_run: 38012528685
+            causal_before_conclusion: success_unchanged_product_not_acceptance
+            controller_observed_at: '2026-10-11T11:29:35.870495+00:00'
+            next_action: New bounded test-only author inherits actual canonical/shared main automatically
+              with conflict STOP; one unpublished exact SHA/narrow checks/inverse/hashmanifest/selfreview
+              thenSTOP. NEW different independent source challenge before ONE new frozen built Search case.
+              Missing desired order/native evidence yields NO_PROVEN_CAUSE/STOP, never hopeful rerun; no
+              blocker closure or pupil acceptance.
+            causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
+            causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
+            causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
+              failed;7 image GET404/no HEAD,whole5-component server/editor unchanged,zeroPUT/errors. Old
+              failed run native ingress missing; causal defect NOT_PROVED. PASS does not repair or lift544
+              acceptance blocker.'
+            new_failure_candidate_sha: 1b0491ea7b6924c8ebc12ec834653617b8bdc360
+            new_failure_run: 38118290466
+            new_failure_browser_job: 114407851393
+            new_failure_trace_sha256: fbe84720d6e60a342029a4b50714e07a7f3b32dc1aa700bba8c86f3a36cd312c
+            new_failure_independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
+            new_failure_actual: Mounted catalog lacks failure badge at unchanged5000ms; stage failed.8 imageGET404
+              plus one continuedGET200 Accept:*/*. Native error/load and shared subscription ingress absent;
+              HTTP200 is not proven native recovery. No causal product repair proved.
+            new_causal_report: docs/product/electronics/evidence/ordinary-image-548-new1b-causal-analysis.md
+            new_causal_report_sha256: f4e14370c6acab73747b1ffcdab47ae39c27c9721acb8b32c48e25e0b6b3e299
+            controlled_source_sha: 2382badba66fee795ee306685eb01a4e06d6efe9
+            controlled_probe_sha: 7adc80ff1830a14523b0c5e68ba75d435c469c2e
+            controlled_run: 38120687997
+            controlled_conclusion: SUCCESS directed diagnostic only; NOT product repair or acceptance
+            controlled_independent_report: docs/product/electronics/evidence/ordinary-image-548-controlled-independent-review.md
+            controlled_independent_report_sha256: 09a1d49201c570243ff10b8edb797fb6fd84ead8d6f317cb3d7d6b6be3c8537c
+            controlled_independent_manifest_sha256: ece596310cb3fc04abd2cbb1377db362d151e70f314b90114db8875f295dc9b0
+            controlled_actual: 'ORDER_ESTABLISHED: connected catalog ID3 afterretry0 beforeterminalretry2
+              received trusted native error and failed on same ID, no replacement.7image404,9oldassertionsPASS,whole5parts0wires
+              initial/server/editor exact,0PUT/errors. Late mount alone insufficient; old failure native/React
+              ingress absent. Full original ZIP/raw/17hashes root checked. CDP internal timestamps anomalous/not
+              used for causal order.'
+            source_branch_report_sha256: 3f44b53e310ce4c82797a299fd839de7f48c3c6e02ae50fe63c50bfcbc2d7e82
+            source_branch_state: SOURCE_BRANCH_PLAUSIBLE_NOT_EXECUTION_PROVEN; React precommit target gating
+              is source fact, actual native/React ingress and same-node later commit unproved. Prior controlled
+              late mount passed and alone insufficient.
+            observation_purpose: ONE real keyboard search removes AA2 after actual retry1/cycle1 and restores
+              it before terminal retry2. Require old cleanup/new DOM+hook identity/ordinary commit/native
+              receipts/stage identity; dropped or absent order is NO_PROVEN_CAUSE. Same5-part fixture, default
+              waits/800quiet/fullwhole0PUT/errors; original permanent case9 assertions/max7 unchanged. Preserve
+              separate legitimate remount request accounting and raw/DOM/nativePNG on PASS/FAIL.
+            preserved_candidate_tree: b8ad639e257788f789d253e07f45cf49c629bdb5
+            candidate_branch: codex/electronics-548-native-react-ingress
+            ingress_probe_sha: c472d96433b0751d7d754fc2a27ae6b82ffcdd81
+            ingress_run: 38132800426
+            ingress_conclusion: SUCCESS diagnostic only; ORDER_NOT_ESTABLISHED/NO_PROVEN_CAUSE
+            ingress_independent_report_sha256: fabc72643ff0e3e8389993dd527f57014d67d392f1d5573d8bc07b3793f7df03
+            ingress_independent_manifest_sha256: 57ececea44a1723f1cf140aff7734d90d5a30e99a8081720690934d319d56667
+            ingress_actual: All3 native errors followed same-node ordinary commit/effect and reached React/hook/failed
+              DOM; whole5parts0wires original/server/editor exact,0PUT/errors/drafts,7imageGET404. Root54
+              originals/hashes/CRC verified. Instrumentation overhead and absent target order forbid historical
+              cause/frequency claims. No blocker lifted.
+            search_design_report_sha256: 4a3db63151e242352ac9c342ea5a4acba3c679aaabde85dc51ff7967ea0dea11
+            preserved_search_candidate_sha: 1b71996b1f28666f6511f9d40dfce383eb7f61f2
+            preserved_search_candidate_tree: 4ba0b32f64e9a108f0f792af085f66a01004bde2
+            search_independent_source_verdict: request_changes_test_evidence_only
+            search_independent_report_sha256: 748a0e5e6bf2a20ce7af6e346bd914f3d9c2fcc4c8ef6532c32406b831acb0f1
+            search_independent_manifest_sha256: 88aace9f825e3706fb96827956dbc19a2e25e2f23da874bfebab2eace4f8bfa1
+          reason: R1/Search originals retained; saved new9f ordinary failure NO_PROVEN_CAUSE. Next selected
+            phase observes unchanged old permanent case only, no repeat Search stimulus.
+          revision_snapshot:
+            kind: observed_snapshot
+            convergence_baseline_sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
+            head_sha: null
+            observed_at: '2026-10-11T12:28:56.577577+00:00'
+            main:
+              branch: main
+              sha: 72c1e067c361b6c5e50e3d62be1871f987b6e6e9
+            observation_note: Dated bounded test-only selection. New independent source NEEDS_FIX for failure-evidence
+              mechanics; no product cause/acceptance. Actual main72c shared Classroom/Scratch/API/security
+              baseline inherited, General38138858098 pending at preparation; old134 General cancelled(E),
+              olde51 all4SUCCESS history only. Preserve all other lanes/candidates/blockers/count2/school
+              pending; fetch main and actual exact-SHA CI before writes.
+        new9f_failure_candidate_sha: 9f9505f9e7a84b7a869e5a2fd93583742c27abdd
+        new9f_failure_run: 38163496163
+        new9f_failure_browser_job: 114541736981
+        new9f_cause_report: docs/product/electronics/evidence/ordinary-image-548-new9f-cause-report.md
+        new9f_cause_report_sha256: 59f37c823a9b1d833bbb39f4b2bbf1f0a7c147785bf4a0c42471287a9d090040
+        new9f_cause_verdict: NO_PROVEN_CAUSE; AA2 exacttarget proven; nativeReacthookchain absent.10image404+separate200
+          NOTnative recovery; quiet/max7/fullDoc/0PUT assertions not reached.
+        external_preparation_report: docs/product/electronics/evidence/ordinary-image-548-r2-observation-preparation.md
+        external_preparation_original_sha256: eeb85f5ed6eabcd0da4503c9e0a05cf612a585cc008bcb58175891ae020d1d5b
+        external_preparation_manifest_sha256: d0965227d9c20a294e90f013c2096e33eade5bec4f6bbb0777475128efde0130
+        mandatory_hygiene006_issue: 556
+        mandatory_hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
+        r2_observation_source_sha: b16e7a6d3d8796ab14d8a84fa8f83f072a2355d5
+        r2_directed_probe_sha: 7af3502c3af3cdf9584d4315bfdc542b7e2e4f0a
+        r2_directed_run: 38169594858
+        r2_directed_conclusion: success_natural_pass_not_product_acceptance
+        r2_independent_verdict: NO_PROVEN_CAUSE
+        r2_independent_report: docs/product/electronics/evidence/ordinary-image-548-r2-directed-independent-review.md
+        r2_independent_report_original_sha256: edee6c0f47dfcb9a45625c41c93f6e86a698e00cf14c7828fc58e11d7db293ba
+        r2_independent_manifest_sha256: da9a4905478afa4ae2b1057cb058a49c60ceb520073b62b15bbd872746fbec48
+        r2_root_originals_verified: true
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: ad01d88b0419f43b797a7296323c57f3813ade00
+        head_sha: null
+        observed_at: '2026-10-11T19:27:24.668240+00:00'
+        main:
+          branch: main
+          sha: ad01d88b0419f43b797a7296323c57f3813ade00
+        observation_note: Dated R2 source-only selection. Accepted556 source05e General38166383399 ALL4/new
+          APPROVE integrated; docs closeoutad01 General38167920024 IN_PROGRESS at snapshot, not PASS. Old548/Search
+          run NO_PROVEN_CAUSE retained; new9f ordinary cause also NO_PROVEN_CAUSE. Current Visual and old
+          permanent case byteexact prepared20d. No recovery repair/acceptance or rerun authorized before
+          NEW source review. Fetch main and exact Git/CI before writes.
+      reason: R2 experiment completed NO_PROVEN_CAUSE; retain all sources/originals and blockers. No repeated
+        experiment or548repair selected. Programme controller selects independently proven existing E06
+        PSU-entry slice.
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
