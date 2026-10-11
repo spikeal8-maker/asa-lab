@@ -14,7 +14,7 @@ export type AnalyticsEventType =
   | 'module.opened';
 export type AnalyticsOutcome = 'succeeded' | 'failed' | 'blocked';
 export type AnalyticsAuthMethod = 'password' | 'organization' | 'max' | 'class_code';
-export type AnalyticsModuleKey = 'electronics' | 'three-d' | 'chess' | 'checkers';
+export type AnalyticsModuleKey = 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
 
 interface EventBase {
   readonly eventType: AnalyticsEventType;
@@ -100,7 +100,7 @@ export class ProductAnalyticsService {
     const address = input.address && isIP(input.address) !== 0 ? input.address : null;
     if (input.actor.kind === 'anonymous') return false;
     try {
-      await this.pool.query(
+      const result = await this.pool.query(
         `SELECT analytics_start_module_session(
            $1,$2,$3,$4,$5,$6,$7,$8,$9::inet,$10,$11
          )`,
@@ -118,7 +118,7 @@ export class ProductAnalyticsService {
           input.userAgentSummary?.trim().slice(0, 128) || null,
         ],
       );
-      return true;
+      return result.rows[0]?.analytics_start_module_session === input.sessionId;
     } catch {
       this.warnWriteFailure();
       return false;
@@ -134,14 +134,17 @@ export class ProductAnalyticsService {
     const student = input.actor.kind === 'student' ? input.actor.context : null;
     if (input.actor.kind === 'anonymous') return false;
     try {
-      await this.pool.query(`SELECT analytics_touch_module_session($1,$2,$3,$4,$5)`, [
-        input.sessionId,
-        input.actor.kind,
-        account?.accountId ?? null,
-        account?.principalId ?? student?.principalId ?? null,
-        input.closed,
-      ]);
-      return true;
+      const result = await this.pool.query(
+        `SELECT analytics_touch_module_session($1,$2,$3,$4,$5)`,
+        [
+          input.sessionId,
+          input.actor.kind,
+          account?.accountId ?? null,
+          account?.principalId ?? student?.principalId ?? null,
+          input.closed,
+        ],
+      );
+      return Number.isInteger(result.rows[0]?.analytics_touch_module_session);
     } catch {
       this.warnWriteFailure();
       return false;

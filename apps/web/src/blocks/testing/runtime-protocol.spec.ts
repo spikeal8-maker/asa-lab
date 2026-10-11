@@ -36,6 +36,28 @@ function makeBridge(target = makeTarget(), onFatal = vi.fn(), onMessage = vi.fn(
 }
 
 describe('BlocksRuntimeBridge', () => {
+  it('accepts activity only from the exact frame/origin/binding with an exact empty payload', () => {
+    const { bridge, target } = makeBridge();
+    const data = {
+      protocolVersion: BLOCKS_PROTOCOL_VERSION,
+      messageType: 'ASA_BLOCKS_USER_ACTIVITY',
+      projectId: PROJECT_ID,
+      sessionNonce: bridge.sessionNonce,
+    };
+    const event = { source: target, origin: RUNTIME_ORIGIN, data };
+    expect(bridge.acceptChildMessage(event)).toBe(true);
+    for (const invalid of [
+      { ...event, source: {} },
+      { ...event, origin: 'https://evil.test' },
+      { ...event, data: { ...data, sessionNonce: 'stale' } },
+      { ...event, data: { ...data, projectId: 'foreign' } },
+      { ...event, data: { ...data, protocolVersion: 2 } },
+      { ...event, data: { ...data, activeSeconds: 90 } },
+    ])
+      expect(bridge.acceptChildMessage(invalid)).toBe(false);
+    bridge.stop();
+    expect(bridge.acceptChildMessage(event)).toBe(false);
+  });
   afterEach(() => {
     vi.unstubAllGlobals();
   });

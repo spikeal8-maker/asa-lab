@@ -1,4 +1,24 @@
 /* A learner's page, and the class record it borrows its list from. */
+.classroom-student {
+  min-width: 0;
+  font-size: 16px;
+}
+.classroom-student .classroom-student-back {
+  min-height: 44px;
+  max-width: 100%;
+  font-size: 16px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.classroom-student .participant-role select {
+  min-height: 44px;
+  max-width: 100%;
+  font-size: 16px;
+}
+.classroom-student .participant-role-hint {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
 
 .classroom-student-hero {
   display: flex;

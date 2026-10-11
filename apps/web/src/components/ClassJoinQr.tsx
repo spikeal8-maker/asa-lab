@@ -70,6 +70,10 @@ export function ClassJoinQr({
   return (
     <svg
       className="class-qr"
+      // Two whole CSS pixels per module, including the four-module quiet zone.
+      // The card uses this intrinsic size; print CSS keeps its physical dimensions.
+      width={state.size * 2}
+      height={state.size * 2}
       viewBox={`0 0 ${state.size} ${state.size}`}
       shapeRendering="crispEdges"
       role="img"

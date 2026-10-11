@@ -10,6 +10,7 @@ export default defineConfig({
     'student-access-cards.spec.ts',
     'classroom-manual-journal.spec.ts',
     'classroom-participants.spec.ts',
+    'classroom-profile-completion.spec.ts',
   ],
   workers: 1,
   fullyParallel: false,

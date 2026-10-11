@@ -275,7 +275,7 @@ export interface AdminDashboardPoint {
 
 export interface AdminModulePoint {
   readonly at: string;
-  readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers';
+  readonly moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks';
   readonly activePeople: number;
   readonly launches: number;
   readonly activeSeconds: number;

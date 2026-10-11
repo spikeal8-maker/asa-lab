@@ -262,6 +262,7 @@ Required child → parent:
 ```text
 ASA_BLOCKS_READY
 ASA_BLOCKS_STATUS
+ASA_BLOCKS_USER_ACTIVITY
 ASA_BLOCKS_TOKEN_REFRESH_REQUIRED
 ASA_BLOCKS_FLUSH_RESULT
 ASA_BLOCKS_FATAL
@@ -282,6 +283,14 @@ successful ASA_BLOCKS_FLUSH_RESULT:
 ```
 
 `project-dirty` is a memory-only UI correctness signal, not autosave or generic RPC. Parent may show `Сохранено` only when the successful `snapshotGeneration` is not older than the latest accepted dirty generation for the same bound iframe session.
+
+### Bounded classroom activity
+
+`ASA_BLOCKS_USER_ACTIVITY` contains exactly `messageType`, `protocolVersion`, `projectId` and `sessionNonce`, with no additional payload. Only a trusted pointer/key/input event in the ready visible editor may emit it, at most once per second. The parent validates exact origin, current frame source and all binding fields. Synthetic events, pointer movement alone, VM dirty/run events, player mode and the existing health heartbeat are not user activity.
+
+The parent sends best-effort ProductAnalytics start/touch/close requests with a fresh session UUID. Touches are single-flight and at most once per 30 seconds; 30 seconds without input, hidden state, teardown and project/principal replacement close the previous binding. An input/analytics error never triggers login refresh, logout, save or editor failure. Activity does not serialize a project and does not alter the accepted minute autosave or controlled exit.
+
+The existing server checks real project access/module on start and touch, derives timestamps itself, caps eligible intervals and rejects foreign/reused closed sessions. Classroom rating unions overlapping intervals and requires a real saved document edit using the existing projection; merely opening or keeping an editor alive earns no time. No historical input events are manufactured. API/isolated PostgreSQL tests and a pinned-GUI browser fixture verify separate portions of this path; the latter has fixture telemetry/storage responses and is not a full database end-to-end test.
 
 ## Scratch storage adapter
 
