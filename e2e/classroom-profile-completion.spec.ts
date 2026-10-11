@@ -204,7 +204,7 @@ test('assigned without a project stays one row through start, submission and rev
     [classroom.id],
   ]);
   const title = 'Назначено, но ещё не открыто';
-  const version = await seedProfileProjectActivity(admin, owner, title);
+  const version = await seedProfileProjectActivity(admin, owner, title, classroom.id);
   const assignment = await post(page, `/api/classrooms/${classroom.id}/learning/activity-runs`, {
     activityVersionId: version,
     audienceType: 'named_learners',

@@ -14,12 +14,26 @@ export async function seedProfileProjectActivity(
   admin: pg.Pool,
   teacher: SeededTeacher,
   title: string,
+  classroomId?: string,
 ) {
   const actor = await profileTeacherIdentity(admin, teacher);
+  const target = classroomId
+    ? (
+        await admin.query<{ tenant_id: string; kind: string }>(
+          `SELECT c.tenant_id,w.kind FROM classrooms c
+      JOIN workspaces w ON w.tenant_id=c.tenant_id
+      JOIN classroom_memberships member ON member.classroom_id=c.id AND member.tenant_id=c.tenant_id
+      WHERE c.id=$1 AND member.account_id=$2 AND member.member_role IN ('owner','co_teacher')`,
+          [classroomId, actor.account_id],
+        )
+      ).rows[0]
+    : { tenant_id: teacher.tenantId, kind: 'organization' };
+  if (!target) throw new Error('activity target classroom is not owned by its author');
+  const scope = target.kind === 'personal' ? 'personal' : 'school';
   const client = await admin.connect();
   try {
     await client.query('BEGIN');
-    await client.query("SELECT set_config('app.tenant_id',$1,true)", [teacher.tenantId]);
+    await client.query("SELECT set_config('app.tenant_id',$1,true)", [target.tenant_id]);
     const policies = {
       attemptPolicy: { maxAttempts: 3 },
       resultSelectionPolicy: { mode: 'latest' },
@@ -30,15 +44,22 @@ export async function seedProfileProjectActivity(
     };
     const created = (
       await client.query(
-        `SELECT * FROM learning_activity_create($1,$2,'school','private','project',$3,'Создай модель.','completion',NULL,$4::jsonb,'three-d',NULL,NULL,NULL,$5)`,
-        [actor.principal_id, teacher.tenantId, title, JSON.stringify(policies), randomUUID()],
+        `SELECT * FROM learning_activity_create($1,$2,$3,'private','project',$4,'Создай модель.','completion',NULL,$5::jsonb,'three-d',NULL,NULL,NULL,$6)`,
+        [
+          actor.principal_id,
+          target.tenant_id,
+          scope,
+          title,
+          JSON.stringify(policies),
+          randomUUID(),
+        ],
       )
     ).rows[0];
     if (created.result_code !== 'ok') throw new Error(`activity: ${created.result_code}`);
     const published = (
       await client.query('SELECT * FROM learning_activity_publish($1,$2,$3,1,$4)', [
         actor.principal_id,
-        teacher.tenantId,
+        target.tenant_id,
         created.activity_id,
         randomUUID(),
       ])
