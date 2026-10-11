@@ -1,5 +1,6 @@
 import { Body, Controller, HttpCode, HttpException, Post, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
+import { clientAddress } from './client-address.js';
 
 const CODES = new Set([
   'render_failed',
@@ -122,7 +123,7 @@ export class ClientDiagnosticsController {
     }
     const time = Date.now();
     for (const [key, budget] of this.budgets) if (budget.until < time) this.budgets.delete(key);
-    const key = request.ip;
+    const key = clientAddress(request);
     const budget = this.budgets.get(key) ?? { until: time + 60_000, count: 0 };
     if (budget.count >= 600 || (!this.budgets.has(key) && this.budgets.size >= 1024)) {
       throw new HttpException({ error: { code: 'too_many_requests' } }, 429);

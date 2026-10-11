@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
-                                  attest_database_targets, attest_embedded_editor, exact_origin, in_window, inventory_files, read_env, safe_member,
+                                  attest_database_targets, attest_embedded_editor, attest_proxy_policy, exact_origin, in_window, inventory_files, read_env, safe_member,
                                   validate_release, verify_backup, verify_embedded_entry_http)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
@@ -31,6 +31,26 @@ def compose_config():
         "api": {"environment": {"APP_DATABASE_URL": "postgres://asalab_app:synthetic@postgres:5432/asalab"}},
         "migration": {"environment": {"MIGRATION_DATABASE_URL": "postgres://admin:synthetic@postgres:5432/asalab", "MIGRATION_EXPECT_DATABASE": "asalab", "MIGRATION_CONFIRM": "APPLY:asalab"}},
     }, "volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}, "objects": {"name": "asa-lab-dev_objects"}}}
+
+
+class ProxyPolicyTests(unittest.TestCase):
+    def test_default_and_explicit_ipv4_ipv6_ingress_are_valid(self):
+        attest_proxy_policy({})
+        attest_proxy_policy({'ASA_TRUSTED_PROXY_CIDRS': '172.16.0.0/12,fd00::/64',
+                             'ASA_INGRESS_TRUSTED_PROXY_CIDRS': '192.0.2.7/32 2001:db8::7/128'})
+
+    def test_malformed_unbounded_and_injected_policies_block_before_operations(self):
+        for key in ('ASA_TRUSTED_PROXY_CIDRS', 'ASA_INGRESS_TRUSTED_PROXY_CIDRS'):
+            for raw in ('', '0.0.0.0/0', '::/0', '172.16.0.0/99', 'private_ranges',
+                        '127.0.0.1/32 } servers {', 'x' * 2049):
+                with self.subTest(key=key, raw=raw), self.assertRaises(Blocked) as failure:
+                    attest_proxy_policy({key: raw})
+                self.assertEqual(failure.exception.code, 'PROXY_POLICY')
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, '.env').write_text('ASA_INGRESS_TRUSTED_PROXY_CIDRS=0.0.0.0/0\n')
+            with patch('deployment.system.run') as command, self.assertRaises(Blocked):
+                Installation(directory)
+            command.assert_not_called()
 
 
 class EmbeddedEntryTests(unittest.TestCase):

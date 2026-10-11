@@ -17,7 +17,7 @@ from asa_manager import first_environment
 from deployment.backup import export_backup, restore_check
 from deployment.contracts import require, verify_backup
 from deployment.releases import apply_release_environment, validate_resolved_images
-from deployment.system import Installation
+from deployment.system import Installation, run
 
 require(os.environ.get("GITHUB_ACTIONS") == "true", "CI_ONLY", "This test is only allowed in an isolated GitHub runner.")
 release = json.loads(Path(sys.argv[1]).read_text())
@@ -77,6 +77,39 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
                                          headers={"Content-Type": "application/json", "Origin": "http://127.0.0.1:4610"})
         with urllib.request.urlopen(request, timeout=15) as response:
             require(response.status in (200, 201), "SMOKE", "Login against the restored database failed.")
+        # Prove provenance through the real pinned Caddy/API images, not a mock
+        # parser. Only this disposable installation's ingress policy is changed.
+        def login_provenance(forwarded, expected):
+            request = urllib.request.Request('http://127.0.0.1:4610/api/auth/login', data=body,
+                headers={'Content-Type': 'application/json', 'Origin': 'http://127.0.0.1:4610',
+                         'X-Forwarded-For': forwarded, 'CF-Connecting-IP': '192.0.2.99'})
+            with urllib.request.urlopen(request, timeout=15) as response:
+                require(response.status in (200, 201), 'CLIENT_PROVENANCE', 'Synthetic login failed.')
+                response.read()
+            observed = install.compose('exec', '-T', 'postgres', 'psql', '-U', install.env['POSTGRES_USER'],
+                '-d', 'asalab_delivery_restore_test', '-At', '-c',
+                "SELECT COALESCE(host(ip_address),'unknown') || '|' || network_kind FROM product_analytics_events WHERE event_type='auth.login' ORDER BY occurred_at DESC,id DESC LIMIT 1", capture=True)
+            require(observed == expected, 'CLIENT_PROVENANCE', 'Stored visitor provenance differs from the validated ingress chain.')
+
+        # No trusted public ingress by default: forged headers must not turn a
+        # Docker gateway into a visitor, nor inject an arbitrary external IP.
+        login_provenance('198.51.100.23', 'unknown|proxy')
+        web = install.identity()['web']['id']
+        gateways = run(['docker', 'inspect', '--format', '{{range .NetworkSettings.Networks}}{{println .Gateway}}{{end}}', web], capture=True).split()
+        require(bool(gateways), 'CLIENT_PROVENANCE', 'Disposable ingress gateway is missing.')
+        previous_ingress = install.process_env.get('ASA_INGRESS_TRUSTED_PROXY_CIDRS')
+        try:
+            install.process_env['ASA_INGRESS_TRUSTED_PROXY_CIDRS'] = ' '.join(f'{address}/32' for address in gateways)
+            install.compose('up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '120', 'web')
+            login_provenance('192.0.2.200, 198.51.100.23', '198.51.100.23|public')
+            login_provenance('192.0.2.200, 192.168.20.7', '192.168.20.7|local_network')
+        finally:
+            if previous_ingress is None:
+                install.process_env.pop('ASA_INGRESS_TRUSTED_PROXY_CIDRS', None)
+            else:
+                install.process_env['ASA_INGRESS_TRUSTED_PROXY_CIDRS'] = previous_ingress
+            install.compose('up', '-d', '--no-build', '--no-deps', '--wait', '--wait-timeout', '120', 'web')
+        print('CLIENT_PROVENANCE PASS: default spoof rejection, explicit ingress, rightmost visitor, private visitor, stored NULL for unknown')
         with urllib.request.urlopen("http://127.0.0.1:4610/runtime-config.js") as response:
             require(b"http://127.0.0.1:4610" in response.read(), "SMOKE", "ASA origin configuration is missing.")
         with urllib.request.urlopen("http://127.0.0.1:4610/internal/blocks/") as response:

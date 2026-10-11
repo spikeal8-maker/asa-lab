@@ -11,6 +11,8 @@ import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import pg from 'pg';
 import type { RuntimeMetrics } from '@asa-lab/observability';
+import type { ActiveContextUseCase } from '@asa-lab/identity';
+import { SeatContextUseCase } from './seat-context.js';
 import { AppModule } from './app.module.js';
 import { TOKENS } from './tokens.js';
 import { runtimeBuildMetadata } from './build-metadata.js';
@@ -29,6 +31,7 @@ import {
   resolveLocalApiOrigin,
 } from './origin-policy.js';
 import { MutationAbuseProtection } from './abuse-protection.js';
+import { assertTrustedProxyConfiguration } from './client-address.js';
 import {
   applyBlocksRuntimeCors,
   BlocksRuntimeAddressBudget,
@@ -197,6 +200,7 @@ function defaultWebOrigin(): string {
 export async function createApiApp(
   options: ApiFactoryOptions = {},
 ): Promise<NestFastifyApplication> {
+  assertTrustedProxyConfiguration();
   const pool = options.pool !== undefined ? options.pool : defaultPool();
   const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
   const allowedLocalApiOrigin = resolveLocalApiOrigin(
@@ -256,7 +260,11 @@ export async function createApiApp(
     if (!requestFailures.has(request))
       recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
   });
-  const mutationAbuseProtection = new MutationAbuseProtection();
+  const mutationAbuseProtection = new MutationAbuseProtection(async (kind, token) =>
+    kind === 'account'
+      ? (await app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token)) !== null
+      : (await app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token)) !== null,
+  );
   const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
   fastify.addHook('onRequest', async (request) => {
@@ -358,7 +366,7 @@ export async function createApiApp(
     }
 
     if (!runtimePath) {
-      const abuse = mutationAbuseProtection.consume(request);
+      const abuse = await mutationAbuseProtection.consume(request);
       if (!abuse.allowed) {
         void reply.header('retry-after', abuse.retryAfterSeconds);
         return reply.code(429).send({
