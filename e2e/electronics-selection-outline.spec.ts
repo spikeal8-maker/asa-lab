@@ -91,6 +91,7 @@ type Point = { x: number; y: number };
 type Probe = {
   phase: string;
   events: unknown[];
+  nativePoints?: unknown[];
   responses: Array<{ at: number; response: ElectronicsSimulationWorkerResponse }>;
 };
 type ProbeWindow = Window & { __outlineProbe?: Probe };
@@ -184,21 +185,58 @@ async function nativePoint(page: Page, id: string): Promise<Point> {
   return part(page, id).evaluate(
     async (root, input) => {
       const visual = root.querySelector<SVGSVGElement>('.workbench-production-visual')!;
+      const probe = (window as ProbeWindow).__outlineProbe!;
+      const attempts: unknown[] = [];
+      (probe.nativePoints ??= []).push({ phase: probe.phase, id: input.id, attempts });
+      const unobscured = (point: DOMPoint, allowGrid: boolean) => {
+        const hit = document.elementFromPoint(point.x, point.y);
+        // Owner images deliberately pass pointers through to this canvas's grid;
+        // Stage then resolves the painted alpha and starts the native body drag.
+        const delegated =
+          allowGrid &&
+          hit?.classList.contains('workbench-grid-hit') &&
+          hit.closest('.workbench-canvas') === root.closest('.workbench-canvas');
+        const accepted = Boolean(
+          hit &&
+          (root.contains(hit) || delegated) &&
+          !hit.closest(
+            '.workbench-terminal, .workbench-breadboard-hole-hit, [class*="-knob"], [class*="-power-switch"], [class*="-mode-"], [data-testid="arduino-reset-button"]',
+          ),
+        );
+        attempts.push({
+          x: point.x,
+          y: point.y,
+          target: hit?.getAttribute('class'),
+          targetTestId: hit?.getAttribute('data-testid'),
+          component: hit
+            ?.closest('[data-testid="schematic-component"]')
+            ?.getAttribute('data-component-id'),
+          delegated: Boolean(delegated),
+          accepted,
+        });
+        return accepted;
+      };
       const measured = visual.querySelector<SVGGElement>(
         '.workbench-owner-resistor, .workbench-tinkercad-button, .workbench-tinkercad-switch',
       );
       if (measured) {
-        const point = new DOMPoint(0, input.id === 'switch' ? -10 : 0).matrixTransform(
-          measured.getScreenCTM()!,
+        // Sample the existing ordinary body geometry. On mobile the central
+        // switch point is covered by a larger terminal hit circle; exposed
+        // painted body points still support the same real pointer gesture.
+        const body = measured.querySelector<SVGGeometryElement>(
+          ':scope > path, :scope > rect, [data-testid="spdt-actuator"] > rect',
         );
-        const hit = document.elementFromPoint(point.x, point.y);
-        if (
-          !hit ||
-          !root.contains(hit) ||
-          hit.closest('.workbench-terminal, .workbench-breadboard-hole-hit')
-        )
-          throw new Error(`No unobscured native measured body point for ${input.id}`);
-        return { x: point.x, y: point.y };
+        if (!body) throw new Error(`No existing measured body geometry for ${input.id}`);
+        const bounds = body.getBBox();
+        const matrix = body.getScreenCTM()!;
+        for (const y of [0.5, 0.25, 0.75, 0.125, 0.875])
+          for (const x of [0.5, 0.25, 0.75, 0.125, 0.875]) {
+            const local = new DOMPoint(bounds.x + x * bounds.width, bounds.y + y * bounds.height);
+            if (!body.isPointInFill(local)) continue;
+            const point = local.matrixTransform(matrix);
+            if (unobscured(point, false)) return { x: point.x, y: point.y };
+          }
+        throw new Error(`No unobscured native measured body point for ${input.id}`);
       }
       const image = new Image();
       image.src = input.asset;
@@ -207,7 +245,19 @@ async function nativePoint(page: Page, id: string): Promise<Point> {
       canvas.width = 80;
       canvas.height = 80;
       const context = canvas.getContext('2d')!;
-      context.drawImage(image, 0, 0, 80, 80);
+      // Keep the owner's actual meet/stretch projection into the outer visual
+      // domain before sampling alpha, including its transparent margins.
+      const meet = Math.min(input.width / image.naturalWidth, input.height / image.naturalHeight);
+      const drawnWidth = input.fit === 'stretch' ? input.width : image.naturalWidth * meet;
+      const drawnHeight = input.fit === 'stretch' ? input.height : image.naturalHeight * meet;
+      context.setTransform(80 / input.width, 0, 0, 80 / input.height, 0, 0);
+      context.drawImage(
+        image,
+        (input.width - drawnWidth) / 2,
+        (input.height - drawnHeight) / 2,
+        drawnWidth,
+        drawnHeight,
+      );
       const pixels = context.getImageData(0, 0, 80, 80).data;
       const matrix = visual.getScreenCTM()!;
       const candidates: Array<Point & { score: number }> = [];
@@ -218,22 +268,15 @@ async function nativePoint(page: Page, id: string): Promise<Point> {
             (x / 80) * input.width,
             (y / 80) * input.height,
           ).matrixTransform(matrix);
-          const hit = document.elementFromPoint(point.x, point.y);
-          if (
-            !hit ||
-            !root.contains(hit) ||
-            hit.closest(
-              '.workbench-terminal, .workbench-breadboard-hole-hit, [class*="-knob"], [class*="-power-switch"], [class*="-mode-"]',
-            )
-          )
-            continue;
           candidates.push({ x: point.x, y: point.y, score: (x - 40) ** 2 + (y - 40) ** 2 });
         }
-      const point = candidates.sort((a, b) => a.score - b.score)[0];
+      const point = candidates
+        .sort((a, b) => a.score - b.score)
+        .find((candidate) => unobscured(new DOMPoint(candidate.x, candidate.y), true));
       if (!point) throw new Error(`No unobscured opaque native body point for ${input.id}`);
       return { x: point.x, y: point.y };
     },
-    { id, asset: entry.asset!, ...size },
+    { id, asset: entry.asset!, fit: entry.assetFit, ...size },
   );
 }
 
