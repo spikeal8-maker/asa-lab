@@ -51,7 +51,7 @@ export function exact(value: Record<string, unknown>, keys: readonly string[]): 
 }
 export function uuid(value: unknown): string {
   if (typeof value !== 'string' || !UUID.test(value)) invalid();
-  return value;
+  return value.toLowerCase();
 }
 export function timestamp(value: unknown): string {
   if (

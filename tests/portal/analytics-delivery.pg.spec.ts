@@ -183,6 +183,74 @@ afterAll(async () => {
 });
 
 describe('real PostgreSQL observability delivery receipts', () => {
+  it('confirms uppercase UUID input and replays canonical lowercase envelopes with one domain effect', async () => {
+    const eventId = `abcdefab${randomUUID().slice(8)}`;
+    const visitId = randomUUID();
+    const payload = {
+      schemaVersion: 2,
+      eventId: eventId.toUpperCase(),
+      eventType: 'visit.observed',
+      actorExpectation: {
+        kind: 'account',
+        accountId: owner.accountId!.toUpperCase(),
+        workspaceId: owner.workspaceId!.toUpperCase(),
+      },
+      visitId: visitId.toUpperCase(),
+      clientOccurredAt: new Date().toISOString(),
+      entryRoute: 'home',
+      referrerOrigin: null,
+    };
+    const first = await inject(app, {
+      method: 'POST',
+      url: '/api/analytics/v2/events',
+      headers: { cookie },
+      payload,
+    });
+    expect(first.statusCode, first.body).toBe(200);
+    expect(first.json()).toMatchObject({ eventId, receiptId: eventId, state: 'persisted' });
+    const replay = await inject(app, {
+      method: 'POST',
+      url: '/api/analytics/v2/events',
+      headers: { cookie },
+      payload: {
+        ...payload,
+        eventId,
+        visitId,
+        actorExpectation: {
+          kind: 'account',
+          accountId: owner.accountId,
+          workspaceId: owner.workspaceId,
+        },
+      },
+    });
+    expect(replay.statusCode, replay.body).toBe(200);
+    expect(replay.json()).toEqual(first.json());
+    expect(
+      (
+        await admin.query('SELECT id FROM product_analytics_events WHERE receipt_event_id=$1', [
+          eventId,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+    const projectId = await project();
+    const sessionId = `abcdefab${randomUUID().slice(8)}`.toUpperCase();
+    const legacy = await inject(app, {
+      method: 'POST',
+      url: '/api/analytics/v1/module-session/start',
+      headers: { cookie },
+      payload: { sessionId, projectId: projectId.toUpperCase(), moduleKey: 'blocks' },
+    });
+    expect(legacy.statusCode, legacy.body).toBe(202);
+    expect(legacy.json()).toEqual({ accepted: true, sessionId });
+    expect(
+      (
+        await admin.query(
+          "SELECT id FROM product_analytics_events WHERE flow_id=$1 AND event_type='module.opened'",
+          [sessionId],
+        )
+      ).rows,
+    ).toHaveLength(1);
+  });
   it('stores one global receipt under concurrent lost-ACK retries and preserves first provenance', async () => {
     const eventId = randomUUID();
     const received = at(0);

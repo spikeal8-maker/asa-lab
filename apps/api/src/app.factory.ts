@@ -15,7 +15,7 @@ import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SeatContextUseCase } from './seat-context.js';
 import { AppModule } from './app.module.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
-import { OwnedPools, boundedClose } from './owned-pool-lifecycle.js';
+import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
 import { noteRequestReceipt } from './request-receipt.js';
 import { TOKENS } from './tokens.js';
 import { runtimeBuildMetadata } from './build-metadata.js';
@@ -279,7 +279,7 @@ export async function createApiApp(
       AppModule.forPool(pool, { productAnalytics: analytics, runtimeMetrics: metrics }),
       adapter,
       {
-        logger: ['error', 'warn'],
+        logger: new SafeNestLogger(),
         abortOnError: false,
       },
     );

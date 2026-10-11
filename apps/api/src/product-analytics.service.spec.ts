@@ -22,6 +22,25 @@ const CONTEXT: ActiveContext = {
 };
 
 describe('product analytics writer', () => {
+  it('confirms a legacy start UUID independently of its accepted letter case', async () => {
+    const lower = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+    const query = vi.fn<AnalyticsQuery>(async () => ({
+      rows: [{ analytics_start_module_session: lower }],
+    }));
+    const service = new ProductAnalyticsService(
+      { query } as unknown as pg.Pool,
+      new AnalyticsDeliveryQueue(true, Date.now, () => undefined),
+    );
+    await expect(
+      service.startModuleSession({
+        sessionId: lower.toUpperCase(),
+        projectId: lower,
+        actor: { kind: 'account', context: CONTEXT },
+        moduleKey: 'blocks',
+      }),
+    ).resolves.toBe(true);
+    await service.shutdown();
+  });
   it('persists a real v2 actor envelope and rejects a queued or misbound database acknowledgement', async () => {
     const eventId = '50000000-0000-4000-8000-000000000001';
     const receivedAt = '2026-10-11T10:00:00.000Z';

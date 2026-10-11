@@ -163,7 +163,11 @@ export class ProductAnalyticsService {
           input.userAgentSummary?.trim().slice(0, 128) || null,
         ],
       );
-      if (result.rows[0]?.analytics_start_module_session !== input.sessionId)
+      const persistedId: unknown = result.rows[0]?.analytics_start_module_session;
+      if (
+        typeof persistedId !== 'string' ||
+        persistedId.toLowerCase() !== input.sessionId.toLowerCase()
+      )
         throw new AnalyticsDeliveryError('telemetry_unavailable');
       return true;
     });

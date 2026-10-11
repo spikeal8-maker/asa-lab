@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
 import { NestFactory } from '@nestjs/core';
 import { EventEmitter } from 'node:events';
+import { AppModule } from './app.module.js';
 import { contentSecurityPolicyFor, createApiApp, shouldServeSpaDocument } from './app.factory.js';
 
 const apps: Array<Awaited<ReturnType<typeof createApiApp>>> = [];
@@ -21,6 +22,62 @@ afterEach(async () => {
 });
 
 describe('API application factory', () => {
+  it('sanitizes the real Nest provider exception zone before rethrow and closes transferred pools once', async () => {
+    const canary = 'postgres://canary_password@secret-provider.invalid/private';
+    const failure = new Error(canary);
+    const main = Object.assign(new EventEmitter(), {
+      query: vi.fn(),
+      end: vi.fn(async () => undefined),
+    });
+    const analytics = Object.assign(new EventEmitter(), {
+      query: vi.fn(),
+      end: vi.fn(async () => undefined),
+    });
+    const stdout = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    const exit = vi.spyOn(process, 'exit').mockImplementation(() => {
+      throw new Error('unexpected factory process.exit');
+    });
+    const abort = vi.spyOn(process, 'abort').mockImplementation(() => {
+      throw new Error('unexpected factory process.abort');
+    });
+    const composition = vi.spyOn(AppModule, 'forPool').mockReturnValue({
+      module: AppModule,
+      providers: [
+        {
+          provide: 'throwing-provider',
+          useFactory: () => {
+            throw failure;
+          },
+        },
+      ],
+    });
+    try {
+      await expect(
+        createApiApp({
+          pool: main as unknown as pg.Pool,
+          analyticsPool: analytics as unknown as pg.Pool,
+          webDist: null,
+        }),
+      ).rejects.toBe(failure);
+      expect(main.end).toHaveBeenCalledOnce();
+      expect(analytics.end).toHaveBeenCalledOnce();
+      expect(exit).not.toHaveBeenCalled();
+      expect(abort).not.toHaveBeenCalled();
+      const output = JSON.stringify([...stdout.mock.calls, ...stderr.mock.calls]);
+      expect(output).toContain('nest_error');
+      expect(output).not.toContain('canary_password');
+      expect(output).not.toContain('secret-provider.invalid');
+      expect(main.listenerCount('error')).toBe(0);
+      expect(analytics.listenerCount('error')).toBe(0);
+    } finally {
+      composition.mockRestore();
+      stdout.mockRestore();
+      stderr.mockRestore();
+      exit.mockRestore();
+      abort.mockRestore();
+    }
+  });
   it('closes transferred injected resources once on partial construction, without ambient URL fallback', async () => {
     const previous = process.env['APP_DATABASE_URL'];
     process.env['APP_DATABASE_URL'] = 'postgres://invalid:secret@unreachable.invalid/not_a_test';

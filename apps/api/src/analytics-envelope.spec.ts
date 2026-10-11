@@ -14,6 +14,30 @@ const visit = {
   referrerOrigin: 'https://school.test/private?token=secret#x',
 };
 describe('fixed telemetry envelopes', () => {
+  it('canonicalizes every accepted UUID before authority comparisons and semantic binding', () => {
+    const lower = 'abcdefab-cdef-4abc-8def-abcdefabcdef';
+    const envelope = {
+      ...visit,
+      eventId: lower,
+      visitId: lower,
+      actorExpectation: { kind: 'account', accountId: lower, workspaceId: lower },
+    };
+    expect(
+      parseAnalyticsEnvelope(
+        {
+          ...envelope,
+          eventId: lower.toUpperCase(),
+          visitId: lower.toUpperCase(),
+          actorExpectation: {
+            kind: 'account',
+            accountId: lower.toUpperCase(),
+            workspaceId: lower.toUpperCase(),
+          },
+        },
+        'events',
+      ),
+    ).toEqual(parseAnalyticsEnvelope(envelope, 'events'));
+  });
   it('rejects local clock strings and normalizes equivalent explicit offsets to the same semantic request', () => {
     expect(() =>
       parseAnalyticsEnvelope({ ...visit, clientOccurredAt: '2026-10-11T10:00:00' }, 'events'),

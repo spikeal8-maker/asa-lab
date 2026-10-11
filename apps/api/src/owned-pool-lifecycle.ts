@@ -1,5 +1,20 @@
 import type pg from 'pg';
+import type { LoggerService } from '@nestjs/common';
 import { safeServerError } from './server-diagnostics.js';
+
+/** Nest's construction exception zone logs before rethrowing to our startup catch. */
+export class SafeNestLogger implements LoggerService {
+  log(): void {
+    // Informational framework bootstrap strings are intentionally not emitted.
+  }
+  warn(): void {
+    lifecycleEvent('nest_warning');
+  }
+  error(exception: unknown): void {
+    // Ignore Nest's free-form message, context and stack arguments entirely.
+    lifecycleEvent('nest_error', exception instanceof Error ? exception : new Error());
+  }
+}
 
 export function lifecycleEvent(phase: string, error?: unknown): void {
   const safe = error === undefined ? undefined : safeServerError(error);
