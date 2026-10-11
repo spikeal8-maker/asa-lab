@@ -288,6 +288,55 @@ describe('participants with real PostgreSQL and the runtime role', () => {
         )
       ).rows[0];
     const before = await counts();
+    // A newly issued pupil has not authenticated yet. Its teacher still sees
+    // the exact pinned assignment; the shared pupil-access check stays closed.
+    await admin.query("UPDATE classroom_student_seats SET status='issued' WHERE id=$1", [a.id]);
+    expect(
+      (
+        await runtime.query('SELECT learning_course_seat_visible($1,$2) visible', [
+          a.id,
+          theory.courseRunId,
+        ])
+      ).rows[0].visible,
+    ).toBe(false);
+    const issued = await read<ParticipantAssignments>('classroom_participant_assignments', [
+      f.actor,
+      classId,
+      a.id,
+      0,
+    ]);
+    expect(issued.items).toEqual([
+      expect.objectContaining({
+        id: theory.lessonId,
+        kind: 'theory',
+        courseRunId: theory.courseRunId,
+        assignmentId: null,
+      }),
+    ]);
+    for (const principal of [a.principal, account.principal]) {
+      const own = await read<ParticipantAssignments>('classroom_participant_assignments', [
+        principal,
+        classId,
+        a.id,
+        0,
+      ]);
+      expect(own.items).toEqual([]);
+    }
+    expect(
+      (
+        await read<ParticipantAssignments>('classroom_participant_assignments', [
+          f.actor,
+          classId,
+          b.id,
+          0,
+        ])
+      ).items,
+    ).toEqual([]);
+    expect(
+      await read('classroom_participant_assignments', [b.principal, classId, a.id, 0]),
+    ).toBeNull();
+    expect(await counts()).toEqual(before);
+    await admin.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [a.id]);
     const visible = await read<ParticipantAssignments>('classroom_participant_assignments', [
       f.actor,
       classId,

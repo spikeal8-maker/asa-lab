@@ -78,6 +78,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0203', // Archived roster can read protected credentials without enabling writes.
         '0204', // Participant assignment/profile/history projections remain read-only.
         '0205', // Scratch reuses bounded ProductAnalytics sessions and existing data.
+        '0206', // Issued pupils remain visible to their teacher before first sign-in.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
