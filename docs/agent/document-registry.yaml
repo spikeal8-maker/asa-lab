@@ -278,7 +278,7 @@ documents:
   - id: IDENTITY-DOMAIN-CONTRACT
     path: docs/agent/contracts/identity.yaml
     scope: identity
-    lanes: [admin-auth, observability]
+    lanes: [admin-auth]
     kind: domain_contract
     status: canonical
     authority: identity_core_invariants

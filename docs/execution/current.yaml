@@ -3309,8 +3309,6 @@ parallel_lanes:
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
-        - document: IDENTITY-DOMAIN-CONTRACT
-          revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
