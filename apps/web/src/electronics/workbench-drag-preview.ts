@@ -93,6 +93,7 @@ export function psuEntryPresentation(
     wirePreviewEnd: Point | null;
     wirePreviewVertices: readonly Point[];
     pendingTerminal: Parameters<typeof psuWireApproaches>[2][0];
+    reconnectHover?: Parameters<typeof psuWireApproaches>[2][1];
   },
 ) {
   const clip = psuWireEntryClip(component);
@@ -109,7 +110,13 @@ export function psuEntryPresentation(
         ? psuWireApproaches(
             document,
             wirePoints(pending.pendingStart, pending.wirePreviewEnd, pending.wirePreviewVertices),
-            [pending.pendingTerminal, null],
+            [
+              pending.pendingTerminal,
+              pending.reconnectHover?.componentId === pending.pendingTerminal?.componentId &&
+              pending.reconnectHover?.terminal === pending.pendingTerminal?.terminal
+                ? null
+                : (pending.reconnectHover ?? null),
+            ],
           ).filter((item) => item.componentId === component.id)
         : [],
   };

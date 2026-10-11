@@ -15,6 +15,73 @@ const ARTIFACT_DIR = 'e2e/artifacts/electronics-simulation';
 const persistenceVideoTest = test.extend({ video: 'on' });
 const psuEntryTest = test.extend({ trace: 'on', screenshot: 'on' });
 
+/** Failure originals are Node-owned; no secondary promise can delay the primary. */
+async function psuEntryFinalize(
+  journal: Record<string, unknown>,
+  flush: () => void,
+  primary: unknown,
+  responses: readonly Record<string, unknown>[],
+  attach: () => Promise<unknown>,
+  close: () => Promise<unknown>,
+) {
+  const secondary = (journal.secondaryOutcomes ??= {}) as Record<string, unknown>;
+  const persist = () => {
+    try {
+      flush();
+    } catch (error) {
+      console.error('E06 original persistence failed', error);
+      secondary.rawWrite = { status: 'NOT_AVAILABLE', error: String(error) };
+    }
+  };
+  const fail = (error: unknown): never => {
+    journal.primaryFailure = error instanceof Error ? error.stack : String(error);
+    journal.failureCheckpoint = journal.checkpoint;
+    secondary.snapshot = {
+      status: 'NOT_AVAILABLE',
+      reason: 'Primary reported without browser wait',
+    };
+    secondary.png = { status: 'NOT_AVAILABLE', reason: 'Primary reported without browser wait' };
+    secondary.attach = {
+      status: 'NOT_AVAILABLE',
+      reason: 'Original file is collected by the runner',
+    };
+    secondary.close = { status: 'PENDING' };
+    persist();
+    // Promise settlement is observed, never awaited while reporting a primary.
+    try {
+      void close().then(
+        () => {
+          secondary.close = { status: 'CAPTURED' };
+          persist();
+        },
+        (error) => {
+          secondary.close = { status: 'NOT_AVAILABLE', error: String(error) };
+          persist();
+        },
+      );
+    } catch (error) {
+      secondary.close = { status: 'NOT_AVAILABLE', error: String(error) };
+      persist();
+    }
+    throw error;
+  };
+  if (primary !== undefined) fail(primary);
+  persist();
+  // Body collectors already run during the pupil journey. A rejected or still
+  // pending collector is incomplete evidence, never permission to claim PASS.
+  if (responses.some((response) => response.bodyStatus !== 'CAPTURED'))
+    fail(new Error('E06 response originals incomplete'));
+  try {
+    await attach();
+    secondary.attach = { status: 'CAPTURED' };
+    await close();
+    secondary.close = { status: 'CAPTURED' };
+    persist();
+  } catch (error) {
+    fail(error);
+  }
+}
+
 // A read-only view of the committed production controller, never its callbacks.
 async function psuEntryLocal(page: Page, projectId: string) {
   return page.locator('.workbench-stage').evaluate((stage, projectId) => {
@@ -28,6 +95,10 @@ async function psuEntryLocal(page: Page, projectId: string) {
           project?: { id: string };
           document?: SchematicDocument;
           selection?: unknown;
+          canUndo?: boolean;
+          canRedo?: boolean;
+          pendingTerminal?: unknown;
+          reconnectHover?: unknown;
         };
       };
     };
@@ -55,7 +126,13 @@ async function psuEntryLocal(page: Page, projectId: string) {
     for (let node = host?.return; node; node = node.return) {
       const controller = node.memoizedProps?.controller;
       if (controller?.project?.id === projectId && controller.document?.schemaVersion === 4)
-        return { document: controller.document, selection: controller.selection };
+        return {
+          document: controller.document,
+          selection: controller.selection,
+          history: { canUndo: controller.canUndo, canRedo: controller.canRedo },
+          pendingTerminal: controller.pendingTerminal,
+          reconnectHover: controller.reconnectHover,
+        };
     }
     throw new Error('Current committed PSU controller unavailable');
   }, projectId);
@@ -136,7 +213,7 @@ function psuEntryFixture(rotation: 0 | 90 | 180 | 270, mirror: number) {
     ],
     connections: base.connections.map((wire, index) => ({
       ...wire,
-      vertices: index === 0 ? [world(66.75, 95), world(200, 95)] : [world(80, 160)],
+      vertices: index === 0 ? [world(66.75, 95), world(200, 95)] : [world(-30, 107.25)],
     })),
   };
   const parsed = parseElectronicsDocument(normalizeLoadedDocument(input));
@@ -152,6 +229,7 @@ function psuEntryFixture(rotation: 0 | 90 | 180 | 270, mirror: number) {
   return {
     initial,
     sample: world(120, 95),
+    negativeSample: world(50, 107.25),
     positive: world(66.75, 107.25),
     negative: world(80, 107.25),
     world,
@@ -199,7 +277,7 @@ for (const rotation of [0, 90, 180, 270] as const)
         flush();
         let fresh: Awaited<ReturnType<typeof browser.newContext>> | undefined;
         let projectId = '';
-        const responseCopies: Promise<void>[] = [];
+        const responseCopies: Record<string, unknown>[] = [];
         const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
         const observeNative = async (targetPage: Page, pageName: string) => {
           await targetPage.exposeFunction('__e06Receipt', (receipt: unknown) => {
@@ -259,13 +337,29 @@ for (const rotation of [0, 90, 180, 270] as const)
               method: response.request().method(),
             };
             (journal.responses as unknown[]).push(record);
-            if (new URL(response.url()).pathname.startsWith(`/api/projects/${projectId}`))
-              responseCopies.push(
-                response.text().then((body) => {
-                  record.body = body;
-                  flush();
-                }),
-              );
+            if (new URL(response.url()).pathname.startsWith(`/api/projects/${projectId}`)) {
+              record.bodyStatus = 'PENDING';
+              responseCopies.push(record);
+              void response
+                .text()
+                .then(
+                  (body) => {
+                    record.body = body;
+                    record.bodyStatus = 'CAPTURED';
+                    flush();
+                  },
+                  (error) => {
+                    record.bodyStatus = 'NOT_AVAILABLE';
+                    record.bodyError = String(error);
+                    flush();
+                  },
+                )
+                .catch((error) => {
+                  record.bodyStatus = 'NOT_AVAILABLE';
+                  record.bodyError = String(error);
+                  console.error('E06 response original persistence failed', error);
+                });
+            }
             flush();
           }
         });
@@ -283,6 +377,8 @@ for (const rotation of [0, 90, 180, 270] as const)
                 screen.x > 0 && screen.x < innerWidth && screen.y > 0 && screen.y < innerHeight,
               hit: hit?.outerHTML,
               wire: hit?.closest('[data-wire-id]')?.getAttribute('data-wire-id'),
+              component: hit?.closest('[data-component-id]')?.getAttribute('data-component-id'),
+              reading: hit?.closest('.workbench-regulated-supply-reading')?.textContent,
               control: hit
                 ?.closest(
                   '.workbench-regulated-supply-knob,.workbench-regulated-supply-power-switch',
@@ -349,6 +445,7 @@ for (const rotation of [0, 90, 180, 270] as const)
           if (await collapse.count()) await collapse.click();
           await target.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
         };
+        let primaryFailure: unknown;
         try {
           await page.setViewportSize({ width: 1440, height: 900 });
           await loginWithOrganization(page, teacher);
@@ -401,6 +498,18 @@ for (const rotation of [0, 90, 180, 270] as const)
             id: 'supply-positive',
           });
           expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          const negativeApproach = await client(page, fixture.negativeSample);
+          phase('negative-native-approach', negativeApproach);
+          await page.screenshot({ path: info.outputPath('psu-entry-negative-native.png') });
+          expect(negativeApproach.visible && negativeApproach.finite).toBe(true);
+          expect(negativeApproach.wire).toBe('supply-negative');
+          await page.mouse.click(negativeApproach.x, negativeApproach.y);
+          expect((await psuEntryLocal(page, projectId)).selection).toMatchObject({
+            kind: 'wire',
+            id: 'supply-negative',
+          });
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          await page.mouse.click(approach.x, approach.y);
           await page.mouse.dblclick(approach.x, approach.y);
           await expect(
             page.locator('[data-testid="wire-vertex"][data-wire-id="supply-positive"]'),
@@ -541,6 +650,169 @@ for (const rotation of [0, 90, 180, 270] as const)
           await page.screenshot({ path: info.outputPath('psu-entry-pending-native.png') });
           await page.keyboard.press('Escape');
           expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          const pendingHistory = (await psuEntryLocal(page, projectId)).history;
+          for (const terminal of ['positive', 'negative'] as const)
+            for (const direction of ['starting', 'arriving'] as const) {
+              const sourcePart = direction === 'starting' ? 'bench-supply' : 'load';
+              const sourceTerminal = direction === 'starting' ? terminal : 'lead-1';
+              const source = await page
+                .locator(
+                  `[data-terminal-component-id="${sourcePart}"][data-terminal-id="${sourceTerminal}"]`,
+                )
+                .boundingBox();
+              if (!source) throw new Error('Native pending source unavailable');
+              await page.mouse.click(source.x + source.width / 2, source.y + source.height / 2);
+              if (direction === 'arriving') {
+                const bend = await client(page, fixture.world(200, 107.25));
+                await page.mouse.click(bend.x, bend.y);
+              }
+              const target = await client(
+                page,
+                direction === 'starting' ? fixture.world(200, 107.25) : fixture[terminal],
+              );
+              expect(target.visible && target.finite).toBe(true);
+              await page.mouse.move(target.x, target.y, { steps: 5 });
+              await expect(page.locator('[data-psu-pending-entry]')).toHaveCount(1);
+              const pending = await page.locator('[data-psu-pending-entry]').evaluate((node) => {
+                const path = node as SVGPathElement;
+                const length = path.getTotalLength();
+                return {
+                  d: path.getAttribute('d'),
+                  length,
+                  points: Array.from({ length: 9 }, (_, index) => {
+                    const p = path.getPointAtLength((length * index) / 8);
+                    return { x: p.x, y: p.y };
+                  }),
+                };
+              });
+              phase(`pending-${direction}-${terminal}`, {
+                pending,
+                local: await psuEntryLocal(page, projectId),
+                target,
+              });
+              await page.screenshot({
+                path: info.outputPath(`psu-entry-pending-${direction}-${terminal}.png`),
+              });
+              expect(pending.length).toBeGreaterThan(0);
+              expect(
+                pending.points.every((point) => Object.values(point).every(Number.isFinite)),
+              ).toBe(true);
+              const anchor = fixture[terminal];
+              expect(pending.points[0]!.x).toBeCloseTo(anchor.x, 8);
+              expect(pending.points[0]!.y).toBeCloseTo(anchor.y, 8);
+              const state = await psuEntryLocal(page, projectId);
+              expect(state.pendingTerminal).toEqual({
+                componentId: sourcePart,
+                terminal: sourceTerminal,
+              });
+              if (direction === 'arriving')
+                expect(state.reconnectHover).toEqual({ componentId: 'bench-supply', terminal });
+              expect(state.document).toEqual(initial);
+              expect(state.history).toEqual(pendingHistory);
+              expect(journal.puts).toEqual([]);
+              await page.keyboard.press('Escape');
+              await expect(page.locator('[data-psu-pending-entry]')).toHaveCount(0);
+              expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+              expect((await psuEntryLocal(page, projectId)).history).toEqual(pendingHistory);
+              expect(journal.puts).toEqual([]);
+            }
+          for (const group of [false, true]) {
+            await page.keyboard.press('Escape');
+            let body = await client(page, fixture.world(100, 47.5));
+            expect(body.component).toBe('bench-supply');
+            expect(body.control).toBeUndefined();
+            expect(body.wire).toBeUndefined();
+            await page.mouse.click(body.x, body.y);
+            if (group) {
+              const load = await page
+                .locator('[data-terminal-component-id="load"][data-terminal-id="lead-1"]')
+                .boundingBox();
+              if (!load) throw new Error('Native group member unavailable');
+              await page.keyboard.down('Shift');
+              await page.mouse.click(load.x + load.width / 2, load.y + load.height / 2);
+              await page.keyboard.up('Shift');
+              expect((await psuEntryLocal(page, projectId)).selection).toMatchObject({
+                kind: 'component',
+                ids: expect.arrayContaining(['bench-supply', 'load']),
+              });
+            }
+            body = await client(page, fixture.world(100, 47.5));
+            const clipsBefore = body.clips;
+            await page.mouse.move(body.x, body.y);
+            await page.mouse.down();
+            await page.mouse.move(body.x + 20, body.y + 15, { steps: 5 });
+            await expect(page.locator('.workbench-canvas')).toHaveAttribute(
+              'data-component-dragging',
+              'true',
+            );
+            const preview = await client(page, fixture.sample);
+            phase(group ? 'native-group-preview' : 'native-component-preview', preview);
+            await page.screenshot({
+              path: info.outputPath(`psu-entry-${group ? 'group' : 'component'}-preview.png`),
+            });
+            expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+            expect(preview.clips).not.toEqual(clipsBefore);
+            const entries = preview.paths.filter(
+              (path) => path.local && path.class === 'workbench-wire',
+            );
+            expect(entries).toHaveLength(2);
+            expect(
+              entries.every(
+                (path) =>
+                  path.length > 0 &&
+                  path.samples.every(
+                    (point) =>
+                      Number.isFinite(point.x) &&
+                      Number.isFinite(point.y) &&
+                      point.error !== null &&
+                      point.error < 0.001,
+                  ),
+              ),
+            ).toBe(true);
+            await page.mouse.up();
+            const [ma, mb, mc, md] = body.matrix;
+            const det = ma! * md! - mb! * mc!;
+            const delta = {
+              x: Math.round(((md! * 20 - mc! * 15) / det) * 1000) / 1000,
+              y: Math.round(((ma! * 15 - mb! * 20) / det) * 1000) / 1000,
+            };
+            const ids = group ? ['bench-supply', 'load'] : ['bench-supply'];
+            const moved = {
+              ...initial,
+              components: initial.components.map((part) =>
+                ids.includes(part.id)
+                  ? {
+                      ...part,
+                      position: { x: part.position.x + delta.x, y: part.position.y + delta.y },
+                      holeBindings: {},
+                    }
+                  : part,
+              ),
+              connections: initial.connections.map((wire) =>
+                group
+                  ? {
+                      ...wire,
+                      vertices: wire.vertices!.map((point) => ({
+                        x: point.x + delta.x,
+                        y: point.y + delta.y,
+                      })),
+                    }
+                  : wire,
+              ),
+            };
+            phase(
+              group ? 'native-group-committed' : 'native-component-committed',
+              await psuEntryLocal(page, projectId),
+            );
+            expect((await psuEntryLocal(page, projectId)).document).toEqual(moved);
+            expect(moved.connections.map((wire) => ({ ...wire, vertices: [] }))).toEqual(
+              initial.connections.map((wire) => ({ ...wire, vertices: [] })),
+            );
+            expect(journal.puts).toEqual([]);
+            await page.getByRole('button', { name: /Отменить/ }).click();
+            expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+            expect((await client(page, fixture.sample)).clips).toEqual(clipsBefore);
+          }
           for (const [name, point] of [
             ['voltage', fixture.world(117, 26.5)],
             ['current', fixture.world(117, 72.5)],
@@ -550,6 +822,42 @@ for (const rotation of [0, 90, 180, 270] as const)
             phase(`control-${name}-ownership`, hit);
             expect(hit.visible && hit.finite).toBe(true);
             expect(hit.control).toContain(name === 'power' ? 'power-switch' : `${name}-knob`);
+          }
+          for (const [name, point, value, property] of [
+            ['voltage', fixture.world(127, 26.5), 25, 'voltageSetpointVolt'],
+            ['current', fixture.world(127, 72.5), 4.17, 'currentLimitAmp'],
+          ] as const) {
+            const hit = await client(page, point);
+            expect(hit.control).toContain(`${name}-knob`);
+            await page.mouse.click(hit.x, hit.y);
+            const changed = {
+              ...initial,
+              components: initial.components.map((part) =>
+                part.id === 'bench-supply'
+                  ? {
+                      ...part,
+                      ...(name === 'voltage' ? { value } : {}),
+                      stateProperties: { ...part.stateProperties, [property]: value },
+                    }
+                  : part,
+              ),
+            };
+            phase(`native-${name}-action`, await psuEntryLocal(page, projectId));
+            expect((await psuEntryLocal(page, projectId)).document).toEqual(changed);
+            await page.getByRole('button', { name: /Отменить/ }).click();
+            expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          }
+          for (const point of [fixture.world(49.5, 27.5), fixture.world(49.5, 72)]) {
+            const reading = await client(page, point);
+            phase('readout-native-shield', reading);
+            expect(reading.visible && reading.finite).toBe(true);
+            expect(reading.wire).toBeUndefined();
+            expect(reading.reading).toBeTruthy();
+            await page.mouse.click(reading.x, reading.y);
+            expect((await psuEntryLocal(page, projectId)).selection).not.toMatchObject({
+              kind: 'wire',
+            });
+            expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
           }
           const power = await client(page, fixture.world(23.75, 107.5));
           await page.mouse.click(power.x, power.y);
@@ -640,23 +948,28 @@ for (const rotation of [0, 90, 180, 270] as const)
           expect(journal.puts).toHaveLength(1);
           journal.checkpoint = 'complete';
         } catch (error) {
+          primaryFailure = error;
           journal.primaryFailure = error instanceof Error ? error.stack : String(error);
-          if (projectId)
-            journal.failureLocal = await psuEntryLocal(page, projectId).catch((error) => ({
-              error: String(error),
-            }));
-          await page
-            .screenshot({ path: info.outputPath('psu-entry-primary-failure-native.png') })
-            .catch(() => undefined);
-          throw error;
+          journal.failureCheckpoint = journal.checkpoint;
+          // Persist before any optional capture, attachment, collector or close.
+          try {
+            flush();
+          } catch (writeError) {
+            console.error('E06 primary persistence failed', writeError);
+          }
         } finally {
-          await Promise.all(responseCopies);
-          flush();
-          await info.attach('psu-entry-originals', {
-            path: original,
-            contentType: 'application/json',
-          });
-          await fresh?.close();
+          await psuEntryFinalize(
+            journal,
+            flush,
+            primaryFailure,
+            responseCopies,
+            () =>
+              info.attach('psu-entry-originals', {
+                path: original,
+                contentType: 'application/json',
+              }),
+            () => fresh?.close() ?? Promise.resolve(),
+          );
         }
       },
     );

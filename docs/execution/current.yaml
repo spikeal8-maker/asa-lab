@@ -581,7 +581,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_psu_entry_source_and_strict_browser_witness
+      checkpoint: r1_pending_destination_and_primary_failure_preservation
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -590,9 +590,10 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
       - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Only localized visible/hittable approach of existing wire to regulated PSU terminals
-        and matching drag/pending preview; no global wire lift or second electrical entity. Exact card budget,
-        strict built BEFORE/AFTER, new independent source and product reviews. No Arduino/full466 closure.
+      repair_scope: Only existing workbench-drag-preview.ts canonical pending destination, existing presentation
+        unit, new E06 simulation e2 evidence/coverage and unchanged generated browser digest. Stage and
+        geometry byte-exactfe919. Preserve all old assertions/physics/timeouts/foreign candidates; no new
+        resolver/runtime state/asset changes.
       acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
       source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
       historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
@@ -606,11 +607,24 @@ parallel_lanes:
         Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
         actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
         sources remain immutable and no simultaneous overlapping writer is authorized.
-      next_action: NEW bounded implementer implements only this selected PSU-entry slice and strict real
-        browser witness, meaningful local checks/self-review/full foreign-tree proof and ONE unpublished
-        SHA thenSTOP. Root actual verification and NEW independent source challenge before ONE genuine frozen
-        built BEFORE; only valid expected original defect permits AFTER, required exact gates and NEW independent
-        PRODUCT review. No school actions;552 conflict decision pending independently.
+      next_action: NEW bounded R1 author inherits canonical main proper merge preserving fe919 and all foreign
+        bytes. Repair canonical pending target in preview only; real regression both directions/terminals
+        and robust primary FAIL evidence before awaits. PreserveStage/geometry and oldcases; unchanged generator
+        browserdigest only. One local frozen dependency install permitted if needed to restore exact installed
+        graph, no school/services. Narrow checks/self-review/ONEunpublishedSHA thenSTOP. Root actual checks
+        and NEW independent SOURCE review before genuine frozen BEFORE/AFTER; final exact gates/NEW PRODUCT
+        review mandatory. Keep466OPEN, no school actions.
+      preserved_candidate_sha: fe9193b947076b8e2d006044d24c907ce2c62f43
+      preserved_candidate_tree: b31cb876ef3b433308bcdd1288cf6d1bf3c521c1
+      candidate_branch: codex/electronics-e06-psu-entry
+      independent_source_challenge: 'REQUEST_CHANGES: missing canonical pending arrival to PSU; primary
+        FAIL not flushed before browser awaits and unguarded collector masks original.'
+      independent_source_report_sha256: 3741474256e97d96661cbb64231d391b87defd56d46ef38e5647675d32e3e992
+      independent_source_manifest_sha256: 0855af4aa830a377301ba1eba29601b9962aa94866dc015cde9373e040ddc48f
+      independent_source_review: docs/product/electronics/evidence/psu-wire-entry-e06-source-review-fe9193b9.md
+      independent_source_actual: Root verified12external10Git reviewer originals; separately48author originals+6Git/3940foreign/sourcepreservation.
+        Actual installed lock differs only API pngjs importer;4physicalweb/testpackageversions exact, no
+        complete local frozen-graph claim. No browser/CI sourceacceptance yet.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -1085,16 +1099,16 @@ parallel_lanes:
       owner_agreed_append_digest_conflicts: true
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+      convergence_baseline_sha: 7bf4722f45d64c1298b3db2d02ba7d6222e4ac62
       head_sha: null
-      observed_at: '2026-10-11T20:51:10.032920+00:00'
+      observed_at: '2026-10-11T21:59:18.937810+00:00'
       main:
         branch: main
-        sha: 7e75954ae4d01102376b361ffba4fde9c8713707
-      observation_note: Dated E06 selection after accepted553e132 all8SUCCESS/newAPPROVE/root original checks
-        and553 CLOSED. Closeout7e759 General38173652849 still in_progress at selection, not PASS. Fresh
-        fetch main and actual exact CI before writes.548 full snapshot and blockers preserved;552 requires
-        separate owner-coordinated final composition. No school deployment/DB/server/network/backup actions.
+        sha: 7bf4722f45d64c1298b3db2d02ba7d6222e4ac62
+      observation_note: 'Dated R1 selection: fetch main and exact CI before writes.7bf General38177385130
+        in_progress/PENDING; unfinished not PASS.16a901 General38176028705 all4SUCCESS. fe919 unpublished/noCI;
+        NEW independent source REQUEST_CHANGES with actual counterexample. 552R3clean7baehandoff; all startup/foreign
+        task/card/blockers exact. No school deployment/DB/server/network/backup actions.'
     execution_lease:
       executor_id: electronics-asset-baseline-548
       holder: unassigned
@@ -2224,6 +2238,63 @@ parallel_lanes:
       reason: R2 experiment completed NO_PROVEN_CAUSE; retain all sources/originals and blockers. No repeated
         experiment or548repair selected. Programme controller selects independently proven existing E06
         PSU-entry slice.
+    - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+      issue: 466
+      task:
+        id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+        issue: 466
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: bounded_psu_entry_source_and_strict_browser_witness
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E06 connected/pending PSU terminal approach only
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+        - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: Only localized visible/hittable approach of existing wire to regulated PSU terminals
+          and matching drag/pending preview; no global wire lift or second electrical entity. Exact card
+          budget, strict built BEFORE/AFTER, new independent source and product reviews. No Arduino/full466
+          closure.
+        acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
+        source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
+        historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
+        historical_visual_run: 38007826968
+        current_render_layers_byte_equal_historical: true
+        production_slices_since_hygiene556: 1
+        shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
+          Existing simulation test add only this scenario; generator only canonical digest, no package/workflow/lock/CSS/owner
+          assets. Check every worktree dirty path before writing.
+        scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
+          Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected
+          card; actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
+          sources remain immutable and no simultaneous overlapping writer is authorized.
+        next_action: NEW bounded implementer implements only this selected PSU-entry slice and strict real
+          browser witness, meaningful local checks/self-review/full foreign-tree proof and ONE unpublished
+          SHA thenSTOP. Root actual verification and NEW independent source challenge before ONE genuine
+          frozen built BEFORE; only valid expected original defect permits AFTER, required exact gates and
+          NEW independent PRODUCT review. No school actions;552 conflict decision pending independently.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+        head_sha: null
+        observed_at: '2026-10-11T20:51:10.032920+00:00'
+        main:
+          branch: main
+          sha: 7e75954ae4d01102376b361ffba4fde9c8713707
+        observation_note: Dated E06 selection after accepted553e132 all8SUCCESS/newAPPROVE/root original
+          checks and553 CLOSED. Closeout7e759 General38173652849 still in_progress at selection, not PASS.
+          Fresh fetch main and actual exact CI before writes.548 full snapshot and blockers preserved;552
+          requires separate owner-coordinated final composition. No school deployment/DB/server/network/backup
+          actions.
+      reason: 'Preserve first E06candidatefe919 and all originals. NEW source REQUEST_CHANGES: canonical
+        arriving pending endpoint missing and primary browser failure can be masked. Select one minimal
+        R1 repair, no full466 closure.'
   - id: chess
     worktree_id: chess-r2-puzzles-learning
     owned_paths:
@@ -4279,7 +4350,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_owner_approved_final_composition_new_exact_review
+      checkpoint: r3_test_only_native_resume_worker_admission_witness
       kind: repair
       owner_acceptance: pending
       program_issue: 452
@@ -4287,42 +4358,44 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: Final composition of held29f5 and selected main, preserving hook/unit/e2e byte-exact29f5;
-        only TWO owner-approved manual conflicts package commands and ui-assets mappings using exact reviewed
-        proposals; workflow automatic merge. No product/test/physics/timeout/dependency rewrite.
+      repair_scope: TEST ONLY e2e/electronics-startup-audio.spec.ts on preserved b813 composition. Add passive
+        SAME native resume settlement/rejection and actual Worker preflight order for trusted native suspend/warm
+        Run; preserve strict7 natural/PCM/wholeSaveCAS/cookies/primary FAIL assertions. No product hook/unit/package/map/workflow/physics/timeout/dependency
+        changes. Genuine discriminating BEFORE required; nondiscriminating native behaviour is NOT_PROVED,
+        no hopeful rerun.
       acceptance_boundary: Conditional mechanism only; original school cause and full E12 remain unproved.
       parallel_preservation: Preserve all accepted repairs and candidates525/537/538/544/546/547/549; no
         overlapping dirty writers.
       shared_write_contract: Only additive exact audio hook/test map and browser script/workflow registration;
         unchanged generator only if required. Check actual dirty paths first.
-      next_action: 'NEW bounded integration author: inherit canonical main with proper merge, preserve29f5
-        product/unit/e2e and every foreign path, apply ONLY approved exact package/map proposals and automatic
-        workflow merge. Narrow checks/discovery7/foreign proof/self-review/ONE unpublished SHA then STOP.
-        Root actual checks and NEW source reviewer, genuine frozen built BEFORE/AFTER/nativePCM/fullSaveCAS/cookies,
-        required exact gates and NEW PRODUCT review. Acceptance blocker retained until all evidence. No
-        school actions.'
-      preserved_candidate_sha: 29f5d21e18b6c0577dc03fb7d0b3f65ecd2c1241
-      preserved_candidate_tree: 06e2c524955394f2a34ede467a38c403ef4428ac
-      candidate_branch: codex/electronics-552-r1-primary-finalization
+      next_action: NEW bounded TEST ONLY author inherits canonical R3 main via proper merge preserving b813
+        and all foreign bytes. Passive original native resume/settlement/request identities and genuine
+        warm Run, no fake/deferred promise/audio/Worker, no timeout weakening. ONE unpublished SHA with
+        narrow checks/self-review/full originals thenSTOP. Root actual verification, NEW source reviewer,
+        ONE genuine frozen built BEFORE thenAFTER onlyifvalid, required final exact gates and NEW PRODUCT
+        review. Any nondiscriminating behaviour NOT_PROVED/no hopeful rerun; no school actions.
+      preserved_candidate_sha: b813d82b9be32747efeafd3ffe7af87e3e093374
+      preserved_candidate_tree: 4cbfba07e7e99d9a503bd4f7171500b84a62b435
+      candidate_branch: codex/electronics-552-r2-approved-composition
       candidate_publication: unpublished
       candidate_acceptance: pending
       original_author_candidate_sha: 3c609e10a7fa86a4a3dbf5b7f19981ccecbaf447
-      independent_source_challenge: R1b SOURCE_READY only; NEW exact composition/source and product reviews
-        required
+      independent_source_challenge: R2 REQUEST_CHANGES only missing built conditional witness; scope/composition
+        and15oracle challenges PASS. No product rewrite.
       native_pcm_prerequisite_issue: 553
       native_pcm_prerequisite_evidence: docs/product/electronics/evidence/piezo-clock-553-prerequisite.md
       actual_implementation: Only optional native resume settling removed from startup prerequisite. Same
         final7 controlled mounted tests3FAIL4PASS before/7PASS after; root50originalhashes/6sourcehashes/3884foreign/inverses
         verified. Natural built before-after/nativePCM/final exact CI/review NOT_RUN; no school cause/frequency
         claim.
-      independent_source_report_sha256: 0924cf533e846d26ca6cae92545625b3b497fc8238f540731c5e09905b1bdee4
-      independent_source_manifest_sha256: b6248e006fbe4c46ca10f30de1d12a97e334ae9d48c1b98671e9b0c09cce8627
-      independent_findings: P1 actual extracted assertFrames accepts readyLED0/generation1 with UI100/newgeneration2;
-        test predicate counterexample only. P2 finally awaits browser snapshot before raw write and may
-        lose original/mask primary assertion. Product hook no confirmed source defect.
-      independent_source_actual: Root verified84 external originals+22 exact Git originals, composition11
-        originals; read actual witness/finally. Reviewer independently7 mounted testsPASS. Source806a unpublished/no
-        exact CI; not accepted.
+      independent_source_report_sha256: e21490033ba7bb0963417b34fbe1d33f2a5230afd0bda25f74d0dfd27f86d6c6
+      independent_source_manifest_sha256: 02026dd0621e1027a10d01b7e30142e43a07d46b67ce350bc83c4ab3eba85abb
+      independent_findings: P1 existing7 natural cases can all pass old await; no resume settlement or actual
+        pending/order at Worker preflight. Native suspend/warm route is a candidate witness, not proven
+        Chrome behaviour.
+      independent_source_actual: Root verified57 external+25Git originals and15actual extracted oracle/failure
+        challenges; separately R2 author45external25Git12physicalpackages/3942foreign preserved. No new
+        built run or product acceptance.
       native_pcm_prerequisite_accepted_sha: e1328940fd215b1aec48975c33d42bda22e01e2e
       native_pcm_prerequisite_review: docs/product/electronics/evidence/piezo-clock-553-r5-independent-review-e1328940.md
       preserved_r1b_source_ready_sha: 29f5d21e18b6c0577dc03fb7d0b3f65ecd2c1241
@@ -4333,6 +4406,7 @@ parallel_lanes:
       approved_package_proposal_sha256: f4b12a1bdeb5f6aedbd66a4dc0319b339d69306e70809696582abf1ffc057425
       approved_ui_map_proposal_sha256: ace5ddcaf506e1505a1c9570bcb190c191d724a28933ab772f9017fd4eee6c76
       school_actions: deferred_by_owner; no installation access/update/backup requests in this slice
+      independent_source_review: docs/product/electronics/evidence/startup-audio-552-r2-independent-source-b813d82b.md
     execution_lease:
       executor_id: electronics-audio-startup-barrier-552
       holder: unassigned
@@ -4354,17 +4428,17 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: aca142ed9e2b5a3ea2fda201a38ba1fcd96df00d
+      convergence_baseline_sha: 16a901b9f9eaeea48bd02abc3d8692ddab4d42e7
       head_sha: null
-      observed_at: '2026-10-11T21:20:44.135877+00:00'
+      observed_at: '2026-10-11T21:40:16.191415+00:00'
       main:
         branch: main
-        sha: aca142ed9e2b5a3ea2fda201a38ba1fcd96df00d
-      observation_note: 'Dated R2 canonical selection: fetch main and exact CI before writes. aca General38174038330
-        all4SUCCESS;553 sourcee132 all8SUCCESS/NEW PRODUCT APPROVE/IssueCLOSED. Owner approved TWO exact
-        prepared conflicts; held29f5 SOURCE_READY only. New composition has no final evidence yet. Every
-        foreign lane, E06 task/card, suspended history and acceptance/deployment blockers preserved. School-dependent
-        work deferred by owner.'
+        sha: 16a901b9f9eaeea48bd02abc3d8692ddab4d42e7
+      observation_note: 'Dated R3 test-only selection: fetch main and exact CI before writes.16a901 General38176028705
+        current completed/success; unfinished jobs not PASS. Candidateb813 unpublished/noCI. NEW independent
+        REQUEST_CHANGES only builtconditionalwitness; accepted553554 and ownerapprovedcomposition preserved.
+        E06 task/card and all blockers foreign state exact. School-dependent work deferred, no installation
+        actions.'
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001
       issue: 552
@@ -4439,6 +4513,86 @@ parallel_lanes:
       reason: Preserve complete R1/R1b history. Owner explicitly approved the two prepared package/map conflicts
         after553 acceptance; selected R2 is final composition only. Old source-ready is not new product
         acceptance.
+    - task_id: TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001
+      issue: 552
+      task:
+        id: TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001
+        issue: 552
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r2_owner_approved_final_composition_new_exact_review
+        kind: repair
+        owner_acceptance: pending
+        program_issue: 452
+        owner_problem: E12
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: Final composition of held29f5 and selected main, preserving hook/unit/e2e byte-exact29f5;
+          only TWO owner-approved manual conflicts package commands and ui-assets mappings using exact reviewed
+          proposals; workflow automatic merge. No product/test/physics/timeout/dependency rewrite.
+        acceptance_boundary: Conditional mechanism only; original school cause and full E12 remain unproved.
+        parallel_preservation: Preserve all accepted repairs and candidates525/537/538/544/546/547/549;
+          no overlapping dirty writers.
+        shared_write_contract: Only additive exact audio hook/test map and browser script/workflow registration;
+          unchanged generator only if required. Check actual dirty paths first.
+        next_action: 'NEW bounded integration author: inherit canonical main with proper merge, preserve29f5
+          product/unit/e2e and every foreign path, apply ONLY approved exact package/map proposals and automatic
+          workflow merge. Narrow checks/discovery7/foreign proof/self-review/ONE unpublished SHA then STOP.
+          Root actual checks and NEW source reviewer, genuine frozen built BEFORE/AFTER/nativePCM/fullSaveCAS/cookies,
+          required exact gates and NEW PRODUCT review. Acceptance blocker retained until all evidence. No
+          school actions.'
+        preserved_candidate_sha: 29f5d21e18b6c0577dc03fb7d0b3f65ecd2c1241
+        preserved_candidate_tree: 06e2c524955394f2a34ede467a38c403ef4428ac
+        candidate_branch: codex/electronics-552-r1-primary-finalization
+        candidate_publication: unpublished
+        candidate_acceptance: pending
+        original_author_candidate_sha: 3c609e10a7fa86a4a3dbf5b7f19981ccecbaf447
+        independent_source_challenge: R1b SOURCE_READY only; NEW exact composition/source and product reviews
+          required
+        native_pcm_prerequisite_issue: 553
+        native_pcm_prerequisite_evidence: docs/product/electronics/evidence/piezo-clock-553-prerequisite.md
+        actual_implementation: Only optional native resume settling removed from startup prerequisite. Same
+          final7 controlled mounted tests3FAIL4PASS before/7PASS after; root50originalhashes/6sourcehashes/3884foreign/inverses
+          verified. Natural built before-after/nativePCM/final exact CI/review NOT_RUN; no school cause/frequency
+          claim.
+        independent_source_report_sha256: 0924cf533e846d26ca6cae92545625b3b497fc8238f540731c5e09905b1bdee4
+        independent_source_manifest_sha256: b6248e006fbe4c46ca10f30de1d12a97e334ae9d48c1b98671e9b0c09cce8627
+        independent_findings: P1 actual extracted assertFrames accepts readyLED0/generation1 with UI100/newgeneration2;
+          test predicate counterexample only. P2 finally awaits browser snapshot before raw write and may
+          lose original/mask primary assertion. Product hook no confirmed source defect.
+        independent_source_actual: Root verified84 external originals+22 exact Git originals, composition11
+          originals; read actual witness/finally. Reviewer independently7 mounted testsPASS. Source806a
+          unpublished/no exact CI; not accepted.
+        native_pcm_prerequisite_accepted_sha: e1328940fd215b1aec48975c33d42bda22e01e2e
+        native_pcm_prerequisite_review: docs/product/electronics/evidence/piezo-clock-553-r5-independent-review-e1328940.md
+        preserved_r1b_source_ready_sha: 29f5d21e18b6c0577dc03fb7d0b3f65ecd2c1241
+        native_pcm_dependency_status: 553 technically accepted;552 own final composition and built/nativePCM/fullSave/exact
+          gates/NEW review still required
+        owner_conflict_decision: 'Explicit user reply: Да, сохранить все части и проверить новый SHA. TWO
+          prepared package/ui-assets conflicts only;553 accepted first.'
+        approved_package_proposal_sha256: f4b12a1bdeb5f6aedbd66a4dc0319b339d69306e70809696582abf1ffc057425
+        approved_ui_map_proposal_sha256: ace5ddcaf506e1505a1c9570bcb190c191d724a28933ab772f9017fd4eee6c76
+        school_actions: deferred_by_owner; no installation access/update/backup requests in this slice
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: aca142ed9e2b5a3ea2fda201a38ba1fcd96df00d
+        head_sha: null
+        observed_at: '2026-10-11T21:20:44.135877+00:00'
+        main:
+          branch: main
+          sha: aca142ed9e2b5a3ea2fda201a38ba1fcd96df00d
+        observation_note: 'Dated R2 canonical selection: fetch main and exact CI before writes. aca General38174038330
+          all4SUCCESS;553 sourcee132 all8SUCCESS/NEW PRODUCT APPROVE/IssueCLOSED. Owner approved TWO exact
+          prepared conflicts; held29f5 SOURCE_READY only. New composition has no final evidence yet. Every
+          foreign lane, E06 task/card, suspended history and acceptance/deployment blockers preserved. School-dependent
+          work deferred by owner.'
+      reason: 'Preserve full owner-approved R2 composition b813 and all originals. NEW independent source
+        REQUEST_CHANGES: only built conditional regression witness missing, no new product defect. Select
+        one test-only R3 repair.'
 integration:
   owner_lane: visual-programming
   shared_paths:

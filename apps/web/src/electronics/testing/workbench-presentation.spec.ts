@@ -134,6 +134,53 @@ describe('local terminal approach geometry', () => {
           ),
         ).toBe(true);
         expect(presentation.pending.map((entry) => entry.terminal)).toEqual(['positive']);
+        const original = JSON.stringify(initial);
+        const loadEndpoint = initial.connections[0]!.to;
+        const loadPoint = terminalPositionInDocument(
+          initial,
+          initial.components[1]!,
+          loadEndpoint.terminal,
+        )!;
+        for (const [terminal, anchor] of [
+          ['positive', positive],
+          ['negative', negative],
+        ] as const)
+          for (const arriving of [false, true]) {
+            const psuEndpoint = { componentId: 'bench-supply', terminal };
+            const pending = {
+              pendingStart: arriving ? loadPoint : anchor,
+              wirePreviewEnd: arriving ? anchor : loadPoint,
+              wirePreviewVertices: [],
+              pendingTerminal: arriving ? loadEndpoint : psuEndpoint,
+              reconnectHover: arriving ? psuEndpoint : null,
+            };
+            const actual = psuEntryPresentation(initial, initial.components[0]!, routes, pending)!;
+            expect(actual.pending.map((entry) => entry.terminal)).toEqual([terminal]);
+            expect(actual.pending[0]!.path.startsWith(`M ${anchor.x} ${anchor.y}`)).toBe(true);
+            expect(actual.pending[0]!.path).not.toMatch(/NaN|Infinity/);
+            const returned = psuEntryPresentation(initial, initial.components[0]!, routes, {
+              pendingStart: anchor,
+              wirePreviewEnd: anchor,
+              wirePreviewVertices: [],
+              pendingTerminal: psuEndpoint,
+              reconnectHover: psuEndpoint,
+            })!;
+            expect(returned.pending.map((entry) => entry.terminal)).toEqual([terminal]);
+            expect(
+              psuEntryPresentation(initial, initial.components[0]!, routes, {
+                ...pending,
+                pendingStart: null,
+              })!.pending,
+            ).toEqual([]);
+            if (arriving)
+              expect(
+                psuEntryPresentation(initial, initial.components[0]!, routes, {
+                  ...pending,
+                  reconnectHover: null,
+                })!.pending,
+              ).toEqual([]);
+            expect(JSON.stringify(initial)).toBe(original);
+          }
       }
   });
   it('moves and restores the clipped path and its body clip during an actual preview draw', () => {
@@ -298,6 +345,112 @@ describe('local terminal approach geometry', () => {
     expect(wireTerminalApproachPath([{ x: 30, y: 40 }], [corners[0], corners[0], corners[0]])).toBe(
       '',
     );
+  });
+});
+
+describe('E06 exact primary failure path', () => {
+  const filename = resolve(process.cwd(), 'e2e/electronics-simulation.spec.ts');
+  const text = readFileSync(filename, 'utf8');
+  const source = ts.createSourceFile(filename, text, ts.ScriptTarget.Latest, true);
+  const finalize = source.statements.find(
+    (node) => ts.isFunctionDeclaration(node) && node.name?.text === 'psuEntryFinalize',
+  )!;
+  let journey: ts.TryStatement | undefined;
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isTryStatement(node) &&
+      node.catchClause?.getText(source).includes('primaryFailure = error;')
+    )
+      journey = node;
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  const compiled = ts.transpileModule(
+    `${finalize.getText(source)}
+    return async function(journal, flush, primary, responseCopies, info, fresh) {
+      let primaryFailure;
+      try { throw primary; } ${journey!.catchClause!.getText(source)}
+      finally ${journey!.finallyBlock!.getText(source)}
+    };`,
+    {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    },
+  ).outputText;
+  const run = new Function(compiled)() as (
+    journal: Record<string, unknown>,
+    flush: () => void,
+    primary: Error,
+    responses: Record<string, unknown>[],
+    info: { attach: () => Promise<void> },
+    fresh: { close: () => Promise<void> },
+  ) => Promise<void>;
+  for (const bodyStatus of ['NOT_AVAILABLE', 'PENDING'])
+    for (const closeKind of ['reject', 'hang', 'throw'])
+      it(`preserves the original primary with collector ${bodyStatus} and cleanup ${closeKind}`, async () => {
+        const primary = new Error('PRIMARY_NATIVE_WIRE_OWNERSHIP_FAIL');
+        const journal: Record<string, unknown> = { checkpoint: 'native-selected', responses: [] };
+        const snapshots: Record<string, unknown>[] = [];
+        let attachCalls = 0,
+          closeCalls = 0;
+        const flush = () => snapshots.push(JSON.parse(JSON.stringify(journal)));
+        const result = run(
+          journal,
+          flush,
+          primary,
+          [{ bodyStatus, bodyError: 'RESPONSE_COPY_REJECTION' }],
+          {
+            attach: () => {
+              attachCalls++;
+              throw new Error('ATTACH_FAILURE');
+            },
+          },
+          {
+            close: () => {
+              closeCalls++;
+              expect(snapshots[0]!.primaryFailure).toBe(primary.stack);
+              expect(snapshots[0]!.failureCheckpoint).toBe('native-selected');
+              if (closeKind === 'throw') throw new Error('CLOSE_THROW');
+              return closeKind === 'reject'
+                ? Promise.reject(new Error('CLOSE_REJECTION'))
+                : new Promise(() => {});
+            },
+          },
+        );
+        await expect(result).rejects.toBe(primary);
+        expect(attachCalls).toBe(0);
+        expect(closeCalls).toBe(1);
+        expect(journal.primaryFailure).toBe(primary.stack);
+        expect(journal.failureCheckpoint).toBe('native-selected');
+        expect(snapshots.every((snapshot) => snapshot.primaryFailure === primary.stack)).toBe(true);
+        expect(journal.secondaryOutcomes).toMatchObject({
+          snapshot: { status: 'NOT_AVAILABLE' },
+          png: { status: 'NOT_AVAILABLE' },
+        });
+      });
+  it('fails closed on incomplete response originals without a pupil primary', async () => {
+    const finish = new Function(
+      ts.transpileModule(`${finalize.getText(source)}\nreturn psuEntryFinalize;`, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText,
+    )() as (...args: unknown[]) => Promise<void>;
+    for (const bodyStatus of ['PENDING', 'NOT_AVAILABLE']) {
+      const journal: Record<string, unknown> = { checkpoint: 'complete' };
+      const copies: unknown[] = [];
+      await expect(
+        finish(
+          journal,
+          () => copies.push(JSON.parse(JSON.stringify(journal))),
+          undefined,
+          [{ bodyStatus }],
+          () => {
+            throw new Error('MUST_NOT_ATTACH_INCOMPLETE');
+          },
+          () => new Promise(() => {}),
+        ),
+      ).rejects.toThrow('E06 response originals incomplete');
+      expect(copies.length).toBeGreaterThan(0);
+      expect(journal.primaryFailure).toContain('E06 response originals incomplete');
+    }
   });
 });
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
