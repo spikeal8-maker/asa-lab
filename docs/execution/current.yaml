@@ -3355,6 +3355,64 @@ parallel_lanes:
         commands:
           - pnpm gate:repository
 
+  - id: electronics-startup
+    parent_lane: electronics
+    worktree_id: electronics-audio-startup-barrier-552
+    owned_paths:
+      - apps/web/src/electronics/use-piezo-audio.ts
+      - apps/web/src/electronics/testing/piezo-audio.spec.ts
+      - e2e/electronics-startup-audio.spec.ts
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001.md
+    task:
+      id: TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001
+      issue: 552
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_optional_audio_startup_repair_selected
+      kind: repair
+      owner_acceptance: pending
+      program_issue: 452
+      owner_problem: E12
+      context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: Only optional native audio resume must not hold canonical electrical startup.
+      acceptance_boundary: Conditional mechanism only; original school cause and full E12 remain unproved.
+      parallel_preservation: Preserve all accepted repairs and candidates525/537/538/544/546/547/549; no overlapping dirty writers.
+      shared_write_contract: Only additive exact audio hook/test map and browser script/workflow registration; unchanged generator only if required. Check actual dirty paths first.
+      next_action: One new bounded author, actual source and same built pupil before-after, exact gates and NEW independent final reviewer; no school actions.
+    execution_lease:
+      executor_id: electronics-audio-startup-barrier-552
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+          - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 4ccfbce1511b42cc65fe4310d4aabb8cbbf1edb9
+      head_sha: null
+      observed_at: '2026-10-11T10:58:52.429515+00:00'
+      main:
+        branch: main
+        sha: 4ccfbce1511b42cc65fe4310d4aabb8cbbf1edb9
+      observation_note: Dated snapshot only; fresh main exact General38133085477 pending at selection. Conditional audio barrier actual source, not school frequency. Fetch main and read actual exact-SHA CI before writes; no acceptance/deployment claim.
+
 integration:
   owner_lane: visual-programming
   shared_paths:
