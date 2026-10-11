@@ -83,6 +83,9 @@ Docker Desktop; зарегистрированные файлы туннеля, 
   в API и [фильтром regexp Caddy](https://caddyserver.com/docs/caddyfile/directives/log#regexp).
   Отдельный runtime logger Caddy также исключает request и response headers:
   upstream 502 не должен сохранять query или заголовки запроса.
+  Для закреплённого Caddy 2.10.2 используются `orig_uri.path` и `orig_method`:
+  путь сохраняется до внутренних rewrite, без неподдерживаемого префикса `<`
+  в имени поля. Скрытие токена применяется к обоим logger, включая upstream 502.
 - Браузерная очередь ограничена 50 событиями и 15 минутами. В sessionStorage
   сохраняется только проверенный конверт диагностики со случайными eventId,
   instanceId и временем события; содержимое проекта и сообщения исключений
