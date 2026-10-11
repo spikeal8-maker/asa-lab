@@ -2419,7 +2419,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_test_only_schema_valid_normalized_piezo_fixtures
+      checkpoint: r4_test_only_complete_fixture_and_page_scoped_worker_oracles
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2428,10 +2428,10 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
       dependency_for_issue: 552
-      repair_scope: 'R3 TEST ONLY e2e/electronics-piezo-clock.spec.ts: replace two invalid shorthand wire colours
-        with equivalent six-digit colours and construct normalized complete fixtures with the existing parser
-        before seeding. Prevalidate all3 fixtures and parser idempotence locally before any browser; preserve
-        all physical values, identities, topology, original active source and full equality/CAS/native assertions.'
+      repair_scope: 'R4 TEST ONLY e2e/electronics-piezo-clock.spec.ts: explicitly include four existing passive
+        editor-default properties before parser/API seeding and scope recorded real Worker request-response
+        identity by browser page. Preserve all original physical values, topology, Arduino and strict whole
+        equality/CAS/native PCM/ready/yielded assertions. No product/runtime/timeout changes.'
       shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552 source
         preserved and its separate browser witness repair coordinated only after independent finding.548 ONLYoldinteractions/549
         ONLYnewoutline. Actual dirty-path checks, no shared writes over another author.
@@ -2439,10 +2439,11 @@ parallel_lanes:
       scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all legacy
         owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact card
         write path including shared registrations.
-      next_action: Preserve published8b955 and invalid R2 BEFORE1d42/run38145345087. New bounded test-only author,
-        one automatic current-main inheritance conflict STOP; actual parser conformance for all3 source fixtures,
-        exact source inverse/frozen6/foreign-tree/narrow+selfreview/hashmanifest thenSTOP. NEW independent exact
-        source/fixture review before ONE strict corrected BEFORE; no AFTER without valid runtime fault.
+      next_action: Preserve published9396 and valid R3 BEFORE084d/run38153898162; R3 AFTERfb6d/run38155253389
+        has genuine native sound and page-correct ready frames but fails two proven test oracles. One bounded
+        test-only author; explicit complete independent fixtures and page-scoped fail-closed joins with
+        directed counterexamples, narrow checks/selfreview/hashmanifest thenSTOP. NEW independent source
+        review before one corrected same-bytes BEFORE and AFTER. Shared-path convergence requires coordination.
       preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual accepted
         production count2 since542, hygiene006 due after third accepted product before later new product phase.
         No school operations.
