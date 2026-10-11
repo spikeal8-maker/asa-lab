@@ -3,6 +3,7 @@ import { writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
+import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
 import type {
   ElectronicsSimulationWorkerRequest,
   ElectronicsSimulationWorkerResponse,
@@ -48,7 +49,7 @@ type Publication = {
 };
 type Scenario = 'original-active' | 'piezo-passive-buzzer' | 'piezo-disc';
 
-function fixture(scenario: Scenario): SchematicDocument {
+function rawFixture(scenario: Scenario): SchematicDocument {
   if (scenario === 'original-active') return ORIGINAL_ACTIVE;
   return {
     schemaVersion: 4,
@@ -114,19 +115,25 @@ function fixture(scenario: Scenario): SchematicDocument {
         from: { componentId: 'uno', terminal: 'power-5v' },
         to: { componentId: 'resistor', terminal: 'lead-1' },
         vertices: [],
-        color: '#f00',
+        color: '#ff0000',
       },
       {
         id: 'load-negative',
         from: { componentId: 'resistor', terminal: 'lead-2' },
         to: { componentId: 'uno', terminal: 'power-gnd-1' },
         vertices: [],
-        color: '#000',
+        color: '#000000',
       },
     ],
     viewport: { x: 0, y: 0, zoom: 1 },
     simulation: { running: false, maxIterations: 24 },
   };
+}
+
+function fixture(scenario: Scenario) {
+  const parsed = parseElectronicsDocument(rawFixture(scenario));
+  if (!parsed.ok) throw new Error('Invalid piezo fixture ' + scenario + ': ' + parsed.message);
+  return parsed.document;
 }
 
 function evidence(info: TestInfo, scenario: Scenario) {
@@ -639,6 +646,9 @@ async function draft(page: Page, id: string) {
 let admin: pg.Pool;
 test.use({ trace: 'on' });
 test.beforeAll(() => {
+  for (const scenario of ['original-active', 'piezo-passive-buzzer', 'piezo-disc'] as const) {
+    fixture(scenario);
+  }
   admin = e2eAdminPool();
 });
 test.afterAll(async () => {
@@ -707,8 +717,8 @@ for (const scenario of ['original-active', 'piezo-passive-buzzer', 'piezo-disc']
       await value.fill('333.3');
       await expect(value).toHaveValue('333.3');
       const expected = {
-        ...initial.draft.document,
-        components: initial.draft.document.components.map((part) =>
+        ...fixture(scenario),
+        components: fixture(scenario).components.map((part) =>
           part.id === 'resistor' ? { ...part, value: 333.3 } : part,
         ),
       };
