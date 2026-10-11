@@ -4,12 +4,663 @@ import { createHash } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
 import pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
+import { parseElectronicsDocument } from '../contexts/electronics/domain/document';
+import { configureProductionLibrary } from '../apps/web/src/electronics/production-manifest-adapter';
+import { normalizeLoadedDocument } from '../apps/web/src/electronics/use-workbench-project-state';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 const ARTIFACT_DIR = 'e2e/artifacts/electronics-simulation';
 const persistenceVideoTest = test.extend({ video: 'on' });
+const psuEntryTest = test.extend({ trace: 'on', screenshot: 'on' });
+
+// A read-only view of the committed production controller, never its callbacks.
+async function psuEntryLocal(page: Page, projectId: string) {
+  return page.locator('.workbench-stage').evaluate((stage, projectId) => {
+    type Fiber = {
+      stateNode?: unknown;
+      child?: Fiber;
+      sibling?: Fiber;
+      return?: Fiber;
+      memoizedProps?: {
+        controller?: {
+          project?: { id: string };
+          document?: SchematicDocument;
+          selection?: unknown;
+        };
+      };
+    };
+    let container: Element | null = stage;
+    let root: Fiber | undefined;
+    while (container && !root) {
+      const key = Object.keys(container).find((key) => key.startsWith('__reactContainer$'));
+      if (key)
+        root = (
+          (container as unknown as Record<string, Fiber>)[key]!.stateNode as { current?: Fiber }
+        )?.current;
+      container = container.parentElement;
+    }
+    const pending = root ? [root] : [];
+    let host: Fiber | undefined;
+    while (pending.length) {
+      const node = pending.pop()!;
+      if (node.stateNode === stage) {
+        host = node;
+        break;
+      }
+      if (node.child) pending.push(node.child);
+      if (node.sibling) pending.push(node.sibling);
+    }
+    for (let node = host?.return; node; node = node.return) {
+      const controller = node.memoizedProps?.controller;
+      if (controller?.project?.id === projectId && controller.document?.schemaVersion === 4)
+        return { document: controller.document, selection: controller.selection };
+    }
+    throw new Error('Current committed PSU controller unavailable');
+  }, projectId);
+}
+
+function psuEntryFixture(rotation: 0 | 90 | 180 | 270, mirror: number) {
+  configureProductionLibrary(
+    JSON.parse(
+      readFileSync(
+        resolve(
+          process.cwd(),
+          'apps/web/public/assets/electronics/component-database/catalog.json',
+        ),
+        'utf8',
+      ),
+    ),
+  );
+  const base = regulatedPowerSupplyDocument();
+  const radians = (rotation * Math.PI) / 180;
+  const cos = Math.round(Math.cos(radians)),
+    sin = Math.round(Math.sin(radians));
+  const width = rotation % 180 ? 118.5 : 147;
+  const height = rotation % 180 ? 147 : 118.5;
+  const world = (x: number, y: number) => {
+    const xx = (mirror & 1 ? 147 - x : x) - 73.5;
+    const yy = (mirror & 2 ? 118.5 - y : y) - 59.25;
+    return { x: 150 + width / 2 + xx * cos - yy * sin, y: 150 + height / 2 + xx * sin + yy * cos };
+  };
+  const board: SchematicDocument['components'][number] = {
+    id: 'uno',
+    kind: 'visual',
+    componentTypeId: 'arduino-uno',
+    variantId: 'arduino-uno',
+    name: 'Arduino Uno',
+    position: { x: 650, y: 430 },
+    value: 5,
+    pinIds: ownerCatalog.components
+      .find((part) => part.componentId === 'arduino-uno')!
+      .pins.map((pin) => pin.id),
+    stateProperties: {},
+  };
+  const source =
+    '// E06 retained original pupil source\nvoid setup(){pinMode(13,OUTPUT);}\nvoid loop(){digitalWrite(13,HIGH);delay(100);}\n';
+  const input: SchematicDocument = {
+    ...base,
+    components: [
+      {
+        ...base.components[0]!,
+        position: { x: 150, y: 150 },
+        rotation,
+        stateProperties: {
+          ...base.components[0]!.stateProperties,
+          mirrorX: Boolean(mirror & 1),
+          mirrorY: Boolean(mirror & 2),
+        },
+      },
+      {
+        ...base.components[1]!,
+        position: { x: 500, y: 300 },
+        stateProperties: {
+          ...base.components[1]!.stateProperties,
+          tolerancePercent: 5,
+          resistanceUnit: 'Ω',
+        },
+      },
+      {
+        ...board,
+        position: { x: 650, y: 430 },
+        stateProperties: {
+          ...board.stateProperties,
+          arduinoCodeMode: 'text',
+          arduinoSource: source,
+          arduinoWorkspace: '{"blocks":{"blocks":[]}}',
+          arduinoSerialOpen: false,
+          arduinoBaudRate: 9600,
+        },
+      },
+    ],
+    connections: base.connections.map((wire, index) => ({
+      ...wire,
+      vertices: index === 0 ? [world(66.75, 95), world(200, 95)] : [world(80, 160)],
+    })),
+  };
+  const parsed = parseElectronicsDocument(normalizeLoadedDocument(input));
+  if (!parsed.ok) throw new Error(parsed.message);
+  const initial: SchematicDocument = JSON.parse(JSON.stringify(parsed.document));
+  const again = parseElectronicsDocument(initial);
+  if (
+    !again.ok ||
+    JSON.stringify(again.document) !== JSON.stringify(initial) ||
+    JSON.stringify(normalizeLoadedDocument(initial)) !== JSON.stringify(initial)
+  )
+    throw new Error('E06 fixture must be parser/editor stable before API');
+  return {
+    initial,
+    sample: world(120, 95),
+    positive: world(66.75, 107.25),
+    negative: world(80, 107.25),
+    world,
+  };
+}
+
+for (const rotation of [0, 90, 180, 270] as const)
+  for (const [mirror, width] of [
+    [0, 1440],
+    [1, 1024],
+    [2, 390],
+    [3, 320],
+  ] as const) {
+    psuEntryTest(
+      `ELECTRONICS-E06 local PSU wire entry native selection preview and whole Save ${rotation}/${mirror} at ${width}px`,
+      async ({ page, browser }, info) => {
+        test.setTimeout(120_000);
+        const fixture = psuEntryFixture(rotation, mirror);
+        const { initial } = fixture;
+        const expected = {
+          ...initial,
+          components: initial.components.map((part) =>
+            part.id === 'load' ? { ...part, value: 333.3 } : part,
+          ),
+        };
+        const journal: Record<string, unknown> = {
+          rotation,
+          mirror,
+          width,
+          initial,
+          expected,
+          checkpoint: 'prepared',
+          receipts: [],
+          phases: [],
+          puts: [],
+          responses: [],
+        };
+        const original = info.outputPath('psu-entry-originals.json');
+        const flush = () => writeFileSync(original, JSON.stringify(journal, null, 2));
+        const phase = (name: string, value: unknown) => {
+          (journal.phases as unknown[]).push({ name, value });
+          journal.checkpoint = name;
+          flush();
+        };
+        flush();
+        let fresh: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+        let projectId = '';
+        const responseCopies: Promise<void>[] = [];
+        const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+        const observeNative = async (targetPage: Page, pageName: string) => {
+          await targetPage.exposeFunction('__e06Receipt', (receipt: unknown) => {
+            (journal.receipts as unknown[]).push({ page: pageName, receipt });
+            flush();
+          });
+          await targetPage.addInitScript(() => {
+            for (const type of ['pointerdown', 'pointerup'])
+              document.addEventListener(
+                type,
+                (event) => {
+                  const e = event as PointerEvent;
+                  const target = e.target as Element;
+                  void (
+                    window as unknown as Window & {
+                      __e06Receipt: (receipt: unknown) => Promise<void>;
+                    }
+                  ).__e06Receipt({
+                    type,
+                    trusted: e.isTrusted,
+                    clientX: e.clientX,
+                    clientY: e.clientY,
+                    at: performance.now(),
+                    target: target.outerHTML,
+                    ancestors: Array.from(
+                      (function* () {
+                        for (let node: Element | null = target; node; node = node.parentElement)
+                          yield node;
+                      })(),
+                    ).map((node) => ({
+                      tag: node.tagName,
+                      testid: node.getAttribute('data-testid'),
+                      wire: node.getAttribute('data-wire-id'),
+                      component: node.getAttribute('data-component-id'),
+                    })),
+                  });
+                },
+                true,
+              );
+          });
+        };
+        await observeNative(page, 'initial');
+        page.on('request', (request) => {
+          if (
+            request.method() === 'PUT' &&
+            new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+          ) {
+            (journal.puts as unknown[]).push(request.postDataJSON());
+            flush();
+          }
+        });
+        page.on('response', (response) => {
+          if (new URL(response.url()).pathname.startsWith('/api/')) {
+            const record: Record<string, unknown> = {
+              url: response.url(),
+              status: response.status(),
+              method: response.request().method(),
+            };
+            (journal.responses as unknown[]).push(record);
+            if (new URL(response.url()).pathname.startsWith(`/api/projects/${projectId}`))
+              responseCopies.push(
+                response.text().then((body) => {
+                  record.body = body;
+                  flush();
+                }),
+              );
+            flush();
+          }
+        });
+        const client = async (target: Page, point: { x: number; y: number }) =>
+          target.locator('.workbench-canvas').evaluate((svg, point) => {
+            const matrix = (svg as SVGSVGElement).getScreenCTM();
+            if (!matrix) throw new Error('Native stage CTM missing');
+            const screen = new DOMPoint(point.x, point.y).matrixTransform(matrix);
+            const hit = document.elementFromPoint(screen.x, screen.y);
+            return {
+              x: screen.x,
+              y: screen.y,
+              finite: Number.isFinite(screen.x) && Number.isFinite(screen.y),
+              visible:
+                screen.x > 0 && screen.x < innerWidth && screen.y > 0 && screen.y < innerHeight,
+              hit: hit?.outerHTML,
+              wire: hit?.closest('[data-wire-id]')?.getAttribute('data-wire-id'),
+              control: hit
+                ?.closest(
+                  '.workbench-regulated-supply-knob,.workbench-regulated-supply-power-switch',
+                )
+                ?.getAttribute('class'),
+              matrix: [matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f],
+              clips: Array.from(svg.querySelectorAll('clipPath')).map((clip) => clip.outerHTML),
+              terminals: Array.from(
+                svg.querySelectorAll<SVGCircleElement>(
+                  '[data-terminal-component-id="bench-supply"]',
+                ),
+              ).map((terminal) => {
+                const transform = terminal.getScreenCTM();
+                return {
+                  id: terminal.dataset['terminalId'],
+                  markup: terminal.outerHTML,
+                  transform: transform
+                    ? [transform.a, transform.b, transform.c, transform.d, transform.e, transform.f]
+                    : null,
+                };
+              }),
+              paths: Array.from(
+                svg.querySelectorAll<SVGPathElement>(
+                  'path[data-wire-id], [data-psu-wire-entry] path, [data-psu-pending-entry]',
+                ),
+              ).map((path) => {
+                const wire =
+                  path.getAttribute('data-wire-id') ??
+                  path.parentElement?.getAttribute('data-wire-id');
+                const main = wire
+                  ? svg.querySelector<SVGPathElement>(
+                      `[data-testid="schematic-wire"][data-wire-id="${CSS.escape(wire)}"]`,
+                    )
+                  : null;
+                const length = path.getTotalLength();
+                const samples = Array.from({ length: 17 }, (_, index) => {
+                  const distance = (length * index) / 16;
+                  const local = path.getPointAtLength(distance);
+                  const canonical = main?.getPointAtLength(distance);
+                  return {
+                    distance,
+                    x: local.x,
+                    y: local.y,
+                    error: canonical
+                      ? Math.hypot(local.x - canonical.x, local.y - canonical.y)
+                      : null,
+                  };
+                });
+                return {
+                  d: path.getAttribute('d'),
+                  wire,
+                  class: path.getAttribute('class'),
+                  local: Boolean(path.closest('[data-psu-wire-entry]')),
+                  length,
+                  samples,
+                };
+              }),
+              overflow:
+                document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+            };
+          }, point);
+        const fit = async (target: Page) => {
+          const collapse = target.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
+          if (await collapse.count()) await collapse.click();
+          await target.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+        };
+        try {
+          await page.setViewportSize({ width: 1440, height: 900 });
+          await loginWithOrganization(page, teacher);
+          projectId = await createProject(page, `E06 ${rotation}/${mirror}/${width}`);
+          const beforeSeed = await e01Server(page, projectId);
+          const seedRequest = {
+            document: initial,
+            baseRevision: beforeSeed.draft.revision,
+            mutationId: crypto.randomUUID(),
+          };
+          const seedResponse = await page
+            .context()
+            .request.put(`/api/projects/${projectId}/draft`, {
+              headers: { origin: new URL(page.url()).origin },
+              data: seedRequest,
+            });
+          phase('seed-originals', {
+            request: seedRequest,
+            status: seedResponse.status(),
+            response: await seedResponse.text(),
+          });
+          expect(seedResponse.status()).toBe(200);
+          const seeded = await e01Server(page, projectId);
+          phase('seeded', seeded);
+          expect(seeded.draft.document).toEqual(initial);
+          (journal.puts as unknown[]).length = 0;
+          await page.setViewportSize({ width, height: 900 });
+          await page.goto(`/#/home/${projectId}`);
+          await expect(page.locator('.workbench-stage')).toBeVisible();
+          await fit(page);
+          phase('initial-local', await psuEntryLocal(page, projectId));
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          const approach = await client(page, fixture.sample);
+          phase('before-native-approach-assertion', approach);
+          await page.screenshot({ path: info.outputPath('psu-entry-connected-native.png') });
+          expect(approach.finite && approach.visible).toBe(true);
+          expect(approach.overflow).toBe(false);
+          expect(approach.terminals).toHaveLength(2);
+          expect(
+            approach.terminals.every((terminal) => terminal.transform?.every(Number.isFinite)),
+          ).toBe(true);
+          // This is an existing electrical wire at an independently calculated
+          // owner coordinate. BEFORE fails on actual body ownership, not a new id.
+          await page.mouse.click(approach.x, approach.y);
+          phase('native-selected', await psuEntryLocal(page, projectId));
+          await page.screenshot({ path: info.outputPath('psu-entry-selected-native.png') });
+          expect(approach.wire).toBe('supply-positive');
+          expect((await psuEntryLocal(page, projectId)).selection).toMatchObject({
+            kind: 'wire',
+            id: 'supply-positive',
+          });
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          await page.mouse.dblclick(approach.x, approach.y);
+          await expect(
+            page.locator('[data-testid="wire-vertex"][data-wire-id="supply-positive"]'),
+          ).toHaveCount(3);
+          const bent = (await psuEntryLocal(page, projectId)).document;
+          phase('native-added-bend', bent);
+          const inserted = { x: Math.round(fixture.sample.x), y: Math.round(fixture.sample.y) };
+          const bentExpected = {
+            ...initial,
+            connections: initial.connections.map((wire) =>
+              wire.id === 'supply-positive'
+                ? { ...wire, vertices: [wire.vertices![0]!, inserted, wire.vertices![1]!] }
+                : wire,
+            ),
+          };
+          expect(bent).toEqual(bentExpected);
+          const vertex = page.locator(
+            '[data-testid="wire-vertex"][data-wire-id="supply-positive"][data-wire-vertex-index="1"]',
+          );
+          const box = await vertex.boundingBox();
+          if (!box) throw new Error('Native bend not visible');
+          const beforePath = await page
+            .locator('[data-testid="schematic-wire"][data-wire-id="supply-positive"]')
+            .getAttribute('d');
+          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+          await page.keyboard.down('Alt');
+          await page.mouse.down();
+          await page.mouse.move(box.x + box.width / 2 + 25, box.y + box.height / 2 + 20, {
+            steps: 5,
+          });
+          await expect(page.locator('.workbench-canvas')).toHaveAttribute(
+            'data-wire-dragging',
+            'true',
+          );
+          await expect(
+            page.locator('[data-testid="schematic-wire"][data-wire-id="supply-positive"]'),
+          ).not.toHaveAttribute('d', beforePath!);
+          const dragging = await client(page, fixture.sample);
+          phase('drag-in-progress', dragging);
+          await page.screenshot({ path: info.outputPath('psu-entry-drag-native.png') });
+          const canonical = dragging.paths.find(
+            (path) => path.wire === 'supply-positive' && path.class === 'workbench-wire',
+          )?.d;
+          const localPaths = dragging.paths.filter(
+            (path) => path.wire === 'supply-positive' && path.class === 'workbench-wire',
+          );
+          expect(canonical).toBeTruthy();
+          expect(localPaths.length).toBe(2);
+          expect(localPaths[1]!.local).toBe(true);
+          expect(localPaths[1]!.length).toBeGreaterThan(0);
+          expect(
+            localPaths[1]!.samples.every(
+              (sample) =>
+                Number.isFinite(sample.x) &&
+                Number.isFinite(sample.y) &&
+                sample.error !== null &&
+                sample.error < 0.001,
+            ),
+          ).toBe(true);
+          await page.mouse.up();
+          await page.keyboard.up('Alt');
+          const dragged = (await psuEntryLocal(page, projectId)).document;
+          phase('native-drag-committed', dragged);
+          expect(dragged.components).toEqual(initial.components);
+          expect(dragged.connections.map((wire) => ({ ...wire, vertices: [] }))).toEqual(
+            initial.connections.map((wire) => ({ ...wire, vertices: [] })),
+          );
+          expect(dragged.connections[0]!.vertices).toHaveLength(3);
+          expect(dragged.connections[0]!.vertices![1]).not.toEqual(inserted);
+          expect([
+            dragged.connections[0]!.vertices![0],
+            dragged.connections[0]!.vertices![2],
+          ]).toEqual(initial.connections[0]!.vertices);
+          expect(dragged.connections[1]).toEqual(initial.connections[1]);
+          expect(dragged.viewport).toEqual(initial.viewport);
+          expect(dragged.simulation).toEqual(initial.simulation);
+          const [a, b, c, d] = dragging.matrix;
+          const determinant = a! * d! - b! * c!;
+          const intended = {
+            x: inserted.x + (d! * 25 - c! * 20) / determinant,
+            y: inserted.y + (a! * 20 - b! * 25) / determinant,
+          };
+          phase('drag-native-intent', intended);
+          expect(dragged.connections[0]!.vertices![1]!.x).toBeCloseTo(intended.x, 3);
+          expect(dragged.connections[0]!.vertices![1]!.y).toBeCloseTo(intended.y, 3);
+          expect(Object.values(dragged.connections[0]!.vertices![1]!).every(Number.isFinite)).toBe(
+            true,
+          );
+          await page.getByRole('button', { name: /Отменить/ }).click();
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(bentExpected);
+          await page.getByRole('button', { name: /Отменить/ }).click();
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          await page.mouse.click(approach.x, approach.y);
+          const end = page.locator(
+            '[data-testid="wire-endpoint"][data-wire-id="supply-positive"][data-wire-endpoint="from"]',
+          );
+          const endpoint = await end.boundingBox();
+          const destination = page.locator(
+            '[data-terminal-component-id="bench-supply"][data-terminal-id="negative"]',
+          );
+          const negative = await destination.boundingBox();
+          if (!endpoint || !negative) throw new Error('Native endpoint geometry unavailable');
+          await page.mouse.move(endpoint.x + endpoint.width / 2, endpoint.y + endpoint.height / 2);
+          await page.mouse.down();
+          await page.mouse.move(negative.x + negative.width / 2, negative.y + negative.height / 2, {
+            steps: 5,
+          });
+          await expect(destination.locator('..')).toHaveClass(/drop-target/);
+          phase('reconnect-in-progress', await client(page, fixture.negative));
+          await page.mouse.up();
+          const reconnected = {
+            ...initial,
+            connections: initial.connections.map((wire) =>
+              wire.id === 'supply-positive'
+                ? { ...wire, from: { componentId: 'bench-supply', terminal: 'negative' } }
+                : wire,
+            ),
+          };
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(reconnected);
+          phase('native-reconnected', reconnected);
+          await page.getByRole('button', { name: /Отменить/ }).click();
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          await page.keyboard.press('Escape');
+          const positive = await page
+            .locator('[data-terminal-component-id="bench-supply"][data-terminal-id="positive"]')
+            .boundingBox();
+          if (!positive) throw new Error('Native terminal unavailable');
+          await page.mouse.click(positive.x + positive.width / 2, positive.y + positive.height / 2);
+          const outside = await client(page, fixture.world(200, 107.25));
+          await page.mouse.move(outside.x, outside.y);
+          await expect(page.locator('[data-psu-pending-entry]')).toHaveCount(1);
+          expect(
+            await page
+              .locator('[data-psu-pending-entry]')
+              .evaluate((node) => (node as SVGPathElement).getTotalLength()),
+          ).toBeGreaterThan(0);
+          phase('pending-native', await client(page, fixture.sample));
+          await page.screenshot({ path: info.outputPath('psu-entry-pending-native.png') });
+          await page.keyboard.press('Escape');
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          for (const [name, point] of [
+            ['voltage', fixture.world(117, 26.5)],
+            ['current', fixture.world(117, 72.5)],
+            ['power', fixture.world(23.75, 107.5)],
+          ] as const) {
+            const hit = await client(page, point);
+            phase(`control-${name}-ownership`, hit);
+            expect(hit.visible && hit.finite).toBe(true);
+            expect(hit.control).toContain(name === 'power' ? 'power-switch' : `${name}-knob`);
+          }
+          const power = await client(page, fixture.world(23.75, 107.5));
+          await page.mouse.click(power.x, power.y);
+          await expect(
+            component(page, 'regulated-power-supply').getByTestId('regulated-power-supply-runtime'),
+          ).toHaveAttribute('data-output-enabled', 'true');
+          await page.mouse.click(power.x, power.y);
+          await expect(
+            component(page, 'regulated-power-supply').getByTestId('regulated-power-supply-runtime'),
+          ).toHaveAttribute('data-output-enabled', 'false');
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+          await page.mouse.dblclick(approach.x, approach.y);
+          phase('run-lock', await psuEntryLocal(page, projectId));
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
+          await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          expect(journal.puts).toEqual([]);
+          const resistance = await e01Resistance(page);
+          if (width <= 980) {
+            const toggle = page.getByRole('button', { name: 'Каталог деталей', exact: true });
+            if ((await toggle.getAttribute('aria-pressed')) === 'true') await toggle.click();
+          }
+          await resistance.fill('333.3');
+          expect((await psuEntryLocal(page, projectId)).document).toEqual(expected);
+          await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+          await expect
+            .poll(async () => (await e01Server(page, projectId)).draft.document)
+            .toEqual(expected);
+          const saved = await e01Server(page, projectId);
+          phase('whole-saved', saved);
+          expect(saved.draft.revision).toBe(seeded.draft.revision + 1);
+          expect(journal.puts).toEqual([
+            expect.objectContaining({ document: expected, baseRevision: seeded.draft.revision }),
+          ]);
+          expect(await e01LocalDraft(page, projectId)).toBeNull();
+          fresh = await browser.newContext({
+            baseURL: new URL(page.url()).origin,
+            viewport: { width, height: 900 },
+          });
+          await fresh.addCookies(await page.context().cookies());
+          const reopened = await fresh.newPage();
+          await observeNative(reopened, 'cookies-only');
+          reopened.on('request', (request) => {
+            if (
+              request.method() === 'PUT' &&
+              new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+            ) {
+              (journal.puts as unknown[]).push(request.postDataJSON());
+              flush();
+            }
+          });
+          const reopenFailures = collectBrowserFailures(reopened, {
+            allowAnonymousSessionProbe: true,
+          });
+          await reopened.goto(`/#/home/${projectId}`);
+          await expect(reopened.locator('.workbench-stage')).toBeVisible();
+          expect(
+            await reopened.evaluate(() =>
+              Object.keys(localStorage).filter((key) => key.startsWith('asa-project-local-draft:')),
+            ),
+          ).toEqual([]);
+          expect((await psuEntryLocal(reopened, projectId)).document).toEqual(expected);
+          expect((await e01Server(reopened, projectId)).draft).toEqual(saved.draft);
+          await fit(reopened);
+          const reopenedApproach = await client(reopened, fixture.sample);
+          phase('cookies-only-reopen', {
+            local: await psuEntryLocal(reopened, projectId),
+            server: await e01Server(reopened, projectId),
+            approach: reopenedApproach,
+          });
+          expect(reopenedApproach.wire).toBe('supply-positive');
+          expect(
+            reopenedApproach.visible && reopenedApproach.finite && !reopenedApproach.overflow,
+          ).toBe(true);
+          await reopened.mouse.click(reopenedApproach.x, reopenedApproach.y);
+          expect((await psuEntryLocal(reopened, projectId)).selection).toMatchObject({
+            kind: 'wire',
+            id: 'supply-positive',
+          });
+          await reopened.screenshot({ path: info.outputPath('psu-entry-cookies-native.png') });
+          reopenFailures.assertEmpty();
+          failures.assertEmpty();
+          expect(
+            (journal.receipts as Array<{ receipt: { trusted: boolean } }>).every(
+              (event) => event.receipt.trusted,
+            ),
+          ).toBe(true);
+          expect(journal.puts).toHaveLength(1);
+          journal.checkpoint = 'complete';
+        } catch (error) {
+          journal.primaryFailure = error instanceof Error ? error.stack : String(error);
+          if (projectId)
+            journal.failureLocal = await psuEntryLocal(page, projectId).catch((error) => ({
+              error: String(error),
+            }));
+          await page
+            .screenshot({ path: info.outputPath('psu-entry-primary-failure-native.png') })
+            .catch(() => undefined);
+          throw error;
+        } finally {
+          await Promise.all(responseCopies);
+          flush();
+          await info.attach('psu-entry-originals', {
+            path: original,
+            contentType: 'application/json',
+          });
+          await fresh?.close();
+        }
+      },
+    );
+  }
 
 let admin: pg.Pool;
 let teacher: SeededTeacher;

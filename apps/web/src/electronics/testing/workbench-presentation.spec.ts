@@ -1,8 +1,305 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  wireTerminalApproachPath,
+  roundedWirePath,
+  wireSegmentAtPoint,
+} from '../workbench-geometry';
+import {
+  createComponentDragPreview,
+  psuWireApproaches,
+  psuEntryPresentation,
+  translatedDragDocument,
+} from '../workbench-drag-preview';
+import { configureProductionLibrary } from '../production-manifest-adapter';
+import { terminalPositionInDocument } from '../workbench-document';
+import type { SchematicDocument } from '../../api';
+import ts from 'typescript';
+import { normalizeLoadedDocument } from '../use-workbench-project-state';
+import { parseElectronicsDocument } from '@asa-lab/electronics';
 
 const electronicsRoot = resolve(process.cwd(), 'apps/web/src/electronics');
+
+describe('local terminal approach geometry', () => {
+  it('uses the nearest canonical segment for the local native hit', () => {
+    const points = [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 20 },
+    ];
+    expect(wireSegmentAtPoint(points, { x: 3, y: 1 })).toBe(0);
+    expect(wireSegmentAtPoint(points, { x: 11, y: 15 })).toBe(1);
+    expect(
+      wireSegmentAtPoint(
+        [
+          { x: 0, y: 0 },
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+        { x: 5, y: 1 },
+      ),
+    ).toBe(1);
+  });
+  it('validates the exact browser fixtures and independent owner coordinates before any API seed', () => {
+    const path = resolve(process.cwd(), 'e2e/electronics-simulation.spec.ts');
+    const text = readFileSync(path, 'utf8');
+    const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+    const names = new Set(['psuEntryFixture', 'regulatedPowerSupplyDocument']);
+    const declarations = source.statements
+      .filter(
+        (statement) => ts.isFunctionDeclaration(statement) && names.has(statement.name?.text ?? ''),
+      )
+      .map((statement) => statement.getText(source))
+      .join('\n');
+    const ownerCatalog = JSON.parse(
+      readFileSync(
+        resolve(process.cwd(), 'apps/web/public/assets/electronics/owner-catalog/manifest.json'),
+        'utf8',
+      ),
+    );
+    const compiled = ts.transpileModule(declarations, {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText;
+    const fixture = new Function(
+      'configureProductionLibrary',
+      'readFileSync',
+      'resolve',
+      'normalizeLoadedDocument',
+      'parseElectronicsDocument',
+      'ownerCatalog',
+      'breadboardPinIds',
+      `${compiled}\nreturn psuEntryFixture;`,
+    )(
+      configureProductionLibrary,
+      readFileSync,
+      resolve,
+      normalizeLoadedDocument,
+      parseElectronicsDocument,
+      ownerCatalog,
+      ownerCatalog.components
+        .find((component: { componentId: string }) => component.componentId === 'breadboard-medium')
+        .pins.map((pin: { id: string }) => pin.id),
+    ) as (
+      rotation: number,
+      mirror: number,
+    ) => {
+      initial: SchematicDocument;
+      positive: { x: number; y: number };
+      negative: { x: number; y: number };
+    };
+    for (const rotation of [0, 90, 180, 270])
+      for (const mirror of [0, 1, 2, 3]) {
+        const { initial, positive, negative } = fixture(rotation, mirror);
+        expect(initial.components).toHaveLength(3);
+        expect(initial.connections).toHaveLength(2);
+        expect(initial.components[2]!.stateProperties?.['arduinoSource']).toContain(
+          'E06 retained original pupil source',
+        );
+        for (const [terminal, expected] of [
+          ['positive', positive],
+          ['negative', negative],
+        ] as const) {
+          const actual = terminalPositionInDocument(initial, initial.components[0]!, terminal)!;
+          expect(actual.x).toBeCloseTo(expected.x, 10);
+          expect(actual.y).toBeCloseTo(expected.y, 10);
+        }
+        const routes = initial.connections.map((wire) => {
+          const terminal = (endpoint: typeof wire.from) =>
+            terminalPositionInDocument(
+              initial,
+              initial.components.find((part) => part.id === endpoint.componentId)!,
+              endpoint.terminal,
+            )!;
+          return {
+            wire,
+            selected: false,
+            endpoints: [wire.from, wire.to] as const,
+            points: [terminal(wire.from), ...(wire.vertices ?? []), terminal(wire.to)],
+          };
+        });
+        const presentation = psuEntryPresentation(initial, initial.components[0]!, routes, {
+          pendingStart: positive,
+          wirePreviewEnd: routes[0]!.points.at(-1)!,
+          wirePreviewVertices: [],
+          pendingTerminal: initial.connections[0]!.from,
+        })!;
+        expect(presentation.entries.map((entry) => entry.terminal)).toEqual([
+          'positive',
+          'negative',
+        ]);
+        expect(
+          presentation.entries.every(
+            (entry) => entry.path.startsWith('M ') && !/NaN|Infinity/.test(entry.path),
+          ),
+        ).toBe(true);
+        expect(presentation.pending.map((entry) => entry.terminal)).toEqual(['positive']);
+      }
+  });
+  it('moves and restores the clipped path and its body clip during an actual preview draw', () => {
+    configureProductionLibrary(
+      JSON.parse(
+        readFileSync(
+          resolve(
+            process.cwd(),
+            'apps/web/public/assets/electronics/component-database/catalog.json',
+          ),
+          'utf8',
+        ),
+      ),
+    );
+    const document: SchematicDocument = {
+      schemaVersion: 4,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      simulation: { running: false, maxIterations: 24 },
+      components: [
+        {
+          id: 'psu',
+          kind: 'source',
+          componentTypeId: 'regulated-power-supply',
+          position: { x: 100, y: 100 },
+          value: 5,
+        },
+        {
+          id: 'load',
+          kind: 'resistor',
+          componentTypeId: 'resistor-axial',
+          position: { x: 500, y: 300 },
+          value: 100,
+        },
+      ],
+      connections: [
+        {
+          id: 'wire',
+          from: { componentId: 'psu', terminal: 'positive' },
+          to: { componentId: 'load', terminal: 'lead-1' },
+          vertices: [],
+        },
+      ],
+    };
+    const from = terminalPositionInDocument(document, document.components[0]!, 'positive')!;
+    const to = terminalPositionInDocument(document, document.components[1]!, 'lead-1')!;
+    const endpoints = [document.connections[0]!.from, document.connections[0]!.to] as const;
+    expect(psuWireApproaches(document, [from, to], [null, endpoints[1]])).toEqual([]);
+    expect(psuWireApproaches(document, [from, to], [endpoints[1], endpoints[1]])).toEqual([]);
+    const initialEntry = psuWireApproaches(document, [from, to], endpoints)[0]!;
+    expect(psuWireApproaches(document, [to, from], [endpoints[1], endpoints[0]])[0]!.path).toBe(
+      initialEntry.path,
+    );
+    const group = { dataset: { componentId: 'psu', terminal: 'positive' } };
+    const node = (d: string, entry = false) => {
+      const attributes = new Map([['d', d]]);
+      return {
+        attributes,
+        getAttribute: (key: string) => attributes.get(key) ?? null,
+        setAttribute: (key: string, value: string) => attributes.set(key, value),
+        removeAttribute: (key: string) => attributes.delete(key),
+        closest: () => (entry ? group : null),
+      };
+    };
+    const main = node(roundedWirePath([from, to]));
+    const entry = node(initialEntry.path, true);
+    const clip = { ...node(''), dataset: { componentId: 'psu' } };
+    clip.setAttribute('transform', initialEntry.transform);
+    const stage = {
+      dataset: {} as Record<string, string>,
+      querySelectorAll: (selector: string) =>
+        selector === '[data-mounted-terminal]'
+          ? []
+          : selector.includes('data-testid="schematic-component"')
+            ? [clip]
+            : selector.includes('data-testid="schematic-wire"')
+              ? [main]
+              : [entry],
+    } as unknown as SVGSVGElement;
+    vi.stubGlobal('CSS', { escape: (text: string) => text });
+    try {
+      const preview = createComponentDragPreview(stage, document, ['psu']);
+      const delta = { x: 30, y: -20 };
+      preview.draw(delta);
+      const moved = translatedDragDocument(document, ['psu'], delta);
+      const movedFrom = terminalPositionInDocument(moved, moved.components[0]!, 'positive')!;
+      expect(main.getAttribute('d')).toBe(roundedWirePath([movedFrom, to]));
+      expect(entry.getAttribute('d')).toBe(
+        psuWireApproaches(moved, [movedFrom, to], endpoints)[0]!.path,
+      );
+      expect(clip.getAttribute('transform')).toBe(`translate(30 -20) ${initialEntry.transform}`);
+      expect(stage.dataset['componentDragging']).toBe('true');
+      preview.restore();
+      expect(main.getAttribute('d')).toBe(roundedWirePath([from, to]));
+      expect(entry.getAttribute('d')).toBe(initialEntry.path);
+      expect(clip.getAttribute('transform')).toBe(initialEntry.transform);
+      expect(stage.dataset['componentDragging']).toBeUndefined();
+      expect(document.components[0]!.position).toEqual({ x: 100, y: 100 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+  for (const rotation of [0, 90, 180, 270])
+    for (const mirror of [0, 1, 2, 3]) {
+      it(`keeps the exact curved prefix and first exit at ${rotation}/${mirror}`, () => {
+        const radians = (rotation * Math.PI) / 180;
+        const world = (x: number, y: number) => {
+          const xx = mirror & 1 ? 100 - x : x;
+          const yy = mirror & 2 ? 80 - y : y;
+          return {
+            x: 300 + xx * Math.cos(radians) - yy * Math.sin(radians),
+            y: 200 + xx * Math.sin(radians) + yy * Math.cos(radians),
+          };
+        };
+        const corners = [world(0, 0), world(100, 0), world(0, 80)] as const;
+        const points = [
+          world(45, 65),
+          world(70, 65),
+          world(70, 100),
+          world(150, 100),
+          world(50, 40),
+        ];
+        const approach = wireTerminalApproachPath(points, corners);
+        const exit = world(70, 80);
+        const full = roundedWirePath(points);
+        expect(approach).toContain(' Q ');
+        expect(full.startsWith(approach.slice(0, approach.lastIndexOf(' L ')))).toBe(true);
+        const numbers = approach.match(/-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi)!.map(Number);
+        expect(numbers.every(Number.isFinite)).toBe(true);
+        expect(numbers.at(-2)).toBeCloseTo(exit.x, 9);
+        expect(numbers.at(-1)).toBeCloseTo(exit.y, 9);
+        expect(approach).not.toContain(`L ${points[3]!.x} ${points[3]!.y}`);
+      });
+    }
+  it('cuts a rounded corner at the body edge without replacing its curve by a chord', () => {
+    const corners = [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+      { x: 0, y: 80 },
+    ] as const;
+    const approach = wireTerminalApproachPath(
+      [
+        { x: 50, y: 70 },
+        { x: 110, y: 70 },
+        { x: 110, y: 120 },
+      ],
+      corners,
+    );
+    expect(approach).toContain(' Q ');
+    const values = approach.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+    expect(values.at(-2)).toBeCloseTo(100, 9);
+    expect(values.at(-1)).toBeGreaterThan(70);
+    expect(values.at(-1)).toBeLessThan(82);
+    expect(
+      wireTerminalApproachPath(
+        [
+          { x: 120, y: 40 },
+          { x: 30, y: 40 },
+        ],
+        corners,
+      ),
+    ).toBe('');
+    expect(wireTerminalApproachPath([{ x: 30, y: 40 }], [corners[0], corners[0], corners[0]])).toBe(
+      '',
+    );
+  });
+});
 const stageSource = readFileSync(resolve(electronicsRoot, 'WorkbenchStage.tsx'), 'utf8');
 const sidebarSource = readFileSync(resolve(electronicsRoot, 'WorkbenchSidebars.tsx'), 'utf8');
 const headerSource = readFileSync(resolve(electronicsRoot, 'WorkbenchHeader.tsx'), 'utf8');
