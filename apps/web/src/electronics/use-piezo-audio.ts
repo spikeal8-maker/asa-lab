@@ -28,16 +28,11 @@ function stopAllVoices(): void {
   for (const componentId of [...voices.keys()]) stopVoice(componentId);
 }
 
-/** Best-effort initialization from the simulation gesture, not a promise of audible playback. */
+/** Must be called from the simulation button gesture so browser audio policy is honoured. */
 export async function unlockPiezoAudio(): Promise<void> {
   if (typeof window === 'undefined') return;
   audioContext ??= new window.AudioContext();
-  if (audioContext.state === 'suspended') {
-    // Request permission in the native gesture, but optional audio settling must
-    // not hold the electrical Worker. Constructor/synchronous failures still
-    // reach the caller; asynchronous permission failures are consumed here.
-    void audioContext.resume().catch(() => {});
-  }
+  if (audioContext.state === 'suspended') await audioContext.resume();
 }
 
 export function usePiezoAudio(
