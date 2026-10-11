@@ -857,29 +857,38 @@ for (const width of [1440, 1024, 390, 320]) {
       for (const [index, id] of ['resistor', 'led', 'supply', 'uno', 'board'].entries()) {
         await fitAndPlace(page, id);
         await nativeSelect(page, id);
-        const before = expected.components.find((component) => component.id === id)!;
-        const entry = catalogEntry(before)!;
-        const oldSize = renderedSize(entry, before.rotation ?? 0);
-        const rotation = (((before.rotation ?? 0) + (index === 0 ? 90 : 45)) % 360) as NonNullable<
-          typeof before.rotation
-        >;
-        const nextSize = renderedSize(entry, rotation);
+        let transformed = expected.components.find((component) => component.id === id)!;
+        const entry = catalogEntry(transformed)!;
+        // Each real 45-degree action preserves the center. Keep its binary64
+        // operation order; a direct 90-degree or reassociated delta is not exact.
+        for (let step = 0; step < (index === 0 ? 2 : 1); step++) {
+          const oldSize = renderedSize(entry, transformed.rotation ?? 0);
+          const rotation = (((transformed.rotation ?? 0) + 45) % 360) as NonNullable<
+            typeof transformed.rotation
+          >;
+          const nextSize = renderedSize(entry, rotation);
+          const center = {
+            x: transformed.position.x + oldSize.width / 2,
+            y: transformed.position.y + oldSize.height / 2,
+          };
+          transformed = {
+            ...transformed,
+            rotation,
+            position: {
+              x: center.x - nextSize.width / 2,
+              y: center.y - nextSize.height / 2,
+            },
+          };
+        }
+        if (index < 2)
+          transformed = {
+            ...transformed,
+            stateProperties: { ...transformed.stateProperties, mirrorX: true },
+          };
         expected = {
           ...expected,
           components: expected.components.map((component) =>
-            component.id !== id
-              ? component
-              : {
-                  ...component,
-                  rotation,
-                  position: {
-                    x: component.position.x + (oldSize.width - nextSize.width) / 2,
-                    y: component.position.y + (oldSize.height - nextSize.height) / 2,
-                  },
-                  ...(index < 2
-                    ? { stateProperties: { ...component.stateProperties, mirrorX: true } }
-                    : {}),
-                },
+            component.id !== id ? component : transformed,
           ),
         };
         await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
