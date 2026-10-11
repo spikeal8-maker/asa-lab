@@ -346,7 +346,7 @@ def reconcile_runner(install, identity, restart):
     ctl = ["systemctl"] + ([] if system else ["--user"])
     # Validate the user manager exists before writing a unit file.
     command(ctl + ["show-environment"])
-    properties = ['FragmentPath', 'DropInPaths', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'EnvironmentFiles', 'LoadState', 'Transient', 'ExecStart', 'User', 'NoNewPrivileges', 'WorkingDirectory']
+    properties = ['FragmentPath', 'DropInPaths', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'EnvironmentFiles', 'LoadState', 'Transient', 'ExecStart', 'User', 'NoNewPrivileges', 'WorkingDirectory', 'ActiveState', 'SubState']
     raw, code = command(ctl + ['show', '--all', identity['name'], *['--property=' + key for key in properties]], allow_missing=True)
     effective = {}
     for line in raw.splitlines():
@@ -354,8 +354,21 @@ def reconcile_runner(install, identity, restart):
         require(separator and key in properties and key not in effective,
                 'COLLECTOR_RUNNER_IDENTITY', 'Malformed or repeated effective systemd property.')
         effective[key] = value
-    require(set(effective) == set(properties) and effective['LoadState'] in ('loaded', 'not-found') and
-            effective['Transient'] == 'no', 'COLLECTOR_RUNNER_IDENTITY', 'Incomplete or unsupported effective systemd state.')
+    load_state = effective.get('LoadState')
+    missing = ','.join(sorted(set(properties) - set(effective)))
+    if load_state == 'not-found':
+        # A never-loaded Unit does not export the Service/ExecContext vtables;
+        # --all prints empty declared properties, not nonexistent interfaces.
+        absent = dict(LoadState='not-found', Transient='no', FragmentPath='', DropInPaths='',
+                      ActiveState='inactive', SubState='dead')
+        require(code == 0 and not path.exists() and all(effective.get(key) == value for key, value in absent.items()) and
+                all(value in ('', 'no') if key == 'NoNewPrivileges' else value == ''
+                    for key, value in effective.items() if key not in absent),
+                'COLLECTOR_RUNNER_IDENTITY', f'Unproven absent systemd unit; load={load_state}; missing={missing}.')
+        print(f'COLLECTOR_SYSTEMD new unit: inactive/not-found facts verified; missing Service properties={missing or "none"}')
+    else:
+        require(code == 0 and set(effective) == set(properties) and load_state == 'loaded' and effective['Transient'] == 'no',
+                'COLLECTOR_RUNNER_IDENTITY', f'Incomplete or unsupported effective systemd state; load={load_state}; missing={missing}.')
     require(not effective.get('FragmentPath') or effective['FragmentPath'] == str(path),
             'COLLECTOR_RUNNER_IDENTITY', 'Service is loaded from another unit path.')
     require(not any(effective.get(key) for key in properties[1:7]), 'COLLECTOR_RUNNER_IDENTITY',

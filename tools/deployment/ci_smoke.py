@@ -42,7 +42,7 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
     # Existing sudo permission is a property of the disposable GitHub runner,
     # not an automatic privilege elevation performed by the product manager.
     operator = getpass.getuser()
-    collector_cli = ['sudo', '-n', 'env', 'SUDO_USER=' + operator, sys.executable, str(root / 'tools/log_collector.py')]
+    collector_cli = ['sudo', '-n', 'env', 'SUDO_USER=' + operator, 'PYTHONDONTWRITEBYTECODE=1', sys.executable, str(root / 'tools/log_collector.py')]
     run(collector_cli + ['prepare', '--root', str(root), '--profile', 'dev'])
     install = Installation(root, 'dev')
     apply_release_environment(install, release)
@@ -236,6 +236,12 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
                 run(['sudo', '-n', 'systemctl', 'disable', unit])
                 run(['sudo', '-n', sys.executable, '-c', 'from pathlib import Path; Path("/etc/systemd/system/asa-log-collector-asa-lab-ci-delivery.service").unlink(missing_ok=True)'])
                 run(['sudo', '-n', 'systemctl', 'daemon-reload'])
+            # Root helper imports must not leave a root-owned __pycache__ that
+            # prevents the ordinary runner from removing its own temp tree.
+            for path in [root / 'tools', *(root / 'tools').rglob('*')]:
+                require(path.lstat().st_uid == os.getuid(), 'COLLECTOR_CLEANUP_OWNERSHIP',
+                        f'Collector CI tool path has a foreign owner: {path.relative_to(root)}')
+            print('COLLECTOR_CLEANUP PASS: copied tools/cache remain owned by the disposable runner')
         finally:
             # Only this explicitly disposable CI project. No host/developer volumes.
             install.compose("down", "--volumes")

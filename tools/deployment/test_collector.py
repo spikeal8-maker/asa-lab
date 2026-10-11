@@ -145,7 +145,7 @@ class CollectorLifecycleTests(unittest.TestCase):
                     f'WorkingDirectory="{root}"\nExecStart="{python}" "{argv[1]}" --root "{root}"\n' +
                     'Restart=always\nRestartSec=20\nNoNewPrivileges=true\nUMask=0077\n[Install]\nWantedBy=default.target\n')
             unit_path.write_text(unit)
-            properties = dict(FragmentPath=str(unit_path), DropInPaths='', ExecStartPre='', ExecStartPost='', ExecStop='', ExecStopPost='', EnvironmentFiles='', LoadState='loaded', Transient='no', User='', NoNewPrivileges='yes', WorkingDirectory=str(root),
+            properties = dict(FragmentPath=str(unit_path), DropInPaths='', ExecStartPre='', ExecStartPost='', ExecStop='', ExecStopPost='', EnvironmentFiles='', LoadState='loaded', Transient='no', User='', NoNewPrivileges='yes', WorkingDirectory=str(root), ActiveState='active', SubState='running',
                 ExecStart=f'{{ path={python} ; argv[]={" ".join(argv)} ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }}')
             raw = '\n'.join(key + '=' + value for key, value in properties.items())
             invalid = [
@@ -183,13 +183,47 @@ class CollectorLifecycleTests(unittest.TestCase):
                     self.assertEqual(unit_path.read_text(), unit)
             for malformed in ('', raw + '\nExecStart=second-action', raw.replace('DropInPaths=', 'DropInPaths=/foreign/drop-in.conf'),
                               raw.replace('User=\n', 'User=root\n'), raw.replace('NoNewPrivileges=yes', 'NoNewPrivileges=no'),
-                              raw.replace('WorkingDirectory=' + str(root), 'WorkingDirectory=/foreign/root')):
+                              raw.replace('WorkingDirectory=' + str(root), 'WorkingDirectory=/foreign/root'),
+                              '\n'.join(line for line in raw.splitlines() if not line.startswith('User=')),
+                              '\n'.join(line for line in raw.splitlines() if not line.startswith('ExecStart='))):
                 calls = []
                 def mocked_state(args, **kwargs):
                     calls.append(args); return (malformed, 0) if 'show' in args else ('', 0)
                 with self.subTest(raw=malformed), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked_state), self.assertRaises(Blocked):
                     lifecycle.reconcile_runner(install, identity, restart=False)
                 self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
+
+    def test_never_loaded_systemd_unit_uses_generic_absence_facts_before_registration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); install = fixture(root); home = root / 'home'
+            identity = dict(root=str(root), project=install.project, owner='operator', mode='user', name='asa-log-collector-' + install.project + '.service')
+            # systemctl show --all prints generic Unit properties only when
+            # the never-loaded service has no Service/ExecContext interface.
+            raw = 'LoadState=not-found\nActiveState=inactive\nSubState=dead\nFragmentPath=\nDropInPaths=\nTransient=no'
+            unit_path = home / '.config/systemd/user' / identity['name']
+            cases = [raw, raw.replace('LoadState=not-found', 'LoadState=loaded'),
+                     raw.replace('ActiveState=inactive', 'ActiveState=active'), raw.replace('Transient=no', 'Transient=yes'),
+                     raw.replace('SubState=dead', 'SubState=running'), raw.replace('DropInPaths=', 'DropInPaths=/foreign.conf'),
+                     raw.replace('FragmentPath=', 'FragmentPath=/foreign.service'), raw + '\nExecStart=foreign-command',
+                     raw + '\nUser=root', raw.replace('Transient=no', '')]
+            for response, query_code in [(value, 0) for value in cases] + [(raw, 1), (raw, 4)]:
+                calls = []
+                def mocked(args, **kwargs):
+                    calls.append(args)
+                    if 'show' in args: return response, query_code
+                    return '', 0
+                with self.subTest(response=response, code=query_code), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.os.geteuid', return_value=unit_path.parent.stat().st_uid if unit_path.parent.exists() else 0, create=True), patch('deployment.collector.command', side_effect=mocked):
+                    if response == raw and query_code == 0:
+                        lifecycle.reconcile_runner(install, identity, restart=True)
+                        self.assertTrue(unit_path.is_file())
+                        self.assertTrue(any('daemon-reload' in args for args in calls))
+                        self.assertIn(['busctl', '--json=short', '--version'], calls)
+                        self.assertFalse(any('get-property' in args for args in calls))
+                        unit_path.unlink()  # Only this fixture's created unit.
+                    else:
+                        with self.assertRaises(Blocked): lifecycle.reconcile_runner(install, identity, restart=True)
+                        self.assertFalse(unit_path.exists())
+                        self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
 
     def test_effective_system_and_user_owner_privilege_workdir_contracts(self):
         for mode, users in (('system', ['operator']), ('user', ['', 'operator'])):
