@@ -10,6 +10,7 @@ import {
   type ParticipantProfile,
   type ParticipantGrades,
   type ParticipantAssignments,
+  type ParticipantManualHistory,
 } from '../../classroom-participants-api';
 import {
   ParticipantGradeHistory,
@@ -19,6 +20,9 @@ import { ParticipantAssignmentsList } from '../ParticipantAssignmentsList';
 import { ManualClassroomJournal } from '../ManualClassroomJournal';
 import { StudentJournalResults } from '../StudentJournalResults';
 import { ClassroomStudentPage } from '../../pages/ClassroomStudentPage';
+import * as avatarFiles from '../../creator-portal/avatar-file';
+import { notifySessionLoggedOut } from '../../session-fetch';
+import { SchoolTimeProvider } from '../school-time';
 
 let root: Root, host: HTMLDivElement;
 beforeEach(() => {
@@ -42,6 +46,24 @@ async function click(label: string) {
   const button = [...host.querySelectorAll('button')].find((b) => b.textContent === label);
   expect(button).toBeDefined();
   await act(async () => button!.click());
+}
+function labelled<T extends HTMLInputElement | HTMLTextAreaElement>(name: string): T {
+  const label = [...host.querySelectorAll('label')].find(
+    (node) => node.textContent?.trim() === name,
+  );
+  expect(label, `exact label: ${name}`).toBeDefined();
+  expect(label!.control).not.toBeNull();
+  return label!.control as T;
+}
+async function fill(control: HTMLInputElement | HTMLTextAreaElement, value: string) {
+  await act(async () => {
+    const prototype =
+      control instanceof HTMLTextAreaElement
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(prototype, 'value')!.set!.call(control, value);
+    control.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 }
 function grade(value: number | null, index = 0): JournalGrade {
   return {
@@ -133,8 +155,20 @@ const assigned = (id: string, title: string): ParticipantAssignments => ({
 });
 
 describe('participant completion DOM behavior', () => {
-  it('keeps the active merit form mounted and its text intact across awards and focus refreshes', async () => {
-    const read = vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
+  it('keeps exact labels, merit drafts, avatar choice and prepared upload across awards and focus refreshes, clearing them on denial/logout', async () => {
+    const data = profile();
+    data.avatars = ['saved', 'draft'].map((id) => ({
+      id,
+      title: id,
+      url: `/avatar/${id}`,
+      secret: false,
+      available: true,
+      selected: id === 'saved',
+      permitted: true,
+    }));
+    const read = vi
+      .spyOn(participantsApi, 'profile')
+      .mockImplementation(async () => ok({ ...data }));
     vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(grades('five', [])));
     vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
     vi.spyOn(participantsApi, 'works').mockResolvedValue(
@@ -160,26 +194,35 @@ describe('participant completion DOM behavior', () => {
     await click('Заслуги');
     expect(awards).toHaveBeenCalledOnce();
     expect(read).toHaveBeenCalledTimes(2);
-    const title = host.querySelector<HTMLInputElement>(
-      '.participant-recognition input[maxlength="60"]',
-    )!;
-    const description = host.querySelector<HTMLTextAreaElement>(
-      '.participant-recognition textarea',
-    )!;
-    expect(title).not.toBeNull();
-    expect(description).not.toBeNull();
+    const title = labelled<HTMLInputElement>('Название заслуги');
+    const description = labelled<HTMLTextAreaElement>('Описание');
+    const descriptionId = description.id;
+    await fill(title, 'Мастер класса');
+    await fill(description, 'Аккуратная работа');
+    expect(labelled('Название заслуги')).toBe(title);
+    expect(labelled('Описание')).toBe(description);
+    expect(description.labels?.[0]?.htmlFor).toBe(descriptionId);
+    expect(description.labels?.[0]?.contains(description)).toBe(false);
+    const draftAvatar = host.querySelector<HTMLButtonElement>('[aria-label="Выбрать draft"]')!;
+    await act(async () => draftAvatar.click());
+    await fill(labelled('Название аватара'), 'Подготовленный аватар');
+    vi.spyOn(avatarFiles, 'createAvatarDataUrl').mockResolvedValue('data:image/webp;base64,AA==');
+    vi.stubGlobal('createImageBitmap', vi.fn().mockResolvedValue({ close: vi.fn() }));
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue({
+      drawImage: vi.fn(),
+    } as unknown as CanvasRenderingContext2D);
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(
+      'data:image/png;base64,AA==',
+    );
+    const uploadInput = labelled<HTMLInputElement>('Файлы аватаров');
     await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
-        title,
-        'Мастер класса',
-      );
-      title.dispatchEvent(new Event('input', { bubbles: true }));
-      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
-        description,
-        'Аккуратная работа',
-      );
-      description.dispatchEvent(new Event('input', { bubbles: true }));
+      Object.defineProperty(uploadInput, 'files', {
+        value: [new File(['png'], 'avatar.png', { type: 'image/png' })],
+      });
+      uploadInput.dispatchEvent(new Event('change', { bubbles: true }));
     });
+    const prepared = host.querySelector('img[alt="Подготовленный аватар"]');
+    expect(prepared).not.toBeNull();
     await act(async () => window.dispatchEvent(new Event('focus')));
     expect(read).toHaveBeenCalledTimes(3);
     expect(awards).toHaveBeenCalledOnce();
@@ -187,6 +230,13 @@ describe('participant completion DOM behavior', () => {
     expect(description.isConnected).toBe(true);
     expect(title.value).toBe('Мастер класса');
     expect(description.value).toBe('Аккуратная работа');
+    expect(labelled('Название заслуги')).toBe(title);
+    expect(labelled('Описание')).toBe(description);
+    expect(description.id).toBe(descriptionId);
+    expect(description.labels?.[0]?.textContent).toBe('Описание');
+    expect(draftAvatar.getAttribute('aria-pressed')).toBe('true');
+    expect(prepared!.isConnected).toBe(true);
+    expect(labelled('Название аватара').value).toBe('Подготовленный аватар');
     read.mockResolvedValue({
       ok: false,
       status: 403,
@@ -195,7 +245,50 @@ describe('participant completion DOM behavior', () => {
     await act(async () => window.dispatchEvent(new Event('focus')));
     expect(host.querySelector('.participant-recognition')).toBeNull();
     expect(host.textContent).toContain('Доступ отозван');
+    read.mockResolvedValue(ok(data));
+    await click('Повторить');
+    expect(labelled('Описание').value).toBe('');
+    expect(labelled('Название заслуги').value).toBe('');
+    expect(labelled('Название аватара').value).toBe('');
+    expect(host.querySelector('img[alt="Подготовленный аватар"]')).toBeNull();
+    expect(host.querySelector('[aria-label="Выбрать saved"]')?.getAttribute('aria-pressed')).toBe(
+      'true',
+    );
+    await fill(labelled('Описание'), 'Черновик прежнего аккаунта');
+    await act(async () => notifySessionLoggedOut());
+    expect(host.querySelector('.participant-recognition')).toBeNull();
+    expect(host.textContent).toContain('Войдите, чтобы открыть профиль.');
+    await click('Повторить');
+    expect(labelled('Описание').value).toBe('');
   });
+
+  for (const next of [
+    { classroomId: 'other-class', seatId: 'seat-a' },
+    { classroomId: 'class', seatId: 'seat-b' },
+  ]) {
+    it(`clears recognition drafts when the scope changes to ${next.classroomId}/${next.seatId}`, async () => {
+      const props = {
+        classroomId: 'class',
+        seatId: 'seat-a',
+        profile: profile(),
+        onChanged: vi.fn(),
+      };
+      await render(createElement(ParticipantMeritsAndAvatars, props));
+      await fill(labelled('Название заслуги'), 'Чужая заслуга');
+      await fill(labelled('Описание'), 'Чужое описание');
+      await fill(labelled('Название аватара'), 'Чужой аватар');
+      await render(
+        createElement(ParticipantMeritsAndAvatars, {
+          ...props,
+          ...next,
+          profile: profile('student', next.seatId),
+        }),
+      );
+      expect(labelled('Название заслуги').value).toBe('');
+      expect(labelled('Описание').value).toBe('');
+      expect(labelled('Название аватара').value).toBe('');
+    });
+  }
 
   it('does not label an archived teacher view as the teachers own pupil achievements', async () => {
     const data = profile();
@@ -238,6 +331,161 @@ describe('participant completion DOM behavior', () => {
     ).toEqual(['3', '1', '4']);
     expect(host.querySelectorAll('.participant-grade-summary button')).toHaveLength(0);
   });
+
+  for (const timeZone of ['America/Los_Angeles', 'Pacific/Kiritimati']) {
+    it(`keeps calendar lesson dates and shows semantic local history time with a year in ${timeZone}, preserving open history on refresh`, async () => {
+      const stamp = '2026-10-11T00:01:02.123456+00:00';
+      const data = grades('five', [0, null]);
+      data.journal.columns[0]!.date = '2026-10-01';
+      data.journal.columns[0]!.category = 'Очень длинное название занятия'.repeat(3);
+      vi.spyOn(participantsApi, 'grades').mockImplementation(async () => ok({ ...data }));
+      const historyRead = vi.spyOn(participantsApi, 'history').mockResolvedValue(
+        ok({
+          preset: 'five',
+          nextBeforeRevision: 2,
+          items: [
+            {
+              ...grade(null),
+              id: 'revision-3',
+              revision: 3,
+              publishedAt: stamp,
+              authorName: 'ДлинноеИмяПреподавателя'.repeat(5),
+              reason: 'Подробная причина изменения'.repeat(8),
+            },
+            { ...grade(0), id: 'revision-2', revision: 2, publishedAt: stamp },
+          ],
+        }),
+      );
+      await render(
+        createElement(SchoolTimeProvider, {
+          timeZone,
+          children: createElement(ParticipantGradeHistory, {
+            classroomId: 'class',
+            seatId: 'seat-a',
+          }),
+        }),
+      );
+      const lesson = host.querySelector<HTMLTimeElement>('.participant-grade-context time')!;
+      expect(lesson.dateTime).toBe('2026-10-01');
+      expect(lesson.textContent).toBe('01.10.2026');
+      expect(host.querySelector('.participant-grade-author')?.textContent).toBe('Преподаватель');
+      expect(
+        [...host.querySelectorAll('.participant-grade-value')].map((n) => n.textContent),
+      ).toEqual(['0', 'Отозвана']);
+      expect(host.querySelector('button')?.classList.contains('btn-secondary')).toBe(true);
+      await click('История');
+      const history = host.querySelector('.participant-history')!;
+      expect(history.querySelectorAll('ol li')).toHaveLength(2);
+      expect(history.textContent).toContain('Версия 2: 0');
+      expect(history.textContent).toContain('Версия 3: Отозвана');
+      const expected = new Intl.DateTimeFormat('ru-RU', {
+        timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(stamp));
+      for (const time of history.querySelectorAll<HTMLTimeElement>('time')) {
+        expect(time.dateTime).toBe(stamp);
+        expect(time.textContent).toBe(expected);
+        expect(time.textContent).toContain('2026');
+        expect(time.textContent).not.toContain('T00:01');
+        expect(time.textContent).not.toContain('+00:00');
+        expect(time.textContent).not.toContain('123456');
+      }
+      await act(async () => window.dispatchEvent(new Event('focus')));
+      expect(history.isConnected).toBe(true);
+      expect(historyRead).toHaveBeenCalledOnce();
+      historyRead.mockResolvedValue(
+        ok({
+          preset: 'five',
+          nextBeforeRevision: null,
+          items: [{ ...grade(5), id: 'revision-1', revision: 1, publishedAt: stamp }],
+        }),
+      );
+      await click('Ещё история');
+      expect(host.querySelectorAll('.participant-history ol li')).toHaveLength(3);
+      expect(historyRead).toHaveBeenLastCalledWith('class', 'seat-a', 'column-0', 2);
+      await click('Закрыть историю');
+      expect(host.querySelector('.participant-history')).toBeNull();
+    });
+  }
+
+  for (const boundary of ['logout', 'scope', 'revocation', 'history-denial'] as const) {
+    it(`disables pending history actions and discards an old response at ${boundary}`, async () => {
+      const gradeRead = vi
+        .spyOn(participantsApi, 'grades')
+        .mockResolvedValue(ok(grades('five', [0])));
+      let resolveOld!: (value: ApiResult<ParticipantManualHistory>) => void;
+      vi.spyOn(participantsApi, 'history')
+        .mockResolvedValueOnce(
+          ok({
+            preset: 'five',
+            items: [{ ...grade(0), reason: 'Прежняя история' }],
+            nextBeforeRevision: 1,
+          }),
+        )
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveOld = resolve;
+            }),
+        );
+      await render(
+        createElement(ParticipantGradeHistory, { classroomId: 'class', seatId: 'seat-a' }),
+      );
+      await click('История');
+      await click('Ещё история');
+      expect(
+        [...host.querySelectorAll<HTMLButtonElement>('li button')].every((b) => b.disabled),
+      ).toBe(true);
+      await act(async () => window.dispatchEvent(new Event('focus')));
+      expect(host.textContent).toContain('Прежняя история');
+      if (boundary === 'logout') {
+        await act(async () => notifySessionLoggedOut());
+        expect(host.textContent).toContain('Войдите, чтобы открыть оценки.');
+      } else if (boundary === 'scope') {
+        gradeRead.mockResolvedValue(ok(grades('five', [5])));
+        await render(
+          createElement(ParticipantGradeHistory, { classroomId: 'class', seatId: 'seat-b' }),
+        );
+        expect(host.querySelector('.participant-grade-value')?.textContent).toBe('5');
+      } else if (boundary === 'revocation') {
+        gradeRead.mockResolvedValue({
+          ok: false,
+          status: 403,
+          error: { code: 'forbidden', message: 'Доступ отозван' },
+        });
+        await act(async () => window.dispatchEvent(new Event('focus')));
+        expect(host.querySelector('.participant-grade-value')).toBeNull();
+        expect(host.textContent).toContain('Доступ отозван');
+      }
+      if (boundary === 'history-denial') {
+        await act(async () =>
+          resolveOld({
+            ok: false,
+            status: 403,
+            error: { code: 'forbidden', message: 'История недоступна' },
+          }),
+        );
+        expect(host.querySelector('.participant-grade-value')).toBeNull();
+        expect(host.textContent).toContain('История недоступна');
+      } else
+        await act(async () =>
+          resolveOld(
+            ok({
+              preset: 'five',
+              items: [{ ...grade(1), reason: 'Запоздавшие чужие данные' }],
+              nextBeforeRevision: null,
+            }),
+          ),
+        );
+      expect(host.querySelector('.participant-history')).toBeNull();
+      expect(host.textContent).not.toContain('Прежняя история');
+      expect(host.textContent).not.toContain('Запоздавшие чужие данные');
+    });
+  }
 
   for (const [preset, labels] of [
     ['symbols', ['○', '◔', '◑', '◕', '●']],
@@ -394,6 +642,7 @@ describe('participant completion DOM behavior', () => {
       host.querySelector('.participant-hero')?.nextElementSibling?.getAttribute('aria-label'),
     ).toBe('Последние оценки');
     expect(host.querySelector('.participant-grade-summary strong')?.textContent).toBe('0');
+    expect(host.querySelector('.participant-role-hint')).toBeNull();
     vi.mocked(participantsApi.profile).mockResolvedValue(ok(profile('helper', 'seat-b')));
     await render(createElement(ClassroomStudentPage, { ...props, seatId: 'seat-b' }));
     expect(
@@ -401,6 +650,7 @@ describe('participant completion DOM behavior', () => {
     ).toBe('Классы помощника');
     expect(host.textContent).toContain('Доступный класс помощника');
     expect(host.querySelector('.participant-grade-summary')).toBeNull();
+    expect(host.querySelector('.participant-role-hint')).not.toBeNull();
     await click('Оценки и история');
     expect(host.querySelector('.participant-grades')).not.toBeNull();
   });

@@ -87,11 +87,16 @@ async function openProfile(page: Page, classId: string, name: string) {
 }
 async function assertLayout(page: Page, width: number, file: string) {
   await page.setViewportSize({ width, height: 900 });
+  await page.locator('#main-content').evaluate((element) => {
+    (element as HTMLElement).focus({ preventScroll: true });
+    window.scrollTo(0, 0);
+  });
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
   const controls = page.locator(
-    '.participant-tabs button, .participant-assignments button, .participant-assignments a, .participant-role select',
+    '.participant-tabs button, .participant-assignments button, .participant-assignments a, .participant-role select, .participant-grades button',
   );
   for (const control of await controls.all()) {
     if (!(await control.isVisible())) continue;
@@ -99,9 +104,36 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(rect).not.toBeNull();
     expect(rect!.x).toBeGreaterThanOrEqual(0);
     expect(rect!.x + rect!.width).toBeLessThanOrEqual(width + 1);
+    if (await control.evaluate((element) => Boolean(element.closest('.participant-grades')))) {
+      expect(rect!.width).toBeGreaterThanOrEqual(44);
+      expect(rect!.height).toBeGreaterThanOrEqual(44);
+    }
     expect(
       await control.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
     ).toBeGreaterThanOrEqual(16);
+  }
+  if (width <= 900) {
+    const header = page.locator('.portal-header');
+    const rect = await header.boundingBox();
+    expect(rect!.y).toBe(0);
+    expect(rect!.height).toBe(56);
+    const headerControls = header.locator(
+      '.portal-menu-toggle, .portal-brand, .portal-global-nav a, .portal-header-create, .portal-account > summary',
+    );
+    await expect(headerControls).toHaveCount(6);
+    let previousRight = 0;
+    for (const control of await headerControls.all()) {
+      await expect(control).toBeVisible();
+      const box = (await control.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x).toBeGreaterThanOrEqual(previousRight - 1);
+      expect(box.x + box.width).toBeLessThanOrEqual(width);
+      previousRight = box.x + box.width;
+      expect(box.y).toBeGreaterThanOrEqual(0);
+      expect(box.y + box.height).toBeLessThanOrEqual(56);
+    }
   }
   await page.screenshot({ path: `${screenshots}/${file}-${width}.png`, fullPage: true });
 }
@@ -133,6 +165,34 @@ test('assigned without a project stays one row through start, submission and rev
     requestId: randomUUID(),
   });
   const theory = await seedProfileTheory(admin, owner, classroom.id, [a.id]);
+  const lineage = (
+    await admin.query(
+      `SELECT classroom.tenant_id class_tenant,source.tenant_id source_tenant,
+      copy.tenant_id copy_tenant,copy.copied_from_course_id,
+      run.tenant_id run_tenant,run.course_id,run.course_version_id,lesson.tenant_id lesson_tenant,
+      lesson.source_lesson_id,version.outline->'sections'->0->'lessons'->0->>'sourceLessonId' pinned_lesson
+    FROM classroom_course_runs run
+    JOIN classrooms classroom ON classroom.id=run.classroom_id
+    JOIN classroom_course_run_lessons lesson ON lesson.run_id=run.id
+    JOIN courses copy ON copy.id=run.course_id
+    JOIN courses source ON source.id=copy.copied_from_course_id
+    JOIN course_versions version ON version.id=run.course_version_id
+    WHERE run.id=$1`,
+      [theory.courseRunId],
+    )
+  ).rows[0];
+  expect(lineage.source_tenant).toBe(owner.tenantId);
+  expect(lineage.class_tenant).not.toBe(owner.tenantId);
+  expect(lineage).toMatchObject({
+    copy_tenant: lineage.class_tenant,
+    copied_from_course_id: theory.sourceCourseId,
+    run_tenant: lineage.class_tenant,
+    course_id: theory.courseId,
+    course_version_id: theory.versionId,
+    lesson_tenant: lineage.class_tenant,
+    source_lesson_id: theory.sourceLessonId,
+    pinned_lesson: theory.sourceLessonId,
+  });
   const counts = async () =>
     (
       await admin.query(
@@ -152,8 +212,12 @@ test('assigned without a project stays one row through start, submission and rev
   await expect(row).toHaveCount(1);
   await expect(row).toContainText('Не начато');
   await expect(row.getByRole('link', { name: 'Открыть проект' })).toHaveCount(0);
-  await expect(list.locator(`[data-assignment-id="${theory.lessonId}"]`)).toContainText(
-    'Теория курса',
+  const theoryRow = list.locator(`[data-assignment-id="${theory.lessonId}"]`);
+  await expect(theoryRow).toHaveCount(1);
+  await expect(theoryRow).toContainText('Теория курса');
+  await expect(theoryRow.getByRole('link', { name: 'Открыть задание' })).toHaveAttribute(
+    'href',
+    `#/classrooms/${classroom.id}?courseRun=${theory.courseRunId}&lesson=${theory.lessonId}`,
   );
   expect(await counts()).toEqual(before);
   const other = await get<ParticipantAssignments>(
@@ -196,6 +260,9 @@ test('assigned without a project stays one row through start, submission and rev
       status: 'not_started',
       projectId: null,
     });
+    expect(selfBefore.items.filter((item) => item.id === theory.lessonId)).toEqual([
+      expect.objectContaining({ kind: 'theory', courseRunId: theory.courseRunId, projectId: null }),
+    ]);
     expect(await counts()).toEqual(before);
     await loginWithOrganization(foreign, outsider);
     expect(
@@ -307,7 +374,6 @@ test('assigned without a project stays one row through start, submission and rev
         await get<ParticipantAssignments>(pupil, '/api/class-join/participants/assignments')
       ).items.some((item) => item.id === assignment.assignmentId),
     ).toBe(false);
-    const theoryRow = list.locator(`[data-assignment-id="${theory.lessonId}"]`);
     await expect(theoryRow).toHaveCount(1);
     await theoryRow.getByRole('link', { name: 'Открыть задание' }).click();
     await expect(page.locator('.classroom-course-detail-head')).toContainText(theory.title);
@@ -322,7 +388,11 @@ test('real full Account and Seat manual history preserves zero and all five leve
 }) => {
   test.setTimeout(180_000);
   const classroom = await createClass(page),
-    a = await addPupil(page, classroom.id, 'История Анны'),
+    a = await addPupil(
+      page,
+      classroom.id,
+      'История Александры Константинопольской Длинное Имя Участника',
+    ),
     b = await addPupil(page, classroom.id, 'История Бориса');
   const accountOwner = await seedTeacher(admin, 'profile-account-self');
   const accountContext = await browser.newContext(),
@@ -365,7 +435,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
             seatId: id,
             value: values[i],
             expectedRevision: i,
-            reason: i ? 'Уточнение' : null,
+            reason: i ? `Уточнение: ${'ПодробныйКомментарийПреподавателя'.repeat(8)}` : null,
             requestId: randomUUID(),
           });
       const seatHistory = await get<ParticipantManualHistory>(
@@ -408,13 +478,39 @@ test('real full Account and Seat manual history preserves zero and all five leve
     ).toBe(true);
     await openProfile(page, classroom.id, a.name);
     await page.getByRole('button', { name: 'Оценки и история', exact: true }).click();
+    const gradesRegion = page.getByRole('region', { name: 'Оценки и история' });
+    await expect(
+      gradesRegion.locator('.participant-grade-value').filter({ hasText: /^0$/ }),
+    ).toHaveCount(1);
     await page
       .getByRole('region', { name: 'Оценки и история' })
+      .locator('.participant-grade-row')
+      .filter({ hasText: 'symbols' })
       .getByRole('button', { name: 'История', exact: true })
-      .first()
       .click();
     await expect(page.getByRole('heading', { name: 'История ручной оценки' })).toBeVisible();
-    for (const width of [390, 1440]) await assertLayout(page, width, 'grade-history');
+    const history = page.locator('.participant-history');
+    await expect(history.locator('ol li')).toHaveCount(5);
+    await expect(history).toContainText(
+      `Уточнение: ${'ПодробныйКомментарийПреподавателя'.repeat(8)}`,
+    );
+    const times = history.locator('time');
+    expect(await times.count()).toBeGreaterThan(0);
+    for (const time of await times.all()) {
+      const original = await time.getAttribute('datetime');
+      expect(original).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+      await expect(time).not.toHaveText(original!);
+      expect(await time.innerText()).toContain(String(new Date(original!).getFullYear()));
+    }
+    const historyRefreshed = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes(`/participants/${a.id}/grades?`),
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await historyRefreshed).ok()).toBe(true);
+    await expect(page.getByRole('heading', { name: 'История ручной оценки' })).toBeVisible();
+    for (const width of [320, 390, 1440]) await assertLayout(page, width, 'grade-history');
     await seatContext.addCookies(await accountContext.cookies());
     for (const path of [
       '/api/class-join/participants/grades',

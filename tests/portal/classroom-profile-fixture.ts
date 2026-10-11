@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type pg from 'pg';
 import type { SeededTeacher } from './helpers';
 
@@ -61,89 +61,97 @@ export async function seedProfileTheory(
   seatIds: string[],
 ) {
   const actor = await profileTeacherIdentity(admin, teacher);
-  const courseId = randomUUID(),
-    versionId = randomUUID(),
-    courseRunId = randomUUID(),
-    lessonId = randomUUID();
+  const sourceCourseId = randomUUID();
   const sourceLesson = randomUUID(),
     sourceSection = randomUUID();
   const title = 'Теория курса без проекта';
-  await admin.query(
-    "INSERT INTO courses(id,tenant_id,owner_principal_id,title,visibility) VALUES($1,$2,$3,$4,'private')",
-    [courseId, teacher.tenantId, actor.principal_id, title],
-  );
-  const outline = {
-    sections: [
-      {
-        sourceSectionId: sourceSection,
-        title: 'Введение',
-        position: 0,
-        lessons: [
-          {
-            sourceLessonId: sourceLesson,
-            title,
-            position: 0,
-            kind: 'material',
-            blocks: [],
-            content: 'Прочитай материал.',
-          },
-        ],
-      },
-    ],
-  };
-  await admin.query(
-    `INSERT INTO course_versions(id,tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
-    VALUES($1,$2,$3,1,$4,$5::jsonb,md5(($5::jsonb)::text),$6)`,
-    [versionId, teacher.tenantId, courseId, title, JSON.stringify(outline), actor.principal_id],
-  );
-  await admin.query(
-    `INSERT INTO classroom_course_runs(id,tenant_id,classroom_id,course_id,course_version_id,title,version_number,assigned_by_principal_id,creation_request_id,creation_request_digest)
-    VALUES($1,$2,$3,$4,$5,$6,1,$7,$8,$9)`,
-    [
-      courseRunId,
-      teacher.tenantId,
-      classId,
-      courseId,
-      versionId,
-      title,
-      actor.principal_id,
-      randomUUID(),
-      createHash('sha256').update(courseRunId).digest('hex'),
-    ],
-  );
-  await admin.query(
-    `INSERT INTO classroom_course_run_lessons(id,tenant_id,run_id,source_section_id,source_lesson_id,section_title,section_position,title,kind,lesson_position,content)
-    VALUES($1,$2,$3,$4,$5,'Введение',0,$6,'material',0,'Прочитай материал.')`,
-    [lessonId, teacher.tenantId, courseRunId, sourceSection, sourceLesson, title],
-  );
   const client = await admin.connect();
   try {
     await client.query('BEGIN');
     await client.query("SELECT set_config('app.tenant_id',$1,true)", [teacher.tenantId]);
-    for (const seatId of seatIds) {
-      const learner = (
-        await client.query(
-          `SELECT learner_identity_id FROM learner_identity_links
-      WHERE seat_id=$1 AND link_kind='student_seat' AND status='active' AND disabled_at IS NULL`,
-          [seatId],
-        )
-      ).rows[0];
-      const enrolled = (
-        await client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+    const classroom = (
+      await client.query<{ tenant_id: string }>('SELECT tenant_id FROM classrooms WHERE id=$1', [
+        classId,
+      ])
+    ).rows[0];
+    if (!classroom) throw new Error('theory classroom not found');
+    // Authored source belongs to the organization. Runtime snapshots and the
+    // named audience must be created by the normal command in the class tenant.
+    await client.query(
+      "INSERT INTO courses(id,tenant_id,owner_principal_id,title,visibility) VALUES($1,$2,$3,$4,'private')",
+      [sourceCourseId, teacher.tenantId, actor.principal_id, title],
+    );
+    await client.query(
+      "INSERT INTO course_sections(id,tenant_id,course_id,title,position) VALUES($1,$2,$3,'Введение',0)",
+      [sourceSection, teacher.tenantId, sourceCourseId],
+    );
+    await client.query(
+      `INSERT INTO course_lessons(id,tenant_id,course_id,section_id,title,kind,position,content)
+      VALUES($1,$2,$3,$4,$5,'material',0,'Прочитай материал.')`,
+      [sourceLesson, teacher.tenantId, sourceCourseId, sourceSection, title],
+    );
+    const sourceVersion = (
+      await client.query('SELECT * FROM course_publish($1,$2)', [
+        actor.principal_id,
+        sourceCourseId,
+      ])
+    ).rows[0];
+    if (sourceVersion.result_code !== 'ok')
+      throw new Error(`source publication: ${sourceVersion.result_code}`);
+
+    let courseId = sourceCourseId;
+    let version = sourceVersion;
+    if (classroom.tenant_id !== teacher.tenantId) {
+      courseId = (
+        await client.query<{ id: string }>('SELECT course_take_with_outline($1,$2,$3,$4) id', [
           actor.principal_id,
-          courseRunId,
-          learner.learner_identity_id,
+          sourceCourseId,
+          actor.account_id,
+          teacher.tenantId,
+        ])
+      ).rows[0]!.id;
+      const copy = (
+        await client.query<{ tenant_id: string }>('SELECT tenant_id FROM courses WHERE id=$1', [
+          courseId,
         ])
       ).rows[0];
-      if (enrolled.result_code !== 'ok') throw new Error(`enrollment: ${enrolled.result_code}`);
+      if (copy?.tenant_id !== classroom.tenant_id)
+        throw new Error('theory copy must belong to the personal classroom tenant');
+      version = (
+        await client.query('SELECT * FROM course_publish($1,$2)', [actor.principal_id, courseId])
+      ).rows[0];
+      if (version.result_code !== 'ok') throw new Error(`copy publication: ${version.result_code}`);
     }
-
+    // v3 creates the pinned lessons, audience and enrollments together; no
+    // fixture-only memberships or cross-tenant learner links are invented.
+    const assigned = (
+      await client.query(
+        "SELECT * FROM classroom_course_run_assign_v3($1,$2,$3,NULL,$4,'named_learners',$5::uuid[],$6)",
+        [actor.principal_id, classId, courseId, version.version_number, seatIds, randomUUID()],
+      )
+    ).rows[0];
+    if (assigned.result_code !== 'ok')
+      throw new Error(`course assignment: ${assigned.result_code}`);
+    const lessons = await client.query<{ id: string; source_lesson_id: string }>(
+      "SELECT id,source_lesson_id FROM classroom_course_run_lessons WHERE run_id=$1 AND kind='material'",
+      [assigned.run_id],
+    );
+    if (lessons.rows.length !== 1) throw new Error('theory must materialize exactly one lesson');
     await client.query('COMMIT');
+    return {
+      courseRunId: assigned.run_id as string,
+      lessonId: lessons.rows[0]!.id,
+      sourceLessonId: lessons.rows[0]!.source_lesson_id,
+      sourceCourseId,
+      sourceVersionId: sourceVersion.version_id as string,
+      courseId,
+      versionId: version.version_id as string,
+      title,
+    };
   } catch (error) {
     await client.query('ROLLBACK');
     throw error;
   } finally {
     client.release();
   }
-  return { courseRunId, lessonId, title };
 }

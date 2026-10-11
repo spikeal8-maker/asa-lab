@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   participantsApi,
   PARTICIPANT_FACTORS,
@@ -16,6 +16,7 @@ import { onSessionLoggedOut } from '../session-fetch';
 import { ParticipantAssignmentsList } from './ParticipantAssignmentsList';
 import { avatarFileError, createAvatarDataUrl } from '../creator-portal/avatar-file';
 import { SEAT_AWARDS, SeatAwardRow } from './SeatAwards';
+import { useSchoolTime } from './school-time';
 import './classroom-participants.css';
 
 export const FACTOR_LABELS = {
@@ -268,6 +269,7 @@ export function ParticipantMeritsAndAvatars({
   accountLearner?: boolean;
   learnerView?: boolean;
 }): JSX.Element {
+  const meritFormId = useId();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [title, setTitle] = useState('');
@@ -288,6 +290,11 @@ export function ParticipantMeritsAndAvatars({
   useEffect(() => {
     setError(null);
     setBusy(false);
+    setTitle('');
+    setDescription('');
+    setAvatarTitle('');
+    setSecret(false);
+    setAchievement('');
     setUploads([]);
     receipt.current = null;
     return () => {
@@ -411,23 +418,25 @@ export function ParticipantMeritsAndAvatars({
           >
             <fieldset disabled={locked || profile.merits.length >= 24}>
               <legend>Новая заслуга · до 24 на класс</legend>
-              <label>
-                Название заслуги
+              <div className="participant-merit-field">
+                <label htmlFor={`${meritFormId}-title`}>Название заслуги</label>
                 <input
+                  id={`${meritFormId}-title`}
                   required
                   maxLength={60}
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                 />
-              </label>
-              <label>
-                Описание
+              </div>
+              <div className="participant-merit-field">
+                <label htmlFor={`${meritFormId}-description`}>Описание</label>
                 <textarea
+                  id={`${meritFormId}-description`}
                   maxLength={240}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
-              </label>
+              </div>
               <button type="submit">Создать заслугу</button>
             </fieldset>
           </form>
@@ -638,6 +647,25 @@ export function ParticipantGradeHistory({
   seatSession?: boolean;
   compact?: boolean;
 }): JSX.Element {
+  const time = useSchoolTime();
+  const historyTime = useMemo(
+    () =>
+      new Intl.DateTimeFormat('ru-RU', {
+        timeZone: time.timeZone,
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
+    [time.timeZone],
+  );
+  const momentLabel = (value: string) => {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? '—' : historyTime.format(date);
+  };
+  // A lesson date is a calendar day, not an instant in the school time zone.
+  const lessonDateLabel = (value: string) => value.split('-').reverse().join('.');
   const [data, setData] = useState<ParticipantGrades | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [history, setHistory] = useState<ParticipantManualHistory | null>(null);
@@ -647,11 +675,25 @@ export function ParticipantGradeHistory({
   const [historyLoading, setHistoryLoading] = useState(false);
   const [loading, setLoading] = useState(false);
   const generation = useRef(0);
+  const gradeGeneration = useRef(0);
   const historyGeneration = useRef(0);
   const identity = `${classroomId}:${seatId}:${seatSession}`;
   const currentIdentity = useRef(identity);
   currentIdentity.current = identity;
   const [loadedIdentity, setLoadedIdentity] = useState(identity);
+  function historyError(message: string, status: number): void {
+    setError(message);
+    if ([401, 403, 404].includes(status)) {
+      generation.current++;
+      gradeGeneration.current++;
+      historyGeneration.current++;
+      setData(null);
+      setHistory(null);
+      setResultHistory(null);
+      setLoading(false);
+      setHistoryLoading(false);
+    }
+  }
   async function showResultHistory(assignmentId: string, offset = 0): Promise<void> {
     const scope = generation.current;
     const token = ++historyGeneration.current;
@@ -669,7 +711,7 @@ export function ParticipantGradeHistory({
       setResultHistory((old) =>
         offset && old ? { ...r.data, items: [...old.items, ...r.data.items] } : r.data,
       );
-    else setError(r.error.message);
+    else historyError(r.error.message, r.status);
   }
   async function showManualHistory(columnId: string, beforeRevision?: number): Promise<void> {
     const scope = generation.current;
@@ -688,24 +730,17 @@ export function ParticipantGradeHistory({
       setHistory((old) =>
         beforeRevision && old ? { ...r.data, items: [...old.items, ...r.data.items] } : r.data,
       );
-    else setError(r.error.message);
+    else historyError(r.error.message, r.status);
   }
   const load = useCallback(
     async (offset = 0, resultOffset = 0) => {
-      const token = ++generation.current;
+      const token = ++gradeGeneration.current;
       setError(null);
       setLoading(true);
-      if (!offset && !resultOffset) {
-        setData(null);
-        setHistory(null);
-        setResultHistory(null);
-        setHistoryLoading(false);
-        historyGeneration.current++;
-      }
       const result = seatSession
         ? await participantsApi.seatGrades(offset, resultOffset)
         : await participantsApi.grades(classroomId, seatId, offset, resultOffset);
-      if (token !== generation.current || identity !== currentIdentity.current) return;
+      if (token !== gradeGeneration.current || identity !== currentIdentity.current) return;
       setLoading(false);
       setLoadedIdentity(identity);
       if (result.ok)
@@ -730,7 +765,12 @@ export function ParticipantGradeHistory({
             : result.data,
         );
       else {
+        generation.current++;
+        historyGeneration.current++;
         setData(null);
+        setHistory(null);
+        setResultHistory(null);
+        setHistoryLoading(false);
         setError(result.error.message);
       }
     },
@@ -748,14 +788,18 @@ export function ParticipantGradeHistory({
     window.addEventListener('focus', refresh);
     const unsubscribe = onSessionLoggedOut(() => {
       generation.current++;
+      gradeGeneration.current++;
       historyGeneration.current++;
       setData(null);
       setHistory(null);
       setResultHistory(null);
+      setHistoryLoading(false);
+      setLoading(false);
       setError('Войдите, чтобы открыть оценки.');
     });
     return () => {
       generation.current++;
+      gradeGeneration.current++;
       historyGeneration.current++;
       window.removeEventListener('focus', refresh);
       unsubscribe();
@@ -782,7 +826,7 @@ export function ParticipantGradeHistory({
       {error ? (
         <p role="alert">
           {error}
-          <button type="button" onClick={() => void load()}>
+          <button type="button" className="btn-secondary" onClick={() => void load()}>
             Повторить
           </button>
         </p>
@@ -790,17 +834,24 @@ export function ParticipantGradeHistory({
       {loading ? <p role="status">Загружаем оценки…</p> : null}
       {data ? (
         <>
-          <ul>
+          <ul className="participant-grade-list">
             {displayedGrades.map((grade) => {
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
               const value = journalRevisionLabel(column?.preset, grade.value);
               return (
-                <li key={grade.id}>
-                  {column?.date} · {column?.category} <strong>{value}</strong>{' '}
-                  <small>{grade.authorName}</small>
+                <li key={grade.id} className="participant-grade-row">
+                  <div className="participant-grade-context">
+                    {column?.date ? (
+                      <time dateTime={column.date}>{lessonDateLabel(column.date)}</time>
+                    ) : null}
+                    <span>{column?.category}</span>
+                  </div>
+                  <strong className="participant-grade-value">{value}</strong>
+                  <small className="participant-grade-author">{grade.authorName}</small>
                   {!compact ? (
                     <button
                       type="button"
+                      className="btn-secondary"
                       disabled={historyLoading}
                       onClick={() => void showManualHistory(grade.columnId)}
                     >
@@ -811,20 +862,26 @@ export function ParticipantGradeHistory({
               );
             })}
           </ul>
-          <ul>
+          <ul className="participant-grade-list">
             {(compact ? data.results.slice(0, 3) : data.results).map((result) => (
-              <li key={result.assignment_id}>
-                {result.assignment_title}{' '}
-                <strong>
+              <li key={result.assignment_id} className="participant-grade-row">
+                <div className="participant-grade-context">
+                  <time dateTime={result.published_at}>{momentLabel(result.published_at)}</time>
+                  <span>{result.assignment_title}</span>
+                </div>
+                <strong className="participant-grade-value">
                   {result.display_grade ??
                     (result.raw_points === null
                       ? 'Без балла'
                       : `${result.raw_points} / ${result.max_points}`)}
                 </strong>
-                {result.feedback ? <p>{result.feedback}</p> : null}
+                {result.feedback ? (
+                  <p className="participant-grade-feedback">{result.feedback}</p>
+                ) : null}
                 {!compact ? (
                   <button
                     type="button"
+                    className="btn-secondary"
                     disabled={historyLoading}
                     onClick={() => void showResultHistory(result.assignment_id)}
                   >
@@ -840,6 +897,7 @@ export function ParticipantGradeHistory({
       {!compact && data?.journal.nextOffset != null ? (
         <button
           type="button"
+          className="btn-secondary"
           disabled={loading || historyLoading}
           onClick={() => void load(data.journal.nextOffset!, data.resultOffset)}
         >
@@ -849,6 +907,7 @@ export function ParticipantGradeHistory({
       {!compact && data?.nextResultOffset != null ? (
         <button
           type="button"
+          className="btn-secondary"
           disabled={loading || historyLoading}
           onClick={() => void load(data.journal.offset, data.nextResultOffset!)}
         >
@@ -856,18 +915,25 @@ export function ParticipantGradeHistory({
         </button>
       ) : null}
       {history ? (
-        <div>
+        <div className="participant-history">
           <h3>История ручной оценки</h3>
           <ol>
             {history.items.map((grade) => (
-              <li key={grade.id}>
-                Версия {grade.revision}:{' '}
-                {journalRevisionLabel(
-                  history.preset ??
-                    data?.journal.columns.find((column) => column.id === historyColumn)?.preset,
-                  grade.value,
-                )}{' '}
-                · {grade.authorName} · {grade.publishedAt}
+              <li key={grade.id} className="participant-history-row">
+                <div className="participant-history-heading">
+                  <span>Версия {grade.revision}: </span>
+                  <strong>
+                    {journalRevisionLabel(
+                      history.preset ??
+                        data?.journal.columns.find((column) => column.id === historyColumn)?.preset,
+                      grade.value,
+                    )}
+                  </strong>
+                </div>
+                <div className="participant-history-meta">
+                  <span>{grade.authorName}</span>
+                  <time dateTime={grade.publishedAt}>{momentLabel(grade.publishedAt)}</time>
+                </div>
                 {grade.reason ? <p>{grade.reason}</p> : null}
               </li>
             ))}
@@ -875,6 +941,7 @@ export function ParticipantGradeHistory({
           {history.nextBeforeRevision !== null && historyColumn ? (
             <button
               type="button"
+              className="btn-secondary"
               disabled={historyLoading}
               onClick={() => void showManualHistory(historyColumn, history.nextBeforeRevision!)}
             >
@@ -883,6 +950,7 @@ export function ParticipantGradeHistory({
           ) : null}
           <button
             type="button"
+            className="btn-secondary"
             onClick={() => {
               historyGeneration.current++;
               setHistoryLoading(false);
@@ -895,14 +963,23 @@ export function ParticipantGradeHistory({
       ) : null}
       {historyLoading ? <p role="status">Загружаем историю…</p> : null}
       {resultHistory ? (
-        <div>
+        <div className="participant-history">
           <h3>История результата</h3>
           <ol>
             {resultHistory.items.map((r) => (
-              <li key={r.id}>
-                Попытка {r.attempt_number}, версия {r.revision}:{' '}
-                {r.raw_points === null ? 'Без балла' : `${r.raw_points} / ${r.max_points}`} ·{' '}
-                {r.author}
+              <li key={r.id} className="participant-history-row">
+                <div className="participant-history-heading">
+                  <span>
+                    Попытка {r.attempt_number}, версия {r.revision}:{' '}
+                  </span>
+                  <strong>
+                    {r.raw_points === null ? 'Без балла' : `${r.raw_points} / ${r.max_points}`}
+                  </strong>
+                </div>
+                <div className="participant-history-meta">
+                  <span>{r.author}</span>
+                  <time dateTime={r.published_at}>{momentLabel(r.published_at)}</time>
+                </div>
                 {r.reason ? <p>{r.reason}</p> : null}
                 {r.feedback ? <p>{r.feedback}</p> : null}
               </li>
@@ -911,6 +988,7 @@ export function ParticipantGradeHistory({
           {resultHistory.hasMore && historyAssignment ? (
             <button
               type="button"
+              className="btn-secondary"
               disabled={historyLoading}
               onClick={() => void showResultHistory(historyAssignment, resultHistory.offset + 30)}
             >
@@ -919,6 +997,7 @@ export function ParticipantGradeHistory({
           ) : null}
           <button
             type="button"
+            className="btn-secondary"
             onClick={() => {
               historyGeneration.current++;
               setHistoryLoading(false);

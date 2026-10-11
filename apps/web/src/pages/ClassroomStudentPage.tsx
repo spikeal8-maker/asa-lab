@@ -27,6 +27,7 @@ import { onSessionLoggedOut } from '../session-fetch';
 import { ParticipantAssignmentsList } from '../components/ParticipantAssignmentsList';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
+import '../modules/classroom-mobile.css';
 
 export const BADGE_LABELS: Readonly<Record<string, string>> = {
   excellent: 'Отлично',
@@ -197,7 +198,7 @@ export function ClassroomStudentPage({
 
   if (!profile || profile.student.id !== seatId || loadedScope !== `${classroomId}:${seatId}`)
     return (
-      <main className="portal-content" id="main-content" tabIndex={-1}>
+      <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
         {profileError ? (
           <section role="alert">
             <p>{profileError}</p>
@@ -308,10 +309,12 @@ export function ClassroomStudentPage({
           compact
         />
       )}
-      <p className="participant-role-hint">
-        Помощник помогает организовать занятия в этом классе, без доступа к чужим оценкам и
-        управлению. Преподавателей добавляют через приглашение коллег.
-      </p>
+      {metrics.role === 'helper' ? (
+        <p className="participant-role-hint">
+          Помощник помогает организовать занятия в этом классе, без доступа к чужим оценкам и
+          управлению. Преподавателей добавляют через приглашение коллег.
+        </p>
+      ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
       {profileError ? (
         <p role="alert">

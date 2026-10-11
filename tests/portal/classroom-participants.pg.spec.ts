@@ -162,6 +162,208 @@ async function fixture() {
   };
 }
 describe('participants with real PostgreSQL and the runtime role', () => {
+  it('copies an organization-owned theory source into a personal classroom with pinned lineage and exact learner visibility', async () => {
+    const f = await fixture();
+    const personalTenant = randomUUID(),
+      workspace = randomUUID(),
+      classId = randomUUID();
+    await admin.query('INSERT INTO tenants(id,title,workspace_slug) VALUES($1,$2,$3)', [
+      personalTenant,
+      'Личные классы',
+      `profile-personal-${personalTenant}`,
+    ]);
+    await admin.query("INSERT INTO tenant_placements(tenant_id,mode) VALUES($1,'SHARED_CLUSTER')", [
+      personalTenant,
+    ]);
+    await admin.query(
+      "INSERT INTO workspaces(id,tenant_id,kind,title) VALUES($1,$2,'personal','Личное пространство')",
+      [workspace, personalTenant],
+    );
+    await admin.query(
+      "INSERT INTO workspace_memberships(account_id,workspace_id,role) VALUES($1,$2,'owner')",
+      [f.account, workspace],
+    );
+    const context = (
+      await runtime.query('SELECT * FROM classroom_ensure_personal_teacher($1)', [f.account])
+    ).rows[0];
+    expect(context.tenant_id).toBe(personalTenant);
+    expect(personalTenant).not.toBe(f.teacher.tenantId);
+    await admin.query(
+      'INSERT INTO classrooms(id,tenant_id,school_id,academic_period_id,title,created_by) VALUES($1,$2,$3,$4,$5,$6)',
+      [
+        classId,
+        personalTenant,
+        context.school_id,
+        context.academic_period_id,
+        'Личная теория',
+        context.user_id,
+      ],
+    );
+    await admin.query(
+      "INSERT INTO classroom_memberships(tenant_id,classroom_id,user_id,account_id,member_role) VALUES($1,$2,$3,$4,'owner')",
+      [personalTenant, classId, context.user_id, f.account],
+    );
+    const account = await f.learner();
+    const a = await f.seat('Назначенная ученица', account.id, classId);
+    const b = await f.seat('Без назначения', null, classId);
+    const organizationSeat = await f.seat('Ученик организации');
+    const theory = await seedProfileTheory(admin, f.teacher, classId, [a.id]);
+    expect(theory.courseId).not.toBe(theory.sourceCourseId);
+    expect(theory.versionId).not.toBe(theory.sourceVersionId);
+    const lineage = (
+      await admin.query(
+        `SELECT source.tenant_id source_tenant,source.owner_principal_id source_owner,
+        copy.tenant_id copy_tenant,copy.copied_from_course_id,copy.owner_principal_id copy_owner,
+        source_version.course_id source_version_course,source_version.tenant_id source_version_tenant,
+        source_version.outline->'sections'->0->'lessons'->0->>'sourceLessonId' original_lesson,
+        source_version.outline->'sections'->0->'lessons'->0->>'content' source_content,
+        version.course_id version_course,version.tenant_id version_tenant,
+        run.tenant_id run_tenant,run.classroom_id,run.course_id,run.course_version_id,
+        lesson.tenant_id lesson_tenant,lesson.source_lesson_id,lesson.source_section_id,
+        version.outline->'sections'->0->>'sourceSectionId' pinned_section,
+        version.outline->'sections'->0->'lessons'->0->>'sourceLessonId' pinned_lesson,
+        version.outline->'sections'->0->'lessons'->0->>'content' pinned_content
+      FROM classroom_course_runs run
+      JOIN classroom_course_run_lessons lesson ON lesson.run_id=run.id
+      JOIN courses copy ON copy.id=run.course_id
+      JOIN course_versions version ON version.id=run.course_version_id
+      JOIN courses source ON source.id=copy.copied_from_course_id
+      JOIN course_versions source_version ON source_version.course_id=source.id AND source_version.id=$2
+      WHERE run.id=$1`,
+        [theory.courseRunId, theory.sourceVersionId],
+      )
+    ).rows[0];
+    expect(lineage).toMatchObject({
+      source_tenant: f.teacher.tenantId,
+      source_owner: f.actor,
+      copy_tenant: personalTenant,
+      copied_from_course_id: theory.sourceCourseId,
+      copy_owner: f.actor,
+      source_version_course: theory.sourceCourseId,
+      source_version_tenant: f.teacher.tenantId,
+      source_content: 'Прочитай материал.',
+      version_course: theory.courseId,
+      version_tenant: personalTenant,
+      run_tenant: personalTenant,
+      classroom_id: classId,
+      course_id: theory.courseId,
+      course_version_id: theory.versionId,
+      lesson_tenant: personalTenant,
+      source_lesson_id: theory.sourceLessonId,
+      pinned_lesson: theory.sourceLessonId,
+      pinned_content: 'Прочитай материал.',
+    });
+    expect(lineage.source_section_id).toBe(lineage.pinned_section);
+    expect(lineage.source_lesson_id).not.toBe(lineage.original_lesson);
+    expect(
+      (
+        await admin.query(
+          `SELECT enrollment.tenant_id,enrollment.school_id,link.seat_id,
+        link.tenant_id link_tenant,link.school_id link_school
+      FROM course_enrollments enrollment JOIN learner_identity_links link
+        ON link.learner_identity_id=enrollment.learner_identity_id AND link.link_kind='student_seat'
+        AND link.status='active' AND link.disabled_at IS NULL
+      WHERE enrollment.course_run_id=$1`,
+          [theory.courseRunId],
+        )
+      ).rows,
+    ).toEqual([
+      {
+        tenant_id: personalTenant,
+        school_id: context.school_id,
+        seat_id: a.id,
+        link_tenant: personalTenant,
+        link_school: context.school_id,
+      },
+    ]);
+    const counts = async () =>
+      (
+        await admin.query(
+          `SELECT
+        (SELECT count(*) FROM projects WHERE owner_principal_id IN($1,$2)) projects,
+        (SELECT count(*) FROM learning_attempts WHERE classroom_id=$3) attempts,
+        (SELECT count(*) FROM learning_submissions sub JOIN learning_attempts attempt ON attempt.id=sub.attempt_id WHERE attempt.classroom_id=$3) submissions,
+        (SELECT count(*) FROM classroom_course_lesson_progress WHERE run_id=$4) progress`,
+          [a.principal, account.principal, classId, theory.courseRunId],
+        )
+      ).rows[0];
+    const before = await counts();
+    const visible = await read<ParticipantAssignments>('classroom_participant_assignments', [
+      f.actor,
+      classId,
+      a.id,
+      0,
+    ]);
+    expect(visible.items).toHaveLength(1);
+    expect(visible.items[0]).toMatchObject({
+      id: theory.lessonId,
+      title: theory.title,
+      kind: 'theory',
+      assignmentId: null,
+      courseRunId: theory.courseRunId,
+      activityRunId: null,
+    });
+    for (const principal of [a.principal, account.principal])
+      expect(
+        await read('classroom_participant_assignments', [principal, classId, a.id, 0]),
+      ).toEqual(visible);
+    for (const principal of [f.actor, b.principal])
+      expect(
+        (
+          await read<ParticipantAssignments>('classroom_participant_assignments', [
+            principal,
+            classId,
+            b.id,
+            0,
+          ])
+        ).items,
+      ).toEqual([]);
+    expect(
+      (
+        await read<ParticipantAssignments>('classroom_participant_assignments', [
+          organizationSeat.principal,
+          f.classId,
+          organizationSeat.id,
+          0,
+        ])
+      ).items,
+    ).toEqual([]);
+    for (const principal of [b.principal, organizationSeat.principal])
+      expect(
+        await read('classroom_participant_assignments', [principal, classId, a.id, 0]),
+      ).toBeNull();
+    const foreign = await fixture();
+    expect(
+      await read('classroom_participant_assignments', [foreign.actor, classId, a.id, 0]),
+    ).toBeNull();
+    // Both canonical course readers agree with the profile, with no lazy writes.
+    const teacherLessons = await runtime.query(
+      'SELECT * FROM classroom_course_runs_for_teacher_v2($1,$2) WHERE run_id=$3',
+      [f.account, classId, theory.courseRunId],
+    );
+    expect(teacherLessons.rows).toHaveLength(1);
+    expect(teacherLessons.rows[0]).toMatchObject({
+      lesson_id: theory.lessonId,
+      source_lesson_id: theory.sourceLessonId,
+    });
+    expect(
+      (
+        await runtime.query('SELECT * FROM classroom_course_runs_for_seat_v2($1) WHERE run_id=$2', [
+          a.id,
+          theory.courseRunId,
+        ])
+      ).rows,
+    ).toHaveLength(1);
+    expect(
+      (
+        await runtime.query('SELECT * FROM classroom_course_runs_for_seat_v2($1) WHERE run_id=$2', [
+          b.id,
+          theory.courseRunId,
+        ])
+      ).rows,
+    ).toEqual([]);
+    expect(await counts()).toEqual(before);
+  });
   it('pages assigned-but-not-started direct/course theory without writes or Account/Seat duplicates, and respects exclusion and teacher isolation', async () => {
     const f = await fixture();
     const account = await f.learner();

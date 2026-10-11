@@ -171,7 +171,7 @@ jobs:
         env:
           BLOCKS_RUNTIME_URL: http://127.0.0.1:4613
           BLOCKS_PARENT_PORT: 4612
-          PLAYWRIGHT_JSON_OUTPUT_NAME: reports/blocks/scratch-activity-proof.json
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/reports/blocks/scratch-activity-proof.json
         run: >-
           pnpm exec playwright test --config tools/blocks/browser/playwright.config.mjs
           --grep 'real Scratch input reaches bounded analytics'
@@ -183,6 +183,7 @@ jobs:
         with:
           name: scratch-activity-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
           path: reports/blocks/scratch-activity-proof.json
+          if-no-files-found: error
           retention-days: 14
 
       - name: Browser smoke parent/iframe protocol

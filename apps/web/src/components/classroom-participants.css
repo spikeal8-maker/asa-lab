@@ -93,7 +93,8 @@
   min-width: 0;
   margin-top: 12px;
 }
-.participant-recognition label {
+.participant-recognition label,
+.participant-merit-field {
   display: grid;
   gap: 4px;
 }
@@ -167,12 +168,119 @@
 .participant-staff-profile {
   margin-bottom: 12px;
 }
-.participant-grades li {
-  padding: 8px 0;
+.participant-grades {
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--ink, var(--text));
+  margin-block: 12px;
+}
+.participant-grades h2 {
+  margin: 0 0 8px;
+  font-size: 20px;
+}
+.participant-grades h3 {
+  margin: 0 0 12px;
+  font-size: 18px;
+}
+.participant-grade-list,
+.participant-history ol {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.participant-grades .participant-grade-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.65fr) minmax(0, 0.8fr) auto;
+  align-items: center;
+  gap: 8px 16px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--border, #dde4ea);
+}
+.participant-grade-context {
+  display: grid;
+  gap: 2px;
+}
+.participant-grade-context time,
+.participant-grade-author,
+.participant-history-meta {
+  color: var(--ink-muted);
+  font-size: 16px;
+}
+.participant-grade-value {
+  color: var(--ink, var(--text));
+}
+.participant-grade-row > *,
+.participant-history-row > * {
+  min-width: 0;
   overflow-wrap: anywhere;
 }
-.participant-grades li button {
-  margin-left: 8px;
+.participant-grades button {
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 100%;
+  margin: 0;
+  padding: 8px 12px;
+  font: inherit;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  background: var(--surface, #fff);
+  cursor: pointer;
+}
+.participant-grades button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.participant-grade-row > button {
+  grid-column: 4;
+}
+.participant-grade-feedback {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.participant-history {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border, #dde4ea);
+}
+.participant-history-row {
+  padding-block: 12px;
+  border-bottom: 1px solid var(--border, #dde4ea);
+  overflow-wrap: anywhere;
+}
+.participant-history-heading,
+.participant-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+.participant-history-meta {
+  margin-top: 4px;
+}
+.participant-history-row p {
+  margin: 8px 0 0;
+}
+.participant-history > button,
+.participant-grades > button {
+  margin: 12px 8px 0 0;
+}
+@media (max-width: 600px) {
+  .participant-grades .participant-grade-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 12px;
+  }
+  .participant-grade-context,
+  .participant-grade-row > button {
+    grid-column: 1 / -1;
+  }
+  .participant-grade-row > button {
+    justify-self: start;
+  }
+  .participant-history-meta {
+    display: grid;
+    gap: 4px;
+  }
 }
 .participant-roster-numbers {
   display: contents;
@@ -388,8 +496,7 @@
   overflow-wrap: anywhere;
 }
 .participant-assignment-head,
-.participant-assignments li,
-.participant-grade-summary li {
+.participant-assignments li {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
