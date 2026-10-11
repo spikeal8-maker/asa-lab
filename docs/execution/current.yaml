@@ -584,46 +584,62 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_ingress_analysis_complete_no_causal_repair_proven
+      checkpoint: controlled_late_sidebar_complete_no_proven_cause
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
       - e2e/electronics-interactions.spec.ts
-      repair_scope: ONLY existing permanent ordinary-image2084 test passive native error/load/network/fullfinally
-        receipts; everyoldassertion/default5000/stage10000/800ms/max7 retained. Product
-        unchanged until causal directed evidence and explicitly selected nextphase. One
-        unpublished observerSHA/selfreview thenSTOP; controller runs ONE directedcase,
-        no hopeful fullrerun.
+      repair_scope: No product or fixture repair justified by completed controlled experiment. Preserve source2382/probe7adc
+        and originals. Existing538/544 acceptance blockers remain. No unchanged rerun, broadcast failure,
+        eager fetch, timeout/physics change.
       dependency_for_issue: 544
       programme_issue: 452
       source_trace_sha256: bce8b04a2b5299bd8763d0ea814ac0d2f59c4c352b89be487c80a1ee323496f8
       source_report_original_sha256: 1cba43d0755366743dc33676e04468af1340086b2d8ab9d63907e6261ee0dcf6
-      accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS;
-        production source retained
-      shared_write_contract: Selected card explicitly names existing interactions supporting
-        write. Advisory owned_paths excludes historical wire538 scope; inspect actual
-        complete path budget and dirty worktrees. Wire author STOP/clean candidate preserved;
-        no second writer.
+      accepted543_preserved: accepted_slices record with exact53/source8SUCCESS/main5bfbGeneral4SUCCESS; production
+        source retained
+      shared_write_contract: Selected card explicitly names existing interactions supporting write. Advisory
+        owned_paths excludes historical wire538 scope; inspect actual complete path budget and dirty worktrees.
+        Wire author STOP/clean candidate preserved; no second writer.
       preserved_candidate_sha: 5fde66cfe5d7bf7bd3a32ea7c13a99cb25c54652
       candidate_publication: published
       candidate_acceptance: pending
       causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
       causal_before_run: 38012528685
       causal_before_conclusion: success_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T01:42:10Z'
-      next_action: Preserve observer candidate and original cached traces; no unchanged
-        browser rerun, fixture change, eager probe or failure broadcast to successful
-        peers. Select a separate causal regression only with a concrete untested mechanism,
-        or safely resume an independent ready complaint. No product repair/acceptance
-        claimed.
+      controller_observed_at: '2026-10-11T06:59:21Z'
+      next_action: Controller continues independent ready E11 lane. Any548 source-branch ingress observation
+        requires a separately selected bounded phase; no product observer/write authorized by completed browser-only
+        phase. Old failed trace native/React ingress missing, cause unproved.
       causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
       causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
-      causal_actual: 'Unchanged production observer run: three trusted errors, all three
-        mounted consumers failed;7 image GET404/no HEAD,whole5-component server/editor
-        unchanged,zeroPUT/errors. Old failed run native ingress missing; causal defect
-        NOT_PROVED. PASS does not repair or lift544 acceptance blocker.'
+      causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
+        failed;7 image GET404/no HEAD,whole5-component server/editor unchanged,zeroPUT/errors. Old failed
+        run native ingress missing; causal defect NOT_PROVED. PASS does not repair or lift544 acceptance blocker.'
+      new_failure_candidate_sha: 1b0491ea7b6924c8ebc12ec834653617b8bdc360
+      new_failure_run: 38118290466
+      new_failure_browser_job: 114407851393
+      new_failure_trace_sha256: fbe84720d6e60a342029a4b50714e07a7f3b32dc1aa700bba8c86f3a36cd312c
+      new_failure_independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
+      new_failure_actual: Mounted catalog lacks failure badge at unchanged5000ms; stage failed.8 imageGET404
+        plus one continuedGET200 Accept:*/*. Native error/load and shared subscription ingress absent; HTTP200
+        is not proven native recovery. No causal product repair proved.
+      new_causal_report: docs/product/electronics/evidence/ordinary-image-548-new1b-causal-analysis.md
+      new_causal_report_sha256: f4e14370c6acab73747b1ffcdab47ae39c27c9721acb8b32c48e25e0b6b3e299
+      controlled_source_sha: 2382badba66fee795ee306685eb01a4e06d6efe9
+      controlled_probe_sha: 7adc80ff1830a14523b0c5e68ba75d435c469c2e
+      controlled_run: 38120687997
+      controlled_conclusion: SUCCESS directed diagnostic only; NOT product repair or acceptance
+      controlled_independent_report: docs/product/electronics/evidence/ordinary-image-548-controlled-independent-review.md
+      controlled_independent_report_sha256: 09a1d49201c570243ff10b8edb797fb6fd84ead8d6f317cb3d7d6b6be3c8537c
+      controlled_independent_manifest_sha256: ece596310cb3fc04abd2cbb1377db362d151e70f314b90114db8875f295dc9b0
+      controlled_actual: 'ORDER_ESTABLISHED: connected catalog ID3 afterretry0 beforeterminalretry2 received
+        trusted native error and failed on same ID, no replacement.7image404,9oldassertionsPASS,whole5parts0wires
+        initial/server/editor exact,0PUT/errors. Late mount alone insufficient; old failure native/React ingress
+        absent. Full original ZIP/raw/17hashes root checked. CDP internal timestamps anomalous/not used for
+        causal order.'
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -655,12 +671,12 @@ parallel_lanes:
       independent_evidence: docs/product/electronics/evidence/blockly-media-533-r3-independent-review-b5045472.md
       dependency_issue: 534
       owner_acceptance: pending
-      reason: Independent actual full documents equal, but unchanged initial publication
-        creates a new object and exit PUT advances server revision2 to3. Classification
-        C existing baseline, not a media-induced content change or another fixture defect.
-      resume_after: Technical534 acceptance, fresh533 selection and NEW independent combined
-        exact-source acceptance; reuse matching unchanged final gates/raw, no hopeful
-        rerun. Recalculate mandatory hygiene before532.
+      reason: Independent actual full documents equal, but unchanged initial publication creates a new object
+        and exit PUT advances server revision2 to3. Classification C existing baseline, not a media-induced
+        content change or another fixture defect.
+      resume_after: Technical534 acceptance, fresh533 selection and NEW independent combined exact-source
+        acceptance; reuse matching unchanged final gates/raw, no hopeful rerun. Recalculate mandatory hygiene
+        before532.
       preserved_task_snapshot:
         id: TASK-ELECTRONICS-BLOCKLY-MEDIA-INIT-001
         issue: 533
@@ -786,12 +802,11 @@ parallel_lanes:
       independent_evidence: docs/product/electronics/evidence/compact-controls-532-r3-independent-review-bd4074fe.md
       dependency_issue: 533
       owner_acceptance: pending
-      reason: 'Independent R3: existing product default external media requests require
-        separate repair; text cumulative30s remains packaging, not proved Stop defect.
-        Preserve all source/raw and causal CSS.'
-      resume_after: Technical533 acceptance, fresh532 selection/convergence, shorter independent
-        text viewport segments at unchanged30s preserving52text/95total and complete final
-        intent per segment; final combined exact gates and NEW review.
+      reason: 'Independent R3: existing product default external media requests require separate repair; text
+        cumulative30s remains packaging, not proved Stop defect. Preserve all source/raw and causal CSS.'
+      resume_after: Technical533 acceptance, fresh532 selection/convergence, shorter independent text viewport
+        segments at unchanged30s preserving52text/95total and complete final intent per segment; final combined
+        exact gates and NEW review.
       preserved_task_snapshot:
         id: TASK-ELECTRONICS-COMPACT-CONTROLS-001
         issue: 532
@@ -929,16 +944,15 @@ parallel_lanes:
         accepted_media_dependency_issue: 533
         accepted_noop_dependency_issue: 534
         accepted_hygiene_dependency_issue: 535
-        owner_conflict_agreement: 2026-10-09 explicit continue and resolve both scenario
-          conflicts; preserve all checks and accepted work
+        owner_conflict_agreement: 2026-10-09 explicit continue and resolve both scenario conflicts; preserve
+          all checks and accepted work
         general_baseline_observation:
           sha: 43bb0c3ddd9a0947c3fdc16f2638f01e3adc9ff2
           run: 37920212460
           conclusion: failure
           failed_job: 113788080706
           failed_step: Run pnpm test:access-a
-          classification: independent baseline timeout; precise cause under separate read-only
-            diagnosis
+          classification: independent baseline timeout; precise cause under separate read-only diagnosis
           repair_inside_532: false
         accepted_candidate_sha: 604ac63d237b242d5e46a22d3dc0f580be35636f
         candidate_tree: e2380450d73899c32915b048be299921e2e5e4ea
@@ -967,10 +981,10 @@ parallel_lanes:
       final_browser_after: not_run
       independent_review: pending
       owner_acceptance: pending
-      reason: Owner programme452 input6066364541 selects P0 E01 before P2 E05; preserve
-        candidate and original evidence without redo or acceptance.
-      resume_after: First technically accepted E01 save recovery, then fresh bounded selection
-        under owner priority registry3.0.
+      reason: Owner programme452 input6066364541 selects P0 E01 before P2 E05; preserve candidate and original
+        evidence without redo or acceptance.
+      resume_after: First technically accepted E01 save recovery, then fresh bounded selection under owner
+        priority registry3.0.
     - task_id: TASK-ELECTRONICS-SAVE-RECOVERY-001
       issue: 526
       status: waiting_separate_ui_baseline_repair
@@ -983,11 +997,11 @@ parallel_lanes:
       independent_evidence: docs/product/electronics/evidence/save-526-r5-independent-review-0dd31b4d.md
       dependency_issue: 530
       owner_acceptance: pending
-      reason: Actual1024 native wire menu overlaps Code drawer; all original persistence
-        receipts preserved, denied-copy/full56 acceptance NOT_RUN. Baseline attribution
-        provisionalC from source comparison; no main browser claim.
-      resume_after: Technical530 acceptance, fresh526 canonical selection and safe convergence;
-        final combined exact gates/raw/UI/new independent review. No E01 reimplementation.
+      reason: Actual1024 native wire menu overlaps Code drawer; all original persistence receipts preserved,
+        denied-copy/full56 acceptance NOT_RUN. Baseline attribution provisionalC from source comparison; no
+        main browser claim.
+      resume_after: Technical530 acceptance, fresh526 canonical selection and safe convergence; final combined
+        exact gates/raw/UI/new independent review. No E01 reimplementation.
       preserved_task_snapshot:
         id: TASK-ELECTRONICS-SAVE-RECOVERY-001
         issue: 526
@@ -1063,12 +1077,11 @@ parallel_lanes:
       readiness_dependency_issue: 531
       compact_ui_dependency: selected_issue_532
       owner_acceptance: pending
-      reason: Native Purple and16phase resize receipts PASS, all8 gates6SUCCESS1FAIL1SKIP.
-        Trace proves external SDK load barrierD; actual981Run/font clipping needs separate
-        bounded UI resolution. No main-before browser claim.
-      resume_after: Accepted531 readiness is integrated; await separately selected532
-        compact controls acceptance, then preserve870/0dd and obtain final combined exact
-        gates/NEW review without duplicate implementation.
+      reason: Native Purple and16phase resize receipts PASS, all8 gates6SUCCESS1FAIL1SKIP. Trace proves external
+        SDK load barrierD; actual981Run/font clipping needs separate bounded UI resolution. No main-before
+        browser claim.
+      resume_after: Accepted531 readiness is integrated; await separately selected532 compact controls acceptance,
+        then preserve870/0dd and obtain final combined exact gates/NEW review without duplicate implementation.
       preserved_task_snapshot:
         id: TASK-ELECTRONICS-WIRE-MENU-LAYER-001
         issue: 530
@@ -1106,16 +1119,14 @@ parallel_lanes:
       main:
         branch: main
         sha: 3134650d808e698a9524515388d1793b0841a677
-      observation_note: Dated snapshot; fetch main and actual exact CI before writes.
-        Source542cffba NEW independent APPROVE/all4General37987374023 SUCCESS and actual
-        one-doc/3775 foreign entries proof; mandatory hygiene resolved, no cleanup. E01
-        source185d accepted/integrated; actual313 General37986023898 all4SUCCESS and Issue526
-        CLOSED6088797737. Select E04/543 only hook+narrow PSU alias/controller continuity,
-        full persistence/browser proof. Preserve every parallel candidate;54072 REQUEST_CHANGES
-        genuine GPIO compute bottleneck, not UI loss; independent Access timeout forwarded
-        to Portal for C/D classification, no Electronics scope expansion. Source CI is
-        not later docs composition CI. K0/T3/class/owner/deployment pending; no school
-        actions.
+      observation_note: Dated snapshot; fetch main and actual exact CI before writes. Source542cffba NEW independent
+        APPROVE/all4General37987374023 SUCCESS and actual one-doc/3775 foreign entries proof; mandatory hygiene
+        resolved, no cleanup. E01 source185d accepted/integrated; actual313 General37986023898 all4SUCCESS
+        and Issue526 CLOSED6088797737. Select E04/543 only hook+narrow PSU alias/controller continuity, full
+        persistence/browser proof. Preserve every parallel candidate;54072 REQUEST_CHANGES genuine GPIO compute
+        bottleneck, not UI loss; independent Access timeout forwarded to Portal for C/D classification, no
+        Electronics scope expansion. Source CI is not later docs composition CI. K0/T3/class/owner/deployment
+        pending; no school actions.
     execution_lease:
       executor_id: electronics-asset-baseline-548
       holder: unassigned
@@ -2677,22 +2688,19 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: bounded_attributed_draft_reader_composition_repair
-      dependency_issue: 536
+      status: blocked
+      checkpoint: new_exact_composition_blocked_by_independent_asset_548
+      dependency_issue: 548
       owner_acceptance: pending
       dependency_status: technical_accepted
       selected_at: '2026-10-09T16:49:06Z'
       preserved_candidate_sha: 51991c0339009f3e358bf405fddb8c48743262ef
       independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-42c4e1f1.md
-      independent_review_original_sha256: 41decf335ee5b2d36d3a76f3b0e1c3f6d64df4341ad718f193101fc06e1d458e
-      repair_scope: 'ONLY E07 setup and localDocument in e2e/electronics-interactions.spec.ts:
-        actual /api/auth/me session.user.id, encoded attributed account key and strict
-        schema3/user/identity/project/module/baseRevision/document validation. Null only
-        for genuinely absent local draft after Save/reopen; no fallback/legacy adoption.
-        Preserve every other E07 assertion/whole documents/native gestures/oldtimeouts
-        and all foreign code.'
+      independent_evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
+      independent_review_original_sha256: 380eb745d1e84b5fe385ec66799e008cc3b7706f90c81fba97db1cb598e18eb7
+      repair_scope: No E07 product or fixture edits. Preserve exact1b; separate asset548 cause/repair owns
+        failing old case. Resume only after actual dependency result with required final exact gates and NEW
+        independent review.
       preserved_candidate_tree: f68d6a4980a89b5c5c756396ccf73104e5657d06
       preserved_candidate_branch: codex/electronics-538-native-observer-r1
       preserved_review: approved_source_only_not_new_composition_acceptance
@@ -2700,19 +2708,26 @@ parallel_lanes:
       preserved_general_run: 37969136934
       preserved_electronics_run: 37970573601
       preserved_all8: success
-      controller_observed_at: '2026-10-10T02:00:19Z'
-      next_action: NEW bounded test-only author on clean6a0 composition, current canonical
-        phase read remotely. No main chase/second merge during repair. One unpublished
-        SHA/selfreview/focused thenSTOP. Root actualcheck, ONE justified directed mouse/touch
-        fullSave/reopen and ordinaryexactall8/NEWfinalreview before integration. Root
-        handles only final metadata convergence if needed; no product reimplementation.
+      controller_observed_at: '2026-10-11T06:59:21Z'
+      next_action: Wait for separately proved548 repair; no unchanged full CI rerun. Old391 APPROVE/all8 is
+        historical and does not accept1b. All original candidates and accepted code preserved.
       preserved_composition_sha: 6a0edfc99c185ebad02c5f81536d98b15f7c76ee
       preserved_composition_tree: 572ef954785dd6843e5f8949eb735a46685dc9ab
       preserved_composition_branch: codex/electronics-538-final-main-convergence
-      composition_cause: Actual clean merge retained old E07 legacy localStorage key;
-        accepted E01 writer uses schema3 user/identityKind/account scope. E07 seedTeacher
-        teacherId is not authenticated accounts.id. Whole-document native assertions would
-        read null; test reader only is necessary, product repair unchanged.
+      composition_cause: Actual clean merge retained old E07 legacy localStorage key; accepted E01 writer
+        uses schema3 user/identityKind/account scope. E07 seedTeacher teacherId is not authenticated accounts.id.
+        Whole-document native assertions would read null; test reader only is necessary, product repair unchanged.
+      final_candidate_sha: 1b0491ea7b6924c8ebc12ec834653617b8bdc360
+      final_candidate_tree: 68ca602598f08e278c6fedb40b50aff97b145717
+      final_candidate_branch: codex/electronics-538-classroom-baseline-final
+      exact_candidate_general_run: 38118287082
+      exact_candidate_general_conclusion: success
+      exact_candidate_electronics_run: 38118290466
+      exact_candidate_electronics_conclusion: failure
+      exact_candidate_all8: 6success_1failure_1skipped
+      final_actual: NEW independent full mouse/touch E07 raw/native gestures/whole Save2to3/cookies-only reopen
+        PASS;144browserPASS/1assetFAIL at2116 categoryC. Product and full failing case exactmain0c. Focused633engine426web70fresh/0cache;
+        imagesSKIPPED notPASS. Candidate preserved; no integration/closeout.
     execution_lease:
       executor_id: electronics-wire-538
       holder: unassigned
@@ -3068,43 +3083,37 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: causal_before_complete_single_selector_product_repair
+      checkpoint: causal_after_ready_final_composition_pending
       kind: repair
       owner_acceptance: pending
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-SPDT-ACTIVE-SHADOW-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: 'ONLY existing active selector in apps/web/src/electronics/workbench.css:
-        exclude data-component-type switch-spdt with :not; declaration/base shadow/focus/selection/diagnostics/control
-        button unchanged. Preserve exact8ccd scenario/registrations/physics/persistence/timeouts.
-        ONE unpublished product SHA and focused evidence thenSTOP.'
+      repair_scope: Preserve completed one-selector4cc and full8 causal AFTER. No new CSS/scenario edits.
+        Final composition and frozen exact gates await separately resolved asset548 baseline, then NEW different
+        independent final product reviewer.
       program_issue: 452
       owner_problem: E09
-      parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543
-        accepted,544 candidateblockedindependentassetbaseline,546 candidateunderreview;
-        all preserved.
-      shared_write_contract: Only additive package/workflow/map registrations explicitly
-        named by card; advisory owned_paths lists exclusive paths. Check actual dirty
-        full registration paths and preserve accepted/parallel registrations. No guard
-        disabled.
+      parallel_preservation: Do not edit existing interactions/common specs or Stage/Visual.543 accepted,544
+        candidateblockedindependentassetbaseline,546 candidateunderreview; all preserved.
+      shared_write_contract: Only additive package/workflow/map registrations explicitly named by card; advisory
+        owned_paths lists exclusive paths. Check actual dirty full registration paths and preserve accepted/parallel
+        registrations. No guard disabled.
       preserved_candidate_sha: 2190efccfbda348709ab82bb8249d9b2ac3ad332
       candidate_publication: published
       candidate_acceptance: pending
       causal_before_probe_sha: ba0564d1c1a58932e165ae7c4bb3961b3574a44c
       causal_before_run: 38012635802
       causal_before_conclusion: failure_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-10T02:38:51Z'
-      next_action: NEW bounded CSS author on preserved8ccd changes one existing selector
-        only, narrow source/specificity/consumer checks then sequential literaltrue focused
-        fresh no shared reinstall. Root actualchecks then ONE clean final convergence,
-        changed-cause full8AFTER and ordinary exact all8; NEW independent FINAL product
-        reviewer. Controller continues programme; no school actions.
+      controller_observed_at: '2026-10-11T06:59:21Z'
+      next_action: Do not hopeful-rerun known red asset baseline. Preserve4cc/20897 and all before-after originals.
+        After548 baseline result, ONE justified final composition/exact gates and NEW final reviewer; no acceptance
+        or school claim.
       before_independent_report_sha256: 018fb85c090ece50f4cbebaa02a7a7e85de6668c0eae31651ffa5c8e650fe46f
       before_independent_manifest_sha256: 2bf177265ec28286acaaa2eb99c6e5febd2b3257a25df101ba78239db5f5ef36
-      before_actual: FULL_BEFORE_READY_WITH_EXPECTED_PRODUCT_FAILURES:8x32samples,32same-focus
-        causal pairs,585complete ready C=H/finite/quality,96nativeRunning/32positiveStoppedcaptures,8wholeSave
-        onePUT2to3/cookies-onlyreopen. Original owner screenshot unavailable; no school
-        frequency or product acceptance claim.
+      before_actual: FULL_BEFORE_READY_WITH_EXPECTED_PRODUCT_FAILURES:8x32samples,32same-focus causal pairs,585complete
+        ready C=H/finite/quality,96nativeRunning/32positiveStoppedcaptures,8wholeSave onePUT2to3/cookies-onlyreopen.
+        Original owner screenshot unavailable; no school frequency or product acceptance claim.
       r1_candidate_sha: b1967d4a60e6a8d18b03b1e5f129d2a678d93c87
       r1_candidate_tree: bbd1e000fd09f4a0e1bbc219cc4fe0ca36aa3327
       r1_candidate_branch: codex/electronics-547-native-scenario-r1
@@ -3112,29 +3121,40 @@ parallel_lanes:
       r1_directed_probe_sha: 03a88981602ddd996a52fbccfedcdb41451ee346
       r1_directed_run: 38015124303
       r1_directed_conclusion: pending_not_acceptance
-      r1_root_actual: 8originals/3803foreignentries/allfixture and case Save-reopen bytes/allmatrix
-        assertions preserved; actualusednativehitpoint identity/trustedcoordinates stronger;
-        native middle-pan existingproduction gesture; CSS unchanged.
+      r1_root_actual: 8originals/3803foreignentries/allfixture and case Save-reopen bytes/allmatrix assertions
+        preserved; actualusednativehitpoint identity/trustedcoordinates stronger; native middle-pan existingproduction
+        gesture; CSS unchanged.
       stopped_r1_source: b1967d4a60e6a8d18b03b1e5f129d2a678d93c87
       stopped_r1_probe: 03a88981602ddd996a52fbccfedcdb41451ee346
       stopped_r1_run: 38015124303
       stopped_independent_report_sha256: b34e2fa4052399bed7be5f019116fbf30669e94da986e3621a094588224d75a0
-      stopped_causal_actual: All8 trusted down actuator then up/click canvas at same actual
-        native point; unchanged actuator/runtime/whole server revision2 and zeroPUT. New
-        R1 helper erroneously requires Running click actuator in Stopped. Capture inferred
-        from unchanged handlers, not directly logged. Full BEFORE NOT_READY; no product
-        pointer defect.
+      stopped_causal_actual: All8 trusted down actuator then up/click canvas at same actual native point;
+        unchanged actuator/runtime/whole server revision2 and zeroPUT. New R1 helper erroneously requires
+        Running click actuator in Stopped. Capture inferred from unchanged handlers, not directly logged.
+        Full BEFORE NOT_READY; no product pointer defect.
       before_source: 8ccd8c6787d9a725a8424b9d22dd79c2ffe56e45
       before_probe: 23b8d8c47a01061a0b8eba8bb01fd93b6875ec33
       before_run: 38016807993
-      before_conclusion: failure:96 EXPECTED blue-filter soft assertions;0 unexpected
-        hard errors
-      baseline_ci_note: Main699 General38016363479 FAILED categoryC independent Portal
-        public-chunk recovery1024 attempts1vs2 at4495;285PASS/1FAIL. Concrete failure
-        sent to authorized Portal owner. No Electronics product change caused it; no scope
-        expansion/rerun/claim that red is green. Exact391 wire General38016578210 SUCCESS
-        with identical Portal bytes is control evidence, not repair. Final exact required
-        gates still mandatory.
+      before_conclusion: failure:96 EXPECTED blue-filter soft assertions;0 unexpected hard errors
+      baseline_ci_note: Main699 General38016363479 FAILED categoryC independent Portal public-chunk recovery1024
+        attempts1vs2 at4495;285PASS/1FAIL. Concrete failure sent to authorized Portal owner. No Electronics
+        product change caused it; no scope expansion/rerun/claim that red is green. Exact391 wire General38016578210
+        SUCCESS with identical Portal bytes is control evidence, not repair. Final exact required gates still
+        mandatory.
+      product_candidate_sha: 4cc32a90cb4986694756a80afe0995ac7a1c6785
+      product_candidate_tree: 1683a0872d09e9e1003f03666a087587fe5548ba
+      product_candidate_branch: codex/electronics-547-single-selector-product
+      causal_after_probe_sha: 20897ae734721e5e2e4d9386324cc6f9c4fe50fc
+      causal_after_run: 38118420920
+      causal_after_conclusion: success_directed_not_final_acceptance
+      after_independent_report_sha256: 326832f856471337cff205f11b88c303ef6bb0c7224e63ae33e3dc7c9dcb5b1a
+      after_independent_manifest_sha256: a92b431528c706a960afac5e3c7be3dba98f0727ac460c13ae3b6624856184ab
+      after_actual: CAUSAL_AFTER_READY only:8cases256samples,32equal-focusOFFON ordinary shadow retained/no
+        blue,32Stopped native captures,564complete readyC=H plus32preflight,8wholeonePUT2to3/cookies-onlyreopen.
+        Root checked full raws/ZIPCRC/fixture equality. Not final product review/ordinary gate.
+      local_focused: 'NOT_PASS infrastructure prerequisite: corepack.cmd EINVAL then TS2307 missing workspace
+        module-sdk links; partial engine emit not successful build. No shared node_modules mutation or retry
+        on partial build.'
     execution_lease:
       executor_id: electronics-spdt-shadow-547
       holder: unassigned
@@ -3166,6 +3186,75 @@ parallel_lanes:
         causal browser BEFORE phase only; CSS unchanged. Supporting shared registrations
         use explicit card budget and actual dirty-path checks, no guard disabled. School
         actions none.
+
+  - id: electronics-selection
+    parent_lane: electronics
+    worktree_id: electronics-selection-outline
+    owned_paths:
+    - apps/web/src/electronics/testing/selection-outline.spec.ts
+    - e2e/electronics-selection-outline.spec.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
+    task:
+      id: TASK-ELECTRONICS-SELECTION-OUTLINE-001
+      issue: 549
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: bounded_outline_product_candidate_and_identical_before_after_scenario
+      kind: repair
+      owner_acceptance: pending
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      program_issue: 452
+      owner_problem: E11
+      repair_scope: Only existing measured resistor/button/switch outward selection geometry/zoom parity
+        in Visual; mounted regression plus one new browser journey. Same test bytes against baseline/candidate;
+        root runs one causal BEFORE and AFTER. Eight owner families plus tactile button at1440/1024/390/320,
+        native selection/group/zoom/transforms/runtime and wholeSave/cookies-onlyreopen. No physics/assets/Stage/CSS/548
+        observer edits.
+      next_action: 'NEW bounded product author: fresh preflight/card, one unpublished candidate/selfreview/hashmanifest
+        thenSTOP; root actualsource and causal browser checks, final exact required gates then NEW independent
+        final reviewer. No school actions or closure claim.'
+      preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged.
+        No resolution of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted
+        production slice before later new production phase.
+      shared_write_contract: Visual is already in legacy parent owned_paths. Root verified all relevant
+        worktrees CLEAN and all548/525 Visual writers STOP/held; only549 author may write selected measured
+        selection branches. No protection disabled; advisory owned_paths does not grant authority. Three
+        additive registrations are budgeted by card.
+    execution_lease:
+      executor_id: electronics-selection-outline
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      focused:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1
+      browser:
+        workflow: Electronics R4-M1 Focused
+        commands:
+        - pnpm gate:electronics-m1:browser
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 0fb17bd9ce02eef510c5249f63a4016e27b53e86
+      head_sha: null
+      observed_at: '2026-10-11T07:32:45.593725+00:00'
+      main:
+        branch: main
+        sha: 0fb17bd9ce02eef510c5249f63a4016e27b53e86
+      observation_note: Dated observation only. Fresh fetch main/current and exact CI before writes; main0fb
+        General38120088582 all4SUCCESS. E11 not accepted, school pending; preserved candidates and all foreign
+        lanes unchanged.
 
 integration:
   owner_lane: visual-programming
@@ -3218,4 +3307,21 @@ blocking:
       - focused_verification
     reason: E1 corrections remain open, but owner review 2026-10-04 changed implementation priority to visible-first. V-UX2A Assignment list is the selected next visible slice; A6/A7/A8 backend/media work may proceed only when it blocks that exact visible flow. Owner acceptance and release/deployment claims remain blocked.
     evidence: docs/product/ASA_LEARNING_REQUIREMENTS_LEDGER.yaml
+  - id: ELECTRONICS-538-ASSET-548
+    kind: acceptance_blocker
+    lane: electronics-wire
+    task_id: TASK-ELECTRONICS-LEGACY-WIRE-SEGMENT-001
+    blocks:
+    - technical_acceptance
+    - integration
+    - close_issue
+    - owner_acceptance
+    - release_claim
+    allows:
+    - bounded_diagnostic
+    - documentation_update
+    - focused_verification
+    reason: Exact1b required ordinary38118290466 browser114407851393 FAIL existing catalog image badge at2116;
+      images skipped. Separate548 causal repair required; E07 actual journeys pass and must be preserved.
+    evidence: docs/product/electronics/evidence/legacy-wire-538-independent-review-1b0491ea.md
 next_task: null
