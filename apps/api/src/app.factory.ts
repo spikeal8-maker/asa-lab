@@ -10,10 +10,13 @@ import fastifyCookie from '@fastify/cookie';
 import fastifyCompress from '@fastify/compress';
 import fastifyStatic from '@fastify/static';
 import pg from 'pg';
-import type { RuntimeMetrics } from '@asa-lab/observability';
+import { createRuntimeMetrics } from '@asa-lab/observability';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { SeatContextUseCase } from './seat-context.js';
 import { AppModule } from './app.module.js';
+import { ProductAnalyticsService } from './product-analytics.service.js';
+import { OwnedPools, SafeNestLogger, boundedClose } from './owned-pool-lifecycle.js';
+import { noteRequestReceipt } from './request-receipt.js';
 import { TOKENS } from './tokens.js';
 import { runtimeBuildMetadata } from './build-metadata.js';
 import { logSubsystem, safeLogPath } from './log-subsystems.js';
@@ -141,6 +144,8 @@ function shouldLogRequests(explicit: boolean | undefined): boolean {
 export interface ApiFactoryOptions {
   /** Injected pool (tests); otherwise built from APP_DATABASE_URL only. */
   readonly pool?: pg.Pool | null;
+  /** Explicit test/embedding dependency; null disables telemetry with no fallback. */
+  readonly analyticsPool?: pg.Pool | null;
   /** Directory with the built web SPA; defaults to apps/web/dist. */
   readonly webDist?: string | null;
   /** Canonical browser origin allowed to call mutation endpoints. */
@@ -183,6 +188,17 @@ export function poolSettings(): pg.PoolConfig {
   };
 }
 
+export function analyticsPoolSettings(): pg.PoolConfig {
+  return {
+    max: 1,
+    connectionTimeoutMillis: 1000,
+    statement_timeout: 2000,
+    query_timeout: 3000,
+    idleTimeoutMillis: 30000,
+    options: '-c lock_timeout=1000',
+  };
+}
+
 function defaultPool(): pg.Pool | null {
   const url = process.env['APP_DATABASE_URL'];
   return url ? new pg.Pool({ connectionString: url, ...poolSettings() }) : null;
@@ -200,226 +216,303 @@ function defaultWebOrigin(): string {
 export async function createApiApp(
   options: ApiFactoryOptions = {},
 ): Promise<NestFastifyApplication> {
-  assertTrustedProxyConfiguration();
-  const pool = options.pool !== undefined ? options.pool : defaultPool();
-  const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
-  const allowedLocalApiOrigin = resolveLocalApiOrigin(
-    options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
-  );
-  const isolatedTestWebOrigin = resolveIsolatedTestWebOrigin(
-    process.env['ASA_ISOLATED_TEST_WEB_ORIGIN'],
-    process.env['NODE_ENV'],
-    process.env['APP_DATABASE_URL'],
-  );
-  const additionalAllowedOrigins = [
-    ...(options.additionalAllowedOrigins ??
-      resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS'])),
-    ...(isolatedTestWebOrigin === null ? [] : [isolatedTestWebOrigin]),
-  ];
-  const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
-  const app = await NestFactory.create<NestFastifyApplication>(AppModule.forPool(pool), adapter, {
-    logger: ['error', 'warn'],
-  });
+  const owned = new OwnedPools();
+  let createdApp: NestFastifyApplication | undefined;
+  let metrics: ReturnType<typeof createRuntimeMetrics> | undefined;
+  let analytics: ProductAnalyticsService | undefined;
+  let cleanupPromise: Promise<void> | undefined;
+  const cleanup = (): Promise<void> =>
+    (cleanupPromise ??= (async () => {
+      const errors: unknown[] = [];
+      try {
+        if (analytics) await boundedClose(() => analytics!.shutdown(), 6000);
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        metrics?.stop();
+      } catch (error) {
+        errors.push(error);
+      }
+      try {
+        await owned.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length) throw new AggregateError(errors, 'API resource cleanup failed');
+    })());
+  try {
+    const pool = options.pool !== undefined ? options.pool : defaultPool();
+    owned.track(pool, 'main');
+    const analyticsPool =
+      options.analyticsPool !== undefined
+        ? options.analyticsPool
+        : options.pool !== undefined
+          ? pool
+          : process.env['APP_DATABASE_URL']
+            ? new pg.Pool({
+                connectionString: process.env['APP_DATABASE_URL'],
+                ...analyticsPoolSettings(),
+              })
+            : null;
+    owned.track(analyticsPool, 'analytics');
+    assertTrustedProxyConfiguration();
+    if (!pool && analyticsPool) throw new Error('analytics_requires_main_database');
+    metrics = createRuntimeMetrics();
+    analytics = new ProductAnalyticsService(analyticsPool);
+    const allowedWebOrigin = options.allowedWebOrigin ?? defaultWebOrigin();
+    const allowedLocalApiOrigin = resolveLocalApiOrigin(
+      options.localApiPort === undefined ? process.env['API_PORT'] : String(options.localApiPort),
+    );
+    const isolatedTestWebOrigin = resolveIsolatedTestWebOrigin(
+      process.env['ASA_ISOLATED_TEST_WEB_ORIGIN'],
+      process.env['NODE_ENV'],
+      process.env['APP_DATABASE_URL'],
+    );
+    const additionalAllowedOrigins = [
+      ...(options.additionalAllowedOrigins ??
+        resolveAdditionalWebOrigins(process.env['ASA_PUBLIC_WEB_ORIGINS'])),
+      ...(isolatedTestWebOrigin === null ? [] : [isolatedTestWebOrigin]),
+    ];
+    const adapter = new FastifyAdapter({ genReqId: () => randomUUID(), logger: false });
+    const app = await NestFactory.create<NestFastifyApplication>(
+      AppModule.forPool(pool, { productAnalytics: analytics, runtimeMetrics: metrics }),
+      adapter,
+      {
+        logger: new SafeNestLogger(),
+        abortOnError: false,
+      },
+    );
 
-  // Nest's adapter exposes a differently-parameterised FastifyInstance; one
-  // deliberate boundary cast lets the canonical plugin types apply.
-  const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
-  const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
-  registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
-  await fastify.register(fastifyCookie);
+    createdApp = app;
+    const originalClose = app.close.bind(app);
+    let appClosePromise: Promise<void> | undefined;
+    app.close = () =>
+      (appClosePromise ??= (async () => {
+        const errors: unknown[] = [];
+        try {
+          await boundedClose(() => originalClose(), 9000);
+        } catch (error) {
+          errors.push(error);
+        }
+        try {
+          await cleanup();
+        } catch (error) {
+          errors.push(error);
+        }
+        if (errors.length) throw new AggregateError(errors, 'API close failed');
+      })());
 
-  fastify.addHook('onSend', async (request, reply, payload) => {
-    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-      if (!reply.hasHeader(name)) {
-        void reply.header(
-          name,
-          name === 'Content-Security-Policy'
-            ? contentSecurityPolicyFor(request.protocol, request.hostname)
-            : value,
+    // Nest's adapter exposes a differently-parameterised FastifyInstance; one
+    // deliberate boundary cast lets the canonical plugin types apply.
+    const fastify = app.getHttpAdapter().getInstance() as unknown as FastifyInstance;
+    fastify.addHook('onClose', cleanup);
+    const blocksRuntimeOrigin = optionalBlocksRuntimeOrigin();
+    registerBlocksRuntimeTransport(fastify, blocksRuntimeOrigin);
+    await fastify.register(fastifyCookie);
+
+    fastify.addHook('onSend', async (request, reply, payload) => {
+      for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
+        if (!reply.hasHeader(name)) {
+          void reply.header(
+            name,
+            name === 'Content-Security-Policy'
+              ? contentSecurityPolicyFor(request.protocol, request.hostname)
+              : value,
+          );
+        }
+      }
+      return payload;
+    });
+
+    // Caddy compresses in front of the API in production, but dev, the browser
+    // E2E stack and every local measurement talk to the API directly. Without
+    // this they were measuring an uncompressed site that no user would receive,
+    // which makes the numbers meaningless in both directions.
+    await fastify.register(fastifyCompress, {
+      global: true,
+      threshold: 1024,
+      encodings: ['br', 'gzip', 'deflate'],
+    });
+
+    const runtimeMetrics = metrics;
+    const logRequests = shouldLogRequests(options.logRequests);
+    const logRevision = runtimeBuildMetadata().revision;
+    app.useGlobalFilters(new ServerDiagnosticsFilter(app.getHttpAdapter(), logRevision, pool));
+    fastify.addHook('onError', async (request, _reply, error) => {
+      if (!requestFailures.has(request))
+        recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
+    });
+    const mutationAbuseProtection = new MutationAbuseProtection(async (kind, token) =>
+      kind === 'account'
+        ? (await app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token)) !== null
+        : (await app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token)) !== null,
+    );
+    const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
+
+    fastify.addHook('onRequest', async (request) => {
+      runtimeMetrics.requestStarted();
+      const path = (request.raw.url ?? '/').split('?')[0]!;
+      if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client')
+        process.stdout.write(
+          `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), ...diagnosticContext(request) })}\n`,
+        );
+    });
+
+    fastify.addHook('onResponse', async (request, reply) => {
+      const durationMs = Math.round(reply.elapsedTime);
+      runtimeMetrics.requestFinished(reply.statusCode, durationMs);
+      if (logRequests) {
+        const path = (request.raw.url ?? '/').split('?')[0];
+        process.stdout.write(
+          `${JSON.stringify({
+            time: new Date().toISOString(),
+            kind: 'http_response',
+            requestId: request.id,
+            revision: logRevision,
+            method: request.method,
+            path: safeLogPath(path),
+            subsystem: logSubsystem('api', path),
+            status: reply.statusCode,
+            durationMs,
+            errorCode: requestFailures.get(request),
+            ...diagnosticContext(request),
+          })}\n`,
         );
       }
-    }
-    return payload;
-  });
+    });
 
-  // Caddy compresses in front of the API in production, but dev, the browser
-  // E2E stack and every local measurement talk to the API directly. Without
-  // this they were measuring an uncompressed site that no user would receive,
-  // which makes the numbers meaningless in both directions.
-  await fastify.register(fastifyCompress, {
-    global: true,
-    threshold: 1024,
-    encodings: ['br', 'gzip', 'deflate'],
-  });
-
-  const metrics = app.get<RuntimeMetrics>(TOKENS.runtimeMetrics, { strict: false });
-  const logRequests = shouldLogRequests(options.logRequests);
-  const logRevision = runtimeBuildMetadata().revision;
-  app.useGlobalFilters(new ServerDiagnosticsFilter(app.getHttpAdapter(), logRevision, pool));
-  fastify.addHook('onError', async (request, _reply, error) => {
-    if (!requestFailures.has(request))
-      recordServerFailure(error, request, error.statusCode ?? 500, logRevision, pool);
-  });
-  const mutationAbuseProtection = new MutationAbuseProtection(async (kind, token) =>
-    kind === 'account'
-      ? (await app.get<ActiveContextUseCase>(TOKENS.activeContextUseCase).resolve(token)) !== null
-      : (await app.get<SeatContextUseCase>(TOKENS.seatContextUseCase).resolve(token)) !== null,
-  );
-  const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
-
-  fastify.addHook('onRequest', async (request) => {
-    metrics.requestStarted();
-    const path = (request.raw.url ?? '/').split('?')[0]!;
-    if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client')
-      process.stdout.write(
-        `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), ...diagnosticContext(request) })}\n`,
-      );
-  });
-
-  fastify.addHook('onResponse', async (request, reply) => {
-    const durationMs = Math.round(reply.elapsedTime);
-    metrics.requestFinished(reply.statusCode, durationMs);
-    if (logRequests) {
+    fastify.addHook('onRequest', async (request, reply) => {
+      noteRequestReceipt(request);
+      void reply.header('x-request-id', request.id);
       const path = (request.raw.url ?? '/').split('?')[0];
-      process.stdout.write(
-        `${JSON.stringify({
-          time: new Date().toISOString(),
-          kind: 'http_response',
-          requestId: request.id,
-          revision: logRevision,
-          method: request.method,
-          path: safeLogPath(path),
-          subsystem: logSubsystem('api', path),
-          status: reply.statusCode,
-          durationMs,
-          errorCode: requestFailures.get(request),
-          ...diagnosticContext(request),
-        })}\n`,
-      );
-    }
-  });
-
-  fastify.addHook('onRequest', async (request, reply) => {
-    void reply.header('x-request-id', request.id);
-    const path = (request.raw.url ?? '/').split('?')[0];
-    if (
-      path.startsWith('/api/') &&
-      request.cookies['asa_session'] &&
-      request.cookies['asa_student_session'] &&
-      path !== '/api/auth/logout' &&
-      path !== '/api/class-join/logout'
-    ) {
-      return reply.code(409).send({
-        error: {
-          code: 'session_conflict',
-          message: 'Обнаружены два разных входа. Выйдите и войдите заново.',
-        },
-      });
-    }
-    if (
-      process.env['NODE_ENV'] === 'production' &&
-      process.env['ASA_PUBLIC_METRICS'] !== '1' &&
-      path === '/health/metrics'
-    ) {
-      return reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
-    }
-    const runtimePath = isBlocksRuntimePath(path);
-    if (runtimePath && !applyBlocksRuntimeCors(request, reply, blocksRuntimeOrigin)) {
-      return reply
-        .code(403)
-        .send({ error: { code: 'forbidden_origin', message: 'runtime origin is not allowed' } });
-    }
-    if (runtimePath) {
-      const runtimeAbuse = blocksRuntimeAddressBudget.consume(request);
-      if (!runtimeAbuse.allowed) {
-        void reply.header('retry-after', runtimeAbuse.retryAfterSeconds);
-        return reply.code(429).send({
-          error: { code: 'too_many_requests', message: 'runtime request budget exceeded' },
-        });
-      }
-    }
-
-    const method = request.method;
-    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
-      return;
-    }
-
-    // Runtime mutations use short-lived bearer authority and their own bounded
-    // capability/upload budgets. Do not collapse a whole classroom behind one
-    // school-NAT IP into the generic browser mutation limiter.
-    if (!runtimePath && path !== '/api/auth/max/webhook') {
-      const allowed = isAllowedMutationOrigin({
-        origin: request.headers.origin,
-        allowedWebOrigin,
-        allowedLocalApiOrigin,
-        additionalAllowedOrigins,
-        secFetchSite:
-          typeof request.headers['sec-fetch-site'] === 'string'
-            ? request.headers['sec-fetch-site']
-            : undefined,
-      });
-      if (!allowed) {
-        return reply
-          .code(403)
-          .send({ error: { code: 'origin_forbidden', message: 'request origin is not allowed' } });
-      }
-    }
-
-    if (!runtimePath) {
-      const abuse = await mutationAbuseProtection.consume(request);
-      if (!abuse.allowed) {
-        void reply.header('retry-after', abuse.retryAfterSeconds);
-        return reply.code(429).send({
+      if (
+        path.startsWith('/api/') &&
+        request.cookies['asa_session'] &&
+        request.cookies['asa_student_session'] &&
+        path !== '/api/auth/logout' &&
+        path !== '/api/class-join/logout'
+      ) {
+        return reply.code(409).send({
           error: {
-            code: 'too_many_requests',
-            message: 'Слишком много запросов. Подождите и попробуйте снова.',
-            retryAfterSeconds: abuse.retryAfterSeconds,
+            code: 'session_conflict',
+            message: 'Обнаружены два разных входа. Выйдите и войдите заново.',
           },
         });
       }
-    }
-  });
+      if (
+        process.env['NODE_ENV'] === 'production' &&
+        process.env['ASA_PUBLIC_METRICS'] !== '1' &&
+        path === '/health/metrics'
+      ) {
+        return reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
+      }
+      const runtimePath = isBlocksRuntimePath(path);
+      if (runtimePath && !applyBlocksRuntimeCors(request, reply, blocksRuntimeOrigin)) {
+        return reply
+          .code(403)
+          .send({ error: { code: 'forbidden_origin', message: 'runtime origin is not allowed' } });
+      }
+      if (runtimePath) {
+        const runtimeAbuse = blocksRuntimeAddressBudget.consume(request);
+        if (!runtimeAbuse.allowed) {
+          void reply.header('retry-after', runtimeAbuse.retryAfterSeconds);
+          return reply.code(429).send({
+            error: { code: 'too_many_requests', message: 'runtime request budget exceeded' },
+          });
+        }
+      }
 
-  const webDist =
-    options.webDist !== undefined ? options.webDist : resolve(__dirname, '..', '..', 'web', 'dist');
-  if (webDist && existsSync(join(webDist, 'index.html'))) {
-    await fastify.register(fastifyStatic, {
-      root: webDist,
-      wildcard: false,
-      cacheControl: false,
-      setHeaders: applyCacheControl,
-    });
-    const indexHtml = readFileSync(join(webDist, 'index.html'), 'utf8');
-    // SPA fallback as a lowest-priority wildcard route. Only real browser
-    // routes receive the entry document; unknown public paths must remain
-    // genuine 404 responses so crawlers do not classify them as soft-404s.
-    fastify.get('/*', async (request, reply) => {
-      const path = (request.raw.url ?? '/').split('?')[0] ?? '/';
-      if (!shouldServeSpaDocument(path)) {
-        await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
+      const method = request.method;
+      if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') {
         return;
       }
-      if (path !== '/') {
-        void reply.header('X-Robots-Tag', 'noindex, nofollow');
+
+      // Runtime mutations use short-lived bearer authority and their own bounded
+      // capability/upload budgets. Do not collapse a whole classroom behind one
+      // school-NAT IP into the generic browser mutation limiter.
+      if (!runtimePath && path !== '/api/auth/max/webhook') {
+        const allowed = isAllowedMutationOrigin({
+          origin: request.headers.origin,
+          allowedWebOrigin,
+          allowedLocalApiOrigin,
+          additionalAllowedOrigins,
+          secFetchSite:
+            typeof request.headers['sec-fetch-site'] === 'string'
+              ? request.headers['sec-fetch-site']
+              : undefined,
+        });
+        if (!allowed) {
+          return reply.code(403).send({
+            error: { code: 'origin_forbidden', message: 'request origin is not allowed' },
+          });
+        }
       }
-      // The entry document names the hashed chunks, so it must never be held:
-      // a cached index.html would point at files a deploy has already replaced.
-      await reply
-        .header('Cache-Control', 'no-cache')
-        .type('text/html; charset=utf-8')
-        .send(indexHtml);
+
+      if (!runtimePath) {
+        const abuse = await mutationAbuseProtection.consume(request);
+        if (!abuse.allowed) {
+          void reply.header('retry-after', abuse.retryAfterSeconds);
+          return reply.code(429).send({
+            error: {
+              code: 'too_many_requests',
+              message: 'Слишком много запросов. Подождите и попробуйте снова.',
+              retryAfterSeconds: abuse.retryAfterSeconds,
+            },
+          });
+        }
+      }
     });
+
+    const webDist =
+      options.webDist !== undefined
+        ? options.webDist
+        : resolve(__dirname, '..', '..', 'web', 'dist');
+    if (webDist && existsSync(join(webDist, 'index.html'))) {
+      await fastify.register(fastifyStatic, {
+        root: webDist,
+        wildcard: false,
+        cacheControl: false,
+        setHeaders: applyCacheControl,
+      });
+      const indexHtml = readFileSync(join(webDist, 'index.html'), 'utf8');
+      // SPA fallback as a lowest-priority wildcard route. Only real browser
+      // routes receive the entry document; unknown public paths must remain
+      // genuine 404 responses so crawlers do not classify them as soft-404s.
+      fastify.get('/*', async (request, reply) => {
+        const path = (request.raw.url ?? '/').split('?')[0] ?? '/';
+        if (!shouldServeSpaDocument(path)) {
+          await reply.code(404).send({ error: { code: 'not_found', message: 'not found' } });
+          return;
+        }
+        if (path !== '/') {
+          void reply.header('X-Robots-Tag', 'noindex, nofollow');
+        }
+        // The entry document names the hashed chunks, so it must never be held:
+        // a cached index.html would point at files a deploy has already replaced.
+        await reply
+          .header('Cache-Control', 'no-cache')
+          .type('text/html; charset=utf-8')
+          .send(indexHtml);
+      });
+    }
+
+    await app.init();
+    return app;
+  } catch (error) {
+    const errors: unknown[] = [error];
+    try {
+      if (createdApp) await boundedClose(() => createdApp!.close(), 9000);
+    } catch (closeError) {
+      errors.push(closeError);
+    }
+    try {
+      await cleanup();
+    } catch (cleanupError) {
+      errors.push(cleanupError);
+    }
+    if (errors.length > 1)
+      throw new AggregateError(errors, 'API construction and cleanup failed', { cause: error });
+    throw error;
   }
-
-  // The runtime launcher owns SIGINT/SIGTERM. Registering Nest shutdown hooks
-  // here as well would call app.close twice for the same signal.
-  fastify.addHook('onClose', async () => {
-    // The event-loop histogram keeps a timer alive; leaving it running would
-    // hold the process open after a graceful stop.
-    metrics.stop();
-    if (pool) await pool.end();
-  });
-
-  await app.init();
-  return app;
 }
