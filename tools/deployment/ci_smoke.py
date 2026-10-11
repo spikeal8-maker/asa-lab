@@ -99,7 +99,8 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         for path in ('/assets/missing-diagnostics-fixture.js', '/api/diagnostics/not-found'):
             request = urllib.request.Request('http://127.0.0.1:4610' + path + '?token=' + canary,
                 data=canary.encode() if path.startswith('/api/') else None,
-                headers={'Authorization':'Bearer '+canary, 'Cookie':'session='+canary, 'Content-Type':'text/plain'})
+                headers={'Authorization':'Bearer '+canary, 'Cookie':'session='+canary, 'Content-Type':'text/plain',
+                         'Origin':'http://127.0.0.1:4610'})
             try:
                 with urllib.request.urlopen(request, timeout=15) as response: response.read()
             except urllib.error.HTTPError as failure:
