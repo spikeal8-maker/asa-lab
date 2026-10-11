@@ -3273,7 +3273,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r6_test_only_preserve_primary_failure_during_artifact_errors
+      checkpoint: r7_test_only_saved_state_setup_and_native_control_oracles
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3281,14 +3281,14 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R6 TEST ONLY e2e/electronics-selection-outline.spec.ts: guard artifact writes/attachment/reopen
-        cleanup and retain original Error; supplemental errors recorded, absent mandatory evidence leaves FAIL
-        if no primary. Preserve all R5 16 cases/fixtures/native actions/77 assertions/71 old invariant expressions/wholeSaveCAScookies/30000ms
-        and other5 source blobs exactly. No product repair or timeout/assertion weakening.'
+      repair_scope: 'R7 TEST ONLY e2e/electronics-selection-outline.spec.ts: fix proven invalid BEFORE setup
+        label, clean saved-document oracle and ambiguous/native control hit authority; retain full actual local
+        whole document checks, zero hidden edits/PUT, exact transforms, complete ready/yielded, wholeSaveCAScookies,
+        primary-original evidence and all default deadlines. No product repair or expected-value fallback.'
       next_action: New bounded test-only author inherits actual canonical/shared main automatically with conflict
-        STOP. One unpublished exact SHA/narrow checks/source inverse/hashmanifest/selfreview thenSTOP; NEW different
-        source reviewer before ONE new identical strict BEFORE. AFTER forbidden until full valid BEFORE; exact
-        gates/new final product review remain mandatory.
+        STOP. Preserve published R6 source7e77 and invalid BEFOREaa4b/run38142368828. One unpublished exact SHA,
+        narrow checks/full foreign-tree/selfreview/hashmanifest thenSTOP; NEW independent source challenge before
+        ONE new strict frozen BEFORE. AFTER forbidden until valid BEFORE; final exact gates/product review remain.
       preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged. No resolution
         of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted production slice
         before later new production phase.

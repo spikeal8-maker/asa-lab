@@ -6,7 +6,7 @@ import getpass
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import subprocess
 import sys
@@ -24,11 +24,25 @@ WINDOWS = os.name == 'nt'
 
 
 def command(args, *, allow_missing=False):
-    value = subprocess.run([str(a) for a in args], capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=30,
-                           creationflags=0x08000000 if os.name == "nt" else 0)
+    tool = Path(str(args[0])).name
+    verb = next((arg for arg in args[1:] if arg in {'show-environment', 'show', 'daemon-reload', 'enable', 'disable', 'restart', 'start', 'stop'}), 'query') if tool == 'systemctl' else 'query'
+    try:
+        value = subprocess.run([str(a) for a in args], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=30,
+                               creationflags=0x08000000 if os.name == "nt" else 0)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        outcome = 'timeout' if isinstance(exc, subprocess.TimeoutExpired) else 'tool-unavailable'
+        raise Blocked('COLLECTOR_RUNNER', f'Diagnostic runner command failed: {tool} {verb}; exit=unknown; outcome={outcome}',
+                      'Inspect the named runner stage; no automatic elevation is performed.') from exc
     if value.returncode and not allow_missing:
-        raise Blocked("COLLECTOR_RUNNER", f"Diagnostic runner command failed: {Path(str(args[0])).name}",
+        # Never echo stderr: a foreign unit may include argv, paths or secrets.
+        stderr = value.stderr.lower()
+        outcome = next((label for marker, label in (
+            ('bad unit file setting', 'invalid-unit'), ('not loaded', 'unit-not-loaded'),
+            ('does not exist', 'unit-not-found'), ('access denied', 'permission-denied'),
+            ('permission denied', 'permission-denied'), ('failed to connect to bus', 'manager-unavailable'),
+        ) if marker in stderr), 'command-failed')
+        raise Blocked("COLLECTOR_RUNNER", f"Diagnostic runner command failed: {tool} {verb}; exit={value.returncode}; outcome={outcome}",
                       "Inspect the runner permissions; no automatic elevation is performed.")
     return value.stdout.strip(), value.returncode
 
@@ -248,6 +262,28 @@ def ps_scheduler(install, action, identity, xml=None):
     return command(args)[0]
 
 
+def systemd_paths(identity, python):
+    root = identity['root']
+    for value in (root, python):
+        require(isinstance(value, str) and value.startswith('/') and value == value.strip() and
+                not any(ord(c) < 32 or ord(c) == 127 or c in '\\"\'%$' for c in value),
+                'COLLECTOR_RUNNER_PATH', 'Unsupported systemd path characters.',
+                'Use absolute Linux paths without control characters, quotes, backslashes, %, $ or edge whitespace.')
+    return root, str(PurePosixPath(root) / 'tools/collect_logs.py')
+
+
+def systemd_unit(identity, python):
+    root, script = systemd_paths(identity, python)
+    system = identity['mode'] == 'system'
+    owner_line = f'User={identity["owner"]}\n' if system else ''
+    # WorkingDirectory's parser takes a raw absolute path, unlike ExecStart's
+    # quoted argv parser. Literal interior spaces are valid in both forms.
+    return ('[Unit]\nDescription=ASA Lab diagnostic collector\nAfter=network.target\n[Service]\n' + owner_line +
+            f'WorkingDirectory={root}\nExecStart="{python}" "{script}" --root "{root}"\n' +
+            'Restart=always\nRestartSec=20\nNoNewPrivileges=true\nUMask=0077\n[Install]\nWantedBy=' +
+            ('multi-user.target\n' if system else 'default.target\n'))
+
+
 def verify_systemd_unit(text, identity, python):
     allowed = {'Unit': {'Description', 'After'}, 'Service': {'User', 'WorkingDirectory', 'ExecStart', 'Restart', 'RestartSec', 'NoNewPrivileges', 'UMask'},
                'Install': {'WantedBy'}}
@@ -263,12 +299,14 @@ def verify_systemd_unit(text, identity, python):
         require(separator and section in allowed and key in allowed[section] and (section, key) not in values,
                 'COLLECTOR_RUNNER_IDENTITY', 'Unexpected or repeated collector service directive.')
         values[section, key] = value
-    expected = f'"{python}" "{Path(identity["root"]) / "tools" / "collect_logs.py"}" --root "{identity["root"]}"'
+    root, script = systemd_paths(identity, python)
+    expected = f'"{python}" "{script}" --root "{root}"'
     require(values.get(('Service', 'ExecStart')) == expected and
-            values.get(('Service', 'WorkingDirectory')) == f'"{identity["root"]}"' and
+            values.get(('Service', 'WorkingDirectory')) == root and
             values.get(('Service', 'User')) == (identity['owner'] if identity['mode'] == 'system' else None) and
             values.get(('Service', 'NoNewPrivileges')) == 'true',
-            'COLLECTOR_RUNNER_IDENTITY', 'Existing service is not this installation\'s unprivileged collector.')
+            'COLLECTOR_RUNNER_IDENTITY', 'Existing service is not this installation\'s unprivileged collector.',
+            'Inspect the exact unit as its operator. A historical quoted WorkingDirectory requires manual owned-unit repair; no service was changed.')
 
 
 def verify_effective_exec(identity, python):
@@ -297,7 +335,8 @@ def verify_effective_exec(identity, python):
                 isinstance(value['data'], list) and len(value['data']) == 1,
                 'COLLECTOR_RUNNER_IDENTITY', 'Expected exactly one typed effective service action.')
         action = value['data'][0]
-        expected = [python, str(Path(identity['root']) / 'tools/collect_logs.py'), '--root', identity['root']]
+        root, script = systemd_paths(identity, python)
+        expected = [python, script, '--root', root]
         require(isinstance(action, list) and len(action) == 10 and action[0] == python and action[1] == expected and
                 action[2] is False and all(type(item) is int and item >= 0 for item in action[3:]),
                 'COLLECTOR_RUNNER_IDENTITY', 'Effective service executable or complete argv differs from this collector.')
@@ -314,38 +353,13 @@ def verify_effective_owner(effective, identity):
             'COLLECTOR_RUNNER_IDENTITY', 'Loaded service privileges or working directory differ from this collector.')
 
 
-def reconcile_runner(install, identity, restart):
-    if identity["mode"] == "windows-task":
-        existing = json.loads(ps_scheduler(install, "query", identity))
-        if existing.get("xml"): verify_windows_task(existing["xml"], identity, existing.get('principalSid'))
-        python = Path(sys.executable).with_name("pythonw.exe")
-        if not python.exists(): python = Path(sys.executable)
-        if not existing.get("xml") or restart:
-            if existing.get("xml"): ps_scheduler(install, "stop", identity)
-            xml = install.state / "diagnostics" / "private" / "collector-task.xml"
-            atomic_bytes(xml, windows_xml(identity, python).encode('utf-16'), mode=0o600)
-            try: ps_scheduler(install, "register", identity, xml)
-            finally: xml.unlink(missing_ok=True)
-        ps_scheduler(install, "start", identity)
-        return "Requires the logged-in Docker Desktop operator session"
-    system = identity["mode"] == "system"
-    require(not system or os.geteuid() == 0, "COLLECTOR_RUNNER_PERMISSION", "System runner maintenance requires existing root privileges.")
-    directory = Path("/etc/systemd/system") if system else Path.home() / ".config" / "systemd" / "user"
-    path = directory / identity["name"]
-    python, root = sys.executable, identity["root"]
-    require(not any(c in python + root for c in ('\n', '\r', '"', '%')), "COLLECTOR_RUNNER_PATH", "Unsupported systemd path characters.")
-    exec_line = f'ExecStart="{python}" "{Path(root) / "tools" / "collect_logs.py"}" --root "{root}"'
-    require(not path.is_symlink(), 'COLLECTOR_RUNNER_IDENTITY', 'Collector service unit must not be a symlink.')
-    if path.exists(): verify_systemd_unit(path.read_text(), identity, python)
-    if path.exists():
-        require(path.stat().st_uid == (0 if system else os.geteuid()), 'COLLECTOR_RUNNER_OWNER', 'Service file belongs to another operator.')
-    owner_line = f'User={identity["owner"]}\n' if system else ""
-    unit = ("[Unit]\nDescription=ASA Lab diagnostic collector\nAfter=network.target\n[Service]\n" + owner_line +
-            f'WorkingDirectory="{root}"\n{exec_line}\nRestart=always\nRestartSec=20\nNoNewPrivileges=true\nUMask=0077\n' +
-            "[Install]\nWantedBy=" + ("multi-user.target\n" if system else "default.target\n"))
-    ctl = ["systemctl"] + ([] if system else ["--user"])
-    # Validate the user manager exists before writing a unit file.
-    command(ctl + ["show-environment"])
+def verify_systemd_state(identity, path, python, *, owned_unloaded=False):
+    """Observe effective ownership; only disposable CI permits a verified partial file."""
+    if owned_unloaded:
+        require(path.exists() and not path.is_symlink(), 'COLLECTOR_RUNNER_IDENTITY', 'Missing owned partial unit.')
+        verify_systemd_unit(path.read_text(), identity, python)
+        require(path.stat().st_uid == 0, 'COLLECTOR_RUNNER_OWNER', 'Partial system unit is not root owned.')
+    ctl = ["systemctl"] + ([] if identity["mode"] == "system" else ["--user"])
     properties = ['FragmentPath', 'DropInPaths', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'EnvironmentFiles', 'LoadState', 'Transient', 'ExecStart', 'User', 'NoNewPrivileges', 'WorkingDirectory', 'ActiveState', 'SubState']
     raw, code = command(ctl + ['show', '--all', identity['name'], *['--property=' + key for key in properties]], allow_missing=True)
     effective = {}
@@ -361,7 +375,7 @@ def reconcile_runner(install, identity, restart):
         # --all prints empty declared properties, not nonexistent interfaces.
         absent = dict(LoadState='not-found', Transient='no', FragmentPath='', DropInPaths='',
                       ActiveState='inactive', SubState='dead')
-        require(code == 0 and not path.exists() and all(effective.get(key) == value for key, value in absent.items()) and
+        require(code == 0 and (not path.exists() or owned_unloaded) and all(effective.get(key) == value for key, value in absent.items()) and
                 all(value in ('', 'no') if key == 'NoNewPrivileges' else value == ''
                     for key, value in effective.items() if key not in absent),
                 'COLLECTOR_RUNNER_IDENTITY', f'Unproven absent systemd unit; load={load_state}; missing={missing}.')
@@ -385,7 +399,37 @@ def reconcile_runner(install, identity, restart):
         except (Blocked, OSError, subprocess.SubprocessError) as exc:
             raise Blocked('COLLECTOR_SYSTEMD_QUERY', 'systemd busctl with JSON support is required.',
                           'Install/restore busctl; no service registration was performed.') from exc
-    require(not code or not path.exists(), 'COLLECTOR_RUNNER_IDENTITY', 'Cannot verify the existing service.')
+    return effective
+
+
+def reconcile_runner(install, identity, restart):
+    if identity["mode"] == "windows-task":
+        existing = json.loads(ps_scheduler(install, "query", identity))
+        if existing.get("xml"): verify_windows_task(existing["xml"], identity, existing.get('principalSid'))
+        python = Path(sys.executable).with_name("pythonw.exe")
+        if not python.exists(): python = Path(sys.executable)
+        if not existing.get("xml") or restart:
+            if existing.get("xml"): ps_scheduler(install, "stop", identity)
+            xml = install.state / "diagnostics" / "private" / "collector-task.xml"
+            atomic_bytes(xml, windows_xml(identity, python).encode('utf-16'), mode=0o600)
+            try: ps_scheduler(install, "register", identity, xml)
+            finally: xml.unlink(missing_ok=True)
+        ps_scheduler(install, "start", identity)
+        return "Requires the logged-in Docker Desktop operator session"
+    system = identity["mode"] == "system"
+    require(not system or os.geteuid() == 0, "COLLECTOR_RUNNER_PERMISSION", "System runner maintenance requires existing root privileges.")
+    directory = Path("/etc/systemd/system") if system else Path.home() / ".config" / "systemd" / "user"
+    path = directory / identity["name"]
+    python = sys.executable
+    unit = systemd_unit(identity, python)
+    require(not path.is_symlink(), 'COLLECTOR_RUNNER_IDENTITY', 'Collector service unit must not be a symlink.')
+    if path.exists():
+        verify_systemd_unit(path.read_text(), identity, python)
+        require(path.stat().st_uid == (0 if system else os.geteuid()), 'COLLECTOR_RUNNER_OWNER', 'Service file belongs to another operator.')
+    ctl = ["systemctl"] + ([] if system else ["--user"])
+    # Validate the user manager exists before writing a unit file.
+    command(ctl + ["show-environment"])
+    verify_systemd_state(identity, path, python)
     directory.mkdir(parents=True, exist_ok=True)
     changed = not path.exists() or path.read_text() != unit
     if changed:
