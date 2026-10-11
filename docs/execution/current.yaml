@@ -3367,13 +3367,13 @@ parallel_lanes:
     execution_lease: {}
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: c8545ceca6690b7314a857aef606cd24397edd80
+      convergence_baseline_sha: ac7bf5be6dd76ec50aa4ceffc4b8f075120e8f55
       head_sha: null
-      observed_at: '2026-10-11T11:46:12Z'
+      observed_at: '2026-10-11T14:06:21Z'
       main:
         branch: main
-        sha: c8545ceca6690b7314a857aef606cd24397edd80
-      observation_note: Dated OBS2 selection after exact OBS3A main CI success; fetch main and exact CI before writes.
+        sha: ac7bf5be6dd76ec50aa4ceffc4b8f075120e8f55
+      observation_note: Dated OBS2 acceptance after exact integrated Linux and repository CI; select SERVER before CLIENT. Fetch main and exact CI before writes.
     owned_paths:
       - docs/deployment/ADMIN_LOGS.md
     task:
@@ -3384,7 +3384,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs2_portable_collector_implementation
+      checkpoint: obs3b_server_reliable_analytics_implementation
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -3392,15 +3392,17 @@ parallel_lanes:
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
-      selected_slice: OBS2
-      dependency_order: [OBS1, OBS3A, OBS2, OBS3B, OBS4, OBS5, OBS6]
-      completed_slices: [OBS1, OBS3A]
-      remaining_slices: [OBS2, OBS3B, OBS4, OBS5, OBS6]
+      selected_slice: OBS3B-SERVER
+      dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
+      completed_slices: [OBS1, OBS3A, OBS2]
+      remaining_slices: [OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       slice_results:
         OBS1: trustworthy_client_addresses_and_request_limits
         OBS3A: telemetry_transport_does_not_refresh_or_log_out_users
         OBS2: automatic_portable_collector_and_host_diagnostics
-        OBS3B: reliable_analytics_devices_visits_and_loss_accounting
+        OBS3B: aggregate_requires_SERVER_and_CLIENT_acceptance
+        OBS3B-SERVER: bounded_telemetry_persistence_receipts_scoped_environment_and_pool_reliability
+        OBS3B-CLIENT: actor_scoped_retry_delivery_visits_sessions_and_truthful_quality
         OBS4: consistent_activity_and_failures_across_all_editors
         OBS5: administrator_user_activity_and_collection_quality
         OBS6: integrated_verification_and_guarded_release
@@ -3422,11 +3424,26 @@ parallel_lanes:
           general_ci_conclusion: success
           observed_at: '2026-10-11T11:45:40Z'
           runtime_evidence: pending_OBS6_guarded_release_and_browser_reload
+        OBS2:
+          source_sha: c19b7b0ce7983fa9a465c818e62502df9a453ea5
+          integrated_ci_sha: ac7bf5be6dd76ec50aa4ceffc4b8f075120e8f55
+          independent_review: pass_source_focused_and_integrated_source_equivalence
+          focused: canonical_pnpm_test_admin_logs_and_deployment_contracts_windows_linux_success
+          general_ci_run: 38144585299
+          general_ci_conclusion: success
+          portable_ci_run: 38144585202
+          portable_ci_conclusion: success
+          observed_at: '2026-10-11T14:06:21Z'
+          runtime_evidence: actual_Linux_owned_service_first_start_typed_argv_arrays_PID_nonce_cycle_API_catalog_read_idempotent_reconcile_history_preservation_and_cleanup_pass
+          production_evidence: pending_OBS6_guarded_release_and_Windows_running_collector_verification
       priority_note: >-
-        OBS3A source and independent review passed; canonical focused and full repository CI succeeded on
-        c8545ce. Select automatic portable collector lifecycle and host diagnostics OBS2. Preserve later
-        analytics OBS3B and module/admin dependencies. No historical school root cause or production release
-        is claimed by this development acceptance.
+        OBS2 source, independent review, actual Windows/Linux contracts and Linux systemd/container smoke
+        passed on ac7bf5be; full repository and canonical focused CI also succeeded. Select only OBS3B-SERVER:
+        bounded DB telemetry queue, atomic stable receipts, scoped safe browser metadata and owned pool lifecycle.
+        Preserve released migrations and old clients, canonical Account/Seat authority, academic edit-qualified
+        intervals and transactional project activity. SERVER implementation and independent exact-SHA review
+        precede a separately selected CLIENT executor. Aggregate OBS3B acceptance requires both. Retain module
+        privacy projection before release. No historical school root cause or production release is claimed.
       deployment_authorized: true
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
