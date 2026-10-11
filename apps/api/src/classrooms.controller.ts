@@ -243,7 +243,7 @@ function seatView(row: StudentSeatRow) {
     id: row.id,
     displayLabel: row.display_label,
     ...classroomSeatAccess(row.login_handle),
-    // Сколько заданий выдано классу, сколько этот человек сдал и сколько из
+    // Сколько обязательств выдано этому ученику, сколько он завершил и сколько из
     // сданного ещё ждёт ответа. Преподаватель видит это в списке, а не после
     // того, как откроет каждого по очереди.
     assignedCount: row.assigned_count === undefined ? 0 : Number(row.assigned_count),
@@ -831,19 +831,16 @@ export class ClassroomsController {
     return { total: Number((result.rows[0] as { total: number | string }).total ?? 0) };
   }
 
-  /** Сводка по классу: выдано, сдано, ждут ответа, кто отстаёт. */
+  /** Открытые обязательства учеников: выдано, завершено, ждут ответа, без сдач. */
   @Get(':classroomId/progress')
   async progress(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     this.requireUuid(classroomId, 'classroom');
-    const [result, projections] = await Promise.all([
-      this.requirePool().query(
-        `SELECT seat_count, assigned_count, submitted_count, awaiting_review, behind_count
-         FROM classroom_progress_summary($1, $2)`,
-        [context.accountId, classroomId],
-      ),
-      this.canonical().forTeacher(context.accountId, classroomId),
-    ]);
+    const result = await this.requirePool().query(
+      `SELECT seat_count, assigned_count, submitted_count, awaiting_review, behind_count
+       FROM classroom_progress_summary($1, $2)`,
+      [context.accountId, classroomId],
+    );
     const row = result.rows[0] as
       | {
           seat_count: number | string;
@@ -857,18 +854,8 @@ export class ClassroomsController {
     return {
       seatCount: Number(row.seat_count),
       assignedCount: Number(row.assigned_count),
-      submittedCount: projections.size
-        ? [...projections.values()].filter((item) =>
-            ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
-              item.surface.workflowState,
-            ),
-          ).length
-        : Number(row.submitted_count),
-      awaitingReview: projections.size
-        ? [...projections.values()].filter(
-            (item) => item.surface.workflowState === 'waiting_review',
-          ).length
-        : Number(row.awaiting_review),
+      submittedCount: Number(row.submitted_count),
+      awaitingReview: Number(row.awaiting_review),
       behindCount: Number(row.behind_count),
     };
   }
@@ -877,40 +864,19 @@ export class ClassroomsController {
   async roster(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     await this.summary(context, classroomId);
-    const [result, projections] = await Promise.all([
-      this.requirePool().query(
-        `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
-              last_active_at, created_at, assigned_count, submitted_count, awaiting_review
-         FROM classroom_management_roster($1, $2)`,
-        [context.accountId, classroomId],
-      ),
-      this.canonical().forTeacher(context.accountId, classroomId),
-    ]);
+    const result = await this.requirePool().query(
+      `SELECT id, display_label, login_handle, safe_mode, status, avatar_key,
+            last_active_at, created_at, assigned_count, submitted_count, awaiting_review
+       FROM classroom_management_roster($1, $2)`,
+      [context.accountId, classroomId],
+    );
     const rosterRows = await this.protectedReadback(
       context.accountId,
       classroomId,
       result.rows as StudentSeatRow[],
     );
     return {
-      items: rosterRows.map((row) => {
-        const item = seatView(row);
-        const states = [...projections.values()].filter(
-          (projection) => projection.state.provenance.seatId === row.id,
-        );
-        return states.length === 0
-          ? item
-          : {
-              ...item,
-              submittedCount: states.filter((projection) =>
-                ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
-                  projection.surface.workflowState,
-                ),
-              ).length,
-              awaitingReview: states.filter(
-                (projection) => projection.surface.workflowState === 'waiting_review',
-              ).length,
-            };
-      }),
+      items: rosterRows.map(seatView),
     };
   }
 

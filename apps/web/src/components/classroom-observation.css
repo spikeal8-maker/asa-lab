@@ -1,0 +1,143 @@
+.classroom-observation {
+  min-width: 0;
+  color: inherit;
+}
+.classroom-observation .observation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  justify-content: space-between;
+}
+.classroom-observation h3 {
+  margin: 0;
+  font-size: 18px;
+}
+.classroom-observation .observation-note,
+.classroom-observation .observation-heading > span {
+  color: #657180;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.classroom-observation .observation-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 16px 0;
+  align-items: end;
+}
+.classroom-observation label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  min-width: 0;
+}
+.classroom-observation input:not([type='checkbox']),
+.classroom-observation select {
+  min-height: 36px;
+  max-width: 100%;
+  padding: 7px 10px;
+  border: 1px solid #cbd3dc;
+  border-radius: 6px;
+  background: #fff;
+  color: #253245;
+  font: inherit;
+}
+.classroom-observation .observation-checkbox {
+  flex-direction: row;
+  align-items: center;
+  min-height: 36px;
+}
+.classroom-observation button {
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid #b9c9dc;
+  border-radius: 6px;
+  background: #fff;
+  color: #264a78;
+  cursor: pointer;
+}
+.classroom-observation button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.classroom-observation :focus-visible {
+  outline: 2px solid #3067a9;
+  outline-offset: 2px;
+}
+.classroom-observation .observation-projects,
+.classroom-observation .observation-history {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.classroom-observation .observation-projects > li {
+  display: grid;
+  grid-template-columns: 32px minmax(120px, 1fr) 90px 115px 120px auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e1e6ec;
+  font-size: 13px;
+}
+.classroom-observation .observation-projects img {
+  border-radius: 50%;
+}
+.classroom-observation .observation-project-title,
+.classroom-observation .observation-history li > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.classroom-observation .observation-project-title > span {
+  color: #657180;
+}
+.classroom-observation .observation-history > li {
+  display: grid;
+  grid-template-columns: 125px minmax(0, 1fr);
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid #e1e6ec;
+  font-size: 13px;
+}
+.classroom-observation time {
+  color: #657180;
+}
+.classroom-observation .observation-pagination {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 16px 0;
+  font-size: 13px;
+}
+@media (max-width: 900px) {
+  .classroom-observation .observation-projects > li {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 7px 10px;
+  }
+  .classroom-observation .observation-projects > li > span,
+  .classroom-observation .observation-projects time {
+    grid-column: 2;
+  }
+  .classroom-observation .observation-projects button {
+    grid-column: 3;
+    grid-row: 1 / span 4;
+  }
+}
+@media (max-width: 480px) {
+  .classroom-observation .observation-filters > label {
+    width: calc(50% - 5px);
+  }
+  .classroom-observation .observation-filters > label:first-child {
+    width: 100%;
+  }
+  .classroom-observation .observation-history > li {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+}
