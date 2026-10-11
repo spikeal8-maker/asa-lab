@@ -195,12 +195,49 @@ test('startup guards precede environment mutation and both updaters recheck befo
     const prepare = extension === 'ps1' ? '    New-PrivateEnvironment' : '    create_environment';
     assert.ok(startup.includes(`${guard}\n${prepare}`));
     assert.ok(update.includes(`installation-identity.${extension}`));
-    assert.match(
-      update,
-      extension === 'ps1'
-        ? /Assert-AsaInstallationIdentity[^\n]*\n\s*# Validate[^\n]*\n\s*Invoke-Compose -Arguments @\('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools\/migrate\.mjs', '--plan'\)\n\s*Invoke-Compose -Arguments @\('up'/
-        : /assert_update_identity &&\n\s*compose run --rm --no-deps --entrypoint node migration tools\/migrate\.mjs --plan &&\n\s*compose up/,
-    );
+    // Require consecutive complete commands, allowing indentation only. The
+    // collector must succeed before the migration plan and service replacement.
+    const commands = extension === 'ps1'
+      ? [
+          'Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting',
+          '# Validate the real existing history before stopping any working service.',
+          '& python tools/log_collector.py prepare --root $RepoRoot --profile $Profile',
+          "if ($LASTEXITCODE -ne 0) { throw 'Collector preparation failed before service replacement.' }",
+          "Invoke-Compose -Arguments @('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')",
+          "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
+        ]
+      : [
+          'if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity &&',
+          'python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile" &&',
+          'compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan &&',
+          'compose up -d --no-build && wait_exact_readiness && assert_embedded_entry_reachable &&',
+        ];
+    const checkedOrder = commands.join('\n');
+    const normalizedUpdate = update.split('\n').map((line) => line.trim()).join('\n');
+    assert.equal(normalizedUpdate.split(checkedOrder).length, 2, `${extension}: one checked replacement block`);
+    const collectorIndex = extension === 'ps1' ? 2 : 1;
+    const collectorLength = extension === 'ps1' ? 2 : 1;
+    const beforeIdentity = [...commands];
+    beforeIdentity.unshift(...beforeIdentity.splice(collectorIndex, collectorLength));
+    const afterPlan = [...commands];
+    const collectorCommands = afterPlan.splice(collectorIndex, collectorLength);
+    afterPlan.splice(afterPlan.length - 1, 0, ...collectorCommands);
+    const missingExitCheck = [...commands];
+    if (extension === 'ps1') missingExitCheck.splice(collectorIndex + 1, 1);
+    else missingExitCheck[collectorIndex] = missingExitCheck[collectorIndex].replace(/ &&$/, '');
+    const reversedReplacement = [...commands];
+    reversedReplacement.splice(-2, 2, commands.at(-1), commands.at(-2));
+    for (const [reason, brokenCommands] of [
+      ['missing collector preparation', commands.filter((_, index) => index !== collectorIndex)],
+      ['collector before identity', beforeIdentity],
+      ['collector after migration plan', afterPlan],
+      ['missing collector failure check', missingExitCheck],
+      ['replacement before migration plan', reversedReplacement],
+    ]) {
+      const brokenUpdate = normalizedUpdate.replace(checkedOrder, brokenCommands.join('\n'));
+      assert.notEqual(brokenUpdate, normalizedUpdate, `${extension}: ${reason} fixture changes source`);
+      assert.ok(!brokenUpdate.includes(checkedOrder), `${extension}: reject ${reason}`);
+    }
   }
 });
 
