@@ -227,7 +227,6 @@ function clockedComponent(component: SchematicComponent): boolean {
         'ideal-wire',
         'ideal-dc-source',
         'capacitor',
-        'piezo-transducer',
       ].includes(model.id))
   );
 }
@@ -397,10 +396,8 @@ export function advanceArduinoCircuitClock(
       ? 'rc-inputs-v2'
       : 'dc-inputs-v1';
   const hasPhysics = profile !== 'dc-inputs-v1';
-  const hasTimeDependentObservation = document.components.some(
-    (component) =>
-      component.componentTypeId === 'signal-generator' ||
-      electricalModelFor(component).id === 'piezo-transducer',
+  const hasTimeDependentGenerator = document.components.some(
+    (component) => component.componentTypeId === 'signal-generator',
   );
   const unsupported = document.components.find((component) => !clockedComponent(component));
   if (unsupported)
@@ -726,11 +723,10 @@ export function advanceArduinoCircuitClock(
       time,
     );
   const sample = (time: number): NonNullable<ArduinoCircuitClockAdvance['result']> => {
-    // Generator output and passive piezo edge-age recognition depend on the
-    // observation horizon even when no runtime output or physical state changes.
+    // Only generator DC frames change with the horizon without an event or state update.
     if (
       cachedFrame &&
-      (cachedFrameTime === time || (profile === 'dc-inputs-v1' && !hasTimeDependentObservation))
+      (cachedFrameTime === time || (profile === 'dc-inputs-v1' && !hasTimeDependentGenerator))
     )
       return cachedFrame;
     if (hasPhysics) {
