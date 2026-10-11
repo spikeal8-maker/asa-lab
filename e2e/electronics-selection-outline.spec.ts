@@ -732,397 +732,601 @@ test.afterAll(async () => {
   await admin.end();
 });
 
-for (const width of [1440, 1024, 390, 320]) {
-  test(`E11 native outward selection, real DC and whole save reopen at ${width}px`, async ({
-    page,
-    browser,
-  }, info) => {
-    const teacher = await seedTeacher(
-      admin,
-      `e11-outline-${width}-${info.workerIndex}-${info.retry}`,
-    );
-    const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
-    const output: unknown[] = [];
-    const puts: unknown[] = [];
-    let projectId = '';
-    let reopened: Page | undefined;
-    await installObserver(page);
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await loginWithOrganization(page, teacher);
-    const session = await page.context().request.get('/api/auth/me');
-    expect(session.status()).toBe(200);
-    const user = ((await session.json()) as { user: { id: string } }).user.id;
-    const created = await page.context().request.post('/api/projects', {
-      headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
-      data: {
-        scope: 'personal',
-        classroomId: null,
-        module: 'electronics',
-        title: `E11 selection ${width}`,
-      },
-    });
-    expect(created.status()).toBe(201);
-    projectId = ((await created.json()) as { project: { id: string } }).project.id;
-    const empty = await server(page, projectId);
-    const pupil = pupilDocument();
-    const seed = await page.context().request.put(`/api/projects/${projectId}/draft`, {
-      headers: { origin: new URL(page.url()).origin },
-      data: {
-        document: pupil,
-        baseRevision: empty.draft.revision,
-        mutationId: crypto.randomUUID(),
-      },
-    });
-    expect(seed.status()).toBe(200);
-    const seeded = await server(page, projectId);
-    expect(seeded.draft.document).toEqual(pupil);
-    page.on('request', (request) => {
-      if (
-        request.method() === 'PUT' &&
-        new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
-      )
-        puts.push({ at: Date.now(), body: request.postDataJSON() });
-    });
-    try {
-      const delivery = page.waitForResponse(
-        (response) =>
-          response.request().method() === 'GET' &&
-          new URL(response.url()).pathname === `/api/projects/${projectId}`,
+const scenarios = [
+  'stopped-fit',
+  'stopped-zoom-group',
+  'transform-persistence',
+  'running-controls',
+] as const;
+for (const width of [1440, 1024, 390, 320])
+  for (const scenario of scenarios) {
+    test(`E11 ${scenario}: native outward selection, real DC and whole save reopen at ${width}px`, async ({
+      page,
+      browser,
+    }, info) => {
+      const teacher = await seedTeacher(
+        admin,
+        `e11-outline-${scenario}-${width}-${info.workerIndex}-${info.retry}`,
       );
-      await page.goto(`/#/home/${projectId}`);
-      const delivered = (await (await delivery).json()) as {
-        draft: { revision: number; document: SchematicDocument };
-      };
-      expect(delivered.draft).toEqual(seeded.draft);
-      output.push({ phase: 'initial-editor-delivery', whole: delivered });
-      await expect(page.locator('.workbench-stage')).toBeVisible();
-      await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(9);
-      const collapse = page.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
-      if (await collapse.isVisible()) await collapse.click();
-      await page.setViewportSize({ width, height: 900 });
-      await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
-      await frames(page);
-      const layout = await page.evaluate(() => ({
-        page: document.documentElement.scrollWidth,
-        client: document.documentElement.clientWidth,
-        width: innerWidth,
-      }));
-      expect(layout.page).toBeLessThanOrEqual(layout.client);
-      output.push({
-        phase: 'overview',
-        layout,
-        seeded: seeded.draft,
-        nativeMirrorY: 'No UI command exists; not implemented or injected by this test',
-        faultFixture: 'Not covered: safe DC fixture is not fault evidence',
+      const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+      const output: unknown[] = [];
+      const puts: unknown[] = [];
+      let projectId = '';
+      let reopened: Page | undefined;
+      let lastObserver: Probe | undefined;
+      let lastLocalStorage: Record<string, string | null> | undefined;
+      let lastServer: unknown;
+      let lastCheckpoint = 'setup';
+      let primaryFailure: string | undefined;
+      const rawPath = info.outputPath(`e11-outline-${scenario}-${width}-raw.json`);
+      await installObserver(page);
+      await page.setViewportSize({ width: 1440, height: 900 });
+      await loginWithOrganization(page, teacher);
+      const session = await page.context().request.get('/api/auth/me');
+      expect(session.status()).toBe(200);
+      const user = ((await session.json()) as { user: { id: string } }).user.id;
+      const created = await page.context().request.post('/api/projects', {
+        headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
+        data: {
+          scope: 'personal',
+          classroomId: null,
+          module: 'electronics',
+          title: `E11 selection ${width}`,
+        },
       });
-      await page.screenshot({ path: info.outputPath('overview.png') });
-      for (const [id] of families) {
-        await fitAndPlace(page, id);
-        await pair(page, id, 'fit', info, output);
-      }
-      for (const id of ['resistor', 'button', 'switch']) {
-        await fitAndPlace(page, id);
-        const point = await nativePoint(page, id);
-        await page.mouse.move(point.x, point.y);
-        for (let index = 0; index < 8; index++) await page.mouse.wheel(0, -100);
-        await frames(page);
-        await placeInUnobscuredCanvas(page, id);
-        await pair(page, id, 'zoom-in', info, output);
-        await page.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
-        await frames(page);
-        await placeInUnobscuredCanvas(page, id);
-        await pair(page, id, 'zoom-out', info, output);
-      }
-      await page.keyboard.press('Escape');
-      await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
-      await frames(page);
-      for (const [index, id] of ['led', 'resistor', 'switch', 'uno'].entries())
-        await nativeSelect(page, id, index > 0);
-      expect(await selectedIds(page)).toEqual(['led', 'resistor', 'switch', 'uno']);
-      await neutralFocus(page);
-      output.push({
-        phase: 'group',
-        selectedIds: await selectedIds(page),
-        geometry: await Promise.all(
-          ['led', 'resistor', 'switch', 'uno'].map((id) => geometry(page, id)),
-        ),
+      expect(created.status()).toBe(201);
+      projectId = ((await created.json()) as { project: { id: string } }).project.id;
+      const empty = await server(page, projectId);
+      const pupil = pupilDocument();
+      const seed = await page.context().request.put(`/api/projects/${projectId}/draft`, {
+        headers: { origin: new URL(page.url()).origin },
+        data: {
+          document: pupil,
+          baseRevision: empty.draft.revision,
+          mutationId: crypto.randomUUID(),
+        },
       });
-      await page.screenshot({ path: info.outputPath('group.png') });
-      expect(puts).toEqual([]);
-      expect((await server(page, projectId)).draft).toEqual(seeded.draft);
-
-      // Real transforms are the only intended document mutation. Compare every
-      // field and unchanged wire/source; do not use product rotation code as oracle.
-      let expected = structuredClone(pupil);
-      for (const [index, id] of ['resistor', 'led', 'supply', 'uno', 'board'].entries()) {
-        await fitAndPlace(page, id);
-        await nativeSelect(page, id);
-        let transformed = expected.components.find((component) => component.id === id)!;
-        const entry = catalogEntry(transformed)!;
-        // Each real 45-degree action preserves the center. Keep its binary64
-        // operation order; a direct 90-degree or reassociated delta is not exact.
-        for (let step = 0; step < (index === 0 ? 2 : 1); step++) {
-          const oldSize = renderedSize(entry, transformed.rotation ?? 0);
-          const rotation = (((transformed.rotation ?? 0) + 45) % 360) as NonNullable<
-            typeof transformed.rotation
-          >;
-          const nextSize = renderedSize(entry, rotation);
-          const center = {
-            x: transformed.position.x + oldSize.width / 2,
-            y: transformed.position.y + oldSize.height / 2,
-          };
-          transformed = {
-            ...transformed,
-            rotation,
-            position: {
-              x: center.x - nextSize.width / 2,
-              y: center.y - nextSize.height / 2,
-            },
-          };
-        }
-        if (index < 2)
-          transformed = {
-            ...transformed,
-            stateProperties: { ...transformed.stateProperties, mirrorX: true },
-          };
-        expected = {
-          ...expected,
-          components: expected.components.map((component) =>
-            component.id !== id ? component : transformed,
-          ),
+      expect(seed.status()).toBe(200);
+      const seeded = await server(page, projectId);
+      expect(seeded.draft.document).toEqual(pupil);
+      page.on('request', (request) => {
+        if (
+          request.method() === 'PUT' &&
+          new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+        )
+          puts.push({ at: Date.now(), body: request.postDataJSON() });
+      });
+      async function writeRaw(checkpointName: string) {
+        const raw = {
+          width,
+          scenario,
+          projectId,
+          original: pupil,
+          output,
+          puts,
+          lastCheckpoint: checkpointName,
+          primaryFailure,
+          journeyComplete: lastCheckpoint === 'complete',
+          observer: lastObserver,
+          server: lastServer,
+          localStorage: lastLocalStorage,
         };
-        await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
-        if (index === 0)
-          await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
-        if (index < 2) await page.getByRole('button', { name: 'Отразить', exact: true }).click();
-        const whole = await localDocument(page, user, projectId);
-        expect(whole).toEqual(expected);
-        output.push({ phase: 'transformed', id, whole, geometry: await geometry(page, id) });
-        await neutralFocus(page);
-        await page.screenshot({ path: info.outputPath(`transformed-${id}.png`) });
+        await writeFile(rawPath, JSON.stringify(raw, null, 2), 'utf8');
       }
-      expect(puts).toEqual([]);
-      const local = await localDocument(page, user, projectId);
-      expect(local).toEqual(expected);
-      await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-      await expect
-        .poll(async () => (await server(page, projectId)).draft.document)
-        .toEqual(expected);
-      const saved = await server(page, projectId);
-      expect(saved.draft.revision).toBe(seeded.draft.revision + 1);
-      expect(puts).toHaveLength(1);
-      expect(
-        (puts[0] as { body: { document: SchematicDocument; baseRevision: number } }).body.document,
-      ).toEqual(expected);
-      expect((puts[0] as { body: { baseRevision: number } }).body.baseRevision).toBe(
-        seeded.draft.revision,
-      );
-      output.push({
-        phase: 'whole-save',
-        local,
-        expected,
-        seeded: seeded.draft,
-        saved: saved.draft,
-        puts: [...puts],
-      });
-
-      await page.keyboard.press('Escape');
-      await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
-      await expect(
-        page.getByRole('button', { name: 'Остановить моделирование', exact: true }),
-      ).toHaveAttribute('data-simulation-status', 'running');
-      await expect
-        .poll(async () =>
-          page.evaluate(() =>
-            (window as ProbeWindow).__outlineProbe!.responses.some(
-              ({ response }) =>
-                response.ok &&
-                response.kind === 'advance' &&
-                response.advance.executionStatus === 'ready' &&
-                response.advance.result?.solved &&
-                response.advance.committedHorizonMicroseconds > 0,
-            ),
+      async function checkpoint(name: string) {
+        const snapshot = await page.evaluate(() => ({
+          observer: (window as ProbeWindow).__outlineProbe,
+          localStorage: Object.fromEntries(
+            Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]),
           ),
-        )
-        .toBe(true);
-      await expect(part(page, 'led').locator('.workbench-led-visual')).toHaveClass(/is-lit/);
-      await expect
-        .poll(async () =>
-          part(page, 'lamp')
-            .locator('.workbench-production-visual > image')
-            .last()
-            .getAttribute('href'),
-        )
-        .toMatch(/lamp\/(on|max)\.svg$/);
-      for (const id of ['led', 'lamp']) {
-        await fitAndPlace(page, id);
-        await pair(page, id, 'running', info, output);
+        }));
+        lastObserver = snapshot.observer;
+        lastLocalStorage = snapshot.localStorage;
+        lastCheckpoint = name;
+        await writeRaw(name);
       }
-      await fitAndPlace(page, 'switch');
-      output.push({
-        phase: 'running-switch-keyboard-selection',
-        ...(await nativeRunningSwitchSelect(page)),
-      });
-      const switchActive = await part(page, 'switch').evaluate((root) =>
-        root.classList.contains('workbench-component-actuator-active'),
-      );
-      for (const active of [!switchActive, switchActive]) {
-        await part(page, 'switch').getByTestId('spdt-actuator').click();
-        await expect
-          .poll(async () =>
-            part(page, 'switch').evaluate((root) =>
-              root.classList.contains('workbench-component-actuator-active'),
-            ),
-          )
-          .toBe(active);
-      }
-      await fitAndPlace(page, 'button');
-      const buttonPoint = await nativePoint(page, 'button');
-      await page.mouse.move(buttonPoint.x, buttonPoint.y);
-      await page.mouse.down();
-      await expect(part(page, 'button').locator('circle[opacity="0.3"]')).toHaveCount(0);
-      await page.mouse.up();
-      await expect(part(page, 'button').locator('circle[opacity="0.3"]')).toHaveCount(1);
-      await fitAndPlace(page, 'supply');
-      const supply = part(page, 'supply').getByTestId('regulated-power-supply-runtime');
-      await expect(supply).toHaveAttribute('data-output-enabled', 'true');
-      for (const enabled of ['false', 'true']) {
-        await supply.locator('.workbench-regulated-supply-power-switch').click();
-        await expect(supply).toHaveAttribute('data-output-enabled', enabled);
-      }
-      await fitAndPlace(page, 'meter');
-      await nativeSelect(page, 'meter');
-      const meter = part(page, 'meter').getByTestId('multimeter-runtime-display');
-      await meter.locator('.workbench-multimeter-mode-voltage').click();
-      await expect(meter).toHaveAttribute('data-measurement-mode', 'dc-voltage');
-      output.push({
-        phase: 'native-runtime-controls',
-        switchRestored: switchActive,
-        buttonReleased: true,
-        supplyRestored: await supply.getAttribute('data-output-enabled'),
-        server: await server(page, projectId),
-        wholeLocal: await localDocument(page, user, projectId),
-      });
-      expect(await localDocument(page, user, projectId)).toEqual(expected);
-      await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
-      await expect(
-        page.getByRole('button', { name: 'Начать моделирование', exact: true }),
-      ).toBeVisible();
-      expect((await server(page, projectId)).draft).toEqual(saved.draft);
-      expect(puts).toHaveLength(1);
-      failures.assertEmpty();
-
-      const fresh = await browser.newContext({
-        baseURL: new URL(page.url()).origin,
-        viewport: { width, height: 900 },
-        deviceScaleFactor: 1,
-      });
       try {
-        await fresh.addCookies(await page.context().cookies());
-        expect((await fresh.storageState()).origins).toEqual([]);
-        reopened = await fresh.newPage();
-        await installObserver(reopened);
-        const freshFailures = collectBrowserFailures(reopened, {
-          allowAnonymousSessionProbe: true,
-        });
-        const delivery = reopened.waitForResponse(
+        const delivery = page.waitForResponse(
           (response) =>
             response.request().method() === 'GET' &&
             new URL(response.url()).pathname === `/api/projects/${projectId}`,
         );
-        await reopened.goto(`/#/home/${projectId}`);
+        await page.goto(`/#/home/${projectId}`);
         const delivered = (await (await delivery).json()) as {
           draft: { revision: number; document: SchematicDocument };
         };
-        expect(delivered.draft).toEqual(saved.draft);
-        output.push({ phase: 'cookies-only-editor-delivery', whole: delivered });
-        await expect(reopened.locator('.workbench-stage')).toBeVisible();
-        await expect(reopened.locator('[data-testid="schematic-component"]')).toHaveCount(9);
-        expect(
-          await reopened.evaluate(() =>
-            Object.keys(localStorage).filter((key) => key.startsWith('asa-project-local-draft:')),
-          ),
-        ).toEqual([]);
-        expect(
-          await reopened.evaluate(() =>
-            Object.keys(sessionStorage).filter((key) => key.startsWith('asa-project-local-draft:')),
-          ),
-        ).toEqual([]);
-        expect((await server(reopened, projectId)).draft).toEqual(saved.draft);
-        const collapse = reopened.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
+        expect(delivered.draft).toEqual(seeded.draft);
+        output.push({ phase: 'initial-editor-delivery', whole: delivered });
+        await expect(page.locator('.workbench-stage')).toBeVisible();
+        await expect(page.locator('[data-testid="schematic-component"]')).toHaveCount(9);
+        const collapse = page.getByRole('button', { name: 'Свернуть библиотеку', exact: true });
         if (await collapse.isVisible()) await collapse.click();
-        await fitAndPlace(reopened, 'resistor');
-        await pair(reopened, 'resistor', 'cookies-reopen', info, output);
-        await reopened.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
-        await frames(reopened);
+        await page.setViewportSize({ width, height: 900 });
+        await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+        await frames(page);
+        const layout = await page.evaluate(() => ({
+          page: document.documentElement.scrollWidth,
+          client: document.documentElement.clientWidth,
+          width: innerWidth,
+        }));
+        expect(layout.page).toBeLessThanOrEqual(layout.client);
         output.push({
-          phase: 'cookies-reopen-zoom',
-          geometry: await geometry(reopened, 'resistor'),
-          server: await server(reopened, projectId),
-          observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
+          phase: 'overview',
+          layout,
+          seeded: seeded.draft,
+          nativeMirrorY: 'No UI command exists; not implemented or injected by this test',
+          faultFixture: 'Not covered: safe DC fixture is not fault evidence',
         });
-        freshFailures.assertEmpty();
-      } finally {
-        if (reopened && !reopened.isClosed())
+        await page.screenshot({ path: info.outputPath('overview.png') });
+        lastServer = seeded;
+        await checkpoint('initial-editor-delivery');
+        let expected = structuredClone(pupil);
+        if (scenario === 'stopped-fit') {
+          for (const [id] of families) {
+            await fitAndPlace(page, id);
+            await pair(page, id, 'fit', info, output);
+            await checkpoint(`fit-${id}`);
+          }
+        }
+        if (scenario === 'stopped-zoom-group') {
+          for (const id of ['resistor', 'button', 'switch']) {
+            await fitAndPlace(page, id);
+            const point = await nativePoint(page, id);
+            await page.mouse.move(point.x, point.y);
+            for (let index = 0; index < 8; index++) await page.mouse.wheel(0, -100);
+            await frames(page);
+            await placeInUnobscuredCanvas(page, id);
+            await pair(page, id, 'zoom-in', info, output);
+            await checkpoint(`zoom-in-${id}`);
+            await page.getByRole('button', { name: 'Уменьшить масштаб', exact: true }).click();
+            await frames(page);
+            await placeInUnobscuredCanvas(page, id);
+            await pair(page, id, 'zoom-out', info, output);
+            await checkpoint(`zoom-out-${id}`);
+          }
+          await page.keyboard.press('Escape');
+          await page.getByRole('button', { name: 'Подогнать проект', exact: true }).click();
+          await frames(page);
+          for (const [index, id] of ['led', 'resistor', 'switch', 'uno'].entries())
+            await nativeSelect(page, id, index > 0);
+          expect(await selectedIds(page)).toEqual(['led', 'resistor', 'switch', 'uno']);
+          await neutralFocus(page);
           output.push({
-            phase: 'reopen-finally',
-            observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
-            server: await server(reopened, projectId),
+            phase: 'group',
+            selectedIds: await selectedIds(page),
+            geometry: await Promise.all(
+              ['led', 'resistor', 'switch', 'uno'].map((id) => geometry(page, id)),
+            ),
           });
-        await fresh.close();
-        reopened = undefined;
-      }
-      const observed = await page.evaluate(() => (window as ProbeWindow).__outlineProbe!);
-      const advances = observed.responses
-        .map(({ response }) => response)
-        .filter((response) => response.ok && response.kind === 'advance');
-      expect(advances.length).toBeGreaterThan(0);
-      let committed = 0;
-      for (const response of advances) {
-        if (!response.ok || response.kind !== 'advance') throw new Error('Unexpected response');
-        if (response.advance.executionStatus === 'ready') {
-          expect(response.advance.committedHorizonMicroseconds).toBe(
-            response.advance.requestedHorizonMicroseconds,
+          await page.screenshot({ path: info.outputPath('group.png') });
+          await checkpoint('group');
+          expect(puts).toEqual([]);
+          expect((await server(page, projectId)).draft).toEqual(seeded.draft);
+        }
+        if (scenario === 'running-controls') {
+          await page.keyboard.press('Escape');
+          await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Остановить моделирование', exact: true }),
+          ).toHaveAttribute('data-simulation-status', 'running');
+          await expect
+            .poll(async () =>
+              page.evaluate(() =>
+                (window as ProbeWindow).__outlineProbe!.responses.some(
+                  ({ response }) =>
+                    response.ok &&
+                    response.kind === 'advance' &&
+                    response.advance.executionStatus === 'ready' &&
+                    response.advance.result?.solved &&
+                    response.advance.committedHorizonMicroseconds > 0,
+                ),
+              ),
+            )
+            .toBe(true);
+          await expect(part(page, 'led').locator('.workbench-led-visual')).toHaveClass(/is-lit/);
+          let lampObservation: unknown;
+          await expect
+            .poll(async () => {
+              const observed = await page.evaluate(() => {
+                const responses = (window as ProbeWindow).__outlineProbe!.responses;
+                const ready = responses
+                  .filter(
+                    ({ response }) =>
+                      response.ok &&
+                      response.kind === 'advance' &&
+                      response.advance.executionStatus === 'ready' &&
+                      response.advance.committedHorizonMicroseconds > 0,
+                  )
+                  .at(-1);
+                const href = Array.from(
+                  document.querySelectorAll(
+                    '[data-testid="schematic-component"][data-component-id="lamp"] .workbench-production-visual > image',
+                  ),
+                )
+                  .at(-1)
+                  ?.getAttribute('href');
+                return { ready, href };
+              });
+              lampObservation = observed;
+              const response = observed.ready?.response;
+              if (!response?.ok || response.kind !== 'advance') return false;
+              const advance = response.advance;
+              const result = advance.result;
+              const lamp = result?.components.find((component) => component.componentId === 'lamp');
+              const brightness = lamp?.brightness;
+              if (
+                advance.committedHorizonMicroseconds !== advance.requestedHorizonMicroseconds ||
+                !result?.solved ||
+                result.status !== 'solved' ||
+                !result.quality?.finite ||
+                !result.quality.passed ||
+                lamp?.lit !== true ||
+                typeof brightness !== 'number' ||
+                !Number.isFinite(brightness) ||
+                brightness <= 0
+              )
+                return false;
+              // Presentation contract, not an assumption that the filament is warm.
+              const level = brightness >= 90 ? 'max' : brightness >= 45 ? 'on' : 'dim';
+              return observed.href?.endsWith(`/lamp/${level}.svg`) === true;
+            })
+            .toBe(true);
+          output.push({ phase: 'complete-ready-lamp-presentation', observation: lampObservation });
+          await checkpoint('complete-ready-lamp-presentation');
+          for (const id of ['led', 'lamp']) {
+            await fitAndPlace(page, id);
+            await pair(page, id, 'running', info, output);
+            await checkpoint(`running-${id}`);
+          }
+          await fitAndPlace(page, 'switch');
+          output.push({
+            phase: 'running-switch-keyboard-selection',
+            ...(await nativeRunningSwitchSelect(page)),
+          });
+          const switchActive = await part(page, 'switch').evaluate((root) =>
+            root.classList.contains('workbench-component-actuator-active'),
           );
-          expect(response.advance.result?.solved).toBe(true);
-          expect(response.advance.result?.status).toBe('solved');
-          expect(response.advance.result?.quality?.finite).toBe(true);
-          expect(response.advance.result?.quality?.passed).toBe(true);
-          expect(response.advance.committedHorizonMicroseconds).toBeGreaterThanOrEqual(committed);
-          committed = response.advance.committedHorizonMicroseconds;
-          assertFinite(response.advance.result);
-        } else if (response.advance.executionStatus === 'yielded')
-          expect(response.advance.result).toBeNull();
-        else throw new Error('Real safe DC fixture faulted');
-      }
-      expect(
-        observed.events.filter((event) => (event as { trusted: boolean }).trusted === false),
-      ).toEqual([]);
-      expect(
-        observed.events.some((event) => (event as { type: string }).type === 'gotpointercapture'),
-      ).toBe(true);
-      expect(
-        observed.events.some((event) => (event as { type: string }).type === 'lostpointercapture'),
-      ).toBe(true);
-    } finally {
-      const raw = {
-        width,
-        projectId,
-        original: pupil,
-        output,
-        puts,
-        observer: await page.evaluate(() => (window as ProbeWindow).__outlineProbe),
-        server: await server(page, projectId),
-        localStorage: await page.evaluate(() =>
-          Object.fromEntries(
-            Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]),
+          for (const active of [!switchActive, switchActive]) {
+            await part(page, 'switch').getByTestId('spdt-actuator').click();
+            await expect
+              .poll(async () =>
+                part(page, 'switch').evaluate((root) =>
+                  root.classList.contains('workbench-component-actuator-active'),
+                ),
+              )
+              .toBe(active);
+          }
+          await checkpoint('running-switch-controls');
+          await fitAndPlace(page, 'button');
+          const buttonPoint = await nativePoint(page, 'button');
+          await page.mouse.move(buttonPoint.x, buttonPoint.y);
+          await page.mouse.down();
+          await expect(part(page, 'button').locator('circle[opacity="0.3"]')).toHaveCount(0);
+          await page.mouse.up();
+          await expect(part(page, 'button').locator('circle[opacity="0.3"]')).toHaveCount(1);
+          await checkpoint('running-button-controls');
+          await fitAndPlace(page, 'supply');
+          const supply = part(page, 'supply').getByTestId('regulated-power-supply-runtime');
+          await expect(supply).toHaveAttribute('data-output-enabled', 'true');
+          for (const enabled of ['false', 'true']) {
+            await supply.locator('.workbench-regulated-supply-power-switch').click();
+            await expect(supply).toHaveAttribute('data-output-enabled', enabled);
+          }
+          await checkpoint('running-supply-controls');
+          await fitAndPlace(page, 'meter');
+          await nativeSelect(page, 'meter');
+          const meter = part(page, 'meter').getByTestId('multimeter-runtime-display');
+          await meter.locator('.workbench-multimeter-mode-voltage').click();
+          await expect(meter).toHaveAttribute('data-measurement-mode', 'dc-voltage');
+          output.push({
+            phase: 'native-runtime-controls',
+            switchRestored: switchActive,
+            buttonReleased: true,
+            supplyRestored: await supply.getAttribute('data-output-enabled'),
+            server: await server(page, projectId),
+            wholeLocal: await localDocument(page, user, projectId),
+          });
+          expect(await localDocument(page, user, projectId)).toEqual(expected);
+          await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
+          await expect(
+            page.getByRole('button', { name: 'Начать моделирование', exact: true }),
+          ).toBeVisible();
+          expect((await server(page, projectId)).draft).toEqual(seeded.draft);
+          expect(puts).toEqual([]);
+          failures.assertEmpty();
+
+          await checkpoint('runtime-stopped-whole-original');
+        }
+        expect(puts).toEqual([]);
+        expect(await localDocument(page, user, projectId)).toEqual(pupil);
+        expect((await server(page, projectId)).draft).toEqual(seeded.draft);
+        // Real transforms are the only intended document mutation. Compare every
+        // field and unchanged wire/source; do not use product rotation code as oracle.
+        const transformIds =
+          scenario === 'transform-persistence'
+            ? ['resistor', 'led', 'supply', 'uno', 'board']
+            : ['resistor'];
+        for (const [index, id] of transformIds.entries()) {
+          await fitAndPlace(page, id);
+          if (id === 'led') {
+            const beforeZoom = await geometry(page, id);
+            const bounds = beforeZoom.bounds;
+            await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+            for (let step = 0; step < 8; step++) await page.mouse.wheel(0, -100);
+            await frames(page);
+            await placeInUnobscuredCanvas(page, id);
+            output.push({
+              phase: 'native-led-exposure-zoom',
+              before: beforeZoom,
+              after: await geometry(page, id),
+            });
+            await checkpoint('native-led-exposure-zoom');
+          }
+          await nativeSelect(page, id);
+          let transformed = expected.components.find((component) => component.id === id)!;
+          const entry = catalogEntry(transformed)!;
+          // Each real 45-degree action preserves the center. Keep its binary64
+          // operation order; a direct 90-degree or reassociated delta is not exact.
+          for (let step = 0; step < (index === 0 ? 2 : 1); step++) {
+            const oldSize = renderedSize(entry, transformed.rotation ?? 0);
+            const rotation = (((transformed.rotation ?? 0) + 45) % 360) as NonNullable<
+              typeof transformed.rotation
+            >;
+            const nextSize = renderedSize(entry, rotation);
+            const center = {
+              x: transformed.position.x + oldSize.width / 2,
+              y: transformed.position.y + oldSize.height / 2,
+            };
+            transformed = {
+              ...transformed,
+              rotation,
+              position: {
+                x: center.x - nextSize.width / 2,
+                y: center.y - nextSize.height / 2,
+              },
+            };
+          }
+          if (index < 2)
+            transformed = {
+              ...transformed,
+              stateProperties: { ...transformed.stateProperties, mirrorX: true },
+            };
+          expected = {
+            ...expected,
+            components: expected.components.map((component) =>
+              component.id !== id ? component : transformed,
+            ),
+          };
+          await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
+          if (index === 0)
+            await page.getByRole('button', { name: 'Повернуть на 45° (R)', exact: true }).click();
+          if (index < 2) await page.getByRole('button', { name: 'Отразить', exact: true }).click();
+          const whole = await localDocument(page, user, projectId);
+          expect(whole).toEqual(expected);
+          output.push({ phase: 'transformed', id, whole, geometry: await geometry(page, id) });
+          await neutralFocus(page);
+          await page.screenshot({ path: info.outputPath(`transformed-${id}.png`) });
+          await checkpoint(`transformed-${id}`);
+        }
+        expect(puts).toEqual([]);
+        const local = await localDocument(page, user, projectId);
+        expect(local).toEqual(expected);
+        await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+        await expect
+          .poll(async () => (await server(page, projectId)).draft.document)
+          .toEqual(expected);
+        const saved = await server(page, projectId);
+        expect(saved.draft.revision).toBe(seeded.draft.revision + 1);
+        expect(puts).toHaveLength(1);
+        expect(
+          (puts[0] as { body: { document: SchematicDocument; baseRevision: number } }).body
+            .document,
+        ).toEqual(expected);
+        expect((puts[0] as { body: { baseRevision: number } }).body.baseRevision).toBe(
+          seeded.draft.revision,
+        );
+        output.push({
+          phase: 'whole-save',
+          local,
+          expected,
+          seeded: seeded.draft,
+          saved: saved.draft,
+          puts: [...puts],
+        });
+
+        lastServer = saved;
+        failures.assertEmpty();
+        await checkpoint('whole-save');
+        const fresh = await browser.newContext({
+          baseURL: new URL(page.url()).origin,
+          viewport: { width, height: 900 },
+          deviceScaleFactor: 1,
+        });
+        try {
+          await fresh.addCookies(await page.context().cookies());
+          expect((await fresh.storageState()).origins).toEqual([]);
+          reopened = await fresh.newPage();
+          reopened.on('request', (request) => {
+            if (
+              request.method() === 'PUT' &&
+              new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+            )
+              puts.push({
+                at: Date.now(),
+                context: 'cookies-reopen',
+                body: request.postDataJSON(),
+              });
+          });
+          await installObserver(reopened);
+          const freshFailures = collectBrowserFailures(reopened, {
+            allowAnonymousSessionProbe: true,
+          });
+          const delivery = reopened.waitForResponse(
+            (response) =>
+              response.request().method() === 'GET' &&
+              new URL(response.url()).pathname === `/api/projects/${projectId}`,
+          );
+          await reopened.goto(`/#/home/${projectId}`);
+          const delivered = (await (await delivery).json()) as {
+            draft: { revision: number; document: SchematicDocument };
+          };
+          expect(delivered.draft).toEqual(saved.draft);
+          output.push({ phase: 'cookies-only-editor-delivery', whole: delivered });
+          await writeRaw('cookies-only-editor-delivery');
+          await expect(reopened.locator('.workbench-stage')).toBeVisible();
+          await expect(reopened.locator('[data-testid="schematic-component"]')).toHaveCount(9);
+          expect(
+            await reopened.evaluate(() =>
+              Object.keys(localStorage).filter((key) => key.startsWith('asa-project-local-draft:')),
+            ),
+          ).toEqual([]);
+          expect(
+            await reopened.evaluate(() =>
+              Object.keys(sessionStorage).filter((key) =>
+                key.startsWith('asa-project-local-draft:'),
+              ),
+            ),
+          ).toEqual([]);
+          expect((await server(reopened, projectId)).draft).toEqual(saved.draft);
+          const collapse = reopened.getByRole('button', {
+            name: 'Свернуть библиотеку',
+            exact: true,
+          });
+          if (await collapse.isVisible()) await collapse.click();
+          await fitAndPlace(reopened, 'resistor');
+          await pair(reopened, 'resistor', 'cookies-reopen', info, output);
+          await reopened.getByRole('button', { name: 'Увеличить масштаб', exact: true }).click();
+          await frames(reopened);
+          output.push({
+            phase: 'cookies-reopen-zoom',
+            geometry: await geometry(reopened, 'resistor'),
+            server: await server(reopened, projectId),
+            observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
+          });
+          await checkpoint('cookies-reopen-complete');
+          freshFailures.assertEmpty();
+        } finally {
+          try {
+            if (!reopened || reopened.isClosed()) {
+              output.push({
+                phase: 'reopen-finally',
+                availability: 'NOT_AVAILABLE',
+                error: 'Reopen page closed before final snapshot',
+              });
+            } else
+              output.push({
+                phase: 'reopen-finally',
+                observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
+                server: await server(reopened, projectId),
+              });
+          } catch (error) {
+            output.push({
+              phase: 'reopen-finally',
+              availability: 'NOT_AVAILABLE',
+              error: String(error),
+            });
+          }
+          await writeRaw('reopen-finally');
+          await fresh.close();
+          reopened = undefined;
+        }
+        const observed = await page.evaluate(() => (window as ProbeWindow).__outlineProbe!);
+        if (scenario === 'running-controls') {
+          const advances = observed.responses
+            .map(({ response }) => response)
+            .filter((response) => response.ok && response.kind === 'advance');
+          expect(advances.length).toBeGreaterThan(0);
+          let committed = 0;
+          for (const response of advances) {
+            if (!response.ok || response.kind !== 'advance') throw new Error('Unexpected response');
+            if (response.advance.executionStatus === 'ready') {
+              expect(response.advance.committedHorizonMicroseconds).toBe(
+                response.advance.requestedHorizonMicroseconds,
+              );
+              expect(response.advance.result?.solved).toBe(true);
+              expect(response.advance.result?.status).toBe('solved');
+              expect(response.advance.result?.quality?.finite).toBe(true);
+              expect(response.advance.result?.quality?.passed).toBe(true);
+              expect(response.advance.committedHorizonMicroseconds).toBeGreaterThanOrEqual(
+                committed,
+              );
+              committed = response.advance.committedHorizonMicroseconds;
+              assertFinite(response.advance.result);
+            } else if (response.advance.executionStatus === 'yielded')
+              expect(response.advance.result).toBeNull();
+            else throw new Error('Real safe DC fixture faulted');
+          }
+        }
+        expect(
+          observed.events.filter((event) => (event as { trusted: boolean }).trusted === false),
+        ).toEqual([]);
+        expect(
+          observed.events.some((event) => (event as { type: string }).type === 'gotpointercapture'),
+        ).toBe(true);
+        expect(
+          observed.events.some(
+            (event) => (event as { type: string }).type === 'lostpointercapture',
           ),
-        ),
-      };
-      const path = info.outputPath(`e11-outline-${width}-raw.json`);
-      await writeFile(path, JSON.stringify(raw, null, 2), 'utf8');
-      await info.attach(`e11-outline-${width}-raw`, { path, contentType: 'application/json' });
-      await page.screenshot({ path: info.outputPath('finally.png') });
-    }
-  });
-}
+        ).toBe(true);
+        expect(puts).toHaveLength(1);
+        expect((await server(page, projectId)).draft).toEqual(saved.draft);
+        failures.assertEmpty();
+        await checkpoint('complete');
+      } catch (error) {
+        primaryFailure = String(error);
+        throw error;
+      } finally {
+        // Node evidence is already available even when the page was closed by timeout.
+        await writeRaw(lastCheckpoint);
+        for (const [name, capture] of [
+          [
+            'observer',
+            async () => {
+              if (page.isClosed()) throw new Error('Page closed');
+              lastObserver = await page.evaluate(() => (window as ProbeWindow).__outlineProbe);
+            },
+          ],
+          [
+            'server',
+            async () => {
+              lastServer = await server(page, projectId);
+            },
+          ],
+          [
+            'localStorage',
+            async () => {
+              if (page.isClosed()) throw new Error('Page closed');
+              lastLocalStorage = await page.evaluate(() =>
+                Object.fromEntries(
+                  Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]),
+                ),
+              );
+            },
+          ],
+          [
+            'screenshot',
+            async () => {
+              if (page.isClosed()) throw new Error('Page closed');
+              await page.screenshot({ path: info.outputPath('finally.png') });
+            },
+          ],
+        ] as const) {
+          try {
+            await capture();
+          } catch (error) {
+            output.push({
+              phase: 'finally',
+              capture: name,
+              availability: 'NOT_AVAILABLE',
+              error: String(error),
+            });
+          }
+          await writeRaw(lastCheckpoint);
+        }
+        await info.attach(`e11-outline-${scenario}-${width}-raw`, {
+          path: rawPath,
+          contentType: 'application/json',
+        });
+      }
+    });
+  }
