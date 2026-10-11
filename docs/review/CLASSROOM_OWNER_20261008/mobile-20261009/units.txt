@@ -1,0 +1,12 @@
+
+ RUN  v4.1.11 C:/Users/spike/asa-lab-classroom-owner-fixes-20261008
+
+ ✓ apps/web/src/components/testing/classroom-roster-sort.spec.ts (8 tests) 14ms
+ ✓ apps/web/src/components/testing/student-access-cards.spec.ts (16 tests) 51ms
+ ✓ tests/courses/classroom-assignment-canonical-counts.spec.ts (2 tests) 8ms
+
+ Test Files  3 passed (3)
+      Tests  26 passed (26)
+   Start at  22:59:41
+   Duration  5.41s (transform 297ms, setup 0ms, import 5.53s, tests 73ms, environment 0ms)
+

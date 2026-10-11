@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { encodeClassJoinQr } from './class-join-qr-encoder';
 
 /**
  * The class join link as a square a phone can read.
@@ -13,9 +14,6 @@ import { useEffect, useState } from 'react';
  * join code is a key to a room full of children.
  */
 
-const MODULE_SIZE = 6;
-const QUIET_ZONE = 4;
-
 export function ClassJoinQr({
   url,
   label,
@@ -23,43 +21,45 @@ export function ClassJoinQr({
   readonly url: string;
   readonly label: string;
 }): JSX.Element {
-  const [paths, setPaths] = useState<{ size: number; d: string } | null>(null);
-  const [failed, setFailed] = useState(false);
+  const [state, setState] = useState<
+    { url: string; kind: 'ready'; size: number; d: string } | { url: string; kind: 'failed' } | null
+  >(null);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
-    void import('qrcode-generator')
-      .then(({ default: qr }) => {
+    void encodeClassJoinQr(url)
+      .then((paths) => {
         if (cancelled) return;
-        // Error correction M: readable when a printed sheet gets a thumbprint
-        // on it, without making the square denser than a phone likes.
-        const code = qr(0, 'M');
-        code.addData(url);
-        code.make();
-        const count = code.getModuleCount();
-        let d = '';
-        for (let row = 0; row < count; row += 1) {
-          for (let column = 0; column < count; column += 1) {
-            if (!code.isDark(row, column)) continue;
-            const x = (column + QUIET_ZONE) * MODULE_SIZE;
-            const y = (row + QUIET_ZONE) * MODULE_SIZE;
-            d += `M${x} ${y}h${MODULE_SIZE}v${MODULE_SIZE}h-${MODULE_SIZE}z`;
-          }
-        }
-        setPaths({ size: (count + QUIET_ZONE * 2) * MODULE_SIZE, d });
+        setState({ url, kind: 'ready', ...paths });
       })
       .catch(() => {
-        if (!cancelled) setFailed(true);
+        if (!cancelled) setState({ url, kind: 'failed' });
       });
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, attempt]);
 
-  if (failed) {
-    return <p className="class-qr-failed">Не удалось построить QR-код. Код класса рядом.</p>;
+  if (state?.url === url && state.kind === 'failed') {
+    return (
+      <div className="class-qr-failed" role="alert">
+        <p>Не удалось построить QR-код. Код класса рядом.</p>
+        <button
+          type="button"
+          className="btn-ghost"
+          onClick={() => {
+            setState(null);
+            setAttempt((value) => value + 1);
+          }}
+        >
+          Повторить
+        </button>
+      </div>
+    );
   }
-  if (!paths) {
+  // A URL change hides the old square in the very first render, before effects run.
+  if (!state || state.url !== url || state.kind !== 'ready') {
     return (
       <div className="class-qr-loading" role="status">
         Готовим QR-код…
@@ -70,13 +70,14 @@ export function ClassJoinQr({
   return (
     <svg
       className="class-qr"
-      viewBox={`0 0 ${paths.size} ${paths.size}`}
+      viewBox={`0 0 ${state.size} ${state.size}`}
+      shapeRendering="crispEdges"
       role="img"
       aria-label={label}
       data-testid="class-join-qr"
     >
-      <rect x="0" y="0" width={paths.size} height={paths.size} fill="#ffffff" />
-      <path d={paths.d} fill="#12232d" />
+      <rect x="0" y="0" width={state.size} height={state.size} fill="#ffffff" />
+      <path d={state.d} fill="#000000" />
     </svg>
   );
 }

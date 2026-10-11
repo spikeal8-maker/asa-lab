@@ -175,6 +175,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await assignment.screenshot({ path: `${evidenceDir}/regression-a-learner-submitted.png` });
   await page.reload();
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const gradeRow = page
     .getByRole('table', { name: 'Журнал работ класса' })
     .getByRole('row')
@@ -223,6 +224,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await expect(assignment).toContainText('Нужна доработка');
   await page.reload();
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await expect(gradeRow).toContainText('На доработке');
   await gradeRow.screenshot({ path: `${evidenceDir}/regression-b-changes-requested.png` });
 
@@ -281,6 +283,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   await learnerResult.screenshot({ path: `${evidenceDir}/regression-c-learner-result.png` });
   await page.reload();
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await expect(gradeRow).toContainText('В работе');
   await expect(gradeRow).toContainText('Зачёт');
   const gradebookRead = await page.request.get(`/api/classrooms/${row.classroom_id}/gradebook`);
@@ -344,6 +347,7 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   expect(compatibility.rows[0].count).toBeGreaterThan(0);
   await page.reload();
   await page.getByRole('button', { name: 'Журнал', exact: true }).click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const gradebook = page.getByRole('table', { name: 'Журнал работ класса' });
   await expect(gradebook).not.toContainText(/1\s*\/\s*1|60%|100%/);
   await gradebook.screenshot({ path: `${evidenceDir}/regression-d-unknown-grading.png` });

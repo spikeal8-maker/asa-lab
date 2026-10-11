@@ -11,6 +11,1333 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/classrooms/{classId}/participants:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getClassroomParticipantRoster
+      summary: Project totals and configurable rating for the whole class
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantRoster'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/participants/summary:
+    parameters: []
+    post:
+      operationId: getClassroomParticipantSummary
+      summary: Deduplicated totals across the requested owned classes
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantSummary'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - classroomIds
+              properties:
+                classroomIds:
+                  type: array
+                  maxItems: 200
+                  uniqueItems: true
+                  items:
+                    type: string
+                    format: uuid
+  /api/classrooms/{classId}/participants/{seatId}/profile:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getClassroomParticipantProfile
+      summary: Teacher or linked Account learner participant profile
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantProfile'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/staff/{accountId}:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: accountId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getClassroomParticipantStaff
+      summary: Staff member and only the classes visible to the viewer
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantStaff'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/managers:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getClassroomParticipantManagers
+      summary: Current teachers and organizational managers
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantManagers'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/{seatId}/works:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: module
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+            - three-d
+            - electronics
+            - blocks
+      - name: archive
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: assignments
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+    get:
+      operationId: getClassroomParticipantWorks
+      summary: One page of readable projects, without exposing private content
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. Exactly 30
+        items per page. totalWorks counts real deduplicated projects, while visibleWorks and returned content
+        obey existing visibility. Archived and assignment filters do not grant additional access.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantWorks'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/actions/{action}:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: action
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - settings
+            - role
+            - merit
+            - merit_grant
+            - builtin_grant
+            - avatar
+            - avatar_grant
+            - avatar_choose
+    post:
+      operationId: mutateClassroomParticipant
+      summary: Change rating settings, helper label, merit or class avatar
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. The
+        action-specific field subset is validated. Teacher authorization, archive restrictions, expected
+        revision and idempotent replay are enforced in the database transaction. Account learners may choose
+        only their own available class avatar; they cannot perform teacher actions.
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClassroomParticipantAction'
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uri
+  /api/classrooms/{classId}/participants/{seatId}/grades:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+      - name: resultOffset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+    get:
+      operationId: getClassroomParticipantGrades
+      summary: Manual grades and assigned-work results
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantGrades'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/{seatId}/history/{columnId}:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: columnId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: beforeRevision
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 999999999
+    get:
+      operationId: getClassroomParticipantGradeHistory
+      summary: One page of immutable manual-grade history
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantManualHistory'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/{seatId}/builtin-awards:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getClassroomParticipantBuiltinAwards
+      summary: Existing built-in awards for the exact participant
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/{seatId}/result-history/{assignmentId}:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: assignmentId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: offset
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 0
+          maximum: 100000
+          default: 0
+    get:
+      operationId: getClassroomParticipantResultHistory
+      summary: Immutable assigned-work result history
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantResultHistory'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/class-join/participants/me:
+    parameters: []
+    get:
+      operationId: getCurrentSeatParticipantProfile
+      summary: Own pupil totals, rank, merits and available avatars
+      description:
+        Requires only the StudentSeat session cookie; an Account cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '200':
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomParticipantProfile'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/class-join/participants/avatars/{avatarId}/image:
+    parameters:
+      - name: avatarId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getCurrentSeatParticipantAvatar
+      summary: Authorized raster class avatar
+      description:
+        Requires only the StudentSeat session cookie; an Account cookie is never a substitute.
+        Availability and canonical linkage are checked on each image request. Private no-store response;
+        revocation makes old URLs unreadable. No public data URL is embedded in a roster.
+      responses:
+        '200':
+          description: Success
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classId}/participants/{seatId}/avatars/{avatarId}/image:
+    parameters:
+      - name: classId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: seatId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: avatarId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      operationId: getAccountParticipantAvatar
+      summary: Raster avatar under exact Account and classroom access
+      description:
+        Requires only the Account session cookie; a StudentSeat cookie is never a substitute.
+        Availability and current authorization are checked on every request, including previously issued URLs.
+        Private no-store response.
+      responses:
+        '200':
+          description: Success
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/class-join/participants/avatar:
+    parameters: []
+    post:
+      operationId: chooseCurrentSeatParticipantAvatar
+      summary: Choose or clear an available class-specific pupil avatar
+      description:
+        Requires only the StudentSeat session cookie; an Account cookie is never a substitute. All access
+        is checked server-side against the current principal, exact classroom and active canonical learner
+        links. The helper display role does not grant teacher privileges.
+      responses:
+        '201':
+          description: Success
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required:
+                  - saved
+                properties:
+                  saved:
+                    type: boolean
+                    const: true
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: The required identity session is absent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: No current access to this exact class or participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found or no longer available
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived class, stale revision, retry conflict or class resource limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Storage temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - id
+                - requestId
+              properties:
+                id:
+                  type:
+                    - string
+                    - 'null'
+                  format: uuid
+                requestId:
+                  type: string
+                  minLength: 1
+                  maxLength: 128
+      parameters:
+        - name: Origin
+          in: header
+          required: true
+          schema:
+            type: string
+            format: uri
+  /api/classrooms/{classroomId}/journal:
+    parameters:
+      - &journalPath001
+        name: classroomId
+        in: path
+        required: true
+        schema: &journalPath002
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: Exact lesson day, 2000-01-01..2100-12-31. Supply from and to together; inclusive range at most 93 days. Omit both for current month in the persisted class journal timezone.
+        schema: { type: string, format: date }
+      - name: to
+        in: query
+        description: Inclusive final lesson day; must be at or after from, at most 92 days later.
+        schema: { type: string, format: date }
+      - name: offset
+        in: query
+        schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 50 }
+    get:
+      operationId: readManualClassroomJournal
+      summary: Exact-class pupils including unassigned pupils and one bounded page of dated columns
+      description:
+        Session Account plus exact owner/co_teacher scope and educator capability. Archive read-only.
+        No client account/tenant selection. Only asa_session is resolved; asa_student_session cannot authorize any teacher method. Current month by default, at most 50 columns per page; grades are limited to those columns. Author records are joined in the page query.
+      responses:
+        '200':
+          description: Server-confirmed snapshot or persisted receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualJournalSnapshot'
+        '400': &journalPath003
+          description: Invalid fields, date, pinned value or missing reason
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401': &journalPath004
+          description: No valid session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403': &journalPath005
+          description: No exact class teacher scope
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404': &journalPath006
+          description: Column or Seat unavailable in exact class
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409': &journalPath007
+          description: revision_conflict, idempotency_conflict or classroom_archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503': &journalPath008
+          description: Database unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classroomId}/journal/{action}:
+    parameters:
+      - *journalPath001
+      - name: action
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+            - scale
+            - column
+            - grade
+    post:
+      operationId: writeManualClassroomJournal
+      summary: Set future preset, create dated category column, or append manual grade revision
+      description:
+        Body must match path action. Current session authorization precedes actor/class/requestId
+        receipt lookup; exact completed replay precedes stale-revision/archived mutation checks. A changed
+        payload with the same key conflicts. Receipts retained with history. For scale and column expectedRevision
+        is current scale version (0 initially); grade uses latest cell revision (0 initially). No fake project,
+        Attempt, Submission or ActivityRun. Grade, delivered/suppressed inbox events, receipt and audit commit in one transaction. Notification storage failure returns 500 and rolls everything back; retry the same requestId. OFF preferences persist an explicitly suppressed inbox event and never hide the result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: '#/components/schemas/ManualJournalScaleCommand'
+                - $ref: '#/components/schemas/ManualJournalColumnCommand'
+                - $ref: '#/components/schemas/ManualJournalGradeCommand'
+      responses:
+        '200':
+          description: Server-confirmed snapshot or persisted receipt
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/ManualJournalScale'
+                  - type: object
+                    additionalProperties: false
+                    required:
+                      - id
+                    properties:
+                      id: *journalPath002
+                  - $ref: '#/components/schemas/ManualJournalGrade'
+        '400': *journalPath003
+        '401': *journalPath004
+        '403': *journalPath005
+        '404': *journalPath006
+        '409': *journalPath007
+        '500':
+          {
+            description: Transaction rolled back,
+            including notification emission and receipt; safe identical retry,
+          }
+        '503': *journalPath008
+  /api/classrooms/{classroomId}/journal/{columnId}/{seatId}/history:
+    parameters:
+      - *journalPath001
+      - name: columnId
+        in: path
+        required: true
+        schema: *journalPath002
+      - name: seatId
+        in: path
+        required: true
+        schema: *journalPath002
+      - name: beforeRevision
+        in: query
+        description: Exclusive revision cursor returned as nextBeforeRevision. No fetch-all fallback.
+        schema: { type: integer, minimum: 1, maximum: 999999999 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    get:
+      operationId: readManualJournalHistory
+      summary: Exact-class teacher reads append-only history, newest first
+      responses:
+        '200':
+          description: Server-confirmed snapshot or persisted receipt
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualJournalHistoryPage'
+        '400': *journalPath003
+        '401': *journalPath004
+        '403': *journalPath005
+        '404': *journalPath006
+        '409': *journalPath007
+        '503': *journalPath008
+  /api/classrooms/{classroomId}/journal/settings:
+    parameters:
+      - *journalPath001
+    get:
+      operationId: readManualJournalSettings
+      summary: Teacher reads only future scale, archive state and frozen class timezone
+      responses:
+        '200':
+          description: Settings without fetching matrix or history
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualJournalSettings' }
+        '401': *journalPath004
+        '403': *journalPath005
+  /api/learning/journal/results:
+    parameters:
+      - name: from
+        in: query
+        description: Exact lesson day, 2000-01-01..2100-12-31. Supply from and to together; inclusive range at most 93 days. Omit both for current month in the persisted class journal timezone.
+        schema: { type: string, format: date }
+      - name: to
+        in: query
+        description: Inclusive final lesson day; must be at or after from, at most 92 days later.
+        schema: { type: string, format: date }
+      - name: offset
+        in: query
+        schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      - name: columnId
+        in: query
+        description: Optional exact journal column focus from inbox. Filters inside the authorized bounded query; does not grant access.
+        schema: { type: string, format: uuid }
+    get:
+      operationId: readAccountManualJournalResults
+      summary: Own manual results for Account
+      description: >-
+        Resolves only asa_session, never StudentSeat cookies.
+        Missing or expired required cookie is 401 even when the other cookie is valid.
+        Reads the exact grade learner_identity_id via active canonical Seat and Account links in its tenant/school/class lineage.
+        Pending/rejected applicants, revoked links, inactive identities and foreign pupils receive no grades.
+        Current month by default; for several classes the first accessible class supplies the initial month timezone.
+        Explicit ranges are exact stored lesson dates; each result carries its frozen class timezone.
+        At most 50 items; navigate nextOffset or another month. Preferences do not affect results.
+        Null is a cleared grade; zero is a grade. Both identities project the same evidence without merging cookie scopes.
+      responses:
+        '200':
+          description: One authorized page of latest manual revisions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualJournalResultsPage' }
+        '400': *journalPath003
+        '401': *journalPath004
+        '503': *journalPath008
+  /api/class-join/journal/results:
+    parameters:
+      - name: from
+        in: query
+        description: Exact lesson day, 2000-01-01..2100-12-31. Supply from and to together; inclusive range at most 93 days. Omit both for current month in the persisted class journal timezone.
+        schema: { type: string, format: date }
+      - name: to
+        in: query
+        description: Inclusive final lesson day; must be at or after from, at most 92 days later.
+        schema: { type: string, format: date }
+      - name: offset
+        in: query
+        schema: { type: integer, minimum: 0, maximum: 1000000, default: 0 }
+      - name: limit
+        in: query
+        schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+      - name: columnId
+        in: query
+        description: Optional exact journal column focus from inbox. Filters inside the authorized bounded query; does not grant access.
+        schema: { type: string, format: uuid }
+    get:
+      operationId: readStudentSeatManualJournalResults
+      summary: Own manual results for StudentSeat
+      description: >-
+        Resolves only asa_student_session, never Account/refresh cookies.
+        Missing or expired required cookie is 401 even when the other cookie is valid.
+        Reads the exact grade learner_identity_id via active canonical Seat and Account links in its tenant/school/class lineage.
+        Pending/rejected applicants, revoked links, inactive identities and foreign pupils receive no grades.
+        Current month by default; for several classes the first accessible class supplies the initial month timezone.
+        Explicit ranges are exact stored lesson dates; each result carries its frozen class timezone.
+        At most 50 items; navigate nextOffset or another month. Preferences do not affect results.
+        Null is a cleared grade; zero is a grade. Both identities project the same evidence without merging cookie scopes.
+      responses:
+        '200':
+          description: One authorized page of latest manual revisions
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ManualJournalResultsPage' }
+        '400': *journalPath003
+        '401': *journalPath004
+        '503': *journalPath008
   /api/account/presentation:
     parameters:
       - name: x-asa-presentation-account
@@ -2646,8 +3973,40 @@ paths:
     patch:
       operationId: patchClassroomStudentSeat
       summary: Rename, protect, suspend or reactivate a StudentSeat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [displayLabel, safeMode, status]
+              properties:
+                displayLabel: { type: string, minLength: 1, maxLength: 120 }
+                safeMode: { type: boolean }
+                status: { type: string, enum: [issued, active, suspended] }
+                avatarKey: { type: [string, 'null'] }
+                loginHandle:
+                  type: [string, 'null']
+                  deprecated: true
+                  pattern: '^[A-Za-z0-9]{4,10}$'
+                  description: Optional compatibility assertion of the existing Student Code. Omit for settings changes; null also leaves the stored handle unchanged. Code rotation is a separate action.
       responses:
-        '200': { description: Updated StudentSeat }
+        '200':
+          description: Updated StudentSeat
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [student]
+                properties:
+                  student: { $ref: '#/components/schemas/ClassroomStudentSeat' }
+        '400': { description: Invalid settings }
+        '403': { description: Classroom roster management is not allowed }
+        '404': { description: StudentSeat is not in this classroom }
+        '409': { description: Changing a code requires the separate Student Code action }
+        '503': { description: Protected Student Code keyring or storage unavailable }
     delete:
       operationId: deleteClassroomStudentSeat
       summary: Remove a StudentSeat and revoke its active sessions
@@ -2669,23 +4028,89 @@ paths:
       - name: classroomId
         in: path
         required: true
-        schema: { type: string, format: uuid }
+        schema:
+          type: string
+          format: uuid
     post:
       operationId: rotateClassroomJoinCode
       summary: Revoke the previous code and issue a new deterministic code
       responses:
-        '200': { description: New class code issued }
+        '201':
+          description: New class code issued
+        '400':
+          description: Invalid classroom identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Account session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Active teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Classroom unavailable to this teacher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived classroom is read-only; no class code is issued or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/classrooms/{classroomId}/join-code:
     parameters:
       - name: classroomId
         in: path
         required: true
-        schema: { type: string, format: uuid }
+        schema:
+          type: string
+          format: uuid
     delete:
       operationId: revokeClassroomJoinCode
       summary: Close new StudentSeat sign-in for the classroom
       responses:
-        '200': { description: Class code revoked }
+        '200':
+          description: Class code revoked
+        '400':
+          description: Invalid classroom identifier
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Account session required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Active teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Classroom unavailable to this teacher
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Archived classroom is read-only; no class code is issued or revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/classrooms/{classroomId}/teachers:
     parameters:
       - name: classroomId
@@ -3947,6 +5372,280 @@ components:
         maxLength: 128
         pattern: '^[A-Za-z0-9._:-]+$'
   schemas:
+    ManualJournalRange:
+      type: object
+      additionalProperties: false
+      required: [from, to, today, timeZone]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        today: { type: string, format: date }
+        timeZone: { type: string, maxLength: 80 }
+    ManualJournalSettings:
+      type: object
+      additionalProperties: false
+      required: [status, scale, timeZone]
+      properties:
+        status: { type: string, enum: [active, archived] }
+        scale: { $ref: '#/components/schemas/ManualJournalScale' }
+        timeZone: { type: string, maxLength: 80 }
+    ManualJournalHistoryPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextBeforeRevision]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/ManualJournalGrade' }
+        nextBeforeRevision: { type: [integer, 'null'], minimum: 1 }
+    ManualJournalResultsPage:
+      type: object
+      additionalProperties: false
+      required: [items, range, offset, nextOffset]
+      properties:
+        items:
+          type: array
+          maxItems: 50
+          items: { $ref: '#/components/schemas/ManualJournalResult' }
+        range: { $ref: '#/components/schemas/ManualJournalRange' }
+        offset: { type: integer, minimum: 0 }
+        nextOffset: { type: [integer, 'null'], minimum: 0 }
+    ManualJournalScale:
+      type: object
+      additionalProperties: false
+      required:
+        - preset
+        - version
+      properties:
+        preset: &journalSchema001
+          type: string
+          enum:
+            - five
+            - hundred
+            - three_five
+            - smileys
+            - symbols
+        version: &journalSchema002
+          type: integer
+          minimum: 0
+          maximum: 999999999
+    ManualJournalColumn:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - date
+        - category
+        - preset
+        - scaleVersion
+      properties:
+        id: &journalSchema003
+          type: string
+          format: uuid
+        date: &journalSchema010
+          type: string
+          format: date
+        category: &journalSchema011
+          type: string
+          minLength: 1
+          maxLength: 80
+        preset: *journalSchema001
+        scaleVersion: *journalSchema002
+    ManualJournalGrade:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - columnId
+        - seatId
+        - revision
+        - value
+        - reason
+        - supersedesId
+        - authorId
+        - authorName
+        - publishedAt
+      properties:
+        id: *journalSchema003
+        columnId: *journalSchema003
+        seatId: *journalSchema003
+        revision: &journalSchema004
+          type: integer
+          minimum: 1
+        value: &journalSchema005
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 100
+        reason: &journalSchema006
+          type:
+            - string
+            - 'null'
+          maxLength: 500
+        supersedesId: &journalSchema007
+          type:
+            - string
+            - 'null'
+          format: uuid
+        authorId: *journalSchema003
+        authorName: &journalSchema008
+          type: string
+        publishedAt: &journalSchema009
+          type: string
+          format: date-time
+    ManualJournalResult:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - columnId
+        - seatId
+        - revision
+        - value
+        - reason
+        - supersedesId
+        - authorId
+        - authorName
+        - publishedAt
+        - date
+        - category
+        - preset
+        - scaleVersion
+        - classroomId
+        - classroomTitle
+        - timeZone
+      properties:
+        id: *journalSchema003
+        columnId: *journalSchema003
+        seatId: *journalSchema003
+        revision: *journalSchema004
+        value: *journalSchema005
+        reason: *journalSchema006
+        supersedesId: *journalSchema007
+        authorId: *journalSchema003
+        authorName: *journalSchema008
+        publishedAt: *journalSchema009
+        date: *journalSchema010
+        category: *journalSchema011
+        preset: *journalSchema001
+        scaleVersion: *journalSchema002
+        classroomId: *journalSchema003
+        timeZone: { type: string, maxLength: 80 }
+        classroomTitle:
+          type: string
+    ManualJournalSnapshot:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - scale
+        - students
+        - columns
+        - grades
+        - range
+        - offset
+        - nextOffset
+        - timeZone
+      properties:
+        range: { $ref: '#/components/schemas/ManualJournalRange' }
+        offset: { type: integer, minimum: 0 }
+        nextOffset: { type: [integer, 'null'], minimum: 0 }
+        timeZone: { type: string, maxLength: 80 }
+        status:
+          type: string
+          enum:
+            - active
+            - archived
+        scale:
+          $ref: '#/components/schemas/ManualJournalScale'
+        students:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - name
+              - status
+            properties:
+              id: *journalSchema003
+              name:
+                type: string
+              status:
+                type: string
+        columns:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/ManualJournalColumn'
+        grades:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualJournalGrade'
+    ManualJournalScaleCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - expectedRevision
+        - preset
+      properties:
+        requestId: &journalSchema012
+          type: string
+          pattern: ^[A-Za-z0-9._:-]{8,128}$
+        expectedRevision: *journalSchema002
+        preset: *journalSchema001
+    ManualJournalColumnCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - expectedRevision
+        - date
+        - category
+      properties:
+        requestId: *journalSchema012
+        expectedRevision: *journalSchema002
+        date:
+          type: string
+          format: date
+          description: Exact calendar day 2000-01-01..2100-12-31; no timezone conversion.
+        category:
+          type: string
+          minLength: 1
+          maxLength: 80
+    ManualJournalGradeCommand:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+        - expectedRevision
+        - columnId
+        - seatId
+        - value
+      properties:
+        requestId: *journalSchema012
+        expectedRevision: *journalSchema002
+        columnId: *journalSchema003
+        seatId: *journalSchema003
+        value:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+          maximum: 100
+          description:
+            'Pinned preset: five 0..5, hundred 0..100, three_five 3/4/5, smileys/symbols 1..5.
+            Null clears an existing grade; zero is a grade.'
+        reason:
+          type:
+            - string
+            - 'null'
+          minLength: 1
+          maxLength: 500
+          description: Required for every correction or clear; optional/null on first grade.
     AccountPresentation:
       type: object
       additionalProperties: false
@@ -5042,6 +6741,9 @@ components:
                         'seatId': { 'type': ['string', 'null'], 'format': 'uuid' },
                         'courseRunId': { 'type': ['string', 'null'], 'format': 'uuid' },
                         'joinRequestId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'journalRevisionId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'journalColumnId': { 'type': ['string', 'null'], 'format': 'uuid' },
+                        'journalDate': { 'type': ['string', 'null'], 'format': 'date' },
                         'recipientKind':
                           { 'type': 'string', 'enum': ['teacher', 'learner', 'requester'] },
                         'createdAt': { 'type': 'string', 'format': 'date-time' },
@@ -6062,6 +7764,8 @@ components:
           displayLabel,
           studentCode,
           loginHandle,
+          loginMethod,
+          avatarKey,
           safeMode,
           status,
           lastActiveAt,
@@ -6074,13 +7778,18 @@ components:
         id: { type: string, format: uuid }
         displayLabel: { type: string }
         studentCode:
-          type: string
+          type: [string, 'null']
           pattern: '^[A-Za-z0-9]{4,10}$'
-          description: Current teacher-visible Student Code used with the class code.
+          description: Current teacher-visible Student Code used with the class code. Null for Account-only admission; linking a code-based Seat to an Account preserves its code.
         loginHandle:
-          type: string
+          type: [string, 'null']
           deprecated: true
           description: Case-preserving storage compatibility alias for studentCode.
+        loginMethod:
+          type: string
+          enum: [account, student_code]
+          description: Server projection of the existing Seat admission method. account identifies Account-only admission; student_code does not exclude an additional linked Account login. Internal acc handles are never credentials and are not returned.
+        avatarKey: { type: [string, 'null'] }
         safeMode: { type: boolean }
         status:
           type: string
@@ -6099,6 +7808,18 @@ components:
           type: integer
           minimum: 0
           description: Count of canonical waiting_review states only.
+      allOf:
+        - if:
+            properties:
+              loginMethod: { const: account }
+          then:
+            properties:
+              studentCode: { type: 'null' }
+              loginHandle: { type: 'null' }
+          else:
+            properties:
+              studentCode: { type: string, pattern: '^[A-Za-z0-9]{4,10}$' }
+              loginHandle: { type: string, pattern: '^[A-Za-z0-9]{4,10}$' }
     ClassroomEnvelope:
       type: object
       additionalProperties: false
@@ -6389,3 +8110,631 @@ components:
         draft:
           $ref: '#/components/schemas/ProjectDraft'
         result: {}
+    ClassroomParticipantSettings:
+      type: object
+      additionalProperties: false
+      required:
+        - periodDays
+        - revision
+        - factors
+      properties:
+        periodDays:
+          type: integer
+          enum:
+            - 7
+            - 30
+            - 90
+        revision:
+          type: integer
+          minimum: 0
+        factors:
+          type: object
+          additionalProperties: false
+          required:
+            - projects
+            - logins
+            - days
+            - time
+            - grades
+          properties:
+            projects:
+              type: boolean
+            logins:
+              type: boolean
+            days:
+              type: boolean
+            time:
+              type: boolean
+            grades:
+              type: boolean
+    ClassroomParticipantMetrics:
+      type: object
+      additionalProperties: false
+      required:
+        - seatId
+        - totalWorks
+        - archivedWorks
+        - score
+        - rank
+        - factors
+        - sources
+        - role
+        - avatarUrl
+      properties:
+        seatId:
+          type: string
+          format: uuid
+        totalWorks:
+          type: integer
+          minimum: 0
+        archivedWorks:
+          type: integer
+          minimum: 0
+        score:
+          type:
+            - number
+            - 'null'
+          minimum: 0
+          maximum: 100
+        rank:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+        factors:
+          type: object
+          additionalProperties: false
+          required:
+            - projects
+            - logins
+            - days
+            - time
+            - grades
+          properties:
+            projects:
+              type: number
+              minimum: 0
+              maximum: 100
+            logins:
+              type: number
+              minimum: 0
+              maximum: 100
+            days:
+              type: number
+              minimum: 0
+              maximum: 100
+            time:
+              type: number
+              minimum: 0
+              maximum: 100
+            grades:
+              type: number
+              minimum: 0
+              maximum: 100
+        sources:
+          type: object
+          additionalProperties: false
+          required:
+            - projects
+            - logins
+            - days
+            - time
+            - grades
+          properties:
+            projects:
+              type: number
+              minimum: 0
+            logins:
+              type: number
+              minimum: 0
+            days:
+              type: number
+              minimum: 0
+            time:
+              type: number
+              minimum: 0
+            grades:
+              type: number
+              minimum: 0
+        role:
+          type: string
+          enum:
+            - student
+            - helper
+        avatarUrl:
+          type:
+            - string
+            - 'null'
+    ClassroomParticipantRoster:
+      type: object
+      additionalProperties: false
+      required:
+        - settings
+        - items
+      properties:
+        settings:
+          $ref: '#/components/schemas/ClassroomParticipantSettings'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassroomParticipantMetrics'
+    ClassroomParticipantSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - classCount
+        - studentCount
+        - totalWorks
+        - archivedWorks
+      properties:
+        classCount:
+          type: integer
+          minimum: 0
+        studentCount:
+          type: integer
+          minimum: 0
+        totalWorks:
+          type: integer
+          minimum: 0
+        archivedWorks:
+          type: integer
+          minimum: 0
+    ClassroomParticipantMerit:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - description
+        - granted
+        - grantedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 240
+        granted:
+          type: boolean
+        grantedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+    ClassroomParticipantAvatar:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - title
+        - url
+        - secret
+        - available
+        - selected
+        - permitted
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+          maxLength: 60
+        url:
+          type: string
+        secret:
+          type: boolean
+        available:
+          type: boolean
+        selected:
+          type:
+            - boolean
+            - 'null'
+        permitted:
+          type: boolean
+    ClassroomParticipantProfile:
+      type: object
+      additionalProperties: false
+      required:
+        - status
+        - settings
+        - metrics
+        - student
+        - activity
+        - builtinAwards
+        - submittedCount
+        - awaitingReview
+        - merits
+        - avatars
+      properties:
+        status:
+          type: string
+          enum:
+            - active
+            - archived
+        settings:
+          $ref: '#/components/schemas/ClassroomParticipantSettings'
+        metrics:
+          $ref: '#/components/schemas/ClassroomParticipantMetrics'
+        student:
+          type: object
+          additionalProperties: false
+          required:
+            - id
+            - displayLabel
+            - avatarKey
+            - status
+            - safeMode
+            - lastActiveAt
+          properties:
+            id:
+              type: string
+              format: uuid
+            displayLabel:
+              type: string
+            avatarKey:
+              type:
+                - string
+                - 'null'
+            status:
+              type: string
+            safeMode:
+              type: boolean
+            lastActiveAt:
+              type:
+                - string
+                - 'null'
+              format: date-time
+        activity:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        builtinAwards:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        submittedCount:
+          type: integer
+          minimum: 0
+        awaitingReview:
+          type: integer
+          minimum: 0
+        merits:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassroomParticipantMerit'
+        avatars:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassroomParticipantAvatar'
+    ClassroomParticipantWorks:
+      type: object
+      additionalProperties: false
+      required:
+        - totalWorks
+        - visibleWorks
+        - filteredWorks
+        - offset
+        - hasMore
+        - items
+      properties:
+        totalWorks:
+          type: integer
+          minimum: 0
+        visibleWorks:
+          type: integer
+          minimum: 0
+        filteredWorks:
+          type: integer
+          minimum: 0
+        offset:
+          type: integer
+          minimum: 0
+        hasMore:
+          type: boolean
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            description:
+              Existing ClassroomStudentWork projection with batched feedback. All content and previews remain
+              restricted by existing project visibility.
+    ClassroomParticipantStaff:
+      type: object
+      additionalProperties: false
+      required:
+        - name
+        - avatarUrl
+        - classes
+      properties:
+        name:
+          type: string
+        avatarUrl:
+          type:
+            - string
+            - 'null'
+        classes:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - title
+              - role
+            properties:
+              id:
+                type: string
+                format: uuid
+              title:
+                type: string
+              role:
+                type: string
+                enum:
+                  - owner
+                  - co_teacher
+                  - organization_owner
+                  - school_admin
+    ClassroomParticipantManagers:
+      type: array
+      items:
+        type: object
+        additionalProperties: false
+        required:
+          - accountId
+          - name
+          - role
+        properties:
+          accountId:
+            type: string
+            format: uuid
+          name:
+            type: string
+          role:
+            type: string
+            enum:
+              - owner
+              - school_admin
+    ClassroomParticipantGradeRevision:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - columnId
+        - seatId
+        - revision
+        - value
+        - reason
+        - authorName
+        - publishedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+        columnId:
+          type: string
+          format: uuid
+        seatId:
+          type: string
+          format: uuid
+        revision:
+          type: integer
+          minimum: 1
+        value:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        reason:
+          type:
+            - string
+            - 'null'
+        authorName:
+          type: string
+        publishedAt:
+          type: string
+          format: date-time
+    ClassroomParticipantGrades:
+      type: object
+      additionalProperties: false
+      required:
+        - journal
+        - resultOffset
+        - nextResultOffset
+        - results
+      properties:
+        journal:
+          type: object
+          additionalProperties: false
+          required:
+            - offset
+            - nextOffset
+            - columns
+            - grades
+          properties:
+            offset:
+              type: integer
+              minimum: 0
+            nextOffset:
+              type:
+                - integer
+                - 'null'
+              minimum: 0
+            columns:
+              type: array
+              items:
+                type: object
+                additionalProperties: true
+                required:
+                  - id
+                  - date
+                  - category
+                  - preset
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+                  date:
+                    type: string
+                    format: date
+                  category:
+                    type: string
+                  preset:
+                    type: string
+            grades:
+              type: array
+              items:
+                $ref: '#/components/schemas/ClassroomParticipantGradeRevision'
+        resultOffset:
+          type: integer
+          minimum: 0
+        nextResultOffset:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        results:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    ClassroomParticipantManualHistory:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - nextBeforeRevision
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClassroomParticipantGradeRevision'
+        nextBeforeRevision:
+          type:
+            - integer
+            - 'null'
+          minimum: 1
+    ClassroomParticipantResultHistory:
+      type: object
+      additionalProperties: false
+      required:
+        - offset
+        - hasMore
+        - items
+      properties:
+        offset:
+          type: integer
+          minimum: 0
+        hasMore:
+          type: boolean
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+            description: Existing immutable graded-revision history with author, reason, attempt and points.
+    ClassroomParticipantAction:
+      type: object
+      additionalProperties: false
+      required:
+        - requestId
+      properties:
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 128
+        expectedRevision:
+          type: integer
+          minimum: 0
+        periodDays:
+          type: integer
+          enum:
+            - 7
+            - 30
+            - 90
+        factors:
+          type: object
+          additionalProperties: false
+          required:
+            - projects
+            - logins
+            - days
+            - time
+            - grades
+          properties:
+            projects:
+              type: boolean
+            logins:
+              type: boolean
+            days:
+              type: boolean
+            time:
+              type: boolean
+            grades:
+              type: boolean
+        seatId:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - student
+            - helper
+        title:
+          type: string
+          minLength: 1
+          maxLength: 60
+        description:
+          type: string
+          maxLength: 240
+        id:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        granted:
+          type: boolean
+        awardKey:
+          type: string
+          enum:
+            - first-model
+            - bright-idea
+            - careful-work
+            - precision
+            - perseverance
+            - helper
+            - explorer
+            - editors-choice
+        note:
+          type:
+            - string
+            - 'null'
+          maxLength: 280
+        dataUrl:
+          type: string
+          maxLength: 300000
+          pattern: ^data:image/png;base64,[A-Za-z0-9+/]+=*$
+        secret:
+          type: boolean
+        meritId:
+          type:
+            - string
+            - 'null'
+          format: uuid
+        builtinAward:
+          type:
+            - string
+            - 'null'
+      description:
+        'The path action determines the exact permitted and required field subset. settings:
+        periodDays/factors/expectedRevision; role: seatId/role; merit: title/description; merit_grant and
+        avatar_grant: seatId/id/granted; builtin_grant: seatId/awardKey/granted/note; avatar: title/dataUrl/secret
+        and optional meritId or builtinAward; avatar_choose: seatId/id. Cross-action fields are rejected.
+        requestId binds a retry to the exact actor, class and payload; replay cannot repeat the effect. Avatar
+        input is decoded, dimension/byte/CRC checked and re-encoded before storage.'

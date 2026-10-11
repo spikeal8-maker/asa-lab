@@ -1,0 +1,7 @@
+{
+  "apps/web/src/components/StudentAccessCards.tsx": "5f3fe87a0ca395dd96761ea370342c0774ea46ea07269d80a6d0edb8269b480a",
+  "apps/web/src/components/student-access.css": "e37fe607eece401df1e8ebc1f0936e65c5b5a83e086f43d911fbc02b37bb8efa",
+  "e2e/access-a.spec.ts": "df81305a30b5dbdfa050b2c04c99132ff353584eace1a7cd0587542a17fae0f9",
+  "e2e/classroom-owner-ui.spec.ts": "4f51c7bf188a280894b7e8d53e82cdc4156a8837cf232d984ea6dec656b50ce8",
+  "e2e/student-access-cards.spec.ts": "f41a7caa13c7a5651807a9cd8bf7b41f0a7e60e1e773e996cbc5da9e8c1826b2"
+}

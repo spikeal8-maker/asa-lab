@@ -47,18 +47,24 @@ export function ClassroomPropertiesModal({
       return;
     }
     setBusy(true);
-    const result = await api.updateClassroom(classroom.id, {
-      title,
-      ageBand: draft.ageBand,
-      topicKeys: [...draft.topicKeys],
-      safeModeDefault: draft.safeModeDefault,
-    });
-    setBusy(false);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось сохранить настройки класса.');
-      return;
+    setError(null);
+    try {
+      const result = await api.updateClassroom(classroom.id, {
+        title,
+        ageBand: draft.ageBand,
+        topicKeys: [...draft.topicKeys],
+        safeModeDefault: draft.safeModeDefault,
+      });
+      if (!result.ok) {
+        setError(result.error.message || 'Не удалось сохранить настройки класса.');
+        return;
+      }
+      onSaved(result.data.classroom);
+    } catch {
+      setError('Не удалось сохранить настройки класса. Повторите попытку.');
+    } finally {
+      setBusy(false);
     }
-    onSaved(result.data.classroom);
   }
 
   return (

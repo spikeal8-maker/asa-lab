@@ -317,7 +317,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
   ]);
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Журнал', exact: true })
+    .getByRole('button', { name: 'Настройки', exact: true })
     .click();
   await page.getByText('Шкала новых оцениваемых заданий', { exact: true }).click();
   await page.getByLabel('Название шкалы', { exact: true }).fill('Два уровня');
@@ -356,6 +356,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await expect(page.getByText('Ждут проверки: 1', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: /^Маша · Оцениваемая/ }).click();
   const detail = page.getByRole('region', { name: 'Проверка сдачи' });
@@ -416,6 +417,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await stale.getByRole('button', { name: 'Задания', exact: true }).click();
   await stale.getByRole('button', { name: /^Маша · Оцениваемая/ }).click();
   const staleDetail = stale.getByRole('region', { name: 'Проверка сдачи' });
   await expect(staleDetail.getByLabel('Баллы из 10', { exact: true })).toHaveValue('8');
@@ -469,11 +471,17 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
     .fill(
       Array.from({ length: 30 }, (_, i) => `Ученик ${String(i + 1).padStart(2, '0')}`).join('\n'),
     );
-  await roster.getByRole('button', { name: 'Проверить список', exact: true }).click();
-  await expect(roster.getByText('Список проверен сервером')).toBeVisible();
-  await roster.getByRole('button', { name: 'Добавить учеников (30)', exact: true }).click();
-  await expect(roster.getByRole('heading', { name: 'Ученики добавлены: 30' })).toBeVisible();
-  await roster.getByRole('button', { name: 'Карточки новых учеников', exact: true }).click();
+  // Classroom owner flow is one confirmed server request, then automatic cards.
+  // Retain the 30-pupil / 300-cell assertions below, not obsolete confirmations.
+  await expect(roster.getByRole('button', { name: 'Проверить список', exact: true })).toHaveCount(
+    0,
+  );
+  const added = page.waitForResponse(
+    (response) => response.url().endsWith('/seats/batch') && response.request().method() === 'POST',
+  );
+  await roster.getByRole('button', { name: 'Добавить', exact: true }).click();
+  const batch = await added;
+  expect(batch.ok(), await batch.text()).toBe(true);
   await expect(roster).toBeHidden();
   const accessCards = page.getByRole('dialog', { name: 'Карточки доступа' });
   await expect(accessCards.locator('.student-access-card')).toHaveCount(30);
@@ -490,6 +498,7 @@ test('matrix 30 × 10, named exclusions, course filter, individual allowance and
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const matrix = page.getByRole('table', { name: 'Журнал работ класса' });
   await expect(matrix.locator('tbody tr')).toHaveCount(30);
   await expect(matrix.locator('thead th')).toHaveCount(11);
@@ -788,6 +797,7 @@ test('ungraded real submission has an official acceptance but no manufactured po
     .getByRole('navigation', { name: 'Разделы класса' })
     .getByRole('button', { name: 'Журнал', exact: true })
     .click();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const cell = page.getByRole('button', { name: new RegExp('Лена · ' + title) });
   await cell.click();
   const detail = page.getByRole('region', { name: 'Проверка сдачи' });
@@ -1224,6 +1234,7 @@ for (const module of ['three-d', 'electronics'])
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Журнал', exact: true })
       .click();
+    await page.getByRole('button', { name: 'Задания', exact: true }).click();
     const cell = page.getByRole('button', { name: new RegExp('Ирина · ' + title) });
     await cell.click();
     const detail = page.getByRole('region', { name: 'Проверка сдачи' });
@@ -1343,6 +1354,7 @@ for (const module of ['three-d', 'electronics'])
       .getByRole('navigation', { name: 'Разделы класса' })
       .getByRole('button', { name: 'Журнал', exact: true })
       .click();
+    await page.getByRole('button', { name: 'Задания', exact: true }).click();
     await cell.click();
     await expect(detail.getByTestId('submission-version-id')).not.toHaveText(firstVersion);
     await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
@@ -1933,7 +1945,7 @@ for (const module of ['electronics', 'three-d'])
     await page.goto(classUrl);
     await page
       .getByRole('navigation', { name: 'Разделы класса' })
-      .getByRole('button', { name: 'Учащиеся', exact: true })
+      .getByRole('button', { name: 'Заявки', exact: true })
       .click();
     await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
     await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();
@@ -2093,8 +2105,13 @@ for (const module of ['electronics', 'three-d'])
     }
     await learner.setViewportSize({ width: 1440, height: 900 });
     await switchAccountWorkspace(learner, organizationWorkspaceId);
-    await page.getByRole('button', { name: /^Оповещения/ }).click();
-    const inbox = page.getByRole('dialog', { name: 'Учебные оповещения' });
+    // Notifications live in Account settings; keep the exact submitted-work link proof.
+    await page.goto('/#/account');
+    await page
+      .getByLabel('Разделы настроек')
+      .getByRole('button', { name: 'Уведомления', exact: true })
+      .click();
+    const inbox = page.getByRole('region', { name: 'События уведомлений', exact: true });
     const event = inbox
       .locator('li')
       .filter({ hasText: 'Работа сдана' })

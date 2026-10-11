@@ -1,0 +1,6 @@
+{
+  "apps/web/src/pages/ClassroomPage.tsx": "dbda69d63dcee1b55fccb845431c1f4dc60b9064f2648f0687ad70103c40d3ef",
+  "apps/web/src/modules/classroom-mobile.css": "bb6bccb2d6f4c355738547a1772f2d942cc3609ed54328bf1ba909af85cfd023",
+  "apps/web/src/components/testing/student-access-cards.spec.ts": "3c600b47c6203bc6b09b02e1c949ebb64a03913d1975a2f9f1182cf246368093",
+  "e2e/classroom-owner-ui.spec.ts": "b4cde6dc64088df01400529025a685e169ecca4b31c3a16c23b1d64636ac2ffd"
+}

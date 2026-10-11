@@ -1,0 +1,410 @@
+/* Classroom-only responsive composition. Desktop typography and portal navigation stay intact. */
+.classroom-mobile-label,
+.classroom-mobile-section,
+.classroom-mobile-sort,
+.classroom-owner-workspace .classroom-seen-mobile {
+  display: none;
+}
+.classroom-row-details {
+  display: contents;
+}
+.classroom-search-empty {
+  padding: 16px;
+}
+.classroom-owner-workspace .classroom-progress em {
+  font-style: normal;
+}
+
+@media (max-width: 1100px) {
+  .classroom-owner-workspace.portal-content {
+    min-width: 0;
+    padding: 12px 12px 24px;
+  }
+  .classroom-owner-workspace .classroom-mobile-label {
+    display: inline;
+  }
+  .classroom-owner-workspace .classroom-desktop-label {
+    display: none;
+  }
+  .classroom-owner-workspace .classroom-head-compact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: 'back actions' 'title title';
+    align-items: center;
+    gap: 4px 8px;
+    padding: 0 0 8px;
+  }
+  .classroom-owner-workspace .classroom-back {
+    grid-area: back;
+    min-height: 44px;
+    justify-self: start;
+    padding: 0 4px;
+    text-align: left;
+  }
+  .classroom-owner-workspace .classroom-head-title {
+    grid-area: title;
+    min-width: 0;
+  }
+  .classroom-owner-workspace .classroom-head-title h1 {
+    gap: 4px 12px;
+    font-size: 26px;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  .classroom-owner-workspace .classroom-head-title h1 small {
+    margin: 0;
+    font-size: 15px;
+  }
+  .classroom-owner-workspace .classroom-head-code {
+    grid-area: actions;
+    margin: 0;
+    flex-wrap: nowrap;
+  }
+  /* The sharing screen retains the complete class code and QR; no second code banner. */
+  .classroom-owner-workspace .classroom-head-code > .classroom-code-chip {
+    display: none;
+  }
+  .classroom-owner-workspace .classroom-head-code > .portal-create-button {
+    min-height: 44px;
+    padding: 0 12px;
+    font-size: 14px;
+    box-shadow: none;
+    border-radius: 8px;
+  }
+  .classroom-owner-workspace .classroom-progress {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 0;
+    margin: 0 0 10px;
+    border: 1px solid var(--border, #dce4e9);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+    overflow: hidden;
+  }
+  .classroom-owner-workspace .classroom-progress > span {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 5px 2px;
+    min-width: 0;
+    border: 0;
+    border-right: 1px solid var(--border, #dce4e9);
+    border-radius: 0;
+    text-align: center;
+    font-size: 13px;
+    line-height: 1.25;
+    background: transparent;
+  }
+  .classroom-owner-workspace .classroom-progress > span:last-child {
+    border-right: 0;
+  }
+  .classroom-owner-workspace .classroom-progress > .is-behind {
+    background: #fff5f5;
+  }
+  .classroom-owner-workspace .classroom-progress > .is-waiting {
+    background: #fff7ed;
+  }
+  .classroom-owner-workspace .classroom-tabbar {
+    display: block;
+    margin: 0 0 8px;
+    border: 0;
+  }
+  .classroom-owner-workspace .classroom-workspace-tabs {
+    display: none;
+  }
+  .classroom-owner-workspace .classroom-mobile-section {
+    display: block;
+    margin: 0;
+  }
+  .classroom-owner-workspace .classroom-mobile-section select,
+  .classroom-owner-workspace .classroom-mobile-sort select {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 10px;
+    border: 1px solid var(--border, #c8d4da);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+    color: var(--ink, #263c4b);
+    font: inherit;
+  }
+  .classroom-owner-workspace .classroom-mobile-section select {
+    font-weight: 700;
+  }
+  .classroom-owner-workspace .classroom-roster-panel {
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+  }
+  .classroom-owner-workspace .classroom-roster-toolbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, 0.85fr);
+    gap: 8px;
+    margin: 0 0 8px;
+  }
+  .classroom-owner-workspace .classroom-roster-actions {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    width: auto;
+  }
+  .classroom-owner-workspace .classroom-roster-actions button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 8px;
+    gap: 4px;
+    font-size: 14px;
+    line-height: 1.2;
+    border-radius: 8px;
+    box-shadow: none;
+  }
+  .classroom-owner-workspace .classroom-roster-search,
+  .classroom-owner-workspace .classroom-mobile-sort {
+    display: block;
+    min-width: 0;
+    margin: 0;
+  }
+  .classroom-owner-workspace .classroom-roster-search input {
+    min-height: 44px;
+    margin: 0;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 16px;
+  }
+  .classroom-owner-workspace .classroom-mobile-sort select {
+    font-size: 14px;
+  }
+  .classroom-owner-workspace .classroom-roster-table {
+    border: 0;
+  }
+  .classroom-owner-workspace .classroom-roster-head {
+    display: none;
+  }
+  .classroom-owner-workspace .classroom-roster-row {
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) 44px;
+    gap: 0 6px;
+    align-items: center;
+    min-height: 0;
+    margin: 0 0 6px;
+    padding: 4px 8px;
+    border: 1px solid var(--border, #e1e7eb);
+    border-radius: 8px;
+    background: var(--surface, #fff);
+  }
+  .classroom-owner-workspace .classroom-roster-index {
+    display: block;
+    position: static;
+    grid-column: 1;
+    grid-row: 1;
+    align-self: center;
+    font-size: 13px;
+  }
+  .classroom-owner-workspace .classroom-student-name {
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    min-height: 44px;
+    padding: 0;
+    gap: 8px;
+    font-size: 16px;
+    text-align: left;
+  }
+  .classroom-owner-workspace .classroom-student-name > span {
+    min-width: 0;
+  }
+  .classroom-owner-workspace .classroom-student-name strong {
+    overflow-wrap: anywhere;
+  }
+  .classroom-owner-workspace .classroom-seat-avatar {
+    width: 28px;
+    height: 28px;
+  }
+  .classroom-owner-workspace .classroom-seen-mobile {
+    display: block;
+    font-size: 12px;
+    line-height: 1.2;
+    font-weight: 400;
+  }
+  .classroom-owner-workspace .classroom-roster-row > .classroom-row-menu {
+    grid-column: 3;
+    grid-row: 1;
+    align-self: center;
+  }
+  .classroom-owner-workspace .classroom-row-menu > summary {
+    display: grid;
+    place-items: center;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .classroom-owner-workspace .classroom-roster-row > .classroom-row-details {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    grid-template-columns: minmax(80px, 1fr) minmax(48px, 0.8fr) minmax(120px, 1fr);
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .classroom-owner-workspace .classroom-row-details > .classroom-roster-seen {
+    display: none;
+  }
+  .classroom-owner-workspace .classroom-login-handle {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    margin: 0;
+    padding: 0 5px;
+    font-size: 15px;
+    white-space: nowrap;
+  }
+  .classroom-owner-workspace .classroom-roster-progress {
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.15;
+  }
+  .classroom-owner-workspace .classroom-roster-progress em {
+    padding: 0;
+    font-size: 11px;
+  }
+  .classroom-owner-workspace .classroom-seat-safe {
+    display: flex;
+    align-items: center;
+    justify-self: end;
+    min-height: 44px;
+    margin: 0;
+    padding: 0;
+    gap: 6px;
+    white-space: normal;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .classroom-owner-workspace .classroom-seat-safe-name {
+    display: inline;
+    max-width: 78px;
+  }
+  .classroom-owner-workspace .classroom-seat-safe > span:last-child {
+    display: none;
+  }
+}
+
+/* The real input occupies its whole label, so taps and keyboard focus agree. */
+@media (max-width: 1100px) {
+  .classroom-owner-workspace .classroom-seat-safe {
+    position: relative;
+  }
+  .classroom-owner-workspace .classroom-seat-safe input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    z-index: 1;
+    opacity: 0;
+    cursor: pointer;
+  }
+  .classroom-owner-workspace .classroom-seat-safe input:disabled {
+    cursor: not-allowed;
+  }
+}
+/* One header row on this screen, retaining every global navigation action. */
+@media (max-width: 900px) {
+  .portal-shell:has(> .classroom-owner-workspace) {
+    --portal-header-height: 56px;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) > .classroom-owner-workspace.portal-content {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 10px 12px 24px;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header {
+    grid-template-columns: 44px minmax(24px, 1fr) 88px 72px 44px;
+    grid-template-rows: 56px;
+    grid-template-areas: 'menu brand public create account';
+    gap: 0 4px;
+    padding: 0 8px;
+    height: 56px;
+    min-height: 56px;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .portal-global-nav {
+    width: 88px;
+    gap: 0;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .portal-global-nav a {
+    box-sizing: border-box;
+    flex: 0 0 44px;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .portal-header-create {
+    box-sizing: border-box;
+    width: 72px;
+    min-height: 44px;
+    padding: 0 6px;
+    font-size: 13px;
+  }
+  .portal-shell:has(> .classroom-owner-workspace)
+    .portal-header
+    .portal-header-create
+    > span:first-child {
+    display: none;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .portal-header-create-label {
+    display: inline;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .portal-account > summary {
+    box-sizing: border-box;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+}
+@media (max-width: 379px) {
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .asa-brand-copy {
+    display: none;
+  }
+  .portal-shell:has(> .classroom-owner-workspace) .portal-header .asa-brand-mark {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .classroom-owner-workspace .classroom-roster-done::after {
+    content: 'сдано';
+    display: block;
+    font-size: 11px;
+    line-height: 1.2;
+    font-weight: 400;
+    color: var(--ink-muted);
+  }
+}
+
+@media (max-width: 1100px) {
+  .classroom-owner-workspace .classroom-progress > span {
+    justify-content: flex-start;
+  }
+}
+@media (max-width: 359px) {
+  .classroom-owner-workspace .classroom-progress > span {
+    padding: 2px;
+  }
+}

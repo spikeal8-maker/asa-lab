@@ -5,7 +5,7 @@ import { defineConfig } from '@playwright/test';
 // (never in place of) the real authorization journeys in access-a.
 export default defineConfig({
   testDir: './e2e',
-  testMatch: ['access-account-ui.spec.ts', 'admin-logs-ui.spec.ts'],
+  testMatch: ['access-account-ui.spec.ts', 'admin-logs-ui.spec.ts', 'classroom-owner-ui.spec.ts'],
   workers: 1,
   fullyParallel: false,
   retries: 0,

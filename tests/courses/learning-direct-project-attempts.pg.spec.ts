@@ -332,6 +332,10 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
   }, 30_000);
 
   it('Account admission stays pending until exact-class staff approve; late whole-class enrollment is unique', async () => {
+    // A multi-stage real PostgreSQL journey, not a single-operation latency
+    // benchmark. Keep every permission/idempotency assertion and expose slow
+    // stages instead of letting the generic 5s unit-test deadline cut it short.
+    const mark = traceGradedCase('account admission');
     const cls = await createClass(),
       foreign = await seedTeacher(admin, 'course01-account-join');
     const identity = (
@@ -371,6 +375,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
       ])
     ).rows[0];
     expect(request).toMatchObject({ seat_id: null, status: 'pending', classroom_id: cls });
+    mark('pending request attention');
     expect((await attention()).joinRequests).toContainEqual({
       id: request.request_id,
       classroomId: cls,
@@ -403,7 +408,9 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         cls,
         request.request_id,
       ]);
+    mark('approval and replay');
     expect((await approve()).rows[0].code).toBe('ok');
+    mark('approved request attention');
     expect((await attention()).joinRequests.some((r) => r.id === request.request_id)).toBe(false);
     expect((await approve()).rows[0].code).toBe('ok');
     const seat = (
@@ -445,7 +452,7 @@ describe('LRN-VS-002 canonical direct project attempt', () => {
         ])
       ).rows,
     ).toHaveLength(0);
-  });
+  }, 30_000);
   it('persisted notifications respect own preferences, class overrides, reminder policy and current access', async () => {
     const cls = await createClass(),
       seat = await createSeat(cls, 'Оповещения'),

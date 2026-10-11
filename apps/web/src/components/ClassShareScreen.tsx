@@ -19,6 +19,7 @@ export function ClassShareScreen({
   joinCode,
   joinUrl,
   busy,
+  error,
   onCopyCode,
   onCopyLink,
   onRotate,
@@ -29,6 +30,7 @@ export function ClassShareScreen({
   readonly joinCode: string | null;
   readonly joinUrl: string | null;
   readonly busy: boolean;
+  readonly error?: string | null;
   readonly onCopyCode: () => void;
   readonly onCopyLink: () => void;
   readonly onRotate: () => void;
@@ -89,6 +91,11 @@ export function ClassShareScreen({
         </div>
       )}
 
+      {error ? (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <footer className="class-share-actions">
         {joinCode ? (
           <>

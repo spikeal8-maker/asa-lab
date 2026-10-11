@@ -5,9 +5,11 @@ import { useLearningDestination } from '../learning/use-learning-destination';
 export function ClassroomJoinRequests({
   classroomId,
   onChanged,
+  expanded = false,
 }: {
   classroomId?: string;
   onChanged?: () => void;
+  expanded?: boolean;
 }) {
   const destination = useLearningDestination();
   const [items, setItems] = useState<
@@ -41,7 +43,7 @@ export function ClassroomJoinRequests({
   return (
     <details
       className="learning-join-requests"
-      open={items.some((item) => item.status === 'pending')}
+      open={expanded || items.some((item) => item.status === 'pending')}
     >
       <summary>
         {classroomId ? 'Заявки в класс' : 'Мои заявки в классы'} ·{' '}

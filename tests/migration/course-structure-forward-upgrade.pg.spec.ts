@@ -73,6 +73,9 @@ describe('Course Builder structure forward upgrade', () => {
         '0198',
         '0199',
         '0200',
+        '0201', // Manual journal is part of the actual forward-upgrade path.
+        '0202', // Participant settings, merits and avatars remain additive.
+        '0203', // Archived roster can read protected credentials without enabling writes.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);

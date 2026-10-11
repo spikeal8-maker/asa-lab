@@ -1,66 +1,47 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   api,
-  type ClassroomActivityEntry,
-  type ClassroomStudentDetail,
   type ClassroomStudentWork,
   type ModuleSummary,
   type Project,
   type ProjectFeedback,
 } from '../api';
+import {
+  participantsApi,
+  type ParticipantProfile,
+  type ParticipantWorks,
+} from '../classroom-participants-api';
 import { ProjectCard } from '../modules/ProjectCard';
 import { WorkPreview } from '../components/WorkPreview';
 import { ClassroomActivityList } from '../components/ClassroomActivityList';
 import { useSchoolTime } from '../components/school-time';
 import { seatAvatar } from '../creator-portal/default-avatars';
 import { SeatAwardPanel, SeatAwardRow } from '../components/SeatAwards';
-import './classroom-student.css';
+import {
+  ParticipantRating,
+  ParticipantMeritsAndAvatars,
+  ParticipantGradeHistory,
+} from '../components/ClassroomParticipantPanels';
+import { newClientId } from '../client-id';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
+import './classroom-student.css';
 
-/**
- * One learner, as their teacher sees them.
- *
- * A register says who is in the class. This says how someone is getting on:
- * what they have made, when they were last here, and what they have been doing
- * — which is the question a teacher actually walks into the room with.
- *
- * The works are shown with the same card the learner sees, because they are the
- * same works. What the teacher gets that the learner does not is the ability to
- * open one and correct it, and a note on any work a teacher has already touched.
- */
-
-/**
- * The verdicts a teacher can give. A fixed set rather than free text: a badge
- * means the same thing in every class, so a learner who has met it before knows
- * what it says, and a teacher giving thirty of them in a lesson is not writing.
- */
-const BADGES: ReadonlyArray<{ value: string; label: string }> = [
-  { value: 'excellent', label: 'Отлично' },
-  { value: 'good', label: 'Хорошо' },
-  { value: 'progress', label: 'Есть прогресс' },
-  { value: 'redo', label: 'Нужно доделать' },
-];
-
-export const BADGE_LABELS: Readonly<Record<string, string>> = Object.fromEntries(
-  BADGES.map((badge) => [badge.value, badge.label]),
-);
-
-const BADGE_TONES = new Set(['excellent', 'good', 'progress', 'redo']);
-
-/** Which colour the footer mark takes: the verdict if there is one, otherwise
- * the note that a teacher has been in the work. Untouched work has no mark. */
+export const BADGE_LABELS: Readonly<Record<string, string>> = {
+  excellent: 'Отлично',
+  good: 'Хорошо',
+  progress: 'Есть прогресс',
+  redo: 'Нужно доделать',
+};
 function markTone(
   entry: ProjectFeedback | null,
-  editedByTeacher: boolean,
+  edited: boolean,
 ): 'excellent' | 'good' | 'progress' | 'redo' | 'teacher' | undefined {
-  if (entry?.badge && BADGE_TONES.has(entry.badge)) {
-    return entry.badge as 'excellent' | 'good' | 'progress' | 'redo';
-  }
-  return editedByTeacher ? 'teacher' : undefined;
+  const badge = entry?.badge;
+  if (badge === 'excellent' || badge === 'good' || badge === 'progress' || badge === 'redo')
+    return badge;
+  return edited ? 'teacher' : undefined;
 }
-
-/** The card component speaks in projects; a learner's work is one. */
-function asProject(work: ClassroomStudentDetail['projects'][number]): Project {
+function asProject(work: ClassroomStudentWork): Project {
   return {
     id: work.id,
     scope: 'personal',
@@ -71,11 +52,21 @@ function asProject(work: ClassroomStudentDetail['projects'][number]): Project {
     createdAt: work.createdAt,
     updatedAt: work.updatedAt,
     preview: work.preview,
-    // The register does not carry provenance; the card treats that as "made here".
     copiedFrom: null,
     snapshotRevision: work.snapshotRevision,
   };
 }
+const TABS = [
+  { key: 'all', label: 'Все работы', module: null },
+  { key: 'three-d', label: '3D', module: 'three-d' },
+  { key: 'electronics', label: 'Электроника', module: 'electronics' },
+  { key: 'blocks', label: 'Scratch', module: 'blocks' },
+  { key: 'assignments', label: 'Задания', module: null },
+  { key: 'merits', label: 'Заслуги', module: null },
+  { key: 'grades', label: 'Оценки и история', module: null },
+  { key: 'activity', label: 'Активность', module: null },
+] as const;
+type Tab = (typeof TABS)[number]['key'];
 
 export function ClassroomStudentPage({
   classroomId,
@@ -90,230 +81,346 @@ export function ClassroomStudentPage({
   readonly onBack: () => void;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
-  const [state, setState] = useState<
-    | { kind: 'loading' }
-    | { kind: 'error'; message: string }
-    | { kind: 'ready'; detail: ClassroomStudentDetail }
-  >({ kind: 'loading' });
-  // The card names the environment; without the catalogue it would print the
-  // module key at a learner's teacher, which is an identifier, not a name.
+  const [profile, setProfile] = useState<ParticipantProfile | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
+  const [tab, setTab] = useState<Tab>('all');
+  const [archive, setArchive] = useState(false);
+  const [works, setWorks] = useState<ParticipantWorks | null>(null);
+  const [worksError, setWorksError] = useState<string | null>(null);
+  const [workLoading, setWorkLoading] = useState(false);
   const [modules, setModules] = useState<readonly ModuleSummary[]>([]);
-  // Responses already given, so a teacher revises rather than starts again.
-  const [feedback, setFeedback] = useState<Readonly<Record<string, ProjectFeedback>>>({});
-  /** Какую работу сейчас смотрим: картинка, условие задания и отклик разом. */
   const [responding, setResponding] = useState<ClassroomStudentWork | null>(null);
-  // Преподаватель приходит сюда с вопросом «что мне проверить», поэтому список
-  // умеет показать только то, на что он ещё не ответил.
   const [onlyAwaiting, setOnlyAwaiting] = useState(false);
-  const time = useSchoolTime();
   const [awardKeys, setAwardKeys] = useState<readonly string[]>([]);
-
+  const [roleBusy, setRoleBusy] = useState(false);
+  const generation = useRef(0);
+  const profileGeneration = useRef(0);
+  const scope = useRef('');
+  scope.current = `${classroomId}:${seatId}`;
+  const time = useSchoolTime();
+  const module = TABS.find((t) => t.key === tab)?.module ?? null;
+  const showsWorks = !['merits', 'grades', 'activity'].includes(tab);
   const load = useCallback(async () => {
-    setState({ kind: 'loading' });
-    const result = await api.classroomStudent(classroomId, seatId);
-    setState(
-      result.ok
-        ? { kind: 'ready', detail: result.data }
-        : { kind: 'error', message: result.error.message || 'Не удалось открыть ученика.' },
-    );
+    if (scope.current !== `${classroomId}:${seatId}`) return;
+    const token = ++profileGeneration.current;
+    setProfileError(null);
+    const result = await participantsApi.profile(classroomId, seatId);
+    if (token !== profileGeneration.current) return;
+    if (result.ok) {
+      setProfile(result.data);
+      setAwardKeys(result.data.builtinAwards.map((award) => award.awardKey));
+    } else {
+      setProfile(null);
+      setProfileError(result.error.message);
+    }
   }, [classroomId, seatId]);
-
+  const awardsChanged = useCallback(
+    (keys: readonly string[]) => {
+      setAwardKeys(keys);
+      void load();
+    },
+    [load],
+  );
   useEffect(() => {
+    setProfile(null);
+    setTab('all');
+    setResponding(null);
+    setAwardKeys([]);
     void load();
+    return () => {
+      profileGeneration.current++;
+    };
   }, [load]);
-
   useEffect(() => {
-    void api.listProjectModules().then((result) => {
-      if (result.ok) setModules(result.data.items);
-    });
-  }, []);
-
-  // Existing responses, fetched per work once the list is known.
-  useEffect(() => {
-    if (state.kind !== 'ready') return;
-    let cancelled = false;
-    void Promise.all(
-      state.detail.projects.map(async (work) => {
-        const result = await api.projectFeedback(work.id);
-        return [work.id, result.ok ? (result.data.items[0] ?? null) : null] as const;
-      }),
-    ).then((pairs) => {
-      if (cancelled) return;
-      const next: Record<string, ProjectFeedback> = {};
-      for (const [id, entry] of pairs) if (entry) next[id] = entry;
-      setFeedback(next);
+    let active = true;
+    void api.listProjectModules().then((r) => {
+      if (active && r.ok) setModules(r.data.items);
     });
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [state]);
+  }, []);
+  const loadWorks = useCallback(
+    async (offset = 0) => {
+      if (scope.current !== `${classroomId}:${seatId}`) return;
+      const token = ++generation.current;
+      setWorkLoading(true);
+      setWorksError(null);
+      const result = await participantsApi.works(
+        classroomId,
+        seatId,
+        module,
+        archive,
+        offset,
+        tab === 'assignments',
+      );
+      if (generation.current !== token) return;
+      setWorkLoading(false);
+      if (result.ok)
+        setWorks((old) =>
+          offset && old
+            ? {
+                ...result.data,
+                items: [...old.items, ...result.data.items].filter(
+                  (w, i, all) => all.findIndex((other) => other.id === w.id) === i,
+                ),
+              }
+            : result.data,
+        );
+      else setWorksError(result.error.message);
+    },
+    [classroomId, seatId, module, archive, tab],
+  );
+  useEffect(() => {
+    setWorks(null);
+    setOnlyAwaiting(false);
+    if (showsWorks) void loadWorks();
+    return () => {
+      generation.current++;
+    };
+  }, [loadWorks, showsWorks]);
 
-  if (state.kind === 'loading') {
-    return (
-      <main className="portal-content" id="main-content" tabIndex={-1} role="status">
-        Загружаем страницу ученика…
-      </main>
-    );
-  }
-
-  if (state.kind === 'error') {
+  if (!profile)
     return (
       <main className="portal-content" id="main-content" tabIndex={-1}>
-        <section className="portal-empty" role="alert">
-          <p>{state.message}</p>
-          <button type="button" className="btn-secondary" onClick={onBack}>
-            К классу
-          </button>
-        </section>
+        {profileError ? (
+          <section role="alert">
+            <p>{profileError}</p>
+            <button type="button" onClick={() => void load()}>
+              Повторить
+            </button>
+            <button type="button" onClick={onBack}>
+              К классу
+            </button>
+          </section>
+        ) : (
+          <p role="status">Загружаем профиль участника…</p>
+        )}
       </main>
     );
-  }
-
-  const { student, projects, activity, submittedCount, awaitingReview } = state.detail;
-  const projectEntries: ClassroomActivityEntry[] = activity.filter(
-    (entry) => entry.projectId !== null,
+  const { student, metrics, settings } = profile;
+  const readOnly = profile.status !== 'active';
+  const visible = (works?.items ?? []).filter(
+    (work) =>
+      !onlyAwaiting ||
+      work.canonicalState?.workflowState === 'waiting_review' ||
+      (!work.canonicalState && work.awaitingReview),
   );
-
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
-      {/* Возврат в класс — обычная заметная кнопка. Тонкая ссылка размером с
-          строку читалась как подпись, и преподаватели её не находили. */}
       <button type="button" className="classroom-student-back" onClick={onBack}>
-        <span aria-hidden="true">←</span> {classroomTitle}
+        ← {classroomTitle}
       </button>
-
-      {/* The same face as in the register, at the size a page deserves: a
-          teacher arriving here has just clicked a name and should land on the
-          same person, not on a form. */}
-      <section className="classroom-student-hero">
+      <section className="classroom-student-hero participant-hero">
         <img
           className="classroom-student-avatar"
-          src={seatAvatar(student.id, student.avatarKey).src}
+          src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
           alt=""
           width={64}
           height={64}
         />
         <div className="classroom-student-identity">
-          <p className="portal-eyebrow">Ученик класса</p>
           <h1>{student.displayLabel}</h1>
           <p>
-            Вход: <code>{student.loginHandle}</code> · последний раз{' '}
-            {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не заходил'}
+            {classroomTitle} · {metrics.role === 'helper' ? 'Помощник' : 'Учащийся'}
+            {student.status === 'suspended' ? ' · доступ приостановлен' : ''}
           </p>
-
-          {/* Три числа, ради которых преподаватель сюда и пришёл. */}
-          <ul className="classroom-student-stats">
-            <li>
-              <strong>{projects.length}</strong>
-              <span>работ</span>
-            </li>
-            <li>
-              <strong>{submittedCount}</strong>
-              <span>сдано</span>
-            </li>
-            <li className={awaitingReview > 0 ? 'is-waiting' : undefined}>
-              <strong>{awaitingReview}</strong>
-              <span>ждут ответа</span>
-            </li>
-          </ul>
+          <div className="participant-main-stats">
+            <span>
+              Всего работ <strong>{metrics.totalWorks}</strong>
+            </span>
+            <span>
+              В архиве <strong>{metrics.archivedWorks}</strong>
+            </span>
+            <span>
+              Сдано <strong>{profile.submittedCount}</strong>
+            </span>
+            <span>
+              Ждут ответа <strong>{profile.awaitingReview}</strong>
+            </span>
+            <ParticipantRating metrics={metrics} settings={settings} />
+          </div>
           <div className="classroom-student-badges">
             <SeatAwardRow keys={awardKeys} size="small" />
-            {student.safeMode ? (
-              <span className="classroom-student-badge">Безопасный режим</span>
-            ) : null}
-            {student.status === 'suspended' ? (
-              <span className="classroom-student-badge is-warning">Доступ приостановлен</span>
-            ) : null}
+            {student.safeMode ? <span>Безопасный режим</span> : null}
           </div>
         </div>
+        <label className="participant-role">
+          Роль в классе
+          <select
+            aria-label="Роль в классе"
+            value={metrics.role}
+            disabled={readOnly || roleBusy}
+            onChange={(e) => {
+              const token = profileGeneration.current;
+              setRoleBusy(true);
+              setProfileError(null);
+              void participantsApi
+                .mutate(classroomId, 'role', { seatId, role: e.target.value }, newClientId())
+                .then(async (r) => {
+                  if (token !== profileGeneration.current) return;
+                  if (r.ok) await load();
+                  else setProfileError(r.error.message);
+                })
+                .finally(() => setRoleBusy(false));
+            }}
+          >
+            <option value="student">Учащийся</option>
+            <option value="helper">Помощник</option>
+          </select>
+        </label>
       </section>
-
-      {/* What they made, and what they did — side by side on a laptop, one
-          under the other on a phone. */}
-      <div className="classroom-student-columns">
+      <p className="participant-role-hint">
+        Помощник помогает организовать занятия в этом классе, без доступа к чужим оценкам и
+        управлению. Преподавателей добавляют через приглашение коллег.
+      </p>
+      {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
+      {profileError ? (
+        <p role="alert">
+          {profileError}{' '}
+          <button type="button" onClick={() => void load()}>
+            Обновить
+          </button>
+        </p>
+      ) : null}
+      <nav className="participant-tabs" aria-label="Разделы профиля">
+        {TABS.map((item) => (
+          <button
+            type="button"
+            key={item.key}
+            aria-pressed={tab === item.key}
+            onClick={() => setTab(item.key)}
+          >
+            {item.label}
+          </button>
+        ))}
+      </nav>
+      {showsWorks ? (
         <section className="classroom-student-section" aria-labelledby="student-works">
           <div className="classroom-student-works-head">
-            <h2 id="student-works">Работы · {projects.length}</h2>
-            {awaitingReview > 0 ? (
-              <button
-                type="button"
-                className={`classroom-student-filter${onlyAwaiting ? ' is-active' : ''}`}
-                aria-pressed={onlyAwaiting}
-                onClick={() => setOnlyAwaiting(!onlyAwaiting)}
-              >
-                {onlyAwaiting ? 'Показать все' : `Только ждущие ответа · ${awaitingReview}`}
-              </button>
-            ) : null}
+            <h2 id="student-works">{TABS.find((t) => t.key === tab)?.label}</h2>
+            <label>
+              <input
+                type="checkbox"
+                checked={archive}
+                onChange={(e) => setArchive(e.target.checked)}
+              />
+              Включая архив
+            </label>
+            <button
+              type="button"
+              className="classroom-student-filter"
+              aria-pressed={onlyAwaiting}
+              onClick={() => setOnlyAwaiting(!onlyAwaiting)}
+            >
+              {onlyAwaiting ? 'Показать все' : 'Только ждущие ответа'}
+            </button>
           </div>
-          {projects.length === 0 ? (
-            <p className="classroom-student-empty">
-              Ученик ещё ничего не создал. Здесь появятся его работы, как только он начнёт.
+          {works ? (
+            <p className="participant-visibility-note">
+              Доступно преподавателю: {works.visibleWorks} из {works.totalWorks} работ.
+              {works.visibleWorks < works.totalWorks
+                ? ' Остальные работы закрыты. Счётчик включает их, но не даёт права просмотра.'
+                : ''}
+              {tab === 'assignments'
+                ? ' Здесь работы по заданиям; оценки и история — в соседней вкладке.'
+                : ` По фильтру: ${works.filteredWorks}.`}
             </p>
-          ) : (
-            <ul className="project-card-grid">
-              {(onlyAwaiting
-                ? projects.filter(
-                    (work) =>
-                      work.canonicalState?.workflowState === 'waiting_review' ||
-                      (!work.canonicalState && work.awaitingReview),
-                  )
-                : projects
-              ).map((work) => (
-                <ProjectCard
-                  key={work.id}
-                  project={asProject(work)}
-                  module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
-                  timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
-                  footerLabel={
-                    canonicalLearningLabel(work.canonicalState) ??
-                    (work.awaitingReview
-                      ? 'Ждёт ответа'
-                      : feedback[work.id]?.badge
-                        ? (BADGE_LABELS[feedback[work.id]!.badge!] ?? 'Отклик есть')
-                        : work.lastEditedByTeacher
-                          ? 'Правил педагог'
-                          : 'Работа ученика')
-                  }
-                  footerTone={
-                    work.canonicalState?.workflowState === 'waiting_review' ||
-                    (!work.canonicalState && work.awaitingReview)
-                      ? 'redo'
-                      : markTone(feedback[work.id] ?? null, work.lastEditedByTeacher)
-                  }
-                  primaryLabel="Открыть"
-                  open={{
-                    href: `#/projects/${work.id}`,
-                    onNavigate: () => onOpenProject(work.id, work.moduleKey),
-                  }}
-                  menuItems={[
-                    {
-                      label: feedback[work.id] ? 'Изменить отклик' : 'Оценить работу',
-                      onSelect: () => setResponding(work),
-                    },
-                  ]}
-                />
-              ))}
-            </ul>
-          )}
+          ) : null}
+          {worksError ? (
+            <p role="alert">
+              {worksError}{' '}
+              <button type="button" onClick={() => void loadWorks(works?.offset ?? 0)}>
+                Повторить
+              </button>
+            </p>
+          ) : null}
+          {workLoading ? <p role="status">Загружаем работы…</p> : null}
+          {works && !workLoading && !worksError && visible.length === 0 ? (
+            <p className="classroom-student-empty">Нет доступных работ по этому фильтру.</p>
+          ) : null}
+          <ul className="project-card-grid">
+            {visible.map((work) => (
+              <ProjectCard
+                key={work.id}
+                project={asProject(work)}
+                module={modules.find((entry) => entry.moduleKey === work.moduleKey)}
+                timeLabel={`Изменён ${time.shortDate(work.updatedAt)}`}
+                footerLabel={
+                  canonicalLearningLabel(work.canonicalState) ??
+                  (work.awaitingReview
+                    ? 'Ждёт ответа'
+                    : work.feedback?.badge
+                      ? (BADGE_LABELS[work.feedback.badge] ?? 'Отклик есть')
+                      : work.lastEditedByTeacher
+                        ? 'Правил педагог'
+                        : 'Работа')
+                }
+                footerTone={
+                  work.canonicalState?.workflowState === 'waiting_review' ||
+                  (!work.canonicalState && work.awaitingReview)
+                    ? 'redo'
+                    : markTone(work.feedback, work.lastEditedByTeacher)
+                }
+                primaryLabel="Открыть"
+                open={{
+                  href: `#/projects/${work.id}`,
+                  onNavigate: () => onOpenProject(work.id, work.moduleKey),
+                }}
+                menuItems={
+                  readOnly || work.status === 'archived'
+                    ? []
+                    : [
+                        {
+                          label: work.feedback ? 'Изменить отклик' : 'Оценить работу',
+                          onSelect: () => setResponding(work),
+                        },
+                      ]
+                }
+              />
+            ))}
+          </ul>
+          {works?.hasMore ? (
+            <button
+              type="button"
+              disabled={workLoading}
+              onClick={() => void loadWorks(works.offset + 30)}
+            >
+              Ещё работы
+            </button>
+          ) : null}
         </section>
-
-        <section
-          className="classroom-student-section classroom-student-record"
-          aria-labelledby="student-activity"
-        >
-          <h2 id="student-activity">Что делает</h2>
-          <ClassroomActivityList entries={activity} emptyText="Пока никаких действий." />
-          <p className="classroom-student-note">
-            Записей о работе: {projectEntries.length}. Повторная работа над одним проектом за
-            короткое время собирается в одну строку со счётчиком.
+      ) : null}
+      {tab === 'merits' ? (
+        <>
+          <SeatAwardPanel
+            classroomId={classroomId}
+            seatId={seatId}
+            readOnly={readOnly}
+            onChanged={awardsChanged}
+            awardApi={participantsApi}
+          />
+          <ParticipantMeritsAndAvatars
+            classroomId={classroomId}
+            seatId={seatId}
+            profile={profile}
+            onChanged={load}
+          />
+        </>
+      ) : null}
+      {tab === 'grades' ? (
+        <ParticipantGradeHistory classroomId={classroomId} seatId={seatId} />
+      ) : null}
+      {tab === 'activity' ? (
+        <section className="classroom-student-section">
+          <h2>Активность</h2>
+          <p>
+            Последний вход:{' '}
+            {student.lastActiveAt ? time.longDateTime(student.lastActiveAt) : 'ещё не входил'}
           </p>
+          <ClassroomActivityList entries={profile.activity} emptyText="Пока никаких действий." />
         </section>
-      </div>
-
-      {/* What this learner has been noticed for. Below their work, because the
-          work is the evidence and the badge is the conclusion. */}
-      <SeatAwardPanel classroomId={classroomId} seatId={seatId} onChanged={setAwardKeys} />
-
+      ) : null}
       {responding ? (
         <WorkPreview
           projectId={responding.id}
@@ -325,17 +432,14 @@ export function ClassroomStudentPage({
           assignment={responding.assignment}
           onClose={() => setResponding(null)}
           onOpenEditor={() => {
-            const projectId = responding.id;
+            const work = responding;
             setResponding(null);
-            onOpenProject(projectId, responding.moduleKey);
+            onOpenProject(work.id, work.moduleKey);
           }}
           onGraded={() => {
-            void api.projectFeedback(responding.id).then((result) => {
-              if (!result.ok) return;
-              const entry = result.data.items[0];
-              if (entry) setFeedback((current) => ({ ...current, [responding.id]: entry }));
-            });
             setResponding(null);
+            void loadWorks();
+            void load();
           }}
         />
       ) : null}

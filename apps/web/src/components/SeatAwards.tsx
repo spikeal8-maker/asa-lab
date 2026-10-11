@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, type SeatAward } from '../api';
 import { useSchoolTime } from './school-time';
 import './seat-awards.css';
@@ -76,40 +76,56 @@ export function SeatAwardPanel({
   seatId,
   readOnly = false,
   onChanged,
+  awardApi = api,
 }: {
   readonly classroomId: string;
   readonly seatId: string;
   readonly readOnly?: boolean;
   readonly onChanged?: (keys: readonly string[]) => void;
+  readonly awardApi?: Pick<typeof api, 'listSeatAwards' | 'setSeatAward'>;
 }): JSX.Element {
   const [items, setItems] = useState<SeatAward[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [noteFor, setNoteFor] = useState<string | null>(null);
   const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const time = useSchoolTime();
+  const generation = useRef(0);
 
   const reload = useCallback(async () => {
-    const result = await api.listSeatAwards(classroomId, seatId);
+    const token = ++generation.current;
+    setError(null);
+    const result = await awardApi.listSeatAwards(classroomId, seatId);
+    if (token !== generation.current) return;
     if (result.ok) {
       setItems(result.data.items);
       onChanged?.(result.data.items.map((entry) => entry.awardKey));
-    } else setItems([]);
-  }, [classroomId, seatId, onChanged]);
+    } else setError(result.error.message || 'Не удалось загрузить заслуги.');
+  }, [classroomId, seatId, onChanged, awardApi]);
 
   useEffect(() => {
+    setItems(null);
+    setNoteFor(null);
+    setNote('');
     void reload();
+    return () => {
+      generation.current++;
+    };
   }, [reload]);
 
   async function set(awardKey: string, granted: boolean, withNote: string | null): Promise<void> {
+    const token = generation.current;
     setBusy(awardKey);
-    const result = await api.setSeatAward(classroomId, seatId, awardKey, granted, withNote);
+    setError(null);
+    const result = await awardApi.setSeatAward(classroomId, seatId, awardKey, granted, withNote);
+    if (token !== generation.current) return;
     setBusy(null);
-    setNoteFor(null);
-    setNote('');
     if (result.ok) {
+      setNoteFor(null);
+      setNote('');
       setItems(result.data.items);
       onChanged?.(result.data.items.map((entry) => entry.awardKey));
-    }
+    } else setError(result.error.message || 'Не удалось сохранить заслугу.');
   }
 
   const held = new Map((items ?? []).map((entry) => [entry.awardKey, entry]));
@@ -117,6 +133,15 @@ export function SeatAwardPanel({
   return (
     <section className="seat-awards" aria-labelledby="seat-awards-title">
       <h2 id="seat-awards-title">Значки</h2>
+      {error ? (
+        <p role="alert">
+          {error}{' '}
+          <button type="button" onClick={() => void reload()}>
+            Повторить
+          </button>
+        </p>
+      ) : null}
+      {items === null && !error ? <p role="status">Загружаем заслуги…</p> : null}
       {readOnly ? null : (
         <p className="seat-awards-lead">
           Отметьте, что получилось у ученика. Можно добавить причину — её увидит он сам.
@@ -132,7 +157,7 @@ export function SeatAwardPanel({
                 type="button"
                 className={given ? 'is-given' : undefined}
                 aria-pressed={Boolean(given)}
-                disabled={readOnly || busy !== null}
+                disabled={readOnly || busy !== null || items === null || error !== null}
                 title={award.hint}
                 onClick={() => {
                   if (given) void set(award.key, false, null);
@@ -181,6 +206,7 @@ export function SeatAwardPanel({
               <button
                 type="button"
                 className="btn-primary"
+                disabled={busy !== null || readOnly}
                 onClick={() => void set(noteFor, true, note.trim() || null)}
               >
                 Выдать значок

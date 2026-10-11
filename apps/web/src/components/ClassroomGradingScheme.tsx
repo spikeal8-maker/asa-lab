@@ -1,8 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { JournalScaleSettings } from './JournalScaleSettings';
 
 export function ClassroomGradingScheme({ classroomId }: { classroomId: string }) {
-  return <ClassroomGradingSchemeForClass key={classroomId} classroomId={classroomId} />;
+  return (
+    <>
+      <JournalScaleSettings classroomId={classroomId} />
+      <ClassroomGradingSchemeForClass key={classroomId} classroomId={classroomId} />
+    </>
+  );
 }
 
 function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }) {
