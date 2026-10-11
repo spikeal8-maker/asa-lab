@@ -352,26 +352,29 @@ function JournalModes({ classroomId }: { classroomId: string }): JSX.Element {
   useEffect(() => {
     if (destination.assignment) setMode('assignments');
   }, [destination.assignment, destination.attempt, destination.seat]);
+  const controls = (
+    <nav className="manual-journal-modes" aria-label="Режим журнала">
+      <button
+        className="btn-secondary"
+        aria-pressed={mode === 'manual'}
+        onClick={() => setMode('manual')}
+      >
+        По датам
+      </button>{' '}
+      <button
+        className="btn-secondary"
+        aria-pressed={mode === 'assignments'}
+        onClick={() => setMode('assignments')}
+      >
+        Задания
+      </button>
+    </nav>
+  );
   return (
     <div className="classroom-tab-panel">
-      <nav aria-label="Режим журнала">
-        <button
-          className="btn-secondary"
-          aria-pressed={mode === 'manual'}
-          onClick={() => setMode('manual')}
-        >
-          По датам
-        </button>{' '}
-        <button
-          className="btn-secondary"
-          aria-pressed={mode === 'assignments'}
-          onClick={() => setMode('assignments')}
-        >
-          Задания
-        </button>
-      </nav>
+      {mode === 'assignments' ? controls : null}
       {mode === 'manual' ? (
-        <ManualClassroomJournal classroomId={classroomId} />
+        <ManualClassroomJournal classroomId={classroomId} modeControl={controls} />
       ) : (
         <AssignedClassroomGradebook classroomId={classroomId} />
       )}

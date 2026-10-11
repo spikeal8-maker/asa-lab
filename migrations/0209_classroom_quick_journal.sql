@@ -1,0 +1,215 @@
+-- UI slots are never inserted by a read. A class-wide key makes first writes
+-- from two teachers converge on the same column, independently of request IDs.
+CREATE TABLE classroom_journal_slots (
+ tenant_id uuid NOT NULL REFERENCES tenants(id), classroom_id uuid NOT NULL,
+ slot_key varchar(32) NOT NULL CHECK(slot_key ~ '^(20[0-9]{2}|2100)-(0[1-9]|1[0-2]):[1-9][0-9]{0,5}$'),
+ column_id uuid NOT NULL, PRIMARY KEY(classroom_id,slot_key), UNIQUE(column_id),
+ FOREIGN KEY(tenant_id,classroom_id,column_id) REFERENCES classroom_journal_columns(tenant_id,classroom_id,id)
+);
+-- Keep the original evidence immutable. Header corrections are append-only,
+-- versioned separately from grades and from the column's pinned scale.
+CREATE TABLE classroom_journal_headers (
+ tenant_id uuid NOT NULL REFERENCES tenants(id), classroom_id uuid NOT NULL, column_id uuid NOT NULL,
+ revision integer NOT NULL CHECK(revision>0), lesson_date date NOT NULL CHECK(lesson_date BETWEEN DATE '2000-01-01' AND DATE '2100-12-31'),
+ category varchar(80) NOT NULL CHECK(length(btrim(category)) BETWEEN 1 AND 80 AND category !~ '[[:cntrl:]]'),
+ author_id uuid NOT NULL REFERENCES principals(id), created_at timestamptz NOT NULL DEFAULT now(),
+ PRIMARY KEY(column_id,revision),
+ FOREIGN KEY(tenant_id,classroom_id,column_id) REFERENCES classroom_journal_columns(tenant_id,classroom_id,id)
+);
+CREATE TRIGGER journal_slots_immutable BEFORE UPDATE OR DELETE ON classroom_journal_slots FOR EACH ROW EXECUTE FUNCTION classroom_journal_immutable();
+CREATE TRIGGER journal_headers_immutable BEFORE UPDATE OR DELETE ON classroom_journal_headers FOR EACH ROW EXECUTE FUNCTION classroom_journal_immutable();
+ALTER TABLE classroom_journal_slots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE classroom_journal_slots FORCE ROW LEVEL SECURITY;
+ALTER TABLE classroom_journal_headers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE classroom_journal_headers FORCE ROW LEVEL SECURITY;
+CREATE POLICY journal_slots_tenant ON classroom_journal_slots USING(tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK(tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+CREATE POLICY journal_headers_tenant ON classroom_journal_headers USING(tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid) WITH CHECK(tenant_id=NULLIF(current_setting('app.tenant_id',true),'')::uuid);
+REVOKE ALL ON classroom_journal_slots,classroom_journal_headers FROM PUBLIC,asalab_app;
+
+CREATE FUNCTION classroom_journal_column_json(p_column uuid) RETURNS jsonb
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ SELECT jsonb_build_object('id',c.id,'date',COALESCE(h.lesson_date,c.lesson_date),'category',COALESCE(h.category,c.category),
+ 'preset',s.preset,'scaleVersion',s.version,'headerRevision',COALESCE(h.revision,0),'slotKey',slot.slot_key)
+ FROM public.classroom_journal_columns c JOIN public.classroom_journal_scales s ON s.id=c.scale_id
+ LEFT JOIN LATERAL (SELECT * FROM public.classroom_journal_headers WHERE column_id=c.id ORDER BY revision DESC LIMIT 1) h ON true
+ LEFT JOIN public.classroom_journal_slots slot ON slot.column_id=c.id WHERE c.id=p_column;
+$$;
+
+-- Effective dates participate in the month filter and paging. No months x slots
+-- expansion and no mutation: at most 51 column projections and this page's grades.
+CREATE FUNCTION classroom_journal_quick_read(p_actor uuid,p_class uuid,p_from date DEFAULT NULL,p_to date DEFAULT NULL,p_offset integer DEFAULT 0,p_limit integer DEFAULT 50,p_column uuid DEFAULT NULL,p_slot varchar DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_range jsonb; v_result jsonb;
+BEGIN
+ IF NOT public.classroom_journal_teacher(p_actor,p_class) THEN RETURN NULL; END IF;
+ IF p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 1000000 OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+ THEN RAISE EXCEPTION 'invalid journal page' USING ERRCODE='22023'; END IF;
+ IF (p_column IS NOT NULL AND p_slot IS NOT NULL) OR
+ (p_slot IS NOT NULL AND p_slot !~ '^(20[0-9]{2}|2100)-(0[1-9]|1[0-2]):[1-9][0-9]{0,5}$')
+ THEN RAISE EXCEPTION 'invalid journal column selector' USING ERRCODE='22023'; END IF;
+ v_range:=public.classroom_journal_range(public.classroom_journal_timezone(p_class),p_from,p_to);
+ WITH candidates AS MATERIALIZED (
+ SELECT c.id,c.created_at,COALESCE(h.lesson_date,c.lesson_date) AS lesson_date FROM public.classroom_journal_columns c
+ LEFT JOIN LATERAL (SELECT lesson_date FROM public.classroom_journal_headers WHERE column_id=c.id ORDER BY revision DESC LIMIT 1) h ON true
+ WHERE c.classroom_id=p_class AND CASE
+ WHEN p_column IS NOT NULL THEN c.id=p_column
+ WHEN p_slot IS NOT NULL THEN c.id=(SELECT column_id FROM public.classroom_journal_slots WHERE classroom_id=p_class AND slot_key=p_slot)
+ ELSE COALESCE(h.lesson_date,c.lesson_date) BETWEEN (v_range->>'from')::date AND (v_range->>'to')::date END
+ ORDER BY lesson_date,c.created_at,c.id LIMIT p_limit+1 OFFSET p_offset
+ ), page AS MATERIALIZED (SELECT * FROM candidates ORDER BY lesson_date,created_at,id LIMIT p_limit),
+ latest AS (SELECT DISTINCT ON(r.column_id,r.seat_id) r.* FROM public.classroom_journal_revisions r JOIN page ON page.id=r.column_id ORDER BY r.column_id,r.seat_id,r.revision DESC)
+ SELECT public.classroom_journal_settings(p_actor,p_class)||jsonb_build_object('range',v_range,'offset',p_offset,
+ 'nextOffset',CASE WHEN (SELECT count(*) FROM candidates)>p_limit THEN p_offset+p_limit END,
+ 'reservedSlotKeys',COALESCE((SELECT jsonb_agg(slot_key ORDER BY slot_key) FROM public.classroom_journal_slots WHERE classroom_id=p_class AND left(slot_key,7)=left(v_range->>'from',7)),'[]'::jsonb),
+ 'students',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',s.id,'name',s.display_label,'status',s.status) ORDER BY s.display_label,s.id) FROM public.classroom_student_seats s WHERE s.classroom_id=p_class),'[]'::jsonb),
+ 'columns',COALESCE((SELECT jsonb_agg(public.classroom_journal_column_json(page.id) ORDER BY lesson_date,created_at,id) FROM page),'[]'::jsonb),
+ 'grades',COALESCE((SELECT jsonb_agg(public.classroom_journal_grade_json(r::public.classroom_journal_revisions,profile.display_name::text)) FROM latest r
+ JOIN public.principals author ON author.id=r.author_id LEFT JOIN public.profiles profile ON profile.account_id=author.account_id),'[]'::jsonb)) INTO v_result;
+ RETURN v_result;
+END;
+$$;
+
+CREATE FUNCTION classroom_journal_quick_write(p_actor uuid,p_class uuid,p_input jsonb) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_class public.classrooms%ROWTYPE; v_prior public.classroom_journal_receipts%ROWTYPE;
+ v_column uuid; v_result jsonb; v_grade jsonb; v_payload jsonb; v_revision integer; v_error text;
+BEGIN
+ IF NOT public.classroom_journal_teacher(p_actor,p_class) THEN RETURN '{"error":"forbidden"}'; END IF;
+ IF p_input IS NULL OR jsonb_typeof(p_input)<>'object' OR length(p_input::text)>4000
+ OR p_input-ARRAY['requestId','slotKey','columnId','date','category','expectedScaleVersion','expectedHeaderRevision','seatId','value','expectedRevision','reason']<>'{}'::jsonb
+ OR jsonb_typeof(p_input->'requestId') IS DISTINCT FROM 'string' OR COALESCE(p_input->>'requestId','') !~ '^[A-Za-z0-9._:-]{8,110}$'
+ OR COALESCE(p_input->>'date','') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+ OR jsonb_typeof(p_input->'date')<>'string' OR jsonb_typeof(p_input->'category')<>'string'
+ OR COALESCE(length(btrim(p_input->>'category')),0) NOT BETWEEN 1 AND 80 OR length(p_input->>'category')>80 OR p_input->>'category' ~ '[[:cntrl:]]'
+ OR jsonb_typeof(p_input->'expectedScaleVersion')<>'number' OR COALESCE(p_input->>'expectedScaleVersion','') !~ '^[0-9]{1,9}$'
+ OR jsonb_typeof(p_input->'expectedHeaderRevision')<>'number' OR COALESCE(p_input->>'expectedHeaderRevision','') !~ '^[0-9]{1,9}$'
+ THEN RETURN '{"error":"invalid_body"}'; END IF;
+ BEGIN
+ IF (p_input->>'date')::date NOT BETWEEN DATE '2000-01-01' AND DATE '2100-12-31' THEN RETURN '{"error":"invalid_body"}'; END IF;
+ EXCEPTION WHEN invalid_datetime_format OR datetime_field_overflow THEN RETURN '{"error":"invalid_body"}'; END;
+ IF p_input?'seatId' THEN
+ IF jsonb_typeof(p_input->'seatId') IS DISTINCT FROM 'string' OR COALESCE(p_input->>'seatId','') !~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+ OR NOT(p_input?'value') OR jsonb_typeof(p_input->'expectedRevision') IS DISTINCT FROM 'number' OR COALESCE(p_input->>'expectedRevision','') !~ '^[0-9]{1,9}$'
+ OR (p_input->>'value' IS NOT NULL AND (jsonb_typeof(p_input->'value') IS DISTINCT FROM 'number' OR p_input->>'value' !~ '^[0-9]{1,3}$'))
+ OR (p_input->>'reason' IS NOT NULL AND (jsonb_typeof(p_input->'reason') IS DISTINCT FROM 'string' OR length(btrim(p_input->>'reason')) NOT BETWEEN 1 AND 500 OR length(p_input->>'reason')>500 OR p_input->>'reason' ~ '[[:cntrl:]]'))
+ THEN RETURN '{"error":"invalid_body"}'; END IF;
+ ELSIF p_input ?| ARRAY['value','reason','expectedRevision'] THEN RETURN '{"error":"invalid_body"}'; END IF;
+ IF (p_input?'columnId')=(p_input?'slotKey') THEN RETURN '{"error":"invalid_body"}'; END IF;
+ IF p_input->>'columnId' IS NULL THEN
+ IF jsonb_typeof(p_input->'slotKey')<>'string' OR COALESCE(p_input->>'slotKey','') !~ '^(20[0-9]{2}|2100)-(0[1-9]|1[0-2]):[1-9][0-9]{0,5}$'
+ OR left(p_input->>'slotKey',7)<>left(p_input->>'date',7) THEN RETURN '{"error":"invalid_body"}'; END IF;
+ ELSE
+ BEGIN v_column:=(p_input->>'columnId')::uuid;
+ EXCEPTION WHEN invalid_text_representation THEN RETURN '{"error":"invalid_body"}'; END;
+ END IF;
+ SELECT * INTO v_class FROM public.classrooms WHERE id=p_class FOR UPDATE;
+ -- Recheck authority after acquiring the same class lock used by normal writes.
+ IF NOT public.classroom_journal_teacher(p_actor,p_class) THEN RETURN '{"error":"forbidden"}'; END IF;
+ IF v_class.status<>'active' THEN RETURN '{"error":"classroom_archived"}'; END IF;
+ v_payload:=jsonb_build_object('action','quick','input',p_input);
+ SELECT * INTO v_prior FROM public.classroom_journal_receipts WHERE classroom_id=p_class AND actor_id=p_actor AND request_id=p_input->>'requestId';
+ IF v_prior.actor_id IS NOT NULL THEN
+ IF v_prior.payload<>v_payload THEN RETURN '{"error":"idempotency_conflict"}'; END IF;
+ RETURN v_prior.result;
+ END IF;
+ -- This subtransaction also rolls back a new column/scale/receipt/audit when
+ -- the ordinary grade writer reports a validation or concurrency error.
+ BEGIN
+ IF v_column IS NULL THEN
+ SELECT column_id INTO v_column FROM public.classroom_journal_slots WHERE classroom_id=p_class AND slot_key=p_input->>'slotKey';
+ IF v_column IS NULL THEN
+ v_result:=public.classroom_journal_write(p_actor,p_class,'column',jsonb_build_object('date',p_input->>'date','category',p_input->>'category',
+ 'expectedRevision',p_input->'expectedScaleVersion','requestId',(p_input->>'requestId')||':column'));
+ IF v_result?'error' THEN v_error:=v_result->>'error'; RAISE EXCEPTION USING ERRCODE='P2090',MESSAGE=v_error; END IF;
+ v_column:=(v_result->>'id')::uuid;
+ INSERT INTO public.classroom_journal_slots VALUES(v_class.tenant_id,p_class,p_input->>'slotKey',v_column);
+ ELSE
+ v_result:=public.classroom_journal_column_json(v_column);
+ IF v_result->>'date'<>p_input->>'date' OR v_result->>'category'<>btrim(p_input->>'category')
+ THEN v_error:='revision_conflict'; RAISE EXCEPTION USING ERRCODE='P2090',MESSAGE=v_error; END IF;
+ END IF;
+ END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.classroom_journal_columns WHERE id=v_column AND classroom_id=p_class AND tenant_id=v_class.tenant_id)
+ THEN v_error:='not_found'; RAISE EXCEPTION USING ERRCODE='P2090',MESSAGE=v_error; END IF;
+ v_result:=public.classroom_journal_column_json(v_column);
+ v_revision:=(v_result->>'headerRevision')::integer;
+ IF v_revision<>(p_input->>'expectedHeaderRevision')::integer
+ THEN v_error:='revision_conflict'; RAISE EXCEPTION USING ERRCODE='P2090',MESSAGE=v_error; END IF;
+ IF v_result->>'date'<>p_input->>'date' OR v_result->>'category'<>btrim(p_input->>'category') THEN
+ INSERT INTO public.classroom_journal_headers VALUES(v_class.tenant_id,p_class,v_column,v_revision+1,(p_input->>'date')::date,btrim(p_input->>'category'),p_actor,now());
+ INSERT INTO public.audit_events(tenant_id,actor_user_id,entity_type,entity_id,action,payload_json)
+ VALUES(v_class.tenant_id,NULL,'classroom',p_class,'classroom.journal.header',jsonb_build_object('actorId',p_actor,'columnId',v_column,'revision',v_revision+1));
+ END IF;
+ IF p_input?'seatId' THEN
+ v_grade:=public.classroom_journal_write(p_actor,p_class,'grade',jsonb_build_object('columnId',v_column,'seatId',p_input->'seatId','value',p_input->'value',
+ 'reason',p_input->'reason','expectedRevision',p_input->'expectedRevision','requestId',(p_input->>'requestId')||':grade'));
+ IF v_grade?'error' THEN v_error:=v_grade->>'error'; RAISE EXCEPTION USING ERRCODE='P2090',MESSAGE=v_error; END IF;
+ END IF;
+ v_result:=jsonb_build_object('column',public.classroom_journal_column_json(v_column),'grade',v_grade,'scale',public.classroom_journal_scale_json(p_class));
+ INSERT INTO public.classroom_journal_receipts(tenant_id,classroom_id,actor_id,request_id,payload,result) VALUES(v_class.tenant_id,p_class,p_actor,p_input->>'requestId',v_payload,v_result);
+ RETURN v_result;
+ EXCEPTION WHEN SQLSTATE 'P2090' THEN RETURN jsonb_build_object('error',v_error);
+ END;
+END;
+$$;
+REVOKE ALL ON FUNCTION classroom_journal_column_json(uuid),classroom_journal_quick_read(uuid,uuid,date,date,integer,integer,uuid,varchar),classroom_journal_quick_write(uuid,uuid,jsonb) FROM PUBLIC,asalab_app;
+GRANT EXECUTE ON FUNCTION classroom_journal_quick_read(uuid,uuid,date,date,integer,integer,uuid,varchar),classroom_journal_quick_write(uuid,uuid,jsonb) TO asalab_app;
+
+-- Header corrections project consistently in both authorized learner inboxes
+-- and result month filters; original evidence and authorization stay unchanged.
+CREATE OR REPLACE FUNCTION classroom_journal_results(p_actor uuid,p_from date DEFAULT NULL,p_to date DEFAULT NULL,p_offset integer DEFAULT 0,p_limit integer DEFAULT 20,p_column uuid DEFAULT NULL) RETURNS jsonb
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_range jsonb; v_zone text; v_result jsonb;
+BEGIN
+ IF p_offset IS NULL OR p_offset NOT BETWEEN 0 AND 1000000 OR p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 50
+ THEN RAISE EXCEPTION 'invalid journal results page' USING ERRCODE='22023'; END IF;
+ -- For several classes, the first accessible class supplies the initial month.
+ SELECT public.classroom_journal_timezone(allowed.classroom_id) INTO v_zone
+ FROM public.classroom_journal_authorized_seats(p_actor) allowed ORDER BY allowed.classroom_id LIMIT 1;
+ v_range:=public.classroom_journal_range(COALESCE(v_zone,'UTC'),p_from,p_to);
+ WITH allowed AS MATERIALIZED (
+ SELECT seat_id,learner_identity_id FROM public.classroom_journal_authorized_seats(p_actor)
+ ), latest AS (
+ SELECT DISTINCT ON(r.column_id,r.seat_id) r.* FROM public.classroom_journal_revisions r
+ JOIN public.classroom_journal_columns col ON col.id=r.column_id
+ LEFT JOIN LATERAL (SELECT lesson_date,category FROM public.classroom_journal_headers WHERE column_id=col.id ORDER BY revision DESC LIMIT 1) header ON true
+ JOIN allowed ON allowed.seat_id=r.seat_id AND allowed.learner_identity_id=r.learner_identity_id
+ WHERE COALESCE(header.lesson_date,col.lesson_date) BETWEEN (v_range->>'from')::date AND (v_range->>'to')::date
+ AND (p_column IS NULL OR r.column_id=p_column)
+ ORDER BY r.column_id,r.seat_id,r.revision DESC
+ ), candidates AS MATERIALIZED (
+ SELECT r.*,COALESCE(header.lesson_date,col.lesson_date) AS lesson_date,COALESCE(header.category,col.category) AS category,scale.preset,scale.version,scale.time_zone,c.title FROM latest r
+ JOIN public.classroom_journal_columns col ON col.id=r.column_id
+ LEFT JOIN LATERAL (SELECT lesson_date,category FROM public.classroom_journal_headers WHERE column_id=col.id ORDER BY revision DESC LIMIT 1) header ON true
+ JOIN public.classroom_journal_scales scale ON scale.id=col.scale_id JOIN public.classrooms c ON c.id=col.classroom_id
+ ORDER BY COALESCE(header.lesson_date,col.lesson_date) DESC,r.published_at DESC,r.id LIMIT p_limit+1 OFFSET p_offset
+ ), page AS MATERIALIZED (SELECT * FROM candidates ORDER BY lesson_date DESC,published_at DESC,id LIMIT p_limit)
+ SELECT jsonb_build_object('range',v_range,'offset',p_offset,'nextOffset',CASE WHEN (SELECT count(*) FROM candidates)>p_limit THEN p_offset+p_limit END,
+ 'items',COALESCE((SELECT jsonb_agg(public.classroom_journal_grade_json(evidence,profile.display_name::text)||jsonb_build_object('classroomId',r.classroom_id,
+ 'classroomTitle',r.title,'date',r.lesson_date,'category',r.category,'preset',r.preset,'scaleVersion',r.version,'timeZone',r.time_zone)
+ ORDER BY r.lesson_date DESC,r.published_at DESC,r.id) FROM page r
+ JOIN public.classroom_journal_revisions evidence ON evidence.id=r.id
+ JOIN public.principals author ON author.id=r.author_id LEFT JOIN public.profiles profile ON profile.account_id=author.account_id),'[]'::jsonb)) INTO v_result;
+ RETURN v_result;
+END;
+$$;
+CREATE OR REPLACE FUNCTION learning_notifications_list(p_actor uuid,p_before timestamptz DEFAULT NULL)
+RETURNS TABLE(item jsonb) LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+ SELECT jsonb_build_object('id',n.id,'kind',n.event_kind,'category',n.category,'classroomId',n.classroom_id,'classroomTitle',c.title,
+ 'assignmentId',n.assignment_id,'attemptId',n.attempt_id,'courseRunId',n.course_run_id,'joinRequestId',n.join_request_id,
+ 'journalRevisionId',n.journal_revision_id,'journalColumnId',journal.column_id,'journalDate',COALESCE(header.lesson_date,journal_col.lesson_date),'recipientKind',n.recipient_kind,'createdAt',n.created_at,'readAt',n.read_at)
+ ||jsonb_build_object('seatId',(SELECT seat_id FROM public.learning_attempts WHERE id=n.attempt_id),
+ 'title',COALESCE(COALESCE(header.lesson_date,journal_col.lesson_date)::text||' · '||COALESCE(header.category,journal_col.category),
+ (SELECT COALESCE(version.title,task.title,lesson.assignment_title,quiz.title) FROM public.classroom_assignments assignment
+ LEFT JOIN public.learning_activity_versions version ON version.id=assignment.learning_activity_version_id
+ LEFT JOIN public.teacher_assignments task ON task.id=assignment.assignment_id
+ LEFT JOIN public.classroom_course_run_lessons lesson ON lesson.classroom_assignment_id=assignment.id
+ LEFT JOIN public.quiz_versions quiz ON quiz.id=assignment.quiz_version_id WHERE assignment.id=n.assignment_id),
+ (SELECT title FROM public.classroom_course_runs WHERE id=n.course_run_id),c.title))
+ FROM public.learning_notifications n JOIN public.classrooms c ON c.id=n.classroom_id
+ LEFT JOIN public.classroom_journal_revisions journal ON journal.id=n.journal_revision_id
+ LEFT JOIN public.classroom_journal_columns journal_col ON journal_col.id=journal.column_id
+ LEFT JOIN LATERAL (SELECT lesson_date,category FROM public.classroom_journal_headers WHERE column_id=journal_col.id ORDER BY revision DESC LIMIT 1) header ON true
+ WHERE n.recipient_principal_id=p_actor AND n.delivery_state='delivered' AND (p_before IS NULL OR n.created_at<p_before)
+ AND public.learning_notification_current_access(p_actor,n.id) ORDER BY n.created_at DESC,n.id DESC LIMIT 100;
+$$;

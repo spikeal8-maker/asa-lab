@@ -21,8 +21,8 @@ export function JournalMonthNavigation({
         <span aria-hidden="true">‹</span>
       </button>
       <label>
-        Месяц журнала{' '}
         <input
+          aria-label="Месяц журнала"
           type="month"
           min="2000-01"
           max="2100-12"
