@@ -280,9 +280,10 @@ export function ParticipantMeritsAndAvatars({
     profile.avatars.find((a) => a.selected && a.available)?.id ?? null,
   );
   const receipt = useRef<{ payload: string; id: string } | null>(null);
+  const confirmedAvatar = profile.avatars.find((a) => a.selected && a.available)?.id ?? null;
   useEffect(() => {
-    setChoice(profile.avatars.find((a) => a.selected && a.available)?.id ?? null);
-  }, [profile]);
+    setChoice(confirmedAvatar);
+  }, [confirmedAvatar, classroomId, seatId]);
   const scope = useRef(0);
   useEffect(() => {
     setError(null);

@@ -15,8 +15,10 @@ beforeAll(async () => {
   app = await buildTestApp(runtime);
 }, 30_000);
 afterAll(async () => {
-  await app?.close();
-  await Promise.all([admin?.end(), runtime?.end()]);
+  if (app)
+    await app.close(); // The app owns and closes its runtime pool.
+  else await runtime?.end();
+  await admin?.end();
 });
 type Metric = {
   seatId: string;

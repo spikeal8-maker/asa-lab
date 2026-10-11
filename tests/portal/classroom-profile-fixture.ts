@@ -116,22 +116,34 @@ export async function seedProfileTheory(
     VALUES($1,$2,$3,$4,$5,'Введение',0,$6,'material',0,'Прочитай материал.')`,
     [lessonId, teacher.tenantId, courseRunId, sourceSection, sourceLesson, title],
   );
-  for (const seatId of seatIds) {
-    const learner = (
-      await admin.query(
-        `SELECT learner_identity_id FROM learner_identity_links
+  const client = await admin.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query("SELECT set_config('app.tenant_id',$1,true)", [teacher.tenantId]);
+    for (const seatId of seatIds) {
+      const learner = (
+        await client.query(
+          `SELECT learner_identity_id FROM learner_identity_links
       WHERE seat_id=$1 AND link_kind='student_seat' AND status='active' AND disabled_at IS NULL`,
-        [seatId],
-      )
-    ).rows[0];
-    const enrolled = (
-      await admin.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
-        actor.principal_id,
-        courseRunId,
-        learner.learner_identity_id,
-      ])
-    ).rows[0];
-    if (enrolled.result_code !== 'ok') throw new Error(`enrollment: ${enrolled.result_code}`);
+          [seatId],
+        )
+      ).rows[0];
+      const enrolled = (
+        await client.query('SELECT * FROM course_enrollment_assign($1,$2,$3)', [
+          actor.principal_id,
+          courseRunId,
+          learner.learner_identity_id,
+        ])
+      ).rows[0];
+      if (enrolled.result_code !== 'ok') throw new Error(`enrollment: ${enrolled.result_code}`);
+    }
+
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
   return { courseRunId, lessonId, title };
 }

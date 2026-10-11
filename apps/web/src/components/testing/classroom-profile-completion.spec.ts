@@ -133,6 +133,70 @@ const assigned = (id: string, title: string): ParticipantAssignments => ({
 });
 
 describe('participant completion DOM behavior', () => {
+  it('keeps the active merit form mounted and its text intact across awards and focus refreshes', async () => {
+    const read = vi.spyOn(participantsApi, 'profile').mockResolvedValue(ok(profile()));
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(grades('five', [])));
+    vi.spyOn(api, 'listProjectModules').mockResolvedValue(ok({ items: [] }));
+    vi.spyOn(participantsApi, 'works').mockResolvedValue(
+      ok({
+        items: [],
+        totalWorks: 0,
+        visibleWorks: 0,
+        filteredWorks: 0,
+        offset: 0,
+        hasMore: false,
+      }),
+    );
+    const awards = vi.spyOn(participantsApi, 'listSeatAwards').mockResolvedValue(ok({ items: [] }));
+    await render(
+      createElement(ClassroomStudentPage, {
+        classroomId: 'class',
+        classroomTitle: 'Класс',
+        seatId: 'seat-a',
+        onBack: vi.fn(),
+        onOpenProject: vi.fn(),
+      }),
+    );
+    await click('Заслуги');
+    expect(awards).toHaveBeenCalledOnce();
+    expect(read).toHaveBeenCalledTimes(2);
+    const title = host.querySelector<HTMLInputElement>(
+      '.participant-recognition input[maxlength="60"]',
+    )!;
+    const description = host.querySelector<HTMLTextAreaElement>(
+      '.participant-recognition textarea',
+    )!;
+    expect(title).not.toBeNull();
+    expect(description).not.toBeNull();
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        title,
+        'Мастер класса',
+      );
+      title.dispatchEvent(new Event('input', { bubbles: true }));
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        description,
+        'Аккуратная работа',
+      );
+      description.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(awards).toHaveBeenCalledOnce();
+    expect(title.isConnected).toBe(true);
+    expect(description.isConnected).toBe(true);
+    expect(title.value).toBe('Мастер класса');
+    expect(description.value).toBe('Аккуратная работа');
+    read.mockResolvedValue({
+      ok: false,
+      status: 403,
+      error: { code: 'forbidden', message: 'Доступ отозван' },
+    });
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    expect(host.querySelector('.participant-recognition')).toBeNull();
+    expect(host.textContent).toContain('Доступ отозван');
+  });
+
   it('does not label an archived teacher view as the teachers own pupil achievements', async () => {
     const data = profile();
     data.status = 'archived';

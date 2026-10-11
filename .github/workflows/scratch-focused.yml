@@ -177,6 +177,14 @@ jobs:
           --grep 'real Scratch input reaches bounded analytics'
           --reporter=list,json
 
+      - name: Preserve new activity proof before cumulative browser gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scratch-activity-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/blocks/scratch-activity-proof.json
+          retention-days: 14
+
       - name: Browser smoke parent/iframe protocol
         env:
           BLOCKS_RUNTIME_URL: http://127.0.0.1:4613

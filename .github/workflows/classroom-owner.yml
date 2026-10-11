@@ -76,6 +76,13 @@ jobs:
           mkdir -p reports/checks
           set -o pipefail
           pnpm test:access-a 2>&1 | tee reports/checks/postgresql-tests.log
+      - name: Preserve database evidence before browser startup
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-data-${{ github.event.pull_request.head.sha || github.sha }}-${{ github.run_attempt }}
+          path: reports/checks
+          retention-days: 14
       # Collect browser evidence after a test failure; the failed step still fails the job.
       - name: Real teacher and pupil browser journeys
         if: ${{ !cancelled() && steps.migrated.outcome == 'success' }}

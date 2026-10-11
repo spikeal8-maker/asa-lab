@@ -84,6 +84,7 @@ export function ClassroomStudentPage({
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
   const [profile, setProfile] = useState<ParticipantProfile | null>(null);
+  const [loadedScope, setLoadedScope] = useState('');
   const [profileError, setProfileError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('all');
   const [archive, setArchive] = useState(false);
@@ -106,10 +107,11 @@ export function ClassroomStudentPage({
     if (scope.current !== `${classroomId}:${seatId}`) return;
     const token = ++profileGeneration.current;
     setProfileError(null);
-    setProfile(null);
+    // Same-scope refresh must not unmount active forms or restart the awards panel.
     const result = await participantsApi.profile(classroomId, seatId);
     if (token !== profileGeneration.current || scope.current !== `${classroomId}:${seatId}`) return;
     if (result.ok) {
+      setLoadedScope(`${classroomId}:${seatId}`);
       setProfile(result.data);
       setAwardKeys(result.data.builtinAwards.map((award) => award.awardKey));
     } else {
@@ -193,7 +195,7 @@ export function ClassroomStudentPage({
     };
   }, [loadWorks, showsWorks]);
 
-  if (!profile || profile.student.id !== seatId)
+  if (!profile || profile.student.id !== seatId || loadedScope !== `${classroomId}:${seatId}`)
     return (
       <main className="portal-content" id="main-content" tabIndex={-1}>
         {profileError ? (

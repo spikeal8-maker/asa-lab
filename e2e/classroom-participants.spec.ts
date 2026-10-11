@@ -139,6 +139,16 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await page.getByRole('button', { name: 'Заслуги', exact: true }).click();
     await page.getByLabel('Название заслуги').fill('Мастер класса');
     await page.getByLabel('Описание', { exact: true }).fill('Аккуратная работа');
+    const refreshedProfile = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/participants/') &&
+        response.url().endsWith('/profile'),
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    expect((await refreshedProfile).ok()).toBe(true);
+    await expect(page.getByLabel('Название заслуги')).toHaveValue('Мастер класса');
+    await expect(page.getByLabel('Описание', { exact: true })).toHaveValue('Аккуратная работа');
     await page.getByRole('button', { name: 'Создать заслугу' }).click();
     const merit = page.locator('.participant-merits li').filter({ hasText: 'Мастер класса' });
     await merit.getByRole('button', { name: 'Выдать', exact: true }).click();
