@@ -294,6 +294,32 @@ async function nativeSelect(page: Page, id: string, additive = false) {
   return point;
 }
 
+async function nativeActuatorPoint(page: Page): Promise<Point> {
+  return part(page, 'switch')
+    .getByTestId('spdt-actuator')
+    .evaluate((actuator) => {
+      const body = actuator.querySelector<SVGGeometryElement>(':scope > rect')!;
+      const bounds = body.getBBox();
+      const matrix = body.getScreenCTM()!;
+      const probe = (window as ProbeWindow).__outlineProbe!;
+      const attempts: unknown[] = [];
+      (probe.nativePoints ??= []).push({ phase: 'running-actuator', id: 'switch', attempts });
+      for (const y of [0.5, 0.25, 0.75, 0.125, 0.875])
+        for (const x of [0.5, 0.25, 0.75, 0.125, 0.875]) {
+          const local = new DOMPoint(bounds.x + x * bounds.width, bounds.y + y * bounds.height);
+          if (!body.isPointInFill(local)) continue;
+          const point = local.matrixTransform(matrix);
+          const hit = document.elementFromPoint(point.x, point.y);
+          const accepted = Boolean(
+            hit && actuator.contains(hit) && !hit.closest('.workbench-terminal'),
+          );
+          attempts.push({ x: point.x, y: point.y, target: hit?.getAttribute('class'), accepted });
+          if (accepted) return { x: point.x, y: point.y };
+        }
+      throw new Error('No exposed painted native SPDT actuator point');
+    });
+}
+
 async function nativeRunningSwitchSelect(page: Page) {
   // The Running switch body is its actuator; its remaining painted leads are
   // covered by terminal hit circles. Use the existing keyboard selection flow,
@@ -689,12 +715,59 @@ async function server(page: Page, id: string) {
   return (await response.json()) as { draft: { revision: number; document: SchematicDocument } };
 }
 
-async function localDocument(page: Page, user: string, project: string) {
-  return page.evaluate(
-    ({ user, project }) => {
+async function localDocument(page: Page, user: string, project: string, requireDraft = true) {
+  return page.locator('.workbench-stage').evaluate(
+    (stage, { user, project, requireDraft }) => {
+      type Fiber = {
+        stateNode?: unknown;
+        child?: Fiber | null;
+        sibling?: Fiber | null;
+        return?: Fiber | null;
+        memoizedProps?: {
+          controller?: { project?: { id: string }; document?: SchematicDocument | null };
+        };
+      };
+      // Read the current committed tree, not a potentially stale host alternate.
+      // WorkbenchStage renders this controller.document directly. No callback,
+      // React state, browser storage or product document is invoked or modified.
+      let container: Element | null = stage;
+      let current: Fiber | undefined;
+      while (container && !current) {
+        const key = Object.keys(container).find((key) => key.startsWith('__reactContainer$'));
+        if (key) {
+          const root = (container as unknown as Record<string, Fiber>)[key]!;
+          current = (root.stateNode as { current?: Fiber } | undefined)?.current;
+        }
+        container = container.parentElement;
+      }
+      if (!current) throw new Error('Actual committed React root not available');
+      const pending = [current];
+      let host: Fiber | undefined;
+      while (pending.length) {
+        const fiber = pending.pop()!;
+        if (fiber.stateNode === stage) {
+          host = fiber;
+          break;
+        }
+        if (fiber.sibling) pending.push(fiber.sibling);
+        if (fiber.child) pending.push(fiber.child);
+      }
+      let controller: NonNullable<NonNullable<Fiber['memoizedProps']>['controller']> | undefined;
+      for (let owner = host?.return; owner; owner = owner.return) {
+        if (owner.memoizedProps?.controller) {
+          controller = owner.memoizedProps.controller;
+          break;
+        }
+      }
+      if (controller?.project?.id !== project || controller.document?.schemaVersion !== 4)
+        throw new Error('Actual local controller/document scope mismatch');
+      const actual = controller.document;
       const key = `asa-project-local-draft:user:account:${encodeURIComponent(user)}:${encodeURIComponent(project)}`;
       const text = localStorage.getItem(key);
-      if (!text) throw new Error('Expected full account-scoped local document');
+      if (!text) {
+        if (requireDraft) throw new Error('Expected full account-scoped local document');
+        return actual;
+      }
       const record = JSON.parse(text) as {
         schemaVersion: number;
         identityKind: string;
@@ -711,9 +784,11 @@ async function localDocument(page: Page, user: string, project: string) {
         record.moduleKey !== 'electronics'
       )
         throw new Error('Local document scope mismatch');
-      return record.document;
+      if (JSON.stringify(record.document) !== JSON.stringify(actual))
+        throw new Error('Dirty draft differs from actual committed local document');
+      return actual;
     },
-    { user, project },
+    { user, project, requireDraft },
   );
 }
 
@@ -744,10 +819,6 @@ for (const width of [1440, 1024, 390, 320])
       page,
       browser,
     }, info) => {
-      const teacher = await seedTeacher(
-        admin,
-        `e11-outline-${scenario}-${width}-${info.workerIndex}-${info.retry}`,
-      );
       const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
       const output: unknown[] = [];
       const puts: unknown[] = [];
@@ -761,43 +832,7 @@ for (const width of [1440, 1024, 390, 320])
       let primaryError: { error: unknown } | undefined;
       let mandatoryEvidenceError: { error: unknown } | undefined;
       const rawPath = info.outputPath(`e11-outline-${scenario}-${width}-raw.json`);
-      await installObserver(page);
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await loginWithOrganization(page, teacher);
-      const session = await page.context().request.get('/api/auth/me');
-      expect(session.status()).toBe(200);
-      const user = ((await session.json()) as { user: { id: string } }).user.id;
-      const created = await page.context().request.post('/api/projects', {
-        headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
-        data: {
-          scope: 'personal',
-          classroomId: null,
-          module: 'electronics',
-          title: `E11 selection ${width}`,
-        },
-      });
-      expect(created.status()).toBe(201);
-      projectId = ((await created.json()) as { project: { id: string } }).project.id;
-      const empty = await server(page, projectId);
       const pupil = pupilDocument();
-      const seed = await page.context().request.put(`/api/projects/${projectId}/draft`, {
-        headers: { origin: new URL(page.url()).origin },
-        data: {
-          document: pupil,
-          baseRevision: empty.draft.revision,
-          mutationId: crypto.randomUUID(),
-        },
-      });
-      expect(seed.status()).toBe(200);
-      const seeded = await server(page, projectId);
-      expect(seeded.draft.document).toEqual(pupil);
-      page.on('request', (request) => {
-        if (
-          request.method() === 'PUT' &&
-          new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
-        )
-          puts.push({ at: Date.now(), body: request.postDataJSON() });
-      });
       function retainPrimary(error: unknown) {
         primaryError ??= { error };
         primaryFailure = String(primaryError.error);
@@ -880,6 +915,51 @@ for (const width of [1440, 1024, 390, 320])
         await writeRaw(name);
       }
       try {
+        writeRaw('before-seed-login');
+        const teacher = await seedTeacher(
+          admin,
+          `e11-${scenarios.indexOf(scenario)}-${width}-${info.workerIndex}-${info.retry}`,
+        );
+        await installObserver(page);
+        await page.setViewportSize({ width: 1440, height: 900 });
+        lastCheckpoint = 'before-login';
+        writeRaw(lastCheckpoint);
+        await loginWithOrganization(page, teacher);
+        const session = await page.context().request.get('/api/auth/me');
+        expect(session.status()).toBe(200);
+        const user = ((await session.json()) as { user: { id: string } }).user.id;
+        const created = await page.context().request.post('/api/projects', {
+          headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'electronics',
+            title: `E11 selection ${width}`,
+          },
+        });
+        expect(created.status()).toBe(201);
+        projectId = ((await created.json()) as { project: { id: string } }).project.id;
+        const empty = await server(page, projectId);
+        const seed = await page.context().request.put(`/api/projects/${projectId}/draft`, {
+          headers: { origin: new URL(page.url()).origin },
+          data: {
+            document: pupil,
+            baseRevision: empty.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seed.status()).toBe(200);
+        const seeded = await server(page, projectId);
+        expect(seeded.draft.document).toEqual(pupil);
+        page.on('request', (request) => {
+          if (
+            request.method() === 'PUT' &&
+            new URL(request.url()).pathname === `/api/projects/${projectId}/draft`
+          )
+            puts.push({ at: Date.now(), body: request.postDataJSON() });
+        });
+        lastCheckpoint = 'setup-seeded';
+        writeRaw(lastCheckpoint);
         const delivery = page.waitForResponse(
           (response) =>
             response.request().method() === 'GET' &&
@@ -1033,6 +1113,20 @@ for (const width of [1440, 1024, 390, 320])
             await checkpoint(`running-${id}`);
           }
           await fitAndPlace(page, 'switch');
+          if (width <= 390) {
+            const before = await geometry(page, 'switch');
+            const bounds = before.bounds;
+            await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+            for (let step = 0; step < 8; step++) await page.mouse.wheel(0, -100);
+            await frames(page);
+            await placeInUnobscuredCanvas(page, 'switch');
+            output.push({
+              phase: 'native-actuator-exposure-zoom',
+              before,
+              after: await geometry(page, 'switch'),
+            });
+            await checkpoint('native-actuator-exposure-zoom');
+          }
           output.push({
             phase: 'running-switch-keyboard-selection',
             ...(await nativeRunningSwitchSelect(page)),
@@ -1041,7 +1135,10 @@ for (const width of [1440, 1024, 390, 320])
             root.classList.contains('workbench-component-actuator-active'),
           );
           for (const active of [!switchActive, switchActive]) {
-            await part(page, 'switch').getByTestId('spdt-actuator').click();
+            const actuatorPoint = await nativeActuatorPoint(page);
+            await page.mouse.move(actuatorPoint.x, actuatorPoint.y);
+            await page.mouse.down();
+            await page.mouse.up();
             await expect
               .poll(async () =>
                 part(page, 'switch').evaluate((root) =>
@@ -1063,7 +1160,11 @@ for (const width of [1440, 1024, 390, 320])
           const supply = part(page, 'supply').getByTestId('regulated-power-supply-runtime');
           await expect(supply).toHaveAttribute('data-output-enabled', 'true');
           for (const enabled of ['false', 'true']) {
-            await supply.locator('.workbench-regulated-supply-power-switch').click();
+            await supply
+              .locator(
+                'rect.workbench-regulated-supply-power-switch:not(.workbench-regulated-supply-power-slider)',
+              )
+              .click();
             await expect(supply).toHaveAttribute('data-output-enabled', enabled);
           }
           await checkpoint('running-supply-controls');
@@ -1078,9 +1179,9 @@ for (const width of [1440, 1024, 390, 320])
             buttonReleased: true,
             supplyRestored: await supply.getAttribute('data-output-enabled'),
             server: await server(page, projectId),
-            wholeLocal: await localDocument(page, user, projectId),
+            wholeLocal: await localDocument(page, user, projectId, false),
           });
-          expect(await localDocument(page, user, projectId)).toEqual(expected);
+          expect(await localDocument(page, user, projectId, false)).toEqual(expected);
           await page.getByRole('button', { name: 'Остановить моделирование', exact: true }).click();
           await expect(
             page.getByRole('button', { name: 'Начать моделирование', exact: true }),
@@ -1092,7 +1193,7 @@ for (const width of [1440, 1024, 390, 320])
           await checkpoint('runtime-stopped-whole-original');
         }
         expect(puts).toEqual([]);
-        expect(await localDocument(page, user, projectId)).toEqual(pupil);
+        expect(await localDocument(page, user, projectId, false)).toEqual(pupil);
         expect((await server(page, projectId)).draft).toEqual(seeded.draft);
         // Real transforms are the only intended document mutation. Compare every
         // field and unchanged wire/source; do not use product rotation code as oracle.
@@ -1242,6 +1343,7 @@ for (const width of [1440, 1024, 390, 320])
             ),
           ).toEqual([]);
           expect((await server(reopened, projectId)).draft).toEqual(saved.draft);
+          expect(await localDocument(reopened, user, projectId, false)).toEqual(expected);
           const collapse = reopened.getByRole('button', {
             name: 'Свернуть библиотеку',
             exact: true,
