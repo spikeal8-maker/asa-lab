@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   test,
@@ -1610,6 +1610,113 @@ async function retainOrdinaryImageIngress(
   });
 }
 
+// Only the Search experiment uses this Node-owned collector. The original
+// permanent-image case and its retention helper remain byte-for-byte unchanged.
+function createSearchIngressEvidence(testInfo: TestInfo, readNode: () => Record<string, unknown>) {
+  const name = 'ordinary-image-catalog-search-remount';
+  const path = testInfo.outputPath(name + '.json');
+  const failurePath = testInfo.outputPath(name + '-failure-original.json');
+  const captureErrors: { stage: string; error: string }[] = [];
+  const supplementary: Record<string, unknown> = {
+    browser: 'NOT_AVAILABLE: no completed browser capture',
+    editorDocument: 'NOT_AVAILABLE: no completed editor capture',
+    nativePNG: 'NOT_AVAILABLE: no completed native PNG',
+    attachment: 'NOT_AVAILABLE: not attached',
+    detach: 'NOT_AVAILABLE: not attempted',
+  };
+  let primary: { error: unknown } | undefined;
+  let checkpoint = 'created';
+  const secondary = (stage: string, error: unknown) => {
+    captureErrors.push({ stage, error: String(error) });
+    try {
+      console.error('[548 Search evidence]', stage, String(error));
+    } catch {
+      // Even a broken logger must not replace the original pupil-flow error.
+    }
+  };
+  const raw = () => ({
+    checkpoint,
+    writtenAt: Date.now(),
+    primaryFailure: primary ? String(primary.error) : null,
+    captureErrors,
+    ...readNode(),
+    supplementary,
+  });
+  const persist = (stage: string) => {
+    checkpoint = stage;
+    try {
+      writeFileSync(path, JSON.stringify(raw(), null, 2));
+    } catch (error: unknown) {
+      secondary('raw-write:' + stage, error);
+    }
+  };
+  const fail = (error: unknown) => {
+    primary ??= { error };
+    // Separate synchronous original: no browser await or async write queue can
+    // precede it, and later checkpoint writes never overwrite this file.
+    try {
+      writeFileSync(failurePath, JSON.stringify(raw(), null, 2));
+    } catch (writeError: unknown) {
+      secondary('failure-original-write', writeError);
+    }
+    persist('primary-failure-recorded');
+  };
+  const supplement = async (stage: string, capture: () => Promise<unknown>) => {
+    // Once a primary failure exists, optional pending browser work cannot hold
+    // its reporting hostage. Last completed checkpoints stay on disk.
+    if (primary) {
+      supplementary[stage] = 'NOT_AVAILABLE: skipped after primary failure';
+      persist('skipped:' + stage);
+      return;
+    }
+    supplementary[stage] = 'PENDING';
+    persist('before:' + stage);
+    try {
+      supplementary[stage] = await capture();
+    } catch (error: unknown) {
+      supplementary[stage] = 'NOT_AVAILABLE: ' + String(error);
+      secondary(stage, error);
+    }
+    persist('after:' + stage);
+  };
+  const finish = async (detach: (() => Promise<void>) | undefined) => {
+    persist('before-finalization');
+    if (primary) {
+      supplementary['detach'] = detach
+        ? 'PENDING: unawaited after primary failure'
+        : 'NOT_AVAILABLE';
+      persist('primary-finalization');
+      if (detach) {
+        try {
+          void detach().catch((error: unknown) => {
+            secondary('detach-after-primary', error);
+            persist('detach-error-after-primary');
+          });
+        } catch (error: unknown) {
+          secondary('detach-after-primary', error);
+          persist('detach-error-after-primary');
+        }
+      }
+      // Identity, including non-Error rejection values, is preserved exactly.
+      throw primary.error;
+    }
+    await supplement('attachment', async () => {
+      await testInfo.attach(name, { path, contentType: 'application/json' });
+      return 'ATTACHED';
+    });
+    if (detach)
+      await supplement('detach', async () => {
+        await detach();
+        return 'DETACHED';
+      });
+    persist('finished');
+    if (captureErrors.length > 0)
+      throw new Error('548 Search mandatory evidence failed: ' + JSON.stringify(captureErrors));
+  };
+  persist('initial-node-checkpoint');
+  return { persist, fail, supplement, finish };
+}
+
 test.describe('asset recovery in the built editor', () => {
   test('one failed mask request recovers two LEDs without enlarging their hit area', async ({
     page,
@@ -2435,145 +2542,189 @@ test.describe('asset recovery in the built editor', () => {
   test('catalog search remounts an ordinary image during the existing finite recovery', async ({
     page,
   }, testInfo) => {
-    await page.setViewportSize({ width: 1440, height: 1000 });
     const asset = catalogEntry('battery-holder-aa-2')!.asset;
-    const network = await installOrdinaryImageIngress(page, asset);
+    let network: Awaited<ReturnType<typeof installOrdinaryImageIngress>> = [];
     const actions: unknown[] = [];
     const lifecycle: Record<string, unknown> = {};
     const cdpRequests: unknown[] = [];
     let cdp: { detach: () => Promise<void> } | undefined;
-    let cdpState: string;
-    try {
-      const session = await page.context().newCDPSession(page);
-      cdp = session;
-      session.on('Network.requestWillBeSent', (event) => {
-        if (new URL(event.request.url).pathname !== asset) return;
-        cdpRequests.push({
-          requestId: event.requestId,
-          url: event.request.url,
-          method: event.request.method,
-          type: event.type,
-          timestamp: event.timestamp,
-          wallTime: event.wallTime,
-          initiator: event.initiator,
-        });
-      });
-      await session.send('Network.enable');
-      cdpState = 'supported';
-    } catch (error: unknown) {
-      cdpState = `unsupported: ${String(error)}`;
-    }
-    // The signal is observed before navigation; no request is held or retried.
-    const retry1Signal = page
-      .waitForResponse((response) => {
-        const url = new URL(response.url());
-        return (
-          url.pathname === asset &&
-          response.request().resourceType() === 'image' &&
-          response.status() === 404 &&
-          url.searchParams.get('asa-image-retry') === '1' &&
-          url.searchParams.get('asa-image-cycle') === '1'
-        );
-      })
-      .then((response) => ({
-        url: response.url(),
-        status: response.status(),
-        receivedAt: Date.now(),
-      }))
-      .catch((error: unknown) => ({ signalError: String(error) }));
+    let cdpState = 'NOT_AVAILABLE: CDP setup not completed';
     let imageRequests = 0;
-    await page.route(
-      (url) => url.pathname === asset,
-      async (route) => {
-        if (route.request().resourceType() !== 'image') return route.continue();
-        imageRequests += 1;
-        await route.fulfill({ status: 404, body: 'missing' });
-      },
-    );
+    let editor: Awaited<ReturnType<typeof openEditor>> | undefined;
     const doc = addComponentToDocument(
       documentFixture(),
       'battery-holder-aa-2',
       { x: 790, y: 450 },
       'holder',
     ).document;
-    const readLifecycle = async () => {
-      const nodeStartedAt = Date.now();
-      const browser = await page.evaluate((targetAsset) => {
-        type ImageDescription = { identity: number; consumer: string; connected: boolean };
-        type HookEvent = {
-          phase: string;
-          token: number;
-          onError?: number;
-          node?: ImageDescription | null;
-        };
-        const observation = (
-          window as unknown as {
-            __asaOrdinaryImageIngress?: {
-              describe: (node: Element) => ImageDescription;
-              reactEvents: HookEvent[];
-              nativeEvents: { kind: string; trusted: boolean; target: ImageDescription }[];
-              dropped: Record<string, number>;
-            };
-          }
-        ).__asaOrdinaryImageIngress;
-        const images = [...document.querySelectorAll('image')].filter((image) => {
-          const href = image.getAttribute('href');
-          return href && new URL(href, document.baseURI).pathname === targetAsset;
-        });
-        const descriptions = images.flatMap((image) => {
-          if (!observation) return [];
-          const description = observation.describe(image);
-          const commits = observation.reactEvents.filter(
-            (event) =>
-              event.phase === 'ordinary-commit-ref' &&
-              event.node?.identity === description.identity &&
-              event.node.connected,
-          );
-          const hookTokens = [
-            ...new Set(
-              observation.reactEvents
-                .filter(
-                  (event) =>
-                    event.phase === 'render-bind' &&
-                    commits.some((commit) => commit.token === event.onError),
-                )
-                .map((event) => event.token),
-            ),
-          ].sort((a, b) => a - b);
-          return [
-            {
-              identity: description.identity,
-              consumer: description.consumer,
-              connected: description.connected,
-              hookTokens,
-            },
-          ];
-        });
-        return {
-          browserDateNow: Date.now(),
-          atMs: performance.now(),
-          timeOrigin: performance.timeOrigin,
-          observerMissing: !observation,
-          catalog: descriptions.filter((image) => image.consumer === 'catalog'),
-          stage: descriptions.filter((image) => image.consumer === 'stage'),
-          nativeErrors:
-            observation?.nativeEvents
-              .filter((event) => event.kind === 'error' && event.trusted)
-              .map((event) => event.target.identity) ?? [],
-          cleanups:
-            observation?.reactEvents.filter((event) => event.phase === 'effect-cleanup') ?? [],
-          dropped: observation?.dropped ?? null,
-          localDrafts: Object.fromEntries(
-            Object.keys(localStorage)
-              .filter((key) => key.startsWith('asa-project-local-draft:'))
-              .map((key) => [key, localStorage.getItem(key)]),
-          ),
-        };
-      }, asset);
-      return { nodeStartedAt, nodeFinishedAt: Date.now(), ...browser };
-    };
-    let editor: Awaited<ReturnType<typeof openEditor>> | undefined;
+    const evidence = createSearchIngressEvidence(testInfo, () => ({
+      asset,
+      imageRequests,
+      network,
+      initialDocument: doc,
+      serverDocument: editor?.readDocument() ?? null,
+      draftRequests: editor?.requests ?? null,
+      pageErrors: editor?.errors ?? null,
+      actions,
+      lifecycle,
+      cdpState,
+      cdpRequests,
+      diagnosticOutcome: 'EXECUTION_ORDER_REQUIRES_INDEPENDENT_ANALYSIS',
+      instrumentationLimitation:
+        'Passive Node checkpoints add overhead; no cause or school frequency is inferred.',
+      requestAccounting: {
+        sharedImageProbes: network.filter((record) =>
+          new URL(record.url).searchParams.has('asa-image-retry'),
+        ),
+        originalImageRequests: network.filter(
+          (record) =>
+            record.resourceType === 'image' &&
+            !new URL(record.url).searchParams.has('asa-image-retry'),
+        ),
+        otherTargetRequests: network.filter((record) => record.resourceType !== 'image'),
+        attributionLimit:
+          'CDP initiators and actual node chains decide; snapshot fetches are never native recovery.',
+        oldPermanentMax7Unchanged: true,
+      },
+      expectedWindow:
+        'Actual retry1 image404 → real search cleanup/remount/new commit → terminal retry2 response; missing evidence is ORDER_NOT_ESTABLISHED, never a cause claim.',
+      refNullIsNotUnmount: true,
+    }));
     try {
+      await page.setViewportSize({ width: 1440, height: 1000 });
+      network = await installOrdinaryImageIngress(page, asset);
+      // Registered after the collector: records have already been updated when
+      // these passive Node callbacks write their incremental checkpoint.
+      const checkpointNetwork = (record: { url: () => string }) => {
+        if (new URL(record.url()).pathname === asset) evidence.persist('network-event');
+      };
+      page.on('request', checkpointNetwork);
+      page.on('response', checkpointNetwork);
+      page.on('requestfinished', checkpointNetwork);
+      page.on('requestfailed', checkpointNetwork);
+      try {
+        const session = await page.context().newCDPSession(page);
+        cdp = session;
+        session.on('Network.requestWillBeSent', (event) => {
+          if (new URL(event.request.url).pathname !== asset) return;
+          cdpRequests.push({
+            requestId: event.requestId,
+            url: event.request.url,
+            method: event.request.method,
+            type: event.type,
+            timestamp: event.timestamp,
+            wallTime: event.wallTime,
+            initiator: event.initiator,
+          });
+          evidence.persist('cdp-request');
+        });
+        await session.send('Network.enable');
+        cdpState = 'supported';
+      } catch (error: unknown) {
+        cdpState = `unsupported: ${String(error)}`;
+      }
+      // The signal is observed before navigation; no request is held or retried.
+      const retry1Signal = page
+        .waitForResponse((response) => {
+          const url = new URL(response.url());
+          return (
+            url.pathname === asset &&
+            response.request().resourceType() === 'image' &&
+            response.status() === 404 &&
+            url.searchParams.get('asa-image-retry') === '1' &&
+            url.searchParams.get('asa-image-cycle') === '1'
+          );
+        })
+        .then((response) => ({
+          url: response.url(),
+          status: response.status(),
+          receivedAt: Date.now(),
+        }))
+        .catch((error: unknown) => ({ signalError: String(error) }));
+      await page.route(
+        (url) => url.pathname === asset,
+        async (route) => {
+          if (route.request().resourceType() !== 'image') return route.continue();
+          imageRequests += 1;
+          await route.fulfill({ status: 404, body: 'missing' });
+        },
+      );
+      const readLifecycle = async () => {
+        const nodeStartedAt = Date.now();
+        const browser = await page.evaluate((targetAsset) => {
+          type ImageDescription = { identity: number; consumer: string; connected: boolean };
+          type HookEvent = {
+            phase: string;
+            token: number;
+            onError?: number;
+            node?: ImageDescription | null;
+          };
+          const observation = (
+            window as unknown as {
+              __asaOrdinaryImageIngress?: {
+                describe: (node: Element) => ImageDescription;
+                reactEvents: HookEvent[];
+                nativeEvents: { kind: string; trusted: boolean; target: ImageDescription }[];
+                dropped: Record<string, number>;
+              };
+            }
+          ).__asaOrdinaryImageIngress;
+          const images = [...document.querySelectorAll('image')].filter((image) => {
+            const href = image.getAttribute('href');
+            return href && new URL(href, document.baseURI).pathname === targetAsset;
+          });
+          const descriptions = images.flatMap((image) => {
+            if (!observation) return [];
+            const description = observation.describe(image);
+            const commits = observation.reactEvents.filter(
+              (event) =>
+                event.phase === 'ordinary-commit-ref' &&
+                event.node?.identity === description.identity &&
+                event.node.connected,
+            );
+            const hookTokens = [
+              ...new Set(
+                observation.reactEvents
+                  .filter(
+                    (event) =>
+                      event.phase === 'render-bind' &&
+                      commits.some((commit) => commit.token === event.onError),
+                  )
+                  .map((event) => event.token),
+              ),
+            ].sort((a, b) => a - b);
+            return [
+              {
+                identity: description.identity,
+                consumer: description.consumer,
+                connected: description.connected,
+                hookTokens,
+              },
+            ];
+          });
+          return {
+            browserDateNow: Date.now(),
+            atMs: performance.now(),
+            timeOrigin: performance.timeOrigin,
+            observerMissing: !observation,
+            catalog: descriptions.filter((image) => image.consumer === 'catalog'),
+            stage: descriptions.filter((image) => image.consumer === 'stage'),
+            nativeErrors:
+              observation?.nativeEvents
+                .filter((event) => event.kind === 'error' && event.trusted)
+                .map((event) => event.target.identity) ?? [],
+            cleanups:
+              observation?.reactEvents.filter((event) => event.phase === 'effect-cleanup') ?? [],
+            dropped: observation?.dropped ?? null,
+            localDrafts: Object.fromEntries(
+              Object.keys(localStorage)
+                .filter((key) => key.startsWith('asa-project-local-draft:'))
+                .map((key) => [key, localStorage.getItem(key)]),
+            ),
+          };
+        }, asset);
+        return { nodeStartedAt, nodeFinishedAt: Date.now(), ...browser };
+      };
       const { readDocument, readEditorDocument, requests, errors } = (editor = await openEditor(
         page,
         doc,
@@ -2582,8 +2733,10 @@ test.describe('asset recovery in the built editor', () => {
       const initialEditor = structuredClone(await readEditorDocument());
       const trigger = await retry1Signal;
       lifecycle['trigger'] = trigger;
+      evidence.persist('lifecycle-checkpoint');
       const beforeSearch = await readLifecycle();
       lifecycle['beforeSearch'] = beforeSearch;
+      evidence.persist('lifecycle-checkpoint');
       const card = page.locator('.workbench-catalog-card[data-family-id="battery-holder-aa"]');
       const search = page.getByRole('textbox', { name: 'Поиск компонентов' });
       const ready =
@@ -2602,15 +2755,19 @@ test.describe('asset recovery in the built editor', () => {
         (await search.isVisible());
       if (ready) {
         actions.push({ kind: 'search-start', at: Date.now() });
+        evidence.persist('action-checkpoint');
         await search.click();
         await search.pressSequentially('zz548');
         await expect(card).toHaveCount(0);
         actions.push({ kind: 'catalog-removed', at: Date.now() });
+        evidence.persist('action-checkpoint');
         await search.press('ControlOrMeta+A');
         await search.press('Backspace');
         await expect(card).toHaveCount(1);
         actions.push({ kind: 'catalog-restored', at: Date.now() });
+        evidence.persist('action-checkpoint');
         lifecycle['afterRemount'] = await readLifecycle();
+        evidence.persist('lifecycle-checkpoint');
       } else {
         lifecycle['outcome'] = 'ORDER_NOT_ESTABLISHED';
         lifecycle['reason'] =
@@ -2644,6 +2801,7 @@ test.describe('asset recovery in the built editor', () => {
       ]).toEqual(['1']);
       const finalLifecycle = await readLifecycle();
       lifecycle['final'] = finalLifecycle;
+      evidence.persist('lifecycle-checkpoint');
       expect(finalLifecycle.stage).toEqual(beforeSearch.stage);
       expect(finalLifecycle.localDrafts).toEqual(beforeSearch.localDrafts);
       expect(readDocument()).toEqual(initial);
@@ -2651,38 +2809,66 @@ test.describe('asset recovery in the built editor', () => {
       expect(initialEditor).toEqual(doc);
       expect(requests).toHaveLength(0);
       expect(errors).toEqual([]);
+    } catch (error: unknown) {
+      evidence.fail(error);
     } finally {
-      const sharedImageProbes = network.filter((record) =>
-        new URL(record.url).searchParams.has('asa-image-retry'),
+      evidence.persist('finally-node-checkpoint');
+      await evidence.supplement('browser', async () =>
+        page.isClosed()
+          ? Promise.reject(new Error('Browser capture unavailable: page closed'))
+          : await page.evaluate((targetAsset) => {
+              const observation = (
+                window as unknown as {
+                  __asaOrdinaryImageIngress?: {
+                    nativeEvents: unknown[];
+                    reactEvents: unknown[];
+                    domEvents: unknown[];
+                    creationEvents: unknown[];
+                    dropped: Record<string, number>;
+                    describe: (element: Element) => unknown;
+                  };
+                }
+              ).__asaOrdinaryImageIngress;
+              const images = [...document.querySelectorAll('image')].filter((image) => {
+                const href = image.getAttribute('href');
+                return href && new URL(href, document.baseURI).pathname === targetAsset;
+              });
+              return {
+                atMs: performance.now(),
+                timeOrigin: performance.timeOrigin,
+                nativeEvents: observation?.nativeEvents ?? null,
+                reactEvents: observation?.reactEvents ?? null,
+                domEvents: observation?.domEvents ?? null,
+                creationEvents: observation?.creationEvents ?? null,
+                dropped: observation?.dropped ?? null,
+                images: images.map((image) => ({
+                  observed: observation?.describe(image),
+                  outerHTML: image.outerHTML,
+                })),
+                fullDOM: document.documentElement.outerHTML,
+                localDrafts: Object.fromEntries(
+                  Object.keys(localStorage)
+                    .filter((key) => key.startsWith('asa-project-local-draft:'))
+                    .map((key) => [key, localStorage.getItem(key)]),
+                ),
+              };
+            }, asset),
       );
-      const originalImageRequests = network.filter(
-        (record) =>
-          record.resourceType === 'image' &&
-          !new URL(record.url).searchParams.has('asa-image-retry'),
-      );
-      const otherTargetRequests = network.filter((record) => record.resourceType !== 'image');
-      await retainOrdinaryImageIngress(page, asset, imageRequests, network, doc, editor, testInfo, {
-        name: 'ordinary-image-catalog-search-remount',
-        nativePNG: true,
-        extra: {
-          actions,
-          lifecycle,
-          cdpState,
-          cdpRequests,
-          requestAccounting: {
-            sharedImageProbes,
-            originalImageRequests,
-            otherTargetRequests,
-            attributionLimit:
-              'Original image requests may be mounted consumers or masks; CDP initiators and actual node chains decide. Snapshot fetches are separate and never native recovery.',
-            oldPermanentMax7Unchanged: true,
-          },
-          expectedWindow:
-            'Actual retry1 image404 → real search cleanup/remount/new commit → terminal retry2 response; missing evidence is ORDER_NOT_ESTABLISHED, never a cause claim.',
-          refNullIsNotUnmount: true,
-        },
+      await evidence.supplement('editorDocument', async () => {
+        if (!editor || page.isClosed()) throw new Error('Editor capture unavailable');
+        return editor.readEditorDocument();
       });
-      await cdp?.detach().catch(() => {});
+      await evidence.supplement('nativePNG', async () => {
+        if (page.isClosed()) throw new Error('Native PNG unavailable: page closed');
+        const path = testInfo.outputPath('ordinary-image-search-remount-native.png');
+        await page.screenshot({ path, animations: 'allow', caret: 'initial' });
+        await testInfo.attach('ordinary-image-search-remount-native', {
+          path,
+          contentType: 'image/png',
+        });
+        return { path, capturedAt: Date.now() };
+      });
+      await evidence.finish(cdp ? () => cdp!.detach() : undefined);
     }
   });
 
