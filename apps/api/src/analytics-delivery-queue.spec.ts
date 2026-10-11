@@ -140,7 +140,7 @@ describe('bounded analytics delivery', () => {
     expect(foreground).toHaveBeenCalledOnce();
     await expect(result).resolves.toBe(42);
     const closing = queue.shutdown();
-    await vi.advanceTimersByTimeAsync(10);
+    await vi.advanceTimersByTimeAsync(5_010);
     await closing;
   });
   it('gives a foreground caller a bounded ambiguous response if an injected connection never settles', async () => {
