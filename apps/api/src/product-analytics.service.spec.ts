@@ -3,6 +3,11 @@ import type pg from 'pg';
 import type { ActiveContext } from '@asa-lab/identity';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 
+type AnalyticsQuery = (
+  sql: string,
+  args?: unknown[],
+) => Promise<{ rows: Record<string, unknown>[] }>;
+
 const CONTEXT: ActiveContext = {
   principalId: '10000000-0000-4000-8000-000000000001',
   accountId: '20000000-0000-4000-8000-000000000001',
@@ -17,7 +22,9 @@ const CONTEXT: ActiveContext = {
 
 describe('product analytics writer', () => {
   it('fails closed for null touches, anonymous actors and database failure', async () => {
-    const query = vi.fn(async () => ({ rows: [{ analytics_touch_module_session: null }] }));
+    const query = vi.fn<AnalyticsQuery>(async () => ({
+      rows: [{ analytics_touch_module_session: null }],
+    }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
     const input = {
       sessionId: 's1',
@@ -40,7 +47,9 @@ describe('product analytics writer', () => {
   it.each([null, undefined, 'foreign'])(
     'does not accept a null/mismatched PG start result: %s',
     async (value) => {
-      const query = vi.fn(async () => ({ rows: [{ analytics_start_module_session: value }] }));
+      const query = vi.fn<AnalyticsQuery>(async () => ({
+        rows: [{ analytics_start_module_session: value }],
+      }));
       const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
       await expect(
         service.startModuleSession({
@@ -53,7 +62,9 @@ describe('product analytics writer', () => {
     },
   );
   it('records a successful account event with the trusted address and scope', async () => {
-    const query = vi.fn(async () => ({ rows: [{ analytics_record_event: 1 }] }));
+    const query = vi.fn<AnalyticsQuery>(async () => ({
+      rows: [{ analytics_record_event: 1 }],
+    }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
 
     await expect(
@@ -86,7 +97,7 @@ describe('product analytics writer', () => {
   });
 
   it('drops an invalid address and never breaks the product when telemetry is unavailable', async () => {
-    const query = vi.fn(async () => {
+    const query = vi.fn<AnalyticsQuery>(async () => {
       throw new Error('database unavailable');
     });
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
@@ -105,7 +116,7 @@ describe('product analytics writer', () => {
   });
 
   it('starts a project-bound module session with network provenance', async () => {
-    const query = vi.fn(async () => ({
+    const query = vi.fn<AnalyticsQuery>(async () => ({
       rows: [{ analytics_start_module_session: '50000000-0000-4000-8000-000000000001' }],
     }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
@@ -137,7 +148,9 @@ describe('product analytics writer', () => {
   });
 
   it('touches only the authenticated actor session', async () => {
-    const query = vi.fn(async () => ({ rows: [{ analytics_touch_module_session: 30 }] }));
+    const query = vi.fn<AnalyticsQuery>(async () => ({
+      rows: [{ analytics_touch_module_session: 30 }],
+    }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
 
     await expect(

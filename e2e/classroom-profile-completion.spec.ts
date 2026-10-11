@@ -80,6 +80,8 @@ async function addPupil(page: Page, classId: string, name: string) {
 }
 async function openProfile(page: Page, classId: string, name: string) {
   await page.goto(`/#/classrooms/${classId}`);
+  // API fixture setup does not refresh an already-mounted same-hash classroom.
+  await page.reload();
   await page.getByRole('row').filter({ hasText: name }).locator('.classroom-student-name').click();
   await expect(page.getByRole('heading', { name, exact: true })).toBeVisible();
 }

@@ -93,16 +93,8 @@ export async function seedProfileTheory(
   };
   await admin.query(
     `INSERT INTO course_versions(id,tenant_id,course_id,version_number,title,outline,content_hash,published_by_principal_id)
-    VALUES($1,$2,$3,1,$4,$5::jsonb,$6,$7)`,
-    [
-      versionId,
-      teacher.tenantId,
-      courseId,
-      title,
-      JSON.stringify(outline),
-      createHash('sha256').update(JSON.stringify(outline)).digest('hex'),
-      actor.principal_id,
-    ],
+    VALUES($1,$2,$3,1,$4,$5::jsonb,md5(($5::jsonb)::text),$6)`,
+    [versionId, teacher.tenantId, courseId, title, JSON.stringify(outline), actor.principal_id],
   );
   await admin.query(
     `INSERT INTO classroom_course_runs(id,tenant_id,classroom_id,course_id,course_version_id,title,version_number,assigned_by_principal_id,creation_request_id,creation_request_digest)

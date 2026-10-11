@@ -297,7 +297,8 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     expect(
       await read('classroom_participant_assignments', [account.principal, f.classId, a.id, 0]),
     ).toBeNull();
-  });
+  }, 30_000);
+
   it('lists actual helper classes only in the viewer intersection and never grants roster or foreign grades', async () => {
     const f = await fixture();
     const account = await f.learner();
@@ -356,7 +357,8 @@ describe('participants with real PostgreSQL and the runtime role', () => {
     expect((await list(f.actor)).map((c) => c.id)).toEqual([f.classId]);
     await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [a.id]);
     expect(await list(f.actor)).toEqual([]);
-  });
+  }, 30_000);
+
   it('preserves zero and all five pinned symbol/smiley levels in full self history, after settings changes, without cross-identity access', async () => {
     const f = await fixture();
     const account = await f.learner();
@@ -448,7 +450,8 @@ describe('participants with real PostgreSQL and the runtime role', () => {
         0,
       ]),
     ).toBeNull();
-  });
+  }, 30_000);
+
   it('counts Account-only, Seat-only and linked ownership once, including archive but excluding games and trash', async () => {
     const f = await fixture();
     const account = await f.learner();

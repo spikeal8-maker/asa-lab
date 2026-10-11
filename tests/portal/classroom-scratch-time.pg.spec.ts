@@ -104,6 +104,9 @@ async function fixture() {
   async function post(path: string, payload: unknown, asCookie = cookie) {
     return inject(app, { method: 'POST', url: path, headers: { cookie: asCookie }, payload });
   }
+  async function put(path: string, payload: unknown, asCookie = cookie) {
+    return inject(app, { method: 'PUT', url: path, headers: { cookie: asCookie }, payload });
+  }
   async function start(
     projectId: string,
     asCookie: string,
@@ -146,7 +149,7 @@ async function fixture() {
     );
     expect(result.rows[0].data).not.toBeNull();
   }
-  return { teacher, identity, cookie, classId, seat, project, post, start, roster, settings };
+  return { teacher, identity, cookie, classId, seat, project, post, put, start, roster, settings };
 }
 
 describe('Scratch classroom time over real ProductAnalytics API and PostgreSQL', () => {
@@ -223,7 +226,7 @@ describe('Scratch classroom time over real ProductAnalytics API and PostgreSQL',
         },
         assets: [],
       };
-      const saved = await f.post(
+      const saved = await f.put(
         `/api/projects/${project}/draft`,
         { baseRevision: base, mutationId: randomUUID(), document },
         learner.cookie,
@@ -258,7 +261,7 @@ describe('Scratch classroom time over real ProductAnalytics API and PostgreSQL',
       const revision = (
         await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [project])
       ).rows[0].revision as number;
-      const unchanged = await f.post(
+      const unchanged = await f.put(
         `/api/projects/${project}/draft`,
         { baseRevision: revision, mutationId: randomUUID(), document },
         learner.cookie,

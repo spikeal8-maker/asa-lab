@@ -93,7 +93,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await page.getByRole('button', { name: 'Настройки', exact: true }).click();
     const rating = page.getByRole('region', { name: 'Настройки рейтинга' });
     await rating.getByLabel('Период рейтинга').selectOption('7');
-    for (const factor of ['Активные дни', 'Активное время', 'Оценки', 'Входы / занятия'])
+    for (const factor of ['Активные дни', 'Активное время', 'Оценки', 'Дни со входом'])
       await rating.getByLabel(factor, { exact: true }).uncheck();
     await rating.getByLabel('Проекты', { exact: true }).check();
     await rating.getByRole('button', { name: 'Сохранить рейтинг' }).click();
