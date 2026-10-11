@@ -582,7 +582,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r2_existing_permanent_case_same_node_observation_source_only
+      checkpoint: r2_observation_completed_no_proven_cause
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -613,12 +613,12 @@ parallel_lanes:
       causal_before_probe_sha: 4491a00c87a47a35ee58ba214ddedc5e529c2b37
       causal_before_run: 38012528685
       causal_before_conclusion: success_unchanged_product_not_acceptance
-      controller_observed_at: '2026-10-11T19:27:24.668213+00:00'
-      next_action: New bounded author applies prepared two-file observation to clean selected main; formatter/lint/project
-        types/discovery/card/inverse/absent-throwing sink/primary raw retention/selfreview, ONE unpublished
-        SHA thenSTOP. NEW independent exact-source review before root ONE isolated frozen built EXISTING
-        permanent-case. Natural pass/incomplete identity/order/dropped evidence =>NO_PROVEN_CAUSE/STOP experiment,
-        no hopeful retry. Cause requires separately selected product repair.
+      controller_observed_at: '2026-10-11T20:01:09.957092+00:00'
+      next_action: STOP this diagnostic experiment. Natural PASS, trusted same-node native after ref/effect
+        and normal reject/failed rendering; no historical cause/fix or blocker closure. Do not repeat unchanged
+        scenario/full suite hopefully. Preserve all originals and source-only observer outside main. Controller
+        may select independent bounded integration work under its own canonical scope; no548 product change
+        authorized.
       causal_analysis_report_sha256: 7f7a19ae8ca8377910edc3d45061b2872351834676a42364048c33b774e408dc
       causal_analysis_manifest_sha256: ab42c1e3430f254883df1ba5f456b97627b824544e31da592785fb7e515f0965
       causal_actual: 'Unchanged production observer run: three trusted errors, all three mounted consumers
@@ -796,6 +796,15 @@ parallel_lanes:
       external_preparation_manifest_sha256: d0965227d9c20a294e90f013c2096e33eade5bec4f6bbb0777475128efde0130
       mandatory_hygiene006_issue: 556
       mandatory_hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
+      r2_observation_source_sha: b16e7a6d3d8796ab14d8a84fa8f83f072a2355d5
+      r2_directed_probe_sha: 7af3502c3af3cdf9584d4315bfdc542b7e2e4f0a
+      r2_directed_run: 38169594858
+      r2_directed_conclusion: success_natural_pass_not_product_acceptance
+      r2_independent_verdict: NO_PROVEN_CAUSE
+      r2_independent_report: docs/product/electronics/evidence/ordinary-image-548-r2-directed-independent-review.md
+      r2_independent_report_original_sha256: edee6c0f47dfcb9a45625c41c93f6e86a698e00cf14c7828fc58e11d7db293ba
+      r2_independent_manifest_sha256: da9a4905478afa4ae2b1057cb058a49c60ceb520073b62b15bbd872746fbec48
+      r2_root_originals_verified: true
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -2547,7 +2556,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r4_directed_before_after_complete_final_convergence_required
+      checkpoint: r5_owner_approved_final_composition_exact_verification
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2556,24 +2565,27 @@ parallel_lanes:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
       - docs/product/electronics/components/engine-worker-clock.yaml
       dependency_for_issue: 552
-      repair_scope: 'R4 TEST ONLY e2e/electronics-piezo-clock.spec.ts: explicitly include four existing passive
-        editor-default properties before parser/API seeding and scope recorded real Worker request-response
-        identity by browser page. Preserve all original physical values, topology, Arduino and strict whole
-        equality/CAS/native PCM/ready/yielded assertions. No product/runtime/timeout changes.'
-      shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552 source
-        preserved and its separate browser witness repair coordinated only after independent finding.548 ONLYoldinteractions/549
-        ONLYnewoutline. Actual dirty-path checks, no shared writes over another author.
+      repair_scope: 'Integration ONLY: preserve five non-registration553 source entries exactly9f950 and
+        all current main entries outside553. Resolve ONLY two approved package commands and workflow pathfilter
+        by exact saved proposal preserving piezo-clock AND native-wheel. No new product/test/timeout/physics/observer
+        changes.'
+      shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552
+        source preserved and its separate browser witness repair coordinated only after independent finding.548
+        ONLYoldinteractions/549 ONLYnewoutline. Actual dirty-path checks, no shared writes over another
+        author.
       mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
-      scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all legacy
-        owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact
-        card write path including shared registrations.
-      next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence with
-        current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full ordinary
-        browser/repository gates on NEW exact SHA and NEW independent final product review. Old source-ready
-        and directed evidence are not acceptance of the composition; no school actions.
+      scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all
+        legacy owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every
+        exact card write path including shared registrations.
+      next_action: NEW bounded implementer composes preserved9f950 with selected current main once. Only
+        owner-approved package/workflow conflict union; other conflict STOP. Narrow source/registration/foreign-tree
+        checks and one unpublished final SHA thenSTOP. Root verifies and publishes exact source; ONE mandatory
+        focused/full ordinary/repository gate on genuinely changed composition, then NEW independent final
+        product review. Any failure classified; no unchanged hopeful retry.548 remains NO_PROVEN_CAUSE and
+        all existing blockers retained.
       preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual
-        accepted production count2 since542, hygiene006 due after third accepted product before later new product
-        phase. No school operations.
+        accepted production count2 since542, hygiene006 due after third accepted product before later new
+        product phase. No school operations.
       frozen_directed_evidence:
         candidate: c051c5cfb649206379bfb30df44ceff946a78a47
         before_run: 38158088686
@@ -2582,6 +2594,78 @@ parallel_lanes:
         after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
         root_originals_verified: true
         product_acceptance: false
+      integration_phase_history:
+      - task_snapshot:
+          id: TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001
+          issue: 553
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: in_progress
+          checkpoint: r4_directed_before_after_complete_final_convergence_required
+          kind: repair
+          owner_acceptance: pending
+          programme_issue: 452
+          owner_problem: E12/E14
+          context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
+          - docs/product/electronics/components/engine-worker-clock.yaml
+          dependency_for_issue: 552
+          repair_scope: 'R4 TEST ONLY e2e/electronics-piezo-clock.spec.ts: explicitly include four existing
+            passive editor-default properties before parser/API seeding and scope recorded real Worker request-response
+            identity by browser page. Preserve all original physical values, topology, Arduino and strict
+            whole equality/CAS/native PCM/ready/yielded assertions. No product/runtime/timeout changes.'
+          shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552
+            source preserved and its separate browser witness repair coordinated only after independent
+            finding.548 ONLYoldinteractions/549 ONLYnewoutline. Actual dirty-path checks, no shared writes
+            over another author.
+          mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
+          scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve
+            all legacy owned paths and all suspended candidates; actual dirty-path checks remain mandatory
+            for every exact card write path including shared registrations.
+          next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence
+            with current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full
+            ordinary browser/repository gates on NEW exact SHA and NEW independent final product review.
+            Old source-ready and directed evidence are not acceptance of the composition; no school actions.
+          preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved.
+            Actual accepted production count2 since542, hygiene006 due after third accepted product before
+            later new product phase. No school operations.
+          frozen_directed_evidence:
+            candidate: c051c5cfb649206379bfb30df44ceff946a78a47
+            before_run: 38158088686
+            before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
+            after_run: 38158787892
+            after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
+            root_originals_verified: true
+            product_acceptance: false
+        revision_snapshot:
+          kind: observed_snapshot
+          convergence_baseline_sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
+          head_sha: null
+          observed_at: '2026-10-11T12:13:35.199881+00:00'
+          main:
+            branch: main
+            sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
+          observation_note: Dated selection only. Current e51 General38136942401 independently verified
+            all4SUCCESS. New553 repair not implemented or accepted. Exact546 task/revisions/candidate and
+            all other suspended tasks preserved; school actions NONE. Fetch main and actual exact CI before
+            every write.
+        reason: Exact9f950 NEW independent review REQUEST_CHANGES category C old catalog548 failure; all
+          originals/candidate preserved. Owner now approves specific mutual553/554 registration conflicts.548
+          observation natural PASS is NOT a fix or blocker closure.
+      preserved_final_candidate_sha: 9f9505f9e7a84b7a869e5a2fd93583742c27abdd
+      preserved_final_review_verdict: REQUEST_CHANGES_category_C_catalog548
+      preserved_final_review_original_sha256: 3ec4ba63f40514c63c25d5d02a22b9c5dacddacd5f7501edd079ca4f54536644
+      mutual_553_554_owner_approval: 'Explicit owner reply: preserve both scenarios and verify combined
+        SHA; applies to TWO package command lines and focused workflow pathfilter only.'
+      approved_package_sha256: f724c0356b5ab66b5f505407a1c3ac5ab79175f5cb8e7f37f335065b5aa33f73
+      approved_workflow_sha256: cf3a883a9c07dd8557aab61325b3805592e338a75cd700d506869f96496f2c6e
+      main_554_accepted_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
+      hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
+      asset548_status: NO_PROVEN_CAUSE; no repair/blocker closure. New final composition gate is integration
+        evidence, not a rerun of9f950.
+      controller_observed_at: '2026-10-11T20:01:09.957092+00:00'
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2603,15 +2687,15 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
+      convergence_baseline_sha: 07f0e94f0cf30b535e46a841d0854d3656c567ac
       head_sha: null
-      observed_at: '2026-10-11T12:13:35.199881+00:00'
+      observed_at: '2026-10-11T20:01:09.957092+00:00'
       main:
         branch: main
-        sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
-      observation_note: Dated selection only. Current e51 General38136942401 independently verified all4SUCCESS.
-        New553 repair not implemented or accepted. Exact546 task/revisions/candidate and all other suspended tasks
-        preserved; school actions NONE. Fetch main and actual exact CI before every write.
+        sha: 07f0e94f0cf30b535e46a841d0854d3656c567ac
+      observation_note: Dated R5 selection; fetch main and actual exact CI before writes. Main07f General38168224978
+        all4SUCCESS.5539f950 remains unaccepted categoryC;5540e41 accepted/newAPPROVE/all8.548 one directed
+        observation passed naturally/NO_PROVEN_CAUSE, no blocker lifted. No school actions.
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-SCHEDULER-SAME-TIME-001
       issue: 540
@@ -2629,15 +2713,14 @@ parallel_lanes:
         selected_at: '2026-10-09T19:34:20Z'
         source_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
         preserved_preparation_sha: 9036e015195cd367c6e5f84c603a530df9d2e443
-        integration_priority: Hygiene542 accepted; remain unaccepted until full GPIO/Serial
-          and necessary exact gates plus NEW independent reviewer. External Access timeout
-          separately forwarded Portal for C/D classification.
+        integration_priority: Hygiene542 accepted; remain unaccepted until full GPIO/Serial and necessary
+          exact gates plus NEW independent reviewer. External Access timeout separately forwarded Portal
+          for C/D classification.
         evidence: docs/product/electronics/evidence/scheduler-540-proven-same-time-cost.md
-        repair_scope: R1 only scheduler and its mapped spec. First localize remaining
-          compute cost of exact72 using retained full GPIO document and external read-only
-          profile; no repeat unchanged browser run. Safe causal product repair only with
-          full byte-exact canonical parity. New production path requires separate concrete
-          controller decision before edits. Quantum1000us/instruction1us/event256/quality/physics/full
+        repair_scope: R1 only scheduler and its mapped spec. First localize remaining compute cost of exact72
+          using retained full GPIO document and external read-only profile; no repeat unchanged browser
+          run. Safe causal product repair only with full byte-exact canonical parity. New production path
+          requires separate concrete controller decision before edits. Quantum1000us/instruction1us/event256/quality/physics/full
           programs/5s unchanged; no yielded as ready.
         prior_failed_candidate_sha: 72e3122f5bd3510bd7b837965365bc33c87da115
         prior_failed_candidate_tree: 5cae8ada4b137364436d0b7b540b8d6d7810ce68
@@ -2657,12 +2740,11 @@ parallel_lanes:
         main:
           branch: main
           sha: 3134650d808e698a9524515388d1793b0841a677
-        observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW
-          independent exact72 REQUEST_CHANGES: GPIO16 ready C=H0..1.5s, indices0..5 in
-          unchanged5s, compute4330.7ms/UI4.5..16.5ms. Serial8/fullSave/reopen PASS; ordinary
-          NOT_RUN. General37987090792 Access timeout separate C/D, other3 PASS. Preserve72/c7/9036/1747
-          and all original artifacts. Bounded R1 selected, same two-path budget; actual
-          profiling before any further optimization. No school/device frequency claim.'
+        observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent exact72
+          REQUEST_CHANGES: GPIO16 ready C=H0..1.5s, indices0..5 in unchanged5s, compute4330.7ms/UI4.5..16.5ms.
+          Serial8/fullSave/reopen PASS; ordinary NOT_RUN. General37987090792 Access timeout separate C/D,
+          other3 PASS. Preserve72/c7/9036/1747 and all original artifacts. Bounded R1 selected, same two-path
+          budget; actual profiling before any further optimization. No school/device frequency claim.'
       status: blocked_pending_solver_preparation_dependency
       dependency_issue: 546
       owner_acceptance: pending
@@ -2685,10 +2767,9 @@ parallel_lanes:
         independent_review: request_changes
         independent_evidence: docs/product/electronics/evidence/arduino-bitwise-537-independent-review-89946bb1.md
         independent_review_original_sha256: 9f0282b6c2872f574afa13552030d1f59f8413ef573d2547d2016b8f932a0e33
-        repair_scope: Only dedicated browser fixture canonical LED defaults. Keep full
-          document equality and all real Worker/GPIO/LED/Serial/save/reopen assertions;
-          production unchanged. Both failed probes stopped before Run and do not prove
-          browser bitwise behavior.
+        repair_scope: Only dedicated browser fixture canonical LED defaults. Keep full document equality
+          and all real Worker/GPIO/LED/Serial/save/reopen assertions; production unchanged. Both failed
+          probes stopped before Run and do not prove browser bitwise behavior.
       revisions:
         kind: observed_snapshot
         convergence_baseline_sha: a211875aff3e4452ee085109a282d5f72a33dcac
@@ -2697,15 +2778,13 @@ parallel_lanes:
         main:
           branch: main
           sha: a211875aff3e4452ee085109a282d5f72a33dcac
-        observation_note: 'Dated snapshot; fetch main and exact CI before writes. NEW
-          independent REQUEST_CHANGES on preserved candidate requires one bounded test-only
-          acceptance repair; product source must remain unchanged unless a new actual
-          defect is proved. Complete pupil browser acceptance and required exact gates
-          remain missing. Main General37963988429 is FAILURE from independent Portal/Scratch
-          synthetic fixtures: Governance/Code/Data SUCCESS, Access eight failures; transmitted
-          to responsible Portal executor, no Electronics scope expansion. All prior accepted/suspended
-          results and foreign work remain preserved. Root530 then526 stay priority. No
-          school/DB/deployment/network/backup operations.'
+        observation_note: 'Dated snapshot; fetch main and exact CI before writes. NEW independent REQUEST_CHANGES
+          on preserved candidate requires one bounded test-only acceptance repair; product source must remain
+          unchanged unless a new actual defect is proved. Complete pupil browser acceptance and required
+          exact gates remain missing. Main General37963988429 is FAILURE from independent Portal/Scratch
+          synthetic fixtures: Governance/Code/Data SUCCESS, Access eight failures; transmitted to responsible
+          Portal executor, no Electronics scope expansion. All prior accepted/suspended results and foreign
+          work remain preserved. Root530 then526 stay priority. No school/DB/deployment/network/backup operations.'
       status: blocked_pending_ready_cadence_dependency
       dependency_issue: 539
       candidate_sha: 1747f8650a45d27d8cdde0a5fbc03fa82a867cd9
@@ -2735,8 +2814,7 @@ parallel_lanes:
         dependency_for_issue: 537
         owner_acceptance: pending
         selected_at: '2026-10-09T18:13:06Z'
-        integration_priority: hold candidate until root530 then526 acceptance; preserve
-          E01 priority
+        integration_priority: hold candidate until root530 then526 acceptance; preserve E01 priority
         preserved_candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
         preserved_candidate_tree: 2051369e4b1cb851621da9dedba8deaf7fac9839
         preserved_candidate_branch: codex/electronics-ready-cadence-539-final
@@ -2748,11 +2826,10 @@ parallel_lanes:
         directed_before_run: 37977684653
         directed_after_run: 37977699930
         directed_after_conclusion: failure
-        repair_scope: Only proven remaining compute cost inside the two existing controller/runtime
-          production paths. Keep both complete generic programs, 5s/30s assertions, all
-          canonical state/inputs/barriers/precision/budgets. New production path requires
-          a separate bounded controller decision before edits. E01 acceptance remains
-          priority; hold this candidate integration until E01 and due hygiene.
+        repair_scope: Only proven remaining compute cost inside the two existing controller/runtime production
+          paths. Keep both complete generic programs, 5s/30s assertions, all canonical state/inputs/barriers/precision/budgets.
+          New production path requires a separate bounded controller decision before edits. E01 acceptance
+          remains priority; hold this candidate integration until E01 and due hygiene.
       revisions:
         kind: observed_snapshot
         convergence_baseline_sha: c69265688891d3084f59add6d1188813a6764633
@@ -2761,16 +2838,14 @@ parallel_lanes:
         main:
           branch: main
           sha: c69265688891d3084f59add6d1188813a6764633
-        observation_note: 'Dated snapshot; fetch main and actual exact CI before writes.
-          NEW independent exactc7 REQUEST_CHANGES: Serial full8/save/reopen PASS, GPIO
-          genuine ready0..1400000/100000 and UI0..5 only within original5s; actual compute14chunks4113.2ms,
-          observer15/200, no lost ready frame or physics quality fault. General37975631829
-          all4SUCCESS does not accept incomplete pupil journey; Ordinary source NOT_RUN
-          deliberately after directed failure. Preserve c7/0147/1747 and original BEFORE/AFTER
-          ZIPs. New bounded R1 author investigates remaining compute cause within existing
-          two production paths; no timeout/precision/budget weakening, no incomplete frame.
-          Root526 stays independent priority; all other lanes/history preserved; school/K0/T3/class/deployment
-          pending.'
+        observation_note: 'Dated snapshot; fetch main and actual exact CI before writes. NEW independent
+          exactc7 REQUEST_CHANGES: Serial full8/save/reopen PASS, GPIO genuine ready0..1400000/100000 and
+          UI0..5 only within original5s; actual compute14chunks4113.2ms, observer15/200, no lost ready frame
+          or physics quality fault. General37975631829 all4SUCCESS does not accept incomplete pupil journey;
+          Ordinary source NOT_RUN deliberately after directed failure. Preserve c7/0147/1747 and original
+          BEFORE/AFTER ZIPs. New bounded R1 author investigates remaining compute cause within existing
+          two production paths; no timeout/precision/budget weakening, no incomplete frame. Root526 stays
+          independent priority; all other lanes/history preserved; school/K0/T3/class/deployment pending.'
       status: blocked_pending_same_time_scheduler_dependency
       dependency_issue: 540
       candidate_sha: c7ab5fd428c729a50d081ab7b85f71b3fade7ac8
@@ -2791,12 +2866,12 @@ parallel_lanes:
         checkpoint: r3_linear_row_lookup_product_parity_before_browser
         owner_acceptance: pending
         selected_at: '2026-10-09T21:17:44Z'
-        repair_scope: ONLY domain/linear-system.ts mechanical local row-reference lookups after pivot swaps; new
-          testing/linear-system.spec.ts and existing solver/scheduler specs only meaningful exact parity; additive
-          engine-worker-clock.yaml test registration allowed. Preserve literal arithmetic/order/pivot thresholds/copy/null/exceptions,
-          no numerical/state/matrix/solution cache, skipped solve/quality, timeout/horizon/quantum/precision/program
-          change. One bounded author/source and full-return parity/focused/selfreview thenSTOP; root actualcheck/direct
-          fullGPIO+Serial/exact all8/NEW independent review before acceptance.
+        repair_scope: ONLY domain/linear-system.ts mechanical local row-reference lookups after pivot swaps;
+          new testing/linear-system.spec.ts and existing solver/scheduler specs only meaningful exact parity;
+          additive engine-worker-clock.yaml test registration allowed. Preserve literal arithmetic/order/pivot
+          thresholds/copy/null/exceptions, no numerical/state/matrix/solution cache, skipped solve/quality,
+          timeout/horizon/quantum/precision/program change. One bounded author/source and full-return parity/focused/selfreview
+          thenSTOP; root actualcheck/direct fullGPIO+Serial/exact all8/NEW independent review before acceptance.
         preserved_candidate_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
         preserved_candidate_tree: fa3c4fa75b6c74840f8a395257fec2a62b26bbe8
         candidate_publication: published
@@ -2816,32 +2891,33 @@ parallel_lanes:
         browser_failed: 1
         residual_cause: Cookies-only reopened poll deadline22819.185ms; genuine ready7/UI7 upper bounds21455.795/21479.895ms;
           fullsnapshot final evaluate22588.763..22848.810ms crosses olddeadline29.625ms. Initial GPIO full0..7/Serial
-          Save-reopen PASS; GPIO final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause observer
-          repair needed.
+          Save-reopen PASS; GPIO final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause
+          observer repair needed.
         residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
         residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
         residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct self, solveStep53.8pct
-          inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing claim.
-        implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state challenges
-          and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until actual directed
-          and ordinary exact all8/newreview.
+          inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing
+          claim.
+        implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state
+          challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until
+          actual directed and ordinary exact all8/newreview.
         r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
         r1_directed_run: 38006467707
         r1_directed_conclusion: failure
-        r1_failure_classification: 'D: full observation transport/poll deadline race; all8 genuine ready and UI
-          already exist before old deadline; new compute defect NOT proved'
+        r1_failure_classification: 'D: full observation transport/poll deadline race; all8 genuine ready
+          and UI already exist before old deadline; new compute defect NOT proved'
         exact_candidate_general_run: 38008510546
         exact_candidate_general_conclusion: success
         exact_candidate_electronics_run: 38009043770
         exact_candidate_electronics_conclusion: failure
         actual_new_failure: FIRST initialGPIO before reopen,14ready C=H0to1.3s/0yielded/solvedQualityPASS,indices0to5;computeSum4098.4ms/max698.2ms.
-          Fullfinally returns before olddeadline; not prior latefullsnapshotD. Precise CPU/host split and exact-deadline
-          absence notproved.
-        next_action: NEW bounded product author implements exact row-reference-only proposal on preserved037 source,
-          remotely selected canonical card authoritative. One final convergence with accepted main remains separate
-          and awaits existing specific import-conflict agreement; no actual merge/conflict resolution before answer.
-          Preserve all accepted and suspended candidates; original537 programmes separately checked after dependency
-          acceptance.
+          Fullfinally returns before olddeadline; not prior latefullsnapshotD. Precise CPU/host split and
+          exact-deadline absence notproved.
+        next_action: NEW bounded product author implements exact row-reference-only proposal on preserved037
+          source, remotely selected canonical card authoritative. One final convergence with accepted main
+          remains separate and awaits existing specific import-conflict agreement; no actual merge/conflict
+          resolution before answer. Preserve all accepted and suspended candidates; original537 programmes
+          separately checked after dependency acceptance.
         r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
         r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
         r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
@@ -2854,9 +2930,9 @@ parallel_lanes:
         r3_directed_probe_sha: 8893bc6c712d375641919a85f6fe26430580f2ea
         r3_directed_run: 38014843498
         r3_directed_conclusion: success_directed_not_final_acceptance
-        r3_root_actual: 64originals/3796foreignentries/11255fullreturns281groups/399GPIO-Serialraw verified; rebuilt40-input
-          bundles and rootexecuted12038directcases. Directedfull17/24GPIOinitial21/reopen20ready all8GPIO+UI,Serialall8lines;wholeSave/rev+1/cookies-onlyfinaldraft
-          equal,yieldednull. Finalmaincomposition/ordinaryall8/NEWreviewpending.
+        r3_root_actual: 64originals/3796foreignentries/11255fullreturns281groups/399GPIO-Serialraw verified;
+          rebuilt40-input bundles and rootexecuted12038directcases. Directedfull17/24GPIOinitial21/reopen20ready
+          all8GPIO+UI,Serialall8lines;wholeSave/rev+1/cookies-onlyfinaldraft equal,yieldednull. Finalmaincomposition/ordinaryall8/NEWreviewpending.
       revisions:
         kind: observed_snapshot
         convergence_baseline_sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
@@ -2867,20 +2943,19 @@ parallel_lanes:
           sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
         observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes, not live authority.
           Fresh e761 General37990032316 failure before product assertions: Docker Hub429 Data/Access, Governance/Code
-          SUCCESS. CI545 separately selected identical immutable image transport, no school network or Docker changes.
-          543043a and541a741 unpublished candidates preserved. 540 exact72 remaining compute cause independently
-          proved; R1 stopped without product edits, separate546 preparation scope selected. 544 native field cause
-          must first be proved in built browser. All acceptance/release claims pending exact evidence/NEW review;
-          K0/T3/class/school/deployment pending.'
+          SUCCESS. CI545 separately selected identical immutable image transport, no school network or Docker
+          changes. 543043a and541a741 unpublished candidates preserved. 540 exact72 remaining compute cause
+          independently proved; R1 stopped without product edits, separate546 preparation scope selected.
+          544 native field cause must first be proved in built browser. All acceptance/release claims pending
+          exact evidence/NEW review; K0/T3/class/school/deployment pending.'
       status: preserved_pending_final_convergence_and_specific_import_conflict_decision
       candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
       candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
       candidate_branch: codex/electronics-546-r3-linear-rows
       owner_acceptance: pending
-      resume_contract: Preserve accepted directed fullGPIO/Serial evidence and all original candidates. No actual
-        final merge or manual import conflict resolution before the pending specific owner decision. No repeated
-        old measurements without new cause.
-
+      resume_contract: Preserve accepted directed fullGPIO/Serial evidence and all original candidates.
+        No actual final merge or manual import conflict resolution before the pending specific owner decision.
+        No repeated old measurements without new cause.
   - id: electronics-wire
     parent_lane: electronics
     worktree_id: electronics-wire-538
