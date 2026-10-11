@@ -309,18 +309,24 @@ def verify_systemd_unit(text, identity, python):
             'Inspect the exact unit as its operator. A historical quoted WorkingDirectory requires manual owned-unit repair; no service was changed.')
 
 
-def verify_effective_exec(identity, python):
-    """systemctl's flattened argv is ambiguous; query the typed D-Bus array."""
+SYSTEMD_EMPTY_ARRAYS = dict(ExecStartPre='a(sasbttttuii)', ExecStartPost='a(sasbttttuii)',
+                            ExecStop='a(sasbttttuii)', ExecStopPost='a(sasbttttuii)', EnvironmentFiles='a(sb)')
+
+
+def systemd_property(identity, property_name, signature):
+    """Read exactly one typed property; missing/unsupported is never empty."""
+    require(property_name in {'ExecStart', *SYSTEMD_EMPTY_ARRAYS}, 'COLLECTOR_SYSTEMD_QUERY', 'Unsupported collector property.')
     name = identity['name']
     require(re.fullmatch(r'[a-z0-9_.-]+', name), 'COLLECTOR_RUNNER_IDENTITY', 'Unexpected systemd unit name.')
     encoded = ''.join(c if c.isascii() and c.isalnum() else f'_{ord(c):02x}' for c in name)
     args = ['busctl', '--system' if identity['mode'] == 'system' else '--user', '--json=short',
             '--no-pager', '--allow-interactive-authorization=no', 'get-property', 'org.freedesktop.systemd1',
-            '/org/freedesktop/systemd1/unit/' + encoded, 'org.freedesktop.systemd1.Service', 'ExecStart']
+            '/org/freedesktop/systemd1/unit/' + encoded, 'org.freedesktop.systemd1.Service', property_name]
     try:
-        raw = command(args)[0]
+        raw, code = command(args)
+        require(code == 0, 'COLLECTOR_SYSTEMD_QUERY', 'Typed systemd property query failed.')
     except (Blocked, OSError, subprocess.SubprocessError) as exc:
-        raise Blocked('COLLECTOR_SYSTEMD_QUERY', 'Cannot verify the loaded collector command through systemd busctl.',
+        raise Blocked('COLLECTOR_SYSTEMD_QUERY', f'Cannot verify loaded collector property {property_name} through systemd busctl.',
                       'Install/restore busctl with JSON support and retry as the registered operator; no service change was made.') from exc
     def unique_object(pairs):
         result = {}
@@ -331,18 +337,34 @@ def verify_effective_exec(identity, python):
     try:
         require(len(raw) <= 65536, 'COLLECTOR_RUNNER_IDENTITY', 'Effective command response is too large.')
         value = json.loads(raw, object_pairs_hook=unique_object)
-        require(isinstance(value, dict) and set(value) == {'type', 'data'} and value['type'] == 'a(sasbttttuii)' and
-                isinstance(value['data'], list) and len(value['data']) == 1,
-                'COLLECTOR_RUNNER_IDENTITY', 'Expected exactly one typed effective service action.')
-        action = value['data'][0]
-        root, script = systemd_paths(identity, python)
-        expected = [python, script, '--root', root]
-        require(isinstance(action, list) and len(action) == 10 and action[0] == python and action[1] == expected and
-                action[2] is False and all(type(item) is int and item >= 0 for item in action[3:]),
-                'COLLECTOR_RUNNER_IDENTITY', 'Effective service executable or complete argv differs from this collector.')
+        require(isinstance(value, dict) and set(value) == {'type', 'data'} and value['type'] == signature and
+                isinstance(value['data'], list),
+                'COLLECTOR_RUNNER_IDENTITY', f'Unexpected typed systemd property shape or signature: {property_name}.')
+        return value['data']
     except (ValueError, TypeError, KeyError) as exc:
-        raise Blocked('COLLECTOR_RUNNER_IDENTITY', 'Malformed or ambiguous effective service command; refusing changes.',
+        raise Blocked('COLLECTOR_RUNNER_IDENTITY', f'Malformed or ambiguous effective service property: {property_name}; refusing changes.',
                       'Inspect the owned unit and systemd busctl response before retrying.') from exc
+
+
+def verify_effective_exec(identity, python):
+    """systemctl's flattened argv is ambiguous; query the typed D-Bus array."""
+    actions = systemd_property(identity, 'ExecStart', 'a(sasbttttuii)')
+    require(len(actions) == 1, 'COLLECTOR_RUNNER_IDENTITY', 'Expected exactly one typed effective service action.')
+    action = actions[0]
+    root, script = systemd_paths(identity, python)
+    expected = [python, script, '--root', root]
+    require(isinstance(action, list) and len(action) == 10 and action[0] == python and action[1] == expected and
+            action[2] is False and all(type(item) is int and item >= 0 for item in action[3:]),
+            'COLLECTOR_RUNNER_IDENTITY', 'Effective service executable or complete argv differs from this collector.')
+
+
+def verify_effective_empty(identity):
+    # systemctl --all can omit these custom empty arrays. Only the exact typed
+    # empty array proves absence; a missing text property supplies no evidence.
+    for name, signature in SYSTEMD_EMPTY_ARRAYS.items():
+        require(systemd_property(identity, name, signature) == [], 'COLLECTOR_RUNNER_IDENTITY',
+                f'Collector service has a nonempty effective {name} array; refusing changes.')
+    print('COLLECTOR_SYSTEMD typed empty arrays verified: ' + ','.join(SYSTEMD_EMPTY_ARRAYS))
 
 
 def verify_effective_owner(effective, identity):
@@ -381,7 +403,7 @@ def verify_systemd_state(identity, path, python, *, owned_unloaded=False):
                 'COLLECTOR_RUNNER_IDENTITY', f'Unproven absent systemd unit; load={load_state}; missing={missing}.')
         print(f'COLLECTOR_SYSTEMD new unit: inactive/not-found facts verified; missing Service properties={missing or "none"}')
     else:
-        require(code == 0 and set(effective) == set(properties) and load_state == 'loaded' and effective['Transient'] == 'no',
+        require(code == 0 and set(properties) - set(SYSTEMD_EMPTY_ARRAYS) <= set(effective) and load_state == 'loaded' and effective['Transient'] == 'no',
                 'COLLECTOR_RUNNER_IDENTITY', f'Incomplete or unsupported effective systemd state; load={load_state}; missing={missing}.')
     require(not effective.get('FragmentPath') or effective['FragmentPath'] == str(path),
             'COLLECTOR_RUNNER_IDENTITY', 'Service is loaded from another unit path.')
@@ -393,6 +415,7 @@ def verify_systemd_state(identity, path, python, *, owned_unloaded=False):
         require(bool(effective.get('ExecStart')), 'COLLECTOR_RUNNER_IDENTITY', 'Loaded service has no effective command.')
         verify_effective_owner(effective, identity)
         verify_effective_exec(identity, python)
+        verify_effective_empty(identity)
     else:
         require(not effective.get('ExecStart'), 'COLLECTOR_RUNNER_IDENTITY', 'Command exists without an owned unit file.')
         try: command(['busctl', '--json=short', '--version'])
