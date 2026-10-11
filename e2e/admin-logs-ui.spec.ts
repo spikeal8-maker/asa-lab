@@ -195,7 +195,14 @@ for (const width of [1440, 1025, 1024, 390, 320]) {
       .boundingBox();
     const searchBox = await page.getByRole('searchbox').boundingBox();
     if (width >= 1025) expect(Math.abs(moduleBox!.y - searchBox!.y)).toBeLessThan(2);
-    if (width === 1024) expect(searchBox!.width).toBeGreaterThan(moduleBox!.width * 1.8);
+    if (width === 1024) {
+      const levelBox = await page
+        .getByRole('combobox', { name: 'Уровень', exact: true })
+        .boundingBox();
+      expect(Math.abs(levelBox!.y - searchBox!.y)).toBeLessThan(2);
+      expect(Math.abs(levelBox!.width - searchBox!.width)).toBeLessThan(2);
+      expect(searchBox!.x).toBeGreaterThan(levelBox!.x);
+    }
     await expect(
       page.getByText('Источники и полнота: 151 дозагружаются; 0 с ошибкой; 1 недоступны'),
     ).toBeVisible();
@@ -219,7 +226,7 @@ test('source coverage is readable and archive buttons use dates independently of
   await expect(page.getByText(/старые записи этого источника сокращены/)).toBeVisible();
   await page.getByLabel(/^Источник/).selectOption('scratch');
   await page.getByLabel(/^Модуль/).selectOption('scratch');
-  await page.getByLabel('Подсистема', { exact: true }).selectOption('scratch');
+  await page.getByLabel(/^Подсистема/).selectOption('scratch');
   await page.getByLabel('Поиск', { exact: true }).fill('failure');
   await page.getByRole('button', { name: 'Показать', exact: true }).click();
   await expect.poll(() => f.queries().at(-1)?.get('search')).toBe('failure');

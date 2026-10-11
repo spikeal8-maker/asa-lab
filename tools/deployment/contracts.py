@@ -2,6 +2,7 @@
 
 import datetime as dt
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path, PurePosixPath
@@ -42,6 +43,25 @@ def exact_origin(value):
     except ValueError as exc:
         raise Blocked("ORIGIN", "Invalid origin port.", "Correct the configured origin.") from exc
     return value
+
+
+def attest_proxy_policy(env):
+    """Two distinct trust boundaries; values never become application identity."""
+    for key, default, separator in (
+        ('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12', ','),
+        ('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128', None),
+    ):
+        raw = env.get(key, default)
+        require(isinstance(raw, str) and len(raw) <= 2048, 'PROXY_POLICY', f'Invalid {key}.')
+        values = raw.split(separator)
+        require(0 < len(values) <= 16, 'PROXY_POLICY', f'{key} needs 1..16 explicit CIDRs.')
+        for value in values:
+            try:
+                require(bool(re.fullmatch(r'[a-fA-F0-9:.]+/[0-9]+', value.strip())), 'PROXY_POLICY', f'Invalid CIDR in {key}.')
+                network = ipaddress.ip_network(value.strip(), strict=False)
+                require(network.prefixlen > 0 and not network.is_multicast, 'PROXY_POLICY', f'Unsafe CIDR in {key}.')
+            except ValueError as failure:
+                raise Blocked('PROXY_POLICY', f'Invalid CIDR in {key}.', 'Configure only the actual trusted proxy hops; never trust all sources.') from failure
 
 
 def attest_database_targets(config, postgres_env, api_env=None):
