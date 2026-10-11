@@ -191,6 +191,7 @@ type ProbeWindow = Window & { __nativeWheel?: WheelProbe };
 async function installObserver(page: Page) {
   await page.addInitScript(() => {
     const probe: WheelProbe = { events: [], viewBoxes: [] };
+    const captured = new WeakMap<WheelEvent, WheelReceipt>();
     (window as ProbeWindow).__nativeWheel = probe;
     const scroll = () => [
       scrollX,
@@ -217,14 +218,24 @@ async function installObserver(page: Page) {
           scrollBefore: scroll(),
           scrollAfter: [],
         };
-        // Only read the original event after all synchronous propagation.
-        queueMicrotask(() => {
-          receipt.prevented = event.defaultPrevented;
-          receipt.scrollAfter = scroll();
-          probe.events.push(receipt);
-        });
+        captured.set(event, receipt);
       },
       { capture: true, passive: true },
+    );
+    // The SVG target handler runs before document bubble, regardless of any
+    // microtask checkpoint between native listener callbacks. Capture only
+    // takes before-data; this passive listener reads the same original event.
+    document.addEventListener(
+      'wheel',
+      (event) => {
+        const receipt = captured.get(event);
+        if (!receipt) throw new Error('Native wheel capture receipt is missing');
+        receipt.prevented = event.defaultPrevented;
+        receipt.scrollAfter = scroll();
+        probe.events.push(receipt);
+        captured.delete(event);
+      },
+      { passive: true },
     );
     new MutationObserver((records) => {
       for (const record of records) {
