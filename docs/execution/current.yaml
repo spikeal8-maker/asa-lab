@@ -3192,52 +3192,45 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-integer-time-541
     owned_paths:
-    - apps/web/src/electronics/testing/workbench-header-time.spec.ts
     - e2e/electronics-simulation-time.spec.ts
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
     task:
-      id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
-      issue: 541
+      id: TASK-ELECTRONICS-CLOCK-OBSERVER-001
+      issue: 557
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: integer_committed_seconds_full_originals_new_review_technically_accepted
+      status: in_progress
+      checkpoint: bounded_passive_fractional_ready_integer_dom_observer_repair
+      kind: repair
       owner_acceptance: pending
-      selected_at: '2026-10-09T19:44:45Z'
-      integration_priority: Hygiene542 accepted. Require new exact SHA ordinary/General
-        and NEW independent reviewer of retained originals; green old89 CI is not acceptance.
-      repair_scope: 'R1 evidence only: e2e/electronics-simulation-time.spec.ts explicitly
-        write raw JSON and three running phase PNG per width to testInfo.outputPath and
-        attach paths. Preserve exact Header/product/assertions/timeouts/physics/dependencies/workflows/mounted
-        tests. BEFORE remains genuine causal history, no repeat old run. Mobile DOM-only
-        from unchanged baseline CSS, no visible mobile clock claim.'
-      prior_failed_candidate_sha: 89ebdf34bcb1d30882ddd248376e532b0c9440e5
-      prior_failed_candidate_tree: 1bbb5e7d2f3a3ceeb0e0ced10361599f8edcf7bc
-      independent_review: approved
-      independent_evidence: docs/product/electronics/evidence/integer-time-541-independent-review-768d82e4.md
-      previous_electronics_run: 37986680475
-      previous_browser_passed: 139
-      preserved_candidate_sha: a741cb4256a180cb87a69d60e8c65fd84a410f4e
-      preserved_candidate_tree: d3e776ab1ead1f4a684e0b980710c3e022d5276a
-      candidate_publication: unpublished
-      candidate_acceptance: pending
-      controller_observed_at: '2026-10-09T21:43:50Z'
-      acceptance_dependency_issue: 545
-      accepted_candidate_sha: 768d82e4a15cb0e70765905384282104f7f85029
-      candidate_tree: 943905ee42a64a29a822f6773cd82fa26e19bda6
-      integrated_sha: 58753e9dd6b38419715bbb69547d63d98a8933cd
-      independent_review_original_sha256: 001ff634297e989b1dc72224e7f52ef48968347d890fac86b1ffc0a357c1dc32
-      exact_candidate_general_run: 37999855633
-      exact_candidate_electronics_run: 37999857133
-      exact_candidate_all8: success
-      exact_main_general_run: 38002806815
-      exact_main_general_conclusion: success
-      technical_acceptance: accepted
-      visible_result: Desktop1440/1024 shows whole elapsed seconds without changing canonical
-        time;4widths full Save/revision/reopen and integer DOM format. Mobileclock remains
-        hidden by preexistingCSS; no mobilevisibility claim.
+      programme_issue: 452
+      dependency_for_issue: 552
+      selected_at: '2026-10-11T23:17:21.978668+00:00'
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CLOCK-OBSERVER-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: TEST ONLY e2e/electronics-simulation-time.spec.ts passive observer/oracle. Correct false
+        requirement that integer text change coincide with fractional committed horizon. Preserve all original
+        pupil assertions/budgets/SaveCAS/cookies and ready authority; no product/Header/clock/physics/auth/helper/dependency/workflow
+        changes.
+      baseline_failure_category: C independent test observer; accepted541 product not reopened
+      baseline_failure_sha: 975f1fefb9f54c9b418e12cca50aaa5afe866f2e
+      baseline_failure_run: 38181611589
+      baseline_failure_job: 114595761847
+      independent_evidence: docs/product/electronics/evidence/startup-audio-552-final-review-975f1fef.md
+      independent_review_original_sha256: a0597d7e10544487576b062f2b398fc4b94149574975c7aa76fa5302efbbca1d
+      independent_manifest_sha256: bd60d965610969794e94e6957d2ab7830599b2d8337794a289f9a7a1eb3d8a83
+      actual_evidence: Root verified781external28Git. Actual39042ready37fractional; integer text00..04 only
+        whole-horizon changes. No product regression proven.
+      next_action: NEW bounded test-only author, own clean checkout/fresh preflight/card, actual saved trace/source
+        counterexamples and narrow checks. One unpublishedSHA STOP; root actual verification and NEW SOURCE
+        review; ONE directed real built4widths, final exact required gates/NEW PRODUCT review. No repeat
+        accepted541 product BEFORE; no hopeful unchanged reruns.
+      preservation: Full accepted541 task/revisions and accepted_slices exact.552975/source/nativebeforeafter
+        originals and current startup/E06/foreign lanes preserved.
+      school_actions: deferred_by_owner_no_action
     accepted_slices:
     - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
       issue: 541
@@ -3285,18 +3278,77 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+      convergence_baseline_sha: 85675c3de6e1f6773e589f09b21f75ac435fe349
       head_sha: null
-      observed_at: '2026-10-09T20:49:58Z'
+      observed_at: '2026-10-11T23:17:21.978686+00:00'
       main:
         branch: main
-        sha: 3134650d808e698a9524515388d1793b0841a677
-      observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent
-        exact89 REQUEST_CHANGES evidence-only: all8SUCCESS/139browserPASS but original330CRC
-        ZIP lacks four raw JSON and12running PNG; only4StopPNG. BEFORE722fc882 all4 fractionalclock
-        failure genuine, preserved. Selected bounded evidence preservation R1 only; product/Header/CSS/assertions/timeouts
-        unchanged. Mobileclock hidden by prior CSS: DOM-only/accessibility geometry does
-        not prove visible clock. K0/T3/class/owner/deployment pending.'
+        sha: 85675c3de6e1f6773e589f09b21f75ac435fe349
+      observation_note: Dated557selection; fresh fetch main and actual exact CI before writes.85675 General38178634839
+        all4SUCCESS;975 General38181607447 all4SUCCESS/Electronics38181611589FAIL155/3/imagesSKIP. NEW independentREQUEST_CHANGES
+        A552seedlabels and separateCclockobserver. Preserve all foreign refs/accepted541. School deferred.
+    suspended_tasks:
+    - task_id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
+      issue: 541
+      task:
+        id: TASK-ELECTRONICS-INTEGER-TIME-DISPLAY-001
+        issue: 541
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: integer_committed_seconds_full_originals_new_review_technically_accepted
+        owner_acceptance: pending
+        selected_at: '2026-10-09T19:44:45Z'
+        integration_priority: Hygiene542 accepted. Require new exact SHA ordinary/General and NEW independent
+          reviewer of retained originals; green old89 CI is not acceptance.
+        repair_scope: 'R1 evidence only: e2e/electronics-simulation-time.spec.ts explicitly write raw JSON
+          and three running phase PNG per width to testInfo.outputPath and attach paths. Preserve exact
+          Header/product/assertions/timeouts/physics/dependencies/workflows/mounted tests. BEFORE remains
+          genuine causal history, no repeat old run. Mobile DOM-only from unchanged baseline CSS, no visible
+          mobile clock claim.'
+        prior_failed_candidate_sha: 89ebdf34bcb1d30882ddd248376e532b0c9440e5
+        prior_failed_candidate_tree: 1bbb5e7d2f3a3ceeb0e0ced10361599f8edcf7bc
+        independent_review: approved
+        independent_evidence: docs/product/electronics/evidence/integer-time-541-independent-review-768d82e4.md
+        previous_electronics_run: 37986680475
+        previous_browser_passed: 139
+        preserved_candidate_sha: a741cb4256a180cb87a69d60e8c65fd84a410f4e
+        preserved_candidate_tree: d3e776ab1ead1f4a684e0b980710c3e022d5276a
+        candidate_publication: unpublished
+        candidate_acceptance: pending
+        controller_observed_at: '2026-10-09T21:43:50Z'
+        acceptance_dependency_issue: 545
+        accepted_candidate_sha: 768d82e4a15cb0e70765905384282104f7f85029
+        candidate_tree: 943905ee42a64a29a822f6773cd82fa26e19bda6
+        integrated_sha: 58753e9dd6b38419715bbb69547d63d98a8933cd
+        independent_review_original_sha256: 001ff634297e989b1dc72224e7f52ef48968347d890fac86b1ffc0a357c1dc32
+        exact_candidate_general_run: 37999855633
+        exact_candidate_electronics_run: 37999857133
+        exact_candidate_all8: success
+        exact_main_general_run: 38002806815
+        exact_main_general_conclusion: success
+        technical_acceptance: accepted
+        visible_result: Desktop1440/1024 shows whole elapsed seconds without changing canonical time;4widths
+          full Save/revision/reopen and integer DOM format. Mobileclock remains hidden by preexistingCSS;
+          no mobilevisibility claim.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: cffba38eb7a3a043fa71295db62716f2648baa13
+        head_sha: null
+        observed_at: '2026-10-09T20:49:58Z'
+        main:
+          branch: main
+          sha: 3134650d808e698a9524515388d1793b0841a677
+        observation_note: 'Dated snapshot; fetch main and actual CI before writes. NEW independent exact89
+          REQUEST_CHANGES evidence-only: all8SUCCESS/139browserPASS but original330CRC ZIP lacks four raw
+          JSON and12running PNG; only4StopPNG. BEFORE722fc882 all4 fractionalclock failure genuine, preserved.
+          Selected bounded evidence preservation R1 only; product/Header/CSS/assertions/timeouts unchanged.
+          Mobileclock hidden by prior CSS: DOM-only/accessibility geometry does not prove visible clock.
+          K0/T3/class/owner/deployment pending.'
+      reason: Preserve complete accepted541 snapshot unchanged;557 is a separately selected test-observer
+        baseline dependency, not reopened product.
   - id: electronics-field
     parent_lane: electronics
     worktree_id: electronics-native-wheel-554
@@ -4681,4 +4733,23 @@ blocking:
       tone/PCM/noTone/Stop pupil journey required by552 cannot pass until separate accepted553 repair and new
       exact composition/evidence/review; startup unit/presenter is not substitute.
     evidence: docs/product/electronics/evidence/piezo-clock-553-prerequisite.md
+  - id: ELECTRONICS-552-CLOCK-OBSERVER-557
+    kind: acceptance_blocker
+    lane: electronics-startup
+    task_id: TASK-ELECTRONICS-AUDIO-STARTUP-BARRIER-001
+    blocks:
+    - technical_acceptance
+    - integration
+    - close_issue
+    - owner_acceptance
+    - release_claim
+    allows:
+    - bounded_repair
+    - documentation_update
+    - focused_verification
+    - independent_source_review
+    reason: Exact975 ordinary38181611589 browser114595761847 fails old integer-clock observer181 despite
+      actual42ready37fractional and correctintegertext. IndependentC baseline557 must be repaired/reviewed
+      and required exact gates green; labels552 repaired separately. No product clock regression proven.
+    evidence: docs/product/electronics/evidence/startup-audio-552-final-review-975f1fef.md
 next_task: null
