@@ -23,7 +23,7 @@ ONE new author writes product code now: ProductionComponentVisual.tsx ONLY these
 ## Source/test budget
 
 - ProductionComponentVisual.tsx only production path.
-- New testing/selection-outline.spec.tsx: mounted production component, meaningful outward geometry/zoom/ordinary pin preservation regressions; not string source checks or literal implementation mirrors.
+- New testing/selection-outline.spec.ts: mounted production component using createElement (the existing Vitest include is **/*.spec.ts), meaningful outward geometry/zoom/ordinary pin preservation regressions; not string source checks or literal implementation mirrors. Do not change global Vitest configuration.
 - New e2e/electronics-selection-outline.spec.ts: one production-browser pupil journey, four viewport cases1440/1024/390/320; necessary additive registration in both existing e2e:electronics/e2e:electronics-simulation scripts, existing focused workflow path list, and electronics.ui.workbench.tests in ui-assets-persistence.yaml. Preserve all old scripts/jobs/steps/tests/map entries/dependencies/lockfile/security and generated digests; no workflow command replacement in source.
 - Existing interactions/common specs, 547 browser/CSS, Stage, Arduino/compiler/solver/Worker/clock/persistence/API/auth/schema/owner assets/current/card are read-only to author.
 

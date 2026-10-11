@@ -3191,7 +3191,7 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-selection-outline
     owned_paths:
-    - apps/web/src/electronics/testing/selection-outline.spec.tsx
+    - apps/web/src/electronics/testing/selection-outline.spec.ts
     - e2e/electronics-selection-outline.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SELECTION-OUTLINE-001.md
     task:
