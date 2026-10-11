@@ -162,6 +162,9 @@ async function fixture() {
   };
 }
 describe('participants with real PostgreSQL and the runtime role', () => {
+  // This is a bounded multi-workspace functional journey, not a latency benchmark.
+  // It publishes/copies/enrolls and checks both identities, revocation and no writes.
+  // The default 5s ceiling expired on CI after earlier identical-path passes.
   it('copies an organization-owned theory source into a personal classroom with pinned lineage and exact learner visibility', async () => {
     const f = await fixture();
     const personalTenant = randomUUID(),
@@ -412,7 +415,7 @@ describe('participants with real PostgreSQL and the runtime role', () => {
       ).rows,
     ).toEqual([]);
     expect(await counts()).toEqual(before);
-  });
+  }, 15_000);
   it('pages assigned-but-not-started direct/course theory without writes or Account/Seat duplicates, and respects exclusion and teacher isolation', async () => {
     const f = await fixture();
     const account = await f.learner();
