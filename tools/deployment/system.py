@@ -9,7 +9,7 @@ import subprocess
 import time
 import urllib.request
 
-from .contracts import Blocked, atomic_json, attest_database_targets, read_env, require
+from .contracts import Blocked, atomic_json, attest_database_targets, attest_proxy_policy, read_env, require
 
 
 def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None, input_file=None):
@@ -58,6 +58,7 @@ class Installation:
         self.root = Path(root).resolve()
         self.state = self.root / ".asa"
         self.env = read_env(self.root / ".env") if (self.root / ".env").exists() else {}
+        attest_proxy_policy(self.env)
         self.settings = json.loads((self.state / "installation.json").read_text(encoding="utf-8")) if (self.state / "installation.json").exists() else {}
         self.profile = profile or self.settings.get("profile", "production")
         require(self.profile in ("dev", "production", "staging", "base"), "PROFILE", "Unsupported profile.")
