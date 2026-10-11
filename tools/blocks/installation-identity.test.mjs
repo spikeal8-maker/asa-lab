@@ -197,23 +197,27 @@ test('startup guards precede environment mutation and both updaters recheck befo
     assert.ok(update.includes(`installation-identity.${extension}`));
     // Require consecutive complete commands, allowing indentation only. The
     // collector must succeed before the migration plan and service replacement.
-    const commands = extension === 'ps1'
-      ? [
-          'Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting',
-          '# Validate the real existing history before stopping any working service.',
-          '& python tools/log_collector.py prepare --root $RepoRoot --profile $Profile',
-          "if ($LASTEXITCODE -ne 0) { throw 'Collector preparation failed before service replacement.' }",
-          "Invoke-Compose -Arguments @('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')",
-          "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
-        ]
-      : [
-          'if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity &&',
-          'python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile" &&',
-          'compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan &&',
-          'compose up -d --no-build && wait_exact_readiness && assert_embedded_entry_reachable &&',
-        ];
+    const commands =
+      extension === 'ps1'
+        ? [
+            'Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting',
+            '# Validate the real existing history before stopping any working service.',
+            '& python tools/log_collector.py prepare --root $RepoRoot --profile $Profile',
+            "if ($LASTEXITCODE -ne 0) { throw 'Collector preparation failed before service replacement.' }",
+            "Invoke-Compose -Arguments @('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')",
+            "Invoke-Compose -Arguments @('up', '-d', '--no-build')",
+          ]
+        : [
+            'if [ "$build_ok" = true ] && compose config --quiet && assert_update_identity &&',
+            'python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile" &&',
+            'compose run --rm --no-deps --entrypoint node migration tools/migrate.mjs --plan &&',
+            'compose up -d --no-build && wait_exact_readiness && assert_embedded_entry_reachable &&',
+          ];
     const checkedOrder = commands.join('\n');
-    const normalizedUpdate = update.split('\n').map((line) => line.trim()).join('\n');
+    const normalizedUpdate = update
+      .split('\n')
+      .map((line) => line.trim())
+      .join('\n');
     const checkedBlockCount = (source) => {
       const lines = source.split('\n');
       return lines.reduce(
@@ -226,7 +230,10 @@ test('startup guards precede environment mutation and both updaters recheck befo
     assert.ok(hasOneCheckedBlock(normalizedUpdate), `${extension}: one checked replacement block`);
     const duplicateUpdate = `${normalizedUpdate}\n${checkedOrder}`;
     assert.equal(checkedBlockCount(duplicateUpdate), 2, `${extension}: duplicate block fixture`);
-    assert.ok(!hasOneCheckedBlock(duplicateUpdate), `${extension}: reject duplicate replacement block`);
+    assert.ok(
+      !hasOneCheckedBlock(duplicateUpdate),
+      `${extension}: reject duplicate replacement block`,
+    );
     const collectorIndex = extension === 'ps1' ? 2 : 1;
     const collectorLength = extension === 'ps1' ? 2 : 1;
     const beforeIdentity = [...commands];
@@ -247,10 +254,17 @@ test('startup guards precede environment mutation and both updaters recheck befo
       ['replacement before migration plan', reversedReplacement],
       ['commented identity command', [`# ${commands[0]}`, ...commands.slice(1)]],
       ['commented replacement command', [...commands.slice(0, -1), `# ${commands.at(-1)}`]],
-      ['extra text after replacement command', [...commands.slice(0, -1), `${commands.at(-1)} # extra`]],
+      [
+        'extra text after replacement command',
+        [...commands.slice(0, -1), `${commands.at(-1)} # extra`],
+      ],
     ]) {
       const brokenUpdate = normalizedUpdate.replace(checkedOrder, brokenCommands.join('\n'));
-      assert.notEqual(brokenUpdate, normalizedUpdate, `${extension}: ${reason} fixture changes source`);
+      assert.notEqual(
+        brokenUpdate,
+        normalizedUpdate,
+        `${extension}: ${reason} fixture changes source`,
+      );
       assert.ok(!hasOneCheckedBlock(brokenUpdate), `${extension}: reject ${reason}`);
     }
   }
