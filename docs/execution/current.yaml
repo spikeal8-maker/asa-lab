@@ -2419,7 +2419,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r4_test_only_complete_fixture_and_page_scoped_worker_oracles
+      checkpoint: r4_directed_before_after_complete_final_convergence_required
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2437,16 +2437,23 @@ parallel_lanes:
         ONLYnewoutline. Actual dirty-path checks, no shared writes over another author.
       mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
       scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all legacy
-        owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact card
-        write path including shared registrations.
-      next_action: Preserve published9396 and valid R3 BEFORE084d/run38153898162; R3 AFTERfb6d/run38155253389
-        has genuine native sound and page-correct ready frames but fails two proven test oracles. One bounded
-        test-only author; explicit complete independent fixtures and page-scoped fail-closed joins with
-        directed counterexamples, narrow checks/selfreview/hashmanifest thenSTOP. NEW independent source
-        review before one corrected same-bytes BEFORE and AFTER. Shared-path convergence requires coordination.
-      preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual accepted
-        production count2 since542, hygiene006 due after third accepted product before later new product phase.
-        No school operations.
+        owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact
+        card write path including shared registrations.
+      next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence with
+        current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full ordinary
+        browser/repository gates on NEW exact SHA and NEW independent final product review. Old source-ready
+        and directed evidence are not acceptance of the composition; no school actions.
+      preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual
+        accepted production count2 since542, hygiene006 due after third accepted product before later new product
+        phase. No school operations.
+      frozen_directed_evidence:
+        candidate: c051c5cfb649206379bfb30df44ceff946a78a47
+        before_run: 38158088686
+        before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
+        after_run: 38158787892
+        after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
+        root_originals_verified: true
+        product_acceptance: false
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2964,7 +2971,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r4_test_only_native_compact_inspector_entry
+      checkpoint: r4_directed_before_after_complete_final_convergence_required
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2972,15 +2979,23 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY new e2e/electronics-native-wheel.spec.ts missing compact inspector entry;
-        real visible collapse-library action before mobile edit and cookies-only inspector read.
-        Preserve actual-coordinate precision, product code, whole Save/CAS/cookies, console and all waits.
+      repair_scope: ONLY new e2e/electronics-native-wheel.spec.ts missing compact inspector entry; real visible
+        collapse-library action before mobile edit and cookies-only inspector read. Preserve actual-coordinate
+        precision, product code, whole Save/CAS/cookies, console and all waits.
       preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
         sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
-      next_action: Preserve published63a9701/invalidd8f54/run38158193370 and all native originals.
-        Separate bounded test-only author adds actual compact library-collapse pupil actions,
-        visibility and order proof, narrow checks/selfreview/manifest thenSTOP. NEW independent exact
-        source review before one corrected strict SAME-BYTES BEFORE; no AFTER until all4 valid.
+      next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence with
+        current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full ordinary
+        browser/repository gates on NEW exact SHA and NEW independent final product review. Old source-ready
+        and directed evidence are not acceptance of the composition; no school actions.
+      frozen_directed_evidence:
+        candidate: d247eb0677007f73006125fa7626af8e3042100a
+        before_run: 38160845832
+        before_report_sha256: b151fbf256ff29d8ec90ae98112bd20356626e76f7628c49fa9497b5e6a251cc
+        after_run: 38161873665
+        after_report_sha256: 16d56f8edb5c1e3d5d7cdbbf2bb4f298a79c8b369801b24ab339bfa1f8b9d606
+        root_originals_verified: true
+        product_acceptance: false
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -3221,20 +3236,30 @@ parallel_lanes:
       base_branch: main
       pr: null
       pr_draft: false
-      status: in_progress
-      checkpoint: one_test_query_order_baseline_repair
+      status: done
+      checkpoint: exact_query_order_all4_pg_new_review_approved_integrated
       owner_acceptance: pending
       selected_at: '2026-10-11T17:40:48.407875+00:00'
       repair_paths:
       - tests/courses/activity-participations.pg.spec.ts
-      path_ownership_note: Existing Learning ownership remains advisory and unchanged under direct_main; actual dirty-worktree intersection was checked and is empty for this query.
+      path_ownership_note: Existing Learning ownership remains advisory and unchanged under direct_main; actual
+        dirty-worktree intersection was checked and is empty for this query.
       repair_scope: ONLY exact failing Course test query ORDER BY context->>'courseBlockId'; preserve entire
-        original expected array and every assertion. No product, SQL function, fixtures, timeout, physics,
-        dependencies or workflow changes.
-      independent_review: pending
-      next_action: Separate author ONE unpublished query-only SHA then STOP; controller actual diff, NEW
-        independent exact review, actual targeted isolated PG and exact General all4 before technical acceptance.
-        Return to preserved553/554/549; school/class/device evidence pending.
+        original expected array and every assertion. No product, SQL function, fixtures, timeout, physics, dependencies
+        or workflow changes.
+      independent_review: approved
+      next_action: STOP this baseline slice. Programme controller resumes existing553/554 final convergence
+        and exact gates; no pupil count, school or owner acceptance change.
+      independent_evidence: docs/product/electronics/evidence/course-order-baseline-555-independent-review-b67733e7.md
+      independent_review_original_sha256: 1ca316b334ac59ee3462481752dbf0d09b841b8cc30e22ee5a4ab4015b0996b5
+      accepted_candidate_sha: b67733e71f721719c005f9652ca41b0b31b6421d
+      candidate_tree: cf5bf205af508b0d2760d617ebba7aa618bd975e
+      integrated_sha: b67733e71f721719c005f9652ca41b0b31b6421d
+      exact_candidate_general_run: 38161448226
+      exact_candidate_general_conclusion: success
+      focused_pg_run: 38161455728
+      focused_pg_conclusion: success
+      acceptance: technical_accepted
     execution_lease:
       executor_id: electronics-course-order-555
       holder: unassigned
