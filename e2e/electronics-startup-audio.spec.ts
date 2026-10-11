@@ -11,13 +11,25 @@ import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
 
 type Scenario = 'dc' | 'immediate-high' | 'intentional-delay' | 'tone';
-type Frame = { at: number; workerId: number; response: ElectronicsSimulationWorkerResponse };
+type Run = {
+  workerId: number;
+  generationId: number;
+  projectSessionId: string;
+  startedOrder: number;
+};
+type Frame = {
+  at: number;
+  order: number;
+  workerId: number;
+  response: ElectronicsSimulationWorkerResponse;
+};
 type Publication = {
   at: number;
   status: string | null;
   brightness: number;
   asset: Array<{ href: string; failed: string | null }>;
-  latestReady: number | null;
+  order: number;
+  activeRun: Run | null;
 };
 type Pcm = {
   at: number;
@@ -28,7 +40,7 @@ type Pcm = {
   samples: number[];
 };
 type Probe = {
-  actions: Array<{ at: number; type: string; trusted: boolean }>;
+  actions: Array<{ at: number; order: number; type: string; trusted: boolean }>;
   audio: Array<{
     at: number;
     type: string;
@@ -36,15 +48,95 @@ type Probe = {
     state: AudioContextState;
     userActive: boolean;
   }>;
-  requests: Array<{ at: number; workerId: number; request: ElectronicsSimulationWorkerRequest }>;
+  requests: Array<{
+    at: number;
+    order: number;
+    workerId: number;
+    request: ElectronicsSimulationWorkerRequest;
+  }>;
   frames: Frame[];
+  lifecycles: Array<{ order: number; workerId: number; type: 'terminated' }>;
   publications: Publication[];
   pcm: Pcm[];
   assets: Array<{ at: number; type: string; href: string; connected: boolean }>;
   errors: string[];
   dropped: number;
 };
-type ObservedWindow = Window & { __startupAudio?: Probe; __sampleStartupPcm?: () => Pcm[] };
+type ObservedWindow = Window & {
+  __startupAudio?: Probe;
+  __sampleStartupPcm?: () => Pcm[];
+  __recordStartupAudio?: (record: { field: string; value: unknown }) => Promise<void>;
+};
+
+function evidence(info: TestInfo, filename: string, metadata: Record<string, unknown>) {
+  const path = info.outputPath(filename);
+  const record = {
+    ...metadata,
+    lastCheckpoint: 'created',
+    checkpoints: [] as string[],
+    observed: {} as Record<string, Record<string, unknown[]>>,
+    supplements: {} as Record<string, unknown>,
+    captureErrors: [] as Array<{ step: string; error: string }>,
+    primaryFailure: null as string | null,
+  };
+  let pending = Promise.resolve();
+  const failure = (step: string, error: unknown) => {
+    record.captureErrors.push({ step, error: String(error) });
+    // A failed disk and attachment must not erase even the failure description.
+    console.error(`Startup evidence ${step}: ${String(error)}`);
+  };
+  const persist = () => {
+    pending = pending.then(async () => {
+      try {
+        await writeFile(path, JSON.stringify(record, null, 2));
+      } catch (error) {
+        failure('raw-write', error);
+      }
+    });
+    return pending;
+  };
+  const checkpoint = (name: string) => {
+    record.lastCheckpoint = name;
+    record.checkpoints.push(name);
+    return persist();
+  };
+  const guard = async (name: string, capture: () => Promise<unknown>) => {
+    // Flush Node-owned originals BEFORE any optional browser/server operation.
+    await checkpoint(`before:${name}`);
+    try {
+      record.supplements[name] = { status: 'CAPTURED', value: await capture() };
+    } catch (error) {
+      record.supplements[name] = { status: 'NOT_AVAILABLE', error: String(error) };
+      failure(name, error);
+    }
+    await persist();
+  };
+  const finish = async (primary: unknown, supplements: () => Promise<void>) => {
+    record.primaryFailure = primary === undefined ? null : String(primary);
+    await checkpoint('finally:node-originals');
+    await guard('final-supplements', supplements);
+    await checkpoint('finally:attach');
+    await guard('raw-attachment', () =>
+      info.attach('startup-originals', { path, contentType: 'application/json' }),
+    );
+    await persist();
+    if (primary !== undefined) throw primary;
+    if (record.captureErrors.length) throw new Error(JSON.stringify(record.captureErrors));
+  };
+  return {
+    record,
+    checkpoint,
+    guard,
+    finish,
+    receive(pageName: string, field: string, value: unknown) {
+      const pageRecord = (record.observed[pageName] ??= {});
+      (pageRecord[field] ??= []).push(value);
+      void persist();
+    },
+  };
+}
+type Evidence = ReturnType<typeof evidence>;
+const pageEvidence = new WeakMap<Page, Evidence>();
 
 function fixture(scenario: Scenario): SchematicDocument {
   const arduino = scenario !== 'dc';
@@ -173,13 +265,22 @@ function fixture(scenario: Scenario): SchematicDocument {
   };
 }
 
-async function observe(page: Page) {
+async function observe(page: Page, originals: Evidence, pageName: string) {
+  pageEvidence.set(page, originals);
+  await originals.checkpoint(`before:observe:${pageName}`);
+  await page.exposeBinding(
+    '__recordStartupAudio',
+    (_source, record: { field: string; value: unknown }) => {
+      originals.receive(pageName, record.field, record.value);
+    },
+  );
   await page.addInitScript(() => {
     const probe: Probe = {
       actions: [],
       audio: [],
       requests: [],
       frames: [],
+      lifecycles: [],
       publications: [],
       pcm: [],
       assets: [],
@@ -188,8 +289,20 @@ async function observe(page: Page) {
     };
     (window as ObservedWindow).__startupAudio = probe;
     const append = <T>(array: T[], value: T) => {
-      if (array.length < 512) array.push(value);
-      else probe.dropped++;
+      if (array.length < 512) {
+        array.push(value);
+        const field = Object.keys(probe).find((key) => probe[key as keyof Probe] === array);
+        if (field)
+          void (window as ObservedWindow).__recordStartupAudio?.({ field, value }).catch(() => {});
+      } else {
+        probe.dropped++;
+        void (window as ObservedWindow)
+          .__recordStartupAudio?.({
+            field: 'dropped',
+            value: probe.dropped,
+          })
+          .catch(() => {});
+      }
     };
     for (const type of ['load', 'error'])
       document.addEventListener(
@@ -205,7 +318,8 @@ async function observe(page: Page) {
         },
         true,
       );
-    let latestReady: number | null = null;
+    let activeRun: Run | null = null;
+    let order = 0;
     let workerId = 0;
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
@@ -213,12 +327,34 @@ async function observe(page: Page) {
         if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
           return worker;
         const id = ++workerId;
+        worker.terminate = new Proxy(worker.terminate, {
+          apply(target, thisArg, argumentsList) {
+            if (activeRun?.workerId === id) activeRun = null;
+            append(probe.lifecycles, { order: ++order, workerId: id, type: 'terminated' });
+            return Reflect.apply(target, thisArg, argumentsList);
+          },
+        });
         worker.postMessage = new Proxy(worker.postMessage, {
           apply(target, thisArg, messages) {
             const request = messages[0] as ElectronicsSimulationWorkerRequest;
-            if (request.kind === 'preflight') latestReady = null;
+            const requestOrder = ++order;
+            if (request.kind === 'preflight')
+              activeRun = {
+                workerId: id,
+                generationId: request.generationId,
+                projectSessionId: request.projectSessionId,
+                startedOrder: requestOrder,
+              };
+            if (
+              request.kind === 'cancel-generation' &&
+              activeRun?.workerId === id &&
+              activeRun.generationId === request.generationId &&
+              activeRun.projectSessionId === request.projectSessionId
+            )
+              activeRun = null;
             append(probe.requests, {
               at: performance.now(),
+              order: requestOrder,
               workerId: id,
               request: structuredClone(request),
             });
@@ -229,13 +365,7 @@ async function observe(page: Page) {
           'message',
           (event: MessageEvent<ElectronicsSimulationWorkerResponse>) => {
             const response = structuredClone(event.data);
-            append(probe.frames, { at: performance.now(), workerId: id, response });
-            if (
-              response.ok &&
-              response.kind === 'advance' &&
-              response.advance.executionStatus === 'ready'
-            )
-              latestReady = probe.frames.length - 1;
+            append(probe.frames, { at: performance.now(), order: ++order, workerId: id, response });
           },
         );
         return worker;
@@ -322,6 +452,7 @@ async function observe(page: Page) {
         if (target)
           append(probe.actions, {
             at: performance.now(),
+            order: ++order,
             type: target.textContent ?? '',
             trusted: event.isTrusted,
           });
@@ -351,7 +482,8 @@ async function observe(page: Page) {
             status,
             brightness,
             asset,
-            latestReady,
+            order: ++order,
+            activeRun: activeRun ? { ...activeRun } : null,
           });
         }
       }).observe(document.documentElement, {
@@ -374,10 +506,16 @@ async function draft(page: Page, id: string) {
   const response = await page
     .context()
     .request.get(`/api/projects/${id}`, { headers: { origin: new URL(page.url()).origin } });
-  expect(response.status()).toBe(200);
-  return (await response.json()) as {
+  const originals = pageEvidence.get(page);
+  originals?.receive('server', 'statuses', { id, status: response.status() });
+  await originals?.checkpoint('server:status-before-json');
+  const body = (await response.json()) as {
     draft: { revision: number; document: SchematicDocument; updatedAt: string };
   };
+  originals?.receive('server', 'drafts', { id, status: response.status(), body });
+  await originals?.checkpoint('server:whole-before-assertion');
+  expect(response.status()).toBe(200);
+  return body;
 }
 async function snapshot(page: Page, name: string, info: TestInfo) {
   await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
@@ -391,9 +529,23 @@ function assertFrames(observation: Probe) {
   for (const frame of observation.frames) {
     expect(frame.response.ok).toBe(true);
     if (!frame.response.ok) continue;
+    const requests = observation.requests.filter(
+      (entry) =>
+        entry.workerId === frame.workerId &&
+        entry.request.requestId === frame.response.requestId &&
+        entry.request.generationId === frame.response.generationId &&
+        entry.request.projectSessionId === frame.response.projectSessionId &&
+        entry.order < frame.order,
+    );
+    expect(requests).toHaveLength(1);
+    expect(requests[0].request.kind).toBe(frame.response.kind);
     expect(Number.isFinite(frame.response.metrics.computeMs)).toBe(true);
     if (frame.response.kind !== 'advance') continue;
     const advance = frame.response.advance;
+    const request = requests[0].request;
+    expect(request.kind === 'advance' ? request.requestedHorizonMicroseconds : null).toBe(
+      advance.requestedHorizonMicroseconds,
+    );
     expect(advance.executionStatus).not.toBe('fault');
     if (advance.executionStatus === 'yielded') expect(advance.result).toBeNull();
     if (advance.executionStatus !== 'ready') continue;
@@ -401,17 +553,79 @@ function assertFrames(observation: Probe) {
     expect(advance.result).toMatchObject({ solved: true, quality: { finite: true, passed: true } });
   }
   for (const publication of observation.publications.filter((entry) => entry.brightness > 0)) {
-    expect(publication.latestReady).not.toBeNull();
-    const frame = observation.frames[publication.latestReady!];
-    expect(
-      frame.response.ok && frame.response.kind === 'advance'
-        ? frame.response.advance.executionStatus
-        : null,
-    ).toBe('ready');
-    expect(publication.at).toBeGreaterThanOrEqual(frame.at);
+    expect(publication.status).toBe('running');
+    const events = [
+      ...observation.requests.filter((entry) => entry.order < publication.order),
+      ...observation.lifecycles.filter((entry) => entry.order < publication.order),
+    ].sort((a, b) => a.order - b.order);
+    let active: Run | null = null;
+    for (const event of events) {
+      if ('request' in event) {
+        const request = event.request;
+        if (request.kind === 'preflight')
+          active = {
+            workerId: event.workerId,
+            generationId: request.generationId,
+            projectSessionId: request.projectSessionId,
+            startedOrder: event.order,
+          };
+        if (
+          request.kind === 'cancel-generation' &&
+          active?.workerId === event.workerId &&
+          active.generationId === request.generationId &&
+          active.projectSessionId === request.projectSessionId
+        )
+          active = null;
+      } else if (active?.workerId === event.workerId) active = null;
+    }
+    expect(active).not.toBeNull();
+    expect(publication.activeRun).toEqual(active);
+    const startGesture = observation.actions
+      .filter((action) => action.order < active!.startedOrder)
+      .at(-1);
+    expect(startGesture?.trusted).toBe(true);
+    expect(startGesture?.type.trim()).toBe('Начать моделирование');
+    // React may batch a later Worker response before publishing an earlier ready
+    // result. Retain the complete candidate window, never bless latest timestamp.
+    const candidates = observation.frames.filter((frame) => {
+      const response = frame.response;
+      if (
+        !active ||
+        frame.workerId !== active.workerId ||
+        response.generationId !== active.generationId ||
+        response.projectSessionId !== active.projectSessionId ||
+        frame.order <= active.startedOrder ||
+        frame.order >= publication.order ||
+        !response.ok ||
+        response.kind !== 'advance'
+      )
+        return false;
+      const advance = response.advance;
+      const brightness = advance.result?.components.find(
+        (part) => part.componentId === 'led',
+      )?.brightness;
+      return (
+        advance.executionStatus === 'ready' &&
+        advance.committedHorizonMicroseconds === advance.requestedHorizonMicroseconds &&
+        advance.result?.solved === true &&
+        advance.result.quality?.finite === true &&
+        advance.result.quality?.passed === true &&
+        typeof brightness === 'number' &&
+        Number.isFinite(brightness) &&
+        Math.round(Math.min(100, Math.max(0, brightness))) === publication.brightness
+      );
+    });
+    expect(candidates.length).toBeGreaterThan(0);
   }
 }
-async function runStop(page: Page, scenario: Scenario, name: string, info: TestInfo) {
+async function runStop(
+  page: Page,
+  scenario: Scenario,
+  name: string,
+  info: TestInfo,
+  originals: Evidence,
+) {
+  await originals.checkpoint(`before:run:${name}`);
   const before = await probe(page);
   await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
   const stop = page.getByRole('button', { name: 'Остановить моделирование', exact: true });
@@ -426,6 +640,8 @@ async function runStop(page: Page, scenario: Scenario, name: string, info: TestI
     )
     .toBeGreaterThan(0);
   const observation = await probe(page);
+  originals.record.supplements[`run:${name}`] = observation;
+  await originals.checkpoint(`ready:${name}`);
   const frames = observation.frames.slice(before.frames.length);
   expect(
     frames.some(
@@ -493,52 +709,73 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
       page,
       browser,
     }, info) => {
-      const teacher = await seedTeacher(
-        admin,
-        `e2e-startup-audio-${scenario}-${width}-${info.workerIndex}`,
-      );
-      const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
       const phases: unknown[] = [];
       const puts: unknown[] = [];
-      await observe(page);
-      await loginWithOrganization(page, teacher);
-      const created = await page.context().request.post('/api/projects', {
-        headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
-        data: {
-          scope: 'personal',
-          classroomId: null,
-          module: 'electronics',
-          title: `Запуск ${scenario} ${width}`,
+      const originals = evidence(info, `startup-audio-${scenario}-${width}-raw.json`, {
+        scenario,
+        width,
+        phases,
+        puts,
+        fixture: fixture(scenario),
+        limitations: {
+          nativeCharacterizationOnly: true,
+          conditionalPendingEvidenceIsSeparateMountedTest: true,
+          schoolCauseAndFrequency: 'NOT_PROVED',
+          physicalSpeakerAudibility: 'NOT_VERIFIED',
+          actualSchoolDeviceT3: 'PENDING',
         },
       });
-      expect(created.status()).toBe(201);
-      const id = ((await created.json()) as { project: { id: string } }).project.id;
-      const empty = await draft(page, id);
-      const seed = await page.context().request.put(`/api/projects/${id}/draft`, {
-        headers: { origin: new URL(page.url()).origin },
-        data: {
-          document: fixture(scenario),
-          baseRevision: empty.draft.revision,
-          mutationId: crypto.randomUUID(),
-        },
-      });
-      expect(seed.status()).toBe(200);
-      page.on('request', (request) => {
-        if (
-          request.method() === 'PUT' &&
-          new URL(request.url()).pathname === `/api/projects/${id}/draft`
-        )
-          puts.push(request.postDataJSON());
-      });
+      let id: string | undefined;
+      let primaryFailure: unknown;
       let reopenedRaw: Probe | null = null;
       try {
+        await originals.checkpoint('before:seed');
+        const teacher = await seedTeacher(
+          admin,
+          `e2e-startup-audio-${scenario}-${width}-${info.workerIndex}`,
+        );
+        const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
+        await observe(page, originals, 'initial');
+        await loginWithOrganization(page, teacher);
+        const created = await page.context().request.post('/api/projects', {
+          headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
+          data: {
+            scope: 'personal',
+            classroomId: null,
+            module: 'electronics',
+            title: `Запуск ${scenario} ${width}`,
+          },
+        });
+        expect(created.status()).toBe(201);
+        id = ((await created.json()) as { project: { id: string } }).project.id;
+        const projectId = id;
+        originals.record.supplements.projectId = id;
+        await originals.checkpoint('created-project');
+        const empty = await draft(page, id);
+        const seed = await page.context().request.put(`/api/projects/${id}/draft`, {
+          headers: { origin: new URL(page.url()).origin },
+          data: {
+            document: fixture(scenario),
+            baseRevision: empty.draft.revision,
+            mutationId: crypto.randomUUID(),
+          },
+        });
+        expect(seed.status()).toBe(200);
+        page.on('request', (request) => {
+          if (
+            request.method() === 'PUT' &&
+            new URL(request.url()).pathname === `/api/projects/${id}/draft`
+          )
+            puts.push(request.postDataJSON());
+        });
+        await originals.checkpoint('seeded-whole-fixture');
         await page.setViewportSize({ width, height: 900 });
         await page.goto(`/#/home/${id}`);
         await expect(page.locator('.workbench-stage')).toBeVisible();
         const initial = await draft(page, id);
         phases.push({ initial });
-        phases.push(await runStop(page, scenario, 'cold', info));
-        phases.push(await runStop(page, scenario, 'warm', info));
+        phases.push(await runStop(page, scenario, 'cold', info, originals));
+        phases.push(await runStop(page, scenario, 'warm', info, originals));
         expect((await draft(page, id)).draft).toEqual(initial.draft);
         expect(puts).toHaveLength(0);
         // Make the sole persistent pupil edit at the existing desktop inspector.
@@ -559,24 +796,29 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
           ),
         };
         await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
-        await expect.poll(async () => (await draft(page, id)).draft.document).toEqual(expected);
+        await expect
+          .poll(async () => (await draft(page, projectId)).draft.document)
+          .toEqual(expected);
         const saved = await draft(page, id);
         expect(saved.draft.revision).toBe(initial.draft.revision + 1);
         expect(puts).toHaveLength(1);
         expect(puts[0]).toMatchObject({ baseRevision: initial.draft.revision, document: expected });
         phases.push({ expected, saved });
+        await originals.checkpoint('whole-save-cas-plus-one');
         const fresh = await browser.newContext({
           baseURL: new URL(page.url()).origin,
           viewport: { width, height: 900 },
         });
         let reopened: Page | null = null;
+        let reopenFailure: unknown;
+        await originals.checkpoint('before:cookies-only');
         try {
           await fresh.addCookies(await page.context().cookies());
           reopened = await fresh.newPage();
           const freshFailures = collectBrowserFailures(reopened, {
             allowAnonymousSessionProbe: true,
           });
-          await observe(reopened);
+          await observe(reopened, originals, 'cookies-only');
           await reopened.goto(`/#/home/${id}`);
           await expect(reopened.locator('.workbench-stage')).toBeVisible();
           expect(
@@ -585,48 +827,40 @@ for (const scenario of ['dc', 'immediate-high', 'intentional-delay'] as const)
             ),
           ).toEqual([]);
           expect((await draft(reopened, id)).draft).toEqual(saved.draft);
-          phases.push(await runStop(reopened, scenario, 'cookies-only', info));
+          phases.push(await runStop(reopened, scenario, 'cookies-only', info, originals));
           expect((await draft(reopened, id)).draft).toEqual(saved.draft);
           reopenedRaw = await probe(reopened);
           freshFailures.assertEmpty();
+        } catch (error) {
+          reopenFailure = error;
         } finally {
+          await originals.checkpoint('finally:cookies-node-originals');
           if (reopened) {
-            reopenedRaw = await probe(reopened);
-            await snapshot(reopened, `${scenario}-cookies-final`, info);
+            const retainedPage = reopened;
+            await originals.guard('cookies-probe', async () => {
+              reopenedRaw = await probe(retainedPage);
+              return reopenedRaw;
+            });
+            await originals.guard('cookies-png', () =>
+              snapshot(retainedPage, `${scenario}-cookies-final`, info),
+            );
           }
-          await fresh.close();
+          await originals.guard('cookies-context-close', () => fresh.close());
         }
+        if (reopenFailure !== undefined) throw reopenFailure;
         failures.assertEmpty();
+      } catch (error) {
+        primaryFailure = error;
       } finally {
-        await snapshot(page, `${scenario}-${width}-final`, info);
-        const path = info.outputPath(`startup-audio-${scenario}-${width}-raw.json`);
-        await writeFile(
-          path,
-          JSON.stringify(
-            {
-              scenario,
-              width,
-              id,
-              phases,
-              puts,
-              probe: await probe(page),
-              reopenedRaw,
-              server: await draft(page, id),
-              limitations: {
-                nativeCharacterizationOnly: true,
-                conditionalPendingEvidenceIsSeparateMountedTest: true,
-                schoolCauseAndFrequency: 'NOT_PROVED',
-                physicalSpeakerAudibility: 'NOT_VERIFIED',
-                actualSchoolDeviceT3: 'PENDING',
-              },
-            },
-            null,
-            2,
-          ),
-        );
-        await info.attach('native-startup-whole-evidence', {
-          path,
-          contentType: 'application/json',
+        originals.record.supplements.reopenedLastKnown = reopenedRaw ?? { status: 'NOT_AVAILABLE' };
+        await originals.finish(primaryFailure, async () => {
+          await originals.guard('final-probe', () => probe(page));
+          await originals.guard('final-server', async () =>
+            id ? draft(page, id) : { status: 'NOT_AVAILABLE', reason: 'project not created' },
+          );
+          await originals.guard('final-png', () =>
+            snapshot(page, `${scenario}-${width}-final`, info),
+          );
         });
       }
     });
@@ -644,35 +878,51 @@ function pcmMetrics(sample: Pcm) {
 test('optional audio native tone PCM, noTone and Stop preserve the canonical clock boundary', async ({
   page,
 }, info) => {
-  const teacher = await seedTeacher(admin, `e2e-startup-audio-tone-${info.workerIndex}`);
-  await observe(page);
-  await loginWithOrganization(page, teacher);
-  const failures = collectBrowserFailures(page);
-  const created = await page.context().request.post('/api/projects', {
-    headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
-    data: {
-      scope: 'personal',
-      classroomId: null,
-      module: 'electronics',
-      title: 'Нативный tone/noTone',
+  const originals = evidence(info, 'startup-audio-tone-raw.json', {
+    fixture: fixture('tone'),
+    limitations: {
+      currentPiezoClockAdmission: 'KNOWN_INDEPENDENT_BLOCKER_NOT_REPAIRED_HERE',
+      syntheticPcm: false,
+      headlessDigitalPcmIsNotSchoolSpeakerAudibility: true,
     },
   });
-  expect(created.status()).toBe(201);
-  const id = ((await created.json()) as { project: { id: string } }).project.id;
-  const empty = await draft(page, id);
-  const seeded = await page.context().request.put(`/api/projects/${id}/draft`, {
-    headers: { origin: new URL(page.url()).origin },
-    data: {
-      document: fixture('tone'),
-      baseRevision: empty.draft.revision,
-      mutationId: crypto.randomUUID(),
-    },
-  });
-  expect(seeded.status()).toBe(200);
+  let id: string | undefined;
+  let primaryFailure: unknown;
   try {
+    await originals.checkpoint('before:tone-seed');
+    const teacher = await seedTeacher(admin, `e2e-startup-audio-tone-${info.workerIndex}`);
+    await observe(page, originals, 'tone');
+    await loginWithOrganization(page, teacher);
+    const failures = collectBrowserFailures(page);
+    const created = await page.context().request.post('/api/projects', {
+      headers: { origin: new URL(page.url()).origin, 'idempotency-key': crypto.randomUUID() },
+      data: {
+        scope: 'personal',
+        classroomId: null,
+        module: 'electronics',
+        title: 'Нативный tone/noTone',
+      },
+    });
+    expect(created.status()).toBe(201);
+    id = ((await created.json()) as { project: { id: string } }).project.id;
+    originals.record.supplements.projectId = id;
+    await originals.checkpoint('tone-created-project');
+    const empty = await draft(page, id);
+    const seeded = await page.context().request.put(`/api/projects/${id}/draft`, {
+      headers: { origin: new URL(page.url()).origin },
+      data: {
+        document: fixture('tone'),
+        baseRevision: empty.draft.revision,
+        mutationId: crypto.randomUUID(),
+      },
+    });
+    expect(seeded.status()).toBe(200);
+    await originals.checkpoint('tone-seeded-whole-fixture');
     await page.goto(`/#/home/${id}`);
     await expect(page.locator('.workbench-stage')).toBeVisible();
     const initial = await draft(page, id);
+    originals.record.supplements.initial = initial;
+    await originals.checkpoint('before:tone-run');
     await page.getByRole('button', { name: 'Начать моделирование', exact: true }).click();
     // The existing piezo clock admission defect must FAIL here, not be skipped,
     // converted to solved, or hidden by synthetic PCM. It is a separate blocker.
@@ -730,27 +980,15 @@ test('optional audio native tone PCM, noTone and Stop preserve the canonical clo
     expect((await draft(page, id)).draft).toEqual(initial.draft);
     assertFrames(await probe(page));
     failures.assertEmpty();
+  } catch (error) {
+    primaryFailure = error;
   } finally {
-    await snapshot(page, 'tone-final', info);
-    const path = info.outputPath('startup-audio-tone-raw.json');
-    await writeFile(
-      path,
-      JSON.stringify(
-        {
-          id,
-          fixture: fixture('tone'),
-          probe: await probe(page),
-          server: await draft(page, id),
-          limitations: {
-            currentPiezoClockAdmission: 'KNOWN_INDEPENDENT_BLOCKER_NOT_REPAIRED_HERE',
-            syntheticPcm: false,
-            headlessDigitalPcmIsNotSchoolSpeakerAudibility: true,
-          },
-        },
-        null,
-        2,
-      ),
-    );
-    await info.attach('native-tone-originals', { path, contentType: 'application/json' });
+    await originals.finish(primaryFailure, async () => {
+      await originals.guard('tone-final-probe', () => probe(page));
+      await originals.guard('tone-final-server', async () =>
+        id ? draft(page, id) : { status: 'NOT_AVAILABLE', reason: 'project not created' },
+      );
+      await originals.guard('tone-final-png', () => snapshot(page, 'tone-final', info));
+    });
   }
 });
