@@ -128,23 +128,6 @@ export function roundedWirePath(points: readonly Point[], radius = 12): string {
   return path;
 }
 
-export function wireSegmentAtPoint(points: readonly Point[], point: Point): number {
-  let nearest = { index: 0, distance: Infinity };
-  points.slice(0, -1).forEach((start, index) => {
-    const end = points[index + 1]!;
-    const dx = end.x - start.x,
-      dy = end.y - start.y;
-    const t = clamp(
-      ((point.x - start.x) * dx + (point.y - start.y) * dy) / (dx * dx + dy * dy || 1),
-      0,
-      1,
-    );
-    const distance = Math.hypot(point.x - start.x - t * dx, point.y - start.y - t * dy);
-    if (distance < nearest.distance) nearest = { index, distance };
-  });
-  return nearest.index;
-}
-
 export function defaultWirePoints(from: Point, to: Point): Point[] {
   const dx = Math.abs(to.x - from.x);
   const dy = Math.abs(to.y - from.y);
@@ -154,83 +137,6 @@ export function defaultWirePoints(from: Point, to: Point): Point[] {
   }
   const midY = snap((from.y + to.y) / 2);
   return [from, { x: from.x, y: midY }, { x: to.x, y: midY }, to];
-}
-
-/** The existing rounded route, from its terminal to its first body exit.
- * Corners are the transformed (0,0), (width,0), (0,height) body points.
- * A later crossing of the same body is deliberately not lifted above it.
- */
-export function wireTerminalApproachPath(
-  points: readonly Point[],
-  corners: readonly [Point, Point, Point],
-): string {
-  const [origin, x, y] = corners;
-  const ax = x.x - origin.x,
-    ay = x.y - origin.y;
-  const bx = y.x - origin.x,
-    by = y.y - origin.y;
-  const determinant = ax * by - ay * bx;
-  if (!Number.isFinite(determinant) || Math.abs(determinant) < 1e-9) return '';
-  const local = (p: Point): Point => ({
-    x: ((p.x - origin.x) * by - (p.y - origin.y) * bx) / determinant,
-    y: (ax * (p.y - origin.y) - ay * (p.x - origin.x)) / determinant,
-  });
-  const inside = (p: Point): boolean =>
-    p.x >= -1e-9 && p.x <= 1 + 1e-9 && p.y >= -1e-9 && p.y <= 1 + 1e-9;
-  const start = points[0];
-  if (!start || !inside(local(start))) return '';
-  const mix = (a: Point, b: Point, t: number): Point => ({
-    x: a.x + (b.x - a.x) * t,
-    y: a.y + (b.y - a.y) * t,
-  });
-  let current = start;
-  let result = `M ${start.x} ${start.y}`;
-  const commands = roundedWirePath(points).match(/[LQ][^LQM]+/g) ?? [];
-  for (const command of commands) {
-    const values = command.slice(1).trim().split(/\s+/).map(Number);
-    const end = { x: values.at(-2)!, y: values.at(-1)! };
-    const control = command[0] === 'Q' ? { x: values[0]!, y: values[1]! } : mix(current, end, 0.5);
-    const a = local(current),
-      b = local(control),
-      c = local(end);
-    const roots: number[] = [0, 1];
-    for (const key of ['x', 'y'] as const)
-      for (const edge of [0, 1]) {
-        const aa = a[key] - 2 * b[key] + c[key];
-        const bb = 2 * (b[key] - a[key]);
-        const cc = a[key] - edge;
-        if (Math.abs(aa) < 1e-12) {
-          if (Math.abs(bb) > 1e-12) roots.push(-cc / bb);
-        } else {
-          const discriminant = bb * bb - 4 * aa * cc;
-          if (discriminant >= 0)
-            roots.push(
-              (-bb - Math.sqrt(discriminant)) / (2 * aa),
-              (-bb + Math.sqrt(discriminant)) / (2 * aa),
-            );
-        }
-      }
-    const ordered = roots
-      .filter((t) => Number.isFinite(t) && t >= 0 && t <= 1)
-      .sort((u, v) => u - v);
-    let stop = 1;
-    for (let i = 0; i < ordered.length - 1; i += 1) {
-      const t = (ordered[i]! + ordered[i + 1]!) / 2;
-      if (!inside(mix(mix(a, b, t), mix(b, c, t), t))) {
-        stop = ordered[i]!;
-        break;
-      }
-    }
-    const first = mix(current, control, stop);
-    const last = mix(first, mix(control, end, stop), stop);
-    result +=
-      command[0] === 'Q'
-        ? ` Q ${first.x} ${first.y} ${last.x} ${last.y}`
-        : ` L ${last.x} ${last.y}`;
-    if (stop < 1 || !inside(c)) return result;
-    current = end;
-  }
-  return result;
 }
 
 export function lockOrthogonalPoint(anchor: Point, point: Point): Point {

@@ -2,7 +2,6 @@ import {
   memo,
   useEffect,
   useLayoutEffect,
-  useId,
   useMemo,
   useRef,
   useState,
@@ -45,7 +44,6 @@ import {
 import { CircuitIcon, FitIcon, ZoomInIcon, ZoomOutIcon } from './workbench-icons';
 import { componentTransform } from './workbench-model';
 import { terminalPositionInDocument } from './workbench-document';
-import { psuEntryPresentation, wireClientSegment } from './workbench-drag-preview';
 import {
   componentAssetContainsPoint,
   componentAssetVisibleBounds,
@@ -453,7 +451,6 @@ export function WorkbenchStage({
     event: ReactPointerEvent<SVGPathElement>,
     wireId: string,
     segmentIndex?: number,
-    entryComponentId?: string,
   ): void {
     // While a new wire is being laid, a click on any existing wire must reach
     // the canvas: it adds a draft bend exactly there, so a route can be drawn
@@ -466,11 +463,7 @@ export function WorkbenchStage({
     // pointer. Breadboards are intentionally excluded: wires are painted above
     // their substrate and must remain directly selectable there.
     const foregroundComponent = componentAtClientPoint(event.clientX, event.clientY);
-    if (
-      foregroundComponent &&
-      foregroundComponent.kind !== 'breadboard' &&
-      foregroundComponent.id !== entryComponentId
-    ) {
+    if (foregroundComponent && foregroundComponent.kind !== 'breadboard') {
       if (event.shiftKey) {
         c.selectComponent(foregroundComponent.id, true);
         event.stopPropagation();
@@ -682,79 +675,11 @@ export function WorkbenchStage({
       {
         wire,
         selected,
-        endpoints: [
-          selected && c.reconnectEndpoint === 'from' ? c.reconnectHover : wire.from,
-          selected && c.reconnectEndpoint === 'to' ? c.reconnectHover : wire.to,
-        ] as const,
         points: wirePoints(displayedFrom, displayedTo, wire.vertices),
         path: roundedWirePath(wirePoints(displayedFrom, displayedTo, wire.vertices)),
       },
     ];
   });
-  const entryClipPrefix = useId();
-  function renderPsuEntries(component: SchematicComponent): JSX.Element | null {
-    const presentation = psuEntryPresentation(document, component, routedWires, c);
-    if (!presentation) return null;
-    const { clip, entries, pending } = presentation;
-    const clipId = `${entryClipPrefix}-${component.id}`;
-    return (
-      <g>
-        <defs>
-          <clipPath id={clipId} clipPathUnits="userSpaceOnUse">
-            <path
-              data-psu-entry-clip="true"
-              data-component-id={component.id}
-              transform={clip.transform}
-              clipRule="evenodd"
-              fillRule="evenodd"
-              d={clip.d}
-            />
-          </clipPath>
-        </defs>
-        {entries.map(({ wire, selected, path, terminal, points }) => (
-          <g
-            key={`${wire.id}-${terminal}`}
-            data-psu-wire-entry="true"
-            data-component-id={component.id}
-            data-terminal={terminal}
-            data-wire-id={wire.id}
-            clipPath={`url(#${clipId})`}
-          >
-            {selected ? (
-              <path className="workbench-wire-selection" d={path} pointerEvents="none" />
-            ) : null}
-            <path
-              className="workbench-wire"
-              d={path}
-              stroke={wire.color ?? '#e3212b'}
-              pointerEvents="none"
-            />
-            <path
-              className="workbench-wire-hit"
-              d={path}
-              vectorEffect="non-scaling-stroke"
-              onPointerDown={(event) => {
-                const segment = wireClientSegment(points, event.currentTarget, event);
-                if (segment !== null) handleWirePointerDown(event, wire.id, segment, component.id);
-              }}
-              onClick={(event) => event.stopPropagation()}
-            />
-          </g>
-        ))}
-        {pending.map(({ path, terminal }) => (
-          <path
-            key={terminal}
-            className="workbench-wire-preview"
-            data-psu-pending-entry="true"
-            d={path}
-            stroke={c.activeWireColor}
-            pointerEvents="none"
-            clipPath={`url(#${clipId})`}
-          />
-        ))}
-      </g>
-    );
-  }
   const badgeGeometry = diagnosticBadgeGeometry(c.viewport.zoom);
   const readoutGeometry = stageReadoutGeometry(c.viewport.zoom);
   const motorReadouts = orderedComponents.flatMap((component) => {
@@ -1435,12 +1360,7 @@ export function WorkbenchStage({
         <g data-testid="component-body-layer">
           {orderedComponents
             .filter((component) => component.kind !== 'wire' && component.kind !== 'breadboard')
-            .map((component) => (
-              <g key={component.id}>
-                {renderComponentBody(component)}
-                {renderPsuEntries(component)}
-              </g>
-            ))}
+            .map((component) => renderComponentBody(component))}
         </g>
         <g data-testid="terminal-overlay-layer">
           {orderedComponents
