@@ -20,6 +20,7 @@ from deployment.contracts import require, verify_backup
 from deployment.releases import apply_release_environment, validate_resolved_images
 from deployment.system import Installation, run
 from deployment.collector import reader_probe, verify_effective_exec
+from deployment.ci_collector_cleanup import cleanup_collector, finish_cleanup
 
 require(os.environ.get("GITHUB_ACTIONS") == "true", "CI_ONLY", "This test is only allowed in an isolated GitHub runner.")
 release = json.loads(Path(sys.argv[1]).read_text())
@@ -42,7 +43,7 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
     # Existing sudo permission is a property of the disposable GitHub runner,
     # not an automatic privilege elevation performed by the product manager.
     operator = getpass.getuser()
-    collector_cli = ['sudo', '-n', 'env', 'SUDO_USER=' + operator, sys.executable, str(root / 'tools/log_collector.py')]
+    collector_cli = ['sudo', '-n', 'env', 'SUDO_USER=' + operator, 'PYTHONDONTWRITEBYTECODE=1', sys.executable, str(root / 'tools/log_collector.py')]
     run(collector_cli + ['prepare', '--root', str(root), '--profile', 'dev'])
     install = Installation(root, 'dev')
     apply_release_environment(install, release)
@@ -227,15 +228,17 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         require(any(e.get('path') == '/internal/blocks/' and e.get('status') == 200 for e in access), 'ACCESS_LOG', 'The original embedded editor path was lost after rewriting.')
         print("PORTABLE_SMOKE PASS: prebuilt boot, complete backup, ACL/RLS restore, restricted-role login, origins, private web access logs")
     finally:
-        unit = 'asa-log-collector-asa-lab-ci-delivery.service'
-        try:
-            unit_path = Path('/etc/systemd/system') / unit
-            if unit_path.exists():
-                require(str(root / 'tools/collect_logs.py') in unit_path.read_text(), 'COLLECTOR_CLEANUP', 'Refusing to change a foreign CI runner unit.')
-                run(['sudo', '-n', 'systemctl', 'stop', unit])
-                run(['sudo', '-n', 'systemctl', 'disable', unit])
-                run(['sudo', '-n', sys.executable, '-c', 'from pathlib import Path; Path("/etc/systemd/system/asa-log-collector-asa-lab-ci-delivery.service").unlink(missing_ok=True)'])
-                run(['sudo', '-n', 'systemctl', 'daemon-reload'])
-        finally:
+        primary_error = sys.exc_info()[1]
+        def check_tools_owner():
+            # Root helper imports must not leave a root-owned __pycache__ that
+            # prevents the ordinary runner from removing its own temp tree.
+            for path in [root / 'tools', *(root / 'tools').rglob('*')]:
+                require(path.lstat().st_uid == os.getuid(), 'COLLECTOR_CLEANUP_OWNERSHIP',
+                        f'Collector CI tool path has a foreign owner: {path.relative_to(root)}')
+            print('COLLECTOR_CLEANUP PASS: copied tools/cache remain owned by the disposable runner')
+        finish_cleanup([
+            lambda: cleanup_collector(root, operator, sys.executable),
+            check_tools_owner,
             # Only this explicitly disposable CI project. No host/developer volumes.
-            install.compose("down", "--volumes")
+            lambda: install.compose('down', '--volumes'),
+        ], primary_error)

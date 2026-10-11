@@ -17,6 +17,7 @@ from deployment.system import Installation
 import asa_manager
 from collect_logs import write_process_health, write_collector_health, process_identity, Collector
 from deployment.paths import plain_paths
+from deployment import ci_collector_cleanup as ci_cleanup
 
 
 def fixture(root):
@@ -113,12 +114,115 @@ class CollectorLifecycleTests(unittest.TestCase):
 
     def test_systemd_rejects_comments_duplicates_extra_commands_and_root_user(self):
         identity = {'root': '/srv/asa', 'owner': 'operator', 'mode': 'system'}
-        script = Path(identity['root']) / 'tools' / 'collect_logs.py'
-        unit = f'[Unit]\nDescription=ASA\n[Service]\nUser=operator\nWorkingDirectory="/srv/asa"\nExecStart="/usr/bin/python3" "{script}" --root "/srv/asa"\nNoNewPrivileges=true\n[Install]\nWantedBy=multi-user.target\n'
+        script = '/srv/asa/tools/collect_logs.py'
+        unit = f'[Unit]\nDescription=ASA\n[Service]\nUser=operator\nWorkingDirectory=/srv/asa\nExecStart="/usr/bin/python3" "{script}" --root "/srv/asa"\nNoNewPrivileges=true\n[Install]\nWantedBy=multi-user.target\n'
         lifecycle.verify_systemd_unit(unit, identity, '/usr/bin/python3')
-        for text in (unit.replace('ExecStart=', '#ExecStart='), unit.replace('User=operator', 'User=root'),
+        lifecycle.verify_systemd_unit(unit.replace('Description=ASA', 'Description=ASA\nAfter=docker.service'), identity, '/usr/bin/python3')
+        for text in (unit.replace('WorkingDirectory=/srv/asa', 'WorkingDirectory="/srv/asa"'),
+                     unit.replace('ExecStart=', '#ExecStart='), unit.replace('User=operator', 'User=root'),
                      unit.replace('[Install]', 'ExecStartPre=/bin/foreign\n[Install]'), unit.replace('User=operator', 'User=operator\nUser=other')):
             with self.assertRaises(Blocked): lifecycle.verify_systemd_unit(text, identity, '/usr/bin/python3')
+
+    def test_systemd_paths_support_spaces_but_reject_expansion_and_controls(self):
+        identity = dict(root='/srv/ASA Lab', owner='operator', mode='system')
+        unit = lifecycle.systemd_unit(identity, '/opt/Python 3/bin/python3')
+        self.assertIn('WorkingDirectory=/srv/ASA Lab\n', unit)
+        self.assertIn('ExecStart="/opt/Python 3/bin/python3" "/srv/ASA Lab/tools/collect_logs.py" --root "/srv/ASA Lab"', unit)
+        lifecycle.verify_systemd_unit(unit, identity, '/opt/Python 3/bin/python3')
+        for path in ('relative/path', '/srv/x\ny', '/srv/x\ry', '/srv/x\ty', '/srv/x\0y', '/srv/x\x7fy',
+                     '/srv/x\\y', '/srv/"x', "/srv/'x", '/srv/%n', '/srv/$USER', '/srv/x '):
+            for field in ('root', 'python'):
+                with self.subTest(path=path, field=field), self.assertRaises(Blocked) as error:
+                    lifecycle.systemd_unit({**identity, 'root': path} if field == 'root' else identity,
+                                           path if field == 'python' else '/usr/bin/python3')
+                self.assertEqual(error.exception.code, 'COLLECTOR_RUNNER_PATH')
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Actual systemd parser proof runs on Linux CI')
+    def test_actual_systemd_analyze_rejects_quoted_workdir_and_accepts_generated_unit(self):
+        # v255 load-fragment.c config_parse_working_directory passes raw rvalue
+        # through unit_path_printf to PATH_CHECK_ABSOLUTE|PATH_CHECK_FATAL.
+        # It does not unquote like ExecStart. Verify using the installed parser,
+        # without registering, loading or starting any host unit.
+        with tempfile.TemporaryDirectory(prefix='asa-systemd-parser-') as directory:
+            root = Path(directory) / 'ASA Lab'; root.mkdir()
+            identity = dict(root=str(root), owner='nobody', mode='user')
+            unit = lifecycle.systemd_unit(identity, sys.executable)
+            for quoted in (True, False):
+                path = Path(directory) / ('quoted.service' if quoted else 'valid.service')
+                path.write_text(unit.replace(f'WorkingDirectory={root}', f'WorkingDirectory="{root}"') if quoted else unit)
+                result = subprocess.run(['systemd-analyze', 'verify', str(path)], capture_output=True,
+                                        text=True, timeout=30, env={**os.environ, 'LC_ALL': 'C'})
+                if quoted:
+                    self.assertNotEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('WorkingDirectory', result.stderr)
+                    self.assertIn('not absolute', result.stderr)
+                else:
+                    self.assertEqual(result.returncode, 0, result.stderr)
+            print('SYSTEMD_PARSER PASS: quoted WorkingDirectory rejected; generated raw path with spaces accepted; no registration')
+
+    def test_systemctl_failure_reports_safe_verb_exit_and_outcome(self):
+        for verb in ('daemon-reload', 'enable', 'restart'):
+            result = SimpleNamespace(stdout='', returncode=1,
+                                     stderr='Failed: bad unit file setting. PRIVATE_SECRET=do-not-log /foreign/argv')
+            with patch('deployment.collector.subprocess.run', return_value=result), self.assertRaises(Blocked) as error:
+                lifecycle.command(['systemctl', '--user', verb, 'collector.service'])
+            detail = str(error.exception)
+            self.assertIn(f'systemctl {verb}; exit=1; outcome=invalid-unit', detail)
+            self.assertNotIn('PRIVATE_SECRET', detail); self.assertNotIn('/foreign', detail)
+        with patch('deployment.collector.subprocess.run', side_effect=subprocess.TimeoutExpired(['systemctl', 'PRIVATE_SECRET'], 30)), self.assertRaises(Blocked) as error:
+            lifecycle.command(['systemctl', 'daemon-reload'])
+        self.assertIn('daemon-reload; exit=unknown; outcome=timeout', str(error.exception))
+        self.assertNotIn('PRIVATE_SECRET', str(error.exception))
+
+    def test_ci_cleanup_preserves_primary_and_attempts_other_owned_cleanup(self):
+        failure = Blocked('COLLECTOR_PRIMARY', 'primary runner failure', 'inspect')
+        cleanup_failure = Blocked('COLLECTOR_CLEANUP', 'private foreign detail', 'inspect')
+        broken = Mock(side_effect=cleanup_failure); remaining = Mock()
+        try:
+            try: raise failure
+            finally: ci_cleanup.finish_cleanup([broken, remaining], sys.exc_info()[1])
+        except Blocked as observed: self.assertIs(observed, failure)
+        broken.assert_called_once(); remaining.assert_called_once()
+        with self.assertRaises(Blocked) as error: ci_cleanup.finish_cleanup([broken], None)
+        self.assertIs(error.exception, cleanup_failure)
+
+    def test_partial_owned_unit_absence_cleanup_does_not_relax_registration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'collector.service'
+            identity = dict(root='/srv/asa', owner='operator', mode='system', name='collector.service')
+            unit = lifecycle.systemd_unit(identity, '/usr/bin/python3'); path.write_text(unit)
+            raw = 'LoadState=not-found\nActiveState=inactive\nSubState=dead\nFragmentPath=\nDropInPaths=\nTransient=no'
+            info = path.stat()
+            with patch('deployment.collector.command', return_value=(raw, 0)), patch('deployment.collector.Path.stat', return_value=SimpleNamespace(st_uid=0, st_mode=info.st_mode)):
+                with self.assertRaises(Blocked): lifecycle.verify_systemd_state(identity, path, '/usr/bin/python3')
+                self.assertEqual(lifecycle.verify_systemd_state(identity, path, '/usr/bin/python3', owned_unloaded=True)['LoadState'], 'not-found')
+                path.write_text(unit.replace('User=operator', 'User=root'))
+                with self.assertRaises(Blocked): lifecycle.verify_systemd_state(identity, path, '/usr/bin/python3', owned_unloaded=True)
+
+    def test_ci_cleanup_loaded_and_never_loaded_owned_units_and_foreign_refusal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            name = 'asa-log-collector-asa-lab-ci-delivery.service'
+            path = Path(directory) / name
+            root = Mock(); root.name = 'asa-delivery-fixture'
+            root.__str__ = Mock(return_value='/tmp/asa-delivery-fixture')
+            root.stat.return_value = SimpleNamespace(st_uid=0)
+            identity = dict(root=str(root), owner='operator', mode='system', name=name)
+            unit = lifecycle.systemd_unit(identity, '/usr/bin/python3')
+            for state in ('loaded', 'not-found', 'foreign'):
+                path.write_text(unit)
+                info = path.stat()
+                with self.subTest(state=state), patch.dict(os.environ, GITHUB_ACTIONS='true'), patch('deployment.ci_collector_cleanup.os.getuid', return_value=0, create=True), patch('deployment.ci_collector_cleanup.Path', return_value=Path(directory)), patch('deployment.collector.Path.stat', return_value=SimpleNamespace(st_uid=0, st_mode=info.st_mode, st_nlink=1)), patch('deployment.ci_collector_cleanup.verify_systemd_state', return_value={'LoadState': state}) as observe, patch('deployment.ci_collector_cleanup.run') as run:
+                    if state == 'foreign':
+                        observe.side_effect = Blocked('COLLECTOR_RUNNER_IDENTITY', 'Foreign effective unit', 'inspect')
+                        with self.assertRaises(Blocked): ci_cleanup.cleanup_collector(root, 'operator', '/usr/bin/python3')
+                        run.assert_not_called()
+                    else:
+                        ci_cleanup.cleanup_collector(root, 'operator', '/usr/bin/python3')
+                        calls = [call.args[0] for call in run.call_args_list]
+                        self.assertEqual(any('stop' in args for args in calls), state == 'loaded')
+                        self.assertTrue(any('disable' in args for args in calls))
+                        self.assertTrue(any('daemon-reload' in args for args in calls))
+                    self.assertEqual(path.read_text(), unit)  # Mocked deletion never touches host files.
 
     def test_root_cannot_silently_maintain_owner_user_service(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -135,25 +239,23 @@ class CollectorLifecycleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve(); install = fixture(root)
             home = root / 'home'
-            identity = dict(root=str(root), project=install.project, owner='operator', mode='user', name='asa-log-collector-' + install.project + '.service')
-            python = sys.executable
-            argv = [python, str(root / 'tools/collect_logs.py'), '--root', str(root)]
+            identity = dict(root='/srv/asa', project=install.project, owner='operator', mode='user', name='asa-log-collector-' + install.project + '.service')
+            python = '/usr/bin/python3'
+            argv = [python, '/srv/asa/tools/collect_logs.py', '--root', identity['root']]
             action = [python, argv, False, 0, 0, 0, 0, 0, 0, 0]
             valid = {'type': 'a(sasbttttuii)', 'data': [action]}
             unit_path = home / '.config/systemd/user' / identity['name']; unit_path.parent.mkdir(parents=True)
-            unit = ('[Unit]\nDescription=ASA Lab diagnostic collector\nAfter=network.target\n[Service]\n' +
-                    f'WorkingDirectory="{root}"\nExecStart="{python}" "{argv[1]}" --root "{root}"\n' +
-                    'Restart=always\nRestartSec=20\nNoNewPrivileges=true\nUMask=0077\n[Install]\nWantedBy=default.target\n')
+            unit = lifecycle.systemd_unit(identity, python)
             unit_path.write_text(unit)
-            properties = dict(FragmentPath=str(unit_path), DropInPaths='', ExecStartPre='', ExecStartPost='', ExecStop='', ExecStopPost='', EnvironmentFiles='', LoadState='loaded', Transient='no', User='', NoNewPrivileges='yes', WorkingDirectory=str(root),
+            properties = dict(FragmentPath=str(unit_path), DropInPaths='', ExecStartPre='', ExecStartPost='', ExecStop='', ExecStopPost='', EnvironmentFiles='', LoadState='loaded', Transient='no', User='', NoNewPrivileges='yes', WorkingDirectory=identity['root'], ActiveState='active', SubState='running',
                 ExecStart=f'{{ path={python} ; argv[]={" ".join(argv)} ; ignore_errors=no ; start_time=[n/a] ; stop_time=[n/a] ; pid=0 ; code=(null) ; status=0/0 }}')
             raw = '\n'.join(key + '=' + value for key, value in properties.items())
             invalid = [
-                {**valid, 'data': [[python, [python, 'foreign.py', '--root', str(root)], *action[2:]]]},
+                {**valid, 'data': [[python, [python, 'foreign.py', '--root', identity['root']], *action[2:]]]},
                 {**valid, 'data': [[python, [*argv[:-1], '/foreign/root'], *action[2:]]]},
                 {**valid, 'data': [[python, [*argv, '--once'], *action[2:]]]},
                 {**valid, 'data': [[python, [python, argv[1] + ' --root', str(root)], *action[2:]]]},
-                {**valid, 'data': [[python, [python, argv[1].replace('tools', 't\\x6fols'), '--root', str(root)], *action[2:]]]},
+                {**valid, 'data': [[python, [python, argv[1].replace('tools', 't\\x6fols'), '--root', identity['root']], *action[2:]]]},
                 {**valid, 'data': [[python, ' '.join(argv), *action[2:]]]},
                 {**valid, 'data': [[python, argv, True, *action[3:]]]},
                 {**valid, 'data': [['/foreign/python', argv, *action[2:]]]},
@@ -170,7 +272,7 @@ class CollectorLifecycleTests(unittest.TestCase):
                         if response is None: raise FileNotFoundError('busctl missing')
                         return json.dumps(response) if isinstance(response, dict) else response, 0
                     return '', 0
-                with self.subTest(response=response), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked):
+                with self.subTest(response=response), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', '/usr/bin/python3'), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked):
                     if response is valid:
                         lifecycle.reconcile_runner(install, identity, restart=False)
                         self.assertTrue(any('start' in args for args in calls))
@@ -183,13 +285,47 @@ class CollectorLifecycleTests(unittest.TestCase):
                     self.assertEqual(unit_path.read_text(), unit)
             for malformed in ('', raw + '\nExecStart=second-action', raw.replace('DropInPaths=', 'DropInPaths=/foreign/drop-in.conf'),
                               raw.replace('User=\n', 'User=root\n'), raw.replace('NoNewPrivileges=yes', 'NoNewPrivileges=no'),
-                              raw.replace('WorkingDirectory=' + str(root), 'WorkingDirectory=/foreign/root')):
+                              raw.replace('WorkingDirectory=' + identity['root'], 'WorkingDirectory=/foreign/root'),
+                              '\n'.join(line for line in raw.splitlines() if not line.startswith('User=')),
+                              '\n'.join(line for line in raw.splitlines() if not line.startswith('ExecStart='))):
                 calls = []
                 def mocked_state(args, **kwargs):
                     calls.append(args); return (malformed, 0) if 'show' in args else ('', 0)
-                with self.subTest(raw=malformed), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked_state), self.assertRaises(Blocked):
+                with self.subTest(raw=malformed), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', '/usr/bin/python3'), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked_state), self.assertRaises(Blocked):
                     lifecycle.reconcile_runner(install, identity, restart=False)
                 self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
+
+    def test_never_loaded_systemd_unit_uses_generic_absence_facts_before_registration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); install = fixture(root); home = root / 'home'
+            identity = dict(root='/srv/asa', project=install.project, owner='operator', mode='user', name='asa-log-collector-' + install.project + '.service')
+            # systemctl show --all prints generic Unit properties only when
+            # the never-loaded service has no Service/ExecContext interface.
+            raw = 'LoadState=not-found\nActiveState=inactive\nSubState=dead\nFragmentPath=\nDropInPaths=\nTransient=no'
+            unit_path = home / '.config/systemd/user' / identity['name']
+            cases = [raw, raw.replace('LoadState=not-found', 'LoadState=loaded'),
+                     raw.replace('ActiveState=inactive', 'ActiveState=active'), raw.replace('Transient=no', 'Transient=yes'),
+                     raw.replace('SubState=dead', 'SubState=running'), raw.replace('DropInPaths=', 'DropInPaths=/foreign.conf'),
+                     raw.replace('FragmentPath=', 'FragmentPath=/foreign.service'), raw + '\nExecStart=foreign-command',
+                     raw + '\nUser=root', raw.replace('Transient=no', '')]
+            for response, query_code in [(value, 0) for value in cases] + [(raw, 1), (raw, 4)]:
+                calls = []
+                def mocked(args, **kwargs):
+                    calls.append(args)
+                    if 'show' in args: return response, query_code
+                    return '', 0
+                with self.subTest(response=response, code=query_code), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', '/usr/bin/python3'), patch('deployment.collector.os.geteuid', return_value=unit_path.parent.stat().st_uid if unit_path.parent.exists() else 0, create=True), patch('deployment.collector.command', side_effect=mocked):
+                    if response == raw and query_code == 0:
+                        lifecycle.reconcile_runner(install, identity, restart=True)
+                        self.assertTrue(unit_path.is_file())
+                        self.assertTrue(any('daemon-reload' in args for args in calls))
+                        self.assertIn(['busctl', '--json=short', '--version'], calls)
+                        self.assertFalse(any('get-property' in args for args in calls))
+                        unit_path.unlink()  # Only this fixture's created unit.
+                    else:
+                        with self.assertRaises(Blocked): lifecycle.reconcile_runner(install, identity, restart=True)
+                        self.assertFalse(unit_path.exists())
+                        self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
 
     def test_effective_system_and_user_owner_privilege_workdir_contracts(self):
         for mode, users in (('system', ['operator']), ('user', ['', 'operator'])):
