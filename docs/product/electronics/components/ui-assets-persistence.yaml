@@ -10,6 +10,7 @@ components:
     - docs/product/electronics/README.md#8-провода-и-breadboard
     sources:
     - apps/web/src/electronics/use-electronics-workbench.ts
+    - apps/web/src/electronics/use-piezo-audio.ts
     - apps/web/src/pages/SchematicEditor.tsx
     - apps/web/src/electronics/WorkbenchStage.tsx
     - apps/web/src/electronics/ProductionComponentVisual.tsx
@@ -22,6 +23,7 @@ components:
     - apps/web/src/electronics/workbench.css
     tests:
     - apps/web/src/electronics/testing/workbench-runtime-controls.spec.ts
+    - apps/web/src/electronics/testing/piezo-audio.spec.ts
     - apps/web/src/electronics/testing/psu-setpoint-persistence.spec.ts
     - apps/web/src/electronics/testing/asset-recovery.spec.ts
     - apps/web/src/electronics/testing/component-hit-testing.spec.ts
@@ -32,6 +34,7 @@ components:
     - e2e/electronics-interactions.spec.ts
     - e2e/electronics-simulation.spec.ts
     - e2e/electronics-simulation-time.spec.ts
+    - e2e/electronics-startup-audio.spec.ts
     dependencies:
     - electronics.worker.live-controller
     notes: UI renders committed engine results; it must not compute electrical truth itself. Read only the selected task's exact sources, not every mapped file.
