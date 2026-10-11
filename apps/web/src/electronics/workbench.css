@@ -2969,7 +2969,7 @@
   opacity: 0.9;
   pointer-events: none;
 }
-.workbench-component-actuator-active .workbench-part {
+.workbench-component-actuator-active:not([data-component-type='switch-spdt']) .workbench-part {
   filter: drop-shadow(0 0 7px rgba(25, 151, 205, 0.82));
 }
 .workbench-component-diagnostic-indicator circle {
