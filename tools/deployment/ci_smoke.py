@@ -116,13 +116,14 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         # in this disposable stack as well as the access logger's 404 path.
         install.compose('stop', 'api')
         try:
-            request = urllib.request.Request('http://127.0.0.1:4610/api/diagnostics/offline?token=' + canary,
-                headers={'Authorization':'Bearer '+canary, 'Cookie':'session='+canary})
-            try:
-                with urllib.request.urlopen(request, timeout=15) as response: response.read()
-            except urllib.error.HTTPError as failure:
-                require(failure.code == 502, 'ACCESS_LOG', 'Expected a synthetic upstream outage.')
-                failure.close()
+            for path in ('/api/diagnostics/offline', invitation):
+                request = urllib.request.Request('http://127.0.0.1:4610' + path + '?token=' + canary,
+                    headers={'Authorization':'Bearer '+canary, 'Cookie':'session='+canary})
+                try:
+                    with urllib.request.urlopen(request, timeout=15) as response: response.read()
+                except urllib.error.HTTPError as failure:
+                    require(failure.code == 502, 'ACCESS_LOG', 'Expected a synthetic upstream outage.')
+                    failure.close()
         finally:
             install.compose('up', '-d', '--no-build', 'api')
             install.wait_ready(release['revision'], release['schema'])
@@ -140,11 +141,14 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         for path in ('/assets/missing-diagnostics-fixture.js', '/api/diagnostics/not-found'):
             matches = [e for e in access if e.get('path') == path]
             require(matches and matches[-1].get('status') == 404 and matches[-1].get('revision') == release['revision'], 'ACCESS_LOG', 'Web access evidence is missing or has the wrong identity.')
+            require(matches[-1].get('method') == ('POST' if path.startswith('/api/') else 'GET'), 'ACCESS_LOG', 'Web request method evidence is missing.')
             require('request' not in matches[-1] and 'resp_headers' not in matches[-1], 'ACCESS_LOG_PRIVACY', 'Private header containers were retained.')
             if path.startswith('/api/'):
                 require(bool(matches[-1].get('requestId')), 'ACCESS_LOG', 'API response correlation is missing from the web log.')
         require(any(e.get('path') == '/api/classroom-teacher-invitations/[redacted]' for e in access), 'ACCESS_LOG_PRIVACY', 'Invitation path redaction is missing.')
+        require(any(e.get('path') == '/api/classroom-teacher-invitations/[redacted]' and e.get('status') == 502 for e in access), 'ACCESS_LOG_PRIVACY', 'Invitation outage path redaction is missing.')
         require(any(e.get('path') == '/api/diagnostics/offline' and e.get('status') == 502 for e in access), 'ACCESS_LOG', 'Upstream outage evidence is missing.')
+        require(any(e.get('path') == '/internal/blocks/' and e.get('status') == 200 for e in access), 'ACCESS_LOG', 'The original embedded editor path was lost after rewriting.')
         print("PORTABLE_SMOKE PASS: prebuilt boot, complete backup, ACL/RLS restore, restricted-role login, origins, private web access logs")
     finally:
         # Only this explicitly disposable CI project. No host/developer volumes.

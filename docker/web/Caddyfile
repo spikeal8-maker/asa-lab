@@ -9,6 +9,7 @@
 			fields {
 				request delete
 				resp_headers delete
+				path regexp "^(/api/classroom-teacher-invitations/)[^/]+.*$" "${1}[redacted]"
 			}
 		}
 	}
@@ -27,8 +28,9 @@
 			}
 		}
 	}
-	log_append <path {http.request.uri.path}
-	log_append <method {http.request.method}
+	# Use original placeholders: the pinned 2.10.2 does not support '<key' syntax.
+	log_append path {http.request.orig_uri.path}
+	log_append method {http.request.orig_method}
 	log_append requestId {http.response.header.X-Request-Id}
 	log_append revision {$ASA_BUILD_REVISION}
 	log_append kind http_response
