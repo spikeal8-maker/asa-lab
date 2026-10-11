@@ -2949,86 +2949,36 @@ parallel_lanes:
         not prove visible clock. K0/T3/class/owner/deployment pending.'
   - id: electronics-field
     parent_lane: electronics
-    worktree_id: electronics-field-544
+    worktree_id: electronics-native-wheel-554
     owned_paths:
     - apps/web/src/electronics/WorkbenchStage.tsx
     - docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
+    - apps/web/src/electronics/use-electronics-workbench.ts
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
     task:
-      id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
-      issue: 544
+      id: TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001
+      issue: 554
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: blocked
-      checkpoint: field32_pass_independent_asset_baseline_required_gate_blocked
+      status: in_progress
+      checkpoint: bounded_native_wheel_cancellation_product_repair_selected
+      kind: repair
       owner_acceptance: pending
-      selected_at: '2026-10-09T21:17:44Z'
-      repair_scope: 'ONLY e2e/electronics-interactions.spec.ts first full expected after
-        native drag: explicit holeBindings:{} on grabbed component with expected position.
-        Preserve entire deep equality/originalfixture/nativeevents/precision4/32cases/all
-        assertions/timeout/Save/revision/cookies-reopen/regrab. No product/helper/CSS/fixture
-        normalization/partial match or cleanup.'
-      preserved_candidate_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
-      preserved_candidate_tree: 834bad21f7f2b58b15505d6a6b4bc75898c1fa4d
-      candidate_publication: published
-      candidate_acceptance: pending
-      controller_observed_at: '2026-10-09T21:43:50Z'
-      acceptance_dependency_issue: 545
-      corrected_harness_sha: a4d115a4ecd84ba729c5a16cb000bd42ad6d800f
-      causal_before_sha: 5627d90081aa548f36f304f1ee45f839636e41db
-      causal_before_run: 37998566920
-      causal_before_raw_sha256: 8b5d0d51d77c5d627fb31debe9a4f044c657644558441d7e483e5a4e79ca6e1b
-      causal_before_result: Full authenticated schema equal at revision2; native trusted
-        left down-move-up on opaque alpha255 owner body targets SVG root outside fixed
-        grid; component and viewport unchanged, original5000ms position assertion fails.
-      supporting_auth_setup: Existing organization-login desktop banner prerequisite proven
-        separately in543; authenticate at1440 then restore original target width before
-        all editor actions. No Portal/helper edit or timeout change.
-      before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
-      before_probe_run: 37996438894
-      before_probe_conclusion: harness_precondition_failure_not_product_proof
-      before_probe_detail: Actual fixed opaque body point returned path instead of SVG
-        root before drag; observer events absent. Preserve complete fixture and existing
-        assertions; new bounded author repairs only native setup/evidence in interactions
-        before another single causal probe.
-      before_raw_sha256: 50cf338b1a57e7a5e908ce9933857470268522cf3c27bc4ad162dbb2395c5400
-      preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
-      clamp_after_probe_sha: beef3ab90ad998879a633066adc57d2bfb4298fe
-      clamp_after_run: 38000814089
-      clamp_after_raw_sha256: ae1ff4a3c359af2ab5433c4c1b1fd3db30245dc02eb72ab26ce19ef92061be3f
-      clamp_after_result: Full fixture revision2 equal; same alpha255 trusted down-sixmoves-up
-        now captures root and moves; expected(-5198.652,3.011), actual(-980,3.011), all
-        other components/wires and viewBox unchanged. Legacy componentDragDelta absolute
-        bounds force unrelated coordinate jump. No repeat BEFORE.
-      psu_candidate_preservation: 543 hook writer STOP; active543 harnessR2 writes only
-        browser simulation/digest. Preserve exact043a U/I functions at later composition;
-        no simultaneous hook author.
-      preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
-      preserved_product_candidate_tree: f2a87f5230b5ae84860e40bfd10ffa2ff29cee08
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
-      independent_review_original_sha256: c14a0531255a87924293b212eb8d144d74b071a4ca5e18a00df86156108207b8
-      r2_actual_after_probe: 14c33dbd95530cc687cfbd3b70b81b4ff2a3014a
-      r2_actual_after_run: 38004803405
-      r2_actual_raw_sha256: 1e631476187acccc5669c4b01e72bd3b6164ac34ae06bb10b093b55b74d777ee
-      r2_actual_after_result: Trusted native6moves now reaches expected(-5198.652,3.011),
-        viewport and wholeotherdocument unchanged. Full equality fails only selected empty
-        holeBindings, existing translatedDragDocument normalization from6b1ff210 unchanged.
-        Save/reopen NOT_REACHED, no fullacceptance.
-      exact_candidate_general_run: 38007112131
-      exact_candidate_general_conclusion: success
-      exact_candidate_electronics_run: 38008086985
-      exact_candidate_electronics_conclusion: failure
-      required_gate_failure_class: C independent unchanged asset baseline; permanent missing
-        catalog badge absent at original5000ms; exact cause under separate narrow investigation
-      field_actual_evidence: Full32 directed and full32 ordinary raw allPASS;64 native
-        gestures/32wholePUT/revision2to3/cookies-only fullSave/regrab. Not technical acceptance
-        while required gate red.
-      next_action: Separate canonical bounded asset baseline cause/repair/review; then
-        one controlled convergence preserving accepted PSU hook/map and field changes,
-        required final exact gates and NEW review. Do not repeat unchanged suite or change
-        timeout.
+      programme_issue: 452
+      dependency_for_issue: 549
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: ONLY7exactpaths in554card. Restore one stage-local native nonpassive wheel listener and lifecycle/freshcallback
+        without changing viewportmath/guards or document persistence. Separate dedicated native BEFORE/AFTER and wholeSave/CAS/cookies;
+        no549Visual/meter/physics/timeout changes.
+      preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
+        sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
+      next_action: New bounded product author afterfreshcanonicalpreflight; oneunpublishedSHA/narrow+meaningfulactualmountedtests/selfreview/foreignproof/hashmanifest
+        thenSTOP. NEWindependentsource beforeONEdirected built cancellation BEFORE/AFTER; finalexactgates/NEWproductreview
+        required. No cleanup or school operations.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -3050,20 +3000,213 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+      convergence_baseline_sha: 20aec9e3a36761c54fda9198f3577db206111b5f
       head_sha: null
-      observed_at: '2026-10-09T21:17:44Z'
+      observed_at: '2026-10-11T15:48:49.404225+00:00'
       main:
         branch: main
-        sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
-      observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes, not live authority. Fresh e761 General37990032316
-        failure before product assertions: Docker Hub429 Data/Access, Governance/Code
-        SUCCESS. CI545 separately selected identical immutable image transport, no school
-        network or Docker changes. 543043a and541a741 unpublished candidates preserved.
-        540 exact72 remaining compute cause independently proved; R1 stopped without
-        product edits, separate546 preparation scope selected. 544 native field cause
-        must first be proved in built browser. All acceptance/release claims pending
-        exact evidence/NEW review; K0/T3/class/school/deployment pending.'
+        sha: 20aec9e3a36761c54fda9198f3577db206111b5f
+      observation_note: Dated554selection only; fetch main and exactCI beforewrites.20aec metadataGeneral pending,
+        notPASS. Independent144/144causeproved; no newproductaccepted. PreserveObservability and full544snapshot,
+        allotherlanes.
+    suspended_tasks:
+    - task_id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+      issue: 544
+      task:
+        id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+        issue: 544
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: blocked
+        checkpoint: field32_pass_independent_asset_baseline_required_gate_blocked
+        owner_acceptance: pending
+        selected_at: '2026-10-09T21:17:44Z'
+        repair_scope: 'ONLY e2e/electronics-interactions.spec.ts first full expected after native drag: explicit holeBindings:{}
+          on grabbed component with expected position. Preserve entire deep equality/originalfixture/nativeevents/precision4/32cases/all
+          assertions/timeout/Save/revision/cookies-reopen/regrab. No product/helper/CSS/fixture normalization/partial
+          match or cleanup.'
+        preserved_candidate_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
+        preserved_candidate_tree: 834bad21f7f2b58b15505d6a6b4bc75898c1fa4d
+        candidate_publication: published
+        candidate_acceptance: pending
+        controller_observed_at: '2026-10-09T21:43:50Z'
+        acceptance_dependency_issue: 545
+        corrected_harness_sha: a4d115a4ecd84ba729c5a16cb000bd42ad6d800f
+        causal_before_sha: 5627d90081aa548f36f304f1ee45f839636e41db
+        causal_before_run: 37998566920
+        causal_before_raw_sha256: 8b5d0d51d77c5d627fb31debe9a4f044c657644558441d7e483e5a4e79ca6e1b
+        causal_before_result: Full authenticated schema equal at revision2; native trusted left down-move-up on opaque
+          alpha255 owner body targets SVG root outside fixed grid; component and viewport unchanged, original5000ms
+          position assertion fails.
+        supporting_auth_setup: Existing organization-login desktop banner prerequisite proven separately in543; authenticate
+          at1440 then restore original target width before all editor actions. No Portal/helper edit or timeout change.
+        before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
+        before_probe_run: 37996438894
+        before_probe_conclusion: harness_precondition_failure_not_product_proof
+        before_probe_detail: Actual fixed opaque body point returned path instead of SVG root before drag; observer
+          events absent. Preserve complete fixture and existing assertions; new bounded author repairs only native
+          setup/evidence in interactions before another single causal probe.
+        before_raw_sha256: 50cf338b1a57e7a5e908ce9933857470268522cf3c27bc4ad162dbb2395c5400
+        preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
+        clamp_after_probe_sha: beef3ab90ad998879a633066adc57d2bfb4298fe
+        clamp_after_run: 38000814089
+        clamp_after_raw_sha256: ae1ff4a3c359af2ab5433c4c1b1fd3db30245dc02eb72ab26ce19ef92061be3f
+        clamp_after_result: Full fixture revision2 equal; same alpha255 trusted down-sixmoves-up now captures root
+          and moves; expected(-5198.652,3.011), actual(-980,3.011), all other components/wires and viewBox unchanged.
+          Legacy componentDragDelta absolute bounds force unrelated coordinate jump. No repeat BEFORE.
+        psu_candidate_preservation: 543 hook writer STOP; active543 harnessR2 writes only browser simulation/digest.
+          Preserve exact043a U/I functions at later composition; no simultaneous hook author.
+        preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
+        preserved_product_candidate_tree: f2a87f5230b5ae84860e40bfd10ffa2ff29cee08
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+        independent_review_original_sha256: c14a0531255a87924293b212eb8d144d74b071a4ca5e18a00df86156108207b8
+        r2_actual_after_probe: 14c33dbd95530cc687cfbd3b70b81b4ff2a3014a
+        r2_actual_after_run: 38004803405
+        r2_actual_raw_sha256: 1e631476187acccc5669c4b01e72bd3b6164ac34ae06bb10b093b55b74d777ee
+        r2_actual_after_result: Trusted native6moves now reaches expected(-5198.652,3.011), viewport and wholeotherdocument
+          unchanged. Full equality fails only selected empty holeBindings, existing translatedDragDocument normalization
+          from6b1ff210 unchanged. Save/reopen NOT_REACHED, no fullacceptance.
+        exact_candidate_general_run: 38007112131
+        exact_candidate_general_conclusion: success
+        exact_candidate_electronics_run: 38008086985
+        exact_candidate_electronics_conclusion: failure
+        required_gate_failure_class: C independent unchanged asset baseline; permanent missing catalog badge absent
+          at original5000ms; exact cause under separate narrow investigation
+        field_actual_evidence: Full32 directed and full32 ordinary raw allPASS;64 native gestures/32wholePUT/revision2to3/cookies-only
+          fullSave/regrab. Not technical acceptance while required gate red.
+        next_action: Separate canonical bounded asset baseline cause/repair/review; then one controlled convergence
+          preserving accepted PSU hook/map and field changes, required final exact gates and NEW review. Do not repeat
+          unchanged suite or change timeout.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+        head_sha: null
+        observed_at: '2026-10-09T21:17:44Z'
+        main:
+          branch: main
+          sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+        observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes, not live authority. Fresh
+          e761 General37990032316 failure before product assertions: Docker Hub429 Data/Access, Governance/Code SUCCESS.
+          CI545 separately selected identical immutable image transport, no school network or Docker changes. 543043a
+          and541a741 unpublished candidates preserved. 540 exact72 remaining compute cause independently proved; R1
+          stopped without product edits, separate546 preparation scope selected. 544 native field cause must first
+          be proved in built browser. All acceptance/release claims pending exact evidence/NEW review; K0/T3/class/school/deployment
+          pending.'
+      lane_snapshot:
+        id: electronics-field
+        parent_lane: electronics
+        worktree_id: electronics-field-544
+        owned_paths:
+        - apps/web/src/electronics/WorkbenchStage.tsx
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
+        task:
+          id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+          issue: 544
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: blocked
+          checkpoint: field32_pass_independent_asset_baseline_required_gate_blocked
+          owner_acceptance: pending
+          selected_at: '2026-10-09T21:17:44Z'
+          repair_scope: 'ONLY e2e/electronics-interactions.spec.ts first full expected after native drag: explicit
+            holeBindings:{} on grabbed component with expected position. Preserve entire deep equality/originalfixture/nativeevents/precision4/32cases/all
+            assertions/timeout/Save/revision/cookies-reopen/regrab. No product/helper/CSS/fixture normalization/partial
+            match or cleanup.'
+          preserved_candidate_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
+          preserved_candidate_tree: 834bad21f7f2b58b15505d6a6b4bc75898c1fa4d
+          candidate_publication: published
+          candidate_acceptance: pending
+          controller_observed_at: '2026-10-09T21:43:50Z'
+          acceptance_dependency_issue: 545
+          corrected_harness_sha: a4d115a4ecd84ba729c5a16cb000bd42ad6d800f
+          causal_before_sha: 5627d90081aa548f36f304f1ee45f839636e41db
+          causal_before_run: 37998566920
+          causal_before_raw_sha256: 8b5d0d51d77c5d627fb31debe9a4f044c657644558441d7e483e5a4e79ca6e1b
+          causal_before_result: Full authenticated schema equal at revision2; native trusted left down-move-up on
+            opaque alpha255 owner body targets SVG root outside fixed grid; component and viewport unchanged, original5000ms
+            position assertion fails.
+          supporting_auth_setup: Existing organization-login desktop banner prerequisite proven separately in543;
+            authenticate at1440 then restore original target width before all editor actions. No Portal/helper edit
+            or timeout change.
+          before_probe_sha: 161fa7e36ba80a3a8671384c90bdf1dca2261435
+          before_probe_run: 37996438894
+          before_probe_conclusion: harness_precondition_failure_not_product_proof
+          before_probe_detail: Actual fixed opaque body point returned path instead of SVG root before drag; observer
+            events absent. Preserve complete fixture and existing assertions; new bounded author repairs only native
+            setup/evidence in interactions before another single causal probe.
+          before_raw_sha256: 50cf338b1a57e7a5e908ce9933857470268522cf3c27bc4ad162dbb2395c5400
+          preserved_stage_candidate_sha: 3d1eacfe7c8619dfde8b90d274d133264fd3e6d5
+          clamp_after_probe_sha: beef3ab90ad998879a633066adc57d2bfb4298fe
+          clamp_after_run: 38000814089
+          clamp_after_raw_sha256: ae1ff4a3c359af2ab5433c4c1b1fd3db30245dc02eb72ab26ce19ef92061be3f
+          clamp_after_result: Full fixture revision2 equal; same alpha255 trusted down-sixmoves-up now captures root
+            and moves; expected(-5198.652,3.011), actual(-980,3.011), all other components/wires and viewBox unchanged.
+            Legacy componentDragDelta absolute bounds force unrelated coordinate jump. No repeat BEFORE.
+          psu_candidate_preservation: 543 hook writer STOP; active543 harnessR2 writes only browser simulation/digest.
+            Preserve exact043a U/I functions at later composition; no simultaneous hook author.
+          preserved_product_candidate_sha: 1ee348134b386113e3c341db7f975881250e8147
+          preserved_product_candidate_tree: f2a87f5230b5ae84860e40bfd10ffa2ff29cee08
+          independent_review: request_changes
+          independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+          independent_review_original_sha256: c14a0531255a87924293b212eb8d144d74b071a4ca5e18a00df86156108207b8
+          r2_actual_after_probe: 14c33dbd95530cc687cfbd3b70b81b4ff2a3014a
+          r2_actual_after_run: 38004803405
+          r2_actual_raw_sha256: 1e631476187acccc5669c4b01e72bd3b6164ac34ae06bb10b093b55b74d777ee
+          r2_actual_after_result: Trusted native6moves now reaches expected(-5198.652,3.011), viewport and wholeotherdocument
+            unchanged. Full equality fails only selected empty holeBindings, existing translatedDragDocument normalization
+            from6b1ff210 unchanged. Save/reopen NOT_REACHED, no fullacceptance.
+          exact_candidate_general_run: 38007112131
+          exact_candidate_general_conclusion: success
+          exact_candidate_electronics_run: 38008086985
+          exact_candidate_electronics_conclusion: failure
+          required_gate_failure_class: C independent unchanged asset baseline; permanent missing catalog badge absent
+            at original5000ms; exact cause under separate narrow investigation
+          field_actual_evidence: Full32 directed and full32 ordinary raw allPASS;64 native gestures/32wholePUT/revision2to3/cookies-only
+            fullSave/regrab. Not technical acceptance while required gate red.
+          next_action: Separate canonical bounded asset baseline cause/repair/review; then one controlled convergence
+            preserving accepted PSU hook/map and field changes, required final exact gates and NEW review. Do not
+            repeat unchanged suite or change timeout.
+        execution_lease:
+          executor_id: electronics-field-544
+          holder: unassigned
+          acquired_at: null
+          expires_at: null
+          reviewer_role_requires_lease: false
+        gates:
+          focused:
+            workflow: Electronics R4-M1 Focused
+            commands:
+            - pnpm gate:electronics-m1
+          browser:
+            workflow: Electronics R4-M1 Focused
+            commands:
+            - pnpm gate:electronics-m1:browser
+          general:
+            workflow: ASA Lab Governance and Code Gates
+            commands:
+            - pnpm gate:repository
+        revisions:
+          kind: observed_snapshot
+          convergence_baseline_sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+          head_sha: null
+          observed_at: '2026-10-09T21:17:44Z'
+          main:
+            branch: main
+            sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+          observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes, not live authority.
+            Fresh e761 General37990032316 failure before product assertions: Docker Hub429 Data/Access, Governance/Code
+            SUCCESS. CI545 separately selected identical immutable image transport, no school network or Docker changes.
+            543043a and541a741 unpublished candidates preserved. 540 exact72 remaining compute cause independently
+            proved; R1 stopped without product edits, separate546 preparation scope selected. 544 native field cause
+            must first be proved in built browser. All acceptance/release claims pending exact evidence/NEW review;
+            K0/T3/class/school/deployment pending.'
+      reason: Preserved unchanged while independently proven wheel dependency554 is executed;544 acceptance remains
+        pending548.
   - id: electronics-ci
     parent_lane: electronics
     worktree_id: electronics-ci-545
