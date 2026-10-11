@@ -171,7 +171,7 @@ BEGIN
   IF v_pipeline IS NULL OR v_pipeline NOT IN('product-analytics','client-diagnostics') OR v_stream IS NULL
    OR v_sequence IS NULL OR v_sequence NOT BETWEEN 1 AND 9007199254740991
    OR p_semantic->>'acknowledgementStage' IS DISTINCT FROM
-    CASE WHEN v_pipeline='product-analytics' THEN 'persisted' ELSE 'intake_acknowledged' END
+    (CASE WHEN v_pipeline='product-analytics' THEN 'persisted' ELSE 'intake_acknowledged' END)
    OR jsonb_typeof(p_semantic->'counters') IS DISTINCT FROM 'object'
    OR jsonb_typeof(p_semantic->'gauges') IS DISTINCT FROM 'object'
    OR jsonb_typeof(p_semantic->'coverage') IS DISTINCT FROM 'object'
