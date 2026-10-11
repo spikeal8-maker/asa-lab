@@ -79,6 +79,7 @@ describe('Course Builder structure forward upgrade', () => {
         '0204', // Participant assignment/profile/history projections remain read-only.
         '0205', // Scratch reuses bounded ProductAnalytics sessions and existing data.
         '0206', // Issued pupils remain visible to their teacher before first sign-in.
+        '0207', // Immutable telemetry receipts add no historical/academic rewrites.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);

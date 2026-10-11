@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type pg from 'pg';
+import { NestFactory } from '@nestjs/core';
+import { EventEmitter } from 'node:events';
 import { contentSecurityPolicyFor, createApiApp, shouldServeSpaDocument } from './app.factory.js';
 
 const apps: Array<Awaited<ReturnType<typeof createApiApp>>> = [];
@@ -19,6 +21,58 @@ afterEach(async () => {
 });
 
 describe('API application factory', () => {
+  it('closes transferred injected resources once on partial construction, without ambient URL fallback', async () => {
+    const previous = process.env['APP_DATABASE_URL'];
+    process.env['APP_DATABASE_URL'] = 'postgres://invalid:secret@unreachable.invalid/not_a_test';
+    const main = Object.assign(new EventEmitter(), {
+      query: vi.fn(),
+      end: vi.fn(async () => undefined),
+    });
+    const analytics = Object.assign(new EventEmitter(), {
+      query: vi.fn(),
+      end: vi.fn(async () => undefined),
+    });
+    try {
+      await expect(
+        createApiApp({
+          pool: main as unknown as pg.Pool,
+          analyticsPool: analytics as unknown as pg.Pool,
+          localApiPort: 3000,
+          webDist: null,
+        }),
+      ).rejects.toThrow();
+      expect(main.end).toHaveBeenCalledOnce();
+      expect(analytics.end).toHaveBeenCalledOnce();
+      expect(main.query).not.toHaveBeenCalled();
+      expect(analytics.query).not.toHaveBeenCalled();
+      expect(main.listenerCount('error')).toBe(0);
+      expect(analytics.listenerCount('error')).toBe(0);
+    } finally {
+      if (previous === undefined) delete process.env['APP_DATABASE_URL'];
+      else process.env['APP_DATABASE_URL'] = previous;
+    }
+  });
+  it('cleans up even if Nest construction itself rejects before returning an application', async () => {
+    const pool = { query: vi.fn(), end: vi.fn(async () => undefined) } as unknown as pg.Pool;
+    const creation = vi
+      .spyOn(NestFactory, 'create')
+      .mockRejectedValueOnce(new Error('injected construction failure'));
+    try {
+      await expect(createApiApp({ pool, webDist: null })).rejects.toThrow(
+        'injected construction failure',
+      );
+      expect(pool.end).toHaveBeenCalledOnce();
+    } finally {
+      creation.mockRestore();
+    }
+  });
+  it('honors explicitly disabled analytics and closes a shared injected pool once', async () => {
+    const end = vi.fn(async () => undefined);
+    const pool = { query: vi.fn(async () => ({ rows: [] })), end } as unknown as pg.Pool;
+    const app = await createApiApp({ pool, analyticsPool: null, webDist: null });
+    await Promise.all([app.close(), app.close()]);
+    expect(end).toHaveBeenCalledOnce();
+  });
   it('keeps public HTTPS protection without upgrading HTTP LAN assets to a nonexistent TLS port', async () => {
     for (const host of ['192.168.1.115', '172.20.0.3', '10.1.2.3', '100.105.67.69', '[fd12::1]']) {
       expect(contentSecurityPolicyFor('http', host)).not.toContain('upgrade-insecure-requests');
@@ -423,7 +477,7 @@ describe('API application factory', () => {
       expect(response.statusCode).toBe(403);
       expect(response.json().error.code).toBe('bot_check_required');
       expect(query).toHaveBeenCalledTimes(1);
-      expect(String(query.mock.calls[0]?.[0])).toContain('analytics_record_event');
+      expect(String(query.mock.calls[0]?.[0])).toContain('analytics_ingest_v2');
     } finally {
       if (previousNodeEnv === undefined) delete process.env['NODE_ENV'];
       else process.env['NODE_ENV'] = previousNodeEnv;
