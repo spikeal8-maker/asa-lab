@@ -225,22 +225,27 @@ case "$action" in
   doctor)
     require_docker
     assert_startup_identity
-    create_environment
+    [ -f .env ] || { echo 'No private environment. Use up for authorized installation.' >&2; exit 78; }
     compose config --quiet
     echo "Deployment doctor PASS: Docker, Compose and private configuration are ready."
     echo "Profile: $profile"
     echo "Revision: $ASA_BUILD_REVISION"
     echo "Schema: $ASA_EXPECTED_SCHEMA_VERSION"
+    if [ "$profile" != test ]; then python3 tools/log_collector.py status --root "$repo_root" --profile "$profile"; fi
     ;;
   up)
     require_docker
     assert_startup_identity
     create_environment
+    if [ "$profile" != test ]; then python3 tools/log_collector.py prepare --root "$repo_root" --profile "$profile"; fi
     compose config --quiet
     for service in minio scratch api web; do compose build "$service"; done
     assert_startup_identity
     compose up -d --no-build
     wait_for_ready
+    if [ "$profile" != test ]; then
+      python3 tools/log_collector.py reconcile --root "$repo_root" --profile "$profile" || echo 'ASA ready; diagnostic collection is degraded. Inspect .asa/collector-operation.json.' >&2
+    fi
     compose ps
     show_access
     ;;
