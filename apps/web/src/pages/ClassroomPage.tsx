@@ -4,12 +4,14 @@ import {
   type Classroom,
   type ClassroomStudentSeat,
   type ClassroomTeacher,
-  type ClassroomActivityEntry,
   type ClassroomTeacherInvitation,
   type ClassroomSeatBatchStudentInput,
 } from '../api';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
-import { ClassroomActivityList } from '../components/ClassroomActivityList';
+import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
+import { StudentCodeButton } from '../components/StudentCodeButton';
+import { ClassroomStudentProjects } from '../components/ClassroomStudentProjects';
+import { ClassroomStudentHistory } from '../components/ClassroomStudentHistory';
 import { ClassroomLearning } from '../components/ClassroomLearning';
 import {
   LearningNotificationPreferences,
@@ -25,6 +27,7 @@ import { ClassroomGradingScheme } from '../components/ClassroomGradingScheme';
 import { sortClassroomRoster, type ClassroomRosterSort } from '../components/classroom-roster-sort';
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
+import '../modules/classroom-usability.css';
 import { SeatAvatarPicker } from '../components/SeatAvatarPicker';
 import { SeatAwardRow } from '../components/SeatAwards';
 import { useSchoolTime } from '../components/school-time';
@@ -62,12 +65,12 @@ type TeacherTeamState =
     };
 
 const TABS: ReadonlyArray<{ id: ClassroomTab; label: string }> = [
-  { id: 'students', label: 'Учащиеся' },
+  { id: 'students', label: 'Ученики' },
   { id: 'activities', label: 'Обучение' },
   { id: 'gradebook', label: 'Журнал' },
   { id: 'projects', label: 'Проекты' },
   { id: 'moderation', label: 'История' },
-  { id: 'teachers', label: 'Коллеги-преподаватели' },
+  { id: 'teachers', label: 'Преподаватели' },
   { id: 'requests', label: 'Заявки' },
   { id: 'settings', label: 'Настройки' },
 ];
@@ -88,18 +91,6 @@ const MOBILE_ROSTER_SORTS = [
     key: 'name',
     direction: 'desc',
     label: 'Имя: Я → А',
-  },
-  {
-    value: 'code:asc',
-    key: 'code',
-    direction: 'asc',
-    label: 'Код: по возрастанию',
-  },
-  {
-    value: 'code:desc',
-    key: 'code',
-    direction: 'desc',
-    label: 'Код: по убыванию',
   },
   {
     value: 'submitted:desc',
@@ -388,7 +379,6 @@ function ClassroomPageContent({
   classroomId,
   openSeatId,
   onBack,
-  onOpenProjects,
   onOpenProject,
 }: ClassroomPageProps): JSX.Element {
   const [page, setPage] = useState<PageState>({ kind: 'loading' });
@@ -397,15 +387,6 @@ function ClassroomPageContent({
   const [participantsError, setParticipantsError] = useState<string | null>(null);
   const [staffProfile, setStaffProfile] = useState<string | null>(null);
   const participantGeneration = useRef(0);
-  const reloadParticipants = useCallback(async () => {
-    const token = ++participantGeneration.current;
-    setParticipants(null);
-    setParticipantsError(null);
-    const result = await participantsApi.roster(classroomId);
-    if (token !== participantGeneration.current) return;
-    if (result.ok) setParticipants(result.data);
-    else setParticipantsError(result.error.message);
-  }, [classroomId]);
   useEffect(
     () => () => {
       participantGeneration.current++;
@@ -424,8 +405,30 @@ function ClassroomPageContent({
   const [codeEditor, setCodeEditor] = useState<ClassroomStudentSeat | null>(null);
   const [teacherTeam, setTeacherTeam] = useState<TeacherTeamState>({ kind: 'idle' });
   const [teacherInviteLink, setTeacherInviteLink] = useState<string | null>(null);
-  const [activityKind, setActivityKind] = useState<'all' | 'projects'>('all');
-  const [activity, setActivity] = useState<ClassroomActivityEntry[]>([]);
+  const [showAllCodes, setShowAllCodes] = useState(false);
+  const [codeEpoch, setCodeEpoch] = useState(0);
+  const maskCodes = useCallback(() => {
+    setShowAllCodes(false);
+    setCodeEpoch((value) => value + 1);
+    setCodeEditor(null);
+    setAccessCardIds(null);
+    setSharing(false);
+  }, []);
+  const reloadParticipants = useCallback(async () => {
+    const token = ++participantGeneration.current;
+    setParticipants(null);
+    setParticipantsError(null);
+    const result = await participantsApi.roster(classroomId);
+    if (token !== participantGeneration.current) return;
+    if (result.ok) setParticipants(result.data);
+    else {
+      setParticipantsError(result.error.message);
+      if ([401, 403].includes(result.status)) {
+        maskCodes();
+        setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+      }
+    }
+  }, [classroomId, maskCodes]);
   // Which learner is being looked at. A class page and a learner's page are the
   // same place at two depths, so this is state rather than another route.
   const [openStudent, setOpenStudent] = useState<string | null>(openSeatId ?? null);
@@ -442,19 +445,13 @@ function ClassroomPageContent({
       setOpenStudent(null);
     }
   }, [destination.assignment, destination.joinRequest, destination.courseRun]);
-  /**
-   * Сводка по классу: выдано, сдано, ждут ответа, кто отстаёт.
-   *
-   * Числа те же, что в списке классов. Преподаватель, открывший класс, не
-   * должен считать их заново по строкам.
-   */
-  const [progress, setProgress] = useState<{
-    seatCount: number;
-    assignedCount: number;
-    submittedCount: number;
-    awaitingReview: number;
-    behindCount: number;
-  } | null>(null);
+  const summary = useClassroomMetrics(classroomId, page);
+  useEffect(() => {
+    if (summary.forbidden && page.kind !== 'error') {
+      maskCodes();
+      setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+    }
+  }, [summary.forbidden, maskCodes, page.kind]);
   /** Чем упорядочен список учащихся. */
   const [rosterSort, setRosterSort] = useState<ClassroomRosterSort>('name');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -490,6 +487,14 @@ function ClassroomPageContent({
         api.listClassroomRoster(classroomId),
       ]);
       if (!currentRequest()) return;
+      if (
+        (!classroom.ok && [401, 403].includes(classroom.status)) ||
+        (!roster.ok && [401, 403].includes(roster.status))
+      ) {
+        maskCodes();
+        setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+        return;
+      }
       if (!classroom.ok || !roster.ok) throw new Error('load failed');
       if (classroom.data.classroom.id !== classroomId) throw new Error('classroom mismatch');
       setPage({ kind: 'ready', classroom: classroom.data.classroom, students: roster.data.items });
@@ -497,6 +502,7 @@ function ClassroomPageContent({
       void reloadParticipants();
     } catch {
       if (!currentRequest()) return;
+      maskCodes();
       setPage((current) =>
         current.kind === 'ready' && current.classroom.id === classroomId
           ? current
@@ -507,7 +513,7 @@ function ClassroomPageContent({
       );
       setActionError('Не удалось обновить данные класса. Повторите загрузку.');
     }
-  }, [classroomId, reloadParticipants]);
+  }, [classroomId, reloadParticipants, maskCodes]);
 
   useEffect(() => {
     loadScope.current.active = true;
@@ -523,33 +529,6 @@ function ClassroomPageContent({
       if (result.ok) setAwards(result.data.items);
     });
   }, [classroomId, openStudent]);
-
-  // Сводка обновляется вместе с классом: после сдачи или отклика числа меняются.
-  useEffect(() => {
-    void api.classroomProgress(classroomId).then((result) => {
-      if (result.ok) setProgress(result.data);
-    });
-  }, [classroomId, page, openStudent]);
-
-  useEffect(() => {
-    setTeacherTeam({ kind: 'idle' });
-    setTeacherInviteLink(null);
-  }, [classroomId]);
-
-  // The record is fetched when it is being looked at, and refetched when the
-  // filter changes, so an open class page does not poll a growing table.
-  useEffect(() => {
-    if (tab !== 'moderation') return;
-    let cancelled = false;
-    void api
-      .classroomActivity(classroomId, activityKind === 'projects' ? { kind: 'projects' } : {})
-      .then((result) => {
-        if (!cancelled && result.ok) setActivity(result.data.items);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activityKind, classroomId, tab]);
 
   const reloadTeacherTeam = useCallback(async () => {
     setTeacherTeam({ kind: 'loading' });
@@ -720,13 +699,9 @@ function ClassroomPageContent({
           ← Мои классы
         </button>
         <div className="classroom-head-title">
-          <h1>
-            {classroom.title}
-            <small>
-              {classroom.workspaceKind === 'personal' ? 'Личный класс' : classroom.workspaceTitle}
-            </small>
-          </h1>
+          <h1>{classroom.title}</h1>
         </div>
+        <ClassroomMetrics data={summary.data?.totals ?? null} />
         {/* The code is a chip and a button, not a panel. It is needed twice a
             lesson and read from across a room, so the place it is read properly
             is the full screen behind "Поделиться" — not a block that competes
@@ -757,14 +732,17 @@ function ClassroomPageContent({
           ) : (
             <>
               {classroom.joinCode ? (
-                <button
-                  type="button"
+                <StudentCodeButton
+                  code={classroom.joinCode}
+                  label="код класса"
                   className="classroom-code-chip"
-                  title="Скопировать код"
-                  onClick={() => void copy(classroom.joinCode as string, 'Код скопирован.')}
-                >
-                  {classroom.joinCode}
-                </button>
+                  showAll={false}
+                  epoch={codeEpoch}
+                  onCopied={() => setNotice('Код класса скопирован.')}
+                  onDenied={() =>
+                    setActionError('Не удалось скопировать код. Выделите и скопируйте его вручную.')
+                  }
+                />
               ) : (
                 <span className="classroom-code-chip is-closed">Вход закрыт</span>
               )}
@@ -774,8 +752,7 @@ function ClassroomPageContent({
                 onClick={() => setSharing(true)}
                 aria-label="Поделиться классом"
               >
-                <span className="classroom-desktop-label">Поделиться классом</span>
-                <span className="classroom-mobile-label">Поделиться</span>
+                <span>Поделиться</span>
               </button>
             </>
           )}
@@ -789,31 +766,13 @@ function ClassroomPageContent({
         </p>
       ) : null}
 
-      {progress ? (
-        <div className="classroom-progress" aria-label="Успеваемость класса">
-          <span>
-            <strong>{classroom.studentCount}</strong>
-            <em>Учеников</em>
-          </span>
-          <span>
-            <strong>{progress.assignedCount}</strong>
-            <em>Выдано</em>
-          </span>
-          <span>
-            <strong>{progress.submittedCount}</strong>
-            <em>Сдано</em>
-          </span>
-          <span className={progress.awaitingReview > 0 ? 'is-waiting' : undefined}>
-            <strong>{progress.awaitingReview}</strong>
-            <em title="Ожидают проверки">Ждут</em>
-          </span>
-          <span className={progress.behindCount > 0 ? 'is-behind' : undefined}>
-            <strong>{progress.behindCount}</strong>
-            <em title="Учащиеся, которые ещё ничего не сдали, хотя классу выданы задания">
-              Без сдач
-            </em>
-          </span>
-        </div>
+      {summary.error ? (
+        <p role="alert">
+          Показатели: {summary.error}{' '}
+          <button type="button" onClick={summary.retry}>
+            Повторить
+          </button>
+        </p>
       ) : null}
 
       {/* The tabs and the one switch that applies to every learner share a row:
@@ -843,6 +802,7 @@ function ClassroomPageContent({
               key={item.id}
               type="button"
               className={tab === item.id ? 'active' : undefined}
+              aria-current={tab === item.id ? 'page' : undefined}
               onClick={() => setTab(item.id)}
             >
               {item.label}
@@ -890,43 +850,46 @@ function ClassroomPageContent({
             readOnly={archived}
             onSaved={() => void reloadParticipants()}
           />
-          <button
-            type="button"
-            className="btn-secondary"
-            disabled={archived}
-            onClick={() => setPropertiesOpen(true)}
-          >
-            Название и свойства класса
-          </button>
-          <label className="classroom-safe-switch">
-            <span>Безопасный режим для всех</span>
-            <input
-              type="checkbox"
-              checked={classroom.safeModeDefault}
-              disabled={Boolean(busy) || archived}
-              onChange={async (event) => {
-                const safeMode = event.currentTarget.checked;
-                await action(
-                  'policy',
-                  'Не удалось сохранить безопасный режим класса.',
-                  async () => {
-                    const result = confirmedClassroomResult(
-                      await api.updateClassroomPolicy(classroomId, safeMode),
-                      'Не удалось сохранить безопасный режим класса.',
-                    );
-                    confirmClassroom(result.classroom);
-                    setNotice(
-                      result.classroom.safeModeDefault
-                        ? 'Безопасный режим включён для класса.'
-                        : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
-                    );
-                    await reload();
-                  },
-                );
-              }}
-            />
-            <i aria-hidden="true" />
-          </label>
+          <fieldset className="classroom-safety-settings">
+            <legend>Свойства и безопасность</legend>
+            <button
+              type="button"
+              className="btn-secondary"
+              disabled={archived}
+              onClick={() => setPropertiesOpen(true)}
+            >
+              Название и свойства класса
+            </button>
+            <label className="classroom-safe-switch">
+              <span>Безопасный режим для всех</span>
+              <input
+                type="checkbox"
+                checked={classroom.safeModeDefault}
+                disabled={Boolean(busy) || archived}
+                onChange={async (event) => {
+                  const safeMode = event.currentTarget.checked;
+                  await action(
+                    'policy',
+                    'Не удалось сохранить безопасный режим класса.',
+                    async () => {
+                      const result = confirmedClassroomResult(
+                        await api.updateClassroomPolicy(classroomId, safeMode),
+                        'Не удалось сохранить безопасный режим класса.',
+                      );
+                      confirmClassroom(result.classroom);
+                      setNotice(
+                        result.classroom.safeModeDefault
+                          ? 'Безопасный режим включён для класса.'
+                          : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
+                      );
+                      await reload();
+                    },
+                  );
+                }}
+              />
+              <i aria-hidden="true" />
+            </label>
+          </fieldset>
           <ClassroomGradingScheme classroomId={classroomId} />
           <LearningNotificationPreferences classroomId={classroomId} />
           <ClassroomLearningReminders classroomId={classroomId} />
@@ -989,6 +952,18 @@ function ClassroomPageContent({
                 <span className="classroom-mobile-label">Карточки</span>
               </button>
             </div>
+            <button
+              type="button"
+              className="btn-secondary classroom-mobile-code-toggle"
+              aria-pressed={showAllCodes}
+              title={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
+              onClick={() => {
+                setShowAllCodes((value) => !value);
+                setCodeEpoch((value) => value + 1);
+              }}
+            >
+              Код ученика
+            </button>
             <label className="classroom-roster-search">
               <span className="sr-only">Поиск учащихся</span>
               <input
@@ -1041,14 +1016,19 @@ function ClassroomPageContent({
                     className={`classroom-roster-sort${rosterSort === 'name' ? ' is-active' : ''}`}
                     onClick={() => selectRosterSort('name')}
                   >
-                    Учащийся{sortMark('name')}
+                    Ученик{sortMark('name')}
                   </button>
                   <button
                     type="button"
                     className="classroom-roster-sort"
-                    onClick={() => selectRosterSort('code')}
+                    onClick={() => {
+                      setShowAllCodes((value) => !value);
+                      setCodeEpoch((value) => value + 1);
+                    }}
+                    aria-pressed={showAllCodes}
+                    title={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
                   >
-                    Код ученика{sortMark('code')}
+                    Код
                   </button>
                   {/* Две сортировки на одну колонку: «кто сделал больше» и
                     «кто ждёт ответа» — разные вопросы к одним и тем же числам. */}
@@ -1058,7 +1038,7 @@ function ClassroomPageContent({
                       className={`classroom-roster-sort${rosterSort === 'submitted' ? ' is-active' : ''}`}
                       onClick={() => selectRosterSort('submitted')}
                     >
-                      Задания{sortMark('submitted')}
+                      Сдано{sortMark('submitted')}
                     </button>
                     <button
                       type="button"
@@ -1073,14 +1053,14 @@ function ClassroomPageContent({
                     className={`classroom-roster-sort${rosterSort === 'active' ? ' is-active' : ''}`}
                     onClick={() => selectRosterSort('active')}
                   >
-                    Последняя активность{sortMark('active')}
+                    Активность{sortMark('active')}
                   </button>
                   <button
                     type="button"
                     className="classroom-roster-sort"
                     onClick={() => selectRosterSort('safe')}
                   >
-                    Безопасный режим{sortMark('safe')}
+                    Защита{sortMark('safe')}
                   </button>
                   <span className="sr-only">Действия</span>
                   <button
@@ -1088,7 +1068,7 @@ function ClassroomPageContent({
                     className="classroom-roster-sort participant-column"
                     onClick={() => selectRosterSort('works')}
                   >
-                    Всего работ{sortMark('works')}
+                    Работы{sortMark('works')}
                   </button>
                   <button
                     type="button"
@@ -1176,31 +1156,34 @@ function ClassroomPageContent({
                         </span>
                       </span>
                       {student.loginMethod === 'account' ? (
-                        <span className="classroom-account-entry">Вход через аккаунт</span>
+                        <span className="classroom-account-entry">Аккаунт</span>
                       ) : (
-                        <button
-                          type="button"
-                          className="classroom-login-handle"
-                          onClick={() =>
-                            student.studentCode &&
-                            void copy(
-                              student.studentCode,
-                              `Код «${student.studentCode}» скопирован.`,
-                            )
-                          }
-                        >
-                          {student.studentCode}
-                        </button>
+                        <StudentCodeButton
+                          code={student.studentCode}
+                          showAll={showAllCodes}
+                          epoch={codeEpoch}
+                          onEdit={archived || busy ? undefined : () => setCodeEditor(student)}
+                          onCopied={() => {
+                            setActionError(null);
+                            setNotice('Код ученика скопирован.');
+                          }}
+                          onDenied={() => {
+                            setNotice(null);
+                            setActionError(
+                              'Не удалось скопировать код. Выделите и скопируйте его вручную.',
+                            );
+                          }}
+                        />
                       )}
                       {/* Сколько сдано из выданного и ждёт ли что-то ответа.
                       Преподаватель видел «ждут проверки» в списке классов,
                       заходил внутрь — и не мог понять, кто именно ждёт. */}
                       <span className="classroom-roster-progress">
                         <span className="classroom-roster-done">
-                          {student.submittedCount ?? 0} из {student.assignedCount ?? 0}
+                          {student.submittedCount ?? 0}/{student.assignedCount ?? 0}
                         </span>
                         {(student.awaitingReview ?? 0) > 0 ? (
-                          <em>ждёт проверки: {student.awaitingReview}</em>
+                          <em title="Ожидают проверки">Ждут: {student.awaitingReview}</em>
                         ) : null}
                       </span>
                       <span className="classroom-roster-seen">
@@ -1329,17 +1312,7 @@ function ClassroomPageContent({
       ) : null}
 
       {tab === 'projects' ? (
-        <section className="classroom-tab-panel">
-          <h2>Проекты класса</h2>
-          <p>Откройте проекты, созданные педагогом для этого класса.</p>
-          <button
-            type="button"
-            className="portal-create-button"
-            onClick={() => onOpenProjects(classroom.title)}
-          >
-            Открыть проекты
-          </button>
-        </section>
+        <ClassroomStudentProjects classroomId={classroomId} onOpenProject={onOpenProject} />
       ) : null}
       {tab === 'activities' ? (
         <ClassroomLearning
@@ -1349,44 +1322,12 @@ function ClassroomPageContent({
         />
       ) : null}
       {tab === 'gradebook' ? <ClassroomGradebook classroomId={classroomId} /> : null}
-      {tab === 'moderation' ? (
-        <section className="classroom-tab-panel">
-          <div className="classroom-activity-heading">
-            <h2>Что происходит в классе</h2>
-            <div className="classroom-activity-filters" role="group" aria-label="Фильтр записей">
-              <button
-                type="button"
-                className={activityKind === 'all' ? 'active' : undefined}
-                onClick={() => setActivityKind('all')}
-              >
-                Все действия
-              </button>
-              <button
-                type="button"
-                className={activityKind === 'projects' ? 'active' : undefined}
-                onClick={() => setActivityKind('projects')}
-              >
-                Проекты
-              </button>
-            </div>
-          </div>
-          <ClassroomActivityList
-            entries={activity}
-            showWho
-            emptyText="Пока ничего не происходило. Записи появятся, когда ученики начнут работать."
-          />
-        </section>
-      ) : null}
+      {tab === 'moderation' ? <ClassroomStudentHistory classroomId={classroomId} /> : null}
       {tab === 'teachers' ? (
         <section className="classroom-tab-panel classroom-teacher-panel">
           <div className="classroom-teacher-heading">
             <div>
-              <span className="portal-eyebrow">Команда класса</span>
-              <h2>Коллеги-преподаватели</h2>
-              <p>
-                Коллеги могут вместе с вами вести учеников, настраивать безопасный режим и работать
-                с проектами этого класса.
-              </p>
+              <h2>Преподаватели</h2>
             </div>
             {classroom.teacherRole === 'owner' ? (
               <button
@@ -1473,7 +1414,9 @@ function ClassroomPageContent({
                   onClose={() => setStaffProfile(null)}
                 />
               ) : null}
-              <ClassroomParticipantManagers classroomId={classroomId} onOpen={setStaffProfile} />
+              {classroom.workspaceKind !== 'personal' ? (
+                <ClassroomParticipantManagers classroomId={classroomId} onOpen={setStaffProfile} />
+              ) : null}
               <div className="classroom-teacher-list" aria-label="Преподаватели класса">
                 {teacherTeam.teachers.map((teacher) => (
                   <article className="classroom-teacher-card" key={teacher.accountId}>
@@ -1632,7 +1575,7 @@ function ClassroomPageContent({
             if (!result.ok) return result.error.message || 'Не удалось добавить ученика.';
             setDialog(null);
             setNotice(
-              `${result.data.student.displayLabel} добавлен. Код ученика: ${result.data.student.studentCode}`,
+              `${result.data.student.displayLabel} добавлен. Код доступен в списке и карточке доступа.`,
             );
             await reload();
             return null;
@@ -1675,6 +1618,10 @@ function ClassroomPageContent({
         <StudentCodeDialog
           classroomId={classroomId}
           student={codeEditor}
+          onForbidden={() => {
+            maskCodes();
+            setPage({ kind: 'error', message: 'Доступ к классу закрыт.' });
+          }}
           onClose={() => setCodeEditor(null)}
           onSaved={async (studentCode) => {
             if (!loadScope.current.active) return;
@@ -1693,7 +1640,8 @@ function ClassroomPageContent({
                   }
                 : current,
             );
-            setNotice(`Код ученика ${codeEditor.displayLabel} изменён: ${studentCode}.`);
+            maskCodes();
+            setNotice('Код ученика изменён. Старый код больше не действует.');
             await reload();
           }}
         />

@@ -64,6 +64,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   const classId = (await page.request.get('/api/classrooms').then((r) => r.json())).items.find(
     (c: { title: string }) => c.title === title,
   ).id as string;
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   expect(
     (

@@ -165,6 +165,7 @@ test('A–E: register, personal project, profile/avatar, explicit teaching, inde
     .filter({ hasText: 'Независимый класс Access A' })
     .locator('.classroom-row-title')
     .click();
+  await page.locator('.classroom-code-chip').click();
   classCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   classId = /classrooms\/([a-f0-9-]+)/.exec(page.url())![1]!;
   teacherCookie = `asa_session=${(await page.context().cookies()).find((c) => c.name === 'asa_session')!.value}`;
@@ -395,7 +396,7 @@ test('H: short Student Code, reusable access cards, profile, logout and learner 
   const accountRow = teacherPage
     .locator('.classroom-roster-row')
     .filter({ hasText: accountOnly!.displayLabel });
-  await expect(accountRow).toContainText('Вход через аккаунт');
+  await expect(accountRow).toContainText('Аккаунт');
   await expect(accountRow.locator('.classroom-login-handle')).toHaveCount(0);
   await expect(
     accountRow.getByRole('button', {

@@ -1,14 +1,14 @@
 import '../modules/classroom-owner-layout.css';
+import '../modules/classroom-usability.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
 import { ageBandLabel } from '../components/ClassroomFields';
 import { Dropdown } from '../components/Dropdown';
-import { classroomWord, learnerWord, workWord } from '../plural';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
-import { participantsApi, type ParticipantSummary } from '../classroom-participants-api';
+import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
 
 type ListState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
@@ -89,9 +89,6 @@ export function DashboardPage({
   const [sort, setSort] = useState<SortKey>('created-desc');
   const [editing, setEditing] = useState<Classroom | null>(null);
   const [busy, setBusy] = useState(false);
-  const [participantSummary, setParticipantSummary] = useState<ParticipantSummary | null>(null);
-  const [participantSummaryError, setParticipantSummaryError] = useState<string | null>(null);
-  const [summaryRetry, setSummaryRetry] = useState(0);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<HTMLButtonElement | null>(null);
   const time = useSchoolTime();
@@ -158,22 +155,12 @@ export function DashboardPage({
     .map((item) => item.id)
     .sort()
     .join(',');
-  useEffect(() => {
-    let active = true;
-    setParticipantSummary(null);
-    setParticipantSummaryError(null);
-    if (roleView === 'enrolled') return;
-    void participantsApi
-      .summary(summaryClassIds ? summaryClassIds.split(',') : [])
-      .then((result) => {
-        if (!active) return;
-        if (result.ok) setParticipantSummary(result.data);
-        else setParticipantSummaryError(result.error.message);
-      });
-    return () => {
-      active = false;
-    };
-  }, [summaryClassIds, roleView, summaryRetry]);
+  const summary = useClassroomMetrics(
+    summaryClassIds,
+    list,
+    list.kind === 'ready' && roleView !== 'enrolled',
+  );
+  const rowMetrics = new Map(summary.data?.items.map((item) => [item.classroomId, item]));
   const allSelected = visibleItems.length > 0 && selectedItems.length === visibleItems.length;
   const ownedSelection = selectedItems.filter((item) => item.teacherRole === 'owner');
 
@@ -227,18 +214,6 @@ export function DashboardPage({
 
   const sortLabel = SORTS.find((entry) => entry.id === sort)?.label ?? 'Сначала новые';
 
-  /** Итоги по видимым классам — те же числа, что в колонках, но одной строкой. */
-  const totals = visibleItems.reduce(
-    (acc, classroom) => ({
-      students: acc.students + classroom.studentCount,
-      assigned: acc.assigned + (classroom.assignedCount ?? 0) * classroom.studentCount,
-      submitted: acc.submitted + (classroom.submittedCount ?? 0),
-      awaiting: acc.awaiting + (classroom.awaitingReview ?? 0),
-      behind: acc.behind + (classroom.behindCount ?? 0),
-    }),
-    { students: 0, assigned: 0, submitted: 0, awaiting: 0, behind: 0 },
-  );
-
   return (
     <main
       id="main-content"
@@ -249,40 +224,18 @@ export function DashboardPage({
       <section className="classroom-hub-heading" aria-labelledby="classroom-hub-title">
         <div className="classroom-title-row">
           <h1 id="classroom-hub-title">Мои классы</h1>
-          {list.kind === 'ready' && visibleItems.length > 0 && roleView !== 'enrolled' ? (
-            <section className="classroom-progress" aria-label="Итоги по классам">
-              <span>
-                <strong>{visibleItems.length}</strong> {classroomWord(visibleItems.length)}
-              </span>
-              <span>
-                <strong>{totals.students}</strong> {learnerWord(totals.students)}
-              </span>
-              <span title="Без повторного счёта проекта в нескольких классах. Включая архив; без игр и корзины.">
-                <strong>
-                  {participantSummary?.totalWorks ?? (participantSummaryError ? 'Ошибка' : '…')}
-                </strong>{' '}
-                всего работ
-                {participantSummary ? (
-                  <small> · в архиве {participantSummary.archivedWorks}</small>
-                ) : null}
-              </span>
-              <span>
-                <strong>{totals.submitted}</strong> из {totals.assigned} {workWord(totals.assigned)}{' '}
-                сдано
-              </span>
-              <span className={totals.awaiting > 0 ? 'is-waiting' : undefined}>
-                <strong>{totals.awaiting}</strong> ждут проверки
-              </span>
-              <span className={totals.behind > 0 ? 'is-behind' : undefined}>
-                <strong>{totals.behind}</strong> не сдали ничего
-              </span>
-            </section>
+          {roleView !== 'enrolled' ? (
+            <ClassroomMetrics
+              showClasses
+              classes={list.kind === 'ready' ? visibleItems.length : undefined}
+              data={summary.data?.totals ?? null}
+            />
           ) : null}
         </div>
-        {participantSummaryError ? (
+        {summary.error ? (
           <p role="alert">
-            Не удалось загрузить число работ: {participantSummaryError}{' '}
-            <button type="button" onClick={() => setSummaryRetry((n) => n + 1)}>
+            Показатели: {summary.error}{' '}
+            <button type="button" onClick={summary.retry}>
               Повторить
             </button>
           </p>
@@ -332,7 +285,7 @@ export function DashboardPage({
           className="portal-create-button"
           onClick={openModal}
         >
-          <PlusIcon /> Создать новый класс
+          <PlusIcon /> Создать класс
         </button>
         {/* The actions apply to what is ticked. With nothing ticked the menu
             says so instead of being a dead button that gives no reason. */}
@@ -475,9 +428,10 @@ export function DashboardPage({
             <span />
             <span>Класс</span>
             <span>Ученики</span>
-            <span>Сдано из выданного</span>
-            <span>Ждут проверки</span>
-            <span>Отстают</span>
+            <span>Работы</span>
+            <span>Сдано</span>
+            <span>Ждут</span>
+            <span>Не сдали</span>
             <span>Создан</span>
             <span />
           </li>
@@ -501,18 +455,22 @@ export function DashboardPage({
                   <em className="classroom-row-archived">в архиве</em>
                 ) : null}
               </button>
-              <span className="classroom-row-students">{classroom.studentCount}</span>
-              {/* Сколько работ сдано из выданного классу: первое число, по
-                  которому преподаватель понимает, идёт ли работа вообще. */}
-              <span className="classroom-row-progress">
-                {classroom.submittedCount ?? 0} из{' '}
-                {(classroom.assignedCount ?? 0) * (classroom.studentCount || 0)}
+              <span className="classroom-row-students" data-label="Ученики">
+                {rowMetrics.get(classroom.id)?.students ?? '—'}
               </span>
-              <span className="classroom-row-awaiting">
-                {classroom.awaitingReview ? <em>{classroom.awaitingReview}</em> : '—'}
+              <span className="classroom-row-works" data-label="Работы">
+                {rowMetrics.get(classroom.id)?.works ?? '—'}
               </span>
-              <span className="classroom-row-behind">
-                {classroom.behindCount ? <em>{classroom.behindCount}</em> : '—'}
+              <span className="classroom-row-progress" data-label="Сдано">
+                {rowMetrics.has(classroom.id)
+                  ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
+                  : '—'}
+              </span>
+              <span className="classroom-row-awaiting" data-label="Ждут">
+                {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+              </span>
+              <span className="classroom-row-behind" data-label="Не сдали">
+                {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
               </span>
               <span className="classroom-row-date">
                 {/* Подпись нужна только архиву: у остальных её говорит колонка. */}

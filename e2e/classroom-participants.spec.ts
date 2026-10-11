@@ -43,6 +43,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
   await studentDialog.getByLabel('Имя в списке класса').fill('Анна Участница');
   await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
   const row = page.getByRole('row').filter({ hasText: 'Анна Участница' });
+  await row.locator('.classroom-login-handle').click();
   const code = (await row.locator('.classroom-login-handle').innerText()).trim();
   await expect(row.getByLabel('Всего работ: Анна Участница')).toContainText('0');
   const list = (await (await page.request.get('/api/classrooms')).json()) as {
@@ -54,6 +55,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     items: Array<{ id: string; displayLabel: string }>;
   };
   const seatId = roster.items.find((s) => s.displayLabel === 'Анна Участница')!.id;
+  await page.locator('.classroom-code-chip').click();
   const shareCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   const studentContext = await browser.newContext();
   try {
@@ -103,7 +105,7 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     await page.getByRole('button', { name: 'Настройки', exact: true }).click();
     await expect(rating.getByLabel('Период рейтинга')).toHaveValue('7');
     await expect(rating.getByLabel('Оценки', { exact: true })).not.toBeChecked();
-    await page.getByRole('button', { name: 'Учащиеся', exact: true }).click();
+    await page.getByRole('button', { name: 'Ученики', exact: true }).click();
     for (const width of [320, 390, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await expect(row.getByLabel('Всего работ: Анна Участница')).toBeVisible();

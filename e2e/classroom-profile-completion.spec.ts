@@ -125,6 +125,7 @@ async function createClass(page: Page) {
     page,
     '/api/classrooms',
   );
+  await page.locator('.classroom-code-chip').click();
   return {
     id: classes.items.find((c) => c.title === title)!.id,
     title,

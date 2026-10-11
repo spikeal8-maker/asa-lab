@@ -48,6 +48,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await classCard.locator('.classroom-row-title').click();
 
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   expect(joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
 
@@ -74,6 +75,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
 
   const studentRow = page.getByRole('row').filter({ hasText: 'Алина К.' });
+  await studentRow.locator('.classroom-login-handle').click();
   const studentCode = (await studentRow.locator('.classroom-login-handle').innerText()).trim();
   expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
   await expect(studentRow).toContainText(studentCode);
@@ -443,7 +445,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await page.screenshot({ path: `${evidenceDir}/work-preview.png` });
   await preview.getByRole('button', { name: 'Закрыть' }).click();
 
-  await page.getByRole('button', { name: 'Учащиеся' }).click();
+  await page.getByRole('button', { name: 'Ученики' }).click();
   await page.getByLabel('Действия: Алина К.').click();
   await page.getByRole('button', { name: 'Приостановить доступ' }).click();
   await expect(page.getByText('Доступ приостановлен')).toBeVisible();

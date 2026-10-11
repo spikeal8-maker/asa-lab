@@ -40,15 +40,14 @@ export function ClassroomJoinRequests({
     const timer = window.setInterval(() => void load(), 15000);
     return () => window.clearInterval(timer);
   }, [load]);
-  return (
-    <details
-      className="learning-join-requests"
-      open={expanded || items.some((item) => item.status === 'pending')}
-    >
-      <summary>
-        {classroomId ? 'Заявки в класс' : 'Мои заявки в классы'} ·{' '}
-        {items.filter((item) => item.status === 'pending').length}
-      </summary>
+  const heading = (
+    <>
+      {classroomId ? 'Заявки в класс' : 'Мои заявки в классы'} ·{' '}
+      {items.filter((item) => item.status === 'pending').length}
+    </>
+  );
+  const content = (
+    <>
       <p>
         Код позволяет подать заявку. Доступ к занятиям появляется после подтверждения
         преподавателем.
@@ -64,6 +63,7 @@ export function ClassroomJoinRequests({
       >
         Обновить заявки
       </button>
+      {items.length === 0 && !error ? <p>Заявок пока нет.</p> : null}
       <ul>
         {items.map((item) => (
           <li
@@ -106,6 +106,20 @@ export function ClassroomJoinRequests({
           </li>
         ))}
       </ul>
+    </>
+  );
+  return expanded ? (
+    <section className="learning-join-requests" aria-label="Заявки в класс">
+      <h2>{heading}</h2>
+      {content}
+    </section>
+  ) : (
+    <details
+      className="learning-join-requests"
+      open={items.some((item) => item.status === 'pending')}
+    >
+      <summary>{heading}</summary>
+      {content}
     </details>
   );
 }

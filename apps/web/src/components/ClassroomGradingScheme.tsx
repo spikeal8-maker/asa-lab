@@ -94,8 +94,8 @@ function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }
     else setError(result.error.message);
   }
   return (
-    <details className="learning-notification-settings">
-      <summary>Шкала новых оцениваемых заданий</summary>
+    <fieldset className="learning-notification-settings">
+      <legend>Шкала новых оцениваемых заданий</legend>
       <p>
         Шкала закрепляется при назначении. Новая версия не меняет прежние задания и результаты. Без
         шкалы показываются только исходные баллы.
@@ -200,6 +200,6 @@ function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }
           </div>
         </>
       ) : null}
-    </details>
+    </fieldset>
   );
 }

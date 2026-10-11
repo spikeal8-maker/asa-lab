@@ -866,7 +866,7 @@ test('confirmed Student Code rotation survives a failed roster reload in copy an
   const [target, other] = students as [(typeof students)[number], (typeof students)[number]];
   await page.goto(`/#/classrooms/${classroom.id}`);
   const row = page.locator('.classroom-roster-row').filter({ hasText: target.displayLabel });
-  await expect(row.locator('.classroom-login-handle')).toHaveText(target.studentCode);
+  await expect(row.locator('.classroom-login-handle')).toHaveText('******');
   const copyLog: string[] = [];
   await page.exposeFunction('captureRotatedCode', (code: string) => copyLog.push(code));
   await page.evaluate(() => {
@@ -902,11 +902,12 @@ test('confirmed Student Code rotation survives a failed roster reload in copy an
   await expect(page.locator('body')).not.toContainText(
     'Не удалось получить подтверждение смены кода',
   );
-  await expect(row.locator('.classroom-login-handle')).toHaveText(newCode);
+  await expect(row.locator('.classroom-login-handle')).toHaveText('******');
   await expect(page.locator('.classroom-roster-table')).not.toContainText(target.studentCode);
-  await expect(page.locator('.classroom-roster-table')).toContainText(other.studentCode);
+  await expect(page.locator('.classroom-roster-table')).not.toContainText(other.studentCode);
   await row.locator('.classroom-login-handle').click();
   await expect.poll(() => copyLog).toEqual([newCode]);
+  await expect(row.locator('.classroom-login-handle')).toHaveText(newCode);
   await page.getByRole('button', { name: 'Карточки доступа', exact: true }).click();
   const cards = page.getByRole('dialog', { name: 'Карточки доступа', exact: true });
   await expect(cards).toContainText(newCode);
@@ -1102,7 +1103,7 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     // Same-hash navigation preserves the current Requests tab; explicitly
     // reload server-renamed students and choose the roster under test.
     await page.reload();
-    await page.getByRole('button', { name: 'Учащиеся', exact: true }).click();
+    await page.getByRole('button', { name: 'Ученики', exact: true }).click();
     const copyLog: string[] = [];
     await page.exposeFunction('captureClassroomCopy', (value: string) => copyLog.push(value));
     await page.evaluate(() => {
@@ -1117,13 +1118,13 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
       });
     });
     const accountRow = page.locator('.classroom-roster-row').filter({ hasText: longAccountName });
-    await expect(accountRow).toContainText('Вход через аккаунт');
+    await expect(accountRow).toContainText('Аккаунт');
     await expect(accountRow.locator('.classroom-login-handle')).toHaveCount(0);
-    await accountRow.getByText('Вход через аккаунт', { exact: true }).click();
+    await accountRow.getByText('Аккаунт', { exact: true }).click();
     expect(copyLog).toEqual([]);
     const codeRow = page
       .locator('.classroom-roster-row')
-      .filter({ hasText: longCodeSeat.studentCode });
+      .filter({ hasText: longCodeSeat.displayLabel });
     await codeRow.locator('.classroom-login-handle').click();
     await expect.poll(() => copyLog).toEqual([longCodeSeat.studentCode]);
     await expect(page.locator('.classroom-roster-table')).not.toContainText('acc:');

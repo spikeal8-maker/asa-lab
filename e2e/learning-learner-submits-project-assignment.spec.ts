@@ -191,6 +191,7 @@ async function createClassWithStudents(
     .filter({ hasText: className })
     .locator('.classroom-row-title')
     .click();
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   for (const student of students) {
     await page.getByRole('button', { name: 'Добавить ученика' }).click();
@@ -199,6 +200,7 @@ async function createClassWithStudents(
     await dialog.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(dialog).toBeHidden();
     const rosterRow = page.getByRole('row').filter({ hasText: student.label });
+    await rosterRow.locator('.classroom-login-handle').click();
     const studentCode = (await rosterRow.locator('.classroom-login-handle').innerText()).trim();
     expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
     keys.set(student.handle, studentCode);
@@ -524,7 +526,7 @@ test('approved Account starts a Direct assignment by its exact Run without legac
   await expect(learner.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Учащиеся', exact: true })
+    .getByRole('button', { name: 'Ученики', exact: true })
     .click();
   await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
   await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();

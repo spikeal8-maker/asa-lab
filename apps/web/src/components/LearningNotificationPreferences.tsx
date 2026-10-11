@@ -323,8 +323,8 @@ export function ClassroomLearningReminders({ classroomId }: { classroomId: strin
     void load();
   }, [load]);
   return (
-    <details>
-      <summary>Напоминания ученикам</summary>
+    <fieldset className="learning-notification-settings">
+      <legend>Напоминания ученикам</legend>
       <p>
         Для учащихся этого класса. Личные выключатели учеников сохраняют приоритет. Сроки и оценки
         не меняются.
@@ -369,6 +369,6 @@ export function ClassroomLearningReminders({ classroomId }: { classroomId: strin
           </button>
         </>
       ) : null}
-    </details>
+    </fieldset>
   );
 }
