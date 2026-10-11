@@ -1171,7 +1171,9 @@ for (const width of [1440, 1024, 390, 320])
           await fitAndPlace(page, 'meter');
           await nativeSelect(page, 'meter');
           const meter = part(page, 'meter').getByTestId('multimeter-runtime-display');
-          await meter.locator('.workbench-multimeter-mode-voltage').click();
+          await meter
+            .locator('path.workbench-multimeter-mode-button.workbench-multimeter-mode-voltage')
+            .click();
           await expect(meter).toHaveAttribute('data-measurement-mode', 'dc-voltage');
           output.push({
             phase: 'native-runtime-controls',
