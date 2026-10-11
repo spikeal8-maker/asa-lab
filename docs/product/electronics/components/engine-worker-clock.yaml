@@ -150,6 +150,9 @@ components:
     - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
     - contexts/electronics/testing/arduino-execution-clock.spec.ts
     - apps/web/src/electronics/testing/live-simulation-worker-controller.spec.ts
+    - contexts/electronics/testing/canonical-piezo-clock.spec.ts
+    - apps/web/src/electronics/testing/simulation-worker-piezo.spec.ts
+    - e2e/electronics-piezo-clock.spec.ts
     dependencies:
     - electronics.engine.public-api
     - electronics.worker.protocol

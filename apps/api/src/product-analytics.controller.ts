@@ -10,6 +10,7 @@ import {
 import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
+import { environmentSummary } from './client-environment.js';
 
 const MODULES = new Set<AnalyticsModuleKey>([
   'electronics',
@@ -26,7 +27,7 @@ function error(code: string, message: string): { error: { code: string; message:
 
 function userAgentSummary(value: string | undefined): string | null {
   if (!value) return null;
-  return value.slice(0, 128);
+  return environmentSummary(value);
 }
 
 @Controller('api/analytics/v1')
@@ -62,7 +63,7 @@ export class ProductAnalyticsController {
     const actor = await this.actor(request);
 
     const connection = clientConnection(request);
-    await this.analytics.record({
+    const accepted = await this.analytics.record({
       actor,
       eventType: 'module.opened',
       outcome: 'succeeded',
@@ -71,7 +72,7 @@ export class ProductAnalyticsController {
       networkKind: connection.networkKind,
       userAgentSummary: userAgentSummary(request.headers['user-agent']),
     });
-    return { accepted: true as const };
+    return { accepted };
   }
 
   @Post('module-session/start')

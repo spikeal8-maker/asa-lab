@@ -159,6 +159,8 @@ services:
       - /tmp
     read_only: true
     user: node
+    group_add:
+      - '${ASA_LOG_READER_GID:-node}'
     networks:
       - application
       - database

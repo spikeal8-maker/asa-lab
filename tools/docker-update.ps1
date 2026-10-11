@@ -539,6 +539,8 @@ function Invoke-GuardedUpdate {
     }
     Assert-AsaInstallationIdentity -Root $RepoRoot -DefaultProject $projectName -ComposeArguments $script:ComposeArguments -RequireExisting
     # Validate the real existing history before stopping any working service.
+    & python tools/log_collector.py prepare --root $RepoRoot --profile $Profile
+    if ($LASTEXITCODE -ne 0) { throw 'Collector preparation failed before service replacement.' }
     Invoke-Compose -Arguments @('run', '--rm', '--no-deps', '--entrypoint', 'node', 'migration', 'tools/migrate.mjs', '--plan')
     Invoke-Compose -Arguments @('up', '-d', '--no-build')
     [void](Wait-ExactReadiness -Revision $newRevision -SchemaVersion $schemaVersion)
@@ -588,6 +590,10 @@ function Invoke-GuardedUpdate {
     throw
   }
 
+  try {
+    & python tools/log_collector.py reconcile --root $RepoRoot --profile $Profile
+    if ($LASTEXITCODE -ne 0) { Write-Warning 'ASA ready; diagnostic collection is degraded. Inspect .asa/collector-operation.json.' }
+  } catch { Write-Warning 'ASA ready; diagnostic runner could not start. Application update receipt remains successful.' }
   Write-Host "UPDATE OK: revision=$newRevision schema=$schemaVersion synchronized=true"
   Write-Host 'USER FLOW NOT RUN: login, editor save and reopen still require a browser acceptance check.'
   Write-Host "RECEIPT: $receiptPath"

@@ -32,8 +32,16 @@ describe('database URL isolation', () => {
       encoding: 'utf8',
       timeout: 20000,
     });
-    expect(result.status).not.toBe(0);
-    expect(result.stderr).toContain('APP_DATABASE_URL is required');
+    expect(result.status).toBe(78);
+    expect(JSON.parse(result.stderr.trim())).toMatchObject({
+      kind: 'api_lifecycle',
+      level: 'error',
+      phase: 'startup_failed',
+      errorCode: 'internal_error',
+      errorClass: 'Error',
+    });
+    expect(result.stdout + result.stderr).not.toContain('admin:secret');
+    expect(result.stdout + result.stderr).not.toContain('postgres://');
   }, 30_000);
 
   it('the API child environment never contains admin or test URLs', () => {

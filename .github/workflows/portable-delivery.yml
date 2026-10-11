@@ -30,18 +30,19 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - run: python tools/test_collect_logs.py
       - name: Validate native Windows wrappers
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          foreach ($file in @('tools/asa-manager.ps1', 'tools/install-maintenance.ps1')) {
+          foreach ($file in @('tools/asa-manager.ps1', 'tools/install-maintenance.ps1', 'tools/asa-lab.ps1', 'tools/docker-update.ps1', 'tools/install-log-collector.ps1', 'tools/collector-scheduler.ps1')) {
             $tokens = $null; $errors = $null
             [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
             if ($errors) { throw ($errors | Out-String) }
           }
       - name: Validate Linux wrapper syntax
         if: runner.os == 'Linux'
-        run: sh -n tools/asa-manager.sh tools/install-maintenance.sh docker/web/start.sh infra/scratch-editor/start.sh
+        run: sh -n tools/asa-manager.sh tools/install-maintenance.sh tools/asa-lab.sh tools/docker-update.sh tools/install-log-collector.sh docker/web/start.sh infra/scratch-editor/start.sh
 
   images:
     needs: contracts

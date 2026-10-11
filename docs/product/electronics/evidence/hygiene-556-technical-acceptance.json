@@ -1,0 +1,15 @@
+{
+  "candidate": "05e122aff108d05670416fd2b55273d56243e397",
+  "tree": "670d8e25fa29d3bc1500b28325ba0eda22c4ef7d",
+  "base": "20d3229a002ae4f8a0be1a1fec2815c8c81bdb84",
+  "verdict": "TECHNICAL_ACCEPTANCE_CRITERIA_SATISFIED",
+  "independentReportSHA256": "4f6c1d82bec0110435d30e0719ff4b4fe828f8e010bbeffe185e413800d39f5c",
+  "independentManifestSHA256": "e488dd36859cb459e03b5b2f8e9f0dcf41e214ef99cd939002304182eeb2187d",
+  "externalVerified": 28,
+  "gitVerified": 84,
+  "existingMainEntriesPreserved": 3933,
+  "generalRun": 38166383399,
+  "general": "ALL4_SUCCESS",
+  "productionChanged": false,
+  "school": "NONE"
+}
