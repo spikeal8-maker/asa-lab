@@ -3207,7 +3207,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: native_pan_bbox_witness_repair_r3_after_invalid_before
+      checkpoint: exact_whole_transform_oracle_repair_r4_after_invalid_before
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3215,38 +3215,41 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R3 test-only: repair placeInUnobscuredCanvas witness in new outline browser spec. Middle-grid
-        pointerdown removes selection; compare stable geometry or clear selection by real input before measuring.
-        Preserve exact tolerances/assertions/defaults, R2 nativePoint, fixture/runtime/whole Save/CAS/cookies and
-        all product bytes.'
-      next_action: NEW R3 author returns one unpublished child of publishedac351 then STOP; root actual source and
-        NEW independent source challenge, one final composition if needed, new identical BEFORE/AFTER only after
-        valid strict journey. No product pan defect proved.
-      preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged.
-        No resolution of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted
-        production slice before later new production phase.
-      shared_write_contract: R3 writes only new outline browser helper. Visual product sourceac351 frozen. Separately
-        selected548 observes hook/ordinary image plus old interactions case; source writes sequenced under actual
-        preflight and dirty-path protection, no overlapping writes or guard bypass.
-      preserved_candidate_sha: ac3517587039f2457941b0d8f92e5db03d7b1dc8
-      preserved_candidate_tree: c3afb25ffb227b9e7f59bf80a490eb254d672518
-      candidate_branch: codex/electronics-549-outline-r2-final-admin-baseline
+      repair_scope: 'R4 test-only: correct ONLY expected whole-document transform oracle in new outline browser
+        spec. Independent original DOM and binary64 arithmetic prove pos+(old-new)/2 differs from sequential center=(pos+old/2),
+        pos=center-new/2. Match each real45 action without rounding/tolerance/product change; preserve all72 assertions/native
+        actions/R3helper/R2nativePoint/runtime/Save/CAS/cookies.'
+      next_action: NEW bounded oracle author inherits canonical R4 with one automatic proper merge of publishedc180
+        and this metadata, then one unpublished test-only child/whole inverse/narrow checks/STOP. Root actual source
+        plus NEW independent source challenge; new identical BEFORE/AFTER only after complete strict journey. No
+        product geometry defect proved.
+      preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged. No resolution
+        of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted production slice
+        before later new production phase.
+      shared_write_contract: R4 only expected-transform oracle in new outline browser spec.548 author STOP/CLEAN
+        exactf67d7e5b34b3c9742d8a913ef3a443be1789831f, separate passive observer onlyhook/ordinary image/oldspec
+        now source-review pending. Frozen product paths and existing guards remain; no overlapping dirty writes.
+      preserved_candidate_sha: c180d53a819689836289470cd4f40549df9d7e38
+      preserved_candidate_tree: 6cf9aab24843b87639550a1e9bba8a386f265296
+      candidate_branch: codex/electronics-549-outline-native-pan-r3
       candidate_publication: published
       candidate_acceptance: pending
-      causal_before_probe_sha: 040fcf29e9c469e3b36e8439d6782c7b20e17894
-      causal_before_run: 38129201424
-      causal_before_conclusion: failure_new_pan_bbox_witness_not_causal_valid
-      causal_before_report_sha256: 38b6d57cdb66bd513380ccbe1ce0d98d17ba7cccd2c038124af55a4298d52514
-      causal_before_manifest_sha256: 16b028c6be5a52d5d264e0d520ddc347f6bab60d4256668303982b0c7c12e4ea
+      causal_before_probe_sha: e47874c9962316e90192e30ffe3741e69b1e6e09
+      causal_before_run: 38131377773
+      causal_before_conclusion: failure_new_whole_transform_oracle_not_causal_valid
+      causal_before_report_sha256: 349c797accc66ceb6ce04a8e7989b8077e5a5bd8cf27539e82cd97e75c5a99f6
+      causal_before_manifest_sha256: 5198ae5918b906e69cca106299d8be8e2c0c0f4d13bdaff069e41bae28091e0a
       causal_after: NOT_RUN; invalid BEFORE does not authorize AFTER
-      foreign_general_blocker: Resolved foreign Admin baseline:334 General38127285724 all4SUCCESS; metadatafa General38128311164
-        all4SUCCESS. Sourceac General38129195169 lastGovCodeDataSUCCESS/Accesspending; no sourcePASS transfer.
-      actual_before: All9 fit families at all4 widths and first resistor zoom-in reached. Native middle down removes
-        selection before move with identical viewBox/visual attrs; bbox shrink predicts all4 hard residuals below0.000045px.
-        Whole9parts7wires unchanged/0PUT/0Worker; runtime/Save/reopen NOT_REACHED.
-      controlled_repeat_note: R2 final proper mergeac351 is published immutable. R3 is NEW bounded test witness repair
-        justified by all4 actual strict failures; no unchanged browser/fullsuite rerun or published rewrite. Preserve
-        both invalid BEFORE originals; no acceptance/count advance.
+      foreign_general_blocker: 'Main5d General38130771253 FAIL only Portal printedQR decode e2e/student-access-cards.spec.ts612/22
+        jsQRnull,11PASS1FAIL4notrun. Gov/Code/DataSUCCESS. CategoryC: only3metadata main diff vs greenfa. New concrete
+        failure sent once to Portal; separate saved-PNG diagnostic requested. No Electronics repair or hopeful
+        gate rerun.'
+      actual_before: All9 fit/3families zoom in+out/group reached all4 widths; exact first resistor transform has
+        only4 intended fields changed. Independent sequential binary64 matches each real45 DOM and wholelocaldocument,
+        other8parts/7wires/source/state exact;0PUT/Worker. Runtime/Save/reopen NOT_REACHED.
+      controlled_repeat_note: R3 sourcec180 published immutable; three invalid BEFORE originals8815/040f/e478 retained.
+        R4 NEW bounded arithmetic oracle repair justified by actual all4 strict failures; no published rewrite/main
+        chase/assertion weakening/count advance.
     execution_lease:
       executor_id: electronics-selection-outline
       holder: unassigned
@@ -3268,15 +3271,16 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: fa282924d97c21c552f5bdef11b9af94324b02fc
+      convergence_baseline_sha: 5d2278584a9c90ecebdc7447c05a8eb15926763d
       head_sha: null
-      observed_at: '2026-10-11T09:58:35.113653+00:00'
+      observed_at: '2026-10-11T10:32:02.990704+00:00'
       main:
         branch: main
-        sha: fa282924d97c21c552f5bdef11b9af94324b02fc
-      observation_note: 'Dated observation only: mainfa General38128311164 all4SUCCESS. Fresh fetch main and actual
-        exact-SHA CI before writes. R3 test witness repair and separate548 ingress observation selected; no product
-        acceptance or school action. All held candidates and originals preserved.'
+        sha: 5d2278584a9c90ecebdc7447c05a8eb15926763d
+      observation_note: 'Dated snapshot only: main5d General38130771253 FAIL independent Portal printedQR, bounded
+        test/diagnostic work allowed; no acceptance. R3 sourcec180 and invalid e478 original evidence preserved;
+        NEW R4 exact expected-transform arithmetic repair selected. Fetch main and actual exact CI before writes;
+        school actions none.'
 
 integration:
   owner_lane: visual-programming
