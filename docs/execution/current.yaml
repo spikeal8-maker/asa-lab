@@ -2419,7 +2419,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r4_test_only_complete_fixture_and_page_scoped_worker_oracles
+      checkpoint: r4_directed_before_after_complete_final_convergence_required
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2437,16 +2437,23 @@ parallel_lanes:
         ONLYnewoutline. Actual dirty-path checks, no shared writes over another author.
       mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
       scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all legacy
-        owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact card
-        write path including shared registrations.
-      next_action: Preserve published9396 and valid R3 BEFORE084d/run38153898162; R3 AFTERfb6d/run38155253389
-        has genuine native sound and page-correct ready frames but fails two proven test oracles. One bounded
-        test-only author; explicit complete independent fixtures and page-scoped fail-closed joins with
-        directed counterexamples, narrow checks/selfreview/hashmanifest thenSTOP. NEW independent source
-        review before one corrected same-bytes BEFORE and AFTER. Shared-path convergence requires coordination.
-      preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual accepted
-        production count2 since542, hygiene006 due after third accepted product before later new product phase.
-        No school operations.
+        owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every exact
+        card write path including shared registrations.
+      next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence with
+        current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full ordinary
+        browser/repository gates on NEW exact SHA and NEW independent final product review. Old source-ready
+        and directed evidence are not acceptance of the composition; no school actions.
+      preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual
+        accepted production count2 since542, hygiene006 due after third accepted product before later new product
+        phase. No school operations.
+      frozen_directed_evidence:
+        candidate: c051c5cfb649206379bfb30df44ceff946a78a47
+        before_run: 38158088686
+        before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
+        after_run: 38158787892
+        after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
+        root_originals_verified: true
+        product_acceptance: false
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2964,7 +2971,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_native_wheel_cancellation_product_repair_selected
+      checkpoint: r4_directed_before_after_complete_final_convergence_required
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2972,14 +2979,23 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY7exactpaths in554card. Restore one stage-local native nonpassive wheel listener and lifecycle/freshcallback
-        without changing viewportmath/guards or document persistence. Separate dedicated native BEFORE/AFTER and wholeSave/CAS/cookies;
-        no549Visual/meter/physics/timeout changes.
+      repair_scope: ONLY new e2e/electronics-native-wheel.spec.ts missing compact inspector entry; real visible
+        collapse-library action before mobile edit and cookies-only inspector read. Preserve actual-coordinate
+        precision, product code, whole Save/CAS/cookies, console and all waits.
       preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
         sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
-      next_action: New bounded product author afterfreshcanonicalpreflight; oneunpublishedSHA/narrow+meaningfulactualmountedtests/selfreview/foreignproof/hashmanifest
-        thenSTOP. NEWindependentsource beforeONEdirected built cancellation BEFORE/AFTER; finalexactgates/NEWproductreview
-        required. No cleanup or school operations.
+      next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence with
+        current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full ordinary
+        browser/repository gates on NEW exact SHA and NEW independent final product review. Old source-ready
+        and directed evidence are not acceptance of the composition; no school actions.
+      frozen_directed_evidence:
+        candidate: d247eb0677007f73006125fa7626af8e3042100a
+        before_run: 38160845832
+        before_report_sha256: b151fbf256ff29d8ec90ae98112bd20356626e76f7628c49fa9497b5e6a251cc
+        after_run: 38161873665
+        after_report_sha256: 16d56f8edb5c1e3d5d7cdbbf2bb4f298a79c8b369801b24ab339bfa1f8b9d606
+        root_originals_verified: true
+        product_acceptance: false
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
@@ -3210,81 +3226,181 @@ parallel_lanes:
         pending548.
   - id: electronics-ci
     parent_lane: electronics
-    worktree_id: electronics-ci-545
+    worktree_id: electronics-course-order-555
     owned_paths:
-    - .github/compose.registry-ci.yaml
-    - tools/test_ci_image_transport.py
-    - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001.md
+    - docs/product/electronics/tasks/TASK-ELECTRONICS-COURSE-ORDER-BASELINE-001.md
     task:
-      id: TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001
-      issue: 545
+      id: TASK-ELECTRONICS-COURSE-ORDER-BASELINE-001
+      issue: 555
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: done
-      checkpoint: r2_exact_source_all4_new_review_approved_integrated_transport
+      checkpoint: exact_query_order_all4_pg_new_review_approved_integrated
       owner_acceptance: pending
-      selected_at: '2026-10-09T21:43:50Z'
-      repair_scope: 'R2 only helper and receipt inside original545 budget: reject new
-        narrowing path/branch/event filters and negative patterns relative to mandatory
-        trigger coverage; positive additive test paths still pass. Keep all existing semantic/image/gate/security/default/model/build
-        invariants; no whole-file hash lock, product or installation change.'
-      prior_failed_candidate_sha: 16997f1697c35cdfe7e34c0e251137f008478017
-      prior_failed_candidate_tree: 308bea69bce2e62bbb495a1ad30b6c645ba08cee
-      prior_candidate_branch: codex/electronics-ci-image-transport-545-r1
+      selected_at: '2026-10-11T17:40:48.407875+00:00'
+      repair_paths:
+      - tests/courses/activity-participations.pg.spec.ts
+      path_ownership_note: Existing Learning ownership remains advisory and unchanged under direct_main; actual
+        dirty-worktree intersection was checked and is empty for this query.
+      repair_scope: ONLY exact failing Course test query ORDER BY context->>'courseBlockId'; preserve entire
+        original expected array and every assertion. No product, SQL function, fixtures, timeout, physics, dependencies
+        or workflow changes.
       independent_review: approved
-      independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-07433e36.md
-      independent_review_original_sha256: 4cd327683e9679d56d4d473c6fabcfb2359e7f3fc413ca888f9bd54f1b6ebde1
-      prior_candidate_general_run: 37997430335
-      accepted_candidate_sha: 07433e36e19c7dd072de4cb31c0f97aa21b142c4
-      candidate_tree: 2d4a414b4d8cb32616ec91db05131917c55449bb
-      integrated_sha: 6889893a53723747f3323950370c4776680d0554
-      exact_candidate_general_run: 37999373698
+      next_action: STOP this baseline slice. Programme controller resumes existing553/554 final convergence
+        and exact gates; no pupil count, school or owner acceptance change.
+      independent_evidence: docs/product/electronics/evidence/course-order-baseline-555-independent-review-b67733e7.md
+      independent_review_original_sha256: 1ca316b334ac59ee3462481752dbf0d09b841b8cc30e22ee5a4ab4015b0996b5
+      accepted_candidate_sha: b67733e71f721719c005f9652ca41b0b31b6421d
+      candidate_tree: cf5bf205af508b0d2760d617ebba7aa618bd975e
+      integrated_sha: b67733e71f721719c005f9652ca41b0b31b6421d
+      exact_candidate_general_run: 38161448226
       exact_candidate_general_conclusion: success
+      focused_pg_run: 38161455728
+      focused_pg_conclusion: success
       acceptance: technical_accepted
-      main_integration_run: 38001035501
-      main_integration_run_conclusion: cancelled
-      main_integration_run_note: Stale cancelled by later docs-only main7c652; not PASS
-        or product FAIL. Required exact source07433 all4SUCCESS and NEW APPROVE satisfied;
-        all5 integrated blobs independently byte-identical. Latest main General is tracked
-        separately, no release/deployment claim.
     execution_lease:
-      executor_id: electronics-ci-545
+      executor_id: electronics-course-order-555
       holder: unassigned
       acquired_at: null
       expires_at: null
       reviewer_role_requires_lease: false
     gates:
       focused:
-        workflow: Electronics R4-M1 Focused
+        workflow: ASA Lab Governance and Code Gates
         commands:
-        - pnpm gate:electronics-m1
-      browser:
-        workflow: Electronics R4-M1 Focused
-        commands:
-        - pnpm gate:electronics-m1:browser
+        - pnpm gate:data
       general:
         workflow: ASA Lab Governance and Code Gates
         commands:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+      convergence_baseline_sha: 078d0820e08113467c19d3feafac1ed5c579996f
       head_sha: null
-      observed_at: '2026-10-09T21:17:44Z'
+      observed_at: '2026-10-11T17:40:48.407890+00:00'
       main:
         branch: main
-        sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
-      observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes, not live authority. Fresh e761 General37990032316
-        failure before product assertions: Docker Hub429 Data/Access, Governance/Code
-        SUCCESS. CI545 separately selected identical immutable image transport, no school
-        network or Docker changes. 543043a and541a741 unpublished candidates preserved.
-        540 exact72 remaining compute cause independently proved; R1 stopped without
-        product edits, separate546 preparation scope selected. 544 native field cause
-        must first be proved in built browser. All acceptance/release claims pending
-        exact evidence/NEW review; K0/T3/class/school/deployment pending.'
+        sha: 078d0820e08113467c19d3feafac1ed5c579996f
+      observation_note: 'Dated pre-edit observation, not live authority. Main078 General38159271244 DataFAIL;
+        other3SUCCESS. Proven baseline cause from c051 General38158075015 saved log: correct exact triples
+        reversed by unordered query. No assumption about other failed logs. Fetch main and exactCI required
+        before writes. All pupil candidates and owner/device/deployment pending preserved.'
+    suspended_tasks:
+    - task_id: TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001
+      issue: 545
+      task:
+        id: TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001
+        issue: 545
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: r2_exact_source_all4_new_review_approved_integrated_transport
+        owner_acceptance: pending
+        selected_at: '2026-10-09T21:43:50Z'
+        repair_scope: 'R2 only helper and receipt inside original545 budget: reject new narrowing path/branch/event
+          filters and negative patterns relative to mandatory trigger coverage; positive additive test paths
+          still pass. Keep all existing semantic/image/gate/security/default/model/build invariants; no
+          whole-file hash lock, product or installation change.'
+        prior_failed_candidate_sha: 16997f1697c35cdfe7e34c0e251137f008478017
+        prior_failed_candidate_tree: 308bea69bce2e62bbb495a1ad30b6c645ba08cee
+        prior_candidate_branch: codex/electronics-ci-image-transport-545-r1
+        independent_review: approved
+        independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-07433e36.md
+        independent_review_original_sha256: 4cd327683e9679d56d4d473c6fabcfb2359e7f3fc413ca888f9bd54f1b6ebde1
+        prior_candidate_general_run: 37997430335
+        accepted_candidate_sha: 07433e36e19c7dd072de4cb31c0f97aa21b142c4
+        candidate_tree: 2d4a414b4d8cb32616ec91db05131917c55449bb
+        integrated_sha: 6889893a53723747f3323950370c4776680d0554
+        exact_candidate_general_run: 37999373698
+        exact_candidate_general_conclusion: success
+        acceptance: technical_accepted
+        main_integration_run: 38001035501
+        main_integration_run_conclusion: cancelled
+        main_integration_run_note: Stale cancelled by later docs-only main7c652; not PASS or product FAIL.
+          Required exact source07433 all4SUCCESS and NEW APPROVE satisfied; all5 integrated blobs independently
+          byte-identical. Latest main General is tracked separately, no release/deployment claim.
+      lane_snapshot:
+        id: electronics-ci
+        parent_lane: electronics
+        worktree_id: electronics-ci-545
+        owned_paths:
+        - .github/compose.registry-ci.yaml
+        - tools/test_ci_image_transport.py
+        - docs/product/electronics/evidence/ci-image-transport-545-receipt.json
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001.md
+        task:
+          id: TASK-ELECTRONICS-CI-IMAGE-TRANSPORT-001
+          issue: 545
+          branch: main
+          base_branch: main
+          pr: null
+          pr_draft: false
+          status: done
+          checkpoint: r2_exact_source_all4_new_review_approved_integrated_transport
+          owner_acceptance: pending
+          selected_at: '2026-10-09T21:43:50Z'
+          repair_scope: 'R2 only helper and receipt inside original545 budget: reject new narrowing path/branch/event
+            filters and negative patterns relative to mandatory trigger coverage; positive additive test
+            paths still pass. Keep all existing semantic/image/gate/security/default/model/build invariants;
+            no whole-file hash lock, product or installation change.'
+          prior_failed_candidate_sha: 16997f1697c35cdfe7e34c0e251137f008478017
+          prior_failed_candidate_tree: 308bea69bce2e62bbb495a1ad30b6c645ba08cee
+          prior_candidate_branch: codex/electronics-ci-image-transport-545-r1
+          independent_review: approved
+          independent_evidence: docs/product/electronics/evidence/ci-image-transport-545-independent-review-07433e36.md
+          independent_review_original_sha256: 4cd327683e9679d56d4d473c6fabcfb2359e7f3fc413ca888f9bd54f1b6ebde1
+          prior_candidate_general_run: 37997430335
+          accepted_candidate_sha: 07433e36e19c7dd072de4cb31c0f97aa21b142c4
+          candidate_tree: 2d4a414b4d8cb32616ec91db05131917c55449bb
+          integrated_sha: 6889893a53723747f3323950370c4776680d0554
+          exact_candidate_general_run: 37999373698
+          exact_candidate_general_conclusion: success
+          acceptance: technical_accepted
+          main_integration_run: 38001035501
+          main_integration_run_conclusion: cancelled
+          main_integration_run_note: Stale cancelled by later docs-only main7c652; not PASS or product FAIL.
+            Required exact source07433 all4SUCCESS and NEW APPROVE satisfied; all5 integrated blobs independently
+            byte-identical. Latest main General is tracked separately, no release/deployment claim.
+        execution_lease:
+          executor_id: electronics-ci-545
+          holder: unassigned
+          acquired_at: null
+          expires_at: null
+          reviewer_role_requires_lease: false
+        gates:
+          focused:
+            workflow: Electronics R4-M1 Focused
+            commands:
+            - pnpm gate:electronics-m1
+          browser:
+            workflow: Electronics R4-M1 Focused
+            commands:
+            - pnpm gate:electronics-m1:browser
+          general:
+            workflow: ASA Lab Governance and Code Gates
+            commands:
+            - pnpm gate:repository
+        revisions:
+          kind: observed_snapshot
+          convergence_baseline_sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+          head_sha: null
+          observed_at: '2026-10-09T21:17:44Z'
+          main:
+            branch: main
+            sha: e761f9aa6ae148b01c50e8d16d57e665d91d51f2
+          observation_note: 'Dated snapshot; fetch main and actual exact-SHA CI before writes, not live
+            authority. Fresh e761 General37990032316 failure before product assertions: Docker Hub429 Data/Access,
+            Governance/Code SUCCESS. CI545 separately selected identical immutable image transport, no school
+            network or Docker changes. 543043a and541a741 unpublished candidates preserved. 540 exact72
+            remaining compute cause independently proved; R1 stopped without product edits, separate546
+            preparation scope selected. 544 native field cause must first be proved in built browser. All
+            acceptance/release claims pending exact evidence/NEW review; K0/T3/class/school/deployment pending.'
+      reason: Completed accepted545 retained unchanged; separate category C query-only baseline555 selected.
+        Not reopened.
   - id: electronics-shadow
     parent_lane: electronics
     worktree_id: electronics-spdt-shadow-547
