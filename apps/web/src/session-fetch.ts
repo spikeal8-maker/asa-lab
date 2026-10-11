@@ -39,7 +39,15 @@ async function refreshSession(): Promise<boolean> {
       response = await attempt();
     }
     if (response?.ok) return true;
-    reportClientDiagnostic('session_refresh_failed', 'auth');
+    reportClientDiagnostic('session_refresh_failed', 'auth', {
+      phase: 'refresh',
+      ...(response
+        ? {
+            httpStatus: response.status,
+            relatedRequestId: response.headers.get('x-request-id') ?? undefined,
+          }
+        : {}),
+    });
     if (response?.status === 401) notifySessionLoggedOut();
     return false;
   })().finally(() => {

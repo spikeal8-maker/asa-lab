@@ -37,6 +37,7 @@ def clean(value):
         return [clean(v) for v in value[:100]]
     if not isinstance(value, str):
         return value
+    value = re.sub(r'(/api/classroom-teacher-invitations/)[^\s/?"\\]+', r'\1[redacted]', value)
     value = re.sub(r"(?im)((?:set-)?cookie\s*:)\s*[^\r\n]+", r"\1 [redacted]", value)
     value = re.sub(r"(?i)(bearer\s+)[^\s\"',;]+", r"\1[redacted]", value)
     value = re.sub(r"(?i)(://[^\s:/]+:)[^\s@]+(@)", r"\1[redacted]\2", value)
@@ -83,6 +84,9 @@ def file_timestamp(raw: str, fallback: str) -> tuple[str, str]:
 
 def log_level(payload, raw: str) -> str:
     if isinstance(payload, dict):
+        if payload.get('kind') == 'http_response' and type(payload.get('status', payload.get('statusCode'))) is int:
+            code = payload.get('status', payload.get('statusCode'))
+            return 'error' if code >= 500 else 'warn' if code >= 400 else 'info'
         value = payload.get("level", payload.get("severity"))
         if isinstance(value, str):
             levels = {"fatal": "error", "critical": "error", "panic": "error", "error": "error", "err": "error", "warn": "warn", "warning": "warn", "info": "info", "information": "info", "debug": "info", "trace": "info"}
@@ -101,6 +105,37 @@ def log_level(payload, raw: str) -> str:
 
 def unpack_payload(value) -> str:
     return gzip.decompress(value).decode("utf-8") if isinstance(value, bytes) else value
+
+
+def subsystem(source: str, payload=None, origin="") -> str:
+    if source == 'api' and isinstance(payload, dict) and payload.get('kind') == 'client_diagnostic':
+        module = payload.get('module')
+        if module in ('portal', 'scratch', 'electronics', 'auth'):
+            return {'portal': 'web', 'auth': 'access'}.get(module, module)
+    if source == 'web' and isinstance(payload, dict) and str(payload.get('path', '')).startswith('/internal/blocks/'): return 'scratch'
+    if source == "api":
+        route = str(payload.get("path", "")).split("?")[0].split("/") if isinstance(payload, dict) else []
+        route = route[2] if len(route) > 2 else ""
+        for pattern, name in ((r"^(auth|class-join|account|identity|max|student)", "access"), (r"^classroom", "classrooms"), (r"^(blocks|scratch)", "scratch"), (r"^(files|uploads|storage)", "storage"), (r"^admin", "administration")):
+            if re.search(pattern, route): return name
+        if route == 'assignments': return 'learning'
+        if route in ('session', 'workspaces', 'capabilities', 'schools'): return 'access'
+        return route if route in ("projects", "learning", "courses", "analytics", "diagnostics", "electronics", "chess", "checkers", "three-d") else "api"
+    if source.startswith("windows:") or source == "docker-desktop": return "host"
+    if source in ("postgres", "migration"): return "database"
+    if source.startswith("minio"): return "storage"
+    if source == "tunnel": return "network"
+    if origin in ("product_analytics_events", "classroom_activity_events", "grade_change_events"):
+        return {"product_analytics_events": "analytics", "classroom_activity_events": "classrooms", "grade_change_events": "learning"}[origin]
+    if source == "auth": return "access"
+    return source if source in ("web", "scratch", "electronics", "chess", "checkers", "three-d", "audit", "updates", "backup", "metrics") else "audit"
+
+
+def event_subsystem(event):
+    if event.get("subsystem"): return event["subsystem"]
+    try: payload = json.loads(event["message"]) if event["source"] in ("api", "web") else None
+    except (ValueError, TypeError): payload = None
+    return subsystem(event["source"], payload, event.get("origin", ""))
 
 
 def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -> dict:
@@ -129,7 +164,7 @@ def normalize(source: str, raw: str, at: str, identity: str, origin: str = "") -
     else:
         message = clean(raw)
     truncated = len(message) > 16384
-    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
+    return dict(id=hashlib.sha256((source + "\0" + identity).encode()).hexdigest(), time=at, source=source, subsystem=subsystem(source, payload, origin), module=module, level=level, message=message[:16384], requestId=request_id, revision=revision, origin=clean(origin), truncated=truncated, normalizationVersion=2)
 
 
 class Collector:
@@ -516,7 +551,7 @@ class Collector:
         temp.write_bytes(data)
         if os.name != "nt": os.chmod(temp, 0o640)
         os.replace(temp, self.store / file)
-        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
+        return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
 
     def finish_compaction(self):
         """Complete a durable compaction intent before accepting new events.
@@ -792,7 +827,8 @@ class Collector:
                     _fields_ = [("length", wintypes.DWORD), ("load", wintypes.DWORD), *[(n, ctypes.c_ulonglong) for n in ("total", "available", "pageTotal", "pageAvailable", "virtualTotal", "virtualAvailable", "extended")]]
                 memory = Memory(); memory.length = ctypes.sizeof(memory)
                 if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
-                    metrics["host"].update(memoryTotalBytes=memory.total, memoryAvailableBytes=memory.available)
+                    metrics["host"].update(memoryTotalBytes=memory.total, memoryAvailableBytes=memory.available,
+                        commitLimitBytes=memory.pageTotal, commitAvailableBytes=memory.pageAvailable)
                 idle, kernel, user = wintypes.FILETIME(), wintypes.FILETIME(), wintypes.FILETIME()
                 if ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
                     value = lambda v: v.dwHighDateTime*2**32+v.dwLowDateTime
@@ -802,18 +838,33 @@ class Collector:
                     self.set_state("metrics:cpu", counters)
             else:
                 metrics["host"]["loadAverage"] = list(os.getloadavg())
+            warnings = []
+            host = metrics['host']
+            if host['diskFreeBytes'] < 1024**3: warnings.append('host_disk_low')
+            if host.get('memoryAvailableBytes', 2**63) < 256 * 1024**2: warnings.append('host_memory_low')
+            if host.get('commitAvailableBytes', 2**63) < max(256 * 1024**2, host.get('commitLimitBytes', 0) // 50): warnings.append('host_commit_low')
+            if warnings: metrics.update(resourceWarnings=warnings, level='warn')
             ids = list(getattr(self, "containers", {}))
             if ids:
-                output = self.command(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids], timeout=15)
-                metrics["containers"] = [{k: v for k, v in json.loads(line).items() if k in ("Name", "CPUPerc", "MemUsage", "MemPerc", "PIDs")} for line in output.decode("utf-8").splitlines()]
+                try:
+                    output = self.command(["docker", "stats", "--no-stream", "--format", "{{json .}}", *ids], timeout=15)
+                    metrics["containers"] = [{k: v for k, v in json.loads(line).items() if k in ("Name", "CPUPerc", "MemUsage", "MemPerc", "PIDs")} for line in output.decode("utf-8").splitlines()]
+                except Exception:
+                    metrics["failedComponents"] = ["containers"]
             if getattr(self, "postgres", None):
-                sql = '''BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; COPY (SELECT json_build_object('connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),'waits',(SELECT json_agg(t) FROM (SELECT state,wait_event_type,count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state,wait_event_type) t))) TO STDOUT; ROLLBACK;'''
+                sql = '''BEGIN READ ONLY; SET LOCAL statement_timeout='5s'; COPY (SELECT json_build_object('connections',(SELECT numbackends FROM pg_stat_database WHERE datname=current_database()),'waits',(SELECT json_agg(t) FROM (SELECT state,wait_event_type,count(*) FROM pg_stat_activity WHERE datname=current_database() GROUP BY state,wait_event_type) t))) TO STDOUT WITH CSV; ROLLBACK;'''
                 output = self.command(["docker", "exec", "-i", self.postgres, "sh", "-c", 'exec psql -X -q -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"'], sql=sql, timeout=10)
-                metrics["database"] = json.loads(output.decode("utf-8").strip())
+                rows = list(csv.reader(io.StringIO(output.decode("utf-8"))))
+                if len(rows) != 1 or len(rows[0]) != 1: raise ValueError("Invalid database metric envelope")
+                sample = json.loads(rows[0][0])
+                if not isinstance(sample, dict) or type(sample.get("connections")) is not int or not isinstance(sample.get("waits"), (list, type(None))): raise ValueError("Invalid database metric sample")
+                metrics["database"] = sample
+            if metrics.get("failedComponents"): raise RuntimeError("Container resource metrics unavailable; database sample retained")
             self.add(normalize("metrics", json.dumps(metrics), measured, measured))
             self.status("metrics", "ok", "Runtime resource sample", measured)
         except Exception as exc:
             metrics["incomplete"] = True
+            metrics["level"] = "error"
             self.add(normalize("metrics", json.dumps(metrics), measured, measured))
             self.status("metrics", "error", str(exc))
         self.set_state("metrics:last", time.time())

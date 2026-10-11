@@ -15,6 +15,54 @@ from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIR
 
 
 class CollectorTests(unittest.TestCase):
+    def test_historical_invitation_path_is_redacted_before_retention(self):
+        entry = normalize('api', json.dumps({'path':'/api/classroom-teacher-invitations/private-capability/accept'}), now(), 'fixture')
+        self.assertNotIn('private-capability', entry['message'])
+        self.assertIn('[redacted]', entry['message'])
+
+    def test_multiline_postgres_metrics_use_csv_and_survive_docker_stats_failure(self):
+        import csv, io
+        sample = {'connections': 17, 'waits': [{'state': 'active', 'wait_event_type': None, 'count': 2}]}
+        stream = io.StringIO(); csv.writer(stream).writerow([json.dumps(sample, indent=2)])
+        for broken_stats in (False, True):
+            with self.subTest(broken_stats=broken_stats), tempfile.TemporaryDirectory() as temp:
+                c = Collector(Path(temp), {}); c.postgres = 'fixture'; c.containers = {'fixture': {}}
+                def command(args, **kwargs):
+                    if args[1] == 'stats':
+                        if broken_stats: raise RuntimeError('stats unavailable')
+                        return b'{"Name":"fixture","CPUPerc":"1%"}\n'
+                    self.assertIn('TO STDOUT WITH CSV', kwargs['sql'])
+                    return stream.getvalue().encode()
+                c.command = command; c.telemetry()
+                row = c.db.execute('SELECT payload FROM events').fetchone()
+                metrics = json.loads(json.loads(gzip.decompress(row[0]))['message'])
+                self.assertEqual(metrics['database'], sample)
+                self.assertEqual(metrics.get('incomplete', False), broken_stats)
+                c.db.close()
+
+    def test_subsystems_group_application_logs_and_preserve_stable_ids(self):
+        at = now()
+        cases = [('api', {'path':'/api/projects/fixture?ignored=x'}, 'projects'),
+                 ('api', {'path':'/api/classrooms/fixture'}, 'classrooms'),
+                 ('api', {'path':'/api/auth/refresh'}, 'access'),
+                 ('api', {'kind':'client_diagnostic', 'module':'electronics'}, 'electronics'),
+                 ('web', {'kind':'http_response', 'path':'/internal/blocks/assets/test.js', 'level':'info', 'status':404}, 'scratch'),
+                 ('postgres', {}, 'database'), ('windows:System', {}, 'host')]
+        with tempfile.TemporaryDirectory() as temp:
+            c = Collector(Path(temp), {})
+            events = []
+            for source, payload, name in cases:
+                entry = normalize(source, json.dumps(payload), at, name)
+                self.assertEqual(entry['subsystem'], name)
+                self.assertEqual(entry['id'], normalize(source, 'different message', at, name)['id'])
+                if source == 'web': self.assertEqual(entry['level'], 'warn')
+                events.append(entry)
+            # A compaction of historical rows must advertise their inferred groups.
+            del events[0]['subsystem']
+            meta = c.write_segment('seg-0000000000000001-0000000000000007.jsonl', events)
+            self.assertEqual(set(meta['subsystems']), {item[2] for item in cases})
+            c.db.close()
+
     def test_first_startup_failure_publishes_health_without_a_catalog(self):
         with tempfile.TemporaryDirectory() as temp:
             result=subprocess.run([sys.executable,str(Path(__file__).with_name('collect_logs.py')),'--root',temp,'--once'],capture_output=True,timeout=10)
@@ -28,6 +76,7 @@ class CollectorTests(unittest.TestCase):
             c.telemetry();c.telemetry()
             events=[json.loads(gzip.decompress(row[0])) for row in c.db.execute('SELECT payload FROM events')]
             self.assertEqual(len(events),1);payload=json.loads(events[0]['message'])
+            self.assertEqual(events[0]['level'], 'error')
             self.assertTrue(payload['incomplete']);self.assertGreater(payload['host']['diskFreeBytes'],0)
             self.assertNotIn('private-value',events[0]['message']);c.db.close()
     def test_history_reconciliation_is_independent_of_fresh_poll_age(self):

@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, unquote
 from urllib.request import urlopen
 
@@ -97,11 +99,20 @@ def verify_embedded_entry_http(entry_origin, revision, fetch_text=None):
     exact_origin(entry_origin)
 
     def fetch(path):
-        with urlopen(entry_origin + path, timeout=15) as response:
-            actual = urlsplit(response.geturl())
-            require(response.status == 200 and response.geturl() == entry_origin + path,
-                    'EDITOR_ENTRY', f'The owner portal URL redirected or failed at {path}.')
-            return response.read(1024 * 1024).decode('utf-8')
+        for attempt in range(3):
+            try:
+                with urlopen(entry_origin + path, timeout=15) as response:
+                    require(response.status == 200 and response.geturl() == entry_origin + path,
+                            'EDITOR_ENTRY', f'The owner portal URL redirected or failed at {path}.')
+                    return response.read(1024 * 1024).decode('utf-8')
+            except HTTPError as failure:
+                failure.close()
+                if failure.code not in (404, 502, 503, 504) or attempt == 2:
+                    raise Blocked('EDITOR_ENTRY_HTTP', f'HTTP {failure.code} at {path}; attempt {attempt+1}/3.', 'Inspect the named public entry path and update stages; preserve the database.') from failure
+            except (URLError, OSError) as failure:
+                if attempt == 2:
+                    raise Blocked('EDITOR_ENTRY_HTTP', f'Public entry request failed at {path}; attempt 3/3.', 'Check entry connectivity and update stages; preserve the database.') from failure
+            time.sleep(0.5 * (attempt+1))
 
     read = fetch_text or fetch
     ready = json.loads(read('/health/ready'))

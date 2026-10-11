@@ -10,7 +10,14 @@ test.beforeAll(() => mkdirSync(evidence, { recursive: true }));
 async function fixture(
   page: Page,
   state:
-    'populated' | 'empty' | 'error' | 'loading' | 'unavailable' | 'partial' | 'collector-error',
+    | 'populated'
+    | 'empty'
+    | 'error'
+    | 'loading'
+    | 'unavailable'
+    | 'partial'
+    | 'collector-error'
+    | 'source-error',
 ) {
   const dist = resolve('apps/web/dist');
   const accountId = '20000000-0000-4000-8000-000000000001';
@@ -71,7 +78,11 @@ async function fixture(
     if (path === '/api/admin/v1/logs/status')
       return reply({
         state:
-          state === 'unavailable' ? 'unavailable' : state === 'collector-error' ? 'error' : 'ok',
+          state === 'unavailable'
+            ? 'unavailable'
+            : ['collector-error', 'source-error'].includes(state)
+              ? 'error'
+              : 'ok',
         collectorHealth:
           state === 'collector-error'
             ? {
@@ -88,6 +99,9 @@ async function fixture(
         trimmed: false,
         eventSources: ['api', 'scratch', 'windows:Application'],
         sources: [
+          ...(state === 'source-error'
+            ? [{ source: 'metrics', state: 'error', detail: 'Database metrics unavailable' }]
+            : []),
           {
             source: 'api',
             state: 'ok',
@@ -183,7 +197,7 @@ for (const width of [1440, 1025, 1024, 390, 320]) {
     if (width >= 1025) expect(Math.abs(moduleBox!.y - searchBox!.y)).toBeLessThan(2);
     if (width === 1024) expect(searchBox!.width).toBeGreaterThan(moduleBox!.width * 1.8);
     await expect(
-      page.getByText('Источники и полнота: 151 дозагружаются; 1 недоступны'),
+      page.getByText('Источники и полнота: 151 дозагружаются; 0 с ошибкой; 1 недоступны'),
     ).toBeVisible();
     expect(
       await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
@@ -205,10 +219,12 @@ test('source coverage is readable and archive buttons use dates independently of
   await expect(page.getByText(/старые записи этого источника сокращены/)).toBeVisible();
   await page.getByLabel(/^Источник/).selectOption('scratch');
   await page.getByLabel(/^Модуль/).selectOption('scratch');
+  await page.getByLabel('Подсистема', { exact: true }).selectOption('scratch');
   await page.getByLabel('Поиск', { exact: true }).fill('failure');
   await page.getByRole('button', { name: 'Показать', exact: true }).click();
   await expect.poll(() => f.queries().at(-1)?.get('search')).toBe('failure');
   expect(f.queries().at(-1)?.get('source')).toBe('scratch');
+  expect(f.queries().at(-1)?.get('subsystem')).toBe('scratch');
   await page.getByRole('button', { name: /Показать ещё/ }).click();
   await expect.poll(() => f.queries().at(-1)?.has('beforeTime')).toBe(true);
   await page.getByRole('button', { name: 'Скачать ошибки', exact: true }).click();
@@ -216,6 +232,22 @@ test('source coverage is readable and archive buttons use dates independently of
   expect(f.exportBodies()[0]).toEqual(expect.objectContaining({ level: 'error' }));
   expect(f.exportBodies()[0]).not.toHaveProperty('source');
   expect(f.exportBodies()[0]).not.toHaveProperty('search');
+  expect(f.exportBodies()[0]).not.toHaveProperty('subsystem');
+  await page.getByRole('button', { name: 'Скачать журналы приложения', exact: true }).click();
+  await expect.poll(() => f.exportBodies().length).toBe(2);
+  expect(f.exportBodies()[1]).toEqual(expect.objectContaining({ scope: 'application' }));
+});
+
+test('a failed subsystem cannot hide behind a fresh collector', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await fixture(page, 'source-error');
+  await expect(page.getByRole('alert')).toContainText('Журналы собираются не полностью');
+  await expect(page.getByRole('alert')).toContainText('Нагрузка сервера');
+  await expect(page.locator('.admin-log-entry')).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
+  await page.screenshot({ path: `${evidence}/logs-source-error-320.png`, fullPage: true });
 });
 
 test('search continues past a partial scan and never displays a false empty result', async ({

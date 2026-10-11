@@ -7,6 +7,7 @@ interface LogEvent {
   readonly time: string;
   readonly source: string;
   readonly module: string;
+  readonly subsystem?: string;
   readonly level: string;
   readonly message: string;
   readonly requestId: string | null;
@@ -97,6 +98,31 @@ const LEVEL: Record<string, string> = {
   warn: 'Предупреждение',
   info: 'Информация',
 };
+const SUBSYSTEM: Record<string, string> = {
+  api: 'API',
+  web: 'Загрузка сайта',
+  projects: 'Проекты и сохранение',
+  classrooms: 'Классы и журнал',
+  learning: 'Обучение',
+  courses: 'Курсы',
+  access: 'Вход и доступ',
+  analytics: 'Активность',
+  administration: 'Администрирование',
+  diagnostics: 'Диагностика браузеров',
+  storage: 'Хранилище файлов',
+  database: 'База данных',
+  scratch: 'Scratch',
+  electronics: 'Электроника',
+  chess: 'Шахматы',
+  checkers: 'Шашки',
+  'three-d': '3D',
+  audit: 'Действия пользователей',
+  updates: 'Обновления',
+  backup: 'Резервное копирование',
+  network: 'Сетевой туннель',
+  host: 'Windows и Docker',
+  metrics: 'Нагрузка сервера',
+};
 const dateLabel = (value: string | null): string =>
   value && Number.isFinite(Date.parse(value)) ? TIME.format(new Date(value)) : 'Нет записей';
 const sourceLabel = (source: string): string =>
@@ -128,6 +154,7 @@ export function AdminLogsPage({
   const [to, setTo] = useState(() => DAY.format(new Date()));
   const [source, setSource] = useState('');
   const [module, setModule] = useState('');
+  const [subsystem, setSubsystem] = useState('');
   const [level, setLevel] = useState('error');
   const [search, setSearch] = useState('');
   const [scope, setScope] = useState('application');
@@ -141,8 +168,8 @@ export function AdminLogsPage({
   const [exportError, setExportError] = useState<string | null>(null);
   const generation = useRef(0);
   const appliedFilter = useRef('');
-  const filters = useRef({ from, to, source, module, level, search, scope });
-  filters.current = { from, to, source, module, level, search, scope };
+  const filters = useRef({ from, to, source, module, subsystem, level, search, scope });
+  filters.current = { from, to, source, module, subsystem, level, search, scope };
 
   const load = useCallback(
     async (append = false): Promise<void> => {
@@ -231,7 +258,7 @@ export function AdminLogsPage({
     };
   }, [job, onAccessDenied]);
 
-  const exportArchive = async (errorsOnly: boolean): Promise<void> => {
+  const exportArchive = async (errorsOnly: boolean, applicationOnly = false): Promise<void> => {
     setExporting(true);
     setExportError(null);
     setJob(null);
@@ -242,6 +269,7 @@ export function AdminLogsPage({
         from: `${current.from}T00:00:00+03:00`,
         to: `${current.to}T23:59:59.999+03:00`,
         level: errorsOnly ? 'error' : '',
+        scope: applicationOnly ? 'application' : 'all',
       }),
     });
     setExporting(false);
@@ -259,6 +287,7 @@ export function AdminLogsPage({
   };
   const unavailable = status?.state === 'unavailable';
   const disabled = exporting || job?.state === 'running' || unavailable || !status;
+  const failedSources = status?.sources.filter((s) => s.state === 'error') ?? [];
 
   return (
     <section className="admin-logs" aria-label="Журналы системы">
@@ -268,6 +297,14 @@ export function AdminLogsPage({
           <button
             type="button"
             className="btn-primary"
+            disabled={disabled}
+            onClick={() => void exportArchive(false, true)}
+          >
+            Скачать журналы приложения
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
             disabled={disabled}
             onClick={() => void exportArchive(false)}
           >
@@ -353,6 +390,17 @@ export function AdminLogsPage({
           </select>
         </label>
         <label>
+          Подсистема
+          <select value={subsystem} onChange={(event) => setSubsystem(event.target.value)}>
+            <option value="">Все подсистемы</option>
+            {Object.entries(SUBSYSTEM).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
           Уровень
           <select value={level} onChange={(event) => setLevel(event.target.value)}>
             <option value="">Все события</option>
@@ -395,6 +443,18 @@ export function AdminLogsPage({
       </form>
       {status ? (
         <div className="admin-logs-coverage">
+          {failedSources.length ? (
+            <div role="alert">
+              <strong>Журналы собираются не полностью.</strong>
+              <ul>
+                {failedSources.map((s) => (
+                  <li key={s.source}>
+                    {sourceLabel(s.source)}: {DETAIL[s.detail] ?? s.detail}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
           {status.collectorHealth?.state === 'error' ? (
             <p role="alert">
               Сборщик сообщил об ошибке. Последний успешный сбор:{' '}
@@ -421,9 +481,8 @@ export function AdminLogsPage({
               <details>
                 <summary>
                   Источники и полнота: {status.sources.filter((s) => s.state === 'pending').length}{' '}
-                  дозагружаются;{' '}
-                  {status.sources.filter((s) => !['ok', 'pending'].includes(s.state)).length}{' '}
-                  недоступны
+                  дозагружаются; {failedSources.length} с ошибкой;{' '}
+                  {status.sources.filter((s) => s.state === 'unavailable').length} недоступны
                 </summary>
                 <ul>
                   {status.sources.map((s) => (
@@ -433,7 +492,9 @@ export function AdminLogsPage({
                         ? 'сбор работает'
                         : s.state === 'pending'
                           ? 'история дозагружается'
-                          : 'недоступен'}
+                          : s.state === 'error'
+                            ? 'ошибка сбора'
+                            : 'недоступен'}
                       ; проверено {dateLabel(s.checkedAt ?? s.lastCollectedAt)}
                       {s.collectedThrough ? `; обработано по ${dateLabel(s.collectedThrough)}` : ''}
                       {s.retainedFrom ? (
@@ -508,6 +569,7 @@ export function AdminLogsPage({
               <strong>{LEVEL[entry.level] ?? entry.level}</strong>
               <span>
                 {sourceLabel(entry.source)} · {MODULE[entry.module] ?? entry.module}
+                {entry.subsystem ? ` · ${SUBSYSTEM[entry.subsystem] ?? entry.subsystem}` : ''}
               </span>
             </div>
             <pre>{entry.message}</pre>

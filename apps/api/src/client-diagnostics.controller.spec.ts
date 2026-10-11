@@ -2,6 +2,44 @@ import { describe, it, expect, vi } from 'vitest';
 import type { FastifyRequest } from 'fastify';
 import { ClientDiagnosticsController } from './client-diagnostics.controller.js';
 describe('bounded client diagnostics', () => {
+  it('deduplicates a lost acknowledgement and records only safe failure details', () => {
+    const controller = new ClientDiagnosticsController();
+    const request = { ip: '127.0.0.1', id: 'delivery-1' } as FastifyRequest;
+    const body = {
+      code: 'simulation_failed',
+      module: 'electronics',
+      revision: 'abcdef0',
+      eventId: '10000000-0000-4000-8000-000000000001',
+      occurredAt: Date.now(),
+      category: 'technical',
+      failureCode: 'worker-timeout',
+      phase: 'simulation',
+    };
+    const out = vi.spyOn(process.stdout, 'write').mockReturnValue(true);
+    try {
+      expect(controller.report(request, body)).toEqual({ accepted: true });
+      expect(controller.report(request, body)).toEqual({ accepted: true });
+      expect(out).toHaveBeenCalledTimes(1);
+      expect(JSON.parse(String(out.mock.calls[0]![0]))).toMatchObject({ ...body, level: 'error' });
+      for (const extra of [
+        { failureCode: 'private circuit text' },
+        { script: '/assets/main.js?token=secret' },
+        { category: 'secret' },
+        { line: -1 },
+        { occurredAt: -1 },
+      ])
+        expect(() => controller.report(request, { ...body, ...extra })).toThrow();
+      controller.report(request, {
+        ...body,
+        eventId: '10000000-0000-4000-8000-000000000002',
+        category: 'nonconvergent',
+        failureCode: undefined,
+      });
+      expect(JSON.parse(String(out.mock.calls[1]![0]))).toMatchObject({ level: 'warn' });
+    } finally {
+      out.mockRestore();
+    }
+  });
   it('validates correlation fields and separates heartbeat information from failures', () => {
     const controller = new ClientDiagnosticsController();
     const request = {

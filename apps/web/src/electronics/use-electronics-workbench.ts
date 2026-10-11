@@ -375,7 +375,11 @@ export function useElectronicsWorkbench(projectId: string, userId: string, seatL
         );
       },
       onFailure: (failure) => {
-        reportClientDiagnostic('simulation_failed', 'electronics');
+        reportClientDiagnostic('simulation_failed', 'electronics', {
+          phase: 'simulation',
+          category: failure.category,
+          failureCode: failure.code,
+        });
         setGenerationPending(false);
         resetSimulationRef.current();
         setLiveResult(null);

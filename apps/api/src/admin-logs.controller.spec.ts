@@ -65,9 +65,13 @@ describe('technical log authorization', () => {
     { from: 'bad' },
     { from: '2026-01-01T00:00:00Z', to: '2026-03-01T00:00:00Z' },
     { level: 'unknown' },
+    { subsystem: 'arbitrary' },
     { beforeTime: '2026-10-07T00:00:00Z' },
     { search: '\u0000' },
   ])('rejects invalid and unbounded filters %j', (input) => {
     expect(() => logFilter(input)).toThrow();
+  });
+  it('accepts bounded subsystem filters', () => {
+    expect(logFilter({ subsystem: 'projects' })).toMatchObject({ subsystem: 'projects' });
   });
 });

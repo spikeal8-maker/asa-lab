@@ -151,6 +151,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
             install.compose("stop", "web", "api", "scratch")
         install.compose("up", "-d", "--no-build")
         install.wait_ready(release["revision"], release["schema"])
+        operation["phase"] = "verify_entry"
+        atomic_json(install.state / "maintenance.json", operation)
         verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
         install.identity()
         atomic_json(install.state / "installed-release.json", release)
@@ -213,7 +215,7 @@ def main(argv=None):
                     operation = json.loads(pending.read_text(encoding="utf-8"))
                     ready = install.readiness()
                     allowed = [value for value in (operation.get("previous"), operation.get("selected")) if value]
-                    require(operation.get("phase") == "switch" and any(ready["revision"] == value.get("revision") for value in allowed),
+                    require(operation.get("phase") in ("switch", "verify_entry") and any(ready["revision"] == value.get("revision") for value in allowed),
                             "MAINTENANCE", "Unfinished backup or unexpected runtime still needs operator recovery.")
                     pending.rename(install.state / ("reviewed-" + dt.datetime.now().strftime("%Y%m%d%H%M%S") + ".json"))
                 marker = install.state / "failed-switch.json"

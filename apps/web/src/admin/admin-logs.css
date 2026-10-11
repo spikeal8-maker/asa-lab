@@ -45,7 +45,7 @@
   color: inherit;
 }
 .admin-logs-search {
-  grid-column: span 2;
+  grid-column: auto;
 }
 .admin-logs-filter-actions {
   grid-column: 1 / -1;
