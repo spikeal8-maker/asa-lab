@@ -443,11 +443,9 @@ export async function createApiApp(
               : undefined,
         });
         if (!allowed) {
-          return reply
-            .code(403)
-            .send({
-              error: { code: 'origin_forbidden', message: 'request origin is not allowed' },
-            });
+          return reply.code(403).send({
+            error: { code: 'origin_forbidden', message: 'request origin is not allowed' },
+          });
         }
       }
 
