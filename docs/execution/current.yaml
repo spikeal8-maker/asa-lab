@@ -3304,7 +3304,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs1_client_provenance_implementation
+      checkpoint: obs3a_telemetry_transport_implementation
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -3312,17 +3312,31 @@ parallel_lanes:
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
-      selected_slice: OBS1
-      dependency_order: [OBS1, OBS2, OBS3, OBS4, OBS5, OBS6]
-      completed_slices: []
-      remaining_slices: [OBS1, OBS2, OBS3, OBS4, OBS5, OBS6]
+      selected_slice: OBS3A
+      dependency_order: [OBS1, OBS3A, OBS2, OBS3B, OBS4, OBS5, OBS6]
+      completed_slices: [OBS1]
+      remaining_slices: [OBS3A, OBS2, OBS3B, OBS4, OBS5, OBS6]
       slice_results:
         OBS1: trustworthy_client_addresses_and_request_limits
+        OBS3A: telemetry_transport_does_not_refresh_or_log_out_users
         OBS2: automatic_portable_collector_and_host_diagnostics
-        OBS3: reliable_analytics_devices_visits_and_loss_accounting
+        OBS3B: reliable_analytics_devices_visits_and_loss_accounting
         OBS4: consistent_activity_and_failures_across_all_editors
         OBS5: administrator_user_activity_and_collection_quality
         OBS6: integrated_verification_and_guarded_release
+      accepted_evidence:
+        OBS1:
+          source_sha: 3f7f0e773eab74c42c22c708546ea8892b8abcd5
+          independent_review: pass_after_bounded_ci_smoke_repair
+          focused: 79_api_vitest_28_collector_python_107_admin_logs_vitest_42_deployment_python_pass
+          general_ci_run: 38133960039
+          general_ci_conclusion: success
+          observed_at: '2026-10-11T11:13:40Z'
+          runtime_evidence: exact_image_and_public_frp_provenance_required_in_OBS6
+      priority_note: >-
+        Read-only analytics preparation found that analytics401 can invoke Account refresh and a global logout.
+        Select the bounded transport-only OBS3A repair before collector lifecycle OBS2; keep the remaining
+        analytics work in OBS3B. This is a proven code path, not a confirmed cause of the historical school outage.
       deployment_authorized: true
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
