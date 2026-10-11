@@ -20,7 +20,7 @@ import './classroom-participants.css';
 
 export const FACTOR_LABELS = {
   projects: 'Проекты',
-  logins: 'Входы / занятия',
+  logins: 'Дни со входом',
   days: 'Активные дни',
   time: 'Активное время',
   grades: 'Оценки',
@@ -185,7 +185,7 @@ export function ClassroomRatingSettings({
                 недель. Архив учитывается.
               </li>
               <li>
-                Входы / занятия: дни с успешным входом (UTC), максимум один вклад за день. Повторные
+                Дни со входом: дни с успешным входом (UTC), максимум один вклад за день. Повторные
                 входы баллы не накапливают.
               </li>
               <li>Активные дни: дни с реальным изменением документа (UTC).</li>
@@ -203,8 +203,8 @@ export function ClassroomRatingSettings({
             </ul>
             <p>
               Активность до включения регистрации изменений документа не восстанавливается. Scratch
-              учитывается в проектах и днях; активное время доступно только для редакторов с
-              аналитикой.
+              учитывается в проектах, активных днях и активном времени. Открытие редактора и
+              ожидание без изменения документа баллов за время не дают.
             </p>
           </details>
           {PARTICIPANT_FACTORS.every((key) => !settings.factors[key]) ? (
@@ -258,6 +258,7 @@ export function ParticipantMeritsAndAvatars({
   onChanged,
   readOnly = false,
   accountLearner = false,
+  learnerView = false,
 }: {
   classroomId: string;
   seatId: string;
@@ -265,6 +266,7 @@ export function ParticipantMeritsAndAvatars({
   onChanged: () => Promise<void>;
   readOnly?: boolean;
   accountLearner?: boolean;
+  learnerView?: boolean;
 }): JSX.Element {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -352,16 +354,16 @@ export function ParticipantMeritsAndAvatars({
   return (
     <div className="participant-recognition">
       {error ? <p role="alert">{error}</p> : null}
-      {!readOnly && profile.metrics.role === 'helper' ? (
+      {!learnerView && profile.metrics.role === 'helper' ? (
         <p>
           Помощник помогает с организацией занятий в этом классе. Эта роль не даёт доступа к чужим
           работам, оценкам, управлению классом или учительскому API.
         </p>
       ) : null}
       <section>
-        <h3>{readOnly ? 'Мои заслуги' : 'Заслуги преподавателя'}</h3>
+        <h3>{learnerView ? 'Мои заслуги' : 'Заслуги преподавателя'}</h3>
         {profile.merits.length === 0 ? (
-          <p>{readOnly ? 'Здесь появятся твои достижения.' : 'Собственных заслуг пока нет.'}</p>
+          <p>{learnerView ? 'Здесь появятся твои достижения.' : 'Собственных заслуг пока нет.'}</p>
         ) : null}
         <ul className="participant-merits">
           {profile.merits.map((merit) => (
@@ -431,9 +433,9 @@ export function ParticipantMeritsAndAvatars({
         ) : null}
       </section>
       <section>
-        <h3>{readOnly ? 'Доступные мне аватары' : 'Аватары класса'}</h3>
+        <h3>{learnerView ? 'Доступные мне аватары' : 'Аватары класса'}</h3>
         <p>
-          {readOnly
+          {learnerView
             ? 'Выбери аватар для занятий в этом классе.'
             : 'Выбор относится к этому классу и сохраняет личный аватар аккаунта.'}
         </p>
@@ -759,6 +761,17 @@ export function ParticipantGradeHistory({
     };
   }, [load]);
   if (loadedIdentity !== identity) return <p role="status">Загружаем оценки…</p>;
+  const dates = new Map(data?.journal.columns.map((column) => [column.id, column.date]) ?? []);
+  const displayedGrades = compact
+    ? [...(data?.journal.grades ?? [])]
+        .sort(
+          (left, right) =>
+            (dates.get(right.columnId) ?? '').localeCompare(dates.get(left.columnId) ?? '') ||
+            right.publishedAt.localeCompare(left.publishedAt) ||
+            left.id.localeCompare(right.id),
+        )
+        .slice(0, 3)
+    : (data?.journal.grades ?? []);
   return (
     <section
       className={`participant-grades${compact ? ' participant-grade-summary' : ''}`}
@@ -777,7 +790,7 @@ export function ParticipantGradeHistory({
       {data ? (
         <>
           <ul>
-            {(compact ? data.journal.grades.slice(0, 3) : data.journal.grades).map((grade) => {
+            {displayedGrades.map((grade) => {
               const column = data.journal.columns.find((c) => c.id === grade.columnId);
               const value = journalRevisionLabel(column?.preset, grade.value);
               return (
@@ -1034,6 +1047,7 @@ export function StudentParticipantSummary({
             profile={profile}
             onChanged={load}
             readOnly
+            learnerView
             accountLearner={Boolean(accountSeat)}
           />
         </>

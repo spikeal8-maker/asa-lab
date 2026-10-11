@@ -133,6 +133,48 @@ const assigned = (id: string, title: string): ParticipantAssignments => ({
 });
 
 describe('participant completion DOM behavior', () => {
+  it('does not label an archived teacher view as the teachers own pupil achievements', async () => {
+    const data = profile();
+    data.status = 'archived';
+    await render(
+      createElement(ParticipantMeritsAndAvatars, {
+        classroomId: 'class',
+        seatId: 'seat-a',
+        profile: data,
+        readOnly: true,
+        onChanged: vi.fn(),
+      }),
+    );
+    expect(host.textContent).toContain('Заслуги преподавателя');
+    expect(host.textContent).not.toContain('Мои заслуги');
+    expect(host.textContent).not.toContain('Доступные мне аватары');
+    expect(
+      [...host.querySelectorAll('button')]
+        .filter((button) => !button.disabled)
+        .map((button) => button.textContent),
+    ).toEqual(['Отмена выбора']);
+  });
+  it('the compact pupil summary selects the newest lesson dates rather than storage row order', async () => {
+    const data = grades('five', [1, 2, 3, 4]);
+    data.journal.columns.forEach((column, index) => {
+      column.date = ['2026-10-03', '2026-10-01', '2026-10-04', '2026-10-02'][index]!;
+    });
+    vi.spyOn(participantsApi, 'grades').mockResolvedValue(ok(data));
+    await render(
+      createElement(ParticipantGradeHistory, {
+        classroomId: 'class',
+        seatId: 'seat-a',
+        compact: true,
+      }),
+    );
+    expect(
+      [...host.querySelectorAll('.participant-grade-summary li strong')].map(
+        (node) => node.textContent,
+      ),
+    ).toEqual(['3', '1', '4']);
+    expect(host.querySelectorAll('.participant-grade-summary button')).toHaveLength(0);
+  });
+
   for (const [preset, labels] of [
     ['symbols', ['○', '◔', '◑', '◕', '●']],
     ['smileys', ['😟', '🙁', '😐', '🙂', '😃']],
@@ -381,6 +423,7 @@ describe('participant completion DOM behavior', () => {
         seatId: 'seat-a',
         profile: data,
         readOnly: true,
+        learnerView: true,
         onChanged: changed,
       }),
     );

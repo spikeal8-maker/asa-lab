@@ -11,6 +11,91 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/analytics/v1/module-opened:
+    post:
+      operationId: recordProductModuleOpened
+      description: Best-effort ProductAnalytics using the authenticated Account or StudentSeat; simultaneous active identities are rejected.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [moduleKey]
+              properties:
+                moduleKey: { type: string, enum: [electronics, three-d, chess, checkers, blocks] }
+      responses:
+        '202':
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean, const: true }
+        '400': { description: Invalid module key or body }
+        '401': { description: No active session }
+        '409': { description: Conflicting active Account and StudentSeat sessions }
+  /api/analytics/v1/module-session/start:
+    post:
+      operationId: startProductModuleSession
+      description: Server-derived actor and timestamps; real project access and module are checked. Telemetry rejection returns accepted false and must not interrupt editing or save.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId, projectId, moduleKey]
+              properties:
+                sessionId: { type: string, format: uuid }
+                projectId: { type: string, format: uuid }
+                moduleKey: { type: string, enum: [electronics, three-d, chess, checkers, blocks] }
+      responses:
+        '202':
+          description: Best-effort start result; closed or foreign session IDs cannot be reused
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted, sessionId]
+                properties:
+                  accepted: { type: boolean }
+                  sessionId: { type: string, format: uuid }
+        '400': { description: Invalid session or body }
+        '401': { description: No active session }
+        '409': { description: Conflicting active Account and StudentSeat sessions }
+  /api/analytics/v1/module-session/touch:
+    post:
+      operationId: touchProductModuleSession
+      description: Touch or close the authenticated actor's session using server time; only intervals from 5 to 90 seconds produce slices. Closed-session replay adds no activity.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [sessionId]
+              properties:
+                sessionId: { type: string, format: uuid }
+                closed: { type: boolean, default: false }
+      responses:
+        '202':
+          description: Best-effort result; foreign session or revoked project access returns accepted false
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [accepted]
+                properties:
+                  accepted: { type: boolean }
+        '400': { description: Invalid session or body }
+        '401': { description: No active session }
+        '409': { description: Conflicting active Account and StudentSeat sessions }
   /api/classrooms/{classId}/participants:
     parameters:
       - name: classId
