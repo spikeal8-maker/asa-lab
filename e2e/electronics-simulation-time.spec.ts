@@ -2,6 +2,11 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { writeFile } from 'node:fs/promises';
 import type pg from 'pg';
 import type { SchematicDocument } from '../apps/web/src/api';
+import type {
+  ElectronicsSimulationWorkerRequest,
+  ElectronicsSimulationWorkerResponse,
+  SimulationAdvanceRequest,
+} from '../apps/web/src/electronics/simulation-worker-protocol';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher } from './seed';
@@ -9,6 +14,10 @@ import { e2eAdminPool, seedTeacher } from './seed';
 type ClockFrame = {
   workerId: number;
   generationId: number;
+  projectSessionId: string;
+  requestId: string;
+  protocolVersion: number;
+  accepted: boolean;
   requestedMicroseconds: number;
   committedMicroseconds: number;
   status: string;
@@ -24,7 +33,27 @@ type ClockPublication = {
 type ClockProbe = {
   frames: ClockFrame[];
   publications: ClockPublication[];
+  samples: ClockSample[];
+  requests: Array<{
+    workerId: number;
+    generationId: number;
+    projectSessionId: string;
+    requestId: string;
+    protocolVersion: number;
+    kind: string;
+    requestedMicroseconds: number | null;
+    postedAt: number;
+  }>;
   actions: Array<{ name: string; at: number }>;
+};
+type ClockSample = {
+  text: string;
+  sampledAt: number;
+  settledSince: number;
+  frame: ClockFrame;
+  activeWorkerId: number;
+  activeGenerationId: number;
+  activeProjectSessionId: string;
 };
 type ProbeWindow = Window & { __integerClockProbe?: ClockProbe };
 
@@ -83,10 +112,19 @@ const initialDocument: SchematicDocument = {
 
 async function observeRealClock(page: Page) {
   await page.addInitScript(() => {
-    const probe: ClockProbe = { frames: [], publications: [], actions: [] };
+    const probe: ClockProbe = {
+      frames: [],
+      publications: [],
+      samples: [],
+      requests: [],
+      actions: [],
+    };
     (window as ProbeWindow).__integerClockProbe = probe;
     let workerId = 0;
     let latestReady: ClockFrame | null = null;
+    let activeWorkerId = 0;
+    let activeGenerationId = -1;
+    let activeProjectSessionId = '';
     let priorText = '';
     window.Worker = new Proxy(window.Worker, {
       construct(target, args, newTarget) {
@@ -94,30 +132,74 @@ async function observeRealClock(page: Page) {
         if ((args[1] as WorkerOptions | undefined)?.name !== 'asa-electronics-simulation')
           return worker;
         const id = ++workerId;
+        activeWorkerId = id;
         latestReady = null;
+        const pending = new Map<string, SimulationAdvanceRequest>();
+        worker.terminate = new Proxy(worker.terminate, {
+          apply(target, thisArg, args) {
+            probe.actions.push({ name: `worker:${id}:terminate`, at: performance.now() });
+            if (activeWorkerId === id) {
+              activeWorkerId = 0;
+              latestReady = null;
+            }
+            pending.clear();
+            return Reflect.apply(target, thisArg, args);
+          },
+        });
         worker.postMessage = new Proxy(worker.postMessage, {
           apply(target, thisArg, messages) {
-            if ((messages[0] as { kind?: string })?.kind === 'preflight') latestReady = null;
+            const request = messages[0] as ElectronicsSimulationWorkerRequest;
+            probe.requests.push({
+              workerId: id,
+              generationId: request.generationId,
+              projectSessionId: request.projectSessionId,
+              requestId: request.requestId,
+              protocolVersion: request.protocolVersion,
+              kind: request.kind,
+              requestedMicroseconds:
+                request.kind === 'advance' ? request.requestedHorizonMicroseconds : null,
+              postedAt: performance.now(),
+            });
+            if (probe.requests.length > 500)
+              throw new Error('Integer clock request capture overflow');
+            if (request.kind === 'preflight') {
+              activeWorkerId = id;
+              activeGenerationId = request.generationId;
+              activeProjectSessionId = request.projectSessionId;
+              latestReady = null;
+              pending.clear();
+            } else if (request.kind === 'cancel-generation' && activeWorkerId === id) {
+              activeWorkerId = 0;
+              latestReady = null;
+              pending.clear();
+            } else if (request.kind === 'advance') {
+              pending.set(request.requestId, request);
+              if (pending.size > 500) throw new Error('Integer clock request observer overflow');
+            }
             return Reflect.apply(target, thisArg, messages);
           },
         });
         worker.addEventListener('message', (event: MessageEvent) => {
-          const response = event.data as {
-            ok?: boolean;
-            kind?: string;
-            generationId?: number;
-            metrics?: { computeMs: number };
-            advance?: {
-              requestedHorizonMicroseconds: number;
-              committedHorizonMicroseconds: number;
-              executionStatus: string;
-              result?: { solved: boolean } | null;
-            };
-          };
+          const response = event.data as ElectronicsSimulationWorkerResponse;
           if (!response.ok || response.kind !== 'advance' || !response.advance) return;
+          const request = pending.get(response.requestId);
+          pending.delete(response.requestId);
           const frame: ClockFrame = {
             workerId: id,
-            generationId: response.generationId ?? -1,
+            generationId: response.generationId,
+            projectSessionId: response.projectSessionId,
+            requestId: response.requestId,
+            protocolVersion: response.protocolVersion,
+            accepted:
+              activeWorkerId === id &&
+              activeGenerationId === response.generationId &&
+              activeProjectSessionId === response.projectSessionId &&
+              request !== undefined &&
+              request.protocolVersion === response.protocolVersion &&
+              request.generationId === response.generationId &&
+              request.projectSessionId === response.projectSessionId &&
+              request.requestedHorizonMicroseconds ===
+                response.advance.requestedHorizonMicroseconds,
             requestedMicroseconds: response.advance.requestedHorizonMicroseconds,
             committedMicroseconds: response.advance.committedHorizonMicroseconds,
             status: response.advance.executionStatus,
@@ -126,7 +208,40 @@ async function observeRealClock(page: Page) {
             receivedAt: performance.now(),
           };
           probe.frames.push(frame);
-          if (frame.status === 'ready') latestReady = frame;
+          if (frame.accepted) {
+            latestReady =
+              frame.status === 'ready' &&
+              frame.resultSolved === true &&
+              Number.isSafeInteger(frame.committedMicroseconds) &&
+              frame.committedMicroseconds >= 0 &&
+              frame.committedMicroseconds === frame.requestedMicroseconds
+                ? frame
+                : null;
+            if (latestReady) {
+              // Observe an unchanged active complete frame across two paint
+              // opportunities. This is a settled DOM read, not a React commit
+              // timestamp; integer text need not mutate at a fractional horizon.
+              requestAnimationFrame(() => {
+                const settledSince = performance.now();
+                requestAnimationFrame(() => {
+                  if (latestReady !== frame || activeWorkerId !== id) return;
+                  probe.samples.push({
+                    text:
+                      document.querySelector('.workbench-simulation-time')?.textContent?.trim() ??
+                      '',
+                    sampledAt: performance.now(),
+                    settledSince,
+                    frame,
+                    activeWorkerId,
+                    activeGenerationId,
+                    activeProjectSessionId,
+                  });
+                  if (probe.samples.length > 500)
+                    throw new Error('Integer clock DOM sample observer overflow');
+                });
+              });
+            }
+          }
           // A bounded observer must fail rather than silently lose evidence.
           if (probe.frames.length > 500) throw new Error('Integer clock observer overflow');
         });
@@ -161,6 +276,26 @@ async function markAction(page: Page, name: string) {
   }, name);
 }
 
+function assertClockSample(sample: ClockSample) {
+  const { frame } = sample;
+  expect(frame.accepted).toBe(true);
+  expect(frame.workerId).toBe(sample.activeWorkerId);
+  expect(frame.generationId).toBe(sample.activeGenerationId);
+  expect(frame.projectSessionId).toBe(sample.activeProjectSessionId);
+  expect(frame.status).toBe('ready');
+  expect(frame.resultSolved).toBe(true);
+  expect(Number.isSafeInteger(frame.committedMicroseconds)).toBe(true);
+  expect(frame.committedMicroseconds).toBeGreaterThanOrEqual(0);
+  expect(frame.committedMicroseconds).toBe(frame.requestedMicroseconds);
+  expect(sample.settledSince).toBeGreaterThanOrEqual(frame.receivedAt);
+  expect(sample.sampledAt).toBeGreaterThan(sample.settledSince);
+  const seconds = Math.floor(frame.committedMicroseconds / 1_000_000);
+  const expected = [Math.floor(seconds / 3600), Math.floor(seconds / 60) % 60, seconds % 60]
+    .map((part) => String(part).padStart(2, '0'))
+    .join(':');
+  expect(sample.text).toBe(`Время моделирования: ${expected}`);
+}
+
 async function projectDraft(page: Page, projectId: string) {
   const response = await page.context().request.get(`/api/projects/${projectId}`, {
     headers: { origin: new URL(page.url()).origin },
@@ -181,27 +316,26 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
   await expect
     .poll(async () => {
       const probe = await observation(page);
-      return probe.publications
-        .slice(before.publications.length)
+      return probe.samples
+        .slice(before.samples.length)
         .some(
           (entry) =>
-            entry.frame &&
             entry.frame.committedMicroseconds > 0 &&
             entry.frame.committedMicroseconds % 1_000_000 !== 0,
         );
     })
     .toBe(true);
-  // Assert the original fractional publication immediately. BEFORE therefore
-  // fails on the actual decimal suffix, not on a deliberately longer wait.
-  const fractional = (await observation(page)).publications
-    .slice(before.publications.length)
+  // Check the actual fractional complete frame against settled DOM, even when
+  // its integer text is unchanged. Wrong/decimal/ceil text fails immediately.
+  const fractional = (await observation(page)).samples
+    .slice(before.samples.length)
     .find(
       (entry) =>
-        entry.frame &&
         entry.frame.committedMicroseconds > 0 &&
         entry.frame.committedMicroseconds % 1_000_000 !== 0,
     )!;
   expect(fractional.text).toMatch(/^Время моделирования: \d{2,}:\d{2}:\d{2}$/);
+  assertClockSample(fractional);
   await expect
     .poll(async () => {
       const probe = await observation(page);
@@ -283,11 +417,17 @@ async function runStopWithRealClock(page: Page, phase: string, testInfo: TestInf
     expect(publication.text).toBe(`Время моделирования: ${expected}`);
     expect(publication.publishedAt).toBeGreaterThanOrEqual(publication.frame.receivedAt);
   }
+  const samples = after.samples.slice(before.samples.length);
+  for (const sample of samples) {
+    assertClockSample(sample);
+    expect(frames).toContainEqual(sample.frame);
+  }
   return {
     phase,
     geometry,
     frames,
     publications: after.publications.slice(before.publications.length),
+    samples,
   };
 }
 
