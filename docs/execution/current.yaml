@@ -3282,6 +3282,67 @@ parallel_lanes:
         NEW R4 exact expected-transform arithmetic repair selected. Fetch main and actual exact CI before writes;
         school actions none.'
 
+  - id: observability
+    worktree_id: observability-authoring
+    execution_lease: {}
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: 5d2278584a9c90ecebdc7447c05a8eb15926763d
+      head_sha: null
+      observed_at: '2026-10-11T10:35:00Z'
+      main:
+        branch: main
+        sha: 5d2278584a9c90ecebdc7447c05a8eb15926763d
+      observation_note: Dated programme entry only; fetch main and read exact-SHA CI before each slice.
+    owned_paths:
+      - docs/deployment/ADMIN_LOGS.md
+    task:
+      id: TASK-OBSERVABILITY-001
+      issue: 551
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: obs1_client_provenance_implementation
+      owner_acceptance: pending
+      normative_refs:
+        - document: PORTABLE-DEPLOYMENT-CONTRACT
+          revision: '1.0'
+        - document: IDENTITY-DOMAIN-CONTRACT
+          revision: '1.0'
+    programme:
+      owner_authorization: sequential_log_and_user_observability_repair_20261011
+      status: in_progress
+      selected_slice: OBS1
+      dependency_order: [OBS1, OBS2, OBS3, OBS4, OBS5, OBS6]
+      completed_slices: []
+      remaining_slices: [OBS1, OBS2, OBS3, OBS4, OBS5, OBS6]
+      slice_results:
+        OBS1: trustworthy_client_addresses_and_request_limits
+        OBS2: automatic_portable_collector_and_host_diagnostics
+        OBS3: reliable_analytics_devices_visits_and_loss_accounting
+        OBS4: consistent_activity_and_failures_across_all_editors
+        OBS5: administrator_user_activity_and_collection_quality
+        OBS6: integrated_verification_and_guarded_release
+      deployment_authorized: true
+      destructive_database_actions_authorized: false
+      owner_classroom_acceptance: not_run
+      scope_note: >-
+        Owner explicitly authorized the full sequential observability programme and related causal repairs.
+        Existing lane scopes remain advisory in direct_main. Preserve unrelated lane owner acceptance,
+        protected data, canonical installation and security boundaries; one author and independent review
+        per bounded slice. Stop of an individual executor does not complete this programme.
+    gates:
+      focused:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm test:admin-logs
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+          - pnpm gate:repository
+
 integration:
   owner_lane: visual-programming
   shared_paths:
