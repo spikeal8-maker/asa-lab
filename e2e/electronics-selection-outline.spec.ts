@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { PNG } from 'pngjs';
@@ -758,6 +758,8 @@ for (const width of [1440, 1024, 390, 320])
       let lastServer: unknown;
       let lastCheckpoint = 'setup';
       let primaryFailure: string | undefined;
+      let primaryError: { error: unknown } | undefined;
+      let mandatoryEvidenceError: { error: unknown } | undefined;
       const rawPath = info.outputPath(`e11-outline-${scenario}-${width}-raw.json`);
       await installObserver(page);
       await page.setViewportSize({ width: 1440, height: 900 });
@@ -796,7 +798,28 @@ for (const width of [1440, 1024, 390, 320])
         )
           puts.push({ at: Date.now(), body: request.postDataJSON() });
       });
-      async function writeRaw(checkpointName: string) {
+      function retainPrimary(error: unknown) {
+        primaryError ??= { error };
+        primaryFailure = String(primaryError.error);
+      }
+      function establishedFailure() {
+        return primaryError !== undefined || mandatoryEvidenceError !== undefined;
+      }
+      function requireMandatoryEvidence() {
+        if (mandatoryEvidenceError) throw mandatoryEvidenceError.error;
+      }
+      function secondaryFailure(capture: string, error: unknown, mandatory: boolean) {
+        output.push({
+          phase: 'artifact-failure',
+          capture,
+          availability: 'NOT_AVAILABLE',
+          error: String(error),
+          lastCheckpoint,
+        });
+        console.error(`[E11 evidence ${capture}]`, error);
+        if (mandatory) mandatoryEvidenceError ??= { error };
+      }
+      function writeRaw(checkpointName: string) {
         const raw = {
           width,
           scenario,
@@ -806,12 +829,43 @@ for (const width of [1440, 1024, 390, 320])
           puts,
           lastCheckpoint: checkpointName,
           primaryFailure,
+          mandatoryEvidenceFailure: mandatoryEvidenceError
+            ? String(mandatoryEvidenceError.error)
+            : undefined,
           journeyComplete: lastCheckpoint === 'complete',
           observer: lastObserver,
           server: lastServer,
           localStorage: lastLocalStorage,
         };
-        await writeFile(rawPath, JSON.stringify(raw, null, 2), 'utf8');
+        writeFileSync(rawPath, JSON.stringify(raw, null, 2), 'utf8');
+      }
+      function writeCleanupRaw(checkpointName: string) {
+        try {
+          writeRaw(checkpointName);
+        } catch (error) {
+          secondaryFailure('raw-write', error, true);
+        }
+      }
+      async function supplemental(
+        name: string,
+        capture: () => Promise<unknown>,
+        mandatory = false,
+      ) {
+        if (establishedFailure()) {
+          output.push({
+            phase: 'finally',
+            capture: name,
+            availability: 'NOT_AVAILABLE',
+            reason: 'skipped_due_primary_error',
+            lastCheckpoint,
+          });
+          return;
+        }
+        try {
+          await capture();
+        } catch (error) {
+          secondaryFailure(name, error, mandatory);
+        }
       }
       async function checkpoint(name: string) {
         const snapshot = await page.evaluate(() => ({
@@ -1205,8 +1259,12 @@ for (const width of [1440, 1024, 390, 320])
           });
           await checkpoint('cookies-reopen-complete');
           freshFailures.assertEmpty();
+        } catch (error) {
+          retainPrimary(error);
+          throw error;
         } finally {
-          try {
+          writeCleanupRaw('reopen-finally');
+          await supplemental('reopen-snapshot', async () => {
             if (!reopened || reopened.isClosed()) {
               output.push({
                 phase: 'reopen-finally',
@@ -1219,17 +1277,13 @@ for (const width of [1440, 1024, 390, 320])
                 observer: await reopened.evaluate(() => (window as ProbeWindow).__outlineProbe),
                 server: await server(reopened, projectId),
               });
-          } catch (error) {
-            output.push({
-              phase: 'reopen-finally',
-              availability: 'NOT_AVAILABLE',
-              error: String(error),
-            });
-          }
-          await writeRaw('reopen-finally');
-          await fresh.close();
+          });
+          writeCleanupRaw('reopen-finally');
+          await supplemental('cookies-context-close', () => fresh.close(), true);
+          writeCleanupRaw('reopen-finally');
           reopened = undefined;
         }
+        requireMandatoryEvidence();
         const observed = await page.evaluate(() => (window as ProbeWindow).__outlineProbe!);
         if (scenario === 'running-controls') {
           const advances = observed.responses
@@ -1273,11 +1327,11 @@ for (const width of [1440, 1024, 390, 320])
         failures.assertEmpty();
         await checkpoint('complete');
       } catch (error) {
-        primaryFailure = String(error);
+        retainPrimary(error);
         throw error;
       } finally {
         // Node evidence is already available even when the page was closed by timeout.
-        await writeRaw(lastCheckpoint);
+        writeCleanupRaw(lastCheckpoint);
         for (const [name, capture] of [
           [
             'observer',
@@ -1311,22 +1365,20 @@ for (const width of [1440, 1024, 390, 320])
             },
           ],
         ] as const) {
-          try {
-            await capture();
-          } catch (error) {
-            output.push({
-              phase: 'finally',
-              capture: name,
-              availability: 'NOT_AVAILABLE',
-              error: String(error),
-            });
-          }
-          await writeRaw(lastCheckpoint);
+          await supplemental(name, capture);
+          writeCleanupRaw(lastCheckpoint);
         }
-        await info.attach(`e11-outline-${scenario}-${width}-raw`, {
-          path: rawPath,
-          contentType: 'application/json',
-        });
+        await supplemental(
+          'raw-attachment',
+          () =>
+            info.attach(`e11-outline-${scenario}-${width}-raw`, {
+              path: rawPath,
+              contentType: 'application/json',
+            }),
+          true,
+        );
+        writeCleanupRaw(lastCheckpoint);
       }
+      requireMandatoryEvidence();
     });
   }
