@@ -217,7 +217,16 @@ host-store доступа и не входят в этот режим подде
 видимым `degraded`/`unavailable`, без открытия журналов всем пользователям.
 
 Перед изменением задачи/службы сверяются точные action, root, owner и interpreter;
-для systemd также effective unit path, drop-ins и дополнительные команды.
+для systemd также effective unit path, drop-ins, дополнительные команды,
+User, NoNewPrivileges и WorkingDirectory загруженной службы, включая путь без перезапуска.
+Полный executable и массив argv загруженной службы сверяются через `busctl --json=short`;
+текстовый `systemctl show` склеивает аргументы и для этой проверки недостаточен.
+Требуется штатная утилита systemd `busctl` с JSON-поддержкой; если запрос недоступен
+или ответ неоднозначен, reconcile возвращает `degraded` до изменения службы.
+Перенаправления каталогов Windows (включая junction на Python 3.11) отклоняются.
+Health/process, конфигурация/квитанции коллектора, каталог и сегменты публикуются
+через новые эксклюзивно созданные временные файлы в том же каталоге: старые
+hardlink/reparse temporary entries не открываются для записи и не усекут чужой файл.
 Чужая задача/служба не заменяется. При изменении исходников сборщик своей установки
 перезапускается; новый старт подтверждается новым nonce, PID, digest и временем.
 `collector-process.json` обновляется отдельным heartbeat каждые 20 секунд, включая
@@ -232,7 +241,7 @@ adapter неприменим, исключается из completeness aggregate
 | Хост | Условия автоматического старта | Ограничения |
 | --- | --- | --- |
 | Windows 11 x64 | Python 3.11+, Git, Docker Desktop с Linux amd64 containers, Task Scheduler, пользователь Docker вошёл в систему | Без входа пользователя сбор не обещается; Windows Security требует имеющихся прав |
-| Linux amd64 с systemd и rootful Docker Engine | Python 3.11+, Git, Docker Compose plugin, оператор уже имеет доступ к Docker; работает user manager либо заранее разрешён system mode | User mode до входа требует existing linger; system journal без прав честно unavailable |
+| Linux amd64 с systemd и rootful Docker Engine | Python 3.11+, Git, systemctl и busctl с JSON-поддержкой, Docker Compose plugin, оператор уже имеет доступ к Docker; работает user manager либо заранее разрешён system mode | User mode до входа требует existing linger; system journal без прав честно unavailable |
 
 Общие требования приложения, диска/RAM и браузеров описаны в
 [Portable Operations](PORTABLE_OPERATIONS.md). ARM, macOS, non-systemd Linux и

@@ -15,8 +15,9 @@ import time
 from contextlib import contextmanager
 import xml.etree.ElementTree as ET
 
-from .contracts import Blocked, atomic_json, require
+from .contracts import Blocked, require
 from .system import Installation
+from .paths import plain_paths, atomic_bytes, atomic_json
 
 NS = {"t": "http://schemas.microsoft.com/windows/2004/02/mit/task"}
 WINDOWS = os.name == 'nt'
@@ -57,11 +58,12 @@ def read_json(path, default=None):
 
 
 def safe_paths(install):
-    for name in ('.asa', '.asa/diagnostics', '.asa/diagnostics/store', '.asa/diagnostics/private',
-                 '.asa/installation.json', '.asa/log-collector.json', '.asa/collector-runner.json', '.env'):
-        path = install.root / name
-        require(not path.is_symlink() and not getattr(path, 'is_junction', lambda: False)(),
-                'COLLECTOR_PATH', 'Diagnostic installation paths must not redirect outside the installation.')
+    try:
+        plain_paths(install.root, ('.asa/diagnostics/store', '.asa/diagnostics/private',
+                    '.asa/installation.json', '.asa/log-collector.json', '.asa/collector-runner.json', '.env'))
+    except ValueError as exc:
+        raise Blocked('COLLECTOR_PATH', 'Diagnostic installation paths must not redirect outside the installation.',
+                      'Use ordinary directories inside the canonical installation; no writes were made.') from exc
 
 
 def validate_config(install):
@@ -161,6 +163,10 @@ def finalize_permissions(install):
         info = path.stat()
         require(info.st_uid == operator.pw_uid or os.geteuid() == 0 and info.st_uid == 0,
                 'COLLECTOR_STORE_OWNER', 'Diagnostic publications belong to another user.')
+        require(not path.is_file() or info.st_nlink == 1, 'COLLECTOR_STORE_LINK',
+                'Refusing to change permissions on a multiply-linked diagnostic publication.')
+    for path, mode in paths:
+        info = path.stat()
         if os.geteuid() == 0: os.chown(path, operator.pw_uid, gid)
         elif info.st_gid != gid: os.chown(path, -1, gid)
         os.chmod(path, mode)
@@ -265,6 +271,49 @@ def verify_systemd_unit(text, identity, python):
             'COLLECTOR_RUNNER_IDENTITY', 'Existing service is not this installation\'s unprivileged collector.')
 
 
+def verify_effective_exec(identity, python):
+    """systemctl's flattened argv is ambiguous; query the typed D-Bus array."""
+    name = identity['name']
+    require(re.fullmatch(r'[a-z0-9_.-]+', name), 'COLLECTOR_RUNNER_IDENTITY', 'Unexpected systemd unit name.')
+    encoded = ''.join(c if c.isascii() and c.isalnum() else f'_{ord(c):02x}' for c in name)
+    args = ['busctl', '--system' if identity['mode'] == 'system' else '--user', '--json=short',
+            '--no-pager', '--allow-interactive-authorization=no', 'get-property', 'org.freedesktop.systemd1',
+            '/org/freedesktop/systemd1/unit/' + encoded, 'org.freedesktop.systemd1.Service', 'ExecStart']
+    try:
+        raw = command(args)[0]
+    except (Blocked, OSError, subprocess.SubprocessError) as exc:
+        raise Blocked('COLLECTOR_SYSTEMD_QUERY', 'Cannot verify the loaded collector command through systemd busctl.',
+                      'Install/restore busctl with JSON support and retry as the registered operator; no service change was made.') from exc
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result: raise ValueError('Repeated busctl JSON key')
+            result[key] = value
+        return result
+    try:
+        require(len(raw) <= 65536, 'COLLECTOR_RUNNER_IDENTITY', 'Effective command response is too large.')
+        value = json.loads(raw, object_pairs_hook=unique_object)
+        require(isinstance(value, dict) and set(value) == {'type', 'data'} and value['type'] == 'a(sasbttttuii)' and
+                isinstance(value['data'], list) and len(value['data']) == 1,
+                'COLLECTOR_RUNNER_IDENTITY', 'Expected exactly one typed effective service action.')
+        action = value['data'][0]
+        expected = [python, str(Path(identity['root']) / 'tools/collect_logs.py'), '--root', identity['root']]
+        require(isinstance(action, list) and len(action) == 10 and action[0] == python and action[1] == expected and
+                action[2] is False and all(type(item) is int and item >= 0 for item in action[3:]),
+                'COLLECTOR_RUNNER_IDENTITY', 'Effective service executable or complete argv differs from this collector.')
+    except (ValueError, TypeError, KeyError) as exc:
+        raise Blocked('COLLECTOR_RUNNER_IDENTITY', 'Malformed or ambiguous effective service command; refusing changes.',
+                      'Inspect the owned unit and systemd busctl response before retrying.') from exc
+
+
+def verify_effective_owner(effective, identity):
+    owner = effective['User']
+    require(owner == identity['owner'] if identity['mode'] == 'system' else owner in ('', identity['owner']),
+            'COLLECTOR_RUNNER_OWNER', 'Loaded service user differs from the unprivileged collector operator.')
+    require(effective['NoNewPrivileges'] == 'yes' and effective['WorkingDirectory'] == identity['root'],
+            'COLLECTOR_RUNNER_IDENTITY', 'Loaded service privileges or working directory differ from this collector.')
+
+
 def reconcile_runner(install, identity, restart):
     if identity["mode"] == "windows-task":
         existing = json.loads(ps_scheduler(install, "query", identity))
@@ -274,7 +323,7 @@ def reconcile_runner(install, identity, restart):
         if not existing.get("xml") or restart:
             if existing.get("xml"): ps_scheduler(install, "stop", identity)
             xml = install.state / "diagnostics" / "private" / "collector-task.xml"
-            xml.write_text(windows_xml(identity, python), encoding="utf-16")
+            atomic_bytes(xml, windows_xml(identity, python).encode('utf-16'), mode=0o600)
             try: ps_scheduler(install, "register", identity, xml)
             finally: xml.unlink(missing_ok=True)
         ps_scheduler(install, "start", identity)
@@ -297,23 +346,37 @@ def reconcile_runner(install, identity, restart):
     ctl = ["systemctl"] + ([] if system else ["--user"])
     # Validate the user manager exists before writing a unit file.
     command(ctl + ["show-environment"])
-    properties = ['FragmentPath', 'DropInPaths', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'EnvironmentFiles', 'LoadState', 'Transient', 'ExecStart']
-    raw, code = command(ctl + ['show', identity['name'], *['--property=' + key for key in properties]], allow_missing=True)
-    effective = dict(line.split('=', 1) for line in raw.splitlines() if '=' in line)
+    properties = ['FragmentPath', 'DropInPaths', 'ExecStartPre', 'ExecStartPost', 'ExecStop', 'ExecStopPost', 'EnvironmentFiles', 'LoadState', 'Transient', 'ExecStart', 'User', 'NoNewPrivileges', 'WorkingDirectory']
+    raw, code = command(ctl + ['show', '--all', identity['name'], *['--property=' + key for key in properties]], allow_missing=True)
+    effective = {}
+    for line in raw.splitlines():
+        key, separator, value = line.partition('=')
+        require(separator and key in properties and key not in effective,
+                'COLLECTOR_RUNNER_IDENTITY', 'Malformed or repeated effective systemd property.')
+        effective[key] = value
+    require(set(effective) == set(properties) and effective['LoadState'] in ('loaded', 'not-found') and
+            effective['Transient'] == 'no', 'COLLECTOR_RUNNER_IDENTITY', 'Incomplete or unsupported effective systemd state.')
     require(not effective.get('FragmentPath') or effective['FragmentPath'] == str(path),
             'COLLECTOR_RUNNER_IDENTITY', 'Service is loaded from another unit path.')
     require(not any(effective.get(key) for key in properties[1:7]), 'COLLECTOR_RUNNER_IDENTITY',
             'Collector service has unexpected drop-ins or additional effective commands.')
     require(effective.get('Transient') != 'yes' and (effective.get('FragmentPath') or effective.get('LoadState') in (None, 'not-found')),
             'COLLECTOR_RUNNER_IDENTITY', 'A transient or unowned service already uses the collector unit name.')
-    if effective.get('ExecStart'):
-        executable = re.search(r'path=([^;]+?)\s*;', effective['ExecStart'])
-        require(executable and executable[1] == python, 'COLLECTOR_RUNNER_IDENTITY', 'Effective service interpreter differs.')
+    if effective.get('FragmentPath'):
+        require(bool(effective.get('ExecStart')), 'COLLECTOR_RUNNER_IDENTITY', 'Loaded service has no effective command.')
+        verify_effective_owner(effective, identity)
+        verify_effective_exec(identity, python)
+    else:
+        require(not effective.get('ExecStart'), 'COLLECTOR_RUNNER_IDENTITY', 'Command exists without an owned unit file.')
+        try: command(['busctl', '--json=short', '--version'])
+        except (Blocked, OSError, subprocess.SubprocessError) as exc:
+            raise Blocked('COLLECTOR_SYSTEMD_QUERY', 'systemd busctl with JSON support is required.',
+                          'Install/restore busctl; no service registration was performed.') from exc
     require(not code or not path.exists(), 'COLLECTOR_RUNNER_IDENTITY', 'Cannot verify the existing service.')
     directory.mkdir(parents=True, exist_ok=True)
     changed = not path.exists() or path.read_text() != unit
     if changed:
-        temporary = path.with_suffix(".tmp"); temporary.write_text(unit); os.replace(temporary, path)
+        atomic_bytes(path, unit.encode('utf-8'), mode=0o644)
     command(ctl + ["daemon-reload"])
     command(ctl + ["enable", identity["name"]])
     command(ctl + ["restart" if restart or changed else "start", identity["name"]])
@@ -430,6 +493,7 @@ def main(argv=None):
     parser.add_argument("--profile", choices=("base", "dev", "production", "staging"))
     args = parser.parse_args(argv)
     try:
+        plain_paths(args.root, ())
         install = Installation(args.root, args.profile)
         if args.action == "status": result = status(install)
         elif args.action == "prepare": result = prepare(install)

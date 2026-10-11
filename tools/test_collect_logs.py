@@ -11,10 +11,32 @@ import time
 from unittest.mock import patch
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health, linux_resources, resource_warnings
+from collect_logs import Collector, normalize, now, file_timestamp, clean, RETIRE_SECONDS, write_collector_health, write_process_health, linux_resources, resource_warnings
 
 
 class CollectorTests(unittest.TestCase):
+    def test_real_hardlinked_publication_temps_do_not_modify_foreign_sentinel(self):
+        with tempfile.TemporaryDirectory() as directory, tempfile.TemporaryDirectory() as foreign:
+            root = Path(directory).resolve(); collector = Collector(root, {'project': 'fixture'})
+            sentinel = Path(foreign) / 'sentinel'; sentinel.write_bytes(b'foreign-data')
+            segment = 'seg-0000000000000001-0000000000000001.jsonl'
+            for name in ('collector-health.tmp', 'collector-process.tmp', 'catalog.tmp', segment + '.tmp', 'collector-health.json', 'collector-process.json'):
+                os.link(sentinel, collector.store / name)
+            os.link(sentinel, collector.private / 'windows-cursors.json')
+            write_collector_health(root, 'ok')
+            write_process_health(root, {'nonce': 'fixture'})
+            collector.add(normalize('api', 'fixture', now(), 'fixture'))
+            collector.write_segment(segment, [normalize('api', 'fixture', now(), 'fixture')])
+            collector.publish()
+            if os.name == 'nt':
+                with patch.object(collector, 'command', return_value=b'{"events":[],"sources":[]}'):
+                    collector.windows()
+            self.assertEqual(sentinel.read_bytes(), b'foreign-data')
+            self.assertEqual(json.loads((collector.store / 'collector-health.json').read_text())['state'], 'ok')
+            self.assertEqual(json.loads((collector.store / 'collector-process.json').read_text())['nonce'], 'fixture')
+            self.assertTrue(json.loads((collector.store / 'catalog.json').read_text())['segments'])
+            collector.db.close()
+
     def test_linux_proc_memory_cpu_delta_and_pressure_are_advisory_samples(self):
         with tempfile.TemporaryDirectory() as directory:
             proc = Path(directory); (proc/'sys/vm').mkdir(parents=True)

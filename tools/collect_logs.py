@@ -20,6 +20,7 @@ import uuid
 import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from deployment.paths import atomic_bytes
 
 UTC = timezone.utc
 SEGMENT_PATTERN = re.compile(r"seg-\d{16}-\d{16}\.jsonl(?:\.gz)?$")
@@ -32,10 +33,8 @@ def now() -> str:
 
 
 def safe_store_paths(root):
-    for name in ('.asa', '.asa/diagnostics', '.asa/diagnostics/store', '.asa/diagnostics/private'):
-        path = root / name
-        if path.is_symlink() or getattr(path, 'is_junction', lambda: False)():
-            raise ValueError('Diagnostic paths must not be symlinks or junctions')
+    from deployment.paths import plain_paths
+    plain_paths(root, ('.asa/diagnostics/store', '.asa/diagnostics/private'))
 
 
 def clean(value):
@@ -209,6 +208,7 @@ def resource_warnings(host):
 
 class Collector:
     def __init__(self, root: Path, config: dict):
+        safe_store_paths(root)
         self.root = root.resolve()
         safe_store_paths(self.root)
         self.config = config
@@ -557,7 +557,7 @@ class Collector:
         script = Path(__file__).with_name("collect-windows-logs.ps1")
         try:
             cursor_file = self.private / "windows-cursors.json"
-            cursor_file.write_text(json.dumps(self.state("windows:cursors", {})), encoding="utf-8")
+            atomic_bytes(cursor_file, json.dumps(self.state("windows:cursors", {})).encode('utf-8'), mode=0o600)
             data = self.command(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(script), "-Since", since, "-Until", until, "-CursorFile", str(cursor_file)], timeout=180)
             value = json.loads(data.decode("utf-8-sig"))
             for event in value.get("events", []):
@@ -721,10 +721,7 @@ class Collector:
         compressed = self.reader_format >= 2
         file = name + (".gz" if compressed else "")
         data = gzip.compress(raw, compresslevel=6, mtime=0) if compressed else raw
-        temp = self.store / (file + ".tmp")
-        temp.write_bytes(data)
-        if os.name != "nt": os.chmod(temp, 0o640)
-        os.replace(temp, self.store / file)
+        atomic_bytes(self.store / file, data)
         return dict(file=file, schema=2, sha256=hashlib.sha256(raw).hexdigest(), bytes=len(data), rawBytes=len(raw), count=len(events), first=min(e["time"] for e in events), last=max(e["time"] for e in events), sources=sorted({e["source"] for e in events}), subsystems=sorted({event_subsystem(e) for e in events}), sourceRanges=self.source_ranges(events), originRanges=self.source_ranges(events, "origin"), modules=sorted({e["module"] for e in events}), levels=sorted({e["level"] for e in events}))
 
     def finish_compaction(self):
@@ -975,10 +972,7 @@ class Collector:
         self.db.commit(); self.db.execute("PRAGMA wal_checkpoint(TRUNCATE)")
         storage_bytes = sum(p.stat().st_size for p in self.base.rglob("*") if p.is_file())
         catalog = dict(version=1, readerFormat=self.reader_format, collectedAt=now(), retentionDays=self.config.get("retentionDays", 30), maxBytes=limit, bytes=total, rawBytes=sum(s.get("rawBytes", s["bytes"]) for s in segments), storageBytes=storage_bytes, activeStorageBytes=active_bytes(), retiredBytes=storage_bytes-active_bytes(), trimmed=bool(self.state("trimmedAt")), sources=sources, segments=segments)
-        temp = self.store / "catalog.tmp"
-        temp.write_text(json.dumps(catalog, ensure_ascii=False), encoding="utf-8")
-        if os.name != "nt": os.chmod(temp, 0o640)
-        os.replace(temp, self.store / "catalog.json")
+        atomic_bytes(self.store / 'catalog.json', json.dumps(catalog, ensure_ascii=False).encode('utf-8'))
 
     def cycle(self):
         self.finish_compaction()
@@ -1063,10 +1057,7 @@ def write_collector_health(root, state, last_success=None, detail="", duration=N
         value['excludedNotApplicable'] = len(sources) - len(applicable)
         value['sourceStates'] = {state: sum(s.get('state') == state for s in applicable) for state in ('ok', 'pending', 'unavailable', 'error')}
         value['coverageComplete'] = bool(applicable) and not any(s.get('state') != 'ok' or s.get('possibleCoverageGap') for s in applicable)
-    temporary = target.with_suffix(".tmp")
-    temporary.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
-    if os.name != "nt": os.chmod(temporary, 0o640)
-    os.replace(temporary, target)
+    atomic_bytes(target, json.dumps(value, ensure_ascii=False).encode('utf-8'))
 
 
 def process_identity(root, project):
@@ -1084,10 +1075,7 @@ def process_identity(root, project):
 def write_process_health(root, identity):
     safe_store_paths(root)
     target = root / '.asa/diagnostics/store/collector-process.json'
-    temp = target.with_suffix('.tmp')
-    temp.write_text(json.dumps({**identity, 'checkedAt': now()}), encoding='utf-8')
-    if os.name != 'nt': os.chmod(temp, 0o640)
-    os.replace(temp, target)
+    atomic_bytes(target, json.dumps({**identity, 'checkedAt': now()}).encode('utf-8'))
 
 
 def main():
@@ -1096,6 +1084,7 @@ def main():
     parser.add_argument("--once", action="store_true")
     parser.add_argument("--import-history", type=Path, help="Recover retained history from an existing normalized ASA log ZIP")
     args = parser.parse_args()
+    safe_store_paths(args.root)
     args.root = args.root.resolve()
     try:
         config_path = args.root / ".asa" / "log-collector.json"

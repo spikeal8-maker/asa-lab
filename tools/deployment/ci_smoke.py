@@ -19,7 +19,7 @@ from deployment.backup import export_backup, restore_check
 from deployment.contracts import require, verify_backup
 from deployment.releases import apply_release_environment, validate_resolved_images
 from deployment.system import Installation, run
-from deployment.collector import reader_probe
+from deployment.collector import reader_probe, verify_effective_exec
 
 require(os.environ.get("GITHUB_ACTIONS") == "true", "CI_ONLY", "This test is only allowed in an isolated GitHub runner.")
 release = json.loads(Path(sys.argv[1]).read_text())
@@ -53,6 +53,7 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         # Test actual systemd registration, process identity and non-1000 host
         # reader group before the later intentional restored-test DB override.
         run(collector_cli + ['reconcile', '--root', str(root), '--profile', 'dev'])
+        verify_effective_exec({'mode': 'system', 'name': 'asa-log-collector-asa-lab-ci-delivery.service', 'root': str(root)}, sys.executable)
         reader_probe(install)
         deadline = time.monotonic() + 240
         while True:
@@ -76,7 +77,7 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         observed = json.loads((root / '.asa/diagnostics/store/collector-process.json').read_text())
         require(observed['nonce'] == nonce, 'COLLECTOR_SMOKE', 'Idempotent reconcile restarted the healthy owned runner.')
         require(all((root / '.asa/diagnostics/store' / file).exists() for file in retained), 'COLLECTOR_SMOKE', 'Reconcile removed retained history.')
-        print('COLLECTOR_SMOKE PASS: actual systemd process, scoped cycle, Linux access classification, supplemental reader GID, actual API catalog open, idempotent reconcile')
+        print('COLLECTOR_SMOKE PASS: actual typed systemd executable/argv, process, scoped cycle, Linux access classification, supplemental reader GID, actual API catalog open, idempotent reconcile')
         # Real object-storage write through the S3 client, not a fake volume file.
         install.compose("run", "--rm", "--no-deps", "--entrypoint", "/bin/sh", "minio-init", "-eu", "-c",
                         'mc alias set local http://minio:9000 "$ASA_OBJECT_STORAGE_ACCESS_KEY" "$ASA_OBJECT_STORAGE_SECRET_KEY"; printf "synthetic-project-media" | mc pipe "local/$ASA_OBJECT_STORAGE_BUCKET/delivery-fixture.txt"')
