@@ -75,7 +75,7 @@ import {
   ClassroomTeacherInvitationsController,
   ClassroomTeachersController,
 } from './classroom-teachers.controller.js';
-import { createRuntimeMetrics } from '@asa-lab/observability';
+import { createRuntimeMetrics, type RuntimeMetrics } from '@asa-lab/observability';
 import { HealthController } from './health.controller.js';
 import { ModulesController } from './modules.controller.js';
 import { ProjectsController } from './projects.controller.js';
@@ -91,6 +91,8 @@ import { BotChallengeService } from './bot-challenge.js';
 import { MaxAuthService } from './max-auth.service.js';
 import { RefreshSessionService } from './refresh-session.service.js';
 import { TOKENS } from './tokens.js';
+import { ProductAnalyticsV2Controller } from './product-analytics-v2.controller.js';
+import { DiagnosticsQualityController } from './diagnostics-quality.controller.js';
 import { ProductAnalyticsController } from './product-analytics.controller.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
 import { createBlocksDraftPersistenceGuard } from './blocks-draft-composition.js';
@@ -124,7 +126,10 @@ function validationMessage(
 
 @Module({})
 export class AppModule {
-  static forPool(pool: pg.Pool | null): DynamicModule {
+  static forPool(
+    pool: pg.Pool | null,
+    options: { productAnalytics?: ProductAnalyticsService; runtimeMetrics?: RuntimeMetrics } = {},
+  ): DynamicModule {
     const unavailablePool = new Proxy({} as pg.Pool, {
       get() {
         return () => {
@@ -133,9 +138,9 @@ export class AppModule {
       },
     });
     const requirePool = (): pg.Pool => pool ?? unavailablePool;
-    const runtimeMetrics = createRuntimeMetrics();
+    const runtimeMetrics = options.runtimeMetrics ?? createRuntimeMetrics();
     const maxAuthService = new MaxAuthService(requirePool());
-    const productAnalytics = new ProductAnalyticsService(requirePool());
+    const productAnalytics = options.productAnalytics ?? new ProductAnalyticsService(pool);
     const projectRepository = (): PgProjectRepository => new PgProjectRepository(requirePool());
     const moduleRegistry = createApiModuleRegistry();
     // Health-only composition may be built without a DB. Every normal runtime
@@ -175,6 +180,8 @@ export class AppModule {
     return {
       module: AppModule,
       controllers: [
+        ProductAnalyticsV2Controller,
+        DiagnosticsQualityController,
         HealthController,
         AuthController,
         AdminController,
