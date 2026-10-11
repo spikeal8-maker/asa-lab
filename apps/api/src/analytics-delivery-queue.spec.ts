@@ -139,7 +139,9 @@ describe('bounded analytics delivery', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(foreground).toHaveBeenCalledOnce();
     await expect(result).resolves.toBe(42);
-    await queue.shutdown();
+    const closing = queue.shutdown();
+    await vi.advanceTimersByTimeAsync(10);
+    await closing;
   });
   it('gives a foreground caller a bounded ambiguous response if an injected connection never settles', async () => {
     vi.useFakeTimers();
@@ -157,5 +159,29 @@ describe('bounded analytics delivery', () => {
     });
     await vi.advanceTimersByTimeAsync(5_010);
     await closing;
+  });
+  it('retains the executing slot after response timeout and admits receipt reconciliation only after a late result', async () => {
+    vi.useFakeTimers();
+    let release!: () => void;
+    const late = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const queue = new AnalyticsDeliveryQueue(true, Date.now, () => undefined);
+    const expired = expect(queue.submit(() => late)).rejects.toMatchObject({
+      code: 'telemetry_unavailable',
+    });
+    await vi.advanceTimersByTimeAsync(10_001);
+    await expired;
+    const replay = vi.fn(async () => 'original persisted receipt');
+    const retry = queue.submit(replay);
+    await tick();
+    expect(queue.inFlight).toBe(1);
+    expect(queue.pending).toBe(1);
+    expect(replay).not.toHaveBeenCalled();
+    release();
+    await tick();
+    await expect(retry).resolves.toBe('original persisted receipt');
+    expect(queue.counters).toMatchObject({ responseTimedOut: 1, persisted: 2 });
+    await queue.shutdown();
   });
 });
