@@ -19,7 +19,7 @@ from deployment.backup import export_backup, restore_check
 from deployment.contracts import require, verify_backup
 from deployment.releases import apply_release_environment, validate_resolved_images
 from deployment.system import Installation, run
-from deployment.collector import reader_probe, verify_effective_exec
+from deployment.collector import reader_probe, verify_effective_exec, verify_effective_empty
 from deployment.ci_collector_cleanup import cleanup_collector, finish_cleanup
 
 require(os.environ.get("GITHUB_ACTIONS") == "true", "CI_ONLY", "This test is only allowed in an isolated GitHub runner.")
@@ -55,6 +55,9 @@ with tempfile.TemporaryDirectory(prefix="asa-delivery-") as directory:
         # reader group before the later intentional restored-test DB override.
         run(collector_cli + ['reconcile', '--root', str(root), '--profile', 'dev'])
         verify_effective_exec({'mode': 'system', 'name': 'asa-log-collector-asa-lab-ci-delivery.service', 'root': str(root)}, sys.executable)
+        # Read-only typed-property proof on the actually registered owned unit;
+        # no foreign service or extra registration is used by this fixture.
+        verify_effective_empty({'mode': 'system', 'name': 'asa-log-collector-asa-lab-ci-delivery.service'})
         reader_probe(install)
         deadline = time.monotonic() + 240
         while True:

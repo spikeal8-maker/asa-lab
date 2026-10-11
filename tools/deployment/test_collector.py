@@ -270,6 +270,8 @@ class CollectorLifecycleTests(unittest.TestCase):
                     if args[0] == 'systemctl' and 'show' in args: return raw, 0
                     if args[0] == 'busctl':
                         if response is None: raise FileNotFoundError('busctl missing')
+                        if args[-1] in lifecycle.SYSTEMD_EMPTY_ARRAYS:
+                            return json.dumps({'type': lifecycle.SYSTEMD_EMPTY_ARRAYS[args[-1]], 'data': []}), 0
                         return json.dumps(response) if isinstance(response, dict) else response, 0
                     return '', 0
                 with self.subTest(response=response), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', '/usr/bin/python3'), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked):
@@ -292,6 +294,69 @@ class CollectorLifecycleTests(unittest.TestCase):
                 def mocked_state(args, **kwargs):
                     calls.append(args); return (malformed, 0) if 'show' in args else ('', 0)
                 with self.subTest(raw=malformed), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', '/usr/bin/python3'), patch('deployment.collector.os.geteuid', return_value=unit_path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked_state), self.assertRaises(Blocked):
+                    lifecycle.reconcile_runner(install, identity, restart=False)
+                self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
+
+    def test_loaded_omitted_arrays_need_exact_typed_empty_proof_before_any_mutation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory).resolve(); install = fixture(root); home = root / 'home'
+            python = '/usr/bin/python3'
+            identity = dict(root='/srv/asa', owner='operator', mode='user', name='asa-log-collector-asa-lab-dev.service')
+            path = home / '.config/systemd/user' / identity['name']; path.parent.mkdir(parents=True)
+            unit = lifecycle.systemd_unit(identity, python); path.write_text(unit)
+            # Exact b66 CI behavior: --all omits custom empty arrays while
+            # required Unit/ExecContext properties and ExecStart are present.
+            properties = dict(FragmentPath=str(path), DropInPaths='', LoadState='loaded', Transient='no',
+                              ExecStart='{ path=/usr/bin/python3 ; argv[]=... }', User='',
+                              NoNewPrivileges='yes', WorkingDirectory=identity['root'], ActiveState='active', SubState='running')
+            raw = '\n'.join(key + '=' + value for key, value in properties.items())
+            argv = [python, '/srv/asa/tools/collect_logs.py', '--root', identity['root']]
+            exec_json = {'type': 'a(sasbttttuii)', 'data': [[python, argv, False, 0, 0, 0, 0, 0, 0, 0]]}
+            cases = [(None, None, 0)]
+            for name, signature in lifecycle.SYSTEMD_EMPTY_ARRAYS.items():
+                nonempty = [['/foreign.env', False]] if name == 'EnvironmentFiles' else [
+                    ['/bin/true', ['/bin/true'], False, 0, 0, 0, 0, 0, 0, 0]]
+                for value, code in [
+                    ({'type': signature, 'data': nonempty}, 0),
+                    ({'type': 'as', 'data': []}, 0), ({'type': signature}, 0),
+                    ({'type': signature, 'data': ''}, 0), ({'type': signature, 'data': None}, 0),
+                    ({'type': signature, 'data': [], 'extra': False}, 0),
+                    ('{"type":"' + signature + '","data":[],"data":[]}', 0),
+                    ('{malformed', 0), ('', 0),
+                    ({'type': signature, 'data': []}, 1),
+                    (FileNotFoundError('busctl unavailable'), 0),
+                ]: cases.append((name, value, code))
+            for failed_property, response, code in cases:
+                calls = []
+                def mocked(args, **kwargs):
+                    calls.append(args)
+                    if 'show' in args: return raw, 0
+                    if args[0] == 'busctl':
+                        name = args[-1]
+                        if name == failed_property:
+                            if isinstance(response, Exception): raise response
+                            return json.dumps(response) if isinstance(response, dict) else response, code
+                        value = exec_json if name == 'ExecStart' else {'type': lifecycle.SYSTEMD_EMPTY_ARRAYS[name], 'data': []}
+                        return json.dumps(value), 0
+                    return '', 0
+                with self.subTest(property=failed_property, response=response, code=code), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', python), patch('deployment.collector.os.geteuid', return_value=path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=mocked):
+                    if failed_property is None:
+                        lifecycle.reconcile_runner(install, identity, restart=False)
+                        lifecycle.reconcile_runner(install, identity, restart=False)
+                        queried = [args[-1] for args in calls if args[0] == 'busctl']
+                        self.assertEqual(queried, ['ExecStart', *lifecycle.SYSTEMD_EMPTY_ARRAYS] * 2)
+                        self.assertEqual(sum('start' in args for args in calls), 2)
+                        self.assertFalse(any('restart' in args for args in calls))
+                    else:
+                        with self.assertRaises(Blocked): lifecycle.reconcile_runner(install, identity, restart=False)
+                        self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
+                    self.assertEqual(path.read_text(), unit)
+            for required in properties:
+                calls = []
+                incomplete = '\n'.join(key + '=' + value for key, value in properties.items() if key != required)
+                def missing_required(args, **kwargs):
+                    calls.append(args); return (incomplete, 0) if 'show' in args else ('', 0)
+                with self.subTest(required=required), patch('deployment.collector.Path.home', return_value=home), patch('deployment.collector.sys.executable', python), patch('deployment.collector.os.geteuid', return_value=path.stat().st_uid, create=True), patch('deployment.collector.command', side_effect=missing_required), self.assertRaises(Blocked):
                     lifecycle.reconcile_runner(install, identity, restart=False)
                 self.assertFalse(any(set(args) & {'daemon-reload', 'enable', 'restart', 'start', 'stop'} for args in calls))
 
