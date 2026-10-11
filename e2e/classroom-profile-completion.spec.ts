@@ -79,6 +79,23 @@ async function get<T>(page: Page, path: string): Promise<T> {
   expect(response.ok(), await response.text()).toBe(true);
   return response.json() as Promise<T>;
 }
+async function confirmStudentCodeSignIn(page: Page): Promise<void> {
+  // Clicking does not await fetch; an immediate goto aborted the second pupil's
+  // login in the real trace. Wait for the actual response and stored cookie.
+  const pending = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      new URL(response.url()).pathname === '/api/class-join/studentseat',
+  );
+  await page.getByRole('button', { name: 'Войти', exact: true }).click();
+  const response = await pending;
+  expect(response.status(), await response.text()).toBe(200);
+  await response.finished();
+  const cookies = await page.context().cookies(new URL(page.url()).origin);
+  expect(
+    cookies.some((cookie) => cookie.name === 'asa_student_session' && cookie.value.length > 0),
+  ).toBe(true);
+}
 async function createClass(page: Page) {
   await loginWithOrganization(page, owner);
   // This scenario deliberately tests an organization author teaching in a personal class.
@@ -289,7 +306,7 @@ test('assigned without a project stays one row through start, submission and rev
     ] as const) {
       await learner.goto(`/#/join-class?code=${encodeURIComponent(classroom.code)}`);
       await learner.getByLabel('Код ученика', { exact: true }).fill(seat.code);
-      await learner.getByRole('button', { name: 'Войти', exact: true }).click();
+      await confirmStudentCodeSignIn(learner);
       await learner.goto('/#/learning');
     }
     expect(
@@ -461,7 +478,7 @@ test('real full Account and Seat manual history preserves zero and all five leve
     const ownId = classes.items.find((c) => c.classroomId === classroom.id)!.seatId;
     await seat.goto(`/#/join-class?code=${encodeURIComponent(classroom.code)}`);
     await seat.getByLabel('Код ученика', { exact: true }).fill(a.code);
-    await seat.getByRole('button', { name: 'Войти', exact: true }).click();
+    await confirmStudentCodeSignIn(seat);
     let revision = 0;
     for (const preset of ['five', 'symbols', 'smileys'] as const) {
       await post(page, `/api/classrooms/${classroom.id}/journal/scale`, {
