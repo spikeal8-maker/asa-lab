@@ -404,6 +404,7 @@ for (const width of [1440, 1024, 390, 320]) {
           const event = after.probe.events.at(-1)!;
           phases.push({
             delta,
+            requestedPoint: { x, y },
             before,
             after,
             local: await localDocument(page, user, project, false),
@@ -411,13 +412,23 @@ for (const width of [1440, 1024, 390, 320]) {
           journal['checkpoint'] = 'wheel-' + delta;
           expect(event.trusted).toBe(true);
           expect(event.stage).toBe(true);
+          expect(event.deltaY).toBe(delta);
+          expect(Number.isFinite(event.clientX)).toBe(true);
+          expect(Number.isFinite(event.clientY)).toBe(true);
+          expect(Math.abs(event.clientX - x)).toBeLessThan(1);
+          expect(Math.abs(event.clientY - y)).toBeLessThan(1);
+          const deliveredHit = await page.evaluate(
+            ({ x, y }) => !!document.elementFromPoint(x, y)?.closest('.workbench-canvas'),
+            { x: event.clientX, y: event.clientY },
+          );
+          expect(deliveredHit).toBe(true);
           if (event.cancelable) {
             cancelable++;
             expect.soft(event.prevented).toBe(true);
           }
           expect(after.probe.viewBoxes.length - before.probe.viewBoxes.length).toBe(1);
-          const a = world(before.viewport, before.rect, x, y);
-          const b = world(after.viewport, after.rect, x, y);
+          const a = world(before.viewport, before.rect, event.clientX, event.clientY);
+          const b = world(after.viewport, after.rect, event.clientX, event.clientY);
           expect(b.x).toBeCloseTo(a.x, 3);
           expect(b.y).toBeCloseTo(a.y, 3);
           expect(after.scroll).toEqual(before.scroll);
