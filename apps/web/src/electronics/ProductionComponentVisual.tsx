@@ -1415,6 +1415,7 @@ export function ProductionComponentVisual({
     'button-tactile-6mm',
     'switch-spdt',
   ].includes(entry.key);
+  const measuredSelectionStroke = (2 * selectionOffset) / TINKERCAD_MODEL_TO_WORLD;
   return (
     <svg
       className={`workbench-production-visual${
@@ -1505,15 +1506,6 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pitch"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
-          <line
-            x1="0"
-            y1="-20"
-            x2="0"
-            y2="20"
-            stroke="#8c8c8c"
-            strokeWidth="2"
-            strokeLinecap="round"
-          />
           {selected ? (
             <g className="workbench-tinkercad-selection" pointerEvents="none">
               <line
@@ -1523,7 +1515,7 @@ export function ProductionComponentVisual({
                 y2="20"
                 fill="none"
                 stroke="#3b8ed7"
-                strokeWidth="2"
+                strokeWidth={2 + measuredSelectionStroke}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
@@ -1531,12 +1523,21 @@ export function ProductionComponentVisual({
                 d={TINKERCAD_RESISTOR_BODY}
                 fill="#3b8ed7"
                 stroke="#3b8ed7"
-                strokeWidth="3.5"
+                strokeWidth={measuredSelectionStroke}
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
             </g>
           ) : null}
+          <line
+            x1="0"
+            y1="-20"
+            x2="0"
+            y2="20"
+            stroke="#8c8c8c"
+            strokeWidth="2"
+            strokeLinecap="round"
+          />
           <path d={TINKERCAD_RESISTOR_BODY} fill="#d9b477" />
           {resistorBands ? (
             <g data-testid="resistor-colour-bands">
@@ -1563,6 +1564,38 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-four-pin-6x6"
           transform={`translate(${width / 2} ${height / 2}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              <line
+                x1="-10"
+                y1="-15"
+                x2="-10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + measuredSelectionStroke}
+                strokeLinecap="round"
+              />
+              <line
+                x1="10"
+                y1="-15"
+                x2="10"
+                y2="15"
+                stroke="#3b8ed7"
+                strokeWidth={2 + measuredSelectionStroke}
+                strokeLinecap="round"
+              />
+              <rect
+                x="-12"
+                y="-12"
+                width="24"
+                height="24"
+                rx="1"
+                fill="none"
+                stroke="#3b8ed7"
+                strokeWidth={measuredSelectionStroke}
+              />
+            </g>
+          ) : null}
           <line
             x1="-10"
             y1="-15"
@@ -1581,38 +1614,6 @@ export function ProductionComponentVisual({
             strokeWidth="2"
             strokeLinecap="round"
           />
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              <line
-                x1="-10"
-                y1="-15"
-                x2="-10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <line
-                x1="10"
-                y1="-15"
-                x2="10"
-                y2="15"
-                stroke="#3b8ed7"
-                strokeWidth="2"
-                strokeLinecap="round"
-              />
-              <rect
-                x="-12"
-                y="-12"
-                width="24"
-                height="24"
-                rx="1"
-                fill="none"
-                stroke="#3b8ed7"
-                strokeWidth="3"
-              />
-            </g>
-          ) : null}
           <rect x="-12" y="-12" width="24" height="24" rx="1" fill="#bfbfbf" />
           <path d={TINKERCAD_BUTTON_FRAME} fill="#a3a3a3" />
           {[
@@ -1633,6 +1634,32 @@ export function ProductionComponentVisual({
           data-visual-contract="tinkercad-spdt-three-pin"
           transform={`translate(${width / 2} ${height}) scale(${TINKERCAD_MODEL_TO_WORLD})`}
         >
+          {selected ? (
+            <g className="workbench-tinkercad-selection" pointerEvents="none">
+              {[-10, 0, 10].map((x) => (
+                <line
+                  key={`selected-${x}`}
+                  x1={x}
+                  y1="0"
+                  x2={x}
+                  y2="-5"
+                  stroke="#3b8ed7"
+                  strokeWidth={2 + measuredSelectionStroke}
+                  strokeLinecap="round"
+                />
+              ))}
+              <rect
+                x="-14"
+                y="-15"
+                width="28"
+                height="10"
+                rx="1"
+                fill="#3b8ed7"
+                stroke="#3b8ed7"
+                strokeWidth={measuredSelectionStroke}
+              />
+            </g>
+          ) : null}
           {[-10, 0, 10].map((x) => (
             <line
               key={`pin-${x}`}
@@ -1645,32 +1672,6 @@ export function ProductionComponentVisual({
               strokeLinecap="round"
             />
           ))}
-          {selected ? (
-            <g className="workbench-tinkercad-selection" pointerEvents="none">
-              {[-10, 0, 10].map((x) => (
-                <line
-                  key={`selected-${x}`}
-                  x1={x}
-                  y1="0"
-                  x2={x}
-                  y2="-5"
-                  stroke="#3b8ed7"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              ))}
-              <rect
-                x="-14"
-                y="-15"
-                width="28"
-                height="10"
-                rx="1"
-                fill="#3b8ed7"
-                stroke="#3b8ed7"
-                strokeWidth="3.5"
-              />
-            </g>
-          ) : null}
           <g
             data-testid="spdt-actuator"
             transform="translate(0 -10)"
