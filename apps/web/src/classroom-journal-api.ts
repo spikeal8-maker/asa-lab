@@ -73,18 +73,28 @@ export function journalLevels(preset: JournalPreset): number[] {
         ? [0, 1, 2, 3, 4, 5]
         : [1, 2, 3, 4, 5];
 }
-export function journalGradeLabel(preset: JournalPreset, value: number | null): string {
+export function journalGradeLabel(preset: JournalPreset | undefined, value: number | null): string {
   if (value === null) return 'Нет оценки';
+  if (!preset) return 'Шкала недоступна';
   if (preset === 'smileys')
     return ['😟', '🙁', '😐', '🙂', '😃'][value - 1] ?? 'Неизвестный уровень';
   if (preset === 'symbols') return ['○', '◔', '◑', '◕', '●'][value - 1] ?? 'Неизвестный уровень';
   return String(value);
 }
-export function journalAccessibleLabel(preset: JournalPreset, value: number | null): string {
+export function journalAccessibleLabel(
+  preset: JournalPreset | undefined,
+  value: number | null,
+): string {
   const label = journalGradeLabel(preset, value);
-  return value !== null && ['smileys', 'symbols'].includes(preset)
+  return value !== null && preset !== undefined && ['smileys', 'symbols'].includes(preset)
     ? `${label} — уровень ${value} из 5`
     : label;
+}
+export function journalRevisionLabel(
+  preset: JournalPreset | undefined,
+  value: number | null,
+): string {
+  return value === null ? 'Отозвана' : journalAccessibleLabel(preset, value);
 }
 export const journalApi = {
   read: (classId: string, query: JournalQuery = {}) =>

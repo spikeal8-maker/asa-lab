@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   journalApi,
-  journalAccessibleLabel,
+  journalRevisionLabel,
   journalPresets,
   journalMonthRange,
   type JournalResultsPage,
@@ -131,7 +131,7 @@ function Results({ scope }: { scope: JournalScope }) {
                 {r.date.split('-').reverse().join('.')} · {r.classroomTitle}
               </span>
             </div>
-            <b>{journalAccessibleLabel(r.preset, r.value)}</b>
+            <b>{journalRevisionLabel(r.preset, r.value)}</b>
             <small>
               {journalPresets[r.preset]} · {r.authorName} ·{' '}
               {schoolTimeFormats(r.timeZone).dateTime(r.publishedAt)} · {r.timeZone}

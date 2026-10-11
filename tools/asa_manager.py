@@ -9,11 +9,13 @@ from pathlib import Path
 import secrets
 import shutil
 import sys
+from contextlib import nullcontext
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
 from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
+from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
 
 
 def clean_checkout(install):
@@ -29,6 +31,8 @@ def doctor(install, existing=True):
     free = shutil.disk_usage(install.root).free
     print(f"INSTALLATION root={install.root} project={install.project} profile={install.profile}")
     print(f"DISK checkout_free_gib={free / 1024**3:.1f}; Docker data disk must also have space for images, objects and restore")
+    collection = collector_status(install)
+    print(f"COLLECTOR {collection['state']}: {collection['detail']}")
     require(free >= 2 * 1024**3, "SPACE", "Less than 2 GiB free beside the checkout.")
     if existing:
         ready = install.readiness()
@@ -111,19 +115,28 @@ def update(install, *, check=False, scheduled=False, fresh=False):
     before = None if fresh else install.readiness()
     installed_path = install.state / "installed-release.json"
     installed = json.loads(installed_path.read_text(encoding="utf-8")) if installed_path.exists() else None
-    if before and before["revision"] == release["revision"] and installed == release:
+    same_release = bool(before and before['revision'] == release['revision'] and installed == release)
+    if same_release:
         records = install.identity()
-        for name, expected in release["images"].items():
-            require(records.get(name, {}).get("image") == expected, "IMAGE_DRIFT", f"Running {name} differs from the pinned release.")
+        for name, expected in release['images'].items():
+            require(records.get(name, {}).get('image') == expected, 'IMAGE_DRIFT', f'Running {name} differs from the pinned release.')
         verify_embedded_entry_http(install.env['ASA_UPDATE_ENTRY_ORIGIN'], release['revision'])
+    if check:
+        print(f"{'NO_CHANGE' if same_release else 'AVAILABLE'} revision={release['revision']} schema={release['schema']}; read-only check, no installation changes")
+        if os.name != 'nt' and not install.env.get('ASA_LOG_READER_GID'):
+            print('COLLECTOR_PLAN diagnostic reader group must be prepared during an authorized update')
+        return
+    preparation = prepare_collector(install)
+    install = Installation(install.root, install.profile)
+    if same_release and not preparation['readerGroupChanged']:
         print("NO_CHANGE the verified release is already running; no backup or restart")
         print('USER_FLOW NOT_RUN: login, editor save and reopen require browser acceptance')
-        return
-    if check:
-        print(f"AVAILABLE revision={release['revision']} schema={release['schema']}; no installation changes")
+        reconcile_collector(install)
         return
     fetch_images(release)
     selected_source(install, release, existing=not fresh)
+    install = Installation(install.root, install.profile)
+    prepare_collector(install)
     install = Installation(install.root, install.profile)
     for key in ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN"):
         if key in install.env:
@@ -144,7 +157,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         if scheduled:
             require(in_window(install.settings["window"], reserve_minutes=10), "WINDOW_CLOSED", "Backup completed too late to start the update.", "The existing version was restarted; retry next window.")
     # The receipt captures the actual running version, not the checkout revision.
-    operation = {"phase": "switch", "previous": before, "selected": release, "backup": str(backup) if backup else None}
+    operation = {"phase": "switch", "previous": before, "selected": release, "backup": str(backup) if backup else None,
+                 "diagnosticReaderGroupChanged": preparation['readerGroupChanged']}
     atomic_json(install.state / "maintenance.json", operation)
     try:
         if not fresh:
@@ -166,6 +180,8 @@ def update(install, *, check=False, scheduled=False, fresh=False):
         atomic_json(install.state / "failed-switch.json", operation)
         install.receipt({"status": "failed_switch", **operation, "automaticDatabaseRestore": False})
         raise
+    # Application acceptance and diagnostic runner maintenance are independent.
+    reconcile_collector(install)
 
 
 def main(argv=None):
@@ -189,7 +205,7 @@ def main(argv=None):
             print(f"BACKUP_VERIFIED revision={manifest['runtime']['revision']} files={len(manifest['files'])}")
             return 0
         install = Installation(args.root, args.profile)
-        with operation_lock(install.root):
+        with nullcontext() if args.action in ('doctor', 'check') else operation_lock(install.root):
             if args.action == "doctor":
                 doctor(install)
             elif args.action == "configure":

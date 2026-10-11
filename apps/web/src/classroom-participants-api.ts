@@ -1,5 +1,7 @@
 import { call } from './api-call';
 import { newClientId } from './client-id';
+import type { JournalPreset } from './classroom-journal-api';
+import type { CanonicalLearningSurfaceState } from './api';
 import type {
   ClassroomStudentWork,
   ProjectFeedback,
@@ -30,6 +32,7 @@ export interface ParticipantRoster {
   items: ParticipantMetrics[];
 }
 export interface ParticipantProfile {
+  helperClasses: Array<{ id: string; title: string }>;
   status: 'active' | 'archived';
   settings: ParticipantSettings;
   metrics: ParticipantMetrics;
@@ -99,7 +102,7 @@ export interface ParticipantGrades {
   journal: {
     offset: number;
     nextOffset: number | null;
-    columns: Array<{ id: string; date: string; category: string; preset: string }>;
+    columns: Array<{ id: string; date: string; category: string; preset: JournalPreset }>;
     grades: ParticipantGradeRevision[];
   };
   resultOffset: number;
@@ -115,8 +118,27 @@ export interface ParticipantGrades {
   }>;
 }
 export interface ParticipantManualHistory {
+  preset: JournalPreset;
   items: ParticipantGradeRevision[];
   nextBeforeRevision: number | null;
+}
+export interface ParticipantAssignment {
+  id: string;
+  title: string;
+  kind: 'project' | 'quiz' | 'theory';
+  moduleKey: string | null;
+  dueAt: string | null;
+  assignmentId: string | null;
+  courseRunId: string | null;
+  activityRunId: string | null;
+  projectId: string | null;
+  status: CanonicalLearningSurfaceState['workflowState'] | 'excused' | 'unavailable';
+  canonicalState: CanonicalLearningSurfaceState | null;
+}
+export interface ParticipantAssignments {
+  offset: number;
+  nextOffset: number | null;
+  items: ParticipantAssignment[];
 }
 export interface ParticipantResultHistory {
   offset: number;
@@ -136,6 +158,24 @@ export interface ParticipantResultHistory {
 const base = (classId: string): string =>
   `/api/classrooms/${encodeURIComponent(classId)}/participants`;
 export const participantsApi = {
+  assignments: (classId: string, seatId: string, offset = 0) =>
+    call<ParticipantAssignments>(
+      `${base(classId)}/${encodeURIComponent(seatId)}/assignments?offset=${offset}`,
+    ),
+  seatAssignments: (offset = 0) =>
+    call<ParticipantAssignments>(`/api/class-join/participants/assignments?offset=${offset}`),
+  seatGrades: (offset = 0, resultOffset = 0) =>
+    call<ParticipantGrades>(
+      `/api/class-join/participants/grades?offset=${offset}&resultOffset=${resultOffset}`,
+    ),
+  seatHistory: (columnId: string, beforeRevision?: number) =>
+    call<ParticipantManualHistory>(
+      `/api/class-join/participants/history/${encodeURIComponent(columnId)}${beforeRevision ? `?beforeRevision=${beforeRevision}` : ''}`,
+    ),
+  seatResultHistory: (assignmentId: string, offset = 0) =>
+    call<ParticipantResultHistory>(
+      `/api/class-join/participants/result-history/${encodeURIComponent(assignmentId)}?offset=${offset}`,
+    ),
   roster: (classId: string) => call<ParticipantRoster>(base(classId)),
   profile: (classId: string, seatId: string) =>
     call<ParticipantProfile>(`${base(classId)}/${encodeURIComponent(seatId)}/profile`),
