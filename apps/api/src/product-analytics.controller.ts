@@ -11,7 +11,13 @@ import { SeatContextUseCase, STUDENT_SESSION_COOKIE } from './seat-context.js';
 import { SESSION_COOKIE, TOKENS } from './tokens.js';
 import { checkBodyShape } from './validation.js';
 
-const MODULES = new Set<AnalyticsModuleKey>(['electronics', 'three-d', 'chess', 'checkers']);
+const MODULES = new Set<AnalyticsModuleKey>([
+  'electronics',
+  'three-d',
+  'chess',
+  'checkers',
+  'blocks',
+]);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function error(code: string, message: string): { error: { code: string; message: string } } {
@@ -36,6 +42,9 @@ export class ProductAnalyticsController {
       this.activeContext.resolve(request.cookies[SESSION_COOKIE]),
       this.seatContext.resolve(request.cookies[STUDENT_SESSION_COOKIE]),
     ]);
+    if (account && student) {
+      throw new HttpException(error('session_conflict', 'multiple active identities'), 409);
+    }
     if (account) return { kind: 'account', context: account };
     if (student) return { kind: 'student', context: student };
     throw new HttpException(error('unauthorized', 'no active session'), 401);

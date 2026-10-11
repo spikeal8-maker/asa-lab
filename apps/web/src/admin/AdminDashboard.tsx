@@ -24,6 +24,7 @@ const MODULE_LABELS = {
   'three-d': '3D',
   chess: 'Шахматы',
   checkers: 'Шашки',
+  blocks: 'Scratch',
 } as const;
 
 const DATE_TIME = new Intl.DateTimeFormat('ru-RU', {

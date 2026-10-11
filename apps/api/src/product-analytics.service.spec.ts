@@ -16,6 +16,42 @@ const CONTEXT: ActiveContext = {
 };
 
 describe('product analytics writer', () => {
+  it('fails closed for null touches, anonymous actors and database failure', async () => {
+    const query = vi.fn(async () => ({ rows: [{ analytics_touch_module_session: null }] }));
+    const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
+    const input = {
+      sessionId: 's1',
+      actor: { kind: 'account' as const, context: CONTEXT },
+      closed: false,
+    };
+    await expect(service.touchModuleSession(input)).resolves.toBe(false);
+    query.mockRejectedValueOnce(new Error('telemetry unavailable'));
+    await expect(service.touchModuleSession(input)).resolves.toBe(false);
+    await expect(
+      service.startModuleSession({
+        sessionId: 's1',
+        projectId: 'p1',
+        actor: { kind: 'anonymous' },
+        moduleKey: 'blocks',
+      }),
+    ).resolves.toBe(false);
+    expect(query).toHaveBeenCalledTimes(2);
+  });
+  it.each([null, undefined, 'foreign'])(
+    'does not accept a null/mismatched PG start result: %s',
+    async (value) => {
+      const query = vi.fn(async () => ({ rows: [{ analytics_start_module_session: value }] }));
+      const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
+      await expect(
+        service.startModuleSession({
+          sessionId: 's1',
+          projectId: 'p1',
+          actor: { kind: 'account', context: CONTEXT },
+          moduleKey: 'blocks',
+        }),
+      ).resolves.toBe(false);
+    },
+  );
   it('records a successful account event with the trusted address and scope', async () => {
     const query = vi.fn(async () => ({ rows: [{ analytics_record_event: 1 }] }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
@@ -69,7 +105,9 @@ describe('product analytics writer', () => {
   });
 
   it('starts a project-bound module session with network provenance', async () => {
-    const query = vi.fn(async () => ({ rows: [{ analytics_start_module_session: 'session' }] }));
+    const query = vi.fn(async () => ({
+      rows: [{ analytics_start_module_session: '50000000-0000-4000-8000-000000000001' }],
+    }));
     const service = new ProductAnalyticsService({ query } as unknown as pg.Pool);
 
     await expect(
