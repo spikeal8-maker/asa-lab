@@ -2964,7 +2964,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: bounded_native_wheel_cancellation_product_repair_selected
+      checkpoint: r3_test_only_actual_native_wheel_anchor_coordinates
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -2972,14 +2972,15 @@ parallel_lanes:
       context_hints:
       - docs/product/electronics/tasks/TASK-ELECTRONICS-NATIVE-WHEEL-CANCELLATION-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: ONLY7exactpaths in554card. Restore one stage-local native nonpassive wheel listener and lifecycle/freshcallback
-        without changing viewportmath/guards or document persistence. Separate dedicated native BEFORE/AFTER and wholeSave/CAS/cookies;
-        no549Visual/meter/physics/timeout changes.
+      repair_scope: ONLY new e2e/electronics-native-wheel.spec.ts anchor oracle; use actual trusted native
+        event coordinates for independent world-anchor arithmetic and strictly validate delivered point.
+        Preserve product math, thresholds, nonvacuous AFTER cancellation, whole Save/CAS/cookies and all waits.
       preservation: Full544 task/revisions/lane snapshot suspended unmodified;549R7/553R3/552 and allaccepted/held
         sources preserved; acceptedproductcount2 since542,006 dueafterthird. School NONE.
-      next_action: New bounded product author afterfreshcanonicalpreflight; oneunpublishedSHA/narrow+meaningfulactualmountedtests/selfreview/foreignproof/hashmanifest
-        thenSTOP. NEWindependentsource beforeONEdirected built cancellation BEFORE/AFTER; finalexactgates/NEWproductreview
-        required. No cleanup or school operations.
+      next_action: Preserve publishedfbbd/invalid2130/run38156222655 and approved automatic main composition.
+        New bounded test-only author repairs proven fractional requested versus integer delivered coordinates;
+        narrow original-four-point counterexample and wrong-anchor negative checks, selfreview/hashmanifest
+        thenSTOP. NEW independent source review before one corrected strict frozen BEFORE; no AFTER yet.
     execution_lease:
       executor_id: electronics-field-544
       holder: unassigned
