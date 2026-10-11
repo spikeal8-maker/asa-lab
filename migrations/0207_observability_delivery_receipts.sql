@@ -263,7 +263,7 @@ BEGIN
    END IF;
    IF s.ended_at IS NULL THEN
     v_time:=greatest(s.last_seen_at,p_received_at);
-    IF v_client BETWEEN p_received_at-interval '90 seconds' AND p_received_at+interval '60 seconds' THEN
+    IF v_client BETWEEN p_received_at-interval '90 seconds' AND p_received_at THEN
      v_seconds:=floor(extract(epoch FROM(v_time-s.last_seen_at)))::integer;
      IF v_seconds BETWEEN 5 AND 90 THEN
       v_from:=s.last_seen_at; v_to:=v_time;
@@ -330,6 +330,31 @@ GRANT EXECUTE ON FUNCTION public.analytics_ingest_v2(uuid,varchar,uuid,uuid,uuid
 
 -- Historical internal decisions resolve lineage without replaying an authentication token.
 -- Status can change after the server decided admission; browser writers still check fresh auth.
+-- Deferred telemetry may race the first product request for this canonical door.
+-- Preserve its signature, status filter and grants; only make first materialization idempotent.
+CREATE OR REPLACE FUNCTION public.student_seat_principal(p_seat_id uuid)
+RETURNS TABLE(principal_id uuid,tenant_id uuid,classroom_id uuid)
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE v_principal uuid; v_tenant uuid; v_classroom uuid;
+BEGIN
+ SELECT seat.tenant_id,seat.classroom_id INTO v_tenant,v_classroom
+ FROM public.classroom_student_seats seat
+ WHERE seat.id=p_seat_id AND seat.status IN('issued','active');
+ IF v_tenant IS NULL THEN RETURN; END IF;
+ SELECT principal.id INTO v_principal FROM public.principals principal WHERE principal.seat_id=p_seat_id;
+ IF v_principal IS NULL THEN
+  INSERT INTO public.principals(kind,seat_id) VALUES('student_seat',p_seat_id)
+  ON CONFLICT(seat_id) WHERE seat_id IS NOT NULL DO NOTHING RETURNING id INTO v_principal;
+  IF v_principal IS NULL THEN
+   SELECT principal.id INTO v_principal FROM public.principals principal WHERE principal.seat_id=p_seat_id;
+  END IF;
+ END IF;
+ RETURN QUERY SELECT v_principal,v_tenant,v_classroom;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.student_seat_principal(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.student_seat_principal(uuid) TO asalab_app;
+
 CREATE FUNCTION public.analytics_record_admission_v2(
  p_event_id uuid,p_auth_event_id uuid,p_seat_id uuid,p_class_id uuid,p_signed_in boolean,
  p_metadata jsonb,p_received_at timestamptz
@@ -344,12 +369,7 @@ BEGIN
  IF v_tenant IS NULL THEN RAISE EXCEPTION 'admission lineage unavailable' USING ERRCODE='42501'; END IF;
  SELECT id INTO v_principal FROM public.principals WHERE seat_id=p_seat_id;
  IF v_principal IS NULL THEN
-  BEGIN
-   SELECT principal_id INTO v_principal FROM public.student_seat_principal(p_seat_id);
-  EXCEPTION WHEN unique_violation THEN
-   -- Another API instance may have materialized the same canonical identity.
-   SELECT id INTO v_principal FROM public.principals WHERE seat_id=p_seat_id;
-  END;
+  SELECT principal_id INTO v_principal FROM public.student_seat_principal(p_seat_id);
  END IF;
  IF v_principal IS NULL THEN RAISE EXCEPTION 'admission principal unavailable' USING ERRCODE='42501'; END IF;
  v_result:=public.analytics_ingest_v2(p_event_id,'student',NULL,v_principal,p_seat_id,NULL,p_class_id,

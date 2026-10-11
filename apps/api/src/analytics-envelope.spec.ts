@@ -14,6 +14,14 @@ const visit = {
   referrerOrigin: 'https://school.test/private?token=secret#x',
 };
 describe('fixed telemetry envelopes', () => {
+  it('rejects local clock strings and normalizes equivalent explicit offsets to the same semantic request', () => {
+    expect(() =>
+      parseAnalyticsEnvelope({ ...visit, clientOccurredAt: '2026-10-11T10:00:00' }, 'events'),
+    ).toThrow();
+    expect(
+      parseAnalyticsEnvelope({ ...visit, clientOccurredAt: '2026-10-11T13:00:00+03:00' }, 'events'),
+    ).toEqual(parseAnalyticsEnvelope(visit, 'events'));
+  });
   it('retains a Seat/class expectation and reduces the referrer to its HTTP origin', () => {
     expect(parseAnalyticsEnvelope(visit, 'events')).toMatchObject({
       operation: 'visit.observed',

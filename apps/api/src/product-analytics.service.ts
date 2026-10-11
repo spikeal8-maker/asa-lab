@@ -48,6 +48,23 @@ export type AnalyticsReceipt = {
   persistedAt: string;
   [key: string]: unknown;
 };
+function confirmedReceipt(value: unknown, eventId: string, operation: string): AnalyticsReceipt {
+  const receipt = value as AnalyticsReceipt | undefined;
+  if (
+    receipt?.accepted !== true ||
+    receipt.state !== 'persisted' ||
+    receipt.schemaVersion !== 2 ||
+    receipt.eventId !== eventId ||
+    receipt.operation !== operation ||
+    receipt.receiptId !== eventId ||
+    typeof receipt.receivedAt !== 'string' ||
+    !Number.isFinite(Date.parse(receipt.receivedAt)) ||
+    typeof receipt.persistedAt !== 'string' ||
+    !Number.isFinite(Date.parse(receipt.persistedAt))
+  )
+    throw new AnalyticsDeliveryError('telemetry_unavailable');
+  return receipt;
+}
 function actorValues(actor: AnalyticsActor) {
   const account = actor.kind === 'account' ? actor.context : null;
   const student = actor.kind === 'student' ? actor.context : null;
@@ -188,21 +205,12 @@ export class ProductAnalyticsService {
         receivedAt,
       ],
     );
-    const receipt = result.rows[0]?.receipt as AnalyticsReceipt | undefined;
-    if (
-      receipt?.accepted !== true ||
-      receipt.state !== 'persisted' ||
-      receipt.eventId !== eventId ||
-      receipt.operation !== operation ||
-      receipt.receiptId !== eventId
-    )
-      throw new AnalyticsDeliveryError('telemetry_unavailable');
-    return receipt;
+    return confirmedReceipt(result.rows[0]?.receipt, eventId, operation);
   }
 
   persistOperation(
     eventId: string,
-    actor: readonly unknown[],
+    actor: AnalyticsActor,
     operation: string,
     semantic: object,
     metadata: object,
@@ -266,9 +274,11 @@ export class ProductAnalyticsService {
           frozen.receivedAt,
         ],
       );
-      if (result.rows[0]?.receipt?.accepted !== true)
-        throw new AnalyticsDeliveryError('telemetry_unavailable');
-      return result.rows[0].receipt;
+      return confirmedReceipt(
+        result.rows[0]?.receipt,
+        operationId,
+        frozen.signedIn ? 'academic.signed_in' : 'academic.signed_out',
+      );
     });
   }
 }

@@ -42,6 +42,7 @@ export class AnalyticsDeliveryQueue {
     unrecordable: 0,
     abandoned: 0,
     qualityWriteFailures: 0,
+    responseTimedOut: 0,
   };
 
   constructor(
@@ -76,16 +77,42 @@ export class AnalyticsDeliveryQueue {
     }
     const now = this.now();
     const result = new Promise<unknown>((resolve, reject) => {
-      this.jobs.push({
+      let responseDeadline: ReturnType<typeof setTimeout> | undefined;
+      const job: Job = {
         run,
-        resolve,
-        reject,
+        resolve: (value) => {
+          if (responseDeadline) clearTimeout(responseDeadline);
+          resolve(value);
+        },
+        reject: (error) => {
+          if (responseDeadline) clearTimeout(responseDeadline);
+          reject(error);
+        },
         background,
         expiresAt: now + (background ? 300_000 : 5_000),
         availableAt: now,
         failures: 0,
-      });
+      };
+      this.jobs.push(job);
+      if (!background) {
+        responseDeadline = setTimeout(() => {
+          const index = this.jobs.indexOf(job);
+          if (index >= 0) {
+            this.jobs.splice(index, 1);
+            this.counters.expired += 1;
+          }
+          this.counters.responseTimedOut += 1;
+          // A late executing DB result remains ambiguous to this caller. Keep
+          // the worker serialized; UUID replay reconciles a lost acknowledgement.
+          job.reject(new AnalyticsDeliveryError('telemetry_unavailable'));
+          this.snapshot(true);
+        }, 10_000);
+        responseDeadline.unref?.();
+      }
     });
+    // A sleeping background retry cannot strand newly admitted ready work.
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = undefined;
     this.snapshot();
     queueMicrotask(() => {
       void this.pump();

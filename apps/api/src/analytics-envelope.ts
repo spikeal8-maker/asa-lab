@@ -57,11 +57,11 @@ export function timestamp(value: unknown): string {
   if (
     typeof value !== 'string' ||
     value.length > 40 ||
-    !/^\d{4}-\d\d-\d\dT/.test(value) ||
+    !/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/i.test(value) ||
     !Number.isFinite(Date.parse(value))
   )
     invalid();
-  return value;
+  return new Date(value).toISOString();
 }
 export function expectation(value: unknown): ActorExpectation {
   const v = object(value);

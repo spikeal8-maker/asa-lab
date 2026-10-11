@@ -22,6 +22,50 @@ const CONTEXT: ActiveContext = {
 };
 
 describe('product analytics writer', () => {
+  it('persists a real v2 actor envelope and rejects a queued or misbound database acknowledgement', async () => {
+    const eventId = '50000000-0000-4000-8000-000000000001';
+    const receivedAt = '2026-10-11T10:00:00.000Z';
+    const receipt = {
+      accepted: true,
+      state: 'persisted',
+      schemaVersion: 2,
+      eventId,
+      receiptId: eventId,
+      operation: 'visit.observed',
+      receivedAt,
+      persistedAt: receivedAt,
+    };
+    const query = vi.fn<AnalyticsQuery>(async () => ({ rows: [{ receipt }] }));
+    const service = new ProductAnalyticsService(
+      { query } as unknown as pg.Pool,
+      new AnalyticsDeliveryQueue(true, Date.now, () => undefined),
+    );
+    const run = () =>
+      service.persistOperation(
+        eventId,
+        { kind: 'account', context: CONTEXT },
+        'visit.observed',
+        { outcome: 'succeeded' },
+        {},
+        receivedAt,
+      );
+    await expect(run()).resolves.toEqual(receipt);
+    expect(query.mock.calls[0]![1]!.slice(0, 8)).toEqual([
+      eventId,
+      'account',
+      CONTEXT.accountId,
+      CONTEXT.principalId,
+      null,
+      CONTEXT.workspaceId,
+      null,
+      'visit.observed',
+    ]);
+    query.mockResolvedValueOnce({ rows: [{ receipt: { ...receipt, state: 'queued' } }] });
+    await expect(run()).rejects.toMatchObject({ code: 'telemetry_unavailable' });
+    query.mockResolvedValueOnce({ rows: [{ receipt: { ...receipt, eventId: 'foreign' } }] });
+    await expect(run()).rejects.toMatchObject({ code: 'telemetry_unavailable' });
+    await service.shutdown();
+  });
   it('returns background queue admission without waiting for SQL, and freezes normalized receipt facts', async () => {
     let release!: (value: { rows: Record<string, unknown>[] }) => void;
     const pending = new Promise<{ rows: Record<string, unknown>[] }>((resolve) => {
@@ -62,6 +106,8 @@ describe('product analytics writer', () => {
             eventId,
             receiptId: eventId,
             operation: 'auth.login',
+            receivedAt,
+            persistedAt: receivedAt,
           },
         },
       ],

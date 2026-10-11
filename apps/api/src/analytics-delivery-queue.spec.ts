@@ -39,7 +39,9 @@ describe('bounded analytics delivery', () => {
     release();
     expect(await Promise.all(admitted)).toHaveLength(256);
     expect(queue.counters).toMatchObject({ enqueued: 256, persisted: 256, queueFull: 1 });
+    expect(queue.enqueue(async () => 1)).toEqual({ state: 'queued' });
     await queue.shutdown();
+    expect(queue.counters.persisted).toBe(257);
   });
 
   it('acknowledges only admission until the database resolves, then recovers from transient failure', async () => {
@@ -88,6 +90,7 @@ describe('bounded analytics delivery', () => {
     await tick();
     expect(permanent).toHaveBeenCalledTimes(1);
     expect(queue.counters.retried).toBe(0);
+    expect(queue.counters.unrecordable).toBe(1);
     await queue.shutdown();
   });
 
@@ -122,5 +125,37 @@ describe('bounded analytics delivery', () => {
     expect(queue.pending).toBe(0);
     await queue.shutdown();
     expect(snapshots.at(-1)).toMatchObject({ expired: 1, persisted: 0, final: true });
+  });
+  it('wakes an armed thirty-second background retry for a new foreground request', async () => {
+    vi.useFakeTimers();
+    const queue = new AnalyticsDeliveryQueue(true, Date.now, () => undefined);
+    queue.enqueue(async () => {
+      throw Object.assign(new Error('retry'), { code: '08006' });
+    });
+    await vi.advanceTimersByTimeAsync(31_001);
+    expect(queue.counters.retried).toBe(6);
+    const foreground = vi.fn(async () => 42);
+    const result = queue.submit(foreground);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(foreground).toHaveBeenCalledOnce();
+    await expect(result).resolves.toBe(42);
+    await queue.shutdown();
+  });
+  it('gives a foreground caller a bounded ambiguous response if an injected connection never settles', async () => {
+    vi.useFakeTimers();
+    const queue = new AnalyticsDeliveryQueue(true, Date.now, () => undefined);
+    const result = expect(queue.submit(() => new Promise(() => undefined))).rejects.toMatchObject({
+      code: 'telemetry_unavailable',
+    });
+    await vi.advanceTimersByTimeAsync(10_001);
+    await result;
+    expect(queue.inFlight).toBe(1);
+    expect(queue.counters.persisted).toBe(0);
+    expect(queue.counters.responseTimedOut).toBe(1);
+    const closing = expect(queue.shutdown()).rejects.toMatchObject({
+      code: 'telemetry_unavailable',
+    });
+    await vi.advanceTimersByTimeAsync(5_010);
+    await closing;
   });
 });

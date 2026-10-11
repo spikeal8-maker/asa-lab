@@ -359,6 +359,14 @@ describe('real PostgreSQL observability delivery receipts', () => {
       creditedFrom: null,
       creditedTo: null,
     });
+    const futureTouch = await ingest(
+      owner,
+      randomUUID(),
+      'touch',
+      { sessionId, visitId, clientOccurredAt: at(120) },
+      at(90),
+    );
+    expect(futureTouch.result.creditedSeconds).toBe(0);
     const future = visit('2099-01-01T00:00:00Z');
     const eventId = randomUUID();
     await ingest(owner, eventId, 'visit.observed', future);
@@ -459,6 +467,7 @@ describe('real PostgreSQL observability delivery receipts', () => {
     const stream = randomUUID();
     const id1 = randomUUID();
     const q1 = quality(stream, 1, 10);
+    q1.gauges = { pending: 5, inFlight: 1 };
     const first = await ingest(owner, id1, 'quality', q1);
     await ingest(owner, randomUUID(), 'quality', quality(stream, 2, 12));
     expect(await ingest(owner, id1, 'quality', q1, at(60))).toEqual(first);
@@ -494,8 +503,8 @@ describe('real PostgreSQL observability delivery receipts', () => {
       seat.seatId,
     ]);
     // Moscow midnight separates these deterministic ten-minute buckets.
-    const early = '2026-10-09T20:59:30Z';
-    const late = '2026-10-09T21:00:30Z';
+    const early = '2026-10-09T20:59:59Z';
+    const late = '2026-10-09T21:00:00Z';
     const later = '2026-10-09T21:04:00Z';
     const admit = async (id: string, authId: string, time: string) =>
       (
@@ -541,6 +550,9 @@ describe('real PostgreSQL observability delivery receipts', () => {
       'analytics_operation_receipts',
       'analytics_quality_streams',
       'analytics_quality_snapshots',
+      'product_analytics_events',
+      'product_module_sessions',
+      'product_module_activity_slices',
     ]) {
       await expect(runtime.query(`SELECT * FROM ${table}`)).rejects.toMatchObject({
         code: '42501',
@@ -584,18 +596,19 @@ describe('real PostgreSQL observability delivery receipts', () => {
     const projectId = await project();
     const sessionId = randomUUID();
     const visitId = randomUUID();
+    const startAt = new Date(Date.now() - 30_000).toISOString();
     await ingest(
       owner,
       randomUUID(),
       'start',
-      { sessionId, visitId, projectId, moduleKey: 'blocks', clientOccurredAt: at(0) },
-      at(0),
+      { sessionId, visitId, projectId, moduleKey: 'blocks', clientOccurredAt: startAt },
+      startAt,
     );
     const freshSeat = await makeSeat(false);
     const blocker = await admin.connect();
     const pid = (await analyticsPool.query('SELECT pg_backend_pid() pid')).rows[0].pid;
     const eventId = randomUUID();
-    const clientOccurredAt = at(30);
+    const clientOccurredAt = new Date().toISOString();
     const payload = {
       schemaVersion: 2,
       eventId,
@@ -662,6 +675,14 @@ describe('real PostgreSQL observability delivery receipts', () => {
       await blocker.query('ROLLBACK');
       const retry = await send();
       expect(retry.statusCode, retry.body).toBe(200);
+      expect(retry.json().result.creditedSeconds).toBeGreaterThan(0);
+      expect(
+        (
+          await admin.query('SELECT id FROM product_module_activity_slices WHERE session_id=$1', [
+            sessionId,
+          ])
+        ).rows,
+      ).toHaveLength(1);
       expect(
         (
           await admin.query('SELECT event_id FROM analytics_operation_receipts WHERE event_id=$1', [
@@ -715,5 +736,147 @@ describe('real PostgreSQL observability delivery receipts', () => {
     });
     expect(bad.statusCode).toBe(400);
     expect(code).toMatch(/\S/);
+  });
+
+  it('denies replay after real Account logout and actual Seat suspension', async () => {
+    const signed = await teacher('real-revocation');
+    const eventId = randomUUID();
+    const time = new Date().toISOString();
+    const payload = {
+      schemaVersion: 2,
+      eventId,
+      eventType: 'visit.observed',
+      actorExpectation: {
+        kind: 'account',
+        accountId: signed.actor.accountId,
+        workspaceId: signed.actor.workspaceId,
+      },
+      visitId: randomUUID(),
+      clientOccurredAt: time,
+      entryRoute: 'home',
+      referrerOrigin: null,
+    };
+    const send = () =>
+      inject(app, {
+        method: 'POST',
+        url: '/api/analytics/v2/events',
+        headers: { cookie: signed.cookie },
+        payload,
+      });
+    expect((await send()).statusCode).toBe(200);
+    const logout = await inject(app, {
+      method: 'POST',
+      url: '/api/auth/logout',
+      headers: { cookie: signed.cookie },
+      payload: {},
+    });
+    expect(logout.statusCode, logout.body).toBe(200);
+    expect((await send()).statusCode).toBe(401);
+    const seat = await makeSeat(true);
+    const login = await inject(app, {
+      method: 'POST',
+      url: '/api/class-join/studentseat',
+      payload: { code, studentCode: seat.studentCode },
+    });
+    expect(login.statusCode, login.body).toBe(200);
+    const seatCookie = `asa_student_session=${login.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
+    const studentPayload = {
+      ...payload,
+      eventId: randomUUID(),
+      actorExpectation: { kind: 'student', seatId: seat.seatId, classId },
+    };
+    const studentSend = () =>
+      inject(app, {
+        method: 'POST',
+        url: '/api/analytics/v2/events',
+        headers: { cookie: seatCookie },
+        payload: studentPayload,
+      });
+    expect((await studentSend()).statusCode).toBe(200);
+    await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
+      seat.seatId,
+    ]);
+    expect((await studentSend()).statusCode).toBe(401);
+  });
+
+  it('materializes one canonical Seat principal under independent connection and first product request races', async () => {
+    const seat = await makeSeat(false);
+    const isolatedMain = testAppPool();
+    const isolatedApp = await createApiApp({
+      pool: isolatedMain,
+      analyticsPool: null,
+      webDist: null,
+    });
+    const left = await runtime.connect();
+    const right = await runtime.connect();
+    try {
+      const login = await inject(isolatedApp, {
+        method: 'POST',
+        url: '/api/class-join/studentseat',
+        payload: { code, studentCode: seat.studentCode },
+      });
+      expect(login.statusCode, login.body).toBe(200);
+      const seatCookie = `asa_student_session=${login.cookies.find((c) => c.name === 'asa_student_session')!.value}`;
+      expect(
+        (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seat.seatId])).rows,
+      ).toHaveLength(0);
+      await left.query('BEGIN');
+      const first = (
+        await left.query('SELECT principal_id FROM student_seat_principal($1)', [seat.seatId])
+      ).rows[0].principal_id;
+      const leftPid = (await left.query('SELECT pg_backend_pid() pid')).rows[0].pid;
+      const rightPid = (await right.query('SELECT pg_backend_pid() pid')).rows[0].pid;
+      const competing = right.query('SELECT principal_id FROM student_seat_principal($1)', [
+        seat.seatId,
+      ]);
+      const productRead = inject(isolatedApp, {
+        method: 'GET',
+        url: '/api/projects',
+        headers: { cookie: seatCookie },
+      });
+      let blocked = false;
+      for (let i = 0; i < 40; i += 1) {
+        const state = (
+          await admin.query(
+            "SELECT $2::int=ANY(pg_blocking_pids($1)) direct_blocked,(SELECT count(*) FROM pg_stat_activity a WHERE a.pid<>$1 AND a.pid<>pg_backend_pid() AND a.query LIKE '%FROM student_seat_principal(%' AND $2::int=ANY(pg_blocking_pids(a.pid))) product_blocked",
+            [rightPid, leftPid],
+          )
+        ).rows[0];
+        if (state.direct_blocked && Number(state.product_blocked) > 0) {
+          blocked = true;
+          break;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      expect(blocked).toBe(true);
+      await left.query('COMMIT');
+      expect((await competing).rows[0].principal_id).toBe(first);
+      const result = await productRead;
+      expect(result.statusCode, result.body).toBe(200);
+      expect(
+        (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [seat.seatId])).rows,
+      ).toEqual([{ id: first }]);
+      await admin.query("UPDATE classroom_student_seats SET status='suspended' WHERE id=$1", [
+        seat.seatId,
+      ]);
+      expect(
+        (await runtime.query('SELECT principal_id FROM student_seat_principal($1)', [seat.seatId]))
+          .rows,
+      ).toHaveLength(0);
+      expect(
+        (
+          await inject(isolatedApp, {
+            method: 'GET',
+            url: '/api/projects',
+            headers: { cookie: seatCookie },
+          })
+        ).statusCode,
+      ).toBe(401);
+    } finally {
+      await left.query('ROLLBACK');
+      left.release();
+      right.release();
+      await isolatedApp.close();
+    }
   });
 });
