@@ -14,6 +14,7 @@ import type { RuntimeMetrics } from '@asa-lab/observability';
 import { AppModule } from './app.module.js';
 import { TOKENS } from './tokens.js';
 import { runtimeBuildMetadata } from './build-metadata.js';
+import { logSubsystem, safeLogPath } from './log-subsystems.js';
 import {
   diagnosticContext,
   requestFailures,
@@ -258,8 +259,13 @@ export async function createApiApp(
   const mutationAbuseProtection = new MutationAbuseProtection();
   const blocksRuntimeAddressBudget = new BlocksRuntimeAddressBudget();
 
-  fastify.addHook('onRequest', async () => {
+  fastify.addHook('onRequest', async (request) => {
     metrics.requestStarted();
+    const path = (request.raw.url ?? '/').split('?')[0]!;
+    if (logRequests && path.startsWith('/api/') && path !== '/api/diagnostics/client')
+      process.stdout.write(
+        `${JSON.stringify({ time: new Date().toISOString(), kind: 'http_request_started', level: 'info', requestId: request.id, revision: logRevision, method: request.method, path: safeLogPath(path), subsystem: logSubsystem('api', path), ...diagnosticContext(request) })}\n`,
+      );
   });
 
   fastify.addHook('onResponse', async (request, reply) => {
@@ -270,10 +276,12 @@ export async function createApiApp(
       process.stdout.write(
         `${JSON.stringify({
           time: new Date().toISOString(),
+          kind: 'http_response',
           requestId: request.id,
           revision: logRevision,
           method: request.method,
-          path,
+          path: safeLogPath(path),
+          subsystem: logSubsystem('api', path),
           status: reply.statusCode,
           durationMs,
           errorCode: requestFailures.get(request),

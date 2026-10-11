@@ -34,6 +34,29 @@ def compose_config():
 
 
 class EmbeddedEntryTests(unittest.TestCase):
+    def test_transient_public_404_is_retried_and_permanent_failure_names_the_path(self):
+        from urllib.error import HTTPError
+        origin, revision = 'https://asa.example.test', 'a' * 40
+        responses = {'/health/ready': json.dumps({'status':'ready', 'deployment':{'revision':revision,'synchronized':True}}),
+                     '/build-metadata.json':json.dumps({'revision':revision}),
+                     '/runtime-config.js':'globalThis.__ASA_RUNTIME_CONFIG__='+json.dumps({'blocksRuntimeOrigin':origin})+';',
+                     '/internal/blocks/':'<html data-asa-scratch-host="m1-002a">Scratch</html>', '/internal/blocks/healthz':'ok'}
+        attempts = {}
+        def fetch(url, **kwargs):
+            path = url.removeprefix(origin); attempts[path] = attempts.get(path, 0) + 1
+            if path == '/internal/blocks/' and attempts[path] == 1:
+                raise HTTPError(url,404,'not found',{},None)
+            value = io.BytesIO(responses[path].encode()); value.status = 200; value.geturl = lambda: url
+            return value
+        with patch('deployment.contracts.urlopen', side_effect=fetch), patch('deployment.contracts.time.sleep'):
+            verify_embedded_entry_http(origin, revision)
+        self.assertEqual(attempts['/internal/blocks/'],2)
+        for status, expected in ((404, 3), (401, 1)):
+            with patch('deployment.contracts.urlopen', side_effect=lambda *a,**k: (_ for _ in ()).throw(HTTPError(a[0],status,'private text',{},None))) as mocked, patch('deployment.contracts.time.sleep'):
+                with self.assertRaises(Blocked) as failure: verify_embedded_entry_http(origin, revision)
+            self.assertEqual(mocked.call_count,expected)
+            self.assertIn('/health/ready',str(failure.exception)); self.assertNotIn('private text',str(failure.exception))
+
     def config(self, origin, parent, public=''):
         return {'services': {'api': {'environment': {'ASA_BLOCKS_RUNTIME_ORIGIN': origin, 'ASA_PUBLIC_WEB_ORIGINS': public}},
                              'scratch': {'environment': {'ASA_BLOCKS_PARENT_ORIGIN': parent}}}}
@@ -343,6 +366,28 @@ class IdentityTests(unittest.TestCase):
 
 
 class UpdateBoundaryTests(unittest.TestCase):
+    def test_acknowledge_recovers_only_known_switch_phases_and_recorded_runtime(self):
+        from unittest.mock import MagicMock
+        for phase in ('switch', 'verify_entry', 'backup'):
+            for matching_runtime in (True, False):
+                with self.subTest(phase=phase, matching_runtime=matching_runtime), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory); state = root / '.asa'; state.mkdir()
+                    install = MagicMock(); install.root = root; install.state = state
+                    install.readiness.return_value = {'revision': ('a' if matching_runtime else 'b') * 40}
+                    operation = {'phase':phase, 'selected':{'revision':'a'*40}}
+                    atomic_json(state / 'maintenance.json', operation)
+                    atomic_json(state / 'failed-switch.json', operation)
+                    with patch.object(asa_manager, 'Installation', return_value=install), patch.object(asa_manager, 'doctor') as doctor, patch('sys.stderr', io.StringIO()):
+                        result = asa_manager.main(['acknowledge', '--root', str(root)])
+                    accepted = phase in ('switch', 'verify_entry') and matching_runtime
+                    self.assertEqual(result, 0 if accepted else 2)
+                    self.assertEqual((state / 'maintenance.json').exists(), not accepted)
+                    self.assertEqual((state / 'failed-switch.json').exists(), not accepted)
+                    if accepted:
+                        self.assertEqual(len(list(state.glob('reviewed-*.json'))), 1)
+                        self.assertEqual(len(list(state.glob('acknowledged-*.json'))), 1)
+                    doctor.assert_called_once_with(install); install.compose.assert_not_called()
+
     def test_missing_owner_entry_stops_before_release_or_backup(self):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:

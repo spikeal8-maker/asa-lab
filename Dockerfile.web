@@ -29,6 +29,7 @@ FROM ${CADDY_IMAGE} AS runtime
 
 ARG ASA_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision="${ASA_BUILD_REVISION}"
+ENV ASA_BUILD_REVISION="${ASA_BUILD_REVISION}"
 ENV XDG_CONFIG_HOME=/tmp/caddy-config
 ENV XDG_DATA_HOME=/tmp/caddy-data
 

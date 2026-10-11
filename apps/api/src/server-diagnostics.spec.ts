@@ -3,6 +3,7 @@ import { Controller, Get, Post, Module, HttpException, type ArgumentsHost } from
 import { NestFactory, type HttpAdapterHost } from '@nestjs/core';
 import { FastifyAdapter, type NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { FastifyRequest } from 'fastify';
+import { safeLogPath } from './log-subsystems.js';
 import {
   ServerDiagnosticsFilter,
   safeServerError,
@@ -24,6 +25,19 @@ class DiagnosticFixtureController {
 class DiagnosticFixtureModule {}
 
 describe('structured server error evidence', () => {
+  it('redacts invitation capabilities and queries before writing stdout', () => {
+    expect(
+      safeLogPath('/api/classroom-teacher-invitations/private-capability/accept?secret=x'),
+    ).toBe('/api/classroom-teacher-invitations/[redacted]');
+    expect(safeLogPath('/api/projects/fixture?secret=x')).toBe('/api/projects/fixture');
+  });
+  it.each([
+    'timeout exceeded when trying to connect',
+    'connection timeout',
+    'timeout acquiring a connection',
+  ])('recognizes pool acquisition timeouts: %s', (message) => {
+    expect(safeServerError(new Error(message)).errorCode).toBe('database_connection_timeout');
+  });
   it('preserves native parser 400/415 and records one native 500 through Nest and Fastify', async () => {
     const adapter = new FastifyAdapter();
     const app = await NestFactory.create<NestFastifyApplication>(DiagnosticFixtureModule, adapter, {

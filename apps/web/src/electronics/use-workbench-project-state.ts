@@ -702,7 +702,10 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
                 : 'server',
             response.status === 0 || response.status === 408 || response.status >= 500,
           );
-          reportClientDiagnostic('autosave_failed', 'electronics');
+          reportClientDiagnostic('autosave_failed', 'electronics', {
+            phase: 'save',
+            httpStatus: response.status,
+          });
           setNotice(null);
           return null;
         }
@@ -730,7 +733,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         if (!quiet && documentRef.current === nextDocument) setNotice('Все изменения сохранены.');
         return response.data.result;
       } catch {
-        reportClientDiagnostic('autosave_failed', 'electronics');
+        reportClientDiagnostic('autosave_failed', 'electronics', { phase: 'save' });
         failSave('offline', true);
         return null;
       } finally {

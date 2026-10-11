@@ -1,9 +1,37 @@
 {
 	admin off
 	auto_https off
+	# Upstream failures use Caddy's runtime logger, outside the site's access logger.
+	log default {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request delete
+				resp_headers delete
+			}
+		}
+	}
 }
 
 :8080 {
+	# Headers, query strings and bodies never enter the access log.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request delete
+				resp_headers delete
+				path regexp "^(/api/classroom-teacher-invitations/)[^/]+.*$" "${1}[redacted]"
+			}
+		}
+	}
+	log_append <path {http.request.uri.path}
+	log_append <method {http.request.method}
+	log_append requestId {http.response.header.X-Request-Id}
+	log_append revision {$ASA_BUILD_REVISION}
+	log_append kind http_response
 	encode zstd gzip
 	# The public alias must reach the same canonical origin as the embedded editor.
 	@publicAlias host www.asa-lab.ru
