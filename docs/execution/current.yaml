@@ -3418,7 +3418,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r7_test_only_saved_state_setup_and_native_control_oracles
+      checkpoint: r8_test_only_unique_native_meter_hit_path
       kind: repair
       owner_acceptance: pending
       context_hints:
@@ -3426,14 +3426,13 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       program_issue: 452
       owner_problem: E11
-      repair_scope: 'R7 TEST ONLY e2e/electronics-selection-outline.spec.ts: fix proven invalid BEFORE setup
-        label, clean saved-document oracle and ambiguous/native control hit authority; retain full actual local
-        whole document checks, zero hidden edits/PUT, exact transforms, complete ready/yielded, wholeSaveCAScookies,
-        primary-original evidence and all default deadlines. No product repair or expected-value fallback.'
-      next_action: New bounded test-only author inherits actual canonical/shared main automatically with conflict
-        STOP. Preserve published R6 source7e77 and invalid BEFOREaa4b/run38142368828. One unpublished exact SHA,
-        narrow checks/full foreign-tree/selfreview/hashmanifest thenSTOP; NEW independent source challenge before
-        ONE new strict frozen BEFORE. AFTER forbidden until valid BEFORE; final exact gates/product review remain.
+      repair_scope: 'R8 TEST ONLY e2e/electronics-selection-outline.spec.ts: disambiguate existing native multimeter voltage/current
+        mode clicks to their unique painted mode-button hit path. Preserve all16 cases/whole9parts7wiresUNO/nativeactions/all78asserts/defaultwaits/primaryjournals;
+        allother5sourceblobs exact9d. No product/physics/collector change.'
+      next_action: New bounded test-only author inherits canonical current-main once automatically conflictSTOP. Preserve
+        published9d/R7BEFORE37e48/run38145444404. One unpublished exactSHA/fullinverse/78assertAST/narrow/selfreview/hashmanifest
+        thenSTOP; NEWindependent source check. NO new browser until separate554productwheel dependency technicallyaccepted;
+        then one final controlledcomposition/exactgates/newfrozenstrictBEFORE, noAFTER withoutvalidall16journey.
       preservation: Accepted526/541/543; held525/538/544/546/547 and548 diagnostic originals unchanged. No resolution
         of pending525/546 conflicts. Hygiene count2 since542; checkpoint006 after third accepted production slice
         before later new production phase.
@@ -3474,6 +3473,12 @@ parallel_lanes:
       r5_independent_report_sha256: d2b57f98765c4a05538a275a2170fe16aff370172e2ed10779136cdc18712ae8
       r5_independent_manifest_sha256: 37cd9dcb37a24aecab4b1adfadaa7839c5fb4cdcd55f472362b1c1e06c6d1817
 
+      wheel_dependency_issue: 554
+      r7_before_probe_sha: 37e48f2ec372dccdf44bb8ebaaa1db501ecf8905
+      r7_before_run: 38145444404
+      r7_before_conclusion: invalid_globally;4Acomplete_only_expected_outline_failure;8BCwholeSave_thenpassivewheelconsole;4Dmeterselector2paths
+      r7_before_report_sha256: f83472cb9dff0593feb1fe88a82f188dc48f4f54d5af07dc760d61d30f3f3658
+      r7_before_manifest_sha256: df5e8f474c672c99b2a60c6973c985155fe7f769e33ace15f5bedeffa50c47af
     execution_lease:
       executor_id: electronics-selection-outline
       holder: unassigned
