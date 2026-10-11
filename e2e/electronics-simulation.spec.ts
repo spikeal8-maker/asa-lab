@@ -509,7 +509,6 @@ for (const rotation of [0, 90, 180, 270] as const)
             id: 'supply-negative',
           });
           expect((await psuEntryLocal(page, projectId)).document).toEqual(initial);
-          await page.mouse.click(approach.x, approach.y);
           await page.mouse.dblclick(approach.x, approach.y);
           await expect(
             page.locator('[data-testid="wire-vertex"][data-wire-id="supply-positive"]'),
