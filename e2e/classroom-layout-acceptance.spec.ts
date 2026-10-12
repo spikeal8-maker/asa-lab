@@ -341,6 +341,28 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
       mainWidth: main.clientWidth,
       mainScrollWidth: main.scrollWidth,
       outside,
+      rosterIdentityOverlaps: [
+        ...main.querySelectorAll<HTMLElement>('.classroom-roster-row'),
+      ].flatMap((row) => {
+        const index = row.querySelector<HTMLElement>('.classroom-roster-index');
+        const avatar = row.querySelector<HTMLElement>('.classroom-seat-avatar');
+        if (!index || !avatar || !avatar.checkVisibility()) return [];
+        const range = document.createRange();
+        range.selectNodeContents(index);
+        const numberBox = range.getBoundingClientRect(),
+          imageBox = avatar.getBoundingClientRect();
+        return Math.min(numberBox.right, imageBox.right) - Math.max(numberBox.left, imageBox.left) >
+          0.5 &&
+          Math.min(numberBox.bottom, imageBox.bottom) - Math.max(numberBox.top, imageBox.top) > 0.5
+          ? [
+              {
+                number: index.textContent?.trim(),
+                numberBox: numberBox.toJSON(),
+                imageBox: imageBox.toJSON(),
+              },
+            ]
+          : [];
+      }),
     };
   });
   await page.screenshot({ path: `${out}/${file}.png`, fullPage: true });
@@ -348,6 +370,9 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
   expect.soft(measure.documentWidth, file).toBeLessThanOrEqual(measure.width + 1);
   expect.soft(measure.mainScrollWidth, file).toBeLessThanOrEqual(measure.mainWidth + 1);
   expect.soft(measure.outside, file).toEqual([]);
+  expect
+    .soft(measure.rosterIdentityOverlaps, 'Pupil row numbers must not cover avatar images: ' + file)
+    .toEqual([]);
 }
 
 for (const width of [320, 390, 1024, 1440]) {
