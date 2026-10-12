@@ -1,0 +1,125 @@
+name: Classroom bounded final repair
+
+"on":
+  push:
+    branches: ["assistant/classroom-owner-usability-20261011"]
+    paths:
+      - ".github/asa558-final-repair.cjs"
+      - ".github/workflows/classroom-finalize-once.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: classroom-bounded-final-repair
+  cancel-in-progress: false
+
+jobs:
+  repair-and-verify:
+    if: github.repository == 'spikeal8-maker/asa-lab' && github.ref == 'refs/heads/assistant/classroom-owner-usability-20261011'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      NX_DAEMON: "false"
+      NX_SKIP_NX_CACHE: "true"
+      TEST_DATABASE_URL: postgresql://postgres:classroom-owner-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      APP_TEST_DATABASE_URL: postgresql://asalab_app:classroom-owner-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      MIGRATION_DATABASE_URL: postgresql://postgres:classroom-owner-ci-isolated-test@127.0.0.1:5432/asa_access_a_test
+      MIGRATION_EXPECT_DATABASE: asa_access_a_test
+      MIGRATION_CONFIRM: APPLY:asa_access_a_test
+      VITEST_MAX_WORKERS: "2"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - name: Apply only the specified source edits
+        run: node .github/asa558-final-repair.cjs
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format the changed files
+        run: |
+          node -e 'const cp=require("node:child_process"),fs=require("node:fs"); const files=JSON.parse(fs.readFileSync("/tmp/asa558-changed.json","utf8")); cp.execFileSync("pnpm",["exec","prettier","--write",...files,".github/asa558-final-repair.cjs",".github/workflows/classroom-finalize-once.yml"],{stdio:"inherit"});'
+          git diff --check
+      - name: Publish a normal commit to this PR branch only
+        id: published
+        run: |
+          remote=$(git ls-remote origin refs/heads/assistant/classroom-owner-usability-20261011 | cut -f1)
+          test "$remote" = "$GITHUB_SHA"
+          node -e 'const cp=require("node:child_process"),fs=require("node:fs"); const files=JSON.parse(fs.readFileSync("/tmp/asa558-changed.json","utf8")); cp.execFileSync("git",["add","--",...files,".github/asa558-final-repair.cjs",".github/workflows/classroom-finalize-once.yml"],{stdio:"inherit"});'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'fix(classrooms): separate readable mobile metrics and preserve scoped data contracts'
+          git push origin HEAD:refs/heads/assistant/classroom-owner-usability-20261011
+          head=$(git rev-parse HEAD)
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+          echo "ASA_BUILD_REVISION=$head" >> "$GITHUB_ENV"
+          mkdir -p reports/final-repair
+          git show --stat HEAD > reports/final-repair/commit.txt
+          git diff HEAD~1 HEAD > reports/final-repair/source.patch
+          git archive HEAD apps/api/src contexts/projects contexts/identity migrations tests/portal/classroom-observation.pg.spec.ts tests/portal/app.ts tests/portal/helpers.ts apps/web/src/modules/classroom-usability.css apps/web/src/components/manual-classroom-journal.css apps/web/src/pages/DashboardPage.tsx e2e/classroom-layout-acceptance.spec.ts e2e/classroom-readable-text.ts | gzip > reports/final-repair/source-slice.tar.gz
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Build exact repaired revision
+        run: pnpm build
+      - name: Source contracts and focused unit tests
+        run: |
+          pnpm contracts:check
+          pnpm exec vitest run apps/web/src/components/testing/quick-journal.dom.spec.ts apps/web/src/components/testing/classroom-profile-completion.spec.ts
+      - name: Real glyph and screen acceptance
+        if: ${{ !cancelled() && steps.published.outcome == 'success' }}
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_FILE: ${{ github.workspace }}/reports/final-repair/layout.json
+        run: pnpm exec playwright test --config playwright.settings-ui.config.ts e2e/classroom-layout-acceptance.spec.ts e2e/classroom-usability-ui.spec.ts e2e/classroom-owner-ui.spec.ts --reporter=list,json
+      - name: Preserve visual proof immediately
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-final-layout-${{ steps.published.outputs.head || github.sha }}
+          path: |
+            reports/final-repair
+            e2e/artifacts/owner-preview/classroom-layout-final
+            apps/web/dist/build-metadata.json
+          retention-days: 14
+      - name: Start isolated PostgreSQL
+        if: ${{ !cancelled() && steps.published.outcome == 'success' }}
+        id: database
+        run: |
+          sudo systemctl start postgresql.service
+          sudo -u postgres psql -v ON_ERROR_STOP=1 -c "ALTER ROLE postgres WITH PASSWORD 'classroom-owner-ci-isolated-test'"
+          sudo -u postgres createdb asa_access_a_test
+          pnpm db:migrate
+          psql "$TEST_DATABASE_URL" -v ON_ERROR_STOP=1 -c "ALTER ROLE asalab_app WITH LOGIN PASSWORD 'classroom-owner-ci-isolated-test'"
+          role=$(psql "$APP_TEST_DATABASE_URL" -Atqc "SELECT current_user || ':' || rolsuper || ':' || rolbypassrls FROM pg_roles WHERE rolname=current_user")
+          test "$role" = "asalab_app:false:false"
+      - name: Real data and authorization regression
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        run: |
+          set -o pipefail
+          pnpm test:access-a 2>&1 | tee reports/final-repair/postgresql.log
+      - name: Real pupil and teacher browser journeys
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        run: pnpm e2e:access-a
+      - name: Complete unchanged settings suite
+        if: ${{ !cancelled() && steps.database.outcome == 'success' }}
+        run: pnpm e2e:settings-ui
+      - name: Preserve exact-source evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: classroom-final-all-${{ steps.published.outputs.head || github.sha }}
+          path: |
+            reports/final-repair
+            reports/playwright
+            e2e/artifacts/owner-preview
+            apps/web/dist/build-metadata.json
+          retention-days: 14
+      - name: Stop disposable test database
+        if: always()
+        run: sudo systemctl stop postgresql.service
