@@ -1,92 +1,83 @@
-# ASA Lab — Figma UI Atlas: implementation ledger
+# ASA Lab ↔ Figma — проверка фактов и точка продолжения
 
-Created: 2026-10-12
-GitHub baseline: `acedf8f1c3982ae15f1e59e02385fda1f50dd538`
-Figma design: https://www.figma.com/design/vbRPijeR6IeTw1F8lkfsGr
+Дата аудита: **12.10.2026**. Базовый коммит `main`: `acedf8f1c3982ae15f1e59e02385fda1f50dd538`.
+Дизайн-файл: https://www.figma.com/design/vbRPijeR6IeTw1F8lkfsGr
+Репозиторий: `spikeal8-maker/asa-lab`.
+Рабочая ветка: `design/figma-ui-atlas-integration-20261012`.
 
-## Objective
+> **Статус: PARTIAL / NOT READY FOR DESIGN-TO-CODE SYNC.** Действующий UI/API на `main` не изменялся. Файл Figma существует, но его страницы пока НЕ являются точной копией приложения. Изменения Figma нельзя автоматически переносить в продакшен.
 
-Create a source-of-truth design atlas for responsive ASA Lab UI and a *reviewed* Figma → React/CSS change loop. Do not replace existing interactive behavior or blindly generate new components.
+## 1. Что фактически создано в Figma
 
-## Current verified work
+Страницы:
 
-- Figma file created and accessible.
-- Three Figma pages: `01 · Токены и компоненты` (ID `0:1`), `02 · Атлас экранов` (ID `1:2`), `03 · Связь с GitHub` (ID `1:3`).
-- 28 local Figma variables were derived from `apps/web/src/brand/brand.css` and `apps/web/src/styles.css` (24 colors, 4 corner radii).
-- 35 inventory rows across 5 sections were added to the atlas. These are inventory entries, not 35 completed wireframes.
-- Editable schematic home desktop (1440 × 900) Figma node `2:2` and home mobile (390 × 844) node `2:47`. These are **source-informed schematic prototypes**, **not** pixel-perfect captures of the live web application.
-- No runtime or CSS code was modified. No production change was applied.
-- Native Figma Code Connect not required; any inferred node→component association must be validated.
+1. `01 · Токены и компоненты` — node `0:1`: таблица цветов, 3 редактируемых компонента (`Home / Create action`, `Portal / Selected nav`, `Portal / Nav item`), 38 переменных.
+2. `02 · Атлас экранов` — node `1:2`: **35 строк первоначального справочника** маршрутов (это НЕ 35 готовых экранов) + рабочая пара **черновиков** главной, desktop node `8:2` и mobile node `8:48`.
+3. `03 · Связь с GitHub` — node `1:3`: описание будущего процесса. **Текст статуса на этой странице устарел** (говорит 28 переменных); обновление Figma заблокировано лимитом тарифного плана.
 
-## Route implementation anchors
+Точечная повторная сверка исходных CSS обнаружила пропущенные переменные `--ink-muted`, `--danger`, `--success-bg`, `--success-text`. Они добавлены. В результате:
 
-Main router: `apps/web/src/App.tsx`
-Portal view routes: `apps/web/src/creator-portal/navigation.ts`
-Admin sections: `apps/web/src/admin/admin-navigation.ts`
-Portal shared navigation: `apps/web/src/components/PortalHeader.tsx`
-Editor factory: `apps/web/src/modules/ModuleEditorHost.tsx`
+- 32 цвета/радиуса перенесены как действующие CSS-переменные `var(--...)` (список НЕ исчерпывает весь проект);
+- 6 цветов из прямых CSS-значений выделены в отдельную коллекцию `ASA Lab / Inline CSS values`; они **не выдаются** за уже существующие переменные приложения;
+- суммарно 38 переменных и 3 начальных компонента. Это ещё не готовая дизайн-система.
 
-| UI family | React source | Route | Access |
-| --- | --- | --- | --- |
-| Public landing | `apps/web/src/pages/PublicEntryPage.tsx` | `/` | anonymous |
-| Sign in | `apps/web/src/pages/LoginPage.tsx` | `/#/sign-in` | anonymous |
-| Sign up | `apps/web/src/pages/RegisterPage.tsx` | `/#/sign-up` | anonymous |
-| Join class | `apps/web/src/pages/JoinClassPage.tsx` | `/#/join-class` | anonymous / signed-in |
-| Public org sign in | `apps/web/src/pages/OrganizationLoginPage.tsx` | `/#/organization-sign-in` | anonymous |
-| Home | `apps/web/src/pages/CreatorHomePage.tsx` | `/#/home` | account / seat |
-| My projects | `apps/web/src/pages/MyProjectsPage.tsx` | `/#/projects` | account / seat (filtered) |
-| Games | `apps/web/src/pages/GamesPage.tsx` | `/#/games` | account |
-| Learning | `apps/web/src/pages/LearningPage.tsx` | `/#/learning` | account / seat |
-| Knowledge | `apps/web/src/pages/KnowledgePage.tsx` | `/#/knowledge` | account |
-| Knowledge course | `apps/web/src/pages/KnowledgePage.tsx` | `/#/knowledge/:courseId` | account |
-| Collections | `apps/web/src/pages/CollectionsPage.tsx` | `/#/collections` | account |
-| Gallery | `apps/web/src/pages/GalleryPage.tsx` | `/#/gallery` | account |
-| Gallery work | `apps/web/src/pages/GalleryWorkPage.tsx` | `/#/gallery/:projectId` | account |
-| Help | `apps/web/src/pages/CreatorResourcePage.tsx` | `/#/help` | account / seat |
-| Account preferences | `apps/web/src/pages/AccountPage.tsx` | `/#/account` | account |
-| Seat preferences | `apps/web/src/pages/SeatAccountPage.tsx` | `/#/account` | seat |
-| Class hub | `apps/web/src/pages/DashboardPage.tsx` | `/#/classrooms` | classroom-management grant |
-| Student class | `apps/web/src/pages/SeatClassPage.tsx` | `/#/classrooms` | seat |
-| Specific class | `apps/web/src/pages/ClassroomPage.tsx` | `/#/classrooms/:id` | classroom-management grant |
-| Class projects | `apps/web/src/pages/ProjectsPage.tsx` | `/#/classrooms/:id/projects` | classroom-management grant |
-| Attending | `apps/web/src/pages/AttendedClassesPage.tsx` | `/#/attending` | account |
-| Courses & tasks | `apps/web/src/pages/AssignmentLibraryPage.tsx` | `/#/challenges` | authoring grant |
-| Invite | `apps/web/src/pages/TeacherInvitePage.tsx` | `/#/teacher-invite/:token` | invitation token |
-| Electronics | `apps/web/src/modules/ModuleEditorHost.tsx` | `/projects/:id/electronics/edit` | valid project |
-| 3D | `apps/web/src/modules/ModuleEditorHost.tsx` | `/#/3d/:id` | valid project |
-| Blocks | `apps/web/src/modules/ModuleEditorHost.tsx` | `/#/projects/:id?module=blocks` | valid project |
-| Chess | `apps/web/src/modules/ModuleEditorHost.tsx` | `/#/chess/:id` | valid project |
-| Checkers | `apps/web/src/modules/ModuleEditorHost.tsx` | `/#/games/checkers/:id` | valid project |
-| Admin | `apps/web/src/admin/AdminPage.tsx` | `/#/admin` and 7 subroutes | admin grant |
+**Шрифт:** в продукте `Segoe UI, system-ui, -apple-system, sans-serif`; в Figma использован запасной `Inter` (в подключённом окружении Figma не подтверждён доступный Segoe UI). Геометрическая идентичность шрифтов НЕ проверена.
 
-## Responsive baseline
+Старые неточные варианты `2:2` и `2:47` переименованы и скрыты, новые варианты основаны на реальной структуре `CreatorHomePage.tsx`: три секции `3D-моделирование`, `Электроника`, `Программирование · Scratch`, кнопки создания, состояния «Пока нет ...», далее `Все мои проекты`, `Проекты сообщества` и `Новое в знаниях`. Шапка исправлена по `PortalHeader.tsx` (глобальные пункты «Проекты» и «Знания», без выдуманного мобильного нижнего меню). Это **схематичные слои**, а не захват настоящей страницы.
 
-- Desktop design target: 1440px
-- Tablet inspection target: 768px
-- Mobile design target: 390px
-- Do **not** replace actual project breakpoints without checking code first:
-  `portal-workspace.css` uses 1023 / 820 / 390;
-  `creator-portal.css` uses 1080 / 820 / 560;
-  `styles.css` uses 900 / 640.
+**Неустранённый визуальный дефект:** мобильный `8:48` — заголовок `Программирование · Scratch` и кнопка `Создать программу` перекрываются; также на пустом состоянии отсутствует `Открыть знания`. Визуальная проверка мобильного экрана — **FAIL**. Попытка исправления вернула `Figma MCP tool call limit on the Starter plan`. Не помечать его одобренным, пока исправление реально не выполнено и не проверено скриншотом.
 
-## Verified Figma-to-code workflow (target; not yet operational)
+## 2. Почему количество страниц отличается
 
-1. Capture actual running pages into Figma as editable layers. For authenticated screens use disposable test accounts and redact student PII.
-2. Tag imported screen by route, role, state, viewport width, source commit, and Figma node ID.
-3. Designer edits Figma and marks individual frame as ready. Unapproved drafts must not change production.
-4. Bot reads Figma node context and screenshot, compares source files at target GitHub HEAD, and maps to existing React/CSS components and tokens.
-5. Bot writes isolated branch/PR; no direct production edits.
-6. Run type-check/lint/unit tests and browser visual comparisons at relevant widths, plus keyboard/accessibility checks.
-7. If checks pass, obtain independent review and merge through repository policy; else fix, do not silently mark complete.
-8. Revalidate code vs approved Figma frame, keep provenance and change log.
+Из живого кода `App.tsx`, `creator-portal/navigation.ts` и `admin/admin-navigation.ts` известно: 5 публичных состояний маршрутизатора, 18 видов портала (включая общий `editor`), 8 разделов администратора. Это **31 вид маршрута**, а не 31 независимая полноэкранная страница.
 
-## Remaining work (not claim as complete)
+В `apps/web/src/pages/` находится 27 файлов компонентов страницы (не включая 3D, Scratch, электронику и многие вложенные вкладки).
 
-- Capture each real app screen, populate all desktop/mobile frame pairs and hidden states; currently only home schematic pair is created.
-- Populate actual components/variants and bind layout layer properties to Figma variables.
-- Build capture/test harness for authorized routes.
-- Implement automated diff/PR pipeline, verify with a harmless test on one component.
-- Integrate design snapshot verification into GitHub CI.
-- Maintain a single-writer-per-file/one-writer-per-Figma-frame discipline when agents run in parallel.
+Исходный атлас Figma содержит 35 строк, смешивающих маршруты, редакторы и группы ролей. **Новый проверенный `figma-ui-atlas-manifest.json` содержит 42 различных экранных контекста**, отдельно отмечая ученика, преподавателя, авторство курсов, MAX и административные маршруты. Контексты могут разделять один URL и один React-компонент. **42 не означает 42 готовых дизайна.**
 
-The master file must not be treated as an already pixel-perfect reproduction of ASA Lab.
+Карточки и варианты экранов в реестре всегда определяются точным сочетанием:
+`routePattern + roles + visibility + states + sourceFiles`. Учётные данные, разрешения и содержимое класса определяются реальной серверной авторизацией; Figma не заменяет её.
+
+Проверены 42 различных исходных пути в текущем дереве GitHub; пропусков нет.
+
+## 3. Что осталось и как довести до результата
+
+**Приоритет A — восстановить корректность текущего файла** после возобновления доступа к Figma MCP:
+
+- Исправить перекрытие на node `8:48` (перенести кнопку Scratch ниже полного заголовка; ниже неё состояние `Пока нет программ` и последующие секции).
+- Восстановить ссылку `Открыть знания` в мобильном пустом состоянии.
+- Повторно сделать скриншот `8:48`; проверить отсутствие обрезания/наложений.
+- Исправить статус в `03 · Связь с GitHub`: 38 переменных, 3 компонента, 42 экранных контекста в JSON, 35 исходных строк Figma; реальных пар макетов пока 0, черновик 1.
+- Исправить заголовок четвёртой колонки первоначального Figma-атласа `Фреймы` и значения `Desktop · Mobile`: это ошибочно выглядит как факт готового переноса. Вместо этого указывать `Не перенесено` или реальную ссылку на verified node.
+
+**Приоритет B — точное считывание работающих экранов:**
+
+- Поднять ASA Lab из зафиксированного SHA либо подключиться к достоверному тестовому деплою.
+- Для публичной страницы использовать официальный `generate_figma_design` + Playwright MCP. В текущем сеансе отсутствует Playwright MCP, а контейнер не имеет внешнего DNS; **автоматический браузерный захват здесь не выполнен**. Не применять локальный script-tag-метод к внешнему сайту.
+- Для защищённых маршрутов использовать только фиктивные тестовые данные и тестовые учётные записи.
+- Захватить конкретные роли/состояния на desktop 1440, mobile 390 и дополнительно проверить адаптацию на 768 px и при проектных breakpoint'ах (1023/820/560 и др.).
+- Собрать реальные отредактируемые элементы Figma, включая корректные тексты, Assets, навигацию и Auto Layout, а не вставлять растровую фотографию всего экрана.
+- Каждому варианту назначить реальный node ID и статус: `captured` → `verified` → `approved`.
+
+**Приоритет C — обратный перенос Figma → React/CSS:**
+
+1. Получить только утверждённый frame/node, role, состояние и исходный Git SHA.
+2. Через Figma Design Context считать слои и снимок; сопоставить с актуальными существующими React-компонентами. Нельзя заменять логику редакторов, CRUD, API, авторизацию и сохранение проекта.
+3. Изменения внести в целевую GitHub-ветку; общий стиль — через проверяемые переменные/компоненты, адаптацию — через действующие breakpoint'ы.
+4. Запустить типизацию, unit/E2E, visual regression на нужных ширинах, клавиатурную доступность и независимое ревью exact SHA.
+5. Создать PR и merge только по принятым правилам проекта, затем повторно сверить браузер/Figma. **В этой ветке этот процесс описан, но ещё не реализован.**
+
+Работа параллельных агентов разрешена по независимым областям, при этом один писатель на один Figma-фрейм и один GitHub-путь; не перезаписывать чужие изменения. Не прерывать всю инициативу после одного оформленного черновика. При изменении HEAD — обновить анализ и продолжить безопасно, не выполнять автоматический force merge.
+
+## 4. Машинно-читаемый реестр
+
+- [figma-ui-atlas-manifest.json](./figma-ui-atlas-manifest.json): 42 screen contexts, исходники, маршруты, роли, состояния, узлы Figma и честные статусы качества.
+- `tools/figma-atlas/validate.mjs`: валидация синтаксиса реестра, существования кодовых путей и основных маршрутов. Команда: `node tools/figma-atlas/validate.mjs`.
+
+**Важно:** успешная проверка реестра не является подтверждением внешнего вида или готовности синхронизации.
+
+## 5. Критерий завершения всего проекта
+
+Для каждого экранного контекста нужен desktop/mobile макет с реальным node ID, отмеченными вариантами интерактивных состояний, подтверждённой ролью, соответствием исходному UI и результатом независимой визуальной сверки. Должен быть минимум один доказанный цикл Figma edit → GitHub PR → browser screenshot сравнение → approval → merge. Только тогда писать `FIGMA_UI_ATLAS_SYNC_READY=YES`.
+
+**Текущий итог: `FIGMA_UI_ATLAS_SYNC_READY=NO`.**
