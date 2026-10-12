@@ -1078,6 +1078,18 @@
 
 /* Container width, not the viewport rule from the old roster, selects table flow. */
 @container classroom (min-width: 901px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-progress {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-progress em {
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+  }
   .classroom-owner-workspace.classroom-workspace
     .classroom-roster-table
     .classroom-roster-row

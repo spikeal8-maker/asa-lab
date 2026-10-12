@@ -177,7 +177,7 @@ async function fixture(count = 2) {
     const response = await inject(api, {
       method: 'POST',
       url: `/api/learning/work/runs/${run}/start`,
-      cookies: { asa_student_session: pupil.token },
+      headers: { cookie: `asa_student_session=${pupil.token}` },
       payload: { requestId: randomUUID() },
     });
     expect(response.statusCode, response.body).toBe(200);
@@ -207,7 +207,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       handle = randomUUID().replaceAll('-', '').slice(0, 8);
     await admin.query(
       `INSERT INTO classroom_student_seats(id,tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
-       VALUES($1,$2,$3,'Новый ученик',$4,lower($4),true,'issued',$5)`,
+       VALUES($1,$2,$3,'Новый ученик',$4::varchar,lower($4::varchar),true,'issued',$5)`,
       [id, f.teacher.tenantId, f.classId, handle, f.teacher.teacherId],
     );
     const principalCount = async () =>
@@ -336,14 +336,14 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       const result = await inject(api, {
         method: 'GET',
         url: `/api/classrooms/${f.classId}/observation/${endpoint}`,
-        cookies: { asa_session: f.teacherToken },
+        headers: { cookie: `asa_session=${f.teacherToken}` },
       });
       expect(result.statusCode, result.body).toBe(200);
     }
     const result = await inject(api, {
       method: 'POST',
       url: '/api/classrooms/observation/summary',
-      cookies: { asa_session: f.teacherToken },
+      headers: { cookie: `asa_session=${f.teacherToken}` },
       payload: { classroomIds: [f.classId] },
     });
     expect(result.statusCode).toBe(201);
@@ -356,15 +356,19 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     ).toBe(true);
   }, 60_000);
 
-  it('does not resurrect modern ghost work; preserves whole-class legacy work and stable submission counts after corrections/withdrawal', async () => {
+  it('rejects out-of-audience modern work; preserves whole-class legacy work and stable submission counts after corrections/withdrawal', async () => {
     const f = await fixture(3),
       [a, b, outside] = f.seats;
     const issued = await f.assign([a!.id, b!.id]);
     const ghost = await f.project(outside!.principal);
-    await admin.query(
-      'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,submitted_at) VALUES($1,$2,$3,$4,now())',
-      [f.teacher.tenantId, issued.assignment, outside!.id, ghost],
-    );
+    // The production trigger forbids creating this out-of-audience state.
+    // Preserve the guard and prove no work or counts appear after rejection.
+    await expect(
+      admin.query(
+        'INSERT INTO classroom_assignment_work(tenant_id,assignment_id,seat_id,project_id,submitted_at) VALUES($1,$2,$3,$4,now())',
+        [f.teacher.tenantId, issued.assignment, outside!.id, ghost],
+      ),
+    ).rejects.toThrow(/learning direct assignment unavailable/);
     expect((await f.summary()).totals).toMatchObject({
       assigned: 2,
       submitted: 0,
@@ -727,7 +731,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     const compatibility = await inject(api, {
       method: 'GET',
       url: `/api/classrooms/${f.classId}/students/${a.id}`,
-      cookies: { asa_session: f.teacherToken },
+      headers: { cookie: `asa_session=${f.teacherToken}` },
     });
     expect(compatibility.statusCode, compatibility.body).toBe(200);
     expect(compatibility.json()).toMatchObject({
