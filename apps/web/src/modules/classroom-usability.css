@@ -1755,7 +1755,7 @@
 @container classroom (min-width:281px) and (max-width:550px) {
   .classroom-owner-workspace.classroom-workspace .classroom-roster-table .classroom-roster-row {
     position: relative;
-    grid-template-columns: 60px 60px minmax(60px, 1fr) 44px 44px;
+    grid-template-columns: 54px 46px minmax(74px, 1fr) 44px 44px;
     grid-template-rows: auto auto;
     gap: 3px;
     padding: 2px 4px;
@@ -1884,4 +1884,18 @@
   overflow-wrap: anywhere;
   min-width: 0;
   max-width: 100%;
+}
+@container classroom (min-width:281px) and (max-width:550px) {
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .participant-roster-numbers
+    > span {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 3px;
+    white-space: nowrap;
+    min-width: 0;
+  }
 }
