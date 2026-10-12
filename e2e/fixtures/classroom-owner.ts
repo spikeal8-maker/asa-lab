@@ -139,6 +139,67 @@ export async function fixture(
       waiting: i % 5,
       notSubmitted: 2 + (i % 3),
     }));
+    if (path === '/api/classrooms/observation/prepare') return reply({ prepared: true }, 201);
+    if (path === `/api/classrooms/${classId}/observation/projects`)
+      return reply({
+        total: 7,
+        hidden: 1,
+        nextOffset: null,
+        learners: students.map((student) => ({ id: student.id, label: student.displayLabel })),
+        items: [
+          {
+            id: 'project-1',
+            title: 'Исследование электрической цепи',
+            moduleKey: 'electronics',
+            seatId: students[0]!.id,
+            student: students[0]!.displayLabel,
+            avatarKey: null,
+            updatedAt: '2026-10-11T10:25:00Z',
+            status: 'active',
+            assigned: false,
+          },
+          {
+            id: 'project-2',
+            title: 'Модель опоры',
+            moduleKey: 'three-d',
+            seatId: students[1]!.id,
+            student: students[1]!.displayLabel,
+            avatarKey: null,
+            updatedAt: '2026-10-11T09:15:00Z',
+            status: 'active',
+            assigned: true,
+          },
+        ],
+      });
+    if (path === `/api/classrooms/${classId}/observation/history`)
+      return reply({
+        nextCursor: null,
+        learners: students.map((student) => ({ id: student.id, label: student.displayLabel })),
+        items: [
+          {
+            id: 'activity:1',
+            action: 'project.updated',
+            seatId: students[0]!.id,
+            student: students[0]!.displayLabel,
+            byTeacher: false,
+            projectId: 'project-1',
+            projectTitle: 'Исследование электрической цепи',
+            at: '2026-10-11T10:25:00Z',
+            count: 1,
+          },
+          {
+            id: 'activity:2',
+            action: 'seat.signed_in',
+            seatId: students[0]!.id,
+            student: students[0]!.displayLabel,
+            byTeacher: false,
+            projectId: null,
+            projectTitle: null,
+            at: '2026-10-11T10:05:00Z',
+            count: 1,
+          },
+        ],
+      });
     if (path.includes('observation') && path.endsWith('/summary')) {
       const input = request.postDataJSON() as { classroomIds?: string[] } | null;
       const ids = input?.classroomIds ?? new URL(request.url()).searchParams.getAll('classroomId');

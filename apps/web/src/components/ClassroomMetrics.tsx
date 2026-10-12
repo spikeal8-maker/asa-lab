@@ -65,7 +65,7 @@ export function ClassroomMetrics({
   showClasses = classes !== undefined,
 }: {
   data: ClassroomMetricsData | null;
-  classes?: number;
+  classes?: number | undefined;
   showClasses?: boolean;
 }) {
   const metrics = [

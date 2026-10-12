@@ -10,7 +10,9 @@ const code = 'Test42';
 const edit = vi.fn(),
   copied = vi.fn(),
   denied = vi.fn();
-let clipboard = vi.fn(async (_value: string) => undefined);
+let clipboard = vi.fn(async (value: string): Promise<void> => {
+  void value;
+});
 async function render(showAll = false, epoch = 0, value = code) {
   await act(async () =>
     root.render(
@@ -38,7 +40,9 @@ beforeEach(() => {
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
-  clipboard = vi.fn(async (_value: string) => undefined);
+  clipboard = vi.fn(async (value: string): Promise<void> => {
+    void value;
+  });
   vi.stubGlobal('navigator', { clipboard: { writeText: clipboard } });
   edit.mockClear();
   copied.mockClear();

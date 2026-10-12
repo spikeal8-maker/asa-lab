@@ -11,6 +11,298 @@ servers:
   - url: http://127.0.0.1:4611
     description: Local development
 paths:
+  /api/classrooms/observation/prepare:
+    post:
+      operationId: prepareClassroomObservation
+      description:
+        Account cookie; current exact-class educator scope for the whole set. Explicit existing admission
+        materialization, with no identity revival.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - classroomIds
+              properties:
+                classroomIds:
+                  type: array
+                  maxItems: 200
+                  uniqueItems: true
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: Prepared
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Required Account session missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Class unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/observation/summary:
+    post:
+      operationId: getClassroomObservationSummary
+      description:
+        Read-only; items/classroomId and totals with students, works, assigned, submitted, waiting,
+        notSubmitted integer counts. Works deduplicated across classes. Entire requested scope must be
+        authorized.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required:
+                - classroomIds
+              properties:
+                classroomIds:
+                  type: array
+                  maxItems: 200
+                  uniqueItems: true
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '201':
+          description: ObservationSummary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomObservationSummary'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Required Account session missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Class unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classroomId}/observation/projects:
+    get:
+      operationId: getClassroomStudentProjects
+      description:
+        Read-only; Account cookie and current teacher scope. ObservationProjectsPage; denied
+        titles/previews/project IDs never returned.
+      parameters:
+        - name: classroomId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: module
+          in: query
+          schema:
+            type: string
+            enum:
+              - three-d
+              - electronics
+              - blocks
+        - name: learner
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 100
+        - name: assignment
+          in: query
+          schema:
+            type: string
+            enum:
+              - assigned
+              - unassigned
+        - name: archive
+          in: query
+          schema:
+            type: boolean
+            default: false
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100000
+            default: 0
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            enum:
+              - 30
+              - 50
+            default: 30
+      responses:
+        '200':
+          description: ObservationProjectsPage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomObservationProjectsPage'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Required Account session missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Class unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/classrooms/{classroomId}/observation/history:
+    get:
+      operationId: getClassroomStudentHistory
+      description:
+        Read-only; Account cookie and current teacher scope. ObservationHistoryPage, no analytics host
+        metadata/credentials. nextCursor retains microseconds and source-qualified ID.
+      parameters:
+        - name: classroomId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: learner
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum:
+              - all
+              - access
+              - projects
+            default: all
+        - name: from
+          in: query
+          description: Inclusive timestamp
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          description: Exclusive timestamp
+          schema:
+            type: string
+            format: date-time
+        - name: cursor
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ObservationHistoryPage
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClassroomObservationHistoryPage'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Required Account session missing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Current teacher capability required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Class unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Temporarily unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /api/analytics/v2/events:
     post:
       operationId: observeProductVisit
@@ -9338,3 +9630,176 @@ components:
           oneOf:
             - $ref: '#/components/schemas/CanonicalLearningSurfaceState'
             - type: 'null'
+    ClassroomObservationCounts:
+      type: object
+      additionalProperties: false
+      required:
+        - students
+        - works
+        - assigned
+        - submitted
+        - waiting
+        - notSubmitted
+      properties:
+        students: &a1
+          type: integer
+          minimum: 0
+        works: *a1
+        assigned: *a1
+        submitted: *a1
+        waiting: *a1
+        notSubmitted: *a1
+    ClassroomObservationSummary:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - totals
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - classroomId
+              - students
+              - works
+              - assigned
+              - submitted
+              - waiting
+              - notSubmitted
+            properties:
+              classroomId: &a2
+                type: string
+                format: uuid
+              students: *a1
+              works: *a1
+              assigned: *a1
+              submitted: *a1
+              waiting: *a1
+              notSubmitted: *a1
+        totals:
+          $ref: '#/components/schemas/ClassroomObservationCounts'
+    ClassroomObservationProjectsPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - total
+        - hidden
+        - nextOffset
+        - learners
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - title
+              - moduleKey
+              - seatId
+              - student
+              - avatarKey
+              - updatedAt
+              - status
+              - assigned
+            properties:
+              id: *a2
+              title: &a3
+                type: string
+              moduleKey:
+                type: string
+                enum:
+                  - three-d
+                  - electronics
+                  - blocks
+              seatId: *a2
+              student: *a3
+              avatarKey:
+                type:
+                  - string
+                  - 'null'
+              updatedAt:
+                type: string
+                format: date-time
+              status: *a3
+              assigned:
+                type: boolean
+        total: *a1
+        hidden: *a1
+        nextOffset:
+          type:
+            - integer
+            - 'null'
+          minimum: 0
+        learners:
+          type: array
+          items: &a4
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - label
+            properties:
+              id: *a2
+              label: *a3
+    ClassroomObservationHistoryPage:
+      type: object
+      additionalProperties: false
+      required:
+        - items
+        - nextCursor
+        - learners
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - id
+              - action
+              - seatId
+              - student
+              - byTeacher
+              - projectId
+              - projectTitle
+              - at
+              - count
+            properties:
+              id: *a3
+              action: *a3
+              seatId:
+                type:
+                  - string
+                  - 'null'
+                format: uuid
+              student:
+                type:
+                  - string
+                  - 'null'
+              byTeacher:
+                type: boolean
+              projectId:
+                type:
+                  - string
+                  - 'null'
+                format: uuid
+              projectTitle:
+                type:
+                  - string
+                  - 'null'
+              at:
+                type: string
+                format: date-time
+              count: *a1
+        nextCursor:
+          type:
+            - string
+            - 'null'
+        learners:
+          type: array
+          items: *a4

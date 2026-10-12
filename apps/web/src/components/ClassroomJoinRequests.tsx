@@ -1,45 +1,101 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { api } from '../api';
 import { useLearningDestination } from '../learning/use-learning-destination';
 
-export function ClassroomJoinRequests({
-  classroomId,
-  onChanged,
-  expanded = false,
-}: {
-  classroomId?: string;
-  onChanged?: () => void;
-  expanded?: boolean;
-}) {
+type Props = { classroomId?: string; onChanged?: () => void; expanded?: boolean };
+type JoinRequest = {
+  id: string;
+  classroom_id: string;
+  classroom_title: string;
+  display_label: string;
+  status: 'pending' | 'approved' | 'rejected';
+  reason: string | null;
+};
+
+export function ClassroomJoinRequests(props: Props) {
+  return <JoinRequests key={props.classroomId ?? 'own-requests'} {...props} />;
+}
+
+function JoinRequests({ classroomId, onChanged, expanded = false }: Props) {
   const destination = useLearningDestination();
-  const [items, setItems] = useState<
-    Array<{
-      id: string;
-      classroom_id: string;
-      classroom_title: string;
-      display_label: string;
-      status: 'pending' | 'approved' | 'rejected';
-      reason: string | null;
-    }>
-  >([]);
+  const formId = useId();
+  const [items, setItems] = useState<JoinRequest[]>([]);
+  const [replies, setReplies] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const alive = useRef(false);
+  const generation = useRef(0);
   const targetPresent = items.some((item) => item.id === destination.joinRequest);
   useEffect(() => {
     if (targetPresent) document.getElementById(`join-request-${destination.joinRequest}`)?.focus();
   }, [targetPresent, destination.joinRequest]);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
   const load = useCallback(async () => {
-    const result = await api.classroomJoinRequests(classroomId);
-    if (result.ok) {
-      setItems(result.data.items);
-      setError(null);
-    } else setError(result.error.message);
+    const token = ++generation.current;
+    try {
+      const result = await api.classroomJoinRequests(classroomId);
+      if (!alive.current || token !== generation.current) return;
+      if (result.ok) {
+        setItems(result.data.items);
+        setError(null);
+      } else {
+        if ([401, 403, 404].includes(result.status)) {
+          setItems([]);
+          setReplies({});
+        }
+        setError(result.error.message);
+      }
+    } catch {
+      if (alive.current && token === generation.current)
+        setError('Не удалось загрузить заявки. Повторите попытку.');
+    } finally {
+      if (alive.current && token === generation.current) setLoading(false);
+    }
   }, [classroomId]);
   useEffect(() => {
+    alive.current = true;
     void load();
     const timer = window.setInterval(() => void load(), 15000);
-    return () => window.clearInterval(timer);
+    return () => {
+      alive.current = false;
+      generation.current++;
+      window.clearInterval(timer);
+    };
   }, [load]);
+  async function decide(item: JoinRequest, decision: 'approved' | 'rejected') {
+    if (!classroomId || busy) return;
+    const reason = (replies[item.id] ?? '').trim();
+    if (reason.length > 500) {
+      setError('Ответ: не более 500 символов.');
+      return;
+    }
+    setBusy(item.id);
+    setError(null);
+    try {
+      const result = await api.decideClassroomJoin(classroomId, item.id, decision, reason);
+      if (!alive.current) return;
+      if (!result.ok) {
+        if ([401, 403, 404].includes(result.status)) {
+          setItems([]);
+          setReplies({});
+        }
+        setError(result.error.message);
+        return;
+      }
+      setReplies((current) => {
+        const next = { ...current };
+        delete next[item.id];
+        return next;
+      });
+      await load();
+      if (alive.current) onChanged?.();
+    } catch {
+      if (alive.current)
+        setError('Решение не подтверждено. Ответ сохранён в форме; повторите попытку.');
+    } finally {
+      if (alive.current) setBusy(null);
+    }
+  }
   const heading = (
     <>
       {classroomId ? 'Заявки в класс' : 'Мои заявки в классы'} ·{' '}
@@ -48,22 +104,17 @@ export function ClassroomJoinRequests({
   );
   const content = (
     <>
-      <p>
-        Код позволяет подать заявку. Доступ к занятиям появляется после подтверждения
-        преподавателем.
-      </p>
-      {error ? <p role="alert">{error}</p> : null}
       <button
         type="button"
         className="btn-secondary"
-        onClick={() => {
-          void load();
-          onChanged?.();
-        }}
+        disabled={busy !== null}
+        onClick={() => void load()}
       >
         Обновить заявки
       </button>
-      {items.length === 0 && !error ? <p>Заявок пока нет.</p> : null}
+      {error ? <p role="alert">{error}</p> : null}
+      {loading ? <p role="status">Загружаем заявки…</p> : null}
+      {!loading && items.length === 0 && !error ? <p>Заявок пока нет.</p> : null}
       <ul>
         {items.map((item) => (
           <li
@@ -72,35 +123,49 @@ export function ClassroomJoinRequests({
             tabIndex={-1}
             aria-current={item.id === destination.joinRequest ? 'true' : undefined}
           >
-            <strong>{classroomId ? item.display_label : item.classroom_title}</strong>
-            {' · '}
-            {item.status === 'pending'
-              ? 'Ждёт подтверждения'
-              : item.status === 'approved'
-                ? 'Принята'
-                : 'Отклонена'}
-            {classroomId && item.status === 'pending' ? (
+            <div className="classroom-request-summary">
+              <strong>{classroomId ? item.display_label : item.classroom_title}</strong>
               <span>
-                {(['approved', 'rejected'] as const).map((decision) => (
+                {item.status === 'pending'
+                  ? 'Ждёт подтверждения'
+                  : item.status === 'approved'
+                    ? 'Принята'
+                    : 'Отклонена'}
+              </span>
+            </div>
+            {classroomId && item.status === 'pending' ? (
+              <div className="classroom-request-actions">
+                <label htmlFor={`${formId}-${item.id}`}>Ответ ученику (необязательно)</label>
+                <input
+                  id={`${formId}-${item.id}`}
+                  type="text"
+                  maxLength={500}
+                  disabled={busy !== null}
+                  value={replies[item.id] ?? ''}
+                  onChange={(event) => {
+                    const value = event.currentTarget.value;
+                    setReplies((current) => ({ ...current, [item.id]: value }));
+                  }}
+                />
+                <span>
                   <button
                     type="button"
                     className="btn-secondary"
-                    key={decision}
                     disabled={busy !== null}
-                    onClick={async () => {
-                      setBusy(item.id);
-                      const result = await api.decideClassroomJoin(classroomId, item.id, decision);
-                      setBusy(null);
-                      if (result.ok) {
-                        await load();
-                        onChanged?.();
-                      } else setError(result.error.message);
-                    }}
+                    onClick={() => void decide(item, 'approved')}
                   >
-                    {decision === 'approved' ? 'Принять заявку' : 'Отклонить'}
+                    Принять заявку
                   </button>
-                ))}
-              </span>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={busy !== null}
+                    onClick={() => void decide(item, 'rejected')}
+                  >
+                    Отклонить
+                  </button>
+                </span>
+              </div>
             ) : null}
             {item.reason ? <p>{item.reason}</p> : null}
           </li>

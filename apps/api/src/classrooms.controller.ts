@@ -973,18 +973,9 @@ export class ClassroomsController {
     );
     return {
       student: seatView(seat),
-      submittedCount: learnerStates.length
-        ? learnerStates.filter((projection) =>
-            ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
-              projection.surface.workflowState,
-            ),
-          ).length
-        : Number(workCounts?.submitted ?? 0),
-      awaitingReview: learnerStates.length
-        ? learnerStates.filter(
-            (projection) => projection.surface.workflowState === 'waiting_review',
-          ).length
-        : Number(workCounts?.awaiting_review ?? 0),
+      // Use the same obligation model as roster/profile, including completed theory.
+      submittedCount: Number(workCounts?.submitted ?? 0),
+      awaitingReview: Number(workCounts?.awaiting_review ?? 0),
       projects: (projects.rows as SeatProjectRow[]).map((row) => ({
         id: row.id,
         moduleKey: row.module_key,

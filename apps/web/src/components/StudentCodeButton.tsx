@@ -14,7 +14,7 @@ export function StudentCodeButton({
   code: string | null;
   showAll: boolean;
   epoch: number;
-  onEdit?: () => void;
+  onEdit?: (() => void) | undefined;
   onCopied: () => void;
   onDenied: () => void;
   label?: string;

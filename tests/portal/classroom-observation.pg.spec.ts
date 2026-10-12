@@ -649,5 +649,23 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       waiting: 0,
       notSubmitted: 0,
     });
+    await f.assign([a.id]);
+    const compatibility = await inject(api, {
+      method: 'GET',
+      url: `/api/classrooms/${f.classId}/students/${a.id}`,
+      cookies: { asa_session: f.teacherToken },
+    });
+    expect(compatibility.statusCode, compatibility.body).toBe(200);
+    expect(compatibility.json()).toMatchObject({
+      submittedCount: 1,
+      awaitingReview: 0,
+      student: { assignedCount: 2, submittedCount: 1, awaitingReview: 0 },
+    });
+    expect((await f.summary()).totals).toMatchObject({
+      assigned: 2,
+      submitted: 1,
+      waiting: 0,
+      notSubmitted: 0,
+    });
   }, 30_000);
 });
