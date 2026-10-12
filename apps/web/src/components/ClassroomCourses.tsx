@@ -453,7 +453,7 @@ export function ClassroomCourses({
           </p>
         </>
       ) : null}
-      {courses.length === 0 ? (
+      {courses.length === 0 && Boolean(runs?.length) ? (
         <p className="classroom-course-hint">
           Сначала опубликуйте курс в разделе «Курсы и задания».
         </p>

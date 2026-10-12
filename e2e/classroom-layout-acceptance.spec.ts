@@ -129,6 +129,44 @@ async function seedPresentation(page: Page, populated: boolean) {
       url = new URL(request.url()),
       path = url.pathname;
     const reply = (json: unknown, status = 200) => route.fulfill({ json, status });
+    if (path === '/api/classrooms/observation/summary') {
+      const input = request.postDataJSON() as { classroomIds: string[] };
+      const items = input.classroomIds.map((id, index) =>
+        id === classId
+          ? {
+              classroomId: id,
+              students: students.length,
+              works: works.length,
+              assigned: students.reduce((n, student) => n + student.assignedCount, 0),
+              submitted: students.reduce((n, student) => n + student.submittedCount, 0),
+              waiting: students.reduce((n, student) => n + student.awaitingReview, 0),
+              notSubmitted: students.filter(
+                (student) => student.assignedCount > 0 && student.submittedCount === 0,
+              ).length,
+            }
+          : {
+              classroomId: id,
+              students: 13 + (index % 3),
+              works: 22 + index * 2,
+              assigned: 40 + index,
+              submitted: 12 + index,
+              waiting: index % 4,
+              notSubmitted: index % 3,
+            },
+      );
+      const totals = {
+        students: 0,
+        works: 0,
+        assigned: 0,
+        submitted: 0,
+        waiting: 0,
+        notSubmitted: 0,
+      };
+      for (const item of items)
+        for (const key of Object.keys(totals) as Array<keyof typeof totals>)
+          totals[key] += item[key];
+      return reply({ items, totals });
+    }
     if (path.startsWith('/api/class-join/requests')) {
       if (request.method() === 'POST' && path.endsWith('/decision')) {
         const id = path.split('/').at(-2),

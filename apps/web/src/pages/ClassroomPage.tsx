@@ -1445,9 +1445,7 @@ function ClassroomPageContent({
                         <strong>{teacher.displayName}</strong>
                       </button>
                       <span>
-                        {teacher.role === 'owner'
-                          ? 'Основной преподаватель'
-                          : 'Коллега-преподаватель'}
+                        {teacher.role === 'owner' ? 'Основной преподаватель' : 'Преподаватель'}
                       </span>
                     </div>
                     <em className={teacher.role === 'owner' ? 'owner' : undefined}>

@@ -610,7 +610,7 @@
 .classroom-owner-workspace .classroom-courses .classroom-roster-empty {
   padding: 16px;
 }
-@container classroom (max-width: 900px) {
+@container classroom (max-width: 959px) {
   .classroom-owner-workspace .classroom-head-compact .classroom-back {
     flex-basis: 100%;
   }
@@ -621,7 +621,7 @@
     flex: 1 1 340px;
   }
 }
-@container classroom (max-width: 900px) {
+@container classroom (max-width: 959px) {
   .classroom-owner-list .classroom-title-row {
     align-items: start;
   }
@@ -1036,7 +1036,7 @@
   min-height: 44px;
   align-items: center;
 }
-@container classroom (min-width: 680px) and (max-width: 900px) {
+@container classroom (min-width: 680px) and (max-width: 959px) {
   .classroom-owner-list .classroom-title-row .classroom-metrics {
     width: auto;
     grid-template-columns: repeat(6, minmax(60px, 1fr));
@@ -1077,7 +1077,7 @@
 }
 
 /* Container width, not the viewport rule from the old roster, selects table flow. */
-@container classroom (min-width: 901px) {
+@container classroom (min-width: 960px) {
   .classroom-owner-workspace.classroom-workspace .classroom-roster-progress {
     display: flex;
     flex-direction: row;
@@ -1724,4 +1724,164 @@
   background: var(--classroom-accent);
   color: #fff;
   border-color: var(--classroom-accent);
+}
+.classroom-owner-workspace.classroom-workspace .classroom-teacher-card .participant-staff-name {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  text-align: left;
+  min-height: 32px;
+  width: auto;
+  max-width: 100%;
+  font-size: 16px;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-teacher-card
+  .participant-staff-name:hover {
+  color: var(--classroom-accent);
+  background: var(--classroom-tint);
+}
+.classroom-owner-workspace.classroom-workspace .classroom-teacher-heading {
+  align-items: center;
+  text-align: left;
+}
+@container classroom (max-width:750px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-teacher-card .participant-staff-name {
+    min-height: 44px;
+  }
+}
+/* Give names a full first row on narrow devices; all five actions/metrics remain below. */
+@container classroom (min-width:281px) and (max-width:550px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-table .classroom-roster-row {
+    position: relative;
+    grid-template-columns: 60px 60px minmax(60px, 1fr) 44px 44px;
+    grid-template-rows: auto auto;
+    gap: 3px;
+    padding: 2px 4px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-roster-index {
+    position: absolute;
+    left: 4px;
+    top: 14px;
+    width: 18px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-student-name {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    padding-left: 20px;
+    min-width: 0;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-row-details {
+    display: contents;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-row-details
+    > :is(.classroom-login-handle, .classroom-account-entry) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-progress {
+    grid-column: 2;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    justify-content: center;
+    align-items: flex-start;
+    min-width: 0;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-done::after {
+    content: none;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-progress
+    em {
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    padding: 2px 3px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .participant-roster-numbers {
+    grid-column: 3;
+    grid-row: 2;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    min-width: 0;
+    line-height: 18px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-seat-safe {
+    grid-column: 4;
+    grid-row: 2;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-row-menu {
+    grid-column: 5;
+    grid-row: 2;
+  }
+}
+@container classroom (min-width:960px) {
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    :is(.classroom-roster-row, .classroom-roster-head) {
+    grid-template-columns: 20px minmax(200px, 1fr) 78px 76px 80px 104px 108px 64px 36px;
+    column-gap: 6px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-roster-progress {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 4px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-roster-done::after {
+    content: none;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    .classroom-roster-done {
+    white-space: nowrap;
+    line-height: 1.3;
+  }
+}
+.classroom-owner-workspace.classroom-workspace .classroom-teacher-card > div {
+  min-width: 0;
+  max-width: 100%;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-teacher-card
+  :is(.participant-staff-name, div > span) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  min-width: 0;
+  max-width: 100%;
 }
