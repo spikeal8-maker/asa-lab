@@ -571,10 +571,10 @@
 }
 .classroom-owner-workspace .learning-assign-field input:is([type='radio'], [type='checkbox']),
 .classroom-owner-workspace .classroom-settings-panel input:is([type='radio'], [type='checkbox']) {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
   min-height: 0;
-  flex: 0 0 18px;
+  flex: 0 0 20px;
   margin: 0;
 }
 .classroom-owner-workspace .classroom-course-assign {
@@ -680,9 +680,9 @@
   .classroom-owner-workspace.classroom-workspace .classroom-roster-table .classroom-roster-row {
     grid-template-columns: 20px minmax(0, 1fr) 44px;
     grid-template-rows: auto auto;
-    gap: 6px 8px;
-    padding: 4px 8px;
-    margin: 0 0 6px;
+    gap: 4px 8px;
+    padding: 2px 8px;
+    margin: 0 0 2px;
     border: 1px solid #e1e7eb;
     border-radius: 8px;
   }
@@ -1118,4 +1118,72 @@
 .classroom-owner-workspace .classroom-learning-heading > * {
   min-width: 0;
   max-width: 100%;
+}
+
+/* Compact two-row roster actions: preserve the mobile sort, code reveal and full search. */
+@container classroom (max-width: 550px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-toolbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: auto 44px;
+    align-items: stretch;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-actions {
+    grid-area: 1 / 1 / 2 / 4;
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    min-width: 0;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-actions button {
+    min-width: 0;
+    width: 100%;
+    min-height: 44px;
+    padding: 4px 3px;
+    gap: 3px;
+    font-size: 14px;
+    white-space: nowrap;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-mobile-code-toggle {
+    grid-area: 1 / 4 / 2 / 5;
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 4px;
+    white-space: nowrap;
+    font-size: 14px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-search {
+    grid-area: 2 / 1 / 3 / 3;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    margin: 0;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-mobile-sort {
+    grid-area: 2 / 3 / 3 / 5;
+    display: block;
+    width: 100%;
+    min-width: 0;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-mobile-sort select {
+    min-width: 0;
+    width: 100%;
+    height: 44px;
+  }
+}
+
+/* Tighten the two-line class heading at narrow widths without shrinking 44px actions. */
+@container classroom (max-width: 550px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-head-compact {
+    gap: 0 8px;
+    padding-bottom: 6px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-tabbar {
+    margin-bottom: 8px;
+  }
 }

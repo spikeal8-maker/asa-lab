@@ -825,7 +825,11 @@ test('classroom hash navigation isolates credentials on failure, retries B and i
     () =>
       new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
   );
-  await expect(page.locator('.classroom-roster-table')).toContainText(b.student.studentCode);
+  // A class switch must not disclose the new class credential by default.
+  const bCode = page.locator('.classroom-roster-row .classroom-login-handle').first();
+  await expect(bCode).toHaveText('******');
+  await bCode.press('Enter');
+  await expect(bCode).toHaveText(b.student.studentCode);
   for (const privateValue of [
     a.classroom.title,
     a.classroom.joinCode,

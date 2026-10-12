@@ -133,7 +133,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
         );
       })
       .toBe(true);
-    await history.getByLabel('Действия', { exact: true }).selectOption('access');
+    await history.getByRole('combobox', { name: 'Действия', exact: true }).selectOption('access');
     await expect(history).toContainText('Явный выход');
     await expect(history).toContainText('Вход по коду класса');
     const summaryResponse = await page.request.post('/api/classrooms/observation/summary', {

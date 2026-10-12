@@ -296,7 +296,8 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   }
   // Commit on the real server, then deliver the response after the teacher has
   // switched months. The old editor must not report success in the new matrix.
-  const closeMenu = page.getByRole('button', { name: 'Закрыть меню', exact: true });
+  // Distinguish the visible sidebar close from its backdrop, both named identically.
+  const closeMenu = page.locator('.portal-menu-close');
   if (await closeMenu.isVisible()) await closeMenu.click();
   await page.setViewportSize({ width: 1366, height: 900 });
   let loseCorrection = true;

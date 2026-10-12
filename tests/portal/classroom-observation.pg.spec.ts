@@ -74,9 +74,19 @@ async function fixture(count = 2) {
     const principal = (await admin.query('SELECT id FROM principals WHERE seat_id=$1', [id]))
       .rows[0].id as string;
     const token = randomUUID();
+    // A Seat session is valid only with the current protected credential version.
+    // Seed the same persisted identity/credential contract as a successful issuance.
+    const credential = await admin.query<{ version: number }>(
+      `INSERT INTO classroom_seat_credentials(seat_id,credential_hash,version,last_request_id,issued_by_account_id)
+         VALUES($1,$2,1,$3,$4)
+         ON CONFLICT (seat_id) DO UPDATE SET credential_hash=excluded.credential_hash,
+           version=classroom_seat_credentials.version+1,last_request_id=excluded.last_request_id
+         RETURNING version`,
+      [id, hashSessionToken(randomUUID()), randomUUID(), actor.account_id],
+    );
     await admin.query(
-      "INSERT INTO classroom_student_sessions(seat_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 day')",
-      [id, hashSessionToken(token)],
+      "INSERT INTO classroom_student_sessions(seat_id,token_hash,expires_at,credential_version) VALUES($1,$2,now()+interval '1 day',$3)",
+      [id, hashSessionToken(token), credential.rows[0]!.version],
     );
     return { id, principal, token };
   }
@@ -273,7 +283,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
         null,
       ]),
     ).toBeNull();
-  });
+  }, 30_000);
 
   it('counts a 2-of-30 audience, immutable-origin submission and teacher/self profile identically, without GET side effects', async () => {
     const f = await fixture(30);

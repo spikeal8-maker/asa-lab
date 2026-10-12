@@ -131,17 +131,18 @@ test.describe('Classroom owner fixes', () => {
         ).toBeLessThanOrEqual(38);
       await expect(page.getByText('Безопасный режим для всех', { exact: true })).toHaveCount(0);
       await page.screenshot({ path: `${evidence}/classroom-${width}.png`, fullPage: true });
-      if (width <= 1100)
+      if (await page.getByLabel('Раздел класса', { exact: true }).isVisible())
         await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
       else await page.getByRole('button', { name: 'Настройки', exact: true }).click();
       await expect(page.getByText('Безопасный режим для всех', { exact: true })).toBeVisible();
       await expect(
         page.getByText('Шкала новых оцениваемых заданий', { exact: true }),
       ).toBeVisible();
-      if (width <= 1100)
+      if (await page.getByLabel('Раздел класса', { exact: true }).isVisible())
         await page.getByLabel('Раздел класса', { exact: true }).selectOption('requests');
       else await page.getByRole('button', { name: 'Заявки', exact: true }).click();
-      await expect(page.getByText('Код позволяет подать заявку.', { exact: false })).toBeVisible();
+      await expect(page.getByRole('region', { name: 'Заявки в класс' })).toBeVisible();
+      await expect(page.getByRole('button', { name: 'Обновить заявки' })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
         true,
       );

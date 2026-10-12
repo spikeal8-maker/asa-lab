@@ -955,6 +955,7 @@ function ClassroomPageContent({
             <button
               type="button"
               className="btn-secondary classroom-mobile-code-toggle"
+              aria-label={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
               aria-pressed={showAllCodes}
               title={showAllCodes ? 'Скрыть все коды учеников' : 'Показать все коды учеников'}
               onClick={() => {
@@ -962,7 +963,7 @@ function ClassroomPageContent({
                 setCodeEpoch((value) => value + 1);
               }}
             >
-              Код ученика
+              Коды
             </button>
             <label className="classroom-roster-search">
               <span className="sr-only">Поиск учащихся</span>
