@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { hashSessionToken } from '@asa-lab/identity';
+import { hashSessionToken } from '../../contexts/identity/domain/session-token';
 import type pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { testAdminPool, testAppPool, seedTeacher } from './helpers';
@@ -201,6 +201,80 @@ async function fixture(count = 2) {
 }
 
 describe('classroom observation — real PostgreSQL, restricted runtime and API', () => {
+  it('records confirmed first admission transactionally without allocating an identity principal', async () => {
+    const f = await fixture(0);
+    const id = randomUUID(),
+      handle = randomUUID().replaceAll('-', '').slice(0, 8);
+    await admin.query(
+      `INSERT INTO classroom_student_seats(id,tenant_id,classroom_id,display_label,login_handle,normalized_login_handle,safe_mode,status,created_by)
+       VALUES($1,$2,$3,'Новый ученик',$4,lower($4),true,'issued',$5)`,
+      [id, f.teacher.tenantId, f.classId, handle, f.teacher.teacherId],
+    );
+    const principalCount = async () =>
+      Number(
+        (await admin.query('SELECT count(*) n FROM principals WHERE seat_id=$1', [id])).rows[0].n,
+      );
+    expect(await principalCount()).toBe(0);
+    const client = await admin.connect();
+    async function admit() {
+      await client.query(
+        "INSERT INTO classroom_student_sessions(seat_id,token_hash,expires_at) VALUES($1,$2,now()+interval '1 day')",
+        [id, hashSessionToken(randomUUID())],
+      );
+      await client.query("UPDATE classroom_student_seats SET status='active' WHERE id=$1", [id]);
+    }
+    try {
+      await client.query('BEGIN');
+      await admit();
+      expect(
+        Number(
+          (
+            await client.query(
+              'SELECT count(*) n FROM classroom_activation_observations WHERE seat_id=$1',
+              [id],
+            )
+          ).rows[0].n,
+        ),
+      ).toBe(1);
+      await client.query('ROLLBACK');
+      expect(
+        (
+          await admin.query('SELECT * FROM classroom_activation_observations WHERE seat_id=$1', [
+            id,
+          ])
+        ).rows,
+      ).toEqual([]);
+      await client.query('BEGIN');
+      await admit();
+      await client.query('COMMIT');
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+    expect(await principalCount()).toBe(0);
+    const history = await f.history('access');
+    expect(history.items.filter((event) => event.seatId === id)).toEqual([
+      expect.objectContaining({ action: 'seat.activated', byTeacher: false, projectId: null }),
+    ]);
+    expect(await principalCount()).toBe(0);
+    await expect(runtime.query('SELECT * FROM classroom_activation_observations')).rejects.toThrow(
+      /permission denied/,
+    );
+    const outside = await fixture(0);
+    expect(
+      await read('classroom_observation_history', [
+        outside.actor.principal_id,
+        f.classId,
+        null,
+        'all',
+        null,
+        null,
+        null,
+        null,
+      ]),
+    ).toBeNull();
+  });
+
   it('counts a 2-of-30 audience, immutable-origin submission and teacher/self profile identically, without GET side effects', async () => {
     const f = await fixture(30);
     const [a, b] = f.seats;

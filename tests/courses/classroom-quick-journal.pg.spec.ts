@@ -408,8 +408,8 @@ describe('quick journal: real restricted PostgreSQL', () => {
       });
       expect(inbox.title).toContain(category);
       const metric = (
-        await app.query('SELECT item FROM classroom_participant_metrics($1)', [f.classId])
-      ).rows.find((r) => r.item.seatId === f.seatId).item;
+        await app.query('SELECT classroom_participant_roster($1,$2) data', [actor, f.classId])
+      ).rows[0].data.items.find((item: { seatId: string }) => item.seatId === f.seatId);
       expect(metric.sources.grades).toBe(gradeCount);
       expect(metric.factors.grades).toBe(gradeCount ? 100 : 0); // pinned five, not current hundred
       expect(await counts(f.classId)).toEqual(beforeReads);

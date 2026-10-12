@@ -93,6 +93,7 @@ function ProjectList({
           Название
           <input
             type="search"
+            aria-label="Название"
             maxLength={100}
             value={search}
             placeholder="Найти работу"
@@ -105,6 +106,7 @@ function ProjectList({
         <label>
           Редактор
           <select
+            aria-label="Редактор"
             value={module}
             onChange={(e) => {
               setModule(e.target.value);
@@ -122,6 +124,7 @@ function ProjectList({
         <label>
           Ученик
           <select
+            aria-label="Ученик"
             value={learner}
             onChange={(e) => {
               setLearner(e.target.value);
@@ -139,6 +142,7 @@ function ProjectList({
         <label>
           Задание
           <select
+            aria-label="Задание"
             value={assignment}
             onChange={(e) => {
               setAssignment(e.target.value);

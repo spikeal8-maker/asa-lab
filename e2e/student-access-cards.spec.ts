@@ -787,7 +787,10 @@ test('classroom hash navigation isolates credentials on failure, retries B and i
   expect(mutations).toEqual([]);
   await page.getByRole('button', { name: 'Повторить', exact: true }).click();
   await expect(page.locator('.classroom-head')).toContainText(b.classroom.title);
-  await expect(page.locator('.classroom-roster-table')).toContainText(b.student.studentCode);
+  const restoredCode = page.locator('.classroom-roster-table .classroom-login-handle').first();
+  await expect(restoredCode).toHaveText('******');
+  await restoredCode.press('Enter');
+  await expect(restoredCode).toHaveText(b.student.studentCode);
   expect(attemptsB).toBe(2);
   expect(
     (await (await page.request.get(`/api/classrooms/${b.classroom.id}`)).json()).classroom

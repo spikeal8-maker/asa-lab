@@ -396,3 +396,17 @@
     padding: 4px !important;
   }
 }
+
+/* Align the compact toolbar without moving the matrix on each grade. */
+.manual-journal .manual-journal-filters > *,
+.manual-journal .manual-journal-filters .manual-journal-monthbar :is(label, input, button) {
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+}
+.manual-journal .manual-journal-filters {
+  align-items: stretch;
+}
+.manual-journal .manual-journal-monthbar label {
+  margin: 0;
+}

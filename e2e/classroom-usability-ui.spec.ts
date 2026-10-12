@@ -92,12 +92,50 @@ async function geometry(page: Page) {
     ].map(styleEvidence);
     return {
       overflow: document.documentElement.scrollWidth > innerWidth + 1,
+      viewport: {
+        width: innerWidth,
+        client: document.documentElement.clientWidth,
+        scroll: document.documentElement.scrollWidth,
+      },
+      header: [...document.querySelectorAll<HTMLElement>('.portal-header,.portal-header > *')].map(
+        (el) => ({
+          selector: el.className,
+          width: el.getBoundingClientRect().width,
+          x: el.getBoundingClientRect().x,
+          columns: getComputedStyle(el).gridTemplateColumns,
+          area: getComputedStyle(el).gridArea,
+          display: getComputedStyle(el).display,
+          minWidth: getComputedStyle(el).minWidth,
+        }),
+      ),
+      overflowElements: [...document.querySelectorAll<HTMLElement>('body *')]
+        .filter(
+          (element) =>
+            visibleText(element) && element.getBoundingClientRect().right > innerWidth + 1,
+        )
+        .slice(0, 16)
+        .map((element) => ({
+          selector: element.className || element.tagName,
+          rect: element.getBoundingClientRect().toJSON(),
+          scrollWidth: element.scrollWidth,
+          columns: getComputedStyle(element).gridTemplateColumns,
+          rows: getComputedStyle(element).gridTemplateRows,
+          minWidth: getComputedStyle(element).minWidth,
+        })),
       issues,
       visibility,
       nameFonts: rows.map((row) =>
         parseFloat(getComputedStyle(row.querySelector('strong')!).fontSize),
       ),
       rowHeights: rows.map((row) => row.getBoundingClientRect().height),
+      density: [...rows[0]!.querySelectorAll<HTMLElement>('*')].filter(visibleText).map((el) => ({
+        selector: el.className || el.tagName,
+        height: el.getBoundingClientRect().height,
+        minHeight: getComputedStyle(el).minHeight,
+        padding: getComputedStyle(el).padding,
+        position: getComputedStyle(el).gridArea,
+        line: getComputedStyle(el).lineHeight,
+      })),
       regularRowHeights: rows
         .filter(
           (row) => !row.querySelector('strong')!.textContent!.includes('— исследователь проекта'),
@@ -145,11 +183,20 @@ for (const width of widths)
           page.locator('.classroom-roster-row .classroom-login-handle').first(),
         ).toHaveText('******');
         const result = await geometry(page);
+        if (width === 320 && sidebar === 'expanded' && zoom === 1.25)
+          await page.screenshot({ path: evidence + '/narrow-roster-diagnostic.png' });
         await testInfo.attach('roster-geometry', {
           body: JSON.stringify(result, null, 2),
           contentType: 'application/json',
         });
-        expect(result.overflow).toBe(false);
+        expect(
+          result.overflow,
+          JSON.stringify({
+            viewport: result.viewport,
+            header: result.header,
+            elements: result.overflowElements,
+          }),
+        ).toBe(false);
         expect(result.issues).toEqual([]);
         expect(result.visibility.find((item) => item.selector === 'sr-only')?.visible).toBe(false);
         expect(
@@ -162,7 +209,11 @@ for (const width of widths)
         // Sorting moves the intentionally long name into the middle of the
         // roster. Keep the density bound on all fourteen ordinary names.
         expect(result.regularRowHeights).toHaveLength(14);
-        if (result.table) expect(result.regularRowHeights.every((size) => size <= 40)).toBe(true);
+        if (result.table)
+          expect(
+            result.regularRowHeights.every((size) => size <= 40),
+            JSON.stringify(result.density),
+          ).toBe(true);
         else {
           expect(
             result.regularRowHeights.every(
@@ -182,10 +233,24 @@ for (const width of widths)
         await page.keyboard.press('Escape');
         for (const section of sections) {
           await openSection(page, section);
-          expect(
-            await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
-            section,
-          ).toBe(true);
+          const sectionBounds = await page.evaluate(() => ({
+            fits: document.documentElement.scrollWidth <= innerWidth + 1,
+            elements: [...document.querySelectorAll<HTMLElement>('body *')]
+              .filter(
+                (el) =>
+                  el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true }) &&
+                  !el.closest('.sr-only,.dropdown-menu') &&
+                  el.getBoundingClientRect().right > innerWidth + 1,
+              )
+              .slice(0, 12)
+              .map((el) => ({
+                selector: el.className || el.tagName,
+                text: el.textContent?.slice(0, 40),
+                rect: el.getBoundingClientRect().toJSON(),
+                minWidth: getComputedStyle(el).minWidth,
+              })),
+          }));
+          expect(sectionBounds.fits, section + JSON.stringify(sectionBounds.elements)).toBe(true);
           if (width === 1366 || width === 390) {
             await page.screenshot({
               path: `${evidence}/${width}-${sidebar}-zoom${zoom}-${sections.indexOf(section) + 1}.png`,

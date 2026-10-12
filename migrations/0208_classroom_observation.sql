@@ -1,5 +1,16 @@
 -- Observation is read-only. Counts are separate from permission to read content.
 -- No RLS/ownership changes. Internal helpers are not executable by the runtime role.
+-- First admission is observational: never materialize a principal in the login trigger.
+-- Preserve the actual transition even when optional analytics delivery is disabled.
+CREATE TABLE public.classroom_activation_observations (
+ seat_id uuid PRIMARY KEY REFERENCES public.classroom_student_seats(id) ON DELETE CASCADE,
+ classroom_id uuid NOT NULL REFERENCES public.classrooms(id) ON DELETE CASCADE,
+ tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+ occurred_at timestamptz NOT NULL DEFAULT now()
+);
+ALTER TABLE public.classroom_activation_observations ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.classroom_activation_observations FROM PUBLIC,asalab_app;
+
 CREATE OR REPLACE FUNCTION classroom_participant_principals(p_seat uuid) RETURNS TABLE(id uuid)
 LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
  WITH linked AS (
@@ -187,7 +198,11 @@ RETURNS jsonb LANGUAGE sql VOLATILE SECURITY DEFINER SET search_path=pg_catalog,
    AND NOT EXISTS(SELECT 1 FROM class_events c WHERE c.project_id=sub.project_id AND c.action IN('project.submitted','assignment.submitted','submission.created')
     AND abs(extract(epoch FROM c.at-sub.submitted_at))<1)
   ORDER BY sub.id,s.id),
- events AS(SELECT * FROM class_events UNION ALL SELECT * FROM auth UNION ALL SELECT * FROM edits UNION ALL SELECT * FROM submissions),
+ activations AS(SELECT 'activation:'||o.seat_id id,'seat.activated' action,s.id seat_id,s.display_label student,false by_teacher,
+   NULL::uuid project_id,NULL::varchar project_title,o.occurred_at at,1 count,NULL::uuid actor
+   FROM public.classroom_activation_observations o JOIN seats s ON s.id=o.seat_id AND s.classroom_id=o.classroom_id AND s.tenant_id=o.tenant_id
+   WHERE o.classroom_id=p_class),
+ events AS(SELECT * FROM class_events UNION ALL SELECT * FROM auth UNION ALL SELECT * FROM edits UNION ALL SELECT * FROM submissions UNION ALL SELECT * FROM activations),
  filtered AS(SELECT * FROM events WHERE (p_seat IS NULL OR seat_id=p_seat)
   AND (p_category='all' OR (p_category='projects' AND project_id IS NOT NULL) OR (p_category='access' AND project_id IS NULL))
   AND (p_from IS NULL OR at>=p_from) AND (p_to IS NULL OR at<p_to)
@@ -342,23 +357,17 @@ GRANT EXECUTE ON FUNCTION classroom_participant_profile(uuid,uuid,uuid) TO asala
 -- transaction as a successful Seat session. Existing rows are never backfilled.
 CREATE FUNCTION classroom_observation_record_activation() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE actor uuid;
 BEGIN
  IF OLD.status='issued' AND NEW.status='active' AND EXISTS(
   SELECT 1 FROM public.classroom_student_sessions session WHERE session.seat_id=NEW.id
    AND session.created_at=now() AND session.revoked_at IS NULL) THEN
-  SELECT id INTO actor FROM public.principals WHERE seat_id=NEW.id AND kind='student_seat';
-  IF actor IS NULL THEN
-   SELECT principal_id INTO actor FROM public.student_seat_principal(NEW.id);
-  END IF;
-  IF actor IS NOT NULL THEN
-   BEGIN
-    PERFORM public.classroom_activity_record(NEW.tenant_id,NEW.classroom_id,NEW.id,actor,'seat.activated',NULL,NULL,interval '0 seconds');
-   EXCEPTION WHEN OTHERS THEN
-    -- Optional observation failure cannot cancel an already successful admission.
-    RAISE LOG 'classroom_observation_activation_record_failed';
-   END;
-  END IF;
+  BEGIN
+   INSERT INTO public.classroom_activation_observations(seat_id,classroom_id,tenant_id,occurred_at)
+   VALUES(NEW.id,NEW.classroom_id,NEW.tenant_id,now()) ON CONFLICT(seat_id) DO NOTHING;
+  EXCEPTION WHEN OTHERS THEN
+   -- Optional history must never change identity allocation or prevent a valid login.
+   RAISE LOG 'classroom_observation_activation_record_failed';
+  END;
  END IF;
  RETURN NEW;
 END;

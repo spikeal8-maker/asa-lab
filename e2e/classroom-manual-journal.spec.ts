@@ -178,7 +178,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   ).toBe(409);
 
   await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-  const settings = page.getByRole('region', { name: 'Шкала ручного журнала', exact: true });
+  const settings = page.getByRole('group', { name: 'Шкала ручного журнала', exact: true });
   const examples = [
     { preset: 'hundred', value: '100', label: '100' },
     { preset: 'three_five', value: '3', label: '3' },

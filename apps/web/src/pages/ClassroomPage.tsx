@@ -736,7 +736,7 @@ function ClassroomPageContent({
                   code={classroom.joinCode}
                   label="код класса"
                   className="classroom-code-chip"
-                  showAll={false}
+                  showAll={true}
                   epoch={codeEpoch}
                   onCopied={() => setNotice('Код класса скопирован.')}
                   onDenied={() =>

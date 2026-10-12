@@ -23,7 +23,7 @@ async function createTeacher(page: Page) {
 }
 async function createClass(page: Page, title: string) {
   const response = await page.request.post('/api/classrooms', {
-    headers: { origin },
+    headers: { origin, 'Idempotency-Key': crypto.randomUUID() },
     data: { title, ageBand: 'mixed', topicKeys: [], safeModeDefault: true },
   });
   expect(response.status(), await response.text()).toBe(201);

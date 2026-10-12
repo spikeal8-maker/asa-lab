@@ -220,7 +220,7 @@
   .classroom-roster-table
   :is(.classroom-roster-head, .classroom-roster-row) {
   display: grid;
-  grid-template-columns: 24px minmax(240px, 1fr) 92px 60px 70px 100px 114px 64px 36px;
+  grid-template-columns: 24px minmax(200px, 1fr) 92px 80px 80px 100px 114px 64px 36px;
   gap: 6px;
   padding: 0 8px;
   align-items: center;
@@ -373,6 +373,9 @@
   font-size: 14px;
   padding: 0;
 }
+.classroom-owner-workspace .classroom-roster-done {
+  line-height: 1.4;
+}
 .classroom-owner-workspace .classroom-roster-done::after {
   content: none;
 }
@@ -473,7 +476,18 @@
 .classroom-owner-workspace .classroom-safe-switch {
   margin-top: 12px;
   width: fit-content;
+  max-width: 100%;
   min-height: 44px;
+  gap: 8px;
+  white-space: normal;
+}
+.classroom-owner-workspace .classroom-settings-panel .classroom-safe-switch > span {
+  min-width: 0;
+  flex: 1;
+  white-space: normal;
+}
+.classroom-owner-workspace .classroom-settings-panel .classroom-safe-switch > i {
+  flex: 0 0 40px;
 }
 .classroom-owner-workspace .classroom-teacher-panel {
   gap: 12px;
@@ -567,6 +581,8 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) auto;
 }
 .classroom-owner-workspace .classroom-course-assign :is(input, select) {
+  width: 100%;
+  min-width: 0;
   min-height: 44px;
   font-size: 16px;
   box-sizing: border-box;
@@ -576,7 +592,18 @@
 .classroom-owner-workspace .classroom-learning-heading p {
   font-size: 14px;
 }
+.classroom-owner-workspace.classroom-workspace .classroom-tab-panel > * {
+  min-width: 0;
+  max-width: 100%;
+}
+.classroom-owner-workspace .classroom-learning-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  max-width: 100%;
+}
 .classroom-owner-workspace .classroom-learning-tabs button {
+  min-width: 0;
+  white-space: normal;
   min-height: 44px;
   font-size: 16px;
 }
@@ -652,7 +679,8 @@
   }
   .classroom-owner-workspace.classroom-workspace .classroom-roster-table .classroom-roster-row {
     grid-template-columns: 20px minmax(0, 1fr) 44px;
-    gap: 0 8px;
+    grid-template-rows: auto auto;
+    gap: 6px 8px;
     padding: 4px 8px;
     margin: 0 0 6px;
     border: 1px solid #e1e7eb;
@@ -829,8 +857,8 @@
     gap: 4px;
   }
   .classroom-owner-workspace.classroom-workspace .classroom-roster-table .classroom-roster-row {
-    gap: 0 4px;
-    padding-inline: 4px;
+    gap: 2px 4px;
+    padding: 1.5px 4px;
   }
   .classroom-owner-workspace.classroom-workspace .classroom-student-name {
     gap: 4px;
@@ -898,13 +926,60 @@
     display: none;
   }
 }
+@container classroom (max-width: 280px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-table .classroom-roster-row {
+    grid-template-columns: 20px minmax(0, 1fr) 44px 44px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-student-name {
+    grid-column: 2 / -1;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    > .classroom-row-details {
+    display: contents;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-row-details
+    > :is(.classroom-login-handle, .classroom-account-entry) {
+    grid-column: 1 / 3;
+    grid-row: 2;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-row-details > .classroom-seat-safe {
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    > .classroom-row-menu {
+    grid-column: 4;
+    grid-row: 2;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-row-details
+    > .participant-roster-numbers {
+    grid-column: 3 / -1;
+    grid-row: 3;
+    min-height: 0;
+    flex-direction: column;
+    gap: 0;
+    line-height: 1.4;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-row-details
+    > .classroom-roster-progress {
+    grid-column: 1 / 3;
+    grid-row: 3;
+  }
+}
 /* At 125/150% zoom a narrow phone may offer less than 320 CSS px. Keep the
    existing global actions in two rows rather than letting them escape. */
 @media (max-width: 319px) {
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace)) {
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace)) {
     --portal-header-height: 100px;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace)) .portal-header {
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace)) .portal-header {
     grid-template-columns: 44px minmax(0, 1fr) 44px;
     grid-template-rows: 56px 44px;
     grid-template-areas: 'menu brand account' 'public public create';
@@ -913,40 +988,46 @@
     gap: 0 6px;
     padding: 0 8px;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace))
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
     .portal-header
     .asa-brand-copy {
     display: none;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace))
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
     .portal-header
     .portal-global-nav {
     width: 88px;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace))
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
     .portal-header
     .portal-header-create {
     width: 44px;
     padding: 0;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace))
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
     .portal-header
     .portal-header-create-label {
     display: none;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace))
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
     .portal-header
     .portal-header-create
     > span:first-child {
     display: inline;
   }
-  .portal-shell:has(> :is(.classroom-owner-list, .classroom-owner-workspace))
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
     .portal-header
     .portal-account
     > summary {
     min-width: 44px;
     width: 44px;
     padding: 0;
+  }
+  .portal-shell:has(> main:is(.classroom-owner-list, .classroom-owner-workspace))
+    .portal-quick-create {
+    width: 44px;
+    min-width: 0;
+    justify-self: end;
   }
 }
 
@@ -993,4 +1074,36 @@
   .classroom-request-actions button {
     min-height: 44px;
   }
+}
+
+/* Container width, not the viewport rule from the old roster, selects table flow. */
+@container classroom (min-width: 901px) {
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-roster-row
+    > .classroom-row-details {
+    display: contents;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-roster-table
+    .classroom-row-menu
+    > summary {
+    height: 36px;
+    min-height: 36px;
+  }
+}
+.classroom-owner-workspace.classroom-workspace :has(> .classroom-learning-tabs),
+.classroom-owner-workspace.classroom-workspace .classroom-courses {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr);
+}
+.classroom-owner-workspace .classroom-learning-heading {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.classroom-owner-workspace .classroom-learning-heading > * {
+  min-width: 0;
+  max-width: 100%;
 }
