@@ -1,0 +1,28 @@
+name: Figma UI Atlas Manifest
+
+on:
+  pull_request:
+    paths:
+      - 'docs/product/figma-ui-atlas-*.md'
+      - 'docs/product/figma-ui-atlas-*.json'
+      - 'tools/figma-atlas/**'
+      - 'apps/web/src/App.tsx'
+      - 'apps/web/src/creator-portal/navigation.ts'
+      - 'apps/web/src/admin/admin-navigation.ts'
+      - 'apps/web/src/modules/ModuleEditorHost.tsx'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate route inventory and source mappings
+        run: node tools/figma-atlas/validate.mjs
