@@ -87,7 +87,7 @@
 }
 .classroom-owner-list :is(.classroom-list-head, .classroom-list-row) {
   display: grid;
-  grid-template-columns: 28px minmax(200px, 1fr) 72px 64px 80px 56px 80px 96px 36px;
+  grid-template-columns: 28px minmax(200px, 1fr) 72px 64px 80px 56px 80px 120px 36px;
   gap: 8px;
   padding: 0 8px;
   align-items: center;
@@ -112,6 +112,9 @@
 }
 .classroom-owner-list .classroom-list-row > span {
   font-size: 14px;
+}
+.classroom-owner-list .classroom-row-date {
+  white-space: nowrap;
 }
 :is(.classroom-owner-list, .classroom-owner-workspace) .classroom-row-menu > summary {
   box-sizing: border-box;

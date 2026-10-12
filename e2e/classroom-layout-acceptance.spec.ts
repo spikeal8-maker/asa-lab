@@ -341,6 +341,15 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
       mainWidth: main.clientWidth,
       mainScrollWidth: main.scrollWidth,
       outside,
+      clippedClassDates: [
+        ...main.querySelectorAll<HTMLElement>('.classroom-list-row .classroom-row-date'),
+      ]
+        .filter((el) => el.checkVisibility() && el.scrollWidth > el.clientWidth + 1)
+        .map((el) => ({
+          text: el.textContent,
+          available: el.clientWidth,
+          required: el.scrollWidth,
+        })),
       rosterIdentityOverlaps: [
         ...main.querySelectorAll<HTMLElement>('.classroom-roster-row'),
       ].flatMap((row) => {
@@ -370,6 +379,9 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
   expect.soft(measure.documentWidth, file).toBeLessThanOrEqual(measure.width + 1);
   expect.soft(measure.mainScrollWidth, file).toBeLessThanOrEqual(measure.mainWidth + 1);
   expect.soft(measure.outside, file).toEqual([]);
+  expect
+    .soft(measure.clippedClassDates, 'Dates must fit as one readable line: ' + file)
+    .toEqual([]);
   expect
     .soft(measure.rosterIdentityOverlaps, 'Pupil row numbers must not cover avatar images: ' + file)
     .toEqual([]);
