@@ -213,6 +213,22 @@ describe('quick journal: real restricted PostgreSQL', () => {
       ),
     ]);
     expect(edits.filter((r) => r.error === 'revision_conflict')).toHaveLength(1);
+    const beforeStaleCell = await counts(f.classId);
+    expect(
+      await quick(f.classId, {
+        columnId: column.id,
+        date: column.date,
+        category: column.category,
+        expectedHeaderRevision: 0,
+        expectedScaleVersion: 1,
+        seatId: f.seatId,
+        value: 5,
+        expectedRevision: 1,
+        reason: 'Stale visible header',
+        requestId: randomUUID(),
+      }),
+    ).toEqual({ error: 'revision_conflict' });
+    expect(await counts(f.classId)).toEqual(beforeStaleCell);
     expect((await read(f.classId)).columns).toHaveLength(0);
     expect((await read(f.classId)).reservedSlotKeys).toContain('2026-10:1');
     const beforeTargetReads = await counts(f.classId);
@@ -274,12 +290,17 @@ describe('quick journal: real restricted PostgreSQL', () => {
       requestId: randomUUID(),
     };
     expect(await quick(f.classId, correction)).toEqual({ error: 'reason_required' });
-    const changed = await quick(f.classId, {
+    const correctionBody = {
       ...correction,
       reason: 'Исправлена опечатка',
       requestId: randomUUID(),
-    });
+    };
+    const changed = await quick(f.classId, correctionBody);
     expect(changed.grade).toMatchObject({ revision: 2, value: 5, supersedesId: saved.grade.id });
+    const committedCorrection = await counts(f.classId);
+    expect((await read(f.classId)).grades).toEqual([changed.grade]);
+    expect(await quick(f.classId, correctionBody)).toEqual(changed);
+    expect(await counts(f.classId)).toEqual(committedCorrection);
     const cleared = await quick(f.classId, {
       ...correction,
       value: null,
@@ -301,6 +322,152 @@ describe('quick journal: real restricted PostgreSQL', () => {
       ])
     ).rows[0].value;
     expect(history.items.map((r: { value: number | null }) => r.value)).toEqual([null, 5, 0]);
+  });
+  it('effective headers agree across teacher, learner, profile, inbox and rating when moving out of and into its window', async () => {
+    const f = await fixture();
+    const dates = (
+      await admin.query(`SELECT
+      ((now() AT TIME ZONE 'UTC')::date-2)::text inside,
+      ((now() AT TIME ZONE 'UTC')::date-45)::text outside`)
+    ).rows[0];
+    const saved = await quick(f.classId, {
+      ...input(f.seatId),
+      slotKey: `${dates.inside.slice(0, 7)}:1`,
+      date: dates.inside,
+      value: 5,
+    });
+    await app.query('SELECT classroom_journal_write($1,$2,$3,$4::jsonb)', [
+      actor,
+      f.classId,
+      'scale',
+      JSON.stringify({ preset: 'hundred', expectedRevision: 1, requestId: randomUUID() }),
+    ]);
+    for (const [date, category, revision, gradeCount] of [
+      [dates.outside, 'Outside rating window', 1, 0],
+      [dates.inside, 'Inside rating window', 2, 1],
+    ] as const) {
+      const moved = await quick(f.classId, {
+        columnId: saved.column.id,
+        date,
+        category,
+        expectedScaleVersion: 2,
+        expectedHeaderRevision: revision - 1,
+        requestId: randomUUID(),
+      });
+      expect(moved.column).toMatchObject({
+        date,
+        category,
+        headerRevision: revision,
+        preset: 'five',
+        scaleVersion: 1,
+      });
+      const beforeReads = await counts(f.classId);
+      const teacher = await read(f.classId, date, date);
+      expect(teacher.columns).toEqual([moved.column]);
+      expect(teacher.grades).toEqual([saved.grade]);
+      const otherDate = date === dates.inside ? dates.outside : dates.inside;
+      expect((await read(f.classId, otherDate, otherDate)).columns).toEqual([]);
+      const learner = (
+        await app.query('SELECT classroom_journal_results($1,$2,$2) value', [f.principal, date])
+      ).rows[0].value;
+      expect(learner.items[0]).toMatchObject({
+        id: saved.grade.id,
+        columnId: saved.column.id,
+        date,
+        category,
+        preset: 'five',
+        scaleVersion: 1,
+        value: 5,
+      });
+      expect(
+        (
+          await app.query('SELECT classroom_journal_results($1,$2,$2) value', [
+            f.principal,
+            otherDate,
+          ])
+        ).rows[0].value.items,
+      ).toEqual([]);
+      for (const who of [actor, f.principal]) {
+        const profile = (
+          await app.query('SELECT classroom_participant_profile_grades($1,$2,$3) value', [
+            who,
+            f.classId,
+            f.seatId,
+          ])
+        ).rows[0].value;
+        expect(profile.journal.columns).toEqual([moved.column]);
+        expect(profile.journal.grades).toEqual([saved.grade]);
+      }
+      const inbox = (
+        await app.query('SELECT item FROM learning_notifications_list($1)', [f.principal])
+      ).rows[0].item;
+      expect(inbox).toMatchObject({
+        journalDate: date,
+        journalColumnId: saved.column.id,
+        journalRevisionId: saved.grade.id,
+      });
+      expect(inbox.title).toContain(category);
+      const metric = (
+        await app.query('SELECT item FROM classroom_participant_metrics($1)', [f.classId])
+      ).rows.find((r) => r.item.seatId === f.seatId).item;
+      expect(metric.sources.grades).toBe(gradeCount);
+      expect(metric.factors.grades).toBe(gradeCount ? 100 : 0); // pinned five, not current hundred
+      expect(await counts(f.classId)).toEqual(beforeReads);
+    }
+    expect(
+      (
+        await admin.query(
+          'SELECT lesson_date::text date,category FROM classroom_journal_columns WHERE id=$1',
+          [saved.column.id],
+        )
+      ).rows[0],
+    ).toEqual({ date: dates.inside, category: 'Работа 1' });
+    expect(await counts(f.classId)).toMatchObject({ columns: 1, grades: 1, notifications: 1 });
+  });
+  it('profile projects the latest header before its 30-column ordering and offset', async () => {
+    const f = await fixture();
+    let oldest: Awaited<ReturnType<typeof quick>>;
+    for (let i = 1; i <= 31; i++) {
+      const saved = await quick(f.classId, {
+        ...input(f.seatId),
+        slotKey: `2026-10:${i}`,
+        date: i === 1 ? '2026-10-01' : '2026-10-02',
+        expectedScaleVersion: i === 1 ? 0 : 1,
+      });
+      expect(saved.grade.revision).toBe(1);
+      if (i === 1) oldest = saved;
+    }
+    const moved = await quick(f.classId, {
+      columnId: oldest.column.id,
+      date: '2026-10-03',
+      category: 'First after correction',
+      expectedScaleVersion: 1,
+      expectedHeaderRevision: 0,
+      requestId: randomUUID(),
+    });
+    const beforeReads = await counts(f.classId);
+    const first = (
+      await app.query('SELECT classroom_participant_profile_grades($1,$2,$3) value', [
+        actor,
+        f.classId,
+        f.seatId,
+      ])
+    ).rows[0].value;
+    expect(first.journal.columns).toHaveLength(30);
+    expect(first.journal.columns[0]).toEqual(moved.column);
+    expect(first.journal.grades[0]).toEqual(oldest.grade);
+    expect(first.journal.nextOffset).toBe(30);
+    const next = (
+      await app.query('SELECT classroom_participant_profile_grades($1,$2,$3,30) value', [
+        actor,
+        f.classId,
+        f.seatId,
+      ])
+    ).rows[0].value;
+    expect(next.journal.columns).toHaveLength(1);
+    expect(next.journal.columns[0].id).not.toBe(oldest.column.id);
+    expect(next.journal.nextOffset).toBeNull();
+    expect(await counts(f.classId)).toEqual(beforeReads);
   });
   it('foreign teachers, Seat principals, cross-class IDs and archived classes cannot write', async () => {
     const f = await fixture(),

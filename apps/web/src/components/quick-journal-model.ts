@@ -1,7 +1,25 @@
-import type { JournalColumn, JournalSnapshot } from '../classroom-journal-api';
+import type { JournalColumn, JournalQuickInput, JournalSnapshot } from '../classroom-journal-api';
 
 export type JournalSlot = JournalColumn & { virtual?: boolean };
 export type JournalRequestReceipt = { payload: string; id: string; uncertain?: boolean };
+export type JournalQuickMutation = {
+  endpoint: 'quick';
+  payload: Readonly<JournalQuickInput>;
+  uncertain: boolean;
+};
+// The whole command survives focus reads and virtual-to-persisted remapping.
+// Only a definite server outcome or cancelling the editor releases it.
+export function journalQuickMutation(
+  previous: JournalQuickMutation | null,
+  input: Omit<JournalQuickInput, 'requestId'>,
+): JournalQuickMutation {
+  if (previous?.uncertain) return previous;
+  return {
+    endpoint: 'quick',
+    payload: Object.freeze({ ...input, requestId: crypto.randomUUID() }),
+    uncertain: true,
+  };
+}
 export function journalRequestReceipt(
   previous: JournalRequestReceipt | undefined,
   input: object,

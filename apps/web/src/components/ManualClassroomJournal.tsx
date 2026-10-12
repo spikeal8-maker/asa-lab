@@ -20,6 +20,8 @@ import {
   journalRoster,
   journalSlots,
   journalRequestReceipt,
+  journalQuickMutation,
+  type JournalQuickMutation,
   type JournalRequestReceipt,
   type JournalSlot,
 } from './quick-journal-model';
@@ -115,7 +117,6 @@ function CellEditor({
   grade,
   scaleVersion,
   archived,
-  receipts,
   onSaved,
   onClose,
   onRefresh,
@@ -128,10 +129,9 @@ function CellEditor({
   grade: JournalGrade | undefined;
   scaleVersion: number;
   archived: boolean;
-  receipts: Map<string, Receipt>;
   onSaved: (column: JournalColumn, grade: JournalGrade, scale?: JournalSnapshot['scale']) => void;
   onClose: (step?: number) => void;
-  onRefresh: () => void;
+  onRefresh: () => Promise<boolean>;
   onAccessLost: (message: string) => void;
   timeZone: string;
 }) {
@@ -142,6 +142,8 @@ function CellEditor({
   const [busy, setBusy] = useState(false);
   const [history, setHistory] = useState(false);
   const [attempt, setAttempt] = useState<number | null | undefined>();
+  const [uncertain, setUncertain] = useState(false);
+  const mutation = useRef<JournalQuickMutation | null>(null);
   const mounted = useRef(false),
     saving = useRef(false),
     panel = useRef<HTMLElement>(null);
@@ -161,86 +163,56 @@ function CellEditor({
   }, [grade?.revision, column.headerRevision, scaleVersion]);
   async function save(next: number | null) {
     if (saving.current || archived || conflict) return;
-    if (grade && !reason.trim()) {
+    if (!mutation.current?.uncertain && grade && !reason.trim()) {
       setError('Укажите причину исправления или очистки оценки.');
       return;
     }
     if (
+      !mutation.current?.uncertain &&
       next !== null &&
       (!Number.isInteger(next) || !journalLevels(column.preset).includes(next))
     ) {
       setError('Введите целую оценку в диапазоне шкалы.');
       return;
     }
-    if (!grade && next === null) return;
+    if (!mutation.current?.uncertain && !grade && next === null) return;
     const input = {
       seatId: student.id,
       value: next,
       reason: reason.trim() || null,
       expectedRevision: grade?.revision ?? 0,
     };
-    const body = column.virtual
-      ? {
-          ...input,
-          slotKey: column.slotKey!,
-          date: column.date,
-          category: column.category,
-          expectedScaleVersion: scaleVersion,
-          expectedHeaderRevision: 0,
-        }
-      : { ...input, columnId: column.id };
-    const key = `${column.id}:${student.id}`;
-    const receipt = journalRequestReceipt(receipts.get(key), body);
-    receipts.set(key, receipt);
-    receipt.uncertain = true;
+    const command = journalQuickMutation(mutation.current, {
+      ...input,
+      ...(column.virtual ? { slotKey: column.slotKey! } : { columnId: column.id }),
+      date: column.date,
+      category: column.category,
+      expectedScaleVersion: scaleVersion,
+      expectedHeaderRevision: column.headerRevision ?? 0,
+    });
+    mutation.current = command;
+    command.uncertain = true;
+    setUncertain(true);
     saving.current = true;
     setBusy(true);
     setError('');
     setAttempt(next);
-    if (column.virtual) {
-      const r = await journalApi.quick(classroomId, {
-        ...input,
-        slotKey: column.slotKey!,
-        date: column.date,
-        category: column.category,
-        expectedScaleVersion: Number(JSON.parse(receipt.payload).expectedScaleVersion),
-        expectedHeaderRevision: 0,
-        requestId: receipt.id,
-      });
-      if (!mounted.current) return;
-      if (r.ok && r.data.grade) {
-        receipts.delete(key);
-        onSaved(r.data.column, r.data.grade, r.data.scale);
-        return;
-      }
-      if (!r.ok) {
-        if ([401, 403].includes(r.status) || r.error.code === 'session_conflict') {
-          onAccessLost(r.error.message);
-          return;
-        }
-        receipt.uncertain = r.status === 0 || r.status >= 500;
-        setError(r.error.message);
-        setConflict(r.status === 409);
-      }
-    } else {
-      const r = await journalApi.grade(classroomId, {
-        ...input,
-        columnId: column.id,
-        requestId: receipt.id,
-      });
-      if (!mounted.current) return;
-      if (r.ok) {
-        receipts.delete(key);
-        onSaved(column, r.data);
-        return;
-      }
+    const r = await journalApi[command.endpoint](classroomId, command.payload);
+    if (!mounted.current) return;
+    if (r.ok && r.data.grade) {
+      mutation.current = null;
+      onSaved(r.data.column, r.data.grade, r.data.scale);
+      return;
+    }
+    if (!r.ok) {
       setError(r.error.message);
       if ([401, 403].includes(r.status) || r.error.code === 'session_conflict') {
         onAccessLost(r.error.message);
         return;
       }
       setConflict(r.status === 409);
-      receipt.uncertain = r.status === 0 || r.status >= 500;
+      command.uncertain = r.status === 0 || r.status >= 500;
+      setUncertain(command.uncertain);
     }
     saving.current = false;
     setBusy(false);
@@ -298,7 +270,7 @@ function CellEditor({
           </button>
         </header>
         {grade ? <small>Сейчас: {journalRevisionLabel(column.preset, grade.value)}</small> : null}
-        {grade && !archived ? (
+        {grade && !archived && !uncertain ? (
           <label>
             Причина изменения{' '}
             <input
@@ -331,7 +303,7 @@ function CellEditor({
                 step="1"
                 required
                 value={value}
-                disabled={busy || archived || conflict}
+                disabled={busy || archived || conflict || uncertain}
                 onChange={(e) => setValue(e.target.value)}
               />
             </label>
@@ -344,7 +316,9 @@ function CellEditor({
                 key={v}
                 data-level={v}
                 aria-label={journalAccessibleLabel(column.preset, v)}
-                disabled={busy || archived || conflict || Boolean(grade && !reason.trim())}
+                disabled={
+                  busy || archived || conflict || uncertain || Boolean(grade && !reason.trim())
+                }
                 onClick={() => void save(v)}
               >
                 {journalGradeLabel(column.preset, v)}
@@ -352,7 +326,7 @@ function CellEditor({
             ))}
           </div>
         )}
-        {grade && !archived ? (
+        {grade && !archived && !uncertain ? (
           <button disabled={busy || conflict || !reason.trim()} onClick={() => void save(null)}>
             Очистить оценку
           </button>
@@ -362,7 +336,19 @@ function CellEditor({
           <p role="alert">
             {error}{' '}
             {conflict ? (
-              <button onClick={onRefresh}>Обновить журнал</button>
+              <button
+                onClick={() =>
+                  void onRefresh().then((refreshed) => {
+                    if (mounted.current && refreshed) {
+                      mutation.current = null;
+                      setConflict(false);
+                      setError('');
+                    }
+                  })
+                }
+              >
+                Обновить журнал
+              </button>
             ) : attempt !== undefined ? (
               <button disabled={busy} onClick={() => void save(attempt)}>
                 Повторить сохранение
@@ -552,7 +538,11 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
     [categoryFilter, setCategoryFilter] = useState(''),
     [minimum, setMinimum] = useState(10),
     [loadBusy, setLoadBusy] = useState(false);
-  const [opened, setOpened] = useState<{ column: JournalSlot; student: Student } | null>(null),
+  const [opened, setOpened] = useState<{
+      column: JournalSlot;
+      student: Student;
+      editorKey: string;
+    } | null>(null),
     [header, setHeader] = useState<JournalSlot | null>(null);
   const active = useRef(false),
     generation = useRef(0),
@@ -732,6 +722,41 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
     updateColumn({ column: latest, grade: null, scale: r.data.scale });
     setData((old) => (old ? { ...old, status: r.data.status } : old));
   }
+  async function refreshCell(): Promise<boolean> {
+    if (!opened || !openedColumn) return false;
+    const r = await journalApi.read(classroomId, {
+      ...(month ? journalMonthRange(month) : {}),
+      ...(openedColumn.virtual
+        ? { slotKey: openedColumn.slotKey! }
+        : { columnId: openedColumn.id }),
+    });
+    if (!active.current || contextRevision.current !== contextVersion) return false;
+    if (!r.ok) {
+      if ([401, 403, 409].includes(r.status)) accessLostForContext(r.error.message);
+      else setError(r.error.message);
+      return false;
+    }
+    generation.current += 1;
+    setLoadBusy(false);
+    const latest = r.data.columns[0];
+    if (!latest && !openedColumn.virtual) {
+      setError('Столбец недоступен. Введённые данные сохранены в форме.');
+      return false;
+    }
+    if (latest) {
+      setOpened((old) => (old?.editorKey === opened.editorKey ? { ...old, column: latest } : old));
+      updateColumn({
+        column: latest,
+        grade:
+          r.data.grades.find((g) => g.columnId === latest.id && g.seatId === opened.student.id) ??
+          null,
+        scale: r.data.scale,
+      });
+    }
+    setData((old) => (old ? { ...old, scale: r.data.scale, status: r.data.status } : old));
+    setError('');
+    return true;
+  }
   function focusHeader(id: string) {
     const target =
       headerButtons.current.get(id) ?? (origin.current?.isConnected ? origin.current : null);
@@ -910,7 +935,7 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
                             onClick={(e) => {
                               origin.current = e.currentTarget;
                               setHeader(null);
-                              setOpened({ column: c, student: s });
+                              setOpened({ column: c, student: s, editorKey: `${c.id}:${s.id}` });
                               setNotice('');
                             }}
                           >
@@ -971,7 +996,7 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
           </details>
           {opened ? (
             <CellEditor
-              key={`${opened.column.id}:${opened.student.id}`}
+              key={opened.editorKey}
               classroomId={classroomId}
               column={openedColumn!}
               student={opened.student}
@@ -984,37 +1009,24 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
                   data.students.find((s) => s.id === opened.student.id)?.status ?? '',
                 )
               }
-              receipts={receipts.current}
               onClose={closeCell}
-              onRefresh={() => void load()}
+              onRefresh={refreshCell}
               onAccessLost={accessLostForContext}
               onSaved={(column, grade, scale) => {
                 if (!active.current || contextRevision.current !== contextVersion) return;
                 generation.current += 1;
                 setLoadBusy(false);
-                if (opened.column.virtual)
-                  updateColumn({ column, grade, scale: scale ?? data.scale });
-                else
-                  setData((old) =>
-                    old
-                      ? {
-                          ...old,
-                          grades: [
-                            ...old.grades.filter(
-                              (g) => !(g.columnId === grade.columnId && g.seatId === grade.seatId),
-                            ),
-                            grade,
-                          ],
-                        }
-                      : old,
-                  );
+                updateColumn({ column, grade, scale: scale ?? data.scale });
                 setNotice(
                   grade.value === null ? 'Оценка очищена. История сохранена.' : 'Оценка сохранена.',
                 );
                 setOpened(null);
-                requestAnimationFrame(() =>
-                  cells.current.get(`${column.id}:${grade.seatId}`)?.focus(),
-                );
+                requestAnimationFrame(() => {
+                  if (!active.current || contextRevision.current !== contextVersion) return;
+                  const target = cells.current.get(`${column.id}:${grade.seatId}`);
+                  if (target) target.focus();
+                  else focusHeader(column.id);
+                });
               }}
             />
           ) : null}

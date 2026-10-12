@@ -6,6 +6,7 @@ import {
   journalRoster,
   journalSlots,
   journalRequestReceipt,
+  journalQuickMutation,
 } from '../quick-journal-model';
 
 const snapshot: JournalSnapshot = {
@@ -20,6 +21,49 @@ const snapshot: JournalSnapshot = {
   grades: [],
 };
 describe('quick journal UI slots', () => {
+  it('freezes the entire uncertain quick command across fresh materialized data and corrections', () => {
+    const first = journalQuickMutation(null, {
+      slotKey: '2026-10:1',
+      date: '2026-10-11',
+      category: 'Работа 1',
+      expectedScaleVersion: 0,
+      expectedHeaderRevision: 0,
+      seatId: 'seat',
+      value: 0,
+      reason: null,
+      expectedRevision: 0,
+    });
+    const remapped = {
+      columnId: 'persisted',
+      date: '2026-10-11',
+      category: 'Changed header',
+      seatId: 'seat',
+      expectedScaleVersion: 1,
+      expectedHeaderRevision: 2,
+      expectedRevision: 1,
+      reason: 'New draft',
+      value: 5,
+    };
+    expect(journalQuickMutation(first, remapped)).toBe(first);
+    expect(first.payload).toMatchObject({
+      slotKey: '2026-10:1',
+      value: 0,
+      reason: null,
+      expectedRevision: 0,
+    });
+    first.uncertain = false; // definite 409 can be refreshed, never replayed blindly
+    const correction = journalQuickMutation(first, { ...remapped, reason: 'Original correction' });
+    expect(correction.payload.requestId).not.toBe(first.payload.requestId);
+    expect(
+      journalQuickMutation(correction, {
+        ...remapped,
+        reason: 'Changed draft',
+        expectedRevision: 2,
+      }),
+    ).toBe(correction);
+    expect(correction.payload.reason).toBe('Original correction');
+    expect(correction.payload.expectedRevision).toBe(1);
+  });
   it('replays an uncertain request exactly after another cell advances the scale; changed values use a new ID', () => {
     const body = { slotKey: '2026-10:1', expectedScaleVersion: 0, expectedRevision: 0, value: 0 };
     const receipt = journalRequestReceipt(undefined, body);

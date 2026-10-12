@@ -103,7 +103,9 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await page.keyboard.press('Tab');
   await expect(cell(names[0], 2)).toBeFocused();
   let loseOnce = true;
+  const firstPayloads: unknown[] = [];
   await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
+    firstPayloads.push(route.request().postDataJSON());
     if (!loseOnce) {
       await route.continue();
       return;
@@ -126,8 +128,32 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
     notifications: 1,
     assignments: 0,
   });
-  await editor.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
+  // Focus reads the real committed grade and materializes the virtual slot.
+  // Retry must still send the first command, with no correction reason.
+  const focusedRead = page.waitForResponse(
+    (r) => r.request().method() === 'GET' && r.url().includes(`/classrooms/${classId}/journal?`),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await focusedRead;
   await expect(cell(names[0], 1)).toHaveText('0');
+  await expect(editor.getByLabel('Причина изменения')).toHaveCount(0);
+  expect(await counts(classId)).toEqual({
+    columns: 1,
+    grades: 1,
+    notifications: 1,
+    assignments: 0,
+  });
+  requests.length = 0;
+  await editor.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
+  await expect(editor).toHaveCount(0);
+  expect(firstPayloads).toHaveLength(2);
+  expect(firstPayloads[1]).toEqual(firstPayloads[0]);
+  expect(await counts(classId)).toEqual({
+    columns: 1,
+    grades: 1,
+    notifications: 1,
+    assignments: 0,
+  });
   await page.unroute(`**/api/classrooms/${classId}/journal/quick`);
   for (const [student, work, value] of [
     [names[1], 2, '4'],
@@ -273,6 +299,69 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const closeMenu = page.getByRole('button', { name: 'Закрыть меню', exact: true });
   if (await closeMenu.isVisible()) await closeMenu.click();
   await page.setViewportSize({ width: 1366, height: 900 });
+  let loseCorrection = true;
+  const correctionPayloads: {
+    requestId: string;
+    columnId: string;
+    reason: string;
+    expectedRevision: number;
+  }[] = [];
+  await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
+    correctionPayloads.push(route.request().postDataJSON());
+    if (!loseCorrection) {
+      await route.continue();
+      return;
+    }
+    loseCorrection = false;
+    expect((await route.fetch()).ok()).toBe(true);
+    await route.abort('failed');
+  });
+  await cell(names[2], 3).click();
+  const correctionEditor = journal.getByRole('region', { name: `Оценка: ${names[2]}` });
+  await correctionEditor.getByLabel('Причина изменения').fill('Точная причина исправления');
+  await correctionEditor
+    .getByRole('group', { name: 'Оценка' })
+    .getByRole('button', { name: '4', exact: true })
+    .click();
+  await expect(correctionEditor.getByRole('alert')).toContainText('сервер недоступен');
+  const correctionRead = page.waitForResponse(
+    (r) => r.request().method() === 'GET' && r.url().includes(`/classrooms/${classId}/journal?`),
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await correctionRead;
+  await expect(cell(names[2], 3)).toHaveText('4');
+  await correctionEditor.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
+  await expect(correctionEditor).toHaveCount(0);
+  expect(correctionPayloads).toHaveLength(2);
+  expect(correctionPayloads[1]).toEqual(correctionPayloads[0]);
+  expect(correctionPayloads[0]).toMatchObject({
+    reason: 'Точная причина исправления',
+    expectedRevision: 1,
+  });
+  const correctionSnapshot = await page.request
+    .get(`/api/classrooms/${classId}/journal?from=2026-10-01&to=2026-10-31`)
+    .then((r) => r.json());
+  const correctionGrade = correctionSnapshot.grades.find(
+    (g: { columnId: string }) => g.columnId === correctionPayloads[0].columnId,
+  );
+  const correctionHistory = await page.request
+    .get(
+      `/api/classrooms/${classId}/journal/${correctionGrade.columnId}/${correctionGrade.seatId}/history`,
+    )
+    .then((r) => r.json());
+  expect(correctionHistory.items).toHaveLength(2);
+  expect(correctionHistory.items[0]).toMatchObject({
+    value: 4,
+    revision: 2,
+    reason: 'Точная причина исправления',
+  });
+  expect(await counts(classId)).toEqual({
+    columns: 3,
+    grades: 4,
+    notifications: 4,
+    assignments: 0,
+  });
+  await page.unroute(`**/api/classrooms/${classId}/journal/quick`);
   let release!: () => void, committed!: () => void;
   const hold = new Promise<void>((resolve) => {
     release = resolve;
@@ -280,7 +369,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   const didCommit = new Promise<void>((resolve) => {
     committed = resolve;
   });
-  await page.route(`**/api/classrooms/${classId}/journal/grade`, async (route) => {
+  await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
     const response = await route.fetch();
     expect(response.ok()).toBe(true);
     committed();
@@ -299,7 +388,7 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-09');
   await expect(journal.getByRole('columnheader')).toHaveCount(11);
   const delivered = page.waitForResponse((r) =>
-    r.url().endsWith(`/classrooms/${classId}/journal/grade`),
+    r.url().endsWith(`/classrooms/${classId}/journal/quick`),
   );
   release();
   await delivered;
@@ -307,9 +396,9 @@ test('30 students, ten free slots, atomic retry, keyboard, header edit and relog
   await expect(journal.getByText('Оценка сохранена.', { exact: true })).toHaveCount(0);
   expect(await counts(classId)).toEqual({
     columns: 3,
-    grades: 4,
-    notifications: 4,
+    grades: 5,
+    notifications: 5,
     assignments: 0,
   });
-  await page.unroute(`**/api/classrooms/${classId}/journal/grade`);
+  await page.unroute(`**/api/classrooms/${classId}/journal/quick`);
 });

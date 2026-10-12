@@ -131,7 +131,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   // The server really commits; only its first response is deliberately lost.
   // No mocked response or API payload is supplied to the browser.
   let loseOnce = true;
-  await page.route(`**/api/classrooms/${classId}/journal/grade`, async (route) => {
+  await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
     if (!loseOnce) {
       await route.continue();
       return;
@@ -152,7 +152,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   await expect(journal.getByText('Оценка сохранена.', { exact: true })).toHaveCount(0);
   await editor.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
   await expect(journal.getByRole('status').filter({ hasText: 'Оценка сохранена.' })).toBeVisible();
-  await page.unroute(`**/api/classrooms/${classId}/journal/grade`);
+  await page.unroute(`**/api/classrooms/${classId}/journal/quick`);
   await expect(
     journal.getByRole('button', { name: new RegExp(`^${pupils[0].name},.*: 0$`) }),
   ).toBeVisible();
