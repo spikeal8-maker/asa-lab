@@ -410,3 +410,43 @@
 .manual-journal .manual-journal-monthbar label {
   margin: 0;
 }
+
+/* Keep the two mode buttons, month, filters and add action disjoint on narrow content. */
+@container classroom (max-width: 900px) {
+  .manual-journal .manual-journal-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .manual-journal .manual-journal-filters > .manual-journal-modes {
+    order: 0;
+    flex: 1 1 168px;
+    height: auto;
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .manual-journal .manual-journal-filters > button:last-child {
+    order: 1;
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+  .manual-journal .manual-journal-filters > .manual-journal-monthbar {
+    order: 2;
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+  .manual-journal .manual-journal-filters > :is(input, select) {
+    order: 3;
+    flex: 1 1 100px;
+    width: 100px;
+    min-width: 0;
+  }
+  .manual-journal .manual-journal-filters > button[aria-label='Обновить журнал'] {
+    order: 4;
+    flex: 0 0 44px;
+  }
+}

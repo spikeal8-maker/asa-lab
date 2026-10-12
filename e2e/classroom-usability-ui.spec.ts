@@ -251,6 +251,32 @@ for (const width of widths)
               })),
           }));
           expect(sectionBounds.fits, section + JSON.stringify(sectionBounds.elements)).toBe(true);
+          if (section === 'Журнал') {
+            const overlaps = await page.locator('.manual-journal-filters').evaluate((toolbar) => {
+              const controls = [
+                ...toolbar.querySelectorAll<HTMLElement>('button,input,select'),
+              ].filter((el) =>
+                el.checkVisibility({ checkVisibilityCSS: true, checkOpacity: true }),
+              );
+              const found: string[] = [];
+              for (let i = 0; i < controls.length; i++)
+                for (let j = i + 1; j < controls.length; j++) {
+                  const a = controls[i]!.getBoundingClientRect(),
+                    b = controls[j]!.getBoundingClientRect();
+                  if (
+                    Math.min(a.right, b.right) - Math.max(a.left, b.left) > 1 &&
+                    Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) > 1
+                  )
+                    found.push(
+                      String(controls[i]!.getAttribute('aria-label') || controls[i]!.textContent) +
+                        ' / ' +
+                        String(controls[j]!.getAttribute('aria-label') || controls[j]!.textContent),
+                    );
+                }
+              return found;
+            });
+            expect(overlaps, 'Journal controls must not cover each other').toEqual([]);
+          }
           if (width === 1366 || width === 390) {
             await page.screenshot({
               path: `${evidence}/${width}-${sidebar}-zoom${zoom}-${sections.indexOf(section) + 1}.png`,
