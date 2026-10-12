@@ -34,8 +34,20 @@ jobs:
         with:
           ref: ${{ github.sha }}
           fetch-depth: 2
+      - name: Preserve only repository source, never credentials
+        run: |
+          mkdir -p reports/final-repair
+          git archive HEAD | gzip > reports/final-repair/source-before.tar.gz
       - name: Apply only the specified source edits
-        run: node .github/asa558-final-repair.cjs
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const p = 'apps/web/src/components/testing/quick-journal.dom.spec.ts';
+          const s = fs.readFileSync(p, 'utf8');
+          const normalized = s.replace(/\.toContain\(\s*'2026-09-30',\s*\);/g, ".toContain('2026-09-30');");
+          fs.writeFileSync(p, normalized);
+          require('./.github/asa558-final-repair.cjs');
+          JS
       - uses: pnpm/action-setup@v4
         with:
           version: 9.15.9
@@ -61,10 +73,9 @@ jobs:
           head=$(git rev-parse HEAD)
           echo "head=$head" >> "$GITHUB_OUTPUT"
           echo "ASA_BUILD_REVISION=$head" >> "$GITHUB_ENV"
-          mkdir -p reports/final-repair
           git show --stat HEAD > reports/final-repair/commit.txt
           git diff HEAD~1 HEAD > reports/final-repair/source.patch
-          git archive HEAD apps/api/src contexts/projects contexts/identity migrations tests/portal/classroom-observation.pg.spec.ts tests/portal/app.ts tests/portal/helpers.ts apps/web/src/modules/classroom-usability.css apps/web/src/components/manual-classroom-journal.css apps/web/src/pages/DashboardPage.tsx e2e/classroom-layout-acceptance.spec.ts e2e/classroom-readable-text.ts | gzip > reports/final-repair/source-slice.tar.gz
+          git archive HEAD | gzip > reports/final-repair/source-after.tar.gz
       - run: pnpm exec playwright install --with-deps chromium
       - name: Build exact repaired revision
         run: pnpm build
