@@ -7,7 +7,7 @@ import './classroom-observation.css';
 const EDITORS: Record<string, string> = {
   'three-d': '3D',
   electronics: 'Электроника',
-  blocks: 'Блоки',
+  blocks: 'Scratch',
 };
 export function ClassroomStudentProjects({
   classroomId,
@@ -86,7 +86,7 @@ function ProjectList({
         <span>Последнее изменение ↓</span>
       </div>
       <p className="observation-note">
-        Проекты в 3D, электронике и блоках, в том числе без задания. Архив включается отдельно.
+        Проекты в 3D, электронике и Scratch, в том числе без задания. Архив включается отдельно.
       </p>
       <div className="observation-filters">
         <label>
@@ -198,12 +198,16 @@ function ProjectList({
                     <strong>{work.title}</strong>
                     <span>{work.student}</span>
                   </div>
-                  <span>{EDITORS[work.moduleKey] ?? work.moduleKey}</span>
-                  <span>
-                    {work.assigned ? 'По заданию' : 'Без задания'}
-                    {work.status === 'archived' ? ' · Архив' : ''}
-                  </span>
-                  <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
+                  <div className="observation-project-meta">
+                    <span className="observation-editor-badge">
+                      {EDITORS[work.moduleKey] ?? work.moduleKey}
+                    </span>
+                    <span className="observation-assignment-status">
+                      {work.assigned ? 'По заданию' : 'Без задания'}
+                      {work.status === 'archived' ? ' · Архив' : ''}
+                    </span>
+                    <time dateTime={work.updatedAt}>{time.dateTime(work.updatedAt)}</time>
+                  </div>
                   <button
                     type="button"
                     aria-label={`Открыть работу ${work.title}`}

@@ -98,6 +98,7 @@ function HistoryList({ classroomId }: { classroomId: string }): JSX.Element {
         <label>
           Действия
           <select
+            aria-label="Действия"
             value={category}
             onChange={(e) => {
               setCategory(e.target.value);

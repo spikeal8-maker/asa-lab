@@ -10,6 +10,7 @@ export default defineConfig({
     'admin-logs-ui.spec.ts',
     'classroom-owner-ui.spec.ts',
     'classroom-usability-ui.spec.ts',
+    'classroom-layout-acceptance.spec.ts',
   ],
   workers: 1,
   fullyParallel: false,

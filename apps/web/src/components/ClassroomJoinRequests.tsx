@@ -104,14 +104,16 @@ function JoinRequests({ classroomId, onChanged, expanded = false }: Props) {
   );
   const content = (
     <>
-      <button
-        type="button"
-        className="btn-secondary"
-        disabled={busy !== null}
-        onClick={() => void load()}
-      >
-        Обновить заявки
-      </button>
+      {!expanded ? (
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy !== null}
+          onClick={() => void load()}
+        >
+          Обновить заявки
+        </button>
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
       {loading ? <p role="status">Загружаем заявки…</p> : null}
       {!loading && items.length === 0 && !error ? <p>Заявок пока нет.</p> : null}
@@ -121,6 +123,7 @@ function JoinRequests({ classroomId, onChanged, expanded = false }: Props) {
             key={item.id}
             id={`join-request-${item.id}`}
             tabIndex={-1}
+            data-request-status={item.status}
             aria-current={item.id === destination.joinRequest ? 'true' : undefined}
           >
             <div className="classroom-request-summary">
@@ -175,7 +178,17 @@ function JoinRequests({ classroomId, onChanged, expanded = false }: Props) {
   );
   return expanded ? (
     <section className="learning-join-requests" aria-label="Заявки в класс">
-      <h2>{heading}</h2>
+      <div className="classroom-request-heading">
+        <h2>{heading}</h2>
+        <button
+          type="button"
+          className="btn-secondary"
+          disabled={busy !== null}
+          onClick={() => void load()}
+        >
+          Обновить заявки
+        </button>
+      </div>
       {content}
     </section>
   ) : (

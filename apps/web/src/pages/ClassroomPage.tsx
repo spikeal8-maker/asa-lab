@@ -845,54 +845,61 @@ function ClassroomPageContent({
       {tab === 'settings' ? (
         <section className="classroom-tab-panel classroom-settings-panel">
           <h2>Настройки класса</h2>
-          <ClassroomRatingSettings
-            classroomId={classroomId}
-            readOnly={archived}
-            onSaved={() => void reloadParticipants()}
-          />
-          <fieldset className="classroom-safety-settings">
-            <legend>Свойства и безопасность</legend>
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={archived}
-              onClick={() => setPropertiesOpen(true)}
-            >
-              Название и свойства класса
-            </button>
-            <label className="classroom-safe-switch">
-              <span>Безопасный режим для всех</span>
-              <input
-                type="checkbox"
-                checked={classroom.safeModeDefault}
-                disabled={Boolean(busy) || archived}
-                onChange={async (event) => {
-                  const safeMode = event.currentTarget.checked;
-                  await action(
-                    'policy',
-                    'Не удалось сохранить безопасный режим класса.',
-                    async () => {
-                      const result = confirmedClassroomResult(
-                        await api.updateClassroomPolicy(classroomId, safeMode),
+          <div className="classroom-settings-columns">
+            <div className="classroom-settings-column">
+              <fieldset className="classroom-safety-settings">
+                <legend>Свойства и безопасность</legend>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={archived}
+                  onClick={() => setPropertiesOpen(true)}
+                >
+                  Название и свойства класса
+                </button>
+                <label className="classroom-safe-switch">
+                  <span>Безопасный режим для всех</span>
+                  <input
+                    type="checkbox"
+                    checked={classroom.safeModeDefault}
+                    disabled={Boolean(busy) || archived}
+                    onChange={async (event) => {
+                      const safeMode = event.currentTarget.checked;
+                      await action(
+                        'policy',
                         'Не удалось сохранить безопасный режим класса.',
+                        async () => {
+                          const result = confirmedClassroomResult(
+                            await api.updateClassroomPolicy(classroomId, safeMode),
+                            'Не удалось сохранить безопасный режим класса.',
+                          );
+                          confirmClassroom(result.classroom);
+                          setNotice(
+                            result.classroom.safeModeDefault
+                              ? 'Безопасный режим включён для класса.'
+                              : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
+                          );
+                          await reload();
+                        },
                       );
-                      confirmClassroom(result.classroom);
-                      setNotice(
-                        result.classroom.safeModeDefault
-                          ? 'Безопасный режим включён для класса.'
-                          : 'Общий безопасный режим выключен. Индивидуальные настройки сохранены.',
-                      );
-                      await reload();
-                    },
-                  );
-                }}
+                    }}
+                  />
+                  <i aria-hidden="true" />
+                </label>
+              </fieldset>
+              <ClassroomRatingSettings
+                classroomId={classroomId}
+                readOnly={archived}
+                onSaved={() => void reloadParticipants()}
               />
-              <i aria-hidden="true" />
-            </label>
-          </fieldset>
-          <ClassroomGradingScheme classroomId={classroomId} />
-          <LearningNotificationPreferences classroomId={classroomId} />
-          <ClassroomLearningReminders classroomId={classroomId} />
+              <LearningNotificationPreferences classroomId={classroomId} />
+            </div>
+            <div className="classroom-settings-column">
+              <ClassroomGradingScheme classroomId={classroomId} section="manual" />
+              <ClassroomGradingScheme classroomId={classroomId} section="assignments" />
+              <ClassroomLearningReminders classroomId={classroomId} />
+            </div>
+          </div>
         </section>
       ) : null}
       {propertiesOpen ? (

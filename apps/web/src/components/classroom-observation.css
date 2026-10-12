@@ -16,7 +16,7 @@
 .classroom-observation .observation-note,
 .classroom-observation .observation-heading > span {
   color: #657180;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
 }
 .classroom-observation .observation-filters {
@@ -30,13 +30,13 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   min-width: 0;
 }
 .classroom-observation input:not([type='checkbox']),
 .classroom-observation select {
-  min-height: 36px;
+  min-height: 40px;
   max-width: 100%;
   padding: 7px 10px;
   border: 1px solid #cbd3dc;
@@ -48,10 +48,10 @@
 .classroom-observation .observation-checkbox {
   flex-direction: row;
   align-items: center;
-  min-height: 36px;
+  min-height: 40px;
 }
 .classroom-observation button {
-  min-height: 36px;
+  min-height: 40px;
   padding: 6px 12px;
   border: 1px solid #b9c9dc;
   border-radius: 6px;
@@ -75,12 +75,12 @@
 }
 .classroom-observation .observation-projects > li {
   display: grid;
-  grid-template-columns: 32px minmax(120px, 1fr) 90px 115px 120px auto;
+  grid-template-columns: 32px minmax(160px, 1fr) 105px 102px 120px auto;
   align-items: center;
   gap: 12px;
   padding: 12px 0;
   border-bottom: 1px solid #e1e6ec;
-  font-size: 13px;
+  font-size: 14px;
 }
 .classroom-observation .observation-projects img {
   border-radius: 50%;
@@ -102,7 +102,7 @@
   gap: 16px;
   padding: 12px 0;
   border-bottom: 1px solid #e1e6ec;
-  font-size: 13px;
+  font-size: 14px;
 }
 .classroom-observation time {
   color: #657180;
@@ -113,7 +113,7 @@
   flex-wrap: wrap;
   gap: 12px;
   margin: 16px 0;
-  font-size: 13px;
+  font-size: 14px;
 }
 @media (max-width: 900px) {
   .classroom-observation .observation-projects > li {
@@ -140,4 +140,163 @@
     grid-template-columns: 1fr;
     gap: 5px;
   }
+}
+.classroom-observation .observation-heading {
+  margin-bottom: 4px;
+}
+.classroom-observation .observation-note {
+  margin: 8px 0 12px;
+}
+.classroom-observation .observation-filters {
+  display: grid;
+  grid-template-columns:
+    minmax(170px, 1.5fr) minmax(130px, 1fr) minmax(160px, 1.2fr) minmax(128px, 1fr)
+    auto;
+  align-items: end;
+  gap: 10px;
+  padding: 12px;
+  margin: 12px 0;
+  border: 1px solid var(--classroom-line, #d9e4ec);
+  border-radius: 8px;
+  background: var(--classroom-tint, #f1f8fc);
+}
+.classroom-observation .observation-filters > label {
+  width: auto;
+  min-width: 0;
+}
+.classroom-observation .observation-filters > label > :is(input:not([type='checkbox']), select) {
+  width: 100%;
+}
+.classroom-observation .observation-checkbox {
+  min-height: 40px;
+  gap: 7px;
+  font-weight: 500;
+}
+.classroom-observation .observation-checkbox input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
+  margin: 0;
+}
+.classroom-observation .observation-project-title strong {
+  font-size: 16px;
+  line-height: 1.35;
+}
+.classroom-observation .observation-project-title > span {
+  font-size: 13px;
+}
+.classroom-observation .observation-editor-badge {
+  justify-self: start;
+  width: fit-content;
+  background: var(--classroom-tint, #f1f8fc);
+  border-radius: 5px;
+  padding: 4px 7px;
+  font-size: 12px;
+}
+.classroom-observation .observation-assignment-status {
+  font-size: 13px;
+  color: var(--classroom-secondary, #526777);
+}
+.classroom-observation .observation-projects time {
+  font-size: 13px;
+}
+.classroom-observation .observation-pagination {
+  justify-content: flex-start;
+  margin: 12px 0 0;
+}
+.classroom-observation .observation-pagination > label {
+  margin-left: auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 7px;
+}
+.classroom-observation .observation-pagination select {
+  width: 72px;
+}
+.classroom-observation .observation-history > li {
+  padding: 12px 0;
+  grid-template-columns: 135px minmax(0, 1fr);
+}
+.classroom-observation .observation-history > li > div > strong {
+  font-size: 15px;
+}
+@container classroom (max-width: 1000px) {
+  .classroom-observation .observation-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .classroom-observation .observation-filters > label:first-child {
+    grid-column: 1 / -1;
+  }
+  .classroom-observation .observation-projects > li {
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    gap: 5px 10px;
+  }
+  .classroom-observation .observation-projects > li > :is(span, time) {
+    grid-column: 2;
+  }
+  .classroom-observation .observation-projects button {
+    grid-column: 3;
+    grid-row: 1 / span 4;
+    min-height: 44px;
+  }
+}
+@container classroom (max-width: 550px) {
+  .classroom-observation .observation-filters {
+    padding: 10px;
+    gap: 9px;
+  }
+  .classroom-observation .observation-projects > li {
+    align-items: start;
+    padding: 12px 0;
+  }
+  .classroom-observation .observation-projects button {
+    grid-row: 1 / 3;
+  }
+  .classroom-observation .observation-history > li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 5px;
+  }
+  .classroom-observation .observation-history > li > time {
+    font-size: 12px;
+  }
+  .classroom-observation .observation-pagination {
+    gap: 8px;
+  }
+  .classroom-observation .observation-pagination > label {
+    margin-left: 0;
+  }
+}
+.classroom-observation .observation-filters > label {
+  margin: 0;
+  align-items: stretch;
+  justify-content: flex-start;
+  text-align: left;
+}
+.classroom-observation .observation-filters > .observation-checkbox {
+  align-items: center;
+  justify-content: flex-start;
+}
+.classroom-observation .observation-project-meta {
+  display: contents;
+}
+@container classroom (max-width:1000px) {
+  .classroom-observation .observation-project-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px 10px;
+    grid-column: 2 / -1;
+    grid-row: 2;
+    min-width: 0;
+  }
+  .classroom-observation .observation-project-meta > * {
+    grid-column: auto;
+  }
+  .classroom-observation .observation-projects button {
+    grid-row: 1;
+  }
+}
+.classroom-observation .observation-project-meta {
+  line-height: 1.4;
 }

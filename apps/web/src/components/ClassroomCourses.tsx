@@ -57,7 +57,7 @@ export function ClassroomCourses({
   const [runs, setRuns] = useState<ClassroomCourseRun[] | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState('');
-  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignOpen, setAssignOpen] = useState<boolean | null>(null);
   const [dueAt, setDueAt] = useState('');
   const [audienceType, setAudienceType] = useState<'whole_class' | 'named_learners'>('whole_class');
   const [seatIds, setSeatIds] = useState<string[]>([]);
@@ -356,20 +356,22 @@ export function ClassroomCourses({
       <div className="classroom-learning-heading">
         <div>
           <h2>Курсы класса</h2>
-          <p>Ученики проходят опубликованную версию; изменения черновика сюда не попадут.</p>
+          <p>Назначайте курсы всему классу или выбранным ученикам.</p>
         </div>
         <button
           type="button"
           className="btn-secondary"
-          disabled={archived}
-          onClick={() => setAssignOpen((value) => !value)}
-          aria-expanded={assignOpen || courses.length > 0}
+          disabled={archived || courses.length === 0}
+          onClick={() =>
+            setAssignOpen((value) => !(value ?? (courses.length > 0 && runs?.length === 0)))
+          }
+          aria-expanded={assignOpen ?? (courses.length > 0 && runs?.length === 0)}
         >
           Добавить курс
         </button>
       </div>
 
-      {courses.length > 0 || assignOpen ? (
+      {courses.length > 0 && (assignOpen ?? runs?.length === 0) ? (
         <>
           <div className="classroom-course-assign">
             <label>
@@ -446,8 +448,8 @@ export function ClassroomCourses({
               : null}
           </fieldset>
           <p className="classroom-course-hint">
-            Срок — дата и время, {Intl.DateTimeFormat().resolvedOptions().timeZone}. Новое
-            назначение создаёт отдельное проведение.
+            Срок указан по времени {Intl.DateTimeFormat().resolvedOptions().timeZone}. Назначается
+            опубликованная версия курса.
           </p>
         </>
       ) : null}
@@ -464,7 +466,16 @@ export function ClassroomCourses({
       ) : runs.length === 0 ? (
         <div className="classroom-roster-empty">
           <h3>Курсов пока нет</h3>
-          <p>Выберите опубликованный курс выше. Отдельные задания остаются на соседней вкладке.</p>
+          <p>
+            {courses.length
+              ? 'Выберите курс и учеников в форме назначения.'
+              : 'Опубликуйте первый курс в разделе «Курсы и задания».'}
+          </p>
+          {!courses.length ? (
+            <a className="btn-secondary" href="#/challenges">
+              Курсы и задания
+            </a>
+          ) : null}
         </div>
       ) : (
         <ul className="classroom-course-list">

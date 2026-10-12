@@ -262,7 +262,10 @@ function CellEditor({
           <strong>
             {student.name}
             <small>
-              {column.date} · {column.category}
+              <time dateTime={column.date}>
+                {column.date.slice(8)}.{column.date.slice(5, 7)}.{column.date.slice(0, 4)}
+              </time>{' '}
+              · {column.category}
             </small>
           </strong>
           <button aria-label="Закрыть оценку" onClick={() => onClose()}>
@@ -850,7 +853,9 @@ function Journal({ classroomId, modeControl }: { classroomId: string; modeContro
             aria-busy={loadBusy}
           >
             <table
-              style={{ width: `calc(var(--journal-name-width, 240px) + ${columns.length} * 96px)` }}
+              style={{
+                width: `calc(var(--journal-name-width, 240px) + ${columns.length} * var(--journal-work-width, 78px))`,
+              }}
             >
               <colgroup>
                 <col className="manual-journal-name-column" />

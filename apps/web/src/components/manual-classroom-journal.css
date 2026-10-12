@@ -53,14 +53,14 @@
   top: 0;
   z-index: 2;
   background: var(--surface, #fff);
-  width: 96px;
+  width: 78px;
 }
 .manual-journal tr > th:first-child {
   position: sticky;
   left: 0;
   z-index: 1;
   background: var(--surface, #fff);
-  width: 240px;
+  width: 220px;
   overflow-wrap: break-word;
   text-align: left;
 }
@@ -268,10 +268,10 @@
   padding: 2px 4px;
 }
 .manual-journal col {
-  width: 96px;
+  width: 78px;
 }
 .manual-journal col.manual-journal-name-column {
-  width: 240px;
+  width: 220px;
 }
 .manual-journal .manual-journal-column {
   width: 100%;
@@ -449,4 +449,108 @@
     order: 4;
     flex: 0 0 44px;
   }
+}
+/* Ten ordinary work columns fit the normal desktop viewport; long data wraps. */
+.manual-journal thead th:not(:first-child) button {
+  font-size: 14px;
+  line-height: 1.2;
+  min-width: 0;
+  padding: 6px 4px;
+  white-space: normal;
+}
+.manual-journal thead th:not(:first-child) strong {
+  font-size: 14px;
+}
+.manual-journal thead th {
+  background: #f4f8fb;
+}
+.manual-journal thead th:first-child {
+  background: #f4f8fb;
+}
+.manual-journal tbody th {
+  font-weight: 600;
+}
+.manual-journal tbody tr:hover > :is(th, td) {
+  background: #f6fafc;
+}
+.manual-journal .manual-journal-cell {
+  color: var(--ink, #273b49);
+  font-weight: 600;
+}
+.manual-journal .manual-journal-cell:hover {
+  background: #e8f4fa;
+}
+.manual-journal .manual-journal-filters {
+  margin-bottom: 8px;
+}
+.manual-journal .manual-journal-filters > :is(input, select) {
+  font-size: 14px;
+}
+.manual-journal .manual-journal-modes > button[aria-pressed='true'] {
+  background: #eaf6fc;
+  border-color: #7db6d1;
+  color: #05698f;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  :is(.manual-journal-cell, .manual-journal-column) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 4px;
+  min-height: 44px;
+  color: var(--ink, #273b49);
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  .manual-journal-cell {
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  .manual-journal-column {
+  font-size: 14px;
+  line-height: 1.2;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  :is(.manual-journal-cell, .manual-journal-column):hover:not(:disabled) {
+  background: #e8f4fa;
+}
+.manual-journal .manual-journal-monthbar {
+  min-width: 230px;
+}
+.manual-journal .manual-journal-monthbar input {
+  min-width: 130px;
+}
+@container classroom (max-width:550px) {
+  .manual-journal .manual-journal-monthbar {
+    min-width: 0;
+  }
+}
+.manual-journal table {
+  min-width: 100%;
+}
+.manual-journal .manual-journal-column > span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.manual-journal tbody td {
+  padding: 0;
+}
+.manual-journal thead th:not(:first-child) {
+  padding: 2px;
+}
+.manual-journal .manual-journal-column > span {
+  hyphens: auto;
 }

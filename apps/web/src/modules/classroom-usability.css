@@ -43,14 +43,14 @@
 }
 :is(.classroom-owner-list, .classroom-owner-workspace) .classroom-metrics {
   display: grid;
-  grid-template-columns: repeat(6, minmax(60px, 1fr));
-  gap: 8px 16px;
+  grid-template-columns: repeat(6, minmax(58px, 1fr));
+  gap: 8px 12px;
   margin: 0;
   padding: 0;
   font-variant-numeric: tabular-nums;
 }
 .classroom-owner-workspace .classroom-metrics {
-  grid-template-columns: repeat(5, minmax(60px, 1fr));
+  grid-template-columns: repeat(5, minmax(54px, 1fr));
 }
 :is(.classroom-owner-list, .classroom-owner-workspace) .classroom-metrics > span {
   display: grid;
@@ -64,7 +64,7 @@
   color: var(--ink, #273b49);
 }
 :is(.classroom-owner-list, .classroom-owner-workspace) .classroom-metrics span > span {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--ink-muted);
   line-height: 1.25;
 }
@@ -1186,4 +1186,542 @@
   .classroom-owner-workspace.classroom-workspace .classroom-tabbar {
     margin-bottom: 8px;
   }
+}
+
+/* Finished section composition: visual-only, all controls retain their existing handlers. */
+.classroom-owner-workspace,
+.classroom-owner-list {
+  --classroom-accent: #0878a4;
+  --classroom-tint: #f1f8fc;
+  --classroom-line: #d9e4ec;
+  --classroom-secondary: #526777;
+}
+.classroom-owner-workspace.classroom-workspace :is(.classroom-tab-panel, .classroom-observation) {
+  border: 1px solid var(--classroom-line);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  padding: 16px;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .classroom-observation)
+  :is(h2, h3) {
+  font-size: 19px;
+  line-height: 1.3;
+  margin-top: 0;
+  margin-bottom: 8px;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .classroom-observation, .learning-join-requests)
+  :is(button, a.btn-secondary) {
+  box-sizing: border-box;
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--classroom-line);
+  border-radius: 8px;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.25;
+  color: var(--ink, #273b49);
+  background: var(--surface, #fff);
+  box-shadow: none;
+  text-decoration: none;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .classroom-observation, .learning-join-requests)
+  :is(button, a.btn-secondary):hover:not(:disabled) {
+  background: var(--classroom-tint);
+  border-color: #9cc4d7;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .learning-join-requests)
+  :is(.btn-primary, .portal-create-button) {
+  color: #fff;
+  background: var(--classroom-accent);
+  border-color: var(--classroom-accent);
+  width: auto;
+  max-width: 100%;
+  min-height: 40px;
+  white-space: normal;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .learning-join-requests)
+  :is(.btn-primary, .portal-create-button):hover:not(:disabled) {
+  background: #075f83;
+  color: #fff;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .classroom-observation)
+  :is(input:not([type='checkbox']):not([type='radio']), select, textarea) {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 40px;
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--classroom-line);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--ink, #273b49);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.classroom-owner-workspace.classroom-workspace
+  :is(.classroom-tab-panel, .classroom-observation)
+  :is(button, input, select, textarea, a):focus-visible {
+  outline: 2px solid var(--classroom-accent);
+  outline-offset: 2px;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-settings-panel {
+  display: block;
+}
+.classroom-owner-workspace .classroom-settings-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+.classroom-owner-workspace .classroom-settings-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 14px;
+}
+.classroom-owner-workspace
+  .classroom-settings-column
+  > :is(fieldset, section, form, .participant-settings) {
+  box-sizing: border-box;
+  display: block;
+  min-width: 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid var(--classroom-line);
+  border-radius: 9px;
+}
+.classroom-owner-workspace .classroom-settings-column :is(legend, h3) {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  padding-inline: 4px;
+}
+.classroom-owner-workspace .classroom-settings-column p {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--classroom-secondary);
+  margin: 8px 0 12px;
+}
+.classroom-owner-workspace .classroom-settings-column label {
+  font-size: 13px;
+  line-height: 1.35;
+}
+.classroom-owner-workspace .classroom-settings-column .learning-notification-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.classroom-owner-workspace .classroom-settings-column .classroom-scale-band {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  margin: 8px 0 0;
+  padding: 0;
+  border: 0;
+}
+.classroom-owner-workspace .classroom-settings-column .classroom-scale-band > label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+  gap: 4px;
+}
+.classroom-owner-workspace .classroom-settings-column .classroom-scale-band > button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.classroom-owner-workspace .classroom-settings-column .classroom-scale-band:has(> button) {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+.classroom-owner-workspace
+  .classroom-settings-column
+  .learning-notification-actions
+  > :is(label, input) {
+  max-width: 100%;
+}
+.classroom-owner-workspace .classroom-settings-column .participant-settings > div:first-of-type {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-panel
+  .participant-settings
+  label:has(input[type='checkbox']) {
+  display: inline-flex;
+  flex: 0 1 auto;
+  width: auto;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+}
+.classroom-owner-workspace .classroom-settings-column .learning-notification-settings > label {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-block: 8px;
+}
+.classroom-owner-workspace
+  .classroom-settings-column
+  .learning-notification-settings
+  > label:has(input[type='checkbox']) {
+  flex-direction: row;
+  align-items: center;
+  min-height: 36px;
+}
+.classroom-owner-workspace .classroom-request-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+.classroom-owner-workspace .classroom-request-heading h2 {
+  margin: 0;
+}
+.classroom-owner-workspace .learning-join-requests {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.classroom-owner-workspace .learning-join-requests > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.classroom-owner-workspace .learning-join-requests > ul > li {
+  display: grid;
+  grid-template-columns: minmax(160px, 1fr) minmax(0, 2fr);
+  gap: 12px 20px;
+  padding: 14px 0;
+  margin: 0;
+  border: 0;
+  border-top: 1px solid var(--classroom-line);
+  border-radius: 0;
+}
+.classroom-owner-workspace .classroom-request-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.classroom-owner-workspace .classroom-request-summary strong {
+  font-size: 16px;
+  overflow-wrap: anywhere;
+}
+.classroom-owner-workspace .classroom-request-summary > span {
+  width: fit-content;
+  color: var(--classroom-secondary);
+  background: var(--classroom-tint);
+  font-size: 12px;
+  padding: 3px 7px;
+  border-radius: 5px;
+}
+.classroom-owner-workspace li[data-request-status='approved'] .classroom-request-summary > span {
+  color: #166342;
+  background: #e8f6ef;
+}
+.classroom-owner-workspace .classroom-request-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 5px 10px;
+}
+.classroom-owner-workspace .classroom-request-actions > label {
+  grid-column: 1 / -1;
+  font-size: 13px;
+}
+.classroom-owner-workspace .classroom-request-actions > span {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.classroom-owner-workspace .classroom-request-actions > input {
+  width: 100%;
+  min-width: 0;
+}
+.classroom-owner-workspace .classroom-request-actions > span > button:first-child {
+  background: var(--classroom-accent);
+  color: #fff;
+  border-color: var(--classroom-accent);
+}
+.classroom-owner-workspace .classroom-learning-heading > div {
+  min-width: 0;
+}
+.classroom-owner-workspace .classroom-learning-heading p,
+.classroom-owner-workspace .classroom-course-hint {
+  color: var(--classroom-secondary);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 4px 0 8px;
+}
+.classroom-owner-workspace .classroom-courses > .classroom-roster-empty {
+  min-height: 0;
+  display: block;
+  text-align: left;
+  background: var(--classroom-tint);
+  border: 1px dashed var(--classroom-line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 8px 0 0;
+}
+.classroom-owner-workspace .classroom-courses > .classroom-roster-empty p {
+  margin: 4px 0 10px;
+  font-size: 14px;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-course-assign {
+  display: grid;
+  grid-template-columns: minmax(200px, 1.6fr) minmax(185px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  background: var(--classroom-tint);
+  border: 1px solid var(--classroom-line);
+  border-radius: 8px;
+  padding: 12px;
+  margin: 8px 0;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-course-assign label {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  font-size: 13px;
+}
+.classroom-owner-workspace .classroom-courses > .learning-assign-field {
+  border: 1px solid var(--classroom-line);
+  border-radius: 8px;
+  padding: 4px 12px 8px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 18px;
+}
+.classroom-owner-workspace .classroom-courses > .learning-assign-field legend {
+  font-size: 13px;
+  padding: 0 4px;
+}
+.classroom-owner-workspace .classroom-courses > .learning-assign-field label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 14px;
+  min-height: 36px;
+  margin: 0;
+}
+.classroom-owner-workspace .classroom-courses > .learning-assign-field input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: 0 0 18px;
+}
+@container classroom (min-width: 1050px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-head-compact {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto auto;
+    gap: 3px 18px;
+    align-items: center;
+    padding-bottom: 14px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-back {
+    grid-column: 1;
+    grid-row: 1;
+    width: fit-content;
+    min-height: 24px;
+    padding: 0;
+    font-size: 13px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-title {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-title h1 {
+    font-size: 26px;
+    line-height: 1.2;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-compact > .classroom-metrics {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    gap: 10px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-code {
+    grid-column: 3;
+    grid-row: 1 / 3;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-code .classroom-code-chip {
+    font-size: 15px;
+    letter-spacing: 0.04em;
+    padding: 8px 10px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-code > button {
+    font-size: 14px;
+    padding-inline: 10px;
+  }
+}
+@container classroom (max-width: 750px) {
+  .classroom-owner-workspace .classroom-settings-columns {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+  .classroom-owner-workspace .classroom-request-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .classroom-owner-workspace .learning-join-requests > ul > li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-course-assign {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-course-assign > button {
+    justify-self: start;
+  }
+  .classroom-owner-workspace.classroom-workspace :is(.classroom-tab-panel, .classroom-observation) {
+    padding: 12px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    :is(.classroom-tab-panel, .classroom-observation)
+    :is(button, a.btn-secondary) {
+    min-height: 44px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    :is(.classroom-tab-panel, .classroom-observation)
+    :is(input:not([type='checkbox']):not([type='radio']), select) {
+    min-height: 44px;
+  }
+}
+@container classroom (min-width: 281px) and (max-width: 550px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-head-compact > .classroom-metrics {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px 4px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-metrics strong {
+    font-size: 19px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-metrics span > span {
+    font-size: 12px;
+  }
+}
+.classroom-owner-workspace.classroom-workspace .classroom-settings-column .info-hint-trigger {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-column
+  .learning-notification-settings
+  > label:not(:has(input[type='checkbox'])) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: stretch;
+  text-align: left;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-settings-column .classroom-scale-band {
+  grid-template-columns: 88px minmax(0, 1fr);
+}
+.classroom-owner-workspace.classroom-workspace .classroom-settings-column .classroom-safe-switch {
+  margin-top: 8px;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-column
+  .learning-notification-actions {
+  gap: 6px;
+}
+@media (min-width: 1101px) {
+  .portal-content:is(.classroom-owner-list, .classroom-owner-workspace) {
+    padding-top: 24px;
+  }
+}
+@container classroom (max-width:750px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-settings-column .info-hint-trigger {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-column
+  .classroom-scale-band:has(.classroom-scale-remove) {
+  grid-template-columns: 80px minmax(0, 1fr) 40px;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-column
+  .classroom-scale-band
+  > .classroom-scale-remove {
+  grid-column: 3;
+  align-self: end;
+  justify-self: stretch;
+  width: 40px;
+  padding: 0;
+  font-size: 21px;
+  font-weight: 400;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-settings-column button.btn-primary,
+.classroom-owner-workspace.classroom-workspace
+  .classroom-request-actions
+  > span
+  > button:first-child {
+  color: #fff;
+  background: var(--classroom-accent);
+  border-color: var(--classroom-accent);
+}
+.classroom-owner-workspace.classroom-workspace .classroom-request-summary {
+  text-align: left;
+  align-items: flex-start;
+  justify-content: center;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-safety-settings {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+.classroom-owner-workspace.classroom-workspace .classroom-safety-settings .classroom-safe-switch {
+  margin: 0;
+  gap: 10px;
+}
+@container classroom (max-width:750px) {
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-settings-column
+    .classroom-scale-band:has(.classroom-scale-remove) {
+    grid-template-columns: 70px minmax(0, 1fr) 44px;
+  }
+  .classroom-owner-workspace.classroom-workspace
+    .classroom-settings-column
+    .classroom-scale-band
+    > .classroom-scale-remove {
+    width: 44px;
+    min-height: 44px;
+  }
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-course-assign
+  > button.portal-create-button:not(:disabled) {
+  background: var(--classroom-accent);
+  color: #fff;
+  border-color: var(--classroom-accent);
 }
