@@ -20,7 +20,10 @@ beforeAll(async () => {
   admin = testAdminPool();
   runtime = testAppPool();
   // App-owned pool and direct-query pool have separate lifecycle owners.
-  api = await buildTestApp(testAppPool());
+  const httpPool = testAppPool();
+  httpPool.options.statement_timeout = 15_000;
+  httpPool.options.application_name = 'asa558_observation_http';
+  api = await buildTestApp(httpPool);
 }, 30_000);
 afterAll(async () => {
   const closed = await Promise.allSettled([api?.close(), admin?.end(), runtime?.end()]);
@@ -378,11 +381,26 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     const before = await counts();
     mark('profiles');
     for (const endpoint of ['projects', 'history']) {
+      mark('HTTP ' + endpoint + ':start');
+      const probe = setTimeout(() => {
+        void admin
+          .query(
+            `SELECT state,wait_event_type,wait_event,left(query,350) query,
+          pg_blocking_pids(pid) blockers FROM pg_stat_activity
+          WHERE application_name='asa558_observation_http'`,
+          )
+          .then((result) => {
+            console.info('observation_HTTP_state', endpoint, JSON.stringify(result.rows));
+          })
+          .catch(() => console.info('observation_HTTP_state_unavailable'));
+      }, 5000);
       const result = await inject(api, {
         method: 'GET',
         url: `/api/classrooms/${f.classId}/observation/${endpoint}`,
         headers: { cookie: `asa_session=${f.teacherToken}` },
       });
+      clearTimeout(probe);
+      mark('HTTP ' + endpoint + ':complete');
       expect(result.statusCode, result.body).toBe(200);
     }
     const result = await inject(api, {
