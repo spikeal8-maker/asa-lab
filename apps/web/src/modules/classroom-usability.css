@@ -2124,3 +2124,10 @@
   font-weight: 400;
   line-height: 1.4;
 }
+
+/* Medium content keeps four full pupil rows visible without shrinking text. */
+@container classroom (min-width: 551px) and (max-width: 959px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-toolbar {
+    margin-bottom: 6px;
+  }
+}
