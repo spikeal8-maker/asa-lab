@@ -2093,6 +2093,7 @@
 }
 .classroom-owner-workspace.classroom-workspace
   .classroom-settings-panel
+  .classroom-settings-column
   label.notification-setting-label {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
@@ -2105,6 +2106,7 @@
 }
 .classroom-owner-workspace.classroom-workspace
   .classroom-settings-panel
+  .classroom-settings-column
   label.notification-setting-label
   > input {
   grid-area: 1 / 1 / 2 / 2;
@@ -2114,6 +2116,7 @@
 }
 .classroom-owner-workspace.classroom-workspace
   .classroom-settings-panel
+  .classroom-settings-column
   label.notification-setting-label
   > span {
   grid-area: 1 / 2 / 2 / 3;

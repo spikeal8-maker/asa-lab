@@ -1,4 +1,5 @@
 import '../modules/classroom-owner-layout.css';
+import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
