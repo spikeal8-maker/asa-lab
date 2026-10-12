@@ -1960,7 +1960,7 @@
     flex-basis: 100%;
   }
 }
-@container classroom (max-width: 310px) {
+@container classroom (max-width: 280px) {
   .classroom-owner-workspace.classroom-workspace .classroom-head-compact .classroom-metrics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1988,4 +1988,41 @@
 .classroom-owner-workspace .classroom-settings-panel .notification-setting-row > .info-hint {
   align-self: center;
   justify-self: end;
+}
+
+@container classroom (max-width: 959px) {
+  .classroom-owner-list .classroom-list-row .classroom-row-title {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: break-word;
+    line-height: 1.35;
+  }
+}
+@container classroom (min-width: 281px) and (max-width: 550px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-head-code {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-code .classroom-code-chip {
+    min-width: 0;
+    font-size: 16px;
+    padding: 8px;
+    letter-spacing: 0.03em;
+    justify-content: center;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-head-code > button {
+    font-size: 14px;
+    padding-inline: 8px;
+    min-width: 0;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-actions button {
+    padding-inline: 0;
+    gap: 2px;
+  }
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-actions button svg {
+    width: 12px;
+    flex-shrink: 0;
+  }
 }

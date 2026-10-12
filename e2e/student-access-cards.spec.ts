@@ -1131,7 +1131,11 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
     expect(copyLog).toEqual([]);
     const codeRow = page
       .locator('.classroom-roster-row')
-      .filter({ hasText: longCodeSeat.displayLabel });
+      .filter({
+        has: page.getByText('Константин Александрович Очень-Длинная-Составная-Фамилия', {
+          exact: true,
+        }),
+      });
     await codeRow.locator('.classroom-login-handle').click();
     await expect.poll(() => copyLog).toEqual([longCodeSeat.studentCode]);
     await expect(page.locator('.classroom-roster-table')).not.toContainText('acc:');

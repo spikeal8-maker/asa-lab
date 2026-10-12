@@ -44,7 +44,7 @@ test('teacher creates a class, issues a StudentSeat and controls learner access'
   await createDialog.getByRole('button', { name: 'Создать', exact: true }).click();
 
   const classCard = page.getByTestId('classroom-card').filter({ hasText: '5Б Makers' });
-  await expect(classCard.locator('.classroom-row-students')).toHaveText('0');
+  await expect(classCard.locator('.classroom-row-students .classroom-stat-number')).toHaveText('0');
   await classCard.locator('.classroom-row-title').click();
 
   await expect(page.getByRole('heading', { name: '5Б Makers', level: 1 })).toBeVisible();

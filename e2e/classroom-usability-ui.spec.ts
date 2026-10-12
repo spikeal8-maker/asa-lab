@@ -1,3 +1,4 @@
+import { classroomTextDefects } from './classroom-readable-text';
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
@@ -172,8 +173,16 @@ for (const width of widths)
         });
         await page.goto('/#/classrooms');
         await expect(page.getByTestId('classroom-card')).toHaveCount(23);
-        await expect(page.locator('.classroom-row-works').first()).toHaveText('7');
-        await expect(page.locator('.classroom-row-works').nth(1)).toHaveText('10');
+        expect(
+          await classroomTextDefects(page),
+          'Numbers and actual captions must not overlap at this zoom',
+        ).toEqual([]);
+        await expect(
+          page.locator('.classroom-row-works .classroom-stat-number').first(),
+        ).toHaveText('7');
+        await expect(page.locator('.classroom-row-works .classroom-stat-number').nth(1)).toHaveText(
+          '10',
+        );
         expect(
           await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1),
         ).toBe(true);

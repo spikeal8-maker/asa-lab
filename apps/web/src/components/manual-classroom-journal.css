@@ -582,3 +582,22 @@
     max-width: 160px;
   }
 }
+
+.classroom-owner-workspace .manual-journal {
+  --journal-work-width: 132px;
+  --journal-name-width: 220px;
+}
+.classroom-owner-workspace .manual-journal col:not(.manual-journal-name-column) {
+  width: var(--journal-work-width);
+}
+.classroom-owner-workspace .manual-journal col.manual-journal-name-column,
+.classroom-owner-workspace .manual-journal tr > th:first-child {
+  width: var(--journal-name-width);
+  min-width: var(--journal-name-width);
+  max-width: var(--journal-name-width);
+}
+@container classroom (max-width: 550px) {
+  .classroom-owner-workspace .manual-journal {
+    --journal-name-width: 160px;
+  }
+}
