@@ -77,6 +77,19 @@ export async function classroomTextDefects(page: Page): Promise<string[]> {
       if (column.checkVisibility() && column.getBoundingClientRect().width < 128)
         defects.push('Unreadably narrow journal heading');
     }
+    for (const label of document.querySelectorAll<HTMLElement>(
+      '.classroom-settings-panel .notification-setting-label',
+    )) {
+      const input = label.querySelector('input'),
+        caption = label.querySelector('span');
+      if (!input || !caption || !label.checkVisibility()) continue;
+      const range = document.createRange();
+      range.selectNodeContents(caption);
+      const first = range.getClientRects()[0],
+        box = input.getBoundingClientRect();
+      if (first && (first.left < box.right + 4 || Math.abs(first.top - box.top) > 5))
+        defects.push('Checkbox separated from its caption: ' + caption.textContent);
+    }
     return defects;
   });
 }

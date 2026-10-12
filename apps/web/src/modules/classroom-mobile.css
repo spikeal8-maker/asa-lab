@@ -324,17 +324,18 @@
 }
 /* One header row on this screen, retaining every global navigation action. */
 @media (max-width: 900px) {
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student)) {
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list)) {
     --portal-header-height: 56px;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
-    > :is(.classroom-owner-workspace, .classroom-student).portal-content {
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
+    > :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list).portal-content {
     box-sizing: border-box;
     width: 100%;
     margin: 0;
     padding: 10px 12px 24px;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student)) .portal-header {
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
+    .portal-header {
     grid-template-columns: 44px minmax(24px, 1fr) 88px 72px 44px;
     grid-template-rows: 56px;
     grid-template-areas: 'menu brand public create account';
@@ -348,13 +349,13 @@
     min-height: 44px;
     padding: 0;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .portal-global-nav {
     width: 88px;
     gap: 0;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .portal-global-nav
     a {
@@ -364,7 +365,7 @@
     min-height: 44px;
     padding: 0;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .portal-header-create {
     box-sizing: border-box;
@@ -373,18 +374,18 @@
     padding: 0 6px;
     font-size: 13px;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .portal-header-create
     > span:first-child {
     display: none;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .portal-header-create-label {
     display: inline;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .portal-account
     > summary {
@@ -400,12 +401,12 @@
     grid-template-columns: 44px minmax(44px, 1fr) 88px 72px 44px;
     gap: 0 3px;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .asa-brand-copy {
     display: none;
   }
-  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student))
+  .portal-shell:has(> :is(.classroom-owner-workspace, .classroom-student, .classroom-owner-list))
     .portal-header
     .asa-brand-mark {
     width: 24px;

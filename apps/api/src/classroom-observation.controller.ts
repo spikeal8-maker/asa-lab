@@ -132,7 +132,7 @@ export class ClassroomObservationController {
       (!before ||
         !id ||
         extra !== undefined ||
-        !/^(?:(?:class|submission):[0-9a-f-]{36}|(?:auth|edit):\d{1,20})$/.test(id))
+        !/^(?:(?:class|submission|activation):[0-9a-f-]{36}|(?:auth|edit):\d{1,20})$/.test(id))
     )
       fail('validation_error', 'Некорректная страница истории.', 400);
     if (from && to && Date.parse(from) >= Date.parse(to))

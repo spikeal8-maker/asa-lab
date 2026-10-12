@@ -297,6 +297,13 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       expect.objectContaining({ action: 'seat.activated', byTeacher: false, projectId: null }),
     ]);
     expect(await principalCount()).toBe(0);
+    const cursor = encodeURIComponent(new Date().toISOString() + '|activation:' + id);
+    const nextPage = await inject(api, {
+      method: 'GET',
+      url: `/api/classrooms/${f.classId}/observation/history?category=access&cursor=${cursor}`,
+      headers: { cookie: `asa_session=${f.teacherToken}` },
+    });
+    expect(nextPage.statusCode, nextPage.body).toBe(200);
     await expect(runtime.query('SELECT * FROM classroom_activation_observations')).rejects.toThrow(
       /permission denied/,
     );

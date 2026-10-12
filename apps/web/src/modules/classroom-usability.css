@@ -2026,3 +2026,98 @@
     flex-shrink: 0;
   }
 }
+
+/* Two separate tracks at the narrowest effective zoom; captions remain full words. */
+.classroom-owner-list .classroom-list-row .classroom-stat-label {
+  font-weight: 400;
+}
+@container classroom (max-width: 280px) {
+  .classroom-owner-list .classroom-list-row {
+    grid-template-columns: 44px minmax(0, 1fr) minmax(0, 1fr) 44px;
+    grid-template-rows: auto auto auto auto auto auto;
+  }
+  .classroom-owner-list .classroom-row-select {
+    grid-area: 1 / 1 / 2 / 2;
+  }
+  .classroom-owner-list .classroom-row-menu {
+    grid-area: 1 / 4 / 2 / 5;
+  }
+  .classroom-owner-list .classroom-row-title {
+    grid-area: 2 / 1 / 3 / 5;
+  }
+  .classroom-owner-list .classroom-row-students {
+    grid-area: 3 / 1 / 4 / 3;
+  }
+  .classroom-owner-list .classroom-row-works {
+    grid-area: 3 / 3 / 4 / 5;
+  }
+  .classroom-owner-list .classroom-row-progress {
+    grid-area: 4 / 1 / 5 / 3;
+  }
+  .classroom-owner-list .classroom-row-awaiting {
+    grid-area: 4 / 3 / 5 / 5;
+  }
+  .classroom-owner-list .classroom-row-behind {
+    grid-area: 5 / 1 / 6 / 5;
+  }
+  .classroom-owner-list .classroom-row-date {
+    grid-area: 6 / 1 / 7 / 5;
+  }
+}
+@container classroom (min-width: 281px) and (max-width: 550px) {
+  .classroom-owner-list .classroom-hub-toolbar {
+    grid-template-columns: 28px minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto;
+  }
+  .classroom-owner-list .classroom-hub-toolbar > .portal-create-button {
+    grid-area: 1 / 2 / 2 / 4;
+  }
+  .classroom-owner-list .classroom-bulk-menu {
+    grid-area: 2 / 1 / 3 / 3;
+  }
+  .classroom-owner-list .classroom-sort-menu {
+    grid-area: 2 / 3 / 3 / 4;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .classroom-owner-list .classroom-sort-menu > summary {
+    white-space: normal;
+    padding: 4px;
+    min-height: 44px;
+  }
+}
+@container classroom (max-width: 310px) {
+  .classroom-owner-workspace.classroom-workspace .classroom-roster-actions button svg {
+    display: none;
+  }
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-panel
+  label.notification-setting-label {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+  margin: 0;
+  min-height: 44px;
+  width: 100%;
+  min-width: 0;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-panel
+  label.notification-setting-label
+  > input {
+  grid-area: 1 / 1 / 2 / 2;
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-settings-panel
+  label.notification-setting-label
+  > span {
+  grid-area: 1 / 2 / 2 / 3;
+  min-width: 0;
+  font-weight: 400;
+  line-height: 1.4;
+}

@@ -150,7 +150,7 @@ export function LearningNotificationPreferences({
       ) : draft ? (
         <>
           <div className="notification-setting-row">
-            <label>
+            <label className="notification-setting-label">
               <input
                 type="checkbox"
                 checked={draft.masterEnabled}
@@ -159,7 +159,7 @@ export function LearningNotificationPreferences({
                   editDraft({ ...draft, masterEnabled: e.target.checked });
                 }}
               />
-              Получать учебные оповещения
+              <span>Получать учебные оповещения</span>
             </label>
             <InfoHint label="О получении учебных оповещений">
               Общий выключатель останавливает доставку всех выбранных учебных категорий. Выбор
@@ -173,7 +173,7 @@ export function LearningNotificationPreferences({
             <div className="learning-category-grid">
               {keys.map((key) => (
                 <div className="notification-setting-row" key={key}>
-                  <label>
+                  <label className="notification-setting-label">
                     <input
                       type="checkbox"
                       disabled={busy}
@@ -185,7 +185,7 @@ export function LearningNotificationPreferences({
                         });
                       }}
                     />
-                    {notificationCategories[key]}
+                    <span>{notificationCategories[key]}</span>
                   </label>
                   <InfoHint label={`О категории «${notificationCategories[key]}»`}>
                     {categoryHints[key]}
@@ -337,21 +337,21 @@ export function ClassroomLearningReminders({ classroomId }: { classroomId: strin
       ) : null}
       {value ? (
         <>
-          <label>
+          <label className="notification-setting-label">
             <input
               type="checkbox"
               checked={value.due}
               onChange={(e) => setValue({ ...value, due: e.target.checked })}
             />
-            Напоминать о приближении срока
+            <span>Напоминать о приближении срока</span>
           </label>
-          <label>
+          <label className="notification-setting-label">
             <input
               type="checkbox"
               checked={value.overdue}
               onChange={(e) => setValue({ ...value, overdue: e.target.checked })}
             />
-            Напоминать о просроченных действиях
+            <span>Напоминать о просроченных действиях</span>
           </label>
           <button
             className="btn-secondary"
