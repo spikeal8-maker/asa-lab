@@ -456,21 +456,36 @@ export function DashboardPage({
                 ) : null}
               </button>
               <span className="classroom-row-students" data-label="Ученики">
-                {rowMetrics.get(classroom.id)?.students ?? '—'}
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.students ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Ученики</span>
               </span>
               <span className="classroom-row-works" data-label="Работы">
-                {rowMetrics.get(classroom.id)?.works ?? '—'}
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.works ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Работы</span>
               </span>
               <span className="classroom-row-progress" data-label="Сдано">
-                {rowMetrics.has(classroom.id)
-                  ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
-                  : '—'}
+                <span className="classroom-stat-number">
+                  {rowMetrics.has(classroom.id)
+                    ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
+                    : '—'}
+                </span>
+                <span className="classroom-stat-label">Сдано</span>
               </span>
               <span className="classroom-row-awaiting" data-label="Ждут">
-                {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Ждут</span>
               </span>
               <span className="classroom-row-behind" data-label="Не сдали">
-                {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Не сдали</span>
               </span>
               <span className="classroom-row-date">
                 {/* Подпись нужна только архиву: у остальных её говорит колонка. */}

@@ -19,11 +19,19 @@ let admin: pg.Pool, runtime: pg.Pool, api: NestApp;
 beforeAll(async () => {
   admin = testAdminPool();
   runtime = testAppPool();
-  api = await buildTestApp(runtime);
+  // App-owned pool and direct-query pool have separate lifecycle owners.
+  api = await buildTestApp(testAppPool());
 }, 30_000);
 afterAll(async () => {
-  await api?.close();
-  await Promise.all([admin?.end(), runtime?.end()]);
+  const closed = await Promise.allSettled([api?.close(), admin?.end(), runtime?.end()]);
+  const failures = closed.filter(
+    (result): result is PromiseRejectedResult => result.status === 'rejected',
+  );
+  if (failures.length)
+    throw new AggregateError(
+      failures.map((result) => result.reason),
+      'test_cleanup_failed',
+    );
 });
 async function read<T>(fn: string, args: unknown[]): Promise<T> {
   const result = await runtime.query(
@@ -183,6 +191,24 @@ async function fixture(count = 2) {
     ).rows[0].id as string;
     return { assignment: result.classroom_assignment_id as string, run };
   }
+  async function withdraw(participation: string) {
+    const client = await runtime.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT set_config('app.tenant_id',$1,true)", [teacher.tenantId]);
+      const result = await client.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
+        actor.principal_id,
+        participation,
+      ]);
+      await client.query('COMMIT');
+      return result.rows[0].result_code;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
   async function start(run: string, pupil = seats[0]!) {
     const response = await inject(api, {
       method: 'POST',
@@ -207,6 +233,7 @@ async function fixture(count = 2) {
     history,
     assign,
     start,
+    withdraw,
   };
 }
 
@@ -286,10 +313,15 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
   }, 30_000);
 
   it('counts a 2-of-30 audience, immutable-origin submission and teacher/self profile identically, without GET side effects', async () => {
+    const mark = (phase: string) => console.info('observation_2of30', phase);
+    mark('fixture:start');
     const f = await fixture(30);
+    mark('fixture:complete');
     const [a, b] = f.seats;
     const issued = await f.assign([a!.id, b!.id]);
+    mark('assigned');
     const work = await f.start(issued.run);
+    mark('started');
     const revision = (
       await admin.query('SELECT revision FROM project_drafts WHERE project_id=$1', [work.projectId])
     ).rows[0].revision;
@@ -302,7 +334,9 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       ])
     ).rows[0];
     expect(submit.result_code).toBe('ok');
+    mark('submitted');
     const summary = await f.summary();
+    mark('summary');
     expect(summary.items[0]).toMatchObject({
       students: 30,
       works: 1,
@@ -342,6 +376,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
         )
       ).rows[0];
     const before = await counts();
+    mark('profiles');
     for (const endpoint of ['projects', 'history']) {
       const result = await inject(api, {
         method: 'GET',
@@ -358,6 +393,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
     });
     expect(result.statusCode).toBe(201);
     expect(result.json()).toEqual(summary);
+    mark('HTTP summary');
     expect(await counts()).toEqual(before);
     expect(
       (await f.history('projects')).items.some(
@@ -441,14 +477,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       waiting: 0,
       notSubmitted: 1,
     });
-    expect(
-      (
-        await runtime.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
-          f.actor.principal_id,
-          started.participationId,
-        ])
-      ).rows[0].result_code,
-    ).toBe('ok');
+    expect(await f.withdraw(started.participationId)).toBe('ok');
     expect((await f.summary()).totals).toMatchObject({
       assigned: 1,
       submitted: 0,
@@ -461,14 +490,7 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
         [issued.run, b!.id],
       )
     ).rows[0].id;
-    expect(
-      (
-        await runtime.query('SELECT * FROM activity_participation_withdraw($1,$2)', [
-          f.actor.principal_id,
-          otherParticipation,
-        ])
-      ).rows[0].result_code,
-    ).toBe('ok');
+    expect(await f.withdraw(otherParticipation)).toBe('ok');
     expect((await f.summary()).totals).toMatchObject({
       assigned: 0,
       submitted: 0,

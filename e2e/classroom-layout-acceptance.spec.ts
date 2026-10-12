@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { fixture, classId } from './fixtures/classroom-owner';
+import { classroomTextDefects } from './classroom-readable-text';
 
 // Visual acceptance of the built React application. All data below is synthetic;
 // this suite never claims real-database, authorization or classroom-load evidence.
@@ -374,7 +375,9 @@ async function photograph(page: Page, file: string, expectedPanel: string) {
       }),
     };
   });
+  const textDefects = await classroomTextDefects(page);
   await page.screenshot({ path: `${out}/${file}.png`, fullPage: true });
+  expect.soft(textDefects, `Actual caption/value/checkbox collisions: ${file}`).toEqual([]);
   writeFileSync(`${out}/${file}.json`, JSON.stringify(measure, null, 2));
   expect.soft(measure.documentWidth, file).toBeLessThanOrEqual(measure.width + 1);
   expect.soft(measure.mainScrollWidth, file).toBeLessThanOrEqual(measure.mainWidth + 1);

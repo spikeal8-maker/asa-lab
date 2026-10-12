@@ -554,3 +554,31 @@
 .manual-journal .manual-journal-column > span {
   hyphens: auto;
 }
+
+/* Keep full words and dates readable; scroll only the matrix, never the page. */
+.classroom-owner-workspace .manual-journal thead th:not(:first-child),
+.classroom-owner-workspace .manual-journal tbody td {
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
+}
+.classroom-owner-workspace .manual-journal th span,
+.classroom-owner-workspace .manual-journal th small,
+.classroom-owner-workspace .manual-journal-column {
+  max-width: none;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.classroom-owner-workspace .manual-journal-column {
+  width: 100%;
+}
+.classroom-owner-workspace .manual-journal-column time {
+  white-space: nowrap;
+}
+@container classroom (max-width: 550px) {
+  .classroom-owner-workspace .manual-journal tr > th:first-child {
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+  }
+}

@@ -237,7 +237,7 @@ describe('quick journal DOM regressions', () => {
       'Keep draft',
     );
     expect(container.querySelector('.manual-journal-editor header')?.textContent).toContain(
-      '2026-09-30',
+      '30.09.2026',
     );
     await click(button('5', container.querySelector('.manual-journal-editor')!));
     expect(quick.mock.calls[1][1]).toMatchObject({
