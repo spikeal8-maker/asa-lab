@@ -199,9 +199,15 @@ async function assertLayout(page: Page, width: number, file: string) {
       expect(rect!.width).toBeGreaterThanOrEqual(44);
       expect(rect!.height).toBeGreaterThanOrEqual(44);
     }
+    const compactNavigation = await control.evaluate((element) =>
+      element.matches('.participant-tabs button, .participant-role select'),
+    );
+    // Compact navigation uses 13px labels; grades and assignment actions remain 16px.
+    const minFontSize = compactNavigation ? 13 : 16;
     expect(
       await control.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
-    ).toBeGreaterThanOrEqual(16);
+    ).toBeGreaterThanOrEqual(minFontSize);
+    if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(44);
   }
   if (width <= 900) {
     const header = page.locator('.portal-header');

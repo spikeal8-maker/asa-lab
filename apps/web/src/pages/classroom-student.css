@@ -548,7 +548,7 @@
 }
 .classroom-student .participant-role select {
   box-sizing: border-box;
-  min-height: 38px;
+  min-height: 44px;
   max-width: 120px;
   padding: 5px 7px;
   font-size: 13px;
@@ -678,7 +678,7 @@
     font-size: 13px;
   }
   .classroom-student > .classroom-student-back {
-    min-height: 36px;
+    min-height: 44px;
     margin-bottom: 4px;
   }
   .classroom-student .classroom-student-hero {
@@ -733,8 +733,8 @@
     font-size: 11px;
   }
   .classroom-student .participant-role select {
-    min-height: 36px;
-    font-size: 12px;
+    min-height: 44px;
+    font-size: 13px;
   }
   .classroom-student > .participant-grade-summary {
     margin: 4px 0 6px;
@@ -745,7 +745,7 @@
     padding-bottom: 5px;
   }
   .classroom-student .participant-tabs button {
-    min-height: 40px;
+    min-height: 44px;
     padding-inline: 9px;
     font-size: 13px;
   }
@@ -771,8 +771,8 @@
     font-size: 11px;
   }
   .classroom-student .project-card-primary {
-    min-height: 40px;
-    font-size: 12px;
+    min-height: 44px;
+    font-size: 13px;
   }
 }
 @media (max-width: 350px) {
