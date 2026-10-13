@@ -12,6 +12,7 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import pg from 'pg';
 import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
+import { openAccountSettings } from './portal-navigation';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 
 /**
@@ -860,8 +861,12 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     }
     await expect(activity).toContainText('Сдано');
     await matePage.goto(classUrl);
-    await matePage.getByRole('button', { name: /^Оповещения/ }).click();
-    const inbox = matePage.getByRole('dialog', { name: 'Учебные оповещения' });
+    await openAccountSettings(matePage);
+    await matePage
+      .getByLabel('Разделы настроек')
+      .getByRole('button', { name: 'Уведомления', exact: true })
+      .click();
+    const inbox = matePage.getByRole('region', { name: 'События уведомлений', exact: true });
     const notificationsResponse = await matePage.request.get('/api/learning/notifications');
     expect(notificationsResponse.ok()).toBe(true);
     const notifications = (await notificationsResponse.json()) as { items: LearningNotification[] };

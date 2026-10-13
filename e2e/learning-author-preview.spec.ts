@@ -498,7 +498,7 @@ test('content-first image and PDF keep the new draft selectable as a project pra
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Возможности', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
