@@ -4514,21 +4514,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs003_focused_verified_reported_waiting_owner
+      checkpoint: obs004_browser_storage_coverage
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.2'
+          revision: '1.3'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-003
-        status: implemented_focused_verified
+        selected_item: OBS-004
+        status: in_progress
         completed_items: [OBS-001, OBS-002, OBS-003]
         accepted_items:
           OBS-001:
@@ -4591,10 +4591,10 @@ parallel_lanes:
             report: docs/execution/OBS_003_REPORT.md
         mode: one_item_report_then_stop
         next_item_requires_owner_instruction: true
-        owner_instruction: Implement item3 only, report completely and stop; do not advance to item4.
-        candidate_baseline_sha: b45e28d75c5ff8deafd349f27df8ea31c89d85dc
-        acceptance_scope: Exact HTTP status and valid receipt body for each existing telemetry acknowledgement stage.
-        next_action: stop_and_wait_for_owner_instruction
+        owner_instruction: Implement item4 only, report completely and stop; do not advance to item5.
+        candidate_baseline_sha: c17e692cc6c2b7ca885e079c366b5e578893345d
+        acceptance_scope: Truthful local queue persistence coverage and read-error classification without recursive reporting.
+        next_action: Implement OBS004, verify storage failure coverage, report and stop.
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4659,7 +4659,7 @@ parallel_lanes:
         Owner narrowed execution to one numbered item with report and STOP; OBS-001 is focused-verified.
         OBS-002 independent source review and focused checks passed after deadline repair; report and STOP.
         OBS-003 exact acknowledgement contracts passed source review and focused checks; report and STOP.
-        No next item is selected.
+        Owner selected OBS-004 only: browser queue storage availability and truthful quality, then report and STOP.
         Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
@@ -4674,7 +4674,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 and OBS-003 are focused-verified and reported. Wait for the next explicit owner instruction.
+        accepted; OBS-002 and OBS-003 are focused-verified and reported. Owner selected OBS-004 only, then report and STOP.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
