@@ -1,0 +1,83 @@
+.asa-ai-admin {
+  display: grid;
+  gap: 18px;
+  max-width: 980px;
+}
+.asa-ai-admin-form {
+  display: grid;
+  gap: 18px;
+  max-width: 780px;
+  padding: 24px;
+  border: 1px solid #dce6eb;
+  border-radius: 14px;
+  background: #fff;
+}
+.asa-ai-admin-form label:not(.asa-ai-admin-check) {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.asa-ai-admin-form select,
+.asa-ai-admin-form input[type='password'] {
+  width: 100%;
+  min-height: 44px;
+  padding: 9px 12px;
+  border: 1px solid #c7d6df;
+  border-radius: 9px;
+  background: white;
+  color: #1b3344;
+  font: inherit;
+}
+.asa-ai-admin-status {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.asa-ai-admin-status > div {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 10px;
+  background: #f4f8fb;
+}
+.asa-ai-admin-status span,
+.asa-ai-admin-fingerprint,
+.asa-ai-admin-actions small {
+  color: #506575;
+  font-size: 13px;
+}
+.asa-ai-admin-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.asa-ai-admin-check input {
+  width: 18px;
+  height: 18px;
+}
+.asa-ai-admin-warning {
+  padding: 12px;
+  border: 1px solid #e8c77b;
+  border-radius: 9px;
+  background: #fff7e6;
+}
+.asa-ai-admin-success {
+  padding: 12px;
+  border-radius: 9px;
+  background: #edf8f5;
+  color: #176953;
+}
+.asa-ai-admin-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+@media (max-width: 640px) {
+  .asa-ai-admin-status {
+    grid-template-columns: 1fr;
+  }
+  .asa-ai-admin-form {
+    padding: 14px;
+  }
+}
