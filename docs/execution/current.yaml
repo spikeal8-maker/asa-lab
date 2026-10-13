@@ -4619,15 +4619,25 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs3b_client_reliable_analytics_implementation
+      checkpoint: obs001_scratch_workspace_bridge_repair
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
+          revision: '1.0'
+        - document: OBSERVABILITY-REPAIR-SPEC
           revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
+      item_execution:
+        document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
+        selected_item: OBS-001
+        mode: one_item_report_then_stop
+        next_item_requires_owner_instruction: true
+        owner_instruction: Implement item1 only, report completely and stop; do not advance to item2.
+        candidate_baseline_sha: 3093a291569da91245ffe8336b23ca17d64e3a70
+        acceptance_scope: Scratch bridge lifecycle on workspace change; remaining CLIENT defects stay open.
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]

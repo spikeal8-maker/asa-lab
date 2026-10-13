@@ -2054,7 +2054,9 @@ for (const width of [1440, 1024, 390, 320])
     for (const route of ['/#/attending', '/#/classrooms/class-1']) {
       await page.goto(route);
       if (route.includes('/classrooms/')) {
-        if (width <= 1100)
+        // Wait for the lazy page before choosing its rendered responsive control.
+        await expect(page.locator('.classroom-tabbar')).toBeVisible();
+        if (await page.getByLabel('Раздел класса', { exact: true }).isVisible())
           await page.getByLabel('Раздел класса', { exact: true }).selectOption('settings');
         else await page.getByRole('button', { name: 'Настройки', exact: true }).click();
       }

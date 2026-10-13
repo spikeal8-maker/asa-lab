@@ -57,8 +57,8 @@ function Settings({ classroomId }: { classroomId: string }) {
     } else setError(r.error.message);
   }
   return (
-    <section className="learning-notification-settings" aria-label="Шкала ручного журнала">
-      <h3>Шкала ручного журнала</h3>
+    <fieldset className="learning-notification-settings" aria-label="Шкала ручного журнала">
+      <legend>Шкала ручного журнала</legend>
       <p>
         Для новых столбцов. Прежние оценки сохраняют свою шкалу. Ноль — оценка, пустая ячейка —
         отсутствие оценки.
@@ -111,6 +111,6 @@ function Settings({ classroomId }: { classroomId: string }) {
       </button>
       {saved ? <p role="status">Шкала сохранена, версия {scale?.version}.</p> : null}
       {archived ? <p>Архивный класс: только просмотр.</p> : null}
-    </section>
+    </fieldset>
   );
 }

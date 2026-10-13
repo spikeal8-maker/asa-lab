@@ -177,6 +177,8 @@ describe('classroom journal controller', () => {
       '2026-04-03',
       50,
       50,
+      null,
+      null,
     ]);
   });
   it('propagates emission failure without returning success; retries keep their requestId', async () => {
