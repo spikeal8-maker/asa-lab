@@ -342,3 +342,65 @@
 .classroom-student-stats span {
   font-size: 12px;
 }
+
+/* Full-class previous/next review controls beside the learner's name. */
+.classroom-student-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: stretch;
+  gap: 8px;
+  max-width: 630px;
+  margin-top: 8px;
+}
+.classroom-student-navigation-button {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 48px;
+  padding: 6px 10px;
+  border: 1px solid #cbdce5;
+  border-radius: 9px;
+  background: #fff;
+  color: #0b607f;
+  text-align: left;
+  cursor: pointer;
+}
+.classroom-student-navigation-button:hover:not(:disabled),
+.classroom-student-navigation-button:focus-visible {
+  border-color: #0878a4;
+  background: #eff8fc;
+}
+.classroom-student-navigation-button:focus-visible {
+  outline: 2px solid #0878a4;
+  outline-offset: 2px;
+}
+.classroom-student-navigation-button:disabled {
+  color: #71818b;
+  cursor: not-allowed;
+}
+.classroom-student-navigation-label {
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.classroom-student-navigation-button small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.35;
+  color: #5d717f;
+}
+.classroom-student-navigation-position {
+  align-self: center;
+  font-size: 12px;
+  white-space: nowrap;
+  color: #566a76;
+}
+@media (max-width: 640px) {
+  .classroom-student-navigation { gap: 4px; max-width: 100%; }
+  .classroom-student-navigation-button { min-height: 44px; padding: 5px 7px; }
+  .classroom-student-navigation-label { font-size: 12px; }
+}

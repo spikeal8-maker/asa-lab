@@ -275,6 +275,18 @@ test('assigned without a project stays one row through start, submission and rev
     ).rows[0];
   const before = await counts();
   await openProfile(page, classroom.id, a.name);
+  const neighbors = page.getByRole('navigation', { name: 'Переход по ученикам' });
+  await expect(neighbors.getByText('1/2', { exact: true })).toBeVisible();
+  await neighbors.getByRole('button', { name: 'Предыдущий ученик: ' + b.name }).click();
+  await expect(page.getByRole('heading', { name: b.name, exact: true })).toBeVisible();
+  await expect(neighbors.getByText('2/2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  await neighbors.getByRole('button', { name: 'Следующий ученик: ' + a.name }).click();
+  await expect(page.getByRole('heading', { name: a.name, exact: true })).toBeVisible();
+  await expect(page.getByRole('navigation', { name: 'Разделы профиля' })
+    .getByRole('button', { name: 'Задания', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // Work/grade tab selection survives switching pupils; return to works explicitly.
+  await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const list = page.getByRole('region', { name: 'Задания участника' });

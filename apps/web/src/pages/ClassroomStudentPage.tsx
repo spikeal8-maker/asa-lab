@@ -25,6 +25,7 @@ import {
 import { newClientId } from '../client-id';
 import { onSessionLoggedOut } from '../session-fetch';
 import { ParticipantAssignmentsList } from '../components/ParticipantAssignmentsList';
+import type { ClassroomStudentNavigation } from '../components/classroom-student-navigation';
 import { canonicalLearningLabel } from '../learning/canonical-learning-presentation';
 import './classroom-student.css';
 import '../modules/classroom-mobile.css';
@@ -75,12 +76,16 @@ export function ClassroomStudentPage({
   classroomId,
   classroomTitle,
   seatId,
+  navigation,
+  onNavigateStudent,
   onBack,
   onOpenProject,
 }: {
   readonly classroomId: string;
   readonly classroomTitle: string;
   readonly seatId: string;
+  readonly navigation: ClassroomStudentNavigation | null;
+  readonly onNavigateStudent: (seatId: string) => void;
   readonly onBack: () => void;
   readonly onOpenProject: (projectId: string, moduleKey: string) => void;
 }): JSX.Element {
@@ -99,6 +104,7 @@ export function ClassroomStudentPage({
   const [roleBusy, setRoleBusy] = useState(false);
   const generation = useRef(0);
   const profileGeneration = useRef(0);
+  const lastClassroomId = useRef(classroomId);
   const scope = useRef('');
   scope.current = `${classroomId}:${seatId}`;
   const time = useSchoolTime();
@@ -129,10 +135,16 @@ export function ClassroomStudentPage({
   );
   useEffect(() => {
     setProfile(null);
-    setTab('all');
+    // Keep the selected project/grade tab while moving through the same class.
+    // A different class always resets the context and review filters.
+    if (lastClassroomId.current !== classroomId) {
+      lastClassroomId.current = classroomId;
+      setTab('all');
+      setArchive(false);
+      setOnlyAwaiting(false);
+    }
     setResponding(null);
     setAwardKeys([]);
-    setArchive(false);
     setRoleBusy(false);
     void load();
     const refresh = () => {
@@ -189,7 +201,6 @@ export function ClassroomStudentPage({
   );
   useEffect(() => {
     setWorks(null);
-    setOnlyAwaiting(false);
     if (showsWorks) void loadWorks();
     return () => {
       generation.current++;
@@ -237,6 +248,35 @@ export function ClassroomStudentPage({
         />
         <div className="classroom-student-identity">
           <h1>{student.displayLabel}</h1>
+          {navigation ? (
+            <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
+              <button
+                type="button"
+                className="classroom-student-navigation-button"
+                aria-label={`Предыдущий ученик: ${navigation.previous.displayLabel}`}
+                title={`Предыдущий ученик: ${navigation.previous.displayLabel}`}
+                disabled={navigation.total < 2}
+                onClick={() => onNavigateStudent(navigation.previous.id)}
+              >
+                <span className="classroom-student-navigation-label">← Предыдущий ученик</span>
+                <small>{navigation.previous.displayLabel}</small>
+              </button>
+              <span className="classroom-student-navigation-position" aria-label={`Ученик ${navigation.position} из ${navigation.total}`}>
+                {navigation.position}/{navigation.total}
+              </span>
+              <button
+                type="button"
+                className="classroom-student-navigation-button"
+                aria-label={`Следующий ученик: ${navigation.next.displayLabel}`}
+                title={`Следующий ученик: ${navigation.next.displayLabel}`}
+                disabled={navigation.total < 2}
+                onClick={() => onNavigateStudent(navigation.next.id)}
+              >
+                <span className="classroom-student-navigation-label">Следующий ученик →</span>
+                <small>{navigation.next.displayLabel}</small>
+              </button>
+            </nav>
+          ) : null}
           <p>
             {classroomTitle} · {metrics.role === 'helper' ? 'Помощник' : 'Учащийся'}
             {student.status === 'suspended' ? ' · доступ приостановлен' : ''}
