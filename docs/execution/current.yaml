@@ -569,6 +569,66 @@ parallel_lanes:
         deployment: not_requested
         live_database_operations: not_performed
 
+  - id: portal-pg-diagnostic
+    worktree_id: portal-participants-pg-diag
+    owned_paths:
+    - docs/execution/PORTAL_PARTICIPANTS_PG_TIMING_DIAGNOSTIC.md
+    task:
+      id: TASK-PORTAL-PARTICIPANTS-PG-TIMING-DIAG-001
+      issue: 452
+      branch: main
+      base_branch: main
+      pr: null
+      pr_draft: false
+      status: in_progress
+      checkpoint: measure_two_existing_pg_tests_without_changing_contract
+      kind: analysis
+      owner_acceptance: pending
+      context_hints:
+      - docs/execution/PORTAL_PARTICIPANTS_PG_TIMING_DIAGNOSTIC.md
+      execution_owner: Portal executor in existing chat Верстка; controller publishes only after independent
+        review
+      scope: Only scoped timing diagnostics in tests/portal/classroom-participants.pg.spec.ts for existing
+        tests810/849; no product/shared helper/assertion/timeout changes. One isolated directed CI probe
+        after exact source review. No QR/Electronics/runtime/school work.
+      next_action: Assigned Portal executor follows selected card, emits one unpublished source SHA, preserved
+        old assertions/order/timeout proof, narrow checks and STOP. Controller independently checks source;
+        NEW reviewer verifies. Controller may publish a disposable diagnostic-only workflow outside main
+        to run exactly2 cases once; actual evidence independently classified before selecting any repair.
+        Full-suite unchanged rerun is not allowed.
+      baseline_failure_sha: 1a03ce3c7b4d202e6dad2458dbf2c48f32299727
+      baseline_failure_run: 38422331028
+      baseline_failure_job: 115384998771
+      classification: Independent Portal area relative to clock-only diff; C/D root cause unresolved. Recurring810
+        and adjacent849 timeout5000, no assertion mismatch.
+      expected_write_paths:
+      - tests/portal/classroom-participants.pg.spec.ts
+      path_coordination: Existing projects ownership catalog preserved; this lane claims only its diagnostic
+        card. AGENTS direct_main path ownership is advisory; every author must check actual dirty target
+        across all worktrees before write. Root verified 43 worktrees clean for the exact test path; no
+        competing writer identified.
+    revisions:
+      kind: observed_snapshot
+      convergence_baseline_sha: d21f41fc55e01d96ae362690558ac5f88f6e8eb6
+      head_sha: null
+      observed_at: '2026-10-13T15:49:41.606006+00:00'
+      main:
+        branch: main
+        sha: d21f41fc55e01d96ae362690558ac5f88f6e8eb6
+      observation_note: Dated separate baseline diagnostic selection; fresh fetch main and exact CI before
+        writes. d21 selectionCI pending, da6782/1a03 retained Portal timeout failures. Prior Portal programme
+        technically accepted and owner pending is preserved. No release/deployment/DB authority.
+    execution_lease:
+      executor_id: portal-participants-pg-diag
+      holder: unassigned
+      acquired_at: null
+      expires_at: null
+      reviewer_role_requires_lease: false
+    gates:
+      general:
+        workflow: ASA Lab Governance and Code Gates
+        commands:
+        - pnpm gate:repository
   - id: electronics
     worktree_id: electronics-e06-psu-wire-entry
     owned_paths:
