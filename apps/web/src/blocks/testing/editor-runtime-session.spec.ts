@@ -11,7 +11,25 @@ const TELEMETRY_ACTOR = {
   workspaceId: '55555555-5555-4555-8555-555555555555',
 };
 function telemetryResponse(input: RequestInfo | URL, options?: RequestInit): Response | null {
-  if (!String(input).startsWith('/api/analytics/v2/')) return null;
+  const path = String(input);
+  if (path === '/api/diagnostics/client') return jsonResponse({ accepted: true }, 202);
+  if (path === '/api/diagnostics/quality') {
+    const body = JSON.parse(options?.body as string) as Record<string, unknown>;
+    return jsonResponse(
+      {
+        accepted: true,
+        state: 'intake_acknowledged',
+        schemaVersion: 2,
+        eventId: body['eventId'],
+        streamId: body['streamId'],
+        sequence: body['sequence'],
+        pipeline: body['pipeline'],
+        acknowledgementStage: body['acknowledgementStage'],
+      },
+      202,
+    );
+  }
+  if (!path.startsWith('/api/analytics/v2/')) return null;
   const body = JSON.parse(options?.body as string) as Record<string, unknown>;
   return jsonResponse({
     accepted: true,
@@ -321,7 +339,9 @@ describe('BlocksEditor runtime session bootstrap', () => {
   });
   it('detects missing child heartbeats, reports recovery, and ignores hidden tabs', async () => {
     vi.useFakeTimers();
-    const fetchMock = vi.fn(async () => jsonResponse(session()));
+    const fetchMock = vi.fn<typeof fetch>(
+      async (input, options) => telemetryResponse(input, options) ?? jsonResponse(session()),
+    );
     vi.stubGlobal('fetch', fetchMock);
     const iframe = await renderEditor();
     const post = spyOnPostMessage(iframe);
