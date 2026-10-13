@@ -1,0 +1,105 @@
+{
+  "status": "PASS",
+  "slice": "prototype-clarity-repair",
+  "sha256": "42a59412a6f3e05c8318dc26c41dfebc2a1bf501125f350017f7db775cfd4771",
+  "fileOnly": true,
+  "externalRequestsBlocked": true,
+  "syntax": "PASS",
+  "productTechnicalCopyRemoved": "PASS",
+  "readStatusNotDisabledButton": "PASS",
+  "attachmentViewReplaceDelete": "PASS",
+  "replacementPreservesOtherAttachment": "PASS",
+  "replacementCancelRetainsOriginal": "PASS",
+  "retryPreservesTextAndCardinality": "PASS",
+  "dialogCloseWithinSandbox": "PASS",
+  "nativeSummaryKeyboard": "PASS",
+  "mobileStructureExplicitDisclosure": "PASS",
+  "zoom200": "CSS zoom 2; native browser zoom NOT_RUN",
+  "shots": [
+    {
+      "screen": "overview",
+      "width": 1440,
+      "height": 900,
+      "client": 1440,
+      "scroll": 1440
+    },
+    {
+      "screen": "lesson",
+      "width": 1440,
+      "height": 900,
+      "client": 1440,
+      "scroll": 1440
+    },
+    {
+      "screen": "editor",
+      "width": 1440,
+      "height": 900,
+      "client": 1440,
+      "scroll": 1440
+    },
+    {
+      "screen": "overview",
+      "width": 1024,
+      "height": 768,
+      "client": 1024,
+      "scroll": 1024
+    },
+    {
+      "screen": "lesson",
+      "width": 1024,
+      "height": 768,
+      "client": 1024,
+      "scroll": 1024
+    },
+    {
+      "screen": "editor",
+      "width": 1024,
+      "height": 768,
+      "client": 1024,
+      "scroll": 1024
+    },
+    {
+      "screen": "overview",
+      "width": 390,
+      "height": 844,
+      "client": 390,
+      "scroll": 390
+    },
+    {
+      "screen": "lesson",
+      "width": 390,
+      "height": 844,
+      "client": 390,
+      "scroll": 390
+    },
+    {
+      "screen": "editor",
+      "width": 390,
+      "height": 844,
+      "client": 390,
+      "scroll": 390
+    },
+    {
+      "screen": "overview",
+      "width": 320,
+      "height": 568,
+      "client": 320,
+      "scroll": 320
+    },
+    {
+      "screen": "lesson",
+      "width": 320,
+      "height": 568,
+      "client": 320,
+      "scroll": 320
+    },
+    {
+      "screen": "editor",
+      "width": 320,
+      "height": 568,
+      "client": 320,
+      "scroll": 320
+    }
+  ],
+  "pageErrors": []
+}

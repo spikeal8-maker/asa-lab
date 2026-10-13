@@ -2783,7 +2783,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: visible_first_v_ux2a_assignment_list_selected
+      checkpoint: docs_prototype_published_product_integration_pending
       owner_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
