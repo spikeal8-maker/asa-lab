@@ -412,7 +412,7 @@ export class AnalyticsDelivery {
     const outcome = await sendTelemetry(
       envelope.operation ? '/api/analytics/v2/module-session' : '/api/analytics/v2/events',
       envelope,
-      (value) => confirmedAnalytics(value, envelope),
+      { status: 200, confirmed: (value) => confirmedAnalytics(value, envelope) },
       this.transport,
     );
     this.inFlight = null;

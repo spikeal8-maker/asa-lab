@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DiagnosticOutbox } from './client-diagnostic-outbox';
+import { TelemetryQuality } from './telemetry-quality';
 const id = (n: number) => `10000000-0000-4000-8000-${n.toString().padStart(12, '0')}`;
 const event = (n = 1) => ({
   eventId: id(n),
@@ -28,6 +29,44 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('bounded diagnostics delivery', () => {
+  it('retains diagnostics after HTTP200 accepted=true and acknowledges only HTTP202 intake', async () => {
+    const transport = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ accepted: true }), { status: 200 }))
+      .mockImplementation(
+        async () => new Response(JSON.stringify({ accepted: true }), { status: 202 }),
+      );
+    vi.stubGlobal('fetch', transport);
+    const disk = storage();
+    const values = new Map<string, string>();
+    const quality = new TelemetryQuality(undefined, {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => {
+        values.set(key, value);
+      },
+    });
+    const outbox = new DiagnosticOutbox(disk, quality);
+    const original = event();
+    outbox.enqueue(original);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(JSON.parse(disk.getItem())).toEqual([original]);
+    expect(quality.read().counters).toMatchObject({
+      acknowledged: 0,
+      retried: 1,
+      permanentRejected: 0,
+    });
+    expect(quality.read().gauges).toEqual({ pending: 1, inFlight: 0 });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(transport.mock.calls[1]![0]).toBe('/api/diagnostics/client');
+    expect(transport.mock.calls[1]![1]!.body).toBe(transport.mock.calls[0]![1]!.body);
+    expect(JSON.parse(disk.getItem())).toEqual([]);
+    expect(quality.read().counters).toMatchObject({
+      acknowledged: 1,
+      retried: 1,
+      permanentRejected: 0,
+    });
+    quality.retire();
+  });
   it('retains the original event across lost acknowledgements and reload, then removes it on acceptance', async () => {
     const transport = vi.fn().mockRejectedValue(new Error('offline'));
     vi.stubGlobal('fetch', transport);

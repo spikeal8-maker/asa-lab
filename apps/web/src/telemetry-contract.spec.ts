@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   confirmedAnalytics,
+  record,
   isTelemetryPath,
   safeReferrer,
   sendTelemetry,
@@ -35,6 +36,62 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('actual v2 envelopes and persistence receipts', () => {
+  for (const requiredStatus of [200, 202] as const) {
+    it.each([200, 201, 202, 204, 206])(
+      `requires HTTP${requiredStatus} and a valid body together (received HTTP%s)`,
+      async (status) => {
+        for (const validBody of [true, false]) {
+          const body = requiredStatus === 200 ? receipt : { accepted: true };
+          const outcome = await sendTelemetry(
+            requiredStatus === 200 ? '/api/analytics/v2/events' : '/api/diagnostics/client',
+            event,
+            {
+              status: requiredStatus,
+              confirmed: (value) =>
+                requiredStatus === 200
+                  ? confirmedAnalytics(value, event)
+                  : record(value) && value.accepted === true,
+            },
+            vi.fn(
+              async () =>
+                new Response(status === 204 ? null : JSON.stringify(validBody ? body : {}), {
+                  status,
+                }),
+            ),
+          );
+          expect(outcome.kind).toBe(
+            status === requiredStatus && validBody ? 'acknowledged' : 'retry',
+          );
+        }
+      },
+    );
+    it.each(['', '{', 'null'])(
+      `keeps HTTP${requiredStatus} with empty, malformed or null body ambiguous: %j`,
+      async (body) => {
+        expect(
+          await sendTelemetry(
+            '/api/telemetry-test',
+            event,
+            {
+              status: requiredStatus,
+              confirmed: (value) => record(value) && value.accepted === true,
+            },
+            vi.fn(async () => new Response(body, { status: requiredStatus })),
+          ),
+        ).toEqual({ kind: 'retry' });
+      },
+    );
+  }
+  it.each([400, 401, 403, 409])('preserves terminal HTTP%s even without JSON', async (status) => {
+    expect(
+      await sendTelemetry(
+        '/api/analytics/v2/events',
+        event,
+        { status: 200, confirmed: () => true },
+        vi.fn(async () => new Response('{', { status })),
+      ),
+    ).toEqual({ kind: 'rejected', context: status === 401, authentication: status === 401 });
+  });
   it('accepts actual visit recordId receipt without inventing a visitId echo', () => {
     expect(validEnvelope(event)).toBe(true);
     expect(confirmedAnalytics(receipt, event)).toBe(true);
@@ -102,7 +159,7 @@ describe('actual v2 envelopes and persistence receipts', () => {
         await sendTelemetry(
           '/api/analytics/v2/events',
           event,
-          (v) => confirmedAnalytics(v, event),
+          { status: 200, confirmed: (v) => confirmedAnalytics(v, event) },
           vi.fn(async () => new Response('{}', { status })),
         ),
       ).toEqual({ kind: 'retry' });
@@ -121,7 +178,14 @@ describe('actual v2 envelopes and persistence receipts', () => {
       const fetch = vi.fn<typeof globalThis.fetch>(
         async () => new Response(JSON.stringify({ error: { code } }), { status }),
       );
-      expect(await sendTelemetry('/api/analytics/v2/events', event, () => false, fetch)).toEqual({
+      expect(
+        await sendTelemetry(
+          '/api/analytics/v2/events',
+          event,
+          { status: 200, confirmed: () => false },
+          fetch,
+        ),
+      ).toEqual({
         kind: 'rejected',
         context,
         authentication: status === 401,
@@ -135,7 +199,7 @@ describe('actual v2 envelopes and persistence receipts', () => {
     const pending = sendTelemetry(
       '/api/analytics/v2/events',
       event,
-      () => true,
+      { status: 200, confirmed: () => true },
       vi.fn(() => new Promise<Response>(() => undefined)),
     );
     await vi.advanceTimersByTimeAsync(12_000);

@@ -64,6 +64,40 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it.each(['visit', 'start', 'touch', 'close'] as const)(
+    'keeps %s pending after a valid receipt with HTTP202, then accepts only HTTP200',
+    async (operation) => {
+      const f = fixture();
+      if (operation === 'touch' || operation === 'close')
+        await f.worker.open(id(10), id(11), 'blocks', id(12));
+      const previousAcknowledged = f.quality.read().counters.acknowledged;
+      f.transport.mockImplementationOnce(
+        async (_path, init) =>
+          new Response(JSON.stringify(receipt(JSON.parse(init!.body as string))), { status: 202 }),
+      );
+      let result: Promise<boolean> | undefined;
+      if (operation === 'visit') f.worker.visit(id(12), 'home', null);
+      else if (operation === 'start') result = f.worker.open(id(10), id(11), 'blocks', id(12));
+      else result = f.worker.touch(id(10), operation === 'close');
+      await pump();
+      const original = f.transport.mock.calls.at(-1)!;
+      expect(original[0]).toBe(
+        operation === 'visit' ? '/api/analytics/v2/events' : '/api/analytics/v2/module-session',
+      );
+      expect(f.worker.inspect().pending).toBe(1);
+      expect(f.quality.read().counters).toMatchObject({
+        acknowledged: previousAcknowledged,
+        retried: 1,
+        permanentRejected: 0,
+      });
+      expect(f.quality.read().gauges).toEqual({ pending: 1, inFlight: 0 });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.transport.mock.calls.at(-1)![1]!.body).toBe(original[1]!.body);
+      if (result) expect(await result).toBe(true);
+      expect(f.worker.inspect().pending).toBe(0);
+      expect(f.quality.read().counters.acknowledged).toBe(previousAcknowledged + 1);
+    },
+  );
   it('retries commit-then-lost start and closes its original session after unmount intent', async () => {
     const committed = new Map<string, unknown>();
     let lost = true;

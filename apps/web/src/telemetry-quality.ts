@@ -276,22 +276,25 @@ export class TelemetryQuality {
     const outcome = await sendTelemetry(
       this.actor ? '/api/analytics/v2/quality' : '/api/diagnostics/quality',
       sent,
-      (value) =>
-        record(value) &&
-        value.accepted === true &&
-        value.schemaVersion === 2 &&
-        value.eventId === sent.eventId &&
-        value.streamId === sent.streamId &&
-        value.sequence === sent.sequence &&
-        value.pipeline === sent.pipeline &&
-        value.acknowledgementStage === sent.acknowledgementStage &&
-        (this.actor
-          ? value.state === 'persisted' &&
-            value.receiptId === sent.eventId &&
-            value.operation === 'quality' &&
-            time(value.receivedAt) &&
-            time(value.persistedAt)
-          : value.state === 'intake_acknowledged'),
+      {
+        status: this.actor ? 200 : 202,
+        confirmed: (value) =>
+          record(value) &&
+          value.accepted === true &&
+          value.schemaVersion === 2 &&
+          value.eventId === sent.eventId &&
+          value.streamId === sent.streamId &&
+          value.sequence === sent.sequence &&
+          value.pipeline === sent.pipeline &&
+          value.acknowledgementStage === sent.acknowledgementStage &&
+          (this.actor
+            ? value.state === 'persisted' &&
+              value.receiptId === sent.eventId &&
+              value.operation === 'quality' &&
+              time(value.receivedAt) &&
+              time(value.persistedAt)
+            : value.state === 'intake_acknowledged'),
+      },
       this.transport,
     );
     this.active = false;

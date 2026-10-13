@@ -221,11 +221,10 @@ export class DiagnosticOutbox {
         }
         this.current = event;
         this.persist();
-        const outcome = await sendTelemetry(
-          '/api/diagnostics/client',
-          event,
-          (value) => record(value) && value.accepted === true,
-        );
+        const outcome = await sendTelemetry('/api/diagnostics/client', event, {
+          status: 202,
+          confirmed: (value) => record(value) && value.accepted === true,
+        });
         this.current = undefined;
         if (outcome.kind === 'retry') {
           this.quality.increment('retried');

@@ -161,11 +161,15 @@ export type Delivery =
   | { kind: 'acknowledged'; value: unknown }
   | { kind: 'retry' }
   | { kind: 'rejected'; context: boolean; authentication: boolean };
-/** HTTP failures and invalid successful bodies never masquerade as an acknowledgement. */
+export interface TelemetryAcknowledgement {
+  status: 200 | 202;
+  confirmed: (value: unknown) => boolean;
+}
+/** Only the endpoint's exact HTTP status and validated body acknowledge delivery. */
 export async function sendTelemetry(
   path: string,
   body: unknown,
-  confirmed: (value: unknown) => boolean,
+  acknowledgement: TelemetryAcknowledgement,
   transport: typeof fetch = fetch,
 ): Promise<Delivery> {
   const controller = new AbortController();
@@ -200,7 +204,10 @@ export async function sendTelemetry(
             authentication: response.status === 401,
           };
     }
-    if (response.ok) return confirmed(value) ? { kind: 'acknowledged', value } : { kind: 'retry' };
+    if (response.ok)
+      return response.status === acknowledgement.status && acknowledgement.confirmed(value)
+        ? { kind: 'acknowledged', value }
+        : { kind: 'retry' };
     const code = record(value) && record(value.error) ? value.error.code : '';
     return {
       kind: 'rejected',

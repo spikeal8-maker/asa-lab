@@ -54,6 +54,50 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('independent truthful cumulative quality', () => {
+  it.each([true, false])(
+    'keeps the exact quality snapshot on a wrong successful status (protected=%s)',
+    async (protectedPipeline) => {
+      const identity = protectedPipeline ? actor : undefined;
+      const disk = storage();
+      const transport = vi.fn<typeof fetch>(
+        async (_path, init) =>
+          new Response(JSON.stringify(acknowledgement(JSON.parse(init!.body as string))), {
+            status: protectedPipeline ? 202 : 200,
+          }),
+      );
+      let serial = 100;
+      const ledger = new TelemetryQuality(identity, disk, transport, Date.now, () => id(serial++));
+      ledgers.push(ledger);
+      ledger.increment('attempted');
+      await ledger.flush();
+      const key = `asa:quality:v2:${protectedPipeline ? 'product' : 'diagnostics'}`;
+      const original = transport.mock.calls[0]![1]!.body;
+      expect(transport.mock.calls[0]![0]).toBe(
+        protectedPipeline ? '/api/analytics/v2/quality' : '/api/diagnostics/quality',
+      );
+      expect(JSON.parse(disk.getItem(key)!).pending).toEqual(JSON.parse(original as string));
+      ledger.increment('attempted');
+      transport.mockImplementation(
+        async (_path, init) =>
+          new Response(JSON.stringify(acknowledgement(JSON.parse(init!.body as string))), {
+            status: protectedPipeline ? 200 : 202,
+          }),
+      );
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(transport.mock.calls[1]![1]!.body).toBe(original);
+      expect(JSON.parse(disk.getItem(key)!).pending).toBeNull();
+      await vi.advanceTimersByTimeAsync(1000);
+      const next = JSON.parse(transport.mock.calls[2]![1]!.body as string);
+      expect(next.sequence).toBe(2);
+      expect(next.eventId).not.toBe(JSON.parse(original as string).eventId);
+      expect(next.counters.attempted).toBe(2);
+      expect(ledger.read().counters).toMatchObject({
+        acknowledged: 0,
+        retried: 0,
+        permanentRejected: 0,
+      });
+    },
+  );
   it('retries the exact snapshot while concurrent increments remain for the next sequence', async () => {
     const f = fixture();
     let first = true;
