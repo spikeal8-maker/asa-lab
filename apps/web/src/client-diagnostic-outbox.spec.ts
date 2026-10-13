@@ -11,7 +11,7 @@ const event = (n = 1) => ({
   instanceId: id(999),
 });
 function storage() {
-  let value = '';
+  let value = '[]';
   return {
     getItem: () => value,
     setItem: (_key: string, raw: string) => {
@@ -29,6 +29,99 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('bounded diagnostics delivery', () => {
+  it.each(['read', 'write', 'absent'] as const)(
+    'reports %s queue storage failure through healthy anonymous quality and keeps bounded retryable memory',
+    async (failure) => {
+      const values = new Map<string, string>();
+      const port = {
+        getItem: (key: string) => {
+          if (key === 'asa:diagnostics:v1' && failure === 'read') throw Error('security');
+          return values.get(key) ?? null;
+        },
+        setItem: (key: string, value: string) => {
+          if (key === 'asa:diagnostics:v1' && failure === 'write') throw Error('quota');
+          values.set(key, value);
+        },
+      };
+      let status = 200;
+      const transport = vi.fn<typeof fetch>(async (path, init) => {
+        const body = JSON.parse(init!.body as string);
+        return new Response(
+          JSON.stringify(
+            String(path).endsWith('/quality')
+              ? {
+                  accepted: true,
+                  state: 'intake_acknowledged',
+                  schemaVersion: 2,
+                  eventId: body.eventId,
+                  streamId: body.streamId,
+                  sequence: body.sequence,
+                  pipeline: body.pipeline,
+                  acknowledgementStage: body.acknowledgementStage,
+                }
+              : { accepted: true },
+          ),
+          { status: String(path).endsWith('/quality') ? 202 : status },
+        );
+      });
+      vi.stubGlobal('fetch', transport);
+      const quality = new TelemetryQuality(undefined, port, transport);
+      const outbox = new DiagnosticOutbox(failure === 'absent' ? undefined : port, quality);
+      outbox.enqueue(event());
+      await vi.advanceTimersByTimeAsync(0);
+      expect(quality.read()).toMatchObject({
+        counters: { storageUnavailable: 1, invalidStored: 0, acknowledged: 0, retried: 1 },
+        coverage: { persistenceUnavailable: true, uncleanEnd: true },
+      });
+      expect(
+        JSON.parse(values.get('asa:quality:v2:diagnostics')!).snapshot.coverage
+          .persistenceUnavailable,
+      ).toBe(true);
+      await quality.flush();
+      const qualityCall = transport.mock.calls.find(([path]) => String(path).endsWith('/quality'))!;
+      expect(qualityCall[0]).toBe('/api/diagnostics/quality');
+      const body = JSON.parse(qualityCall[1]!.body as string);
+      expect(body).toMatchObject({
+        pipeline: 'client-diagnostics',
+        acknowledgementStage: 'intake_acknowledged',
+        counters: { storageUnavailable: 1, invalidStored: 0 },
+        coverage: { persistenceUnavailable: true, uncleanEnd: true },
+      });
+      expect(body).not.toHaveProperty('actorExpectation');
+      const original = transport.mock.calls[0]![1]!.body;
+      status = 202;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(
+        transport.mock.calls.filter(([path]) => String(path).endsWith('/client'))[1]![1]!.body,
+      ).toBe(original);
+      expect(quality.read().counters.acknowledged).toBe(1);
+      status = 503;
+      for (let n = 2; n <= 62; n++) outbox.enqueue(event(n));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(quality.read().gauges).toEqual({ pending: 50, inFlight: 0 });
+      expect(quality.read().counters).toMatchObject({ storageUnavailable: 1, evicted: 11 });
+      quality.retire();
+    },
+  );
+  it.each(['', '{', JSON.stringify([{ ...event(), password: 'secret' }])])(
+    'classifies readable corrupt diagnostics as invalidStored without unavailable coverage',
+    (raw) => {
+      const disk = storage();
+      disk.setItem('', raw);
+      const values = new Map<string, string>();
+      const quality = new TelemetryQuality(undefined, {
+        getItem: (key) => values.get(key) ?? null,
+        setItem: (key, value) => {
+          values.set(key, value);
+        },
+      });
+      new DiagnosticOutbox(disk, quality);
+      expect(quality.read().counters.invalidStored).toBeGreaterThan(0);
+      expect(quality.read().counters.storageUnavailable).toBe(0);
+      expect(quality.read().coverage.persistenceUnavailable).toBe(false);
+      quality.retire();
+    },
+  );
   it('retains diagnostics after HTTP200 accepted=true and acknowledges only HTTP202 intake', async () => {
     const transport = vi
       .fn<typeof fetch>()

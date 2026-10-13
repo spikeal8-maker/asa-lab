@@ -122,9 +122,25 @@ export class DiagnosticOutbox {
     private readonly storage?: StoragePort,
     private readonly quality: TelemetryQuality = diagnosticQuality(),
   ) {
+    this.load();
+    this.persist();
+  }
+
+  private load(): void {
+    if (!this.storage) {
+      this.quality.markPersistenceUnavailable();
+      return;
+    }
+    let raw: string | null;
     try {
-      const raw = storage?.getItem(KEY);
-      const values: unknown = raw ? (raw.length <= 100_000 ? JSON.parse(raw) : null) : [];
+      raw = this.storage.getItem(KEY);
+    } catch {
+      this.quality.markPersistenceUnavailable();
+      return;
+    }
+    if (raw === null) return;
+    try {
+      const values: unknown = raw.length <= 100_000 ? JSON.parse(raw) : null;
       if (!Array.isArray(values)) {
         this.quality.increment('invalidStored');
         this.quality.unclean();
@@ -148,7 +164,6 @@ export class DiagnosticOutbox {
       this.quality.increment('invalidStored');
       this.quality.unclean();
     }
-    this.persist();
   }
 
   enqueue(value: unknown, countAttempt = true): void {
@@ -196,14 +211,12 @@ export class DiagnosticOutbox {
     this.quality.gauges(this.queue.filter((e) => e !== this.current).length, this.current ? 1 : 0);
     try {
       if (!this.storage) {
-        this.quality.increment('storageUnavailable');
-        this.quality.unclean();
+        this.quality.markPersistenceUnavailable();
         return;
       }
       this.storage.setItem(KEY, JSON.stringify(this.queue));
     } catch {
-      this.quality.increment('storageUnavailable');
-      this.quality.unclean();
+      this.quality.markPersistenceUnavailable();
     }
   }
 

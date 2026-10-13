@@ -62,8 +62,100 @@ afterEach(() => {
   workers.splice(0).forEach((worker) => worker.retire());
   vi.clearAllTimers();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it.each(['read', 'write', 'absent'] as const)(
+    'reports %s queue storage failure through healthy quality storage and retains bounded retryable memory',
+    async (failure) => {
+      const storage = disk();
+      const port = {
+        ...storage,
+        getItem: (key: string) => {
+          if (key === 'asa:analytics:v2' && failure === 'read') throw Error('security');
+          return storage.getItem(key);
+        },
+        setItem: (key: string, value: string) => {
+          if (key === 'asa:analytics:v2' && failure === 'write') throw Error('quota');
+          storage.setItem(key, value);
+        },
+      };
+      let status = 202;
+      const transport = vi.fn<typeof fetch>(async (path, init) => {
+        const body = JSON.parse(init!.body as string);
+        return new Response(
+          JSON.stringify(
+            String(path).endsWith('/quality')
+              ? {
+                  accepted: true,
+                  state: 'persisted',
+                  schemaVersion: 2,
+                  eventId: body.eventId,
+                  receiptId: body.eventId,
+                  operation: 'quality',
+                  streamId: body.streamId,
+                  sequence: body.sequence,
+                  pipeline: body.pipeline,
+                  acknowledgementStage: body.acknowledgementStage,
+                  receivedAt: new Date().toISOString(),
+                  persistedAt: new Date().toISOString(),
+                }
+              : receipt(body),
+          ),
+          { status: String(path).endsWith('/quality') ? 200 : status },
+        );
+      });
+      vi.stubGlobal('window', { sessionStorage: port });
+      let serial = 100;
+      const worker = new AnalyticsDelivery(actor, {
+        storage: failure === 'absent' ? undefined : port,
+        transport,
+        id: () => id(serial++),
+      });
+      workers.push(worker);
+      worker.visit(id(12), 'home', null);
+      await pump();
+      expect(worker.quality.read()).toMatchObject({
+        counters: { storageUnavailable: 1, invalidStored: 0, acknowledged: 0, retried: 1 },
+        coverage: { persistenceUnavailable: true, uncleanEnd: true },
+      });
+      const key = 'asa:quality:v2:product';
+      expect(JSON.parse(storage.getItem(key)!).snapshot.coverage.persistenceUnavailable).toBe(true);
+      await worker.quality.flush();
+      const qualityCall = transport.mock.calls.find(([path]) => String(path).endsWith('/quality'))!;
+      expect(qualityCall[0]).toBe('/api/analytics/v2/quality');
+      expect(JSON.parse(qualityCall[1]!.body as string)).toMatchObject({
+        actorExpectation: actor,
+        pipeline: 'product-analytics',
+        coverage: { persistenceUnavailable: true, uncleanEnd: true },
+        counters: { storageUnavailable: 1, invalidStored: 0 },
+      });
+      const original = transport.mock.calls[0]![1]!.body;
+      status = 200;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(
+        transport.mock.calls.filter(([path]) => String(path).endsWith('/events'))[1]![1]!.body,
+      ).toBe(original);
+      expect(worker.quality.read().counters.acknowledged).toBe(1);
+      status = 503;
+      for (let n = 0; n < 41; n++) worker.visit(id(200 + n), 'home', null);
+      await pump();
+      expect(worker.inspect().pending).toBe(32);
+      expect(worker.quality.read().counters.storageUnavailable).toBe(1);
+      expect(worker.quality.read().counters.evicted).toBe(9);
+    },
+  );
+  it.each(['', '{', JSON.stringify({ schemaVersion: 2, actor, visits: [{}], sessions: [] })])(
+    'classifies readable corrupt queue data as invalidStored without unavailable coverage',
+    (raw) => {
+      const storage = disk();
+      storage.setItem('asa:analytics:v2', raw);
+      const f = fixture(undefined, storage);
+      expect(f.quality.read().counters.invalidStored).toBeGreaterThan(0);
+      expect(f.quality.read().counters.storageUnavailable).toBe(0);
+      expect(f.quality.read().coverage.persistenceUnavailable).toBe(false);
+    },
+  );
   it.each(['visit', 'start', 'touch', 'close'] as const)(
     'keeps %s pending after a valid receipt with HTTP202, then accepts only HTTP200',
     async (operation) => {

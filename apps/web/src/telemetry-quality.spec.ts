@@ -38,8 +38,8 @@ function fixture(
       status: identity ? 200 : 202,
     });
   }),
+  serial = 100,
 ) {
-  let serial = 100;
   const ledger = new TelemetryQuality(identity, disk, fetch, Date.now, () => id(serial++));
   ledgers.push(ledger);
   return { ledger, disk, fetch };
@@ -54,6 +54,95 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('independent truthful cumulative quality', () => {
+  it('normalizes historical queue failures after reload without changing the frozen pending snapshot', async () => {
+    const f = fixture(
+      actor,
+      storage(),
+      vi.fn<typeof fetch>(async () => new Response('{}', { status: 503 })),
+    );
+    await f.ledger.flush();
+    const original = f.fetch.mock.calls[0]![1]!.body;
+    const key = 'asa:quality:v2:product';
+    const saved = JSON.parse(f.disk.getItem(key)!);
+    saved.snapshot.counters.storageUnavailable = 7;
+    saved.snapshot.coverage.persistenceUnavailable = false;
+    saved.snapshot.coverage.uncleanEnd = false;
+    saved.inProgress = false;
+    f.disk.setItem(key, JSON.stringify(saved));
+    const resumed = fixture(actor, f.disk, undefined, 500);
+    expect(resumed.ledger.read()).toMatchObject({
+      counters: { storageUnavailable: 7 },
+      coverage: { persistenceUnavailable: true, uncleanEnd: true },
+    });
+    await resumed.ledger.flush();
+    expect(resumed.fetch.mock.calls[0]![1]!.body).toBe(original);
+    await vi.advanceTimersByTimeAsync(1000);
+    const next = JSON.parse(resumed.fetch.mock.calls[1]![1]!.body as string);
+    expect(next).toMatchObject({
+      sequence: 2,
+      counters: { storageUnavailable: 7 },
+      coverage: { persistenceUnavailable: true, uncleanEnd: true },
+    });
+    expect(next.eventId).not.toBe(JSON.parse(original as string).eventId);
+  });
+  it.each(['ledger', 'queue'] as const)(
+    'reports a %s failure after freezing a pending body in the next snapshot without a reporting loop',
+    async (failure) => {
+      const f = fixture();
+      if (failure === 'ledger')
+        f.disk.setItem = () => {
+          throw Error('quota');
+        };
+      f.fetch.mockResolvedValueOnce(new Response('{}', { status: 503 }));
+      await f.ledger.flush();
+      if (failure === 'queue') f.ledger.markPersistenceUnavailable();
+      const original = f.fetch.mock.calls[0]![1]!.body;
+      expect(JSON.parse(original as string).coverage.persistenceUnavailable).toBe(false);
+      expect(f.ledger.read()).toMatchObject({
+        counters: { storageUnavailable: 1 },
+        coverage: { persistenceUnavailable: true, uncleanEnd: true },
+      });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.fetch.mock.calls[1]![1]!.body).toBe(original);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(JSON.parse(f.fetch.mock.calls[2]![1]!.body as string)).toMatchObject({
+        sequence: 2,
+        counters: { storageUnavailable: 1 },
+        coverage: { persistenceUnavailable: true },
+      });
+      await vi.advanceTimersByTimeAsync(5000);
+      expect(f.fetch).toHaveBeenCalledTimes(3);
+    },
+  );
+  it('classifies a quality read failure as unavailable and persists its evidence through a healthy write', () => {
+    const disk = storage();
+    disk.getItem = () => {
+      throw Error('security');
+    };
+    const f = fixture(actor, disk);
+    expect(f.ledger.read()).toMatchObject({
+      counters: { storageUnavailable: 1, invalidStored: 0 },
+      coverage: { persistenceUnavailable: true, uncleanEnd: true },
+    });
+    expect(
+      JSON.parse(disk.values.get('asa:quality:v2:product')!).snapshot.coverage
+        .persistenceUnavailable,
+    ).toBe(true);
+  });
+  it('saturates the first availability transition and does not repeatedly persist its own failure', () => {
+    const f = fixture();
+    f.ledger.increment('storageUnavailable', Number.MAX_SAFE_INTEGER);
+    const writes = vi.spyOn(f.disk, 'setItem').mockImplementation(() => {
+      throw Error('quota');
+    });
+    f.ledger.markPersistenceUnavailable();
+    f.ledger.markPersistenceUnavailable();
+    expect(writes).toHaveBeenCalledTimes(1);
+    expect(f.ledger.read()).toMatchObject({
+      counters: { storageUnavailable: Number.MAX_SAFE_INTEGER },
+      coverage: { persistenceUnavailable: true, uncleanEnd: true, counterSaturated: true },
+    });
+  });
   it.each([true, false])(
     'keeps the exact quality snapshot on a wrong successful status (protected=%s)',
     async (protectedPipeline) => {

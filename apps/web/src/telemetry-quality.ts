@@ -143,7 +143,7 @@ export class TelemetryQuality {
       this.unavailable();
     }
     try {
-      if (raw) {
+      if (raw !== null && raw !== undefined) {
         const saved: unknown = raw.length <= 30_000 ? JSON.parse(raw) : null;
         if (
           record(saved) &&
@@ -163,6 +163,14 @@ export class TelemetryQuality {
           this.pending = saved.pending;
           this.sequence = saved.sequence as number;
           this.snapshot.coverage.uncleanEnd ||= saved.inProgress;
+          // Older queue writers counted failures without setting the coverage flag.
+          if (
+            this.snapshot.coverage.persistenceUnavailable ||
+            this.snapshot.counters.storageUnavailable > 0
+          ) {
+            this.snapshot.coverage.persistenceUnavailable = true;
+            this.snapshot.coverage.uncleanEnd = true;
+          }
           this.snapshot.coverage.final = false;
         } else if (!(record(saved) && saved.retired === true))
           this.snapshot.counters.invalidStored++;
@@ -196,10 +204,19 @@ export class TelemetryQuality {
     this.dirty = true;
     this.persist();
   }
-  private unavailable(): void {
-    if (!this.snapshot.coverage.persistenceUnavailable) this.snapshot.counters.storageUnavailable++;
+  /** One sticky availability transition per stream, shared by queue and quality storage. */
+  markPersistenceUnavailable(): void {
+    if (this.unavailable()) this.persist();
+  }
+  private unavailable(): boolean {
+    if (this.snapshot.coverage.persistenceUnavailable) return false;
+    if (this.snapshot.counters.storageUnavailable === Number.MAX_SAFE_INTEGER)
+      this.snapshot.coverage.counterSaturated = true;
+    else this.snapshot.counters.storageUnavailable++;
     this.snapshot.coverage.persistenceUnavailable = true;
     this.snapshot.coverage.uncleanEnd = true;
+    this.dirty = true;
+    return true;
   }
   private persist(retired = false): void {
     try {

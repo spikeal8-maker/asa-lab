@@ -80,9 +80,19 @@ export class AnalyticsDelivery {
     this.persist();
   }
   private load(): void {
+    if (!this.storage) {
+      this.quality.markPersistenceUnavailable();
+      return;
+    }
+    let raw: string | null;
     try {
-      const raw = this.storage?.getItem(KEY);
-      if (!raw) return;
+      raw = this.storage.getItem(KEY);
+    } catch {
+      this.quality.markPersistenceUnavailable();
+      return;
+    }
+    if (raw === null) return;
+    try {
       const saved: unknown = raw.length <= 100_000 ? JSON.parse(raw) : null;
       if (
         !record(saved) ||
@@ -206,7 +216,10 @@ export class AnalyticsDelivery {
     if (this.stopped) return;
     this.quality.gauges(this.operations().length - (this.inFlight ? 1 : 0), this.inFlight ? 1 : 0);
     try {
-      if (!this.storage) return;
+      if (!this.storage) {
+        this.quality.markPersistenceUnavailable();
+        return;
+      }
       this.storage.setItem(
         KEY,
         JSON.stringify({
@@ -217,8 +230,7 @@ export class AnalyticsDelivery {
         }),
       );
     } catch {
-      this.quality.increment('storageUnavailable');
-      this.quality.unclean();
+      this.quality.markPersistenceUnavailable();
     }
   }
   private envelope(visitId: string, fields: Partial<AnalyticsEnvelope>): AnalyticsEnvelope {
