@@ -4568,22 +4568,22 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs008_exact_fractional_receipt
+      checkpoint: obs009_scratch_diagnostic_fixture
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.7'
+          revision: '1.8'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-008
+        selected_item: OBS-009
         status: in_progress
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007]
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4732,6 +4732,25 @@ parallel_lanes:
             deployment: not_run
             database_actions: none
             report: docs/execution/OBS_007_REPORT.md
+          OBS-008:
+            status: implemented_focused_verified
+            source_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
+            source_branch: codex/observability-item-08
+            authoring_baseline_sha: 24006f21d45524b886a7691c1de0ad2121862fd0
+            independent_review: scoped_pass
+            local_before: 1_failed_68_intentionally_skipped
+            local_after: 120_passed_28_new
+            local_regressions: 59_passed
+            local_total: 179_passed
+            exact_ci_run: 38475447521
+            exact_ci_conclusion: failure
+            exact_ci_selected_tests: 179_passed
+            exact_ci_focused: 437_passed_1_failed_baseline_OBS009
+            exact_ci_postgres_and_browser: skipped
+            product_integration: held_with_unaccepted_CLIENT_parent_until_owner_authorized_batch_integration
+            deployment: pending_after_OBS009_and_required_checks
+            database_actions: none
+            report: docs/execution/OBS_008_REPORT.md
         owner_authorized_batch:
           ordered_items: [OBS-008, OBS-009]
           reports: separate_after_each_item
@@ -4742,9 +4761,9 @@ parallel_lanes:
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: false
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
-        candidate_baseline_sha: b39a7cfdfe69b205ed140bcde5024cd5fd1379a0
-        acceptance_scope: Match server microsecond interval floor and persisted receipt identity without false acknowledgements.
-        next_action: implement_OBS008_verify_report_then_select_owner_authorized_OBS009
+        candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
+        acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
+        next_action: implement_OBS009_verify_report_then_owner_authorized_main_integration_and_full_site_update
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4813,7 +4832,8 @@ parallel_lanes:
         OBS-005 shared operation waiters passed source review and focused checks; report and STOP.
         OBS-006 synchronous close-before-quality passed source review and focused checks; report and STOP.
         OBS-007 BFCache resume passed focused checks and new independent review after stale initial timer repair; report and STOP.
-        Owner selected OBS-008 then OBS-009, separate reports, then main integration and full canonical site update.
+        OBS-008 exact fractional receipts passed source review and 179 selected local/CI tests; separate report recorded.
+        Owner-authorized OBS-009 fixture is now selected, then main integration and full guarded site update.
         Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
@@ -4828,7 +4848,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-007 are focused-verified and reported. Owner authorized OBS-008 then OBS-009, main integration and full guarded site update; each executor handles only its selected item.
+        accepted; OBS-002 through OBS-008 are focused-verified and reported. OBS-009 is selected under the explicit owner batch, followed by main integration and full guarded site update; each executor handles only its selected item.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
