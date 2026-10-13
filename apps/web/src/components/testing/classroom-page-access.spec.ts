@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, type Classroom, type ClassroomStudentSeat } from '../../api';
 import { ClassroomPage } from '../../pages/ClassroomPage';
+import { observationApi } from '../../classroom-observation-api';
 import { participantsApi } from '../../classroom-participants-api';
 
 vi.mock('../ClassJoinQr', () => ({ ClassJoinQr: () => null }));
@@ -91,6 +92,12 @@ afterAll(() => {
   testGlobal.IS_REACT_ACT_ENVIRONMENT = false;
 });
 beforeEach(() => {
+  vi.spyOn(observationApi, 'summary').mockResolvedValue(
+    ok({
+      items: [],
+      totals: { students: 3, works: 7, assigned: 12, submitted: 6, waiting: 1, notSubmitted: 1 },
+    }),
+  );
   vi.spyOn(api, 'getClassroom').mockImplementation(async (id) =>
     ok({ classroom: id === classroomA.id ? classroomA : classroomB }),
   );
@@ -174,7 +181,8 @@ describe('classroom route and credential state ownership', () => {
     expect(policy).not.toHaveBeenCalled();
     await act(async () => button('Повторить').click());
     expect(container.querySelector('.classroom-head')?.textContent).toContain(classroomB.title);
-    expect(container.textContent).toContain(seatB.studentCode);
+    expect(container.textContent).not.toContain(seatB.studentCode);
+    expect(container.querySelector('.classroom-login-handle')?.textContent).toBe('******');
     expect(container.querySelector('[role="alert"]')).toBeNull();
     expect(document.body.textContent).not.toContain(codeSeat.studentCode);
     expect(api.listClassroomRoster).toHaveBeenLastCalledWith(classroomB.id);
@@ -229,14 +237,15 @@ describe('classroom route and credential state ownership', () => {
       'Не удалось обновить данные класса',
     );
     expect(container.textContent).not.toContain('Не удалось получить подтверждение смены кода');
-    expect(row.querySelector('.classroom-login-handle')?.textContent).toBe('New7Ab');
-    expect(row.querySelector('.classroom-roster-progress')?.textContent).toContain('2 из 4');
-    expect(container.textContent).toContain(otherSeat.studentCode);
-    expect(container.textContent).toContain('Вход через аккаунт');
+    expect(row.querySelector('.classroom-login-handle')?.textContent).toBe('******');
+    expect(row.querySelector('.classroom-roster-progress')?.textContent).toContain('2/4');
+    expect(container.textContent).not.toContain(otherSeat.studentCode);
+    expect(container.textContent).toContain('Аккаунт');
     await act(async () =>
       (row.querySelector('.classroom-login-handle') as HTMLButtonElement).click(),
     );
     expect(copy).toHaveBeenCalledExactlyOnceWith('New7Ab');
+    expect(row.querySelector('.classroom-login-handle')?.textContent).toBe('New7Ab');
     await act(async () => button('Карточки доступа').click());
     const cards = document.querySelector('.student-access-dialog')!;
     expect(cards.textContent).toContain('New7Ab');

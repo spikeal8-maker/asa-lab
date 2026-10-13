@@ -32,9 +32,14 @@ async function setGrade(page: Page, name: string, value: string, reason?: string
     .getByRole('button', { name: new RegExp(`^${name}, 2026-10-09, Работа на уроке:`) })
     .click();
   const editor = page.getByRole('region', { name: `Оценка: ${name}` });
-  await editor.getByLabel('Оценка', { exact: true }).selectOption(value);
   if (reason) await editor.getByLabel('Причина изменения').fill(reason);
-  await editor.getByRole('button', { name: 'Сохранить оценку', exact: true }).click();
+  if (value === '')
+    await editor.getByRole('button', { name: 'Очистить оценку', exact: true }).click();
+  else
+    await editor
+      .getByRole('group', { name: 'Оценка', exact: true })
+      .getByRole('button', { name: value, exact: true })
+      .click();
   await expect(
     page
       .getByRole('status')
@@ -64,6 +69,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   const classId = (await page.request.get('/api/classrooms').then((r) => r.json())).items.find(
     (c: { title: string }) => c.title === title,
   ).id as string;
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   expect(
     (
@@ -112,10 +118,11 @@ test('real manual date journal survives retries, corrections, presets and both l
   await expect(journal.getByRole('rowheader', { name: pupils[0].name })).toBeVisible();
   await expect(journal.getByRole('rowheader', { name: pupils[1].name })).toBeVisible();
   await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
+  await journal.getByRole('button', { name: '+ Столбец', exact: true }).click();
   await journal.getByLabel('Дата занятия').fill('2026-10-09');
   await journal.getByLabel('Категория занятия').fill('Работа на уроке');
-  await journal.getByRole('button', { name: 'Добавить столбец', exact: true }).click();
-  await expect(journal.getByRole('columnheader').filter({ hasText: '09.10.2026' })).toBeVisible();
+  await journal.getByRole('button', { name: 'Сохранить столбец', exact: true }).click();
+  await expect(journal.getByRole('columnheader').filter({ hasText: '09.10' })).toBeVisible();
   const snapshot = await page.request
     .get(`/api/classrooms/${classId}/journal?from=2026-10-01&to=2026-10-31`)
     .then((r) => r.json());
@@ -124,7 +131,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   // The server really commits; only its first response is deliberately lost.
   // No mocked response or API payload is supplied to the browser.
   let loseOnce = true;
-  await page.route(`**/api/classrooms/${classId}/journal/grade`, async (route) => {
+  await page.route(`**/api/classrooms/${classId}/journal/quick`, async (route) => {
     if (!loseOnce) {
       await route.continue();
       return;
@@ -133,15 +140,19 @@ test('real manual date journal survives retries, corrections, presets and both l
     expect((await route.fetch()).ok()).toBe(true);
     await route.abort('failed');
   });
-  await journal.getByRole('button', { name: new RegExp(`^${pupils[0].name},`) }).click();
+  await journal
+    .getByRole('button', { name: new RegExp(`^${pupils[0].name}, 2026-10-09, Работа на уроке:`) })
+    .click();
   const editor = page.getByRole('region', { name: `Оценка: ${pupils[0].name}` });
-  await editor.getByLabel('Оценка', { exact: true }).selectOption('0');
-  await editor.getByRole('button', { name: 'Сохранить оценку', exact: true }).click();
+  await editor
+    .getByRole('group', { name: 'Оценка', exact: true })
+    .getByRole('button', { name: '0', exact: true })
+    .click();
   await expect(editor.getByRole('alert')).toContainText('сервер недоступен');
   await expect(journal.getByText('Оценка сохранена.', { exact: true })).toHaveCount(0);
   await editor.getByRole('button', { name: 'Повторить сохранение', exact: true }).click();
   await expect(journal.getByRole('status').filter({ hasText: 'Оценка сохранена.' })).toBeVisible();
-  await page.unroute(`**/api/classrooms/${classId}/journal/grade`);
+  await page.unroute(`**/api/classrooms/${classId}/journal/quick`);
   await expect(
     journal.getByRole('button', { name: new RegExp(`^${pupils[0].name},.*: 0$`) }),
   ).toBeVisible();
@@ -167,7 +178,7 @@ test('real manual date journal survives retries, corrections, presets and both l
   ).toBe(409);
 
   await page.getByRole('button', { name: 'Настройки', exact: true }).click();
-  const settings = page.getByRole('region', { name: 'Шкала ручного журнала', exact: true });
+  const settings = page.getByRole('group', { name: 'Шкала ручного журнала', exact: true });
   const examples = [
     { preset: 'hundred', value: '100', label: '100' },
     { preset: 'three_five', value: '3', label: '3' },
@@ -184,19 +195,25 @@ test('real manual date journal survives retries, corrections, presets and both l
     await expect(settings.getByLabel('Шкала новых столбцов')).toHaveValue(preset);
     await page.getByRole('button', { name: 'Журнал', exact: true }).click();
     await journal.getByLabel('Месяц журнала', { exact: true }).fill('2026-10');
+    await journal.getByRole('button', { name: '+ Столбец', exact: true }).click();
     await journal.getByLabel('Дата занятия').fill('2026-10-10');
     await journal.getByLabel('Категория занятия').fill(`Шкала ${preset}`);
-    await journal.getByRole('button', { name: 'Добавить столбец', exact: true }).click();
+    await journal.getByRole('button', { name: 'Сохранить столбец', exact: true }).click();
     const cell = journal.getByRole('button', {
       name: new RegExp(`^Ученик шкал, 2026-10-10, Шкала ${preset}:`),
     });
     await cell.click();
     const scaleEditor = page.getByRole('region', { name: 'Оценка: Ученик шкал' });
-    await expect(scaleEditor.getByLabel('Оценка', { exact: true }).locator('option')).toHaveCount(
-      preset === 'hundred' ? 102 : preset === 'three_five' ? 4 : preset === 'five' ? 7 : 6,
-    );
-    await scaleEditor.getByLabel('Оценка', { exact: true }).selectOption(value);
-    await scaleEditor.getByRole('button', { name: 'Сохранить оценку', exact: true }).click();
+    if (preset === 'hundred') {
+      await scaleEditor.getByLabel('Оценка', { exact: true }).fill(value);
+      await scaleEditor.getByLabel('Оценка', { exact: true }).press('Enter');
+    } else {
+      const choices = scaleEditor.getByRole('group', { name: 'Оценка', exact: true });
+      await expect(choices.getByRole('button')).toHaveCount(
+        preset === 'three_five' ? 3 : preset === 'five' ? 6 : 5,
+      );
+      await choices.getByRole('button', { name: label, exact: true }).click();
+    }
     await expect(cell).toHaveAttribute(
       'aria-label',
       `Ученик шкал, 2026-10-10, Шкала ${preset}: ${label}`,
@@ -208,12 +225,13 @@ test('real manual date journal survives retries, corrections, presets and both l
   await expect(
     journal.getByRole('button', { name: new RegExp(`^${pupils[0].name},.*: 0$`) }),
   ).toBeVisible();
-  await expect(journal.getByRole('columnheader').filter({ hasText: '09.10.2026' })).toContainText(
-    '0–5 баллов',
-  );
+  await expect(
+    journal.getByRole('columnheader').filter({ hasText: '09.10' }).getByRole('button'),
+  ).toHaveAttribute('title', /0–5 баллов/);
+  await journal.getByRole('button', { name: '+ Столбец', exact: true }).click();
   await journal.getByLabel('Категория занятия').fill('Моя категория');
   await journal.getByLabel('Дата занятия').fill('2026-10-09');
-  await journal.getByRole('button', { name: 'Добавить столбец', exact: true }).click();
+  await journal.getByRole('button', { name: 'Сохранить столбец', exact: true }).click();
   await expect(
     journal.getByRole('columnheader').filter({ hasText: 'Моя категория' }),
   ).toBeVisible();
@@ -428,12 +446,12 @@ test('real manual date journal survives retries, corrections, presets and both l
   ).toBe(true);
   await journal.getByRole('button', { name: 'Предыдущий месяц', exact: true }).click();
   await expect(journal.getByLabel('Месяц журнала', { exact: true })).toHaveValue('2026-09');
-  await expect(journal.getByRole('columnheader').filter({ hasText: '30.09.2026' })).toContainText(
+  await expect(journal.getByRole('columnheader').filter({ hasText: '30.09' })).toContainText(
     'Прошлое занятие',
   );
   await journal.getByRole('button', { name: 'Следующий месяц', exact: true }).click();
   await expect(
-    journal.getByRole('columnheader').filter({ hasText: '09.10.2026' }).first(),
+    journal.getByRole('columnheader').filter({ hasText: '09.10' }).first(),
   ).toBeVisible();
   await seatGrades.getByRole('button', { name: 'Предыдущий месяц', exact: true }).click();
   await expect(seatGrades.locator('li b')).toHaveText('3');

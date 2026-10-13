@@ -80,6 +80,9 @@ describe('Course Builder structure forward upgrade', () => {
         '0205', // Scratch reuses bounded ProductAnalytics sessions and existing data.
         '0206', // Issued pupils remain visible to their teacher before first sign-in.
         '0207', // Immutable telemetry receipts add no historical/academic rewrites.
+        '0208', // Classroom projects, event observation and unified obligation counts.
+        '0209', // Explicit quick grades and versioned column metadata; pure initial reads.
+        '0210', // Bind history content checks to class candidates; preserve data and caller settings.
       ];
       const pre153 = plan.filter((item) => Number(item.version) <= 152);
       const upgradePlan = plan.filter((item) => Number(item.version) > 152);
