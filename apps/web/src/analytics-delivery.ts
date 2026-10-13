@@ -51,7 +51,10 @@ export class AnalyticsDelivery {
   private paused = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private failures = 0;
-  private waiters = new Map<string, ((accepted: boolean) => void)[]>();
+  private waiters = new Map<
+    string,
+    { promise: Promise<boolean>; resolve: (accepted: boolean) => void }
+  >();
   private readonly storage: StoragePort | undefined;
   private readonly transport: typeof fetch;
   private readonly now: () => number;
@@ -244,13 +247,19 @@ export class AnalyticsDelivery {
     };
   }
   private promise(eventId: string): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.waiters.set(eventId, [...(this.waiters.get(eventId) ?? []), resolve]);
+    const pending = this.waiters.get(eventId);
+    if (pending) return pending.promise;
+    let resolve!: (accepted: boolean) => void;
+    const promise = new Promise<boolean>((complete) => {
+      resolve = complete;
     });
+    this.waiters.set(eventId, { promise, resolve });
+    return promise;
   }
   private settle(envelope: AnalyticsEnvelope, accepted: boolean): void {
-    for (const resolve of this.waiters.get(envelope.eventId) ?? []) resolve(accepted);
+    const pending = this.waiters.get(envelope.eventId);
     this.waiters.delete(envelope.eventId);
+    pending?.resolve(accepted);
   }
   visit(visitId: string, route: EntryRoute, referrerOrigin: string | null): void {
     this.quality.increment('attempted');

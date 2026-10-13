@@ -54,6 +54,20 @@ function fixture(
   return { worker, quality, transport, storage };
 }
 const pump = () => vi.advanceTimersByTimeAsync(0);
+const pendingWaiters = (worker: AnalyticsDelivery): number => Reflect.get(worker, 'waiters').size;
+function deferNext(transport: ReturnType<typeof fixture>['transport']) {
+  let release!: (status?: number) => void;
+  transport.mockImplementationOnce(
+    (_path, init) =>
+      new Promise<Response>((resolve) => {
+        release = (status = 200) =>
+          resolve(
+            new Response(JSON.stringify(receipt(JSON.parse(init!.body as string))), { status }),
+          );
+      }),
+  );
+  return (status?: number) => release(status);
+}
 beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
@@ -65,6 +79,165 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it.each(['start', 'touch', 'close'] as const)(
+    'shares one pending %s promise throughout a duplicate storm and releases it on acknowledgement',
+    async (operation) => {
+      const f = fixture();
+      if (operation !== 'start') await f.worker.open(id(10), id(11), 'blocks', id(12));
+      const release = deferNext(f.transport);
+      const call = () =>
+        operation === 'start'
+          ? f.worker.open(id(10), id(11), 'blocks', id(12))
+          : f.worker.touch(id(10), operation === 'close');
+      const result = call();
+      for (let n = 0; n < 2000; n++) expect(call()).toBe(result);
+      expect(pendingWaiters(f.worker)).toBe(1);
+      expect(f.worker.inspect().pending).toBe(1);
+      expect(f.quality.read().counters).toMatchObject({
+        attempted: operation === 'start' ? 2001 : 2002,
+        enqueued: operation === 'start' ? 1 : 2,
+        deduplicated: operation === 'touch' ? 0 : 2000,
+        coalesced: operation === 'touch' ? 2000 : 0,
+      });
+      release();
+      await pump();
+      expect(await result).toBe(true);
+      expect(pendingWaiters(f.worker)).toBe(0);
+    },
+  );
+  it('shares pending promises across retries and creates a fresh touch from a result handler', async () => {
+    const f = fixture();
+    await f.worker.open(id(10), id(11), 'blocks', id(12));
+    const fail = deferNext(f.transport);
+    const first = f.worker.touch(id(10));
+    const original = f.transport.mock.calls.at(-1)![1]!.body;
+    fail(503);
+    await pump();
+    expect(f.worker.touch(id(10))).toBe(first);
+    expect(pendingWaiters(f.worker)).toBe(1);
+    const release = deferNext(f.transport);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.transport.mock.calls.at(-1)![1]!.body).toBe(original);
+    expect(f.worker.touch(id(10))).toBe(first);
+    const nextRelease = deferNext(f.transport);
+    let next!: Promise<boolean>;
+    void first.then((accepted) => {
+      expect(accepted).toBe(true);
+      expect(pendingWaiters(f.worker)).toBe(0);
+      next = f.worker.touch(id(10));
+      expect(next).not.toBe(first);
+      expect(f.worker.touch(id(10))).toBe(next);
+    });
+    release();
+    await pump();
+    expect(await first).toBe(true);
+    expect(pendingWaiters(f.worker)).toBe(1);
+    expect(JSON.parse(f.transport.mock.calls.at(-1)![1]!.body as string).eventId).not.toBe(
+      JSON.parse(original as string).eventId,
+    );
+    nextRelease();
+    await pump();
+    expect(await next).toBe(true);
+    expect(pendingWaiters(f.worker)).toBe(0);
+  });
+  it.each([400, 401, 403, 409])(
+    'releases shared start and dependent close promises on terminal HTTP%s',
+    async (status) => {
+      const f = fixture();
+      const release = deferNext(f.transport);
+      const start = f.worker.open(id(10), id(11), 'blocks', id(12));
+      const close = f.worker.touch(id(10), true);
+      for (let n = 0; n < 2000; n++) {
+        expect(f.worker.open(id(10), id(11), 'blocks', id(12))).toBe(start);
+        expect(f.worker.touch(id(10), true)).toBe(close);
+      }
+      expect(pendingWaiters(f.worker)).toBe(2);
+      release(status);
+      await pump();
+      expect(await start).toBe(false);
+      expect(await close).toBe(false);
+      expect(pendingWaiters(f.worker)).toBe(0);
+      expect(f.worker.inspect().pending).toBe(0);
+      expect(f.transport).toHaveBeenCalledOnce();
+    },
+  );
+  it('settles a shared unsent touch on supersession and keeps pending state bounded until retirement', async () => {
+    const f = fixture();
+    const release = deferNext(f.transport);
+    const results: Promise<boolean>[] = [];
+    for (let n = 0; n < 32; n++) {
+      const session = id(1000 + n);
+      const start = f.worker.open(session, id(2000 + n), 'blocks', id(12));
+      const touch = f.worker.touch(session);
+      for (let repeat = 0; repeat < 100; repeat++) {
+        expect(f.worker.open(session, id(2000 + n), 'blocks', id(12))).toBe(start);
+        expect(f.worker.touch(session)).toBe(touch);
+      }
+      const close = f.worker.touch(session, true);
+      expect(await touch).toBe(false);
+      for (let repeat = 0; repeat < 100; repeat++)
+        expect(f.worker.touch(session, true)).toBe(close);
+      results.push(start, close);
+    }
+    for (let n = 0; n < 40; n++) f.worker.visit(id(3000 + n), 'home', null);
+    expect(await f.worker.open(id(9999), id(9998), 'blocks', id(12))).toBe(false);
+    expect(pendingWaiters(f.worker)).toBe(64);
+    expect(f.worker.inspect()).toEqual({ pending: 96, inFlight: 1, sessions: 32 });
+    f.worker.retire();
+    expect(await Promise.all(results)).toEqual(Array(64).fill(false));
+    expect(pendingWaiters(f.worker)).toBe(0);
+    const successor = fixture();
+    const successorRelease = deferNext(successor.transport);
+    const fresh = successor.worker.open(id(10), id(11), 'blocks', id(12));
+    release();
+    await pump();
+    expect(pendingWaiters(successor.worker)).toBe(1);
+    expect(successor.quality.read().counters.acknowledged).toBe(0);
+    expect(f.quality.read().counters.acknowledged).toBe(0);
+    expect(await Promise.all(results)).toEqual(Array(64).fill(false));
+    successorRelease();
+    await pump();
+    expect(await fresh).toBe(true);
+    expect(pendingWaiters(successor.worker)).toBe(0);
+  });
+  it('releases shared queued start and close on TTL and an expired in-flight retry', async () => {
+    const f = fixture();
+    const release = deferNext(f.transport);
+    const inFlight = f.worker.open(id(10), id(11), 'blocks', id(12));
+    const queued = f.worker.open(id(20), id(21), 'blocks', id(22));
+    const close = f.worker.touch(id(20), true);
+    expect(f.worker.open(id(20), id(21), 'blocks', id(22))).toBe(queued);
+    expect(f.worker.touch(id(20), true)).toBe(close);
+    vi.setSystemTime(Date.now() + 15 * 60_000);
+    f.worker.visit(id(30), 'home', null);
+    expect(await queued).toBe(false);
+    expect(await close).toBe(false);
+    expect(pendingWaiters(f.worker)).toBe(1);
+    release(503);
+    await pump();
+    expect(await inFlight).toBe(false);
+    expect(pendingWaiters(f.worker)).toBe(0);
+    expect(f.quality.read().counters.expired).toBe(3);
+  });
+  it.each(['touch', 'close'] as const)(
+    'releases a shared queued %s at its original TTL',
+    async (operation) => {
+      const f = fixture();
+      await f.worker.open(id(10), id(11), 'blocks', id(12));
+      const release = deferNext(f.transport);
+      f.worker.visit(id(20), 'home', null);
+      const result = f.worker.touch(id(10), operation === 'close');
+      expect(f.worker.touch(id(10), operation === 'close')).toBe(result);
+      vi.setSystemTime(Date.now() + (operation === 'touch' ? 90_000 : 15 * 60_000));
+      f.worker.visit(id(21), 'home', null);
+      expect(await result).toBe(false);
+      expect(pendingWaiters(f.worker)).toBe(0);
+      expect(f.quality.read().counters.expired).toBe(1);
+      release();
+      await pump();
+      expect(pendingWaiters(f.worker)).toBe(0);
+    },
+  );
   it.each(['read', 'write', 'absent'] as const)(
     'reports %s queue storage failure through healthy quality storage and retains bounded retryable memory',
     async (failure) => {
