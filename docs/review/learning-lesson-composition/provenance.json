@@ -1,0 +1,35 @@
+{
+  "status": "UNAPPROVED",
+  "purpose": "Draft design discussion: learner overview, mixed lesson and document editor",
+  "requirementsSourceCommit": "5b36cff6ad7143d6f9e193dcfcb49fa1de6571b7",
+  "source": "prototype-source.html",
+  "standalone": "prototype.html",
+  "originalSourceSha256": "42a59412a6f3e05c8318dc26c41dfebc2a1bf501125f350017f7db775cfd4771",
+  "sourceLineEndings": "Original CRLF is normalized to LF by repository text attributes; checks/checks.json records the original file hash.",
+  "export": "visualize 1.0.49 scripts/render.py, file export without serving",
+  "priorChecks": "checks/checks.json",
+  "priorScreenshots": 14,
+  "priorEvidenceScope": "Existing file-only prototype checks and screenshots, preserved from the same original source; not rerun for publication.",
+  "demonstrationOnly": [
+    "saving",
+    "uploads",
+    "PDF content",
+    "practice workflow",
+    "completion progress"
+  ],
+  "publicationFileCheck": {
+    "result": "PASS",
+    "scope": "Exported file opened in headless Chromium from file URL; overview to lesson to editor, demonstration save feedback and 320px viewport",
+    "pageErrors": 0,
+    "externalRequests": 0,
+    "sourceMatchesOriginalAfterLfNormalization": true,
+    "embeddedSourceMatches": true,
+    "productRuntimeEvidence": false
+  },
+  "productRuntimeVerification": "NOT_RUN",
+  "ownerDesignAcceptance": "pending",
+  "ownerProductAcceptance": "pending",
+  "deployment": "NOT_RUN",
+  "repositorySourceSha256": "a327bda41ba411480b152736d5a66a77cc2692ae59b799909b096dfb3f5ad476",
+  "exportAdjustment": "Removed three unused external library script tags from generated wrapper for a self-contained offline draft; source fragment unchanged apart from LF normalization."
+}
