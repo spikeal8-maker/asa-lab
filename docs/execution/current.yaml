@@ -4597,21 +4597,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs007_focused_verified_reported_waiting_owner
+      checkpoint: obs008_exact_fractional_receipt
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.6'
+          revision: '1.7'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-007
-        status: implemented_focused_verified
+        selected_item: OBS-008
+        status: in_progress
         completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007]
         accepted_items:
           OBS-001:
@@ -4761,12 +4761,19 @@ parallel_lanes:
             deployment: not_run
             database_actions: none
             report: docs/execution/OBS_007_REPORT.md
-        mode: one_item_report_then_stop
-        next_item_requires_owner_instruction: true
-        owner_instruction: Implement item7 only, report completely and stop; do not advance to item8.
-        candidate_baseline_sha: ff6e94f95ed8f9f18d1b7d0adaa599551db25ee4
-        acceptance_scope: BFCache resumes legitimate readiness and truthful quality without synthetic input, new visit, frozen snapshot mutation or authorization revival.
-        next_action: stop_and_wait_for_owner_instruction
+        owner_authorized_batch:
+          ordered_items: [OBS-008, OBS-009]
+          reports: separate_after_each_item
+          integration_into_main: authorized
+          resolve_necessary_integration_conflicts: authorized_by_full_main_update_request
+          canonical_site_update: explicitly_authorized_after_required_checks
+          remaining_OBS010_through_OBS045: not_implemented_by_this_authorization
+        mode: one_item_per_executor_report_then_controller_continues_owner_batch
+        next_item_requires_owner_instruction: false
+        owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
+        candidate_baseline_sha: b39a7cfdfe69b205ed140bcde5024cd5fd1379a0
+        acceptance_scope: Match server microsecond interval floor and persisted receipt identity without false acknowledgements.
+        next_action: implement_OBS008_verify_report_then_select_owner_authorized_OBS009
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4835,7 +4842,7 @@ parallel_lanes:
         OBS-005 shared operation waiters passed source review and focused checks; report and STOP.
         OBS-006 synchronous close-before-quality passed source review and focused checks; report and STOP.
         OBS-007 BFCache resume passed focused checks and new independent review after stale initial timer repair; report and STOP.
-        No next item is selected.
+        Owner selected OBS-008 then OBS-009, separate reports, then main integration and full canonical site update.
         Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
@@ -4850,7 +4857,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-007 are focused-verified and reported. Wait for the next explicit owner instruction.
+        accepted; OBS-002 through OBS-007 are focused-verified and reported. Owner authorized OBS-008 then OBS-009, main integration and full guarded site update; each executor handles only its selected item.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
