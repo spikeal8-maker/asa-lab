@@ -146,3 +146,132 @@ describe('shared project local draft', () => {
     });
   });
 });
+
+describe('conditional confirmed-document cleanup', () => {
+  const scope = {
+    projectId: 'pupil-project',
+    userId: 'pupil',
+    identityKind: 'account' as const,
+    moduleKey: 'electronics',
+    baseRevision: 1,
+  };
+  const confirmed = {
+    schemaVersion: 4,
+    components: [{ id: 'uno', stateProperties: { arduinoSource: 'void setup() {}' } }],
+    connections: [],
+    viewport: { x: 0, y: 0, zoom: 1 },
+  };
+
+  it('preserves a newer full recovery document after another tab confirms an earlier one', () => {
+    const storage = memoryStorage();
+    const latest = {
+      ...confirmed,
+      components: [
+        { id: 'uno', stateProperties: { arduinoSource: 'void setup() { pinMode(13, OUTPUT); }' } },
+      ],
+    };
+    expect(writeLocalProjectDraft(storage, { ...scope, document: latest })).toBe(true);
+    clearLocalProjectDraft(storage, scope.projectId, scope.userId, scope.identityKind, {
+      moduleKey: scope.moduleKey,
+      document: confirmed,
+    });
+    expect(
+      readLocalProjectDraft(
+        storage,
+        scope.projectId,
+        scope.moduleKey,
+        scope.userId,
+        scope.identityKind,
+      )?.document,
+    ).toEqual(latest);
+  });
+
+  it('compares the whole persisted document, including viewport and extra fields', () => {
+    const storage = memoryStorage();
+    for (const latest of [
+      { ...confirmed, viewport: { x: 42, y: 0, zoom: 1 } },
+      { ...confirmed, pupilNote: 'not on the server' },
+    ]) {
+      writeLocalProjectDraft(storage, { ...scope, document: latest });
+      clearLocalProjectDraft(storage, scope.projectId, scope.userId, scope.identityKind, {
+        moduleKey: scope.moduleKey,
+        document: confirmed,
+      });
+      expect(
+        readLocalProjectDraft(
+          storage,
+          scope.projectId,
+          scope.moduleKey,
+          scope.userId,
+          scope.identityKind,
+        )?.document,
+      ).toEqual(latest);
+    }
+  });
+
+  it('still removes an identical confirmed recovery document', () => {
+    const storage = memoryStorage();
+    writeLocalProjectDraft(storage, { ...scope, document: confirmed });
+    clearLocalProjectDraft(storage, scope.projectId, scope.userId, scope.identityKind, {
+      moduleKey: scope.moduleKey,
+      document: structuredClone(confirmed),
+    });
+    expect(
+      readLocalProjectDraft(
+        storage,
+        scope.projectId,
+        scope.moduleKey,
+        scope.userId,
+        scope.identityKind,
+      ),
+    ).toBeNull();
+  });
+
+  it('preserves malformed, wrong-module and wrong-identity bytes instead of guessing', () => {
+    const storage = memoryStorage();
+    const key = `asa-project-local-draft:user:account:${scope.userId}:${scope.projectId}`;
+    for (const raw of [
+      '{broken',
+      JSON.stringify({
+        schemaVersion: 3,
+        ...scope,
+        moduleKey: 'chess',
+        document: confirmed,
+        updatedAt: '',
+      }),
+      JSON.stringify({
+        schemaVersion: 3,
+        ...scope,
+        userId: 'another-pupil',
+        document: confirmed,
+        updatedAt: '',
+      }),
+    ]) {
+      storage.setItem(key, raw);
+      clearLocalProjectDraft(storage, scope.projectId, scope.userId, scope.identityKind, {
+        moduleKey: scope.moduleKey,
+        document: confirmed,
+      });
+      expect(storage.getItem(key)).toBe(raw);
+    }
+  });
+
+  it('does not remove anything when guarded storage reads throw', () => {
+    const storage = memoryStorage();
+    writeLocalProjectDraft(storage, { ...scope, document: confirmed });
+    let removals = 0;
+    storage.removeItem = () => {
+      removals += 1;
+    };
+    storage.getItem = () => {
+      throw new Error('denied');
+    };
+    expect(() =>
+      clearLocalProjectDraft(storage, scope.projectId, scope.userId, scope.identityKind, {
+        moduleKey: scope.moduleKey,
+        document: confirmed,
+      }),
+    ).not.toThrow();
+    expect(removals).toBe(0);
+  });
+});

@@ -102,9 +102,25 @@ export function clearLocalProjectDraft(
   projectId: string,
   userId?: string,
   identityKind?: 'account' | 'seat',
+  confirmed?: { readonly moduleKey: string; readonly document: unknown },
 ): void {
   try {
-    resolveStorage(source).removeItem(draftKey(projectId, userId, identityKind));
+    const storage = resolveStorage(source);
+    const key = draftKey(projectId, userId, identityKind);
+    if (confirmed) {
+      const local = readLocalProjectDraft(
+        storage,
+        projectId,
+        confirmed.moduleKey,
+        userId,
+        identityKind,
+      );
+      // Another tab can have replaced this shared recovery copy while our save
+      // was pending. Confirmation of our document says nothing about that copy.
+      // This is a best-effort guard, not a cross-tab storage transaction.
+      if (!local || JSON.stringify(local.document) !== JSON.stringify(confirmed.document)) return;
+    }
+    storage.removeItem(key);
   } catch {
     // The server save already succeeded; cleanup is best-effort.
   }

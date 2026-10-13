@@ -5,7 +5,8 @@ import { act, createElement, StrictMode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, type Project, type SchematicDocument } from '../../api';
-import { readLocalProjectDraft } from '../../modules/project-local-draft';
+import { readLocalProjectDraft, writeLocalProjectDraft } from '../../modules/project-local-draft';
+import { addComponentToDocument } from '../workbench-document';
 import {
   configureProductionLibrary,
   type OwnerCatalogManifest,
@@ -1022,5 +1023,200 @@ describe('Electronics project autosave in the mounted editor hook', () => {
     expect(save).toHaveBeenCalledTimes(1);
     await advance(59_300);
     expect(save).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Electronics cross-tab recovery cleanup', () => {
+  it('retains another tab full schema and sketch after a late success and restores it on reopen', async () => {
+    const save = await mountProject();
+    let finish!: (value: Awaited<ReturnType<typeof api.saveDraft>>) => void;
+    save.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const first = normalizeLoadedDocument(
+      addComponentToDocument(initialDocument, 'arduino-uno', { x: 500, y: 300 }, 'pupil-uno')
+        .document,
+    );
+    act(() => state().setDocument(first));
+    await act(async () => {
+      void state().saveNow();
+    });
+    expect(save).toHaveBeenCalledWith(projectId, first, 1);
+    const latest: SchematicDocument = {
+      ...first,
+      components: [
+        ...first.components.map((component) => ({
+          ...component,
+          stateProperties: {
+            ...component.stateProperties,
+            arduinoSource: '// latest pupil sketch\nvoid setup() {}\nvoid loop() {}',
+          },
+        })),
+        resistor('unsaved-second-tab-part', 42),
+      ],
+    };
+    writeLocalProjectDraft(window.localStorage, {
+      projectId,
+      userId,
+      identityKind: 'account',
+      moduleKey: 'electronics',
+      baseRevision: 1,
+      baseDocument: initialDocument,
+      document: latest,
+    });
+    await act(async () =>
+      finish({
+        ok: true,
+        status: 200,
+        data: { draft: { projectId, document: first, revision: 2, updatedAt: '' }, result: null },
+      } as Awaited<ReturnType<typeof api.saveDraft>>),
+    );
+    expect(state().saveStatus).toBe('saved');
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
+    vi.mocked(api.openProject).mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: {
+        project,
+        draft: { projectId, document: first, revision: 2, updatedAt: '' },
+        result: null,
+        versions: [],
+      },
+    } as Awaited<ReturnType<typeof api.openProject>>);
+    await reopenProject();
+    expect(state().document).toEqual(normalizeLoadedDocument(latest));
+    expect(state().localCopySaved).toBe(true);
+    expect(state().saveStatus).not.toBe('saved');
+  });
+
+  it('keeps a different local recovery document when a clean tab receives a newer server revision', async () => {
+    await mountProject();
+    let finish!: (value: Awaited<ReturnType<typeof api.openProject>>) => void;
+    vi.mocked(api.openProject).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => window.dispatchEvent(new Event('focus')));
+    const latest = { ...initialDocument, components: [resistor('unsaved-second-tab-part', 42)] };
+    writeLocalProjectDraft(window.localStorage, {
+      projectId,
+      userId,
+      identityKind: 'account',
+      moduleKey: 'electronics',
+      baseRevision: 1,
+      baseDocument: initialDocument,
+      document: latest,
+    });
+    const remote = { ...initialDocument, components: [resistor('server-part', 100)] };
+    await act(async () =>
+      finish({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: remote, revision: 2, updatedAt: '' },
+          result: null,
+          versions: [],
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>),
+    );
+    expect(state().document).toEqual(normalizeLoadedDocument(remote));
+    expect(state().saveStatus).toBe('saved');
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
+  });
+});
+
+describe('Electronics load and merge recovery cleanup', () => {
+  it('keeps a recovery draft written by another tab after the initial load read', async () => {
+    await mountProject();
+    const latest = { ...initialDocument, components: [resistor('another-tab-part', 42)] };
+    const key = `asa-project-local-draft:user:account:${userId}:${projectId}`;
+    const original = Storage.prototype.getItem;
+    let initialRead = true;
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(function (
+      this: Storage,
+      queriedKey: string,
+    ) {
+      if (queriedKey === key && initialRead) {
+        initialRead = false;
+        writeLocalProjectDraft(this, {
+          projectId,
+          userId,
+          identityKind: 'account',
+          moduleKey: 'electronics',
+          baseRevision: 1,
+          baseDocument: initialDocument,
+          document: latest,
+        });
+        return null;
+      }
+      return original.call(this, queriedKey);
+    });
+    await reopenProject();
+    expect(state().document).toEqual(initialDocument);
+    expect(state().saveStatus).toBe('saved');
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
+  });
+
+  it('keeps another tab recovery when a conflict reload finds our sent document already confirmed', async () => {
+    const save = await mountProject();
+    const first = normalizeLoadedDocument({
+      ...initialDocument,
+      components: [resistor('shared-part', 10)],
+    });
+    act(() => state().setDocument(first));
+    save.mockResolvedValueOnce({
+      ok: false,
+      status: 409,
+      error: { code: 'project_revision_conflict', message: 'Conflict' },
+    } as Awaited<ReturnType<typeof api.saveDraft>>);
+    let finish!: (value: Awaited<ReturnType<typeof api.openProject>>) => void;
+    vi.mocked(api.openProject).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    await act(async () => {
+      void state().saveNow();
+    });
+    const latest = { ...first, components: [{ ...first.components[0]!, value: 470 }] };
+    writeLocalProjectDraft(window.localStorage, {
+      projectId,
+      userId,
+      identityKind: 'account',
+      moduleKey: 'electronics',
+      baseRevision: 1,
+      baseDocument: initialDocument,
+      document: latest,
+    });
+    await act(async () =>
+      finish({
+        ok: true,
+        status: 200,
+        data: {
+          project,
+          draft: { projectId, document: first, revision: 2, updatedAt: '' },
+          result: null,
+          versions: [],
+        },
+      } as Awaited<ReturnType<typeof api.openProject>>),
+    );
+    expect(state().document).toEqual(first);
+    expect(state().saveIssue).toBeNull();
+    expect(
+      readLocalProjectDraft(window.localStorage, projectId, 'electronics', userId)?.document,
+    ).toEqual(latest);
   });
 });

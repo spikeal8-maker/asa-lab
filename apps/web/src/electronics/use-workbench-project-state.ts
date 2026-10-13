@@ -412,7 +412,10 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
     setSimulationStatus(nextDocument.simulation.running ? 'running' : 'stopped');
     initialiseHistory(nextDocument);
     if (knownSavedDocument === nextDocument) {
-      clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind);
+      clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind, {
+        moduleKey: 'electronics',
+        document: serverDocument,
+      });
       setLocalDocument(null);
     }
     if (revisionConflict) {
@@ -474,7 +477,10 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         setSavedDocument(remoteDocument);
         setResult(response.data.result);
         setVersions(response.data.versions);
-        clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind);
+        clearLocalProjectDraft(() => window.localStorage, projectId, userId, identityKind, {
+          moduleKey: 'electronics',
+          document: remoteDocument,
+        });
         setLocalDocument(null);
         initialiseHistory(remoteDocument);
         setNotice('Получены изменения общей схемы.');
@@ -682,6 +688,7 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
                     sentForProject,
                     userId,
                     identityKind,
+                    { moduleKey: 'electronics', document: remoteDocument },
                   );
                   setLocalDocument(null);
                 } else {
@@ -725,7 +732,10 @@ export function useWorkbenchProjectState(projectId: string, userId: string, seat
         savedDocumentRef.current = nextDocument;
         setSavedDocument(nextDocument);
         if (documentRef.current === nextDocument) {
-          clearLocalProjectDraft(() => window.localStorage, sentForProject, userId, identityKind);
+          clearLocalProjectDraft(() => window.localStorage, sentForProject, userId, identityKind, {
+            moduleKey: 'electronics',
+            document: nextDocument,
+          });
           setLocalDocument(null);
         } else if (documentRef.current) {
           storeLocal(documentRef.current);
