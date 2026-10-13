@@ -28,8 +28,7 @@ printf 'globalThis.__ASA_RUNTIME_CONFIG__={"blocksRuntimeOrigin":"%s"};\n' "$ori
 # Never interpolate an unvalidated value into a Caddyfile.
 public_domain=${ASA_PUBLIC_DOMAIN:-}
 if [ -n "$public_domain" ]; then
-  if [ "${#public_domain}" -gt 253 ] || ! printf "%s\n" "$public_domain" | grep -Eq '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?
- ; then
+  if [ "${#public_domain}" -gt 253 ] || ! printf "%s\n" "$public_domain" | grep -Eq "^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?$"; then
     echo "Invalid ASA_PUBLIC_DOMAIN: use an exact lowercase DNS hostname." >&2
     exit 78
   fi
