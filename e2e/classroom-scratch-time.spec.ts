@@ -1,5 +1,75 @@
 import { test, expect, type Page } from '@playwright/test';
 
+// The clock is virtual, but route fulfillment and fetch body delivery are real IO.
+// Observe native JSON consumption so a time jump cannot manufacture a delivery timeout.
+async function observeTelemetryConsumption(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const state = { pending: 0 };
+    Object.defineProperty(window, '__asaTelemetryConsumption', { value: state });
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const [input, init] = args;
+      const request = input instanceof Request ? input : null;
+      const method = (init?.method ?? request?.method ?? 'GET').toUpperCase();
+      const path = new URL(request?.url ?? String(input), location.href).pathname;
+      if (method !== 'POST' || !/^\/api\/(?:analytics|diagnostics)(?:\/|$)/.test(path))
+        return nativeFetch(...args);
+      state.pending += 1;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        state.pending -= 1;
+      };
+      try {
+        const response = await nativeFetch(...args);
+        const nativeJson = response.json.bind(response);
+        response.json = async () => {
+          try {
+            return await nativeJson();
+          } finally {
+            release();
+          }
+        };
+        return response;
+      } catch (error) {
+        release();
+        throw error;
+      }
+    };
+  });
+}
+
+async function waitForTelemetryConsumption(page: Page): Promise<void> {
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (
+              window as Window & {
+                __asaTelemetryConsumption: { pending: number };
+              }
+            ).__asaTelemetryConsumption.pending,
+        ),
+      {
+        timeout: 10_000,
+        message: 'Native telemetry response JSON must settle before clock advance',
+      },
+    )
+    .toBe(0);
+  // Let the consumer's await continuation validate the receipt and clear its deadline.
+  await page.evaluate(() => Promise.resolve());
+}
+
+async function advanceTelemetryClock(page: Page, milliseconds: number): Promise<void> {
+  await waitForTelemetryConsumption(page);
+  for (let remaining = milliseconds; remaining > 0; remaining -= 1000) {
+    await page.clock.runFor(Math.min(1000, remaining));
+    await waitForTelemetryConsumption(page);
+  }
+}
+
 // The shipping CLIENT queue delivers its document visit before module sessions.
 // Give each endpoint its own receipt so the fixture exercises that queue unchanged.
 async function acknowledgeVisitsAndQuality(page: Page): Promise<void> {
@@ -44,8 +114,8 @@ async function acknowledgeVisitsAndQuality(page: Page): Promise<void> {
 // Production pinned Scratch GUI/VM + shipping BlocksEditor, with the existing
 // persistence fixture and mocked telemetry responses. PostgreSQL/rating proof
 // is separate: tests/portal/classroom-scratch-time.pg.spec.ts.
-test('real Scratch input reaches bounded analytics while heartbeat/idle do not; minute save still persists', async () => {
-  const { createProtocolFixture, installMinuteAutosaveClock, advanceMinuteAutosave } =
+test('real Scratch input reaches bounded analytics while heartbeat/idle do not; minute save still persists', async ({}, testInfo) => {
+  const { createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
     await import('../tools/blocks/browser/fixture.mjs');
   const { parentOrigin, projectId } = await import('../tools/blocks/browser/protocol.mjs');
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
@@ -79,6 +149,7 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     telemetry.push({ path, body });
   });
   try {
+    await observeTelemetryConsumption(page);
     await installMinuteAutosaveClock(page);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -90,13 +161,13 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     const start = () => telemetry.filter((e) => e.body['operation'] === 'start');
     const touches = () =>
       telemetry.filter((e) => e.body['operation'] === 'touch' || e.body['operation'] === 'close');
-    await page.clock.runFor(66_000);
+    await advanceTelemetryClock(page, 66_000);
     expect(start()).toHaveLength(0); // Includes several genuine health heartbeats.
     await frame.locator('body').evaluate(() => {
       window.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'a', bubbles: true }));
     });
-    await page.clock.runFor(2000);
+    await advanceTelemetryClock(page, 2000);
     expect(start()).toHaveLength(0); // Synthetic DOM input is not trusted.
 
     await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
@@ -118,7 +189,8 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
       projectId,
       moduleKey: 'blocks',
     });
-    await advanceMinuteAutosave(page);
+    await waitForMinuteAutosaveArm(page);
+    await advanceTelemetryClock(page, 66_000);
     await expect
       .poll(() => fixture.runtimeDraftEvidence.length, { timeout: 30_000 })
       .toBeGreaterThan(0);
@@ -129,8 +201,10 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     await expect
       .poll(() => touches().filter((e) => e.body['operation'] === 'close').length)
       .toBe(1);
+    const firstClose = touches().find((e) => e.body['operation'] === 'close')!;
+    expect(firstClose.body['sessionId']).toBe(start()[0]?.body['sessionId']);
     const closedCount = telemetry.length;
-    await page.clock.runFor(120_000);
+    await advanceTelemetryClock(page, 120_000);
     expect(telemetry).toHaveLength(closedCount);
     // Reopen with actual trusted input after idle, using a fresh client UUID.
     await frame.getByPlaceholder('Name', { exact: true }).fill('Abby active again');
@@ -141,14 +215,31 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     await expect
       .poll(() => touches().filter((e) => e.body['operation'] === 'close').length)
       .toBe(2);
+    const closes = touches().filter((e) => e.body['operation'] === 'close');
+    expect(closes.map((e) => e.body['sessionId'])).toEqual(start().map((e) => e.body['sessionId']));
+    expect(closes[1]?.body['eventId']).not.toBe(firstClose.body['eventId']);
     expect(fixture.pageErrors).toEqual([]);
+  } catch (error) {
+    await testInfo.attach('raw-module-session-identities', {
+      contentType: 'application/json',
+      body: JSON.stringify(
+        telemetry.map(({ body }) => ({
+          operation: body['operation'],
+          eventId: body['eventId'],
+          sessionId: body['sessionId'],
+        })),
+        null,
+        2,
+      ),
+    });
+    throw error;
   } finally {
     await fixture.close();
   }
 });
 
 test('telemetry rejection leaves the real Scratch minute save and controlled exit working', async () => {
-  const { createProtocolFixture, installMinuteAutosaveClock, advanceMinuteAutosave } =
+  const { createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
     await import('../tools/blocks/browser/fixture.mjs');
   const { parentOrigin } = await import('../tools/blocks/browser/protocol.mjs');
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
@@ -166,6 +257,7 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
     }),
   );
   try {
+    await observeTelemetryConsumption(page);
     await installMinuteAutosaveClock(page);
     await page.goto(`${parentOrigin}/product`, { waitUntil: 'domcontentloaded' });
     const frame = page.frameLocator('iframe[title="Scratch runtime"]');
@@ -177,14 +269,15 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
     await frame.getByRole('button', { name: 'Choose a Sprite' }).first().click();
     await frame.getByText('Abby', { exact: true }).click();
     await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
-    await advanceMinuteAutosave(page);
+    await waitForMinuteAutosaveArm(page);
+    await advanceTelemetryClock(page, 66_000);
     await expect
       .poll(() => fixture.runtimeDraftEvidence.length, { timeout: 30_000 })
       .toBeGreaterThan(0);
     const before = fixture.getServerRevision();
     await frame.getByPlaceholder('Name', { exact: true }).fill('Saved despite telemetry');
     await frame.getByPlaceholder('Name', { exact: true }).press('Enter');
-    await page.clock.runFor(1000);
+    await advanceTelemetryClock(page, 1000);
     await frame.locator('img[src$="asa-lab-scratch-wordmark.svg"]').click();
     await expect(page.getByTestId('asa-projects-fixture')).toBeVisible({ timeout: 30_000 });
     expect(fixture.getServerRevision()).toBeGreaterThan(before);
