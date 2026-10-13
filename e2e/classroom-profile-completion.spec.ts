@@ -312,6 +312,9 @@ test('assigned without a project stays one row through start, submission and rev
   // Work/grade tab selection survives switching pupils; return to works explicitly.
   await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+  for (const width of [320, 390, 1024, 1440]) {
+    await assertLayout(page, width, 'student-review-navigation');
+  }
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const list = page.getByRole('region', { name: 'Задания участника' });
   const row = list.locator(`[data-assignment-id="${assignment.assignmentId}"]`);
