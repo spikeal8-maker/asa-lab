@@ -187,6 +187,9 @@ async function assertLayout(page: Page, width: number, file: string) {
   );
   for (const control of await controls.all()) {
     if (!(await control.isVisible())) continue;
+    if (await control.evaluate((element) => Boolean(element.closest('.participant-tabs')))) {
+      await control.scrollIntoViewIfNeeded();
+    }
     const rect = await control.boundingBox();
     expect(rect).not.toBeNull();
     expect(rect!.x).toBeGreaterThanOrEqual(0);
@@ -209,6 +212,8 @@ async function assertLayout(page: Page, width: number, file: string) {
     ).toBeGreaterThanOrEqual(minFontSize);
     if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(44);
   }
+  await page.locator('.participant-tabs').evaluate((element) => { element.scrollLeft = 0; });
+  await page.evaluate(() => window.scrollTo(0, 0));
   if (width <= 900) {
     const header = page.locator('.portal-header');
     const rect = await header.boundingBox();
