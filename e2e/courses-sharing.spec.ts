@@ -50,7 +50,7 @@ test('a teacher adds one complete published demo course', async ({ page }) => {
   });
   await loginWithOrganization(page, author);
   await sidebar(page, 'Курсы и задания').click();
-  await bankTab(page, 'Мои курсы').click();
+  await bankTab(page, 'Курсы').click();
 
   await page.getByRole('button', { name: 'Добавить демо-курс' }).click();
   const editor = page.getByTestId('course-editor');
@@ -133,7 +133,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   }
 
   // И собирает из них курс: курс — это разделы, материалы и практика в порядке.
-  await bankTab(authorPage, 'Мои курсы').click();
+  await bankTab(authorPage, 'Курсы').click();
   await authorPage.getByRole('button', { name: 'Создать курс' }).first().click();
   const courseDialog = authorPage.getByRole('dialog', { name: 'Новый курс' });
   await courseDialog.getByLabel('Название').fill(courseTitle);
@@ -326,7 +326,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
 
   // Return to the author's draft for the sharing scenario below.
   await sidebar(authorPage, 'Курсы и задания').click();
-  await bankTab(authorPage, 'Мои курсы').click();
+  await bankTab(authorPage, 'Курсы').click();
   await authorPage
     .getByTestId('courses-list')
     .locator('li')
@@ -340,7 +340,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
    * соседней школы, которому его собираются открыть.
    */
   await sidebar(matePage, 'Курсы и задания').click();
-  await bankTab(matePage, 'Каталог').click();
+  await bankTab(matePage, 'Библиотека').click();
   await expect(matePage.getByText(courseTitle, { exact: true })).toHaveCount(0);
 
   await authorPage.getByRole('button', { name: 'Доступ', exact: true }).click();
@@ -355,7 +355,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   // возьмёт: брать вслепую никто не должен.
   await matePage.reload();
   await sidebar(matePage, 'Курсы и задания').click();
-  await bankTab(matePage, 'Каталог').click();
+  await bankTab(matePage, 'Библиотека').click();
   const card = matePage
     .getByTestId('catalogue-list')
     .locator('li')
@@ -384,7 +384,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
    * Забранное — копия. Она своя: лежит в своей папке, закрыта от всех и не
    * меняется, когда автор правит оригинал.
    */
-  await bankTab(matePage, 'Мои курсы').click();
+  await bankTab(matePage, 'Курсы').click();
   const mine = matePage.getByTestId('courses-list').locator('li').first();
   await expect(mine).toContainText('из каталога');
   await expect(mine).toContainText('Только мне');
@@ -409,7 +409,7 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
 
   // The published version remains intact, while the author gets an explicit
   // signal that the draft now differs and can deliberately publish v2.
-  await bankTab(authorPage, 'Мои курсы').click();
+  await bankTab(authorPage, 'Курсы').click();
   const changedCourse = authorPage
     .getByTestId('courses-list')
     .locator('li')

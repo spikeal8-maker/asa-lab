@@ -266,7 +266,7 @@ function LessonEditor({
         ) : null}
       </div>
 
-      <div className="course-editor-grid">
+      <div className="course-editor-grid course-lesson-meta">
         <label className="course-field">
           <span>Раздел</span>
           <select
@@ -298,8 +298,8 @@ function LessonEditor({
         </label>
       </div>
 
-      <label className="course-field">
-        <span>Название урока</span>
+      <label className="course-field course-lesson-title-field">
+        <span className="sr-only">Название урока</span>
         <input
           value={title}
           maxLength={160}
@@ -311,8 +311,8 @@ function LessonEditor({
         />
       </label>
 
-      <label className="course-field">
-        <span>Что будет в уроке</span>
+      <label className="course-field course-lesson-summary-field">
+        <span className="sr-only">Что будет в уроке</span>
         <input
           value={summary}
           maxLength={600}
@@ -325,8 +325,8 @@ function LessonEditor({
       </label>
 
       {kind === 'assignment' ? (
-        <label className="course-field">
-          <span>Опубликованный материал</span>
+        <label className="course-field course-assignment-picker">
+          <span>Задание</span>
           <select
             aria-label="Задание из банка"
             value={assignmentId}
@@ -508,6 +508,8 @@ function CourseEditor({
   const createdLessonIdRef = useRef<string | null>(null);
   const [sectionForm, setSectionForm] = useState<CourseSection | null | 'new'>(null);
   const [preview, setPreview] = useState(false);
+  const [outlineOpen, setOutlineOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -735,10 +737,24 @@ function CourseEditor({
           <div className="course-header-actions">
             <button
               type="button"
+              className="btn-secondary course-outline-toggle"
+              onClick={() => withSavedDraft(() => setOutlineOpen(true))}
+            >
+              Содержание
+            </button>
+            <button
+              type="button"
               className="btn-secondary"
               onClick={() => withSavedDraft(onEditCourse)}
             >
               Настройки
+            </button>
+            <button
+              type="button"
+              className="btn-secondary course-history-trigger"
+              onClick={() => setHistoryOpen(true)}
+            >
+              Версии
             </button>
             {canTeach ? (
               <button
@@ -791,29 +807,57 @@ function CourseEditor({
           </p>
         ) : null}
 
-        <AuthorVersionHistory
-          kind="course"
-          rootId={course.id}
-          revision={draftRevision}
-          dirty={localDirty || sectionForm !== null || newLessonSectionId !== null}
-          onBusyChange={setRestoreBusy}
-          onOpenDraft={async (sourceVersionNumber) => {
-            setPreview(false);
-            setSelectedLessonId(null);
-            setNewLessonSectionId(null);
-            setSectionForm(null);
-            await loadOutline(true);
-            setEditorEpoch((value) => value + 1);
-            onChanged();
-            setNotice(
-              sourceVersionNumber
-                ? 'Черновик создан на основе версии ' + sourceVersionNumber
-                : 'Открыт существующий черновик.',
-            );
-          }}
-        />
+        {historyOpen ? (
+          <div className="modal-backdrop" role="presentation">
+            <section
+              className="modal course-history-dialog"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="course-history-title"
+            >
+              <header className="course-history-header">
+                <div>
+                  <span>Курс</span>
+                  <h2 id="course-history-title">История версий</h2>
+                </div>
+                <button
+                  type="button"
+                  className="course-history-close"
+                  aria-label="Закрыть историю версий курса"
+                  onClick={() => setHistoryOpen(false)}
+                >
+                  ×
+                </button>
+              </header>
+              <AuthorVersionHistory
+                kind="course"
+                rootId={course.id}
+                revision={draftRevision}
+                dirty={localDirty || sectionForm !== null || newLessonSectionId !== null}
+                onBusyChange={setRestoreBusy}
+                onOpenDraft={async (sourceVersionNumber) => {
+                  setHistoryOpen(false);
+                  setPreview(false);
+                  setSelectedLessonId(null);
+                  setNewLessonSectionId(null);
+                  setSectionForm(null);
+                  await loadOutline(true);
+                  setEditorEpoch((value) => value + 1);
+                  onChanged();
+                  setNotice(
+                    sourceVersionNumber
+                      ? 'Черновик создан на основе версии ' + sourceVersionNumber
+                      : 'Открыт существующий черновик.',
+                  );
+                }}
+              />
+            </section>
+          </div>
+        ) : null}
         {course.draftActive && course.draftBaseVersionNumber ? (
-          <p>Черновик на основе версии {course.draftBaseVersionNumber}</p>
+          <p className="course-draft-source">
+            Черновик на основе версии {course.draftBaseVersionNumber}
+          </p>
         ) : null}
         {sections === null ? (
           <p role="status">Загружаем содержание…</p>
@@ -821,12 +865,31 @@ function CourseEditor({
           <CoursePreview course={course} sections={sections} />
         ) : (
           <div className="course-builder" onChange={markDirty}>
-            <aside className="course-outline" aria-label="Содержание курса">
+            {outlineOpen ? (
+              <button
+                type="button"
+                className="course-outline-backdrop"
+                aria-label="Закрыть содержание курса"
+                onClick={() => setOutlineOpen(false)}
+              />
+            ) : null}
+            <aside
+              className={`course-outline${outlineOpen ? ' is-mobile-open' : ''}`}
+              aria-label="Содержание курса"
+            >
               <div className="course-outline-head">
                 <div>
                   <span>Содержание</span>
                   <small>{lessonCount} уроков</small>
                 </div>
+                <button
+                  type="button"
+                  className="course-outline-close"
+                  aria-label="Закрыть содержание"
+                  onClick={() => setOutlineOpen(false)}
+                >
+                  ×
+                </button>
                 <button
                   type="button"
                   className="course-icon-button"
@@ -962,6 +1025,7 @@ function CourseEditor({
                               withSavedDraft(() => {
                                 setSelectedLessonId(lesson.id);
                                 setNewLessonSectionId(null);
+                                setOutlineOpen(false);
                               })
                             }
                           >
@@ -1066,6 +1130,7 @@ function CourseEditor({
                           createdLessonIdRef.current = null;
                           setSelectedLessonId(null);
                           setNewLessonSectionId(section.id);
+                          setOutlineOpen(false);
                         })
                       }
                     >
@@ -1169,6 +1234,7 @@ export function CoursesPanel({
   const [error, setError] = useState<string | null>(null);
   const [creatingDemo, setCreatingDemo] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [courseSearch, setCourseSearch] = useState('');
   const creationRequest = useRef<{ payload: string; id: string } | null>(null);
 
   const reload = useCallback(async () => {
@@ -1220,9 +1286,15 @@ export function CoursesPanel({
     onChanged();
   }
 
-  const visibleCourses = (courses ?? []).filter(
-    (course) => (course.archivedAt !== null) === showArchived,
-  );
+  const courseNeedle = courseSearch.trim().toLocaleLowerCase('ru-RU');
+  const visibleCourses = (courses ?? []).filter((course) => {
+    if ((course.archivedAt !== null) !== showArchived) return false;
+    if (!courseNeedle) return true;
+    return (
+      course.title.toLocaleLowerCase('ru-RU').includes(courseNeedle) ||
+      (course.summary ?? '').toLocaleLowerCase('ru-RU').includes(courseNeedle)
+    );
+  });
   const open =
     courses?.find((course) => course.id === openId && course.archivedAt === null) ?? null;
   if (open) {
@@ -1271,149 +1343,129 @@ export function CoursesPanel({
 
   return (
     <section className="courses-panel">
-      <div className="courses-toolbar">
-        <div className="courses-toolbar-copy">
-          <strong>Ваши курсы</strong>
-          <span>Собирайте уроки и материалы, а назначайте их уже внутри класса.</span>
-        </div>
-        <div className="courses-toolbar-actions">
-          <button
-            type="button"
-            className={!showArchived ? 'btn-primary' : 'btn-secondary'}
-            aria-pressed={!showArchived}
-            onClick={() => setShowArchived(false)}
-          >
-            Активные
-          </button>
-          <button
-            type="button"
-            className={showArchived ? 'btn-primary' : 'btn-secondary'}
-            aria-pressed={showArchived}
-            onClick={() => setShowArchived(true)}
-          >
-            Архив
-          </button>
-          {canTeach && !showArchived ? (
+      <div className="courses-workspace">
+        <div className="courses-toolbar">
+          <label className="courses-search">
+            <span className="sr-only">Поиск курсов</span>
+            <input
+              type="search"
+              placeholder="Найти курс"
+              value={courseSearch}
+              onChange={(event) => setCourseSearch(event.target.value)}
+            />
+          </label>
+          <div className="courses-filter-group" role="group" aria-label="Фильтр курсов">
             <button
               type="button"
-              className="btn-secondary"
-              disabled={creatingDemo}
-              onClick={() => void ensureDemoCourse()}
+              className={!showArchived ? 'is-active' : undefined}
+              aria-pressed={!showArchived}
+              onClick={() => setShowArchived(false)}
             >
-              {creatingDemo ? 'Добавляем…' : 'Добавить демо-курс'}
+              Активные
             </button>
-          ) : null}
-          {!showArchived ? (
             <button
               type="button"
-              className="portal-create-button"
-              onClick={() => setCourseForm('new')}
+              className={showArchived ? 'is-active' : undefined}
+              aria-pressed={showArchived}
+              onClick={() => setShowArchived(true)}
             >
-              Создать курс
+              Архив
             </button>
-          ) : null}
-        </div>
-      </div>
-
-      {notice ? (
-        <p className="notice-success" role="status">
-          {notice}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="form-error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
-      {courses === null ? (
-        <p role="status">Загружаем курсы…</p>
-      ) : visibleCourses.length === 0 ? (
-        <div className="course-list-empty">
-          <span aria-hidden="true">＋</span>
-          <div>
-            <h3>{showArchived ? 'Архив пуст' : 'Создайте первый курс'}</h3>
-            <p>
-              {showArchived
-                ? 'Архивированные курсы появятся здесь.'
-                : 'Разделы задают порядок, уроки объединяют объяснение и практику.'}
-            </p>
           </div>
           {!showArchived ? (
-            <div className="course-list-empty-actions">
-              {canTeach ? (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={creatingDemo}
-                  onClick={() => void ensureDemoCourse()}
-                >
-                  {creatingDemo ? 'Добавляем…' : 'Посмотреть готовый пример'}
-                </button>
-              ) : null}
-              <button type="button" className="btn-primary" onClick={() => setCourseForm('new')}>
-                Создать свой курс
-              </button>
-            </div>
+            <button
+              type="button"
+              className="portal-create-button courses-create"
+              aria-label="Создать курс"
+              onClick={() => setCourseForm('new')}
+            >
+              + Новый курс
+            </button>
           ) : null}
         </div>
-      ) : (
-        <ul className="courses-list" data-testid="courses-list">
-          {visibleCourses.map((course) => (
-            <li key={course.id}>
+
+        {notice ? (
+          <p className="notice-success" role="status">
+            {notice}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="form-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+
+        {courses === null ? (
+          <div className="course-list-state" role="status">
+            Загружаем курсы…
+          </div>
+        ) : visibleCourses.length === 0 ? (
+          <div className="course-list-state">
+            <strong>
+              {courseNeedle
+                ? 'Ничего не найдено.'
+                : showArchived
+                  ? 'Архив пуст.'
+                  : 'Курсов пока нет.'}
+            </strong>
+            <span>
+              {courseNeedle
+                ? 'Измените запрос.'
+                : showArchived
+                  ? 'Архивированные курсы появятся здесь.'
+                  : 'Создайте первый курс.'}
+            </span>
+            {!showArchived && !courseNeedle && canTeach ? (
               <button
                 type="button"
-                className="course-row-main"
-                disabled={showArchived}
-                onClick={() => setOpenId(course.id)}
+                className="course-example-link"
+                aria-label="Добавить демо-курс"
+                disabled={creatingDemo}
+                onClick={() => void ensureDemoCourse()}
               >
-                <span className="course-row-mark" aria-hidden="true">
-                  {course.title.slice(0, 1).toLocaleUpperCase('ru-RU')}
-                </span>
-                <span className="course-row-copy">
-                  <span>
-                    <strong>{course.title}</strong>
-                    <em className={publicationClass(course)}>{publicationLabel(course)}</em>
-                    {course.copiedFromCourseId ? <em>из каталога</em> : null}
-                  </span>
-                  {course.summary ? <small>{course.summary}</small> : null}
-                </span>
-                <span className="course-row-stats">
-                  <span>
-                    <strong>{course.sectionCount}</strong>
-                    <small>разделов</small>
-                  </span>
-                  <span>
-                    <strong>{course.lessonCount}</strong>
-                    <small>уроков</small>
-                  </span>
-                  <span className="course-row-visibility">
-                    {visibilityLabel(course.visibility)}
-                  </span>
-                </span>
+                {creatingDemo ? 'Добавляем пример…' : 'Добавить готовый пример'}
               </button>
-              {showArchived ? (
+            ) : null}
+          </div>
+        ) : (
+          <ul className="courses-list" data-testid="courses-list">
+            {visibleCourses.map((course) => (
+              <li key={course.id}>
                 <button
                   type="button"
-                  className="btn-secondary course-open-button"
-                  onClick={() =>
-                    void act(
-                      () => api.archiveCourse(course.id, false, course.draftRevision),
-                      'Курс «' + course.title + '» восстановлен.',
-                    )
-                  }
+                  className="course-row-main"
+                  disabled={showArchived}
+                  aria-label={`Открыть курс «${course.title}»`}
+                  onClick={() => setOpenId(course.id)}
                 >
-                  Восстановить
+                  <span className="course-row-copy">
+                    <strong>{course.title}</strong>
+                    {course.summary ? <small>{course.summary}</small> : null}
+                  </span>
+                  <span className="course-row-state">
+                    <em className={publicationClass(course)}>{publicationLabel(course)}</em>
+                    <small>
+                      {course.sectionCount} разделов · {course.lessonCount} уроков
+                    </small>
+                  </span>
+                  <span className="course-row-chevron" aria-hidden="true">
+                    ›
+                  </span>
                 </button>
-              ) : (
-                <>
+                {showArchived ? (
                   <button
                     type="button"
-                    className="btn-secondary course-open-button"
-                    onClick={() => setOpenId(course.id)}
+                    className="course-restore-button"
+                    onClick={() =>
+                      void act(
+                        () => api.archiveCourse(course.id, false, course.draftRevision),
+                        'Курс «' + course.title + '» восстановлен.',
+                      )
+                    }
                   >
-                    Открыть
+                    Восстановить
                   </button>
+                ) : (
                   <Dropdown
                     className="course-row-menu"
                     ariaLabel={'Ещё: ' + course.title}
@@ -1438,7 +1490,7 @@ export function CoursesPanel({
                               setSharing(course);
                             }}
                           >
-                            Кому видно
+                            Кому видно · {visibilityLabel(course.visibility)}
                           </button>
                         ) : null}
                         <button
@@ -1447,7 +1499,6 @@ export function CoursesPanel({
                             close();
                             if (!window.confirm('Архивировать курс «' + course.title + '»?'))
                               return;
-
                             void act(
                               () => api.archiveCourse(course.id, true, course.draftRevision),
                               'Курс «' + course.title + '» перемещён в архив.',
@@ -1459,12 +1510,12 @@ export function CoursesPanel({
                       </>
                     )}
                   </Dropdown>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
 
       {courseForm ? (
         <CourseFormDialog
