@@ -3,7 +3,7 @@ name: ${COMPOSE_PROJECT_NAME:-asa-lab-dev}
 services:
   migration:
     environment:
-# Respect an existing restored database: never force demo accounts.
+      # Respect an existing restored database: never force demo accounts.
       ASA_SEED_DEV: '${ASA_SEED_DEV:-true}'
 
   api:
