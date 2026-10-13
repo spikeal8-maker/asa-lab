@@ -127,6 +127,82 @@ afterEach(() => {
 
 describe('OBS-002 independently confirmed product auth recovery', () => {
   it.each([events, quality])(
+    'rejects an expired product observation before deferred timers run: %s',
+    async (path) => {
+      const send = transport.getMockImplementation()!;
+      let finish!: (response: Response) => void;
+      transport.mockImplementation((url, init) =>
+        String(url) === path && count(path) === 1
+          ? new Promise((resolve) => {
+              finish = resolve;
+            })
+          : send(url, init),
+      );
+      context.setTelemetryContext(actor, true, 'editor.electronics');
+      await vi.advanceTimersByTimeAsync(path === quality ? 1000 : 0);
+      await product();
+      const generation = context.telemetryContext().generation;
+      vi.setSystemTime(Date.now() + 12_001);
+      finish(new Response(null, { status: 401 }));
+      await drain();
+      expect(count('/api/auth/me')).toBe(0);
+      expect(context.telemetryContext().generation).toBe(generation);
+    },
+  );
+
+  it('rejects expired proof completion before deferred timers run', async () => {
+    await stopAtVisit();
+    let finish!: (response: Response) => void;
+    proof = () =>
+      new Promise((resolve) => {
+        finish = resolve;
+      });
+    expect((await product()).status).toBe(200);
+    const generation = context.telemetryContext().generation;
+    vi.setSystemTime(Date.now() + 12_001);
+    finish(me());
+    await drain();
+    expect(context.telemetryContext().generation).toBe(generation);
+    expect(
+      (transport.mock.calls.find(([url]) => url === '/api/auth/me')?.[1]?.signal as AbortSignal)
+        .aborted,
+    ).toBe(true);
+  });
+
+  it('rejects continued proof body after its deadline before deferred timers run', async () => {
+    await stopAtVisit();
+    let body!: ReadableStreamDefaultController<Uint8Array>;
+    const cancel = vi.fn();
+    proof = async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            body = controller;
+          },
+          cancel,
+        }),
+      );
+    expect((await product()).status).toBe(200);
+    const generation = context.telemetryContext().generation;
+    vi.setSystemTime(Date.now() + 12_001);
+    body.enqueue(
+      new TextEncoder().encode(
+        JSON.stringify({
+          authenticated: true,
+          account: { id: actor.accountId },
+          activeWorkspace: { workspaceId: actor.workspaceId },
+        }),
+      ),
+    );
+    await drain();
+    expect(context.telemetryContext().generation).toBe(generation);
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(
+      (transport.mock.calls.find(([url]) => url === '/api/auth/me')?.[1]?.signal as AbortSignal)
+        .aborted,
+    ).toBe(true);
+  });
+  it.each([events, quality])(
     'recovers late old-cookie401 from %s after product refresh already succeeded',
     async (path) => {
       const send = transport.getMockImplementation()!;

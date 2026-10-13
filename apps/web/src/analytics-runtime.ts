@@ -22,7 +22,8 @@ let generation = -1;
 let continuity = -1;
 let visitId = '';
 let proof: { context: TelemetryContext; controller: AbortController } | undefined;
-let productObservation: TelemetryContext | undefined;
+type ProductObservation = { readonly context: TelemetryContext; readonly deadline: number };
+let productObservation: ProductObservation | undefined;
 let observationTimer: ReturnType<typeof setTimeout> | undefined;
 function clearProductObservation(): void {
   productObservation = undefined;
@@ -31,7 +32,8 @@ function clearProductObservation(): void {
 }
 function update(context: TelemetryContext): void {
   if (proof && !sameTelemetryBinding(proof.context)) proof.controller.abort();
-  if (productObservation && !sameTelemetryBinding(productObservation)) clearProductObservation();
+  if (productObservation && !sameTelemetryBinding(productObservation.context))
+    clearProductObservation();
   if (!context.ready) {
     delivery?.pause(true);
     return;
@@ -67,7 +69,10 @@ function update(context: TelemetryContext): void {
 }
 subscribeTelemetry(update);
 /** Bounded canonical identity read; it cannot refresh credentials or alter the product response. */
-async function freshActor(signal: AbortSignal): Promise<TelemetryActor | null> {
+async function freshActor(
+  signal: AbortSignal,
+  outOfTime: () => boolean,
+): Promise<TelemetryActor | null> {
   try {
     const response = await fetch('/api/auth/me', {
       credentials: 'same-origin',
@@ -75,7 +80,7 @@ async function freshActor(signal: AbortSignal): Promise<TelemetryActor | null> {
       signal,
       headers: { accept: 'application/json' },
     });
-    if (!response.ok || signal.aborted || !response.body) {
+    if (outOfTime() || !response.ok || !response.body) {
       void response.body?.cancel().catch(() => undefined);
       return null;
     }
@@ -87,8 +92,9 @@ async function freshActor(signal: AbortSignal): Promise<TelemetryActor | null> {
     try {
       const bytes = new Uint8Array(64_000);
       let length = 0;
-      while (!signal.aborted) {
+      while (!outOfTime()) {
         const { done, value } = await reader.read();
+        if (outOfTime()) return null;
         if (done) break;
         if (length + value.byteLength > bytes.length) {
           cancel();
@@ -97,7 +103,7 @@ async function freshActor(signal: AbortSignal): Promise<TelemetryActor | null> {
         bytes.set(value, length);
         length += value.byteLength;
       }
-      if (signal.aborted) return null;
+      if (outOfTime()) return null;
       const value: unknown = JSON.parse(new TextDecoder().decode(bytes.subarray(0, length)));
       if (
         !record(value) ||
@@ -121,7 +127,12 @@ async function freshActor(signal: AbortSignal): Promise<TelemetryActor | null> {
     return null;
   }
 }
-function recoverAuthentication(context: TelemetryContext): void {
+function recoverAuthentication(observation: ProductObservation): void {
+  if (Date.now() >= observation.deadline) {
+    clearProductObservation();
+    return;
+  }
+  const context = observation.context;
   const target = delivery;
   if (
     proof ||
@@ -135,16 +146,21 @@ function recoverAuthentication(context: TelemetryContext): void {
   const pending = { context, controller: new AbortController() };
   proof = pending;
   const signal = pending.controller.signal;
+  const deadline = Date.now() + 12_000;
+  const outOfTime = (): boolean => {
+    if (Date.now() >= deadline) pending.controller.abort();
+    return signal.aborted;
+  };
   const timeout = setTimeout(() => pending.controller.abort(), 12_000);
   let aborted!: () => void;
   const cancelled = new Promise<null>((resolve) => {
     aborted = () => resolve(null);
     signal.addEventListener('abort', aborted, { once: true });
   });
-  void Promise.race([freshActor(signal), cancelled])
+  void Promise.race([freshActor(signal, outOfTime), cancelled])
     .then((actor) => {
       if (
-        !signal.aborted &&
+        !outOfTime() &&
         actor &&
         delivery === target &&
         target.canRecoverAuthentication() &&
@@ -162,10 +178,10 @@ function recoverAuthentication(context: TelemetryContext): void {
 subscribeProductConfirmation((context) => {
   if (proof || context.actor?.kind !== 'account') return;
   clearProductObservation();
-  productObservation = context;
+  productObservation = { context, deadline: Date.now() + 12_000 };
   // A telemetry request has a 12s deadline; a healthy refresh needs no speculative identity read.
   observationTimer = setTimeout(clearProductObservation, 12_000);
-  recoverAuthentication(context);
+  recoverAuthentication(productObservation);
 });
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
