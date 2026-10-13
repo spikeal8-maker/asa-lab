@@ -24,7 +24,9 @@ describe('additive analytics receipt upgrade', () => {
       pool = new pg.Pool({ connectionString: target.toString(), max: 1 });
       const client = await pool.connect();
       try {
-        const plan = planMigrations();
+        // This isolated receipt test upgrades exactly 0206 → 0207.
+        // Later Classroom migrations have independent full-forward upgrade tests.
+        const plan = planMigrations().filter((item) => Number(item.version) <= 207);
         const old = plan.filter((item) => Number(item.version) <= 206);
         await applyIsolatedTestPlan(client, old);
         await client.query(

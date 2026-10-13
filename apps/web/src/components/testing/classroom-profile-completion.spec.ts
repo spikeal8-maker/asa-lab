@@ -733,7 +733,9 @@ describe('participant completion DOM behavior', () => {
           createElement(StudentJournalResults, { scope: 'seat' }),
         ),
       );
-      const cells = [...host.querySelectorAll<HTMLButtonElement>('.manual-journal-cell')];
+      const cells = [
+        ...host.querySelectorAll<HTMLButtonElement>('.manual-journal-cell[data-slot-key=""]'),
+      ];
       expect(cells.map((cell) => cell.textContent)).toEqual(labels);
       const expected = labels.map((label, i) => `${label} — уровень ${i + 1} из 5`);
       expect(
@@ -790,7 +792,9 @@ describe('participant completion DOM behavior', () => {
         createElement(ManualClassroomJournal, { classroomId: 'class' }),
       ),
     );
-    const cells = [...host.querySelectorAll<HTMLButtonElement>('.manual-journal-cell')];
+    const cells = [
+      ...host.querySelectorAll<HTMLButtonElement>('.manual-journal-cell[data-slot-key=""]'),
+    ];
     expect(cells.map((cell) => cell.textContent)).toEqual(['0', 'Отозвана', '—']);
     expect(cells[1]?.getAttribute('aria-label')).toContain('Отозвана');
     expect(cells[2]?.getAttribute('aria-label')).toContain('Нет оценки');

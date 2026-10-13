@@ -1098,6 +1098,26 @@ export class ClassroomJoinController {
     const shape = checkBodyShape(rawBody, ['decision', 'reason']);
     if (!UUID_PATTERN.test(classroomId) || !UUID_PATTERN.test(requestId) || !shape.ok)
       throw new HttpException(error('validation_error', 'Некорректная заявка.'), 400);
+    const reason = shape.body['reason'];
+    if (
+      reason !== undefined &&
+      reason !== null &&
+      (typeof reason !== 'string' ||
+        reason.length > 500 ||
+        [...reason].some((char) => {
+          const code = char.charCodeAt(0);
+          return (
+            char === '<' ||
+            char === '>' ||
+            code === 127 ||
+            (code < 32 && ![9, 10, 13].includes(code))
+          );
+        }))
+    )
+      throw new HttpException(
+        error('validation_error', 'Ответ: до 500 символов обычного текста.'),
+        400,
+      );
     const result = await this.requirePool().query(
       'SELECT classroom_account_join_decide($1,$2,$3,$4,$5,$6) AS code',
       [
@@ -1106,7 +1126,7 @@ export class ClassroomJoinController {
         classroomId,
         requestId,
         shape.body['decision'],
-        shape.body['reason'] ?? null,
+        typeof reason === 'string' ? reason.trim() || null : null,
       ],
     );
     if (result.rows[0]?.['code'] !== 'ok')

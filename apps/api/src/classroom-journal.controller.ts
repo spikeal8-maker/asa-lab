@@ -23,7 +23,7 @@ const messages: Record<string, string> = {
   forbidden: 'Нет доступа к журналу этого класса.',
   unauthorized: 'Войдите заново для просмотра журнала.',
   classroom_archived: 'Архивный класс доступен только для просмотра.',
-  revision_conflict: 'Оценка или шкала уже изменились. Обновите данные перед повтором.',
+  revision_conflict: 'Оценка, заголовок или шкала уже изменились. Обновите данные перед повтором.',
   idempotency_conflict: 'Этот запрос уже использован для другого изменения.',
   reason_required: 'Укажите причину исправления или очистки оценки.',
   invalid_body: 'Проверьте введённые данные.',
@@ -115,14 +115,26 @@ export class ClassroomJournalController {
   ) {
     this.id(classroomId);
     const range = this.range(query);
+    const column = query['columnId'];
+    const slot = query['slotKey'];
+    if (
+      (column !== undefined && (typeof column !== 'string' || !uuid.test(column))) ||
+      (slot !== undefined &&
+        (typeof slot !== 'string' ||
+          !/^(20\d{2}|2100)-(0[1-9]|1[0-2]):[1-9]\d{0,5}$/.test(slot))) ||
+      (column !== undefined && slot !== undefined)
+    )
+      fail('invalid_body');
     const result = await this.db().query(
-      'SELECT classroom_journal_read($1,$2,$3,$4,$5,$6) AS value',
+      'SELECT classroom_journal_quick_read($1,$2,$3,$4,$5,$6,$7,$8) AS value',
       [
         await this.accountActor(request),
         classroomId,
         ...range,
         this.integer(query['offset'], 0, 0, 1000000),
         this.integer(query['limit'], 50, 1, 50),
+        column ?? null,
+        slot ?? null,
       ],
     );
     if (!result.rows[0]?.value) fail('forbidden', 403);
@@ -182,7 +194,21 @@ export class ClassroomJournalController {
           ? ['requestId', 'expectedRevision', 'date', 'category']
           : action === 'grade'
             ? ['requestId', 'expectedRevision', 'columnId', 'seatId', 'value', 'reason']
-            : null;
+            : action === 'quick'
+              ? [
+                  'requestId',
+                  'expectedRevision',
+                  'columnId',
+                  'slotKey',
+                  'date',
+                  'category',
+                  'expectedScaleVersion',
+                  'expectedHeaderRevision',
+                  'seatId',
+                  'value',
+                  'reason',
+                ]
+              : null;
     if (!allowed) fail('invalid_body');
     const shape = checkBodyShape(raw, allowed);
     if (!shape.ok) fail('invalid_body');
@@ -190,11 +216,50 @@ export class ClassroomJournalController {
     if (
       typeof b['requestId'] !== 'string' ||
       !/^[A-Za-z0-9._:-]{8,128}$/.test(b['requestId']) ||
-      !Number.isInteger(b['expectedRevision']) ||
-      Number(b['expectedRevision']) < 0 ||
-      Number(b['expectedRevision']) > 999999999
+      (action !== 'quick' &&
+        (!Number.isInteger(b['expectedRevision']) ||
+          Number(b['expectedRevision']) < 0 ||
+          Number(b['expectedRevision']) > 999999999))
     )
       fail('invalid_body');
+    if (action === 'quick') {
+      for (const field of ['expectedScaleVersion', 'expectedHeaderRevision'])
+        if (!Number.isInteger(b[field]) || Number(b[field]) < 0 || Number(b[field]) > 999999999)
+          fail('invalid_body');
+      if (
+        !validJournalDate(b['date']) ||
+        !text(b['category'], 80) ||
+        (b['columnId'] === undefined
+          ? typeof b['slotKey'] !== 'string' ||
+            !/^(20\d{2}|2100)-(0[1-9]|1[0-2]):[1-9]\d{0,5}$/.test(b['slotKey']) ||
+            b['slotKey'].slice(0, 7) !== b['date'].slice(0, 7)
+          : typeof b['columnId'] !== 'string' ||
+            !uuid.test(b['columnId']) ||
+            b['slotKey'] !== undefined)
+      )
+        fail('invalid_body');
+      if (b['seatId'] !== undefined) {
+        if (
+          typeof b['seatId'] !== 'string' ||
+          !uuid.test(b['seatId']) ||
+          !Number.isInteger(b['expectedRevision']) ||
+          Number(b['expectedRevision']) < 0 ||
+          Number(b['expectedRevision']) > 999999999 ||
+          !(
+            b['value'] === null ||
+            (typeof b['value'] === 'number' &&
+              Number.isInteger(b['value']) &&
+              b['value'] >= 0 &&
+              b['value'] <= 100)
+          ) ||
+          !(b['reason'] == null || text(b['reason'], 500))
+        )
+          fail('invalid_body');
+      } else if (['value', 'reason', 'expectedRevision'].some((field) => b[field] !== undefined))
+        fail('invalid_body');
+      if (typeof b['requestId'] === 'string' && b['requestId'].length > 110) fail('invalid_body');
+      return this.quickWrite(request, classroomId, b);
+    }
     if (action === 'scale' && !presets.includes(String(b['preset']))) fail('invalid_body');
     if (action === 'column' && (!validJournalDate(b['date']) || !text(b['category'], 80)))
       fail('invalid_body');
@@ -218,6 +283,32 @@ export class ClassroomJournalController {
     const result = await this.db().query(
       'SELECT classroom_journal_write($1,$2,$3,$4::jsonb) AS value',
       [await this.accountActor(request), classroomId, action, JSON.stringify(b)],
+    );
+    const value = result.rows[0]?.value;
+    if (!value) fail('database_unavailable', 503);
+    if (value.error)
+      fail(
+        value.error,
+        value.error === 'forbidden'
+          ? 403
+          : value.error === 'not_found'
+            ? 404
+            : ['revision_conflict', 'idempotency_conflict', 'classroom_archived'].includes(
+                  value.error,
+                )
+              ? 409
+              : 400,
+      );
+    return value;
+  }
+  private async quickWrite(
+    request: FastifyRequest,
+    classroomId: string,
+    input: Record<string, unknown>,
+  ) {
+    const result = await this.db().query(
+      'SELECT classroom_journal_quick_write($1,$2,$3::jsonb) AS value',
+      [await this.accountActor(request), classroomId, JSON.stringify(input)],
     );
     const value = result.rows[0]?.value;
     if (!value) fail('database_unavailable', 503);

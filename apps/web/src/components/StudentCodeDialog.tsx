@@ -9,11 +9,13 @@ export function StudentCodeDialog({
   student,
   onClose,
   onSaved,
+  onForbidden,
 }: {
   classroomId: string;
   student: ClassroomStudentSeat;
   onClose: () => void;
   onSaved: (studentCode: string) => Promise<void> | void;
+  onForbidden?: () => void;
 }): JSX.Element {
   const [value, setValue] = useState(student.studentCode ?? '');
   const [busy, setBusy] = useState<'save' | 'generate' | null>(null);
@@ -31,6 +33,7 @@ export function StudentCodeDialog({
         requestId: request.current.id,
       });
       if (!result.ok) {
+        if (result.status === 401 || result.status === 403) onForbidden?.();
         setError(result.error.message || 'Не удалось изменить код ученика.');
         return;
       }

@@ -5,6 +5,7 @@ import { collectBrowserFailures } from './browser-failures';
 import { loginWithOrganization } from './organization-login';
 import { e2eAdminPool, seedTeacher, type SeededTeacher } from './seed';
 import { openPortalSection } from './portal-navigation';
+import type { TeacherHomeAttention } from '../apps/web/src/api';
 
 const evidenceDir = 'e2e/artifacts/learning/course-01';
 const ux0EvidenceDir = 'e2e/artifacts/learning/work-shell-v1';
@@ -270,11 +271,11 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -300,11 +301,11 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page
     .getByRole('article')
-    .filter({ has: page.getByRole('heading', { name: 'Преподавание', exact: true }) })
+    .filter({ has: page.getByRole('heading', { name: 'Классы', exact: true }) })
     .getByRole('button', { name: 'Подключить', exact: true })
     .click();
   await page.goto('/#/challenges');
@@ -332,13 +333,18 @@ test('author-only content keeps exact ID and versions after teaching activation;
   ).toBeVisible();
   await openAssignments(page);
   await assignFromUi(page, { title: 'Оцениваемая практика автора', due: '2026-12-30' });
-  await page.getByRole('button', { name: /^Оповещения/ }).click();
-  const inbox = page.getByRole('dialog', { name: 'Учебные оповещения' });
-  await inbox.getByRole('button', { name: 'Настроить', exact: true }).click();
+  // Notifications now live in Settings (owner shell ETZ §4), not a global dialog.
+  const notificationPage = await page.context().newPage();
+  await notificationPage.goto('/#/account/notifications');
+  const inbox = notificationPage.getByRole('region', {
+    name: 'Учебные оповещения — только для меня',
+    exact: true,
+  });
+  const events = notificationPage.getByRole('region', { name: 'События уведомлений', exact: true });
   await inbox.getByLabel('Работы на проверку', { exact: true }).uncheck();
   await inbox.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
   await expect(inbox.getByText('Настройки сохранены.', { exact: true })).toBeVisible();
-  await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await notificationPage.goto('about:blank');
   const learner = await learnerAssignments(browser, code, 'author-masha');
   await learner.page
     .getByTestId('seat-assignments')
@@ -364,11 +370,18 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await detail.getByLabel('Отзыв', { exact: true }).fill('Соединение объяснено.');
   await detail.getByRole('button', { name: 'Принять и оценить', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Маша · Оцениваемая/ })).toContainText('Освоено');
-  await page.getByRole('button', { name: /^Оповещения/ }).click();
-  await expect(inbox.getByText('Работа сдана', { exact: true })).toHaveCount(0);
-  await inbox.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
+  await notificationPage.goto('/#/account/notifications');
+  await expect(events.getByRole('status')).toHaveText(/Непрочитанных: \d+/);
+  await expect(events.getByRole('alert')).toHaveCount(0);
+  await expect(events.getByText('Работа сдана', { exact: true })).toHaveCount(0);
+  await events.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
   await learner.page.goto('/#/learning');
-  await expect(learner.page.getByText('Освоено', { exact: true })).toBeVisible();
+  // The profile repeats a grade in its summary and history; assert the actual result region.
+  await expect(
+    learner.page
+      .getByRole('region', { name: 'Мои результаты', exact: true })
+      .getByText('Освоено', { exact: true }),
+  ).toBeVisible();
   const gradedProjectionResponse = await learner.page.request.get('/api/class-join/me/assignments');
   expect(gradedProjectionResponse.ok()).toBe(true);
   const gradedProjection = (await gradedProjectionResponse.json()) as {
@@ -410,7 +423,7 @@ test('author-only content keeps exact ID and versions after teaching activation;
     path: ux0EvidenceDir + '/UX0-completed-grade.png',
     fullPage: false,
   });
-  await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
+  await notificationPage.close();
   const stale = await page.context().newPage();
   await stale.goto(page.url());
   await stale
@@ -435,7 +448,10 @@ test('author-only content keeps exact ID and versions after teaching activation;
     'Нужна практика',
   );
   await learner.page.reload();
-  await expect(learner.page.getByText('Нужна практика', { exact: true })).toBeVisible();
+  // After reloading the editor, its persistent brief anchor must show the corrected grade.
+  await expect(
+    learner.page.getByTestId('assignment-brief-anchor').locator('.assignment-brief-anchor-result'),
+  ).toHaveText('· Нужна практика');
   await detail.screenshot({ path: evidenceDir + '/graded-correction-history.png' });
   await staleDetail.screenshot({ path: evidenceDir + '/graded-stale-correction-denied.png' });
   await stale.close();
@@ -623,7 +639,7 @@ async function createPublishedProjectActivity(
   await createPublishedProjectActivityAfterLogin(page, title, module, resultMode);
 }
 
-test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and exact join approval', async ({
+test('Teacher queue: exact review, settings read/OFF, return/resubmit, accept and exact join approval', async ({
   page,
   browser,
 }) => {
@@ -632,11 +648,33 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   const failures = collectBrowserFailures(page, { allowAnonymousSessionProbe: true });
   const title = 'Практика с Главной';
   await createPublishedProjectActivity(page, title, 'three-d', 'completion', homeTeacher);
-  await page.goto('/#/');
-  const home = page.getByRole('region', { name: 'Требует внимания', exact: true });
-  await expect(
-    home.getByText('Сейчас нет работ и заявок, ожидающих вашего решения.'),
-  ).toBeVisible();
+  await page.goto('/#/home');
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
+  // The newer owner shell ETZ deliberately removes Home attention and the
+  // global inbox. Keep their academic contract via the existing scoped API;
+  // exercise decisions in the real classroom and notifications in Settings.
+  await expect(page.getByRole('region', { name: 'Требует внимания', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: /^Оповещения/ })).toHaveCount(0);
+  const attention = async (): Promise<TeacherHomeAttention> => {
+    const response = await page.request.get('/api/classrooms/teacher-home-attention');
+    expect(response.status(), await response.text()).toBe(200);
+    return response.json();
+  };
+  const waitReviews = async (count: number) => {
+    await expect.poll(async () => (await attention()).reviews.length).toBe(count);
+  };
+  const destination = (review: TeacherHomeAttention['reviews'][number]) => {
+    expect(review.attemptId).toBeTruthy();
+    const query = new URLSearchParams({ assignment: review.assignmentId, learner: review.seatId });
+    if (review.attemptId) query.set('attempt', review.attemptId);
+    return '/#/classrooms/' + review.classroomId + '?' + query;
+  };
+  expect(await attention()).toMatchObject({
+    reviews: [],
+    joinRequests: [],
+    classrooms: [],
+    joinRequestsMayBeLimited: false,
+  });
   const code = await createClassWithStudents(page, 'Класс Главной', [
     { label: 'Лена Главная', handle: 'home-lena' },
   ]);
@@ -660,53 +698,62 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
     ).toBeVisible();
   };
   await submit('Отправить на проверку');
-  await page.goto('/#/');
-  const link = home.getByRole('link', { name: 'Лена Главная · ' + title, exact: true });
-  await expect(link).toBeVisible();
-  const firstHref = (await link.getAttribute('href'))!;
+  await waitReviews(1);
+  const first = (await attention()).reviews[0]!;
+  expect(first).toMatchObject({
+    classroomId: classId,
+    assignmentTitle: title,
+    learnerName: 'Лена Главная',
+  });
+  const firstHref = destination(first);
   expect(firstHref).toContain('/classrooms/' + classId + '?assignment=');
   expect(firstHref).toMatch(/&learner=.+&attempt=/);
-  await home.getByText('Активные классы (1)', { exact: true }).click();
-  await expect(home.getByRole('link', { name: 'Класс Главной', exact: true })).toHaveAttribute(
-    'href',
-    '#/classrooms/' + classId,
-  );
-  await page.getByRole('button', { name: /^Оповещения/ }).click();
-  const inbox = page.getByRole('dialog', { name: 'Учебные оповещения' });
-  await inbox.getByRole('button', { name: 'Отметить прочитанными', exact: true }).click();
-  await inbox.getByRole('button', { name: 'Настроить', exact: true }).click();
-  await inbox.getByLabel('Работы на проверку', { exact: true }).uncheck();
-  await inbox.getByLabel('Получать учебные оповещения', { exact: true }).uncheck();
-  await inbox.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
-  await expect(inbox.getByText('Настройки сохранены.', { exact: true })).toBeVisible();
-  await inbox.getByRole('button', { name: 'Закрыть', exact: true }).click();
-  await home.getByRole('button', { name: 'Обновить', exact: true }).click();
-  await expect(link).toBeVisible();
-  await home.screenshot({ path: evidenceDir + '/teacher-home-attention.png' });
-  await link.click();
+  expect((await attention()).classrooms).toEqual([{ id: classId, title: 'Класс Главной' }]);
+
+  await page.goto('/#/account/notifications');
+  const events = page.getByRole('region', { name: 'События уведомлений', exact: true });
+  await expect(
+    events.getByRole('button', { name: 'Отметить прочитанными', exact: true }),
+  ).toBeEnabled();
+  await events.getByRole('button', { name: 'Отметить прочитанными', exact: true }).click();
+  await expect(events.getByRole('status')).toHaveText('Непрочитанных: 0');
+  const preferences = page.getByRole('region', {
+    name: 'Учебные оповещения — только для меня',
+    exact: true,
+  });
+  await preferences.getByLabel('Работы на проверку', { exact: true }).uncheck();
+  await preferences.getByLabel('Получать учебные оповещения', { exact: true }).uncheck();
+  await preferences.getByRole('button', { name: 'Сохранить оповещения', exact: true }).click();
+  await expect(preferences.getByText('Настройки сохранены.', { exact: true })).toBeVisible();
+  expect((await attention()).reviews).toEqual([first]);
+
+  await page.goto(firstHref);
   const detail = page.getByRole('region', { name: 'Проверка сдачи' });
   await expect(detail.getByRole('heading', { name: 'Лена Главная · ' + title })).toBeVisible();
   await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
+  await detail.screenshot({ path: evidenceDir + '/teacher-queue-exact-review.png' });
   await detail.getByLabel('Причина возврата или исправления').fill('Проверьте форму.');
   await detail.getByRole('button', { name: 'Вернуть на доработку', exact: true }).click();
   await expect(detail.getByText('Ревизия 1 · На доработке')).toBeVisible();
-  await page.goto('/#/');
-  await expect(home).toContainText('Работы на проверке: 0');
-  await expect(link).toHaveCount(0);
+  await waitReviews(0);
   await learner.page.goto('/#/learning');
   await work.getByRole('button', { name: 'Открыть работу', exact: true }).click();
   await editRealProject(learner.page, 'three-d');
   await submit('Отправить повторно');
-  await home.getByRole('button', { name: 'Обновить', exact: true }).click();
-  await expect(link).toBeVisible();
-  await expect(link).not.toHaveAttribute('href', firstHref);
-  await link.click();
+  await waitReviews(1);
+  const second = (await attention()).reviews[0]!;
+  expect(second).toMatchObject({
+    classroomId: classId,
+    assignmentTitle: title,
+    learnerName: 'Лена Главная',
+  });
+  expect(destination(second)).not.toBe(firstHref);
+  await page.goto(destination(second));
   await expect(detail.getByText('Сданная версия', { exact: true })).toBeVisible();
   await detail.getByRole('button', { name: 'Принять выполнение', exact: true }).click();
   await expect(detail.getByText('Ревизия 1 · Принято')).toBeVisible();
-  await page.goto('/#/');
-  await expect(home).toContainText('Работы на проверке: 0');
-  await expect(link).toHaveCount(0);
+  await waitReviews(0);
+
   const applicant = await browser.newContext();
   const applicantPage = await applicant.newPage();
   await loginWithOrganization(applicantPage, await seedTeacher(admin, 'home-applicant'));
@@ -720,49 +767,34 @@ test('Teacher Home: empty, exact review, read/OFF, return/resubmit, accept and e
   const joined = await joining;
   expect(joined.ok(), await joined.text()).toBe(true);
   const requestId = (await joined.json()).requestId;
-  await home.getByRole('button', { name: 'Обновить', exact: true }).click();
-  const requestLink = home.locator('a[href*="joinRequest="]');
-  await expect(requestLink).toHaveAttribute(
-    'href',
-    '#/classrooms/' + classId + '?joinRequest=' + requestId,
-  );
-  await requestLink.click();
+  await expect
+    .poll(async () => (await attention()).joinRequests.map((request) => request.id))
+    .toEqual([requestId]);
+  expect((await attention()).joinRequests[0]).toMatchObject({
+    id: requestId,
+    classroomId: classId,
+  });
+  await page.goto('/#/classrooms/' + classId + '?joinRequest=' + requestId);
   const target = page.locator('#join-request-' + requestId);
   await expect(target).toBeFocused();
   await target.getByRole('button', { name: 'Принять заявку', exact: true }).click();
   await expect(target).toContainText('Принята');
-  await page.goto('/#/');
-  await expect(home).toContainText('Заявки: 0');
-  await expect(
-    home.getByText('Сейчас нет работ и заявок, ожидающих вашего решения.'),
-  ).toBeVisible();
-  await page.setViewportSize({ width: 390, height: 844 });
-  await home.screenshot({ path: evidenceDir + '/teacher-home-empty-mobile.png' });
-  const mobileOverflow = await page.evaluate(() => {
-    const viewport = window.innerWidth;
-    const documentWidth = document.documentElement.scrollWidth;
-    const offenders = [...document.querySelectorAll<HTMLElement>('body *')]
-      .map((node) => {
-        const rect = node.getBoundingClientRect();
-        return {
-          node: `${node.tagName.toLowerCase()}${node.id ? `#${node.id}` : ''}${
-            typeof node.className === 'string' && node.className
-              ? `.${node.className.trim().replace(/\s+/g, '.')}`
-              : ''
-          }`,
-          left: Math.round(rect.left),
-          right: Math.round(rect.right),
-          width: Math.round(rect.width),
-        };
-      })
-      .filter((item) => item.right > viewport + 1 || item.left < -1)
-      .slice(0, 12);
-    return { viewport, documentWidth, offenders };
+  await expect.poll(async () => (await attention()).joinRequests.length).toBe(0);
+  expect(await attention()).toMatchObject({
+    reviews: [],
+    joinRequests: [],
+    joinRequestsMayBeLimited: false,
   });
-  expect(
-    mobileOverflow.documentWidth,
-    `mobile overflow: ${JSON.stringify(mobileOverflow)}`,
-  ).toBeLessThanOrEqual(mobileOverflow.viewport);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: evidenceDir + '/teacher-queue-approved-mobile.png',
+    fullPage: true,
+  });
+  const width = await page.evaluate(() => ({
+    viewport: innerWidth,
+    document: document.documentElement.scrollWidth,
+  }));
+  expect(width.document).toBeLessThanOrEqual(width.viewport);
   failures.assertEmpty();
   await learner.context.close();
   await applicant.close();
@@ -835,6 +867,7 @@ async function createClassWithStudents(
     .filter({ hasText: className })
     .locator('.classroom-row-title')
     .click();
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   for (const student of students) {
     await page.getByRole('button', { name: 'Добавить ученика' }).click();
@@ -843,6 +876,7 @@ async function createClassWithStudents(
     await dialog.getByRole('button', { name: 'Добавить', exact: true }).click();
     await expect(dialog).toBeHidden();
     const rosterRow = page.getByRole('row').filter({ hasText: student.label });
+    await rosterRow.locator('.classroom-login-handle').click();
     const studentCode = (await rosterRow.locator('.classroom-login-handle').innerText()).trim();
     expect(studentCode).toMatch(/^[2346789ACDEFGHJKMNPQRTUVWXYacdefghjkmnpqrtuvwxy]{6}$/);
     keys.set(student.handle, studentCode);
@@ -1448,7 +1482,11 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await oldLearner.page.reload();
   const oldCourses = oldLearner.page.getByTestId('seat-courses');
   await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
-  await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page
+      .getByTestId('seat-course-player')
+      .getByRole('heading', { name: 'Структурная теория', exact: true }),
+  ).toBeVisible();
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();
@@ -1529,7 +1567,11 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await newLearner.page.reload();
   const newCourses = newLearner.page.getByTestId('seat-courses');
   await newCourses.getByRole('button').filter({ hasText: courseTitle }).click();
-  await expect(newLearner.page.getByText('Структурная теория', { exact: true })).toHaveCount(1);
+  await expect(
+    newLearner.page
+      .getByTestId('seat-course-player')
+      .getByRole('heading', { name: 'Структурная теория', exact: true }),
+  ).toHaveCount(1);
   await expect(newLearner.page.getByText('Материал исходной версии.', { exact: true })).toHaveCount(
     1,
   );
@@ -1544,7 +1586,11 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await oldLearner.page.reload();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
   await oldCoursesAfterV2.getByRole('button').filter({ hasText: courseTitle }).click();
-  await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page
+      .getByTestId('seat-course-player')
+      .getByRole('heading', { name: 'Структурная теория', exact: true }),
+  ).toBeVisible();
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();

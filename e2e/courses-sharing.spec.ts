@@ -258,12 +258,19 @@ test('a teacher builds a course, shares it by name, and a colleague takes a copy
   await classDialog.getByRole('button', { name: 'Создать', exact: true }).click();
   const classCard = authorPage.getByTestId('classroom-card').filter({ hasText: classTitle });
   await classCard.locator('.classroom-row-title').click();
+  await authorPage.locator('.classroom-code-chip').click();
+  await authorPage.locator('.classroom-code-chip').click();
   const joinCode = (await authorPage.locator('.classroom-code-chip').innerText()).trim();
 
   await authorPage.getByRole('button', { name: 'Добавить ученика' }).click();
   const studentDialog = authorPage.getByRole('dialog');
   await studentDialog.getByLabel('Имя в списке класса').fill('Алина');
   await studentDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
+  await authorPage
+    .getByRole('row')
+    .filter({ hasText: 'Алина' })
+    .locator('.classroom-login-handle')
+    .click();
   const studentCode = (
     await authorPage
       .getByRole('row')

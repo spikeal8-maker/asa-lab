@@ -16,11 +16,11 @@ test('exact saved and published learner preview ignores late responses and creat
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -104,11 +104,11 @@ test('ordered safe task blocks remain pinned in v1 preview at four widths after 
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -172,11 +172,11 @@ test('draft from historical Course and Activity versions uses the author UI, pro
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -350,11 +350,11 @@ test('first-class image block survives draft reload and pins exact published byt
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
   await page.goto('/#/challenges');
@@ -501,12 +501,12 @@ test('teacher draft image persists, replaces and deletes', async ({ page }) => {
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
 
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 
@@ -578,12 +578,12 @@ test('published task image stays immutable across versions', async ({ page }) =>
   await page.getByLabel('Пароль', { exact: true }).fill('Strong-' + unique + '-Password');
   await page.getByRole('checkbox', { name: 'Я не робот' }).press('Space');
   await page.getByRole('button', { name: 'Создать аккаунт', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Главная', exact: true })).toBeVisible();
+  await expect(page.getByRole('main', { name: 'Главная', exact: true })).toBeVisible();
 
   await page.goto('/#/account');
   await page
     .getByLabel('Разделы настроек')
-    .getByRole('button', { name: 'Материалы и преподавание', exact: true })
+    .getByRole('button', { name: 'Материалы и классы', exact: true })
     .click();
   await page.getByRole('button', { name: 'Подключить авторство', exact: true }).click();
 

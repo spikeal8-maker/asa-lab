@@ -186,26 +186,6 @@ export class ClassroomParticipantsController {
       classId,
       this.uuid(seatId),
     ])) as { submittedCount: number; awaitingReview: number };
-    const context = await this.accounts.resolve(request.cookies[SESSION_COOKIE]);
-    if (!context) fail('unauthorized', 'Сессия завершена.', 401);
-    const states = [
-      ...(
-        await new LearningCanonicalProjectionService(this.db()).forTeacher(
-          context.accountId,
-          classId,
-        )
-      ).values(),
-    ].filter((p) => p.state.provenance.seatId === seatId);
-    if (states.length) {
-      data.submittedCount = states.filter((p) =>
-        ['submitted', 'waiting_review', 'changes_requested', 'completed'].includes(
-          p.surface.workflowState,
-        ),
-      ).length;
-      data.awaitingReview = states.filter(
-        (p) => p.surface.workflowState === 'waiting_review',
-      ).length;
-    }
     return this.withHelperClasses(data, actor, classId, seatId);
   }
   @Get('classrooms/:classId/participants/staff/:accountId')

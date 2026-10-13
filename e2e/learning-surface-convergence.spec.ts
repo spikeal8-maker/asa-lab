@@ -45,12 +45,18 @@ test('legacy, revision and selected-result semantics stay equal across learner a
   const classroomHash = new URL(page.url()).hash;
   const classroomId = classroomHash.match(/[0-9a-f]{8}-[0-9a-f-]{27}/i)?.[0];
   expect(classroomId).toBeTruthy();
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   await page.getByRole('button', { name: 'Добавить ученика' }).click();
   const seatDialog = page.getByRole('dialog');
   await seatDialog.getByLabel('Имя в списке класса').fill('Алина Canonical');
   await seatDialog.getByRole('button', { name: 'Добавить', exact: true }).click();
   await expect(page.getByText(/Алина Canonical добавлен/)).toBeVisible();
+  await page
+    .getByRole('row')
+    .filter({ hasText: 'Алина Canonical' })
+    .locator('.classroom-login-handle')
+    .click();
   const studentCode = (
     await page
       .getByRole('row')

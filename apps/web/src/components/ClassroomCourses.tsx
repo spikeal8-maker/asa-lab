@@ -57,6 +57,7 @@ export function ClassroomCourses({
   const [runs, setRuns] = useState<ClassroomCourseRun[] | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState('');
+  const [assignOpen, setAssignOpen] = useState<boolean | null>(null);
   const [dueAt, setDueAt] = useState('');
   const [audienceType, setAudienceType] = useState<'whole_class' | 'named_learners'>('whole_class');
   const [seatIds, setSeatIds] = useState<string[]>([]);
@@ -355,89 +356,104 @@ export function ClassroomCourses({
       <div className="classroom-learning-heading">
         <div>
           <h2>Курсы класса</h2>
-          <p>Ученики проходят опубликованную версию; изменения черновика сюда не попадут.</p>
+          <p>Назначайте курсы всему классу или выбранным ученикам.</p>
         </div>
-      </div>
-
-      <div className="classroom-course-assign">
-        <label>
-          <span>Опубликованный курс</span>
-          <select
-            value={courseId}
-            disabled={archived || busy}
-            onChange={(e) => setCourseId(e.target.value)}
-          >
-            {courses.length === 0 ? <option value="">Нет опубликованных курсов</option> : null}
-            {courses.map((course) => (
-              <option key={course.id} value={course.id}>
-                {course.title} · v{course.publishedVersion}
-                {course.publicationState === 'changed' ? ' (есть изменения)' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          <span>Общий срок, если нужен</span>
-          <input
-            type="datetime-local"
-            value={dueAt}
-            disabled={archived || busy}
-            onChange={(event) => setDueAt(event.target.value)}
-          />
-        </label>
         <button
           type="button"
-          className="portal-create-button"
-          disabled={archived || busy || !courseId}
-          onClick={() => void assign()}
+          className="btn-secondary"
+          disabled={archived || courses.length === 0}
+          onClick={() =>
+            setAssignOpen((value) => !(value ?? (courses.length > 0 && runs?.length === 0)))
+          }
+          aria-expanded={assignOpen ?? (courses.length > 0 && runs?.length === 0)}
         >
-          {busy ? 'Назначаем…' : 'Назначить курс'}
+          Добавить курс
         </button>
       </div>
-      <fieldset disabled={busy || archived} className="learning-assign-field">
-        <legend>Аудитория курса</legend>
-        <label>
-          <input
-            type="radio"
-            name="course-audience"
-            checked={audienceType === 'whole_class'}
-            onChange={() => setAudienceType('whole_class')}
-          />{' '}
-          Весь класс, включая новых учеников
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="course-audience"
-            checked={audienceType === 'named_learners'}
-            onChange={() => setAudienceType('named_learners')}
-          />{' '}
-          Выбранные ученики
-        </label>
-        {audienceType === 'named_learners'
-          ? students.map((student) => (
-              <label key={student.id}>
-                <input
-                  type="checkbox"
-                  checked={seatIds.includes(student.id)}
-                  onChange={(event) =>
-                    setSeatIds((ids) =>
-                      event.target.checked
-                        ? [...ids, student.id]
-                        : ids.filter((id) => id !== student.id),
-                    )
-                  }
-                />
-                {student.displayLabel}
-              </label>
-            ))
-          : null}
-      </fieldset>
-      <p className="classroom-course-hint">
-        Срок — дата и время, {Intl.DateTimeFormat().resolvedOptions().timeZone}. Новое назначение
-        создаёт отдельное проведение.
-      </p>
-      {courses.length === 0 ? (
+
+      {courses.length > 0 && (assignOpen ?? runs?.length === 0) ? (
+        <>
+          <div className="classroom-course-assign">
+            <label>
+              <span>Опубликованный курс</span>
+              <select
+                value={courseId}
+                disabled={archived || busy}
+                onChange={(e) => setCourseId(e.target.value)}
+              >
+                {courses.length === 0 ? <option value="">Нет опубликованных курсов</option> : null}
+                {courses.map((course) => (
+                  <option key={course.id} value={course.id}>
+                    {course.title} · v{course.publishedVersion}
+                    {course.publicationState === 'changed' ? ' (есть изменения)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Общий срок, если нужен</span>
+              <input
+                type="datetime-local"
+                value={dueAt}
+                disabled={archived || busy}
+                onChange={(event) => setDueAt(event.target.value)}
+              />
+            </label>
+            <button
+              type="button"
+              className="portal-create-button"
+              disabled={archived || busy || !courseId}
+              onClick={() => void assign()}
+            >
+              {busy ? 'Назначаем…' : 'Назначить курс'}
+            </button>
+          </div>
+          <fieldset disabled={busy || archived} className="learning-assign-field">
+            <legend>Аудитория курса</legend>
+            <label>
+              <input
+                type="radio"
+                name="course-audience"
+                checked={audienceType === 'whole_class'}
+                onChange={() => setAudienceType('whole_class')}
+              />{' '}
+              Весь класс, включая новых учеников
+            </label>
+            <label>
+              <input
+                type="radio"
+                name="course-audience"
+                checked={audienceType === 'named_learners'}
+                onChange={() => setAudienceType('named_learners')}
+              />{' '}
+              Выбранные ученики
+            </label>
+            {audienceType === 'named_learners'
+              ? students.map((student) => (
+                  <label key={student.id}>
+                    <input
+                      type="checkbox"
+                      checked={seatIds.includes(student.id)}
+                      onChange={(event) =>
+                        setSeatIds((ids) =>
+                          event.target.checked
+                            ? [...ids, student.id]
+                            : ids.filter((id) => id !== student.id),
+                        )
+                      }
+                    />
+                    {student.displayLabel}
+                  </label>
+                ))
+              : null}
+          </fieldset>
+          <p className="classroom-course-hint">
+            Срок указан по времени {Intl.DateTimeFormat().resolvedOptions().timeZone}. Назначается
+            опубликованная версия курса.
+          </p>
+        </>
+      ) : null}
+      {courses.length === 0 && Boolean(runs?.length) ? (
         <p className="classroom-course-hint">
           Сначала опубликуйте курс в разделе «Курсы и задания».
         </p>
@@ -450,7 +466,16 @@ export function ClassroomCourses({
       ) : runs.length === 0 ? (
         <div className="classroom-roster-empty">
           <h3>Курсов пока нет</h3>
-          <p>Выберите опубликованный курс выше. Отдельные задания остаются на соседней вкладке.</p>
+          <p>
+            {courses.length
+              ? 'Выберите курс и учеников в форме назначения.'
+              : 'Опубликуйте первый курс в разделе «Курсы и задания».'}
+          </p>
+          {!courses.length ? (
+            <a className="btn-secondary" href="#/challenges">
+              Курсы и задания
+            </a>
+          ) : null}
         </div>
       ) : (
         <ul className="classroom-course-list">

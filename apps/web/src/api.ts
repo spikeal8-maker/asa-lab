@@ -2254,10 +2254,14 @@ export const api = {
     classroomId: string,
     requestId: string,
     decision: 'approved' | 'rejected',
+    reason?: string,
   ) =>
     call<{ ok: true }>(
       `/api/class-join/requests/${encodeURIComponent(classroomId)}/${encodeURIComponent(requestId)}/decision`,
-      { method: 'POST', body: JSON.stringify({ decision }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({ decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
+      },
     ),
   attendedAssignments: () =>
     call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
