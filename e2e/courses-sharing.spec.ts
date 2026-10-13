@@ -706,7 +706,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
   await matePage.goto(classUrl);
   await matePage
     .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Учащиеся', exact: true })
+    .getByRole('button', { name: 'Заявки', exact: true })
     .click();
   await matePage.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
   await matePage.getByRole('button', { name: 'Принять заявку', exact: true }).click();

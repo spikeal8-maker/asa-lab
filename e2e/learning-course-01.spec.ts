@@ -1557,11 +1557,14 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await editor.getByLabel('Название урока').fill('Структурная теория');
   await editor.getByLabel('Текст блока', { exact: true }).fill('Материал исходной версии.');
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
+  await expect(editor.getByRole('status')).toHaveText('Урок добавлен.');
+  await expect(editor.locator('.course-outline-section').first().locator('li')).toHaveCount(1);
 
   await editor
     .locator('.course-outline')
     .getByRole('button', { name: '+ Урок', exact: true })
     .click();
+  await expect(editor.getByLabel('Название урока')).toHaveValue('');
   await editor.getByLabel('Тип урока').selectOption('assignment');
   await selectCoursePractice(page, material);
   await editor.getByRole('button', { name: 'Добавить урок', exact: true }).click();
