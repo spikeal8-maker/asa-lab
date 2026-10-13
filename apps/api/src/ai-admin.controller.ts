@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpException,
-  Inject,
-  Put,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpException, Inject, Put, Req } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { ActiveContextUseCase } from '@asa-lab/identity';
 import { AiChatService, AiServiceError, type AiProvider, type AiModel } from './ai-chat.service.js';
@@ -31,7 +22,9 @@ export class AiAdminController {
     const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
     if (!context) return reject('unauthorized', 'Нужен вход в аккаунт.', 401);
     const access = await this.controlPlane.resolveAccess(context);
-    if (!access.scopes.some((scope) => scope.kind === 'platform' && scope.role === 'platform_admin')) {
+    if (
+      !access.scopes.some((scope) => scope.kind === 'platform' && scope.role === 'platform_admin')
+    ) {
       return reject('ai_admin_denied', 'Настройки ИИ доступны администратору платформы.', 403);
     }
     return context.principalId;
@@ -89,11 +82,11 @@ export class AiAdminController {
     const clearApiKey = value['clearApiKey'];
     const apiKey = value['apiKey'];
     if (
-      (provider !== 'openai' && provider !== 'deepseek')
-      || (model !== 'gpt-5-mini' && model !== 'gpt-4.1-mini' && model !== 'deepseek-chat')
-      || typeof enabled !== 'boolean'
-      || (clearApiKey !== undefined && typeof clearApiKey !== 'boolean')
-      || (apiKey !== undefined && typeof apiKey !== 'string')
+      (provider !== 'openai' && provider !== 'deepseek') ||
+      (model !== 'gpt-5-mini' && model !== 'gpt-4.1-mini' && model !== 'deepseek-chat') ||
+      typeof enabled !== 'boolean' ||
+      (clearApiKey !== undefined && typeof clearApiKey !== 'boolean') ||
+      (apiKey !== undefined && typeof apiKey !== 'string')
     ) {
       return reject('ai_config_invalid', 'Неверные настройки ИИ.', 400);
     }

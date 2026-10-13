@@ -122,10 +122,9 @@ export class AiChatService {
   }
 
   async adminConfig(principalId: string): Promise<AiAdminConfig> {
-    const result = await this.pool.query<AdminRow>(
-      'SELECT * FROM ai_admin_get_config($1)',
-      [principalId],
-    );
+    const result = await this.pool.query<AdminRow>('SELECT * FROM ai_admin_get_config($1)', [
+      principalId,
+    ]);
     const row = result.rows[0];
     if (!row) throw new AiServiceError('ai_config_unavailable', 503, 'Настройки ИИ недоступны.');
     return {
@@ -150,40 +149,53 @@ export class AiChatService {
     }
     const before = await this.adminConfig(principalId);
     const candidate = input.apiKey?.trim() ?? '';
-    if (input.apiKey !== undefined && candidate && (candidate.length < 12 || candidate.length > 2048)) {
+    if (
+      input.apiKey !== undefined &&
+      candidate &&
+      (candidate.length < 12 || candidate.length > 2048)
+    ) {
       throw new AiServiceError('ai_key_invalid', 400, 'Недопустимая длина API-ключа.');
     }
     if (input.clearApiKey && candidate) {
-      throw new AiServiceError('ai_key_invalid', 400, 'Нельзя заменить и очистить ключ одновременно.');
+      throw new AiServiceError(
+        'ai_key_invalid',
+        400,
+        'Нельзя заменить и очистить ключ одновременно.',
+      );
     }
     if (before.provider !== input.provider && !candidate) {
-      throw new AiServiceError('ai_key_required', 409, 'Для другого провайдера нужен новый API-ключ.');
+      throw new AiServiceError(
+        'ai_key_required',
+        409,
+        'Для другого провайдера нужен новый API-ключ.',
+      );
     }
     if (input.enabled && (input.clearApiKey || (!candidate && !before.apiKeyConfigured))) {
       throw new AiServiceError('ai_key_required', 409, 'Сначала добавьте API-ключ.');
     }
     if ((candidate || input.enabled) && !this.key) {
-      throw new AiServiceError('ai_encryption_unavailable', 503, 'На сервере не настроено шифрование секретов.');
+      throw new AiServiceError(
+        'ai_encryption_unavailable',
+        503,
+        'На сервере не настроено шифрование секретов.',
+      );
     }
 
     const encrypted = candidate ? this.encrypt(candidate) : null;
     const action = input.clearApiKey ? 'clear' : encrypted ? 'replace' : 'keep';
     try {
-      await this.pool.query(
-        'SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)',
-        [
-          principalId,
-          input.enabled,
-          input.provider,
-          input.model,
-          action,
-          encrypted?.ciphertext ?? null,
-          encrypted?.iv ?? null,
-          encrypted?.tag ?? null,
-          encrypted?.fingerprint ?? null,
-          requestId,
-        ],
-      );
+      await this.pool.query('SELECT ai_admin_set_config($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)', [
+        principalId,
+        input.enabled,
+        input.provider,
+        input.model,
+        action,
+        encrypted?.ciphertext ?? null,
+        encrypted?.iv ?? null,
+        encrypted?.tag ?? null,
+        encrypted?.fingerprint ?? null,
+        requestId,
+      ]);
     } catch (problem) {
       if ((problem as { code?: string }).code === '42501') {
         throw new AiServiceError('ai_admin_denied', 403, 'Нет доступа к настройкам ИИ.');
@@ -219,10 +231,9 @@ export class AiChatService {
   }
 
   async createThread(principalId: string): Promise<{ id: string }> {
-    const result = await this.pool.query<{ id: string }>(
-      'SELECT ai_chat_create($1) AS id',
-      [principalId],
-    );
+    const result = await this.pool.query<{ id: string }>('SELECT ai_chat_create($1) AS id', [
+      principalId,
+    ]);
     const id = result.rows[0]?.id;
     if (!id) throw new AiServiceError('ai_thread_unavailable', 503, 'Не удалось создать диалог.');
     return { id };
@@ -250,12 +261,20 @@ export class AiChatService {
   ): Promise<{ readonly messages: readonly AiMessage[] }> {
     const prompt = text.trim();
     if (prompt.length < 1 || prompt.length > 3000) {
-      throw new AiServiceError('ai_input_invalid', 400, 'Сообщение должно содержать от 1 до 3000 символов.');
+      throw new AiServiceError(
+        'ai_input_invalid',
+        400,
+        'Сообщение должно содержать от 1 до 3000 символов.',
+      );
     }
     const runtime = await this.runtime();
     const apiKey = this.decrypt(runtime);
     if (!runtime.enabled || !apiKey) {
-      throw new AiServiceError('ai_disabled', 503, 'ИИ не подключён. Настройте провайдера в админке.');
+      throw new AiServiceError(
+        'ai_disabled',
+        503,
+        'ИИ не подключён. Настройте провайдера в админке.',
+      );
     }
     let requestId: string;
     try {
@@ -276,11 +295,16 @@ export class AiChatService {
         throw new AiServiceError('ai_rate_limit', 429, 'Лимит: 30 сообщений в час на аккаунт.');
       }
       if (message.includes('AI_THREAD_BUSY_OR_MISSING')) {
-        throw new AiServiceError('ai_thread_busy', 409, 'Диалог недоступен или запрос уже выполняется.');
+        throw new AiServiceError(
+          'ai_thread_busy',
+          409,
+          'Диалог недоступен или запрос уже выполняется.',
+        );
       }
       throw problem;
     }
-    if (!requestId) throw new AiServiceError('ai_send_failed', 503, 'Не удалось отправить сообщение.');
+    if (!requestId)
+      throw new AiServiceError('ai_send_failed', 503, 'Не удалось отправить сообщение.');
 
     try {
       const history = await this.messages(principalId, threadId);
@@ -297,13 +321,15 @@ export class AiChatService {
       ]);
       return { messages: await this.messages(principalId, threadId) };
     } catch (problem) {
-      await this.pool.query('SELECT ai_chat_abort($1,$2,$3)', [
-        principalId,
-        threadId,
-        requestId,
-      ]).catch(() => undefined);
+      await this.pool
+        .query('SELECT ai_chat_abort($1,$2,$3)', [principalId, threadId, requestId])
+        .catch(() => undefined);
       if (problem instanceof AiServiceError) throw problem;
-      throw new AiServiceError('ai_provider_unavailable', 503, 'ИИ временно недоступен. Сообщение сохранено.');
+      throw new AiServiceError(
+        'ai_provider_unavailable',
+        503,
+        'ИИ временно недоступен. Сообщение сохранено.',
+      );
     }
   }
 
@@ -320,7 +346,8 @@ export class AiChatService {
     tag: string;
     fingerprint: string;
   } {
-    if (!this.key) throw new AiServiceError('ai_encryption_unavailable', 503, 'Шифрование недоступно.');
+    if (!this.key)
+      throw new AiServiceError('ai_encryption_unavailable', 503, 'Шифрование недоступно.');
     const iv = randomBytes(12);
     const cipher = createCipheriv('aes-256-gcm', this.key, iv);
     const ciphertext = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
@@ -362,8 +389,8 @@ export class AiChatService {
       ? 'https://api.openai.com/v1/responses'
       : 'https://api.deepseek.com/chat/completions';
     const instructions =
-      'Ты учебный помощник ASA Lab. Отвечай на русском, если пользователь не выбрал другой язык. '
-      + 'Объясняй решения и не выдавай неподтверждённые результаты за факты.';
+      'Ты учебный помощник ASA Lab. Отвечай на русском, если пользователь не выбрал другой язык. ' +
+      'Объясняй решения и не выдавай неподтверждённые результаты за факты.';
     let response: Response;
     try {
       response = await this.fetchImpl(url, {
@@ -391,7 +418,11 @@ export class AiChatService {
         signal: AbortSignal.timeout(65000),
       });
     } catch {
-      throw new AiServiceError('ai_provider_timeout', 504, 'Нет ответа от модели. Сообщение сохранено.');
+      throw new AiServiceError(
+        'ai_provider_timeout',
+        504,
+        'Нет ответа от модели. Сообщение сохранено.',
+      );
     }
     if (!response.ok) {
       const status = response.status === 429 ? 429 : 503;

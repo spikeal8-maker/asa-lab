@@ -63,12 +63,8 @@ export function AiChatPage(): JSX.Element {
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [sideOpen, setSideOpen] = useState(() =>
-    window.matchMedia('(min-width: 1120px)').matches,
-  );
-  const [desktop, setDesktop] = useState(() =>
-    window.matchMedia('(min-width: 1120px)').matches,
-  );
+  const [sideOpen, setSideOpen] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
+  const [desktop, setDesktop] = useState(() => window.matchMedia('(min-width: 1120px)').matches);
   const selectedVersion = useRef(0);
   const chatScroll = useRef<HTMLDivElement>(null);
 
@@ -84,7 +80,10 @@ export function AiChatPage(): JSX.Element {
 
   useEffect(() => {
     let active = true;
-    void Promise.all([call<AiStatus>('/api/ai/status'), call<{ items: AiThread[] }>('/api/ai/threads')])
+    void Promise.all([
+      call<AiStatus>('/api/ai/status'),
+      call<{ items: AiThread[] }>('/api/ai/threads'),
+    ])
       .then(([model, history]) => {
         if (!active) return;
         if (model.ok) setStatus(model.data);
@@ -207,7 +206,9 @@ export function AiChatPage(): JSX.Element {
   return (
     <main id="main-content" className="asa-ai-layout" tabIndex={-1}>
       <section
-        className={'chat-page asa-ai-chat' + (sideOpen ? ' sidebar-open' : '') + (empty ? ' is-empty' : '')}
+        className={
+          'chat-page asa-ai-chat' + (sideOpen ? ' sidebar-open' : '') + (empty ? ' is-empty' : '')
+        }
         aria-label="ИИ-помощник ASA Lab"
       >
         <aside className="chat-sidebar" aria-label="История диалогов">
@@ -293,7 +294,9 @@ export function AiChatPage(): JSX.Element {
           {empty ? (
             <div className="chat-start-state">
               <div className="asa-ai-start-copy">
-                <span className="asa-ai-orb" aria-hidden="true">A</span>
+                <span className="asa-ai-orb" aria-hidden="true">
+                  A
+                </span>
                 <h1>Чем я могу помочь?</h1>
                 <p>Спросите про программирование, электронику, Arduino, проекты или учёбу.</p>
                 {!status?.enabled && !loading ? (
@@ -309,7 +312,10 @@ export function AiChatPage(): JSX.Element {
                 <div className="chat-turns">
                   {messages.map((message) => (
                     <article
-                      className={'chat-turn ' + (message.role === 'user' ? 'chat-turn-user' : 'chat-turn-assistant')}
+                      className={
+                        'chat-turn ' +
+                        (message.role === 'user' ? 'chat-turn-user' : 'chat-turn-assistant')
+                      }
                       key={message.id}
                     >
                       {message.role === 'user' ? (
@@ -321,9 +327,9 @@ export function AiChatPage(): JSX.Element {
                             <button
                               type="button"
                               onClick={() =>
-                                void navigator.clipboard.writeText(message.content).catch(() =>
-                                  setError('Не удалось скопировать ответ.'),
-                                )
+                                void navigator.clipboard
+                                  .writeText(message.content)
+                                  .catch(() => setError('Не удалось скопировать ответ.'))
                               }
                             >
                               Копировать
@@ -342,7 +348,11 @@ export function AiChatPage(): JSX.Element {
               </div>
             </div>
           )}
-          {error ? <div className="asa-ai-error" role="alert">{error}</div> : null}
+          {error ? (
+            <div className="asa-ai-error" role="alert">
+              {error}
+            </div>
+          ) : null}
           <div className="chat-composer-dock">
             <div className="chat-composer-wrap">
               <form className="chat-composer" onSubmit={(event) => void send(event)}>

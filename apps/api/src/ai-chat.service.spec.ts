@@ -11,7 +11,10 @@ const ROOT = '9c'.repeat(32);
 function secureRuntime() {
   const iv = randomBytes(12);
   const cipher = createCipheriv('aes-256-gcm', Buffer.from(ROOT, 'hex'), iv);
-  const ciphertext = Buffer.concat([cipher.update('sk-test-private-key-123456', 'utf8'), cipher.final()]);
+  const ciphertext = Buffer.concat([
+    cipher.update('sk-test-private-key-123456', 'utf8'),
+    cipher.final(),
+  ]);
   return {
     enabled: true,
     provider: 'openai' as const,
@@ -25,15 +28,17 @@ function secureRuntime() {
 describe('ASA native AI Chat', () => {
   it('never returns the credential to the admin read surface', async () => {
     const query = vi.fn(async () => ({
-      rows: [{
-        enabled: true,
-        provider: 'openai',
-        model: 'gpt-5-mini',
-        api_key_configured: true,
-        key_fingerprint: 'a1b2c3d4e5f6',
-        configuration_version: 3,
-        updated_at: new Date('2026-10-14T00:00:00Z'),
-      }],
+      rows: [
+        {
+          enabled: true,
+          provider: 'openai',
+          model: 'gpt-5-mini',
+          api_key_configured: true,
+          key_fingerprint: 'a1b2c3d4e5f6',
+          configuration_version: 3,
+          updated_at: new Date('2026-10-14T00:00:00Z'),
+        },
+      ],
     }));
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: ROOT,
@@ -50,15 +55,17 @@ describe('ASA native AI Chat', () => {
       calls.push([sql, ...params]);
       if (sql.includes('ai_admin_get_config')) {
         return {
-          rows: [{
-            enabled: false,
-            provider: 'openai',
-            model: 'gpt-5-mini',
-            api_key_configured: false,
-            key_fingerprint: null,
-            configuration_version: 1,
-            updated_at: null,
-          }],
+          rows: [
+            {
+              enabled: false,
+              provider: 'openai',
+              model: 'gpt-5-mini',
+              api_key_configured: false,
+              key_fingerprint: null,
+              configuration_version: 1,
+              updated_at: null,
+            },
+          ],
         };
       }
       return { rows: [{ ai_admin_set_config: 2 }] };
@@ -66,12 +73,16 @@ describe('ASA native AI Chat', () => {
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: ROOT,
     });
-    await service.saveAdminConfig(PRINCIPAL, {
-      enabled: true,
-      provider: 'openai',
-      model: 'gpt-5-mini',
-      apiKey: 'sk-test-private-key-123456',
-    }, 'test-admin-request');
+    await service.saveAdminConfig(
+      PRINCIPAL,
+      {
+        enabled: true,
+        provider: 'openai',
+        model: 'gpt-5-mini',
+        apiKey: 'sk-test-private-key-123456',
+      },
+      'test-admin-request',
+    );
     const write = calls.find((call) => String(call[0]).includes('ai_admin_set_config'));
     expect(write).toBeDefined();
     expect(write?.[5]).toBe('replace');
@@ -93,7 +104,12 @@ describe('ASA native AI Chat', () => {
           rows: persisted
             ? [
                 { id: 'u1', role: 'user', content: 'Объясни Arduino', created_at: new Date(1) },
-                { id: 'a1', role: 'assistant', content: 'Arduino — микроконтроллерная платформа.', created_at: new Date(2) },
+                {
+                  id: 'a1',
+                  role: 'assistant',
+                  content: 'Arduino — микроконтроллерная платформа.',
+                  created_at: new Date(2),
+                },
               ]
             : [{ id: 'u1', role: 'user', content: 'Объясни Arduino', created_at: new Date(1) }],
         };
@@ -101,14 +117,19 @@ describe('ASA native AI Chat', () => {
       if (sql.includes('ai_chat_finish')) persisted = true;
       return { rows: [] };
     });
-    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(
-      JSON.stringify({
-        output: [{
-          content: [{ type: 'output_text', text: 'Arduino — микроконтроллерная платформа.' }],
-        }],
-      }),
-      { status: 200, headers: { 'content-type': 'application/json' } },
-    ));
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: [
+              {
+                content: [{ type: 'output_text', text: 'Arduino — микроконтроллерная платформа.' }],
+              },
+            ],
+          }),
+          { status: 200, headers: { 'content-type': 'application/json' } },
+        ),
+    );
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: ROOT,
       fetchImpl,
@@ -121,7 +142,11 @@ describe('ASA native AI Chat', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, options] = fetchImpl.mock.calls[0] ?? [];
     expect(url).toBe('https://api.openai.com/v1/responses');
-    const body = JSON.parse(String(options?.body)) as { store: boolean; model: string; input: unknown[] };
+    const body = JSON.parse(String(options?.body)) as {
+      store: boolean;
+      model: string;
+      input: unknown[];
+    };
     expect(body.store).toBe(false);
     expect(body.model).toBe('gpt-5-mini');
     expect(body.input).toHaveLength(1);
@@ -138,10 +163,10 @@ describe('ASA native AI Chat', () => {
       }
       return { rows: [] };
     });
-    const fetchImpl = vi.fn<typeof fetch>(async () => new Response(
-      JSON.stringify({ error: { message: 'Unauthorized' } }),
-      { status: 401 },
-    ));
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () =>
+        new Response(JSON.stringify({ error: { message: 'Unauthorized' } }), { status: 401 }),
+    );
     const service = new AiChatService({ query } as unknown as pg.Pool, {
       encryptionKey: ROOT,
       fetchImpl,

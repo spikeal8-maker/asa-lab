@@ -1028,13 +1028,14 @@ export function App(): JSX.Element {
                     onOpenWork={(projectId) => setView({ kind: 'gallery-work', projectId })}
                   />
                 ) : null}
-                {view.kind === 'ai' && session.kind === 'authenticated' ? (
-                  <AiChatPage />
-                ) : null}
+                {view.kind === 'ai' && session.kind === 'authenticated' ? <AiChatPage /> : null}
                 {view.kind === 'ai' && session.kind === 'student' ? (
                   <main id="main-content" className="portal-content" tabIndex={-1}>
                     <h1>ИИ-помощник</h1>
-                    <p>ИИ пока доступен пользователям с личным аккаунтом. Подключение учебных мест требует отдельной настройки политики доступа.</p>
+                    <p>
+                      ИИ пока доступен пользователям с личным аккаунтом. Подключение учебных мест
+                      требует отдельной настройки политики доступа.
+                    </p>
                   </main>
                 ) : null}
                 {view.kind === 'learning' ? (

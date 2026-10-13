@@ -94,12 +94,23 @@ export function AiAdminPage({
       <div className="admin-section-heading">
         <div>
           <h2 id="asa-ai-admin-title">ИИ и модели</h2>
-          <p>Подключение GPT к ASA Lab. Ключ хранится на сервере, доступен только администратору платформы.</p>
+          <p>
+            Подключение GPT к ASA Lab. Ключ хранится на сервере, доступен только администратору
+            платформы.
+          </p>
         </div>
       </div>
       {loading ? <p role="status">Загружаем настройки…</p> : null}
-      {error ? <p className="admin-inline-error" role="alert">{error}</p> : null}
-      {message ? <p className="asa-ai-admin-success" role="status">{message}</p> : null}
+      {error ? (
+        <p className="admin-inline-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      {message ? (
+        <p className="asa-ai-admin-success" role="status">
+          {message}
+        </p>
+      ) : null}
       {config ? (
         <form onSubmit={(event) => void save(event)} className="asa-ai-admin-form">
           <div className="asa-ai-admin-status">
@@ -146,7 +157,9 @@ export function AiAdminPage({
             </select>
           </label>
           <label>
-            <span>Новый API-ключ {switched ? '(обязателен при смене провайдера)' : '(по необходимости)'}</span>
+            <span>
+              Новый API-ключ {switched ? '(обязателен при смене провайдера)' : '(по необходимости)'}
+            </span>
             <input
               type="password"
               value={apiKey}
@@ -155,13 +168,19 @@ export function AiAdminPage({
                 if (event.target.value) setClearKey(false);
               }}
               autoComplete="new-password"
-              placeholder={config.apiKeyConfigured ? 'Оставьте пустым, чтобы сохранить прежний ключ' : 'Введите ключ API'}
+              placeholder={
+                config.apiKeyConfigured
+                  ? 'Оставьте пустым, чтобы сохранить прежний ключ'
+                  : 'Введите ключ API'
+              }
               maxLength={2048}
               spellCheck={false}
             />
           </label>
           {config.keyFingerprint ? (
-            <p className="asa-ai-admin-fingerprint">Отпечаток сохранённого ключа: {config.keyFingerprint}</p>
+            <p className="asa-ai-admin-fingerprint">
+              Отпечаток сохранённого ключа: {config.keyFingerprint}
+            </p>
           ) : null}
           <label className="asa-ai-admin-check">
             <input
@@ -189,15 +208,22 @@ export function AiAdminPage({
           </label>
           {!config.encryptionReady ? (
             <p className="asa-ai-admin-warning">
-              В окружении API необходимо настроить ASA_SETTINGS_ENCRYPTION_KEY.
-              API-ключ модели нельзя безопасно сохранять без серверного ключа шифрования.
+              В окружении API необходимо настроить ASA_SETTINGS_ENCRYPTION_KEY. API-ключ модели
+              нельзя безопасно сохранять без серверного ключа шифрования.
             </p>
           ) : null}
           <div className="asa-ai-admin-actions">
-            <button type="submit" className="btn-primary" disabled={saving || loading || (switched && !apiKey.trim())}>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={saving || loading || (switched && !apiKey.trim())}
+            >
               {saving ? 'Сохраняем…' : 'Сохранить настройки'}
             </button>
-            <small>Настройки вступают в силу для следующих запросов. Использование API платное и ограничено квотой.</small>
+            <small>
+              Настройки вступают в силу для следующих запросов. Использование API платное и
+              ограничено квотой.
+            </small>
           </div>
         </form>
       ) : null}

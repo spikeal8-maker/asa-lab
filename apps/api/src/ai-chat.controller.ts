@@ -64,7 +64,8 @@ export class AiChatController {
   }
 
   private threadId(value: string): string {
-    if (!UUID.test(value)) return reject('ai_thread_id_invalid', 'Неверный идентификатор чата.', 400);
+    if (!UUID.test(value))
+      return reject('ai_thread_id_invalid', 'Неверный идентификатор чата.', 400);
     return value;
   }
 
@@ -92,7 +93,9 @@ export class AiChatController {
   async messages(@Req() request: FastifyRequest, @Param('threadId') rawId: string) {
     const account = await this.requireAccount(request);
     const threadId = this.threadId(rawId);
-    return this.safe(async () => ({ items: await this.ai.messages(account.principalId, threadId) }));
+    return this.safe(async () => ({
+      items: await this.ai.messages(account.principalId, threadId),
+    }));
   }
 
   @Post('threads/:threadId/messages')
