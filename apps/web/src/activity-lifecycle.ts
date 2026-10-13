@@ -1,4 +1,29 @@
 import { newClientId } from './client-id';
+
+const pagehideCallbacks = new Set<() => void>();
+/** Run the same tracker finalizers before the shared page quality snapshot. */
+export function finalizeInputActivitiesForPageHide(): void {
+  for (const callback of [...pagehideCallbacks]) {
+    if (!pagehideCallbacks.has(callback)) continue;
+    try {
+      callback();
+    } catch (error) {
+      // Preserve browser error reporting without preventing the other tracker finalizers.
+      try {
+        if (typeof globalThis.reportError === 'function') globalThis.reportError(error);
+        else if (typeof window !== 'undefined')
+          window.dispatchEvent(
+            new ErrorEvent('error', {
+              error,
+              message: error instanceof Error ? error.message : 'Activity finalizer failed',
+            }),
+          );
+      } catch {
+        // A failed error reporter must not prevent the remaining finalizers or quality snapshot.
+      }
+    }
+  }
+}
 export interface ActivityTransport {
   start(sessionId: string, projectId: string): Promise<boolean>;
   touch(sessionId: string, closed: boolean): Promise<boolean>;
@@ -98,6 +123,7 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
     ready = false;
     close();
   };
+  pagehideCallbacks.add(pagehide);
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('pagehide', pagehide);
 
@@ -117,6 +143,7 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
     dispose(): void {
       if (disposed) return;
       disposed = true;
+      pagehideCallbacks.delete(pagehide);
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('pagehide', pagehide);

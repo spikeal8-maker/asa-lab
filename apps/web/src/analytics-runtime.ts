@@ -1,4 +1,5 @@
 import { newClientId } from './client-id';
+import { finalizeInputActivitiesForPageHide } from './activity-lifecycle';
 import { AnalyticsDelivery, browserAnalytics } from './analytics-delivery';
 import {
   actorKey,
@@ -188,7 +189,9 @@ if (typeof window !== 'undefined') {
     delivery?.retryNow();
   });
   window.addEventListener('pagehide', () => {
-    void delivery?.quality.flush(true);
+    const target = delivery;
+    finalizeInputActivitiesForPageHide();
+    if (delivery === target) void target?.quality.flush(true);
   });
 }
 export function analyticsSessionTransport(

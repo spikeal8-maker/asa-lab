@@ -3,6 +3,7 @@ import { StrictMode, act, createElement, useEffect, useLayoutEffect } from 'reac
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TelemetryActor } from './telemetry-contract';
+import type { ActivityTransport } from './activity-lifecycle';
 const actor = {
   kind: 'account' as const,
   accountId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -13,6 +14,8 @@ let root: Root | undefined;
 let container: HTMLDivElement;
 let context: typeof import('./telemetry-context');
 let transport: ReturnType<typeof vi.fn<typeof fetch>>;
+let runtimePagehide: EventListener;
+let listeners: { type: string; listener: EventListenerOrEventListenerObject; capture: boolean }[];
 function response(body: Record<string, unknown>) {
   return new Response(
     JSON.stringify({
@@ -55,30 +58,71 @@ beforeEach(async () => {
     globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean }
   ).IS_REACT_ACT_ENVIRONMENT = true;
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  listeners = [];
+  const addListener = window.addEventListener.bind(window);
+  vi.spyOn(window, 'addEventListener').mockImplementation((type, listener, options) => {
+    listeners.push({
+      type,
+      listener,
+      capture: typeof options === 'boolean' ? options : !!options?.capture,
+    });
+    addListener(type, listener, options);
+  });
   transport = vi.fn<typeof fetch>(async (_path, init) =>
     response(JSON.parse(init!.body as string)),
   );
   vi.stubGlobal('fetch', transport);
   context = await import('./telemetry-context');
   await import('./analytics-runtime');
+  runtimePagehide = listeners.find(({ type }) => type === 'pagehide')!.listener as EventListener;
   container = document.createElement('div');
   document.body.append(container);
   root = createRoot(container);
 });
 afterEach(async () => {
-  await act(async () => root?.unmount());
-  root = undefined;
-  container.remove();
-  context.setTelemetryContext(null, true, 'public');
-  vi.clearAllTimers();
-  vi.restoreAllMocks();
-  vi.unstubAllGlobals();
-  vi.useRealTimers();
+  try {
+    await act(async () => root?.unmount());
+  } finally {
+    root = undefined;
+    container.remove();
+    context.setTelemetryContext(null, true, 'public');
+    // resetModules does not remove the previous runtime's import-installed browser listeners.
+    for (const { type, listener, capture } of listeners)
+      window.removeEventListener(type, listener, capture);
+    vi.clearAllTimers();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  }
 });
 const operations = () =>
   transport.mock.calls
     .filter(([path]) => path === '/api/analytics/v2/module-session')
     .map(([, init]) => JSON.parse(init!.body as string));
+const qualityCalls = () =>
+  transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/quality');
+const qualityBodies = () => qualityCalls().map(([, init]) => JSON.parse(init!.body as string));
+const savedQuality = () => JSON.parse(sessionStorage.getItem('asa:quality:v2:product')!);
+const savedQueue = () => JSON.parse(sessionStorage.getItem('asa:analytics:v2')!);
+async function mountTrackers(apis?: ActivityTransport[], input = true) {
+  const { trackInputActivity } = await import('./activity-lifecycle');
+  const { analyticsSessionTransport } = await import('./analytics-runtime');
+  const trackers: ReturnType<typeof trackInputActivity>[] = [];
+  function Probe() {
+    useEffect(() => {
+      for (const api of apis ?? [analyticsSessionTransport(actor, 'electronics')]) {
+        const tracker = trackInputActivity(projectId, api);
+        trackers.push(tracker);
+        tracker.setReady(true);
+        if (input) tracker.input();
+      }
+      return () => trackers.forEach((tracker) => tracker.dispose());
+    }, []);
+    return null;
+  }
+  await act(async () => root!.render(createElement(Probe)));
+  return trackers;
+}
 describe('actual runtime identity and React ownership', () => {
   it('StrictMode probe creates one visit and one start; disposal records the exact original close', async () => {
     const { trackInputActivity } = await import('./activity-lifecycle');
@@ -147,5 +191,273 @@ describe('actual runtime identity and React ownership', () => {
       false,
     );
     expect(operations()).toHaveLength(0);
+  });
+});
+
+describe('pagehide closes mounted activity before final quality', () => {
+  it.each(['confirmed', 'pending'] as const)(
+    'includes the original close synchronously with a %s start and never duplicates it',
+    async (state) => {
+      let completeStart: (() => void) | undefined;
+      transport.mockImplementation(async (_path, init) => {
+        const body = JSON.parse(init!.body as string);
+        if (body.operation === 'start' && state === 'pending')
+          await new Promise<void>((resolve) => (completeStart = resolve));
+        if (body.operation === 'close') await new Promise<void>(() => undefined);
+        return response(body);
+      });
+      context.setTelemetryContext(actor, true, 'editor.electronics');
+      await vi.advanceTimersByTimeAsync(0);
+      const [tracker] = await mountTrackers();
+      await vi.advanceTimersByTimeAsync(0);
+      const original = operations()[0];
+      expect(original.operation).toBe('start');
+      expect(qualityCalls()).toHaveLength(0);
+
+      // Invoke only the first runtime listener: later native tracker listeners have not run.
+      // This also rules out relying on microtask checkpoints between browser listeners.
+      runtimePagehide.call(window, new Event('pagehide'));
+      const gauges = { pending: state === 'pending' ? 1 : 0, inFlight: 1 };
+      expect(qualityBodies()[0]).toMatchObject({
+        actorExpectation: actor,
+        coverage: { final: true },
+        counters: { attempted: 3, enqueued: 3, acknowledged: state === 'pending' ? 1 : 2 },
+        gauges,
+      });
+      const close = savedQueue().sessions[0].close;
+      expect(close).toMatchObject({
+        operation: 'close',
+        sessionId: original.sessionId,
+        visitId: original.visitId,
+        actorExpectation: original.actorExpectation,
+      });
+      expect(savedQuality().snapshot.gauges).toEqual(gauges);
+      window.dispatchEvent(new Event('pagehide'));
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      tracker!.dispose();
+      completeStart?.();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(operations().filter((body) => body.operation === 'close')).toEqual([close]);
+      expect(savedQuality().snapshot.counters).toMatchObject({
+        attempted: 3,
+        enqueued: 3,
+        deduplicated: 0,
+      });
+    },
+  );
+
+  it('preserves a frozen retry and sends close counters in the next final sequence', async () => {
+    let qualityAttempt = 0;
+    transport.mockImplementation(async (path, init) => {
+      const body = JSON.parse(init!.body as string);
+      if (body.operation === 'close') await new Promise<void>(() => undefined);
+      if (path === '/api/analytics/v2/quality' && ++qualityAttempt === 1)
+        return new Response('{}', { status: 503 });
+      return response(body);
+    });
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    await vi.advanceTimersByTimeAsync(0);
+    await mountTrackers();
+    await vi.advanceTimersByTimeAsync(1000);
+    const frozenBody = qualityCalls()[0]![1]!.body;
+    const frozen = JSON.parse(frozenBody as string);
+    expect(frozen).toMatchObject({
+      sequence: 1,
+      counters: { attempted: 2 },
+      coverage: { final: false },
+    });
+    runtimePagehide.call(window, new Event('pagehide'));
+    expect(qualityCalls()[1]![1]!.body).toBe(frozenBody);
+    expect(savedQuality().pending).toEqual(frozen);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(savedQuality().snapshot).toMatchObject({
+      counters: { attempted: 3, enqueued: 3 },
+      coverage: { final: true },
+      gauges: { pending: 0, inFlight: 1 },
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(qualityBodies()[2]).toMatchObject({
+      sequence: 2,
+      streamId: frozen.streamId,
+      counters: { attempted: 3, enqueued: 3 },
+      coverage: { final: true },
+      gauges: { pending: 0, inFlight: 1 },
+    });
+    expect(qualityBodies()[2].eventId).not.toBe(frozen.eventId);
+    expect(qualityCalls()[0]![1]!.body).toBe(frozenBody);
+  });
+
+  it.each(['empty', 'disposed'] as const)(
+    'does not invent a close for an %s tracker',
+    async (state) => {
+      context.setTelemetryContext(actor, true, 'editor.electronics');
+      await vi.advanceTimersByTimeAsync(0);
+      const closeIntent = vi.fn();
+      const bindingVersion = vi.fn(() => 'binding');
+      const [tracker] = await mountTrackers(
+        [{ start: async () => true, touch: async () => true, closeIntent, bindingVersion }],
+        false,
+      );
+      if (state === 'disposed') {
+        tracker!.dispose();
+        bindingVersion.mockClear();
+      }
+      runtimePagehide.call(window, new Event('pagehide'));
+      window.dispatchEvent(new Event('pagehide'));
+      expect(closeIntent).not.toHaveBeenCalled();
+      if (state === 'disposed') expect(bindingVersion).not.toHaveBeenCalled();
+      expect(operations()).toEqual([]);
+      expect(qualityBodies()[0]).toMatchObject({
+        coverage: { final: true },
+        counters: { attempted: 1, enqueued: 1 },
+        gauges: { pending: 0, inFlight: 0 },
+      });
+    },
+  );
+
+  it('keeps an earlier visibility close single when pagehide and disposal follow', async () => {
+    transport.mockImplementation(async (_path, init) => {
+      const body = JSON.parse(init!.body as string);
+      if (body.operation === 'close') await new Promise<void>(() => undefined);
+      return response(body);
+    });
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    await vi.advanceTimersByTimeAsync(0);
+    const [tracker] = await mountTrackers();
+    await vi.advanceTimersByTimeAsync(0);
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    document.dispatchEvent(new Event('visibilitychange'));
+    runtimePagehide.call(window, new Event('pagehide'));
+    window.dispatchEvent(new Event('pagehide'));
+    tracker!.dispose();
+    expect(operations().filter((body) => body.operation === 'close')).toHaveLength(1);
+    expect(qualityBodies()[0]).toMatchObject({
+      counters: { attempted: 3, enqueued: 3, deduplicated: 0 },
+      gauges: { pending: 0, inFlight: 1 },
+      coverage: { final: true },
+    });
+  });
+
+  it('includes close replacement of a queued touch without sending that discarded touch', async () => {
+    let completeStart!: () => void;
+    transport.mockImplementation(async (_path, init) => {
+      const body = JSON.parse(init!.body as string);
+      if (body.operation === 'start')
+        await new Promise<void>((resolve) => (completeStart = resolve));
+      if (body.operation === 'close') await new Promise<void>(() => undefined);
+      return response(body);
+    });
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    await vi.advanceTimersByTimeAsync(0);
+    const { analyticsSessionTransport } = await import('./analytics-runtime');
+    const api = analyticsSessionTransport(actor, 'electronics');
+    await mountTrackers([api]);
+    const original = operations()[0];
+    const touch = api.touch(original.sessionId, false);
+    runtimePagehide.call(window, new Event('pagehide'));
+    expect(qualityBodies()[0]).toMatchObject({
+      counters: { attempted: 4, enqueued: 4, coalesced: 1 },
+      gauges: { pending: 1, inFlight: 1 },
+      coverage: { final: true },
+    });
+    expect(savedQueue().sessions[0].touch).toBeNull();
+    expect(await touch).toBe(false);
+    completeStart();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(operations().map((body) => body.operation)).toEqual(['start', 'close']);
+  });
+
+  it('finalizes all mounted trackers before taking the shared snapshot', async () => {
+    transport.mockImplementation(async (_path, init) => {
+      const body = JSON.parse(init!.body as string);
+      if (body.operation === 'close') await new Promise<void>(() => undefined);
+      return response(body);
+    });
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    await vi.advanceTimersByTimeAsync(0);
+    const { analyticsSessionTransport } = await import('./analytics-runtime');
+    await mountTrackers([
+      analyticsSessionTransport(actor, 'electronics'),
+      analyticsSessionTransport(actor, 'blocks'),
+    ]);
+    await vi.advanceTimersByTimeAsync(0);
+    const starts = operations();
+    runtimePagehide.call(window, new Event('pagehide'));
+    expect(qualityBodies()[0]).toMatchObject({
+      counters: { attempted: 5, enqueued: 5 },
+      gauges: { pending: 1, inFlight: 1 },
+      coverage: { final: true },
+    });
+    expect(savedQueue().sessions.map((session: { close: unknown }) => session.close)).toEqual(
+      starts.map((start) =>
+        expect.objectContaining({
+          operation: 'close',
+          sessionId: start.sessionId,
+          visitId: start.visitId,
+          actorExpectation: actor,
+        }),
+      ),
+    );
+  });
+
+  it.each(['native', 'fallback', 'reporter-failure'] as const)(
+    'isolates a throwing finalizer with %s error reporting so the next tracker and quality still complete',
+    async (reporting) => {
+      context.setTelemetryContext(actor, true, 'editor.electronics');
+      await vi.advanceTimersByTimeAsync(0);
+      const { analyticsSessionTransport } = await import('./analytics-runtime');
+      const failure = Error('failed transport finalizer');
+      const reported: ErrorEvent[] = [];
+      const reportError = vi.fn(() => {
+        if (reporting === 'reporter-failure') throw Error('failed reporter');
+      });
+      vi.stubGlobal('reportError', reporting === 'fallback' ? undefined : reportError);
+      window.addEventListener('error', (event) => {
+        event.preventDefault();
+        reported.push(event);
+      });
+      const failing = vi.fn(() => {
+        throw failure;
+      });
+      await mountTrackers([
+        { start: async () => true, touch: async () => true, closeIntent: failing },
+        analyticsSessionTransport(actor, 'electronics'),
+      ]);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(() => runtimePagehide.call(window, new Event('pagehide'))).not.toThrow();
+      expect(failing).toHaveBeenCalledTimes(1);
+      expect(qualityBodies()[0]).toMatchObject({
+        counters: { attempted: 3, enqueued: 3 },
+        coverage: { final: true },
+      });
+      window.dispatchEvent(new Event('pagehide'));
+      expect(failing).toHaveBeenCalledTimes(1);
+      if (reporting === 'fallback') {
+        expect(reported).toHaveLength(1);
+        expect(reported[0]!.error).toBe(failure);
+        expect(reported[0]!.message).toBe(failure.message);
+      } else {
+        expect(reportError).toHaveBeenCalledExactlyOnceWith(failure);
+        expect(reported).toEqual([]);
+      }
+    },
+  );
+
+  it('does not finalize the successor actor when a tracker changes identity during close', async () => {
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    await vi.advanceTimersByTimeAsync(0);
+    const successor = { ...actor, workspaceId: projectId };
+    const changed = vi.fn(() => context.setTelemetryContext(successor, true, 'editor.electronics'));
+    await mountTrackers([
+      { start: async () => true, touch: async () => true, closeIntent: changed },
+    ]);
+    runtimePagehide.call(window, new Event('pagehide'));
+    expect(changed).toHaveBeenCalledTimes(1);
+    expect(qualityCalls()).toHaveLength(0);
+    expect(savedQuality().snapshot).toMatchObject({
+      actorExpectation: successor,
+      coverage: { final: false },
+    });
   });
 });
