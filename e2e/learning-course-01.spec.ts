@@ -1474,7 +1474,11 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await oldLearner.page.reload();
   const oldCourses = oldLearner.page.getByTestId('seat-courses');
   await oldCourses.getByRole('button').filter({ hasText: courseTitle }).click();
-  await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page
+      .getByTestId('seat-course-player')
+      .getByRole('heading', { name: 'Структурная теория', exact: true }),
+  ).toBeVisible();
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();
@@ -1574,7 +1578,11 @@ test('Course Builder duplicates a section and excludes hidden lesson only from f
   await oldLearner.page.reload();
   const oldCoursesAfterV2 = oldLearner.page.getByTestId('seat-courses');
   await oldCoursesAfterV2.getByRole('button').filter({ hasText: courseTitle }).click();
-  await expect(oldLearner.page.getByText('Структурная теория', { exact: true })).toBeVisible();
+  await expect(
+    oldLearner.page
+      .getByTestId('seat-course-player')
+      .getByRole('heading', { name: 'Структурная теория', exact: true }),
+  ).toBeVisible();
   await expect(
     oldLearner.page.getByText('Материал исходной версии.', { exact: true }),
   ).toBeVisible();
