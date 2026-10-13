@@ -161,11 +161,35 @@ async function assertLayout(page: Page, width: number, file: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  const studentPager = page.getByRole('navigation', { name: 'Переход по ученикам' });
+  await expect(studentPager).toBeVisible();
+  const back = studentPager.getByRole('button', { name: /^Предыдущий ученик:/ });
+  const forward = studentPager.getByRole('button', { name: /^Следующий ученик:/ });
+  const previousRect = (await back.boundingBox())!;
+  const nextRect = (await forward.boundingBox())!;
+  for (const rect of [previousRect, nextRect]) {
+    expect(rect).not.toBeNull();
+    expect(rect.width).toBeGreaterThanOrEqual(44);
+    expect(rect.height).toBeGreaterThanOrEqual(44);
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
+  }
+  expect(previousRect.x + previousRect.width).toBeLessThan(nextRect.x);
+  await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+  // The long learner name and both navigation targets occupy different bands.
+  if (width <= 600) {
+    const heading = (await page.locator('.classroom-student-identity h1').boundingBox())!;
+    expect(heading.y + heading.height).toBeLessThanOrEqual(previousRect.y + 1);
+  }
+
   const controls = page.locator(
     '.participant-tabs button, .participant-assignments button, .participant-assignments a, .participant-role select, .participant-grades button',
   );
   for (const control of await controls.all()) {
     if (!(await control.isVisible())) continue;
+    if (await control.evaluate((element) => Boolean(element.closest('.participant-tabs')))) {
+      await control.scrollIntoViewIfNeeded();
+    }
     const rect = await control.boundingBox();
     expect(rect).not.toBeNull();
     expect(rect!.x).toBeGreaterThanOrEqual(0);
@@ -178,10 +202,22 @@ async function assertLayout(page: Page, width: number, file: string) {
       expect(rect!.width).toBeGreaterThanOrEqual(44);
       expect(rect!.height).toBeGreaterThanOrEqual(44);
     }
+    const compactNavigation = await control.evaluate((element) =>
+      element.matches('.participant-tabs button, .participant-role select'),
+    );
+    // Compact navigation uses 13px labels; grades and assignment actions remain 16px.
+    const minFontSize = compactNavigation ? 13 : 16;
     expect(
       await control.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
-    ).toBeGreaterThanOrEqual(16);
+    ).toBeGreaterThanOrEqual(minFontSize);
+    // Touch navigation is 44px on phones; the desktop's compact rail is 40px.
+    if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(width <= 600 ? 44 : 40);
   }
+  // Return the horizontal tab strip to its first tab for the screenshot.
+  await page.locator('.participant-tabs').evaluate((element) => {
+    element.scrollLeft = 0;
+  });
+  await page.evaluate(() => window.scrollTo(0, 0));
   if (width <= 900) {
     const header = page.locator('.portal-header');
     const rect = await header.boundingBox();
@@ -275,7 +311,25 @@ test('assigned without a project stays one row through start, submission and rev
     ).rows[0];
   const before = await counts();
   await openProfile(page, classroom.id, a.name);
+  const neighbors = page.getByRole('navigation', { name: 'Переход по ученикам' });
+  await expect(neighbors.getByText('1/2', { exact: true })).toBeVisible();
+  await neighbors.getByRole('button', { name: 'Предыдущий ученик: ' + b.name }).click();
+  await expect(page.getByRole('heading', { name: b.name, exact: true })).toBeVisible();
+  await expect(neighbors.getByText('2/2', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Задания', exact: true }).click();
+  await neighbors.getByRole('button', { name: 'Следующий ученик: ' + a.name }).click();
+  await expect(page.getByRole('heading', { name: a.name, exact: true })).toBeVisible();
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Задания', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
+  // Work/grade tab selection survives switching pupils; return to works explicitly.
+  await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+  for (const width of [320, 390, 1024, 1440]) {
+    await assertLayout(page, width, 'student-review-navigation');
+  }
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
   const list = page.getByRole('region', { name: 'Задания участника' });
   const row = list.locator(`[data-assignment-id="${assignment.assignmentId}"]`);
@@ -413,7 +467,8 @@ test('assigned without a project stays one row through start, submission and rev
     await expect(page.getByRole('region', { name: 'Классы помощника' })).toContainText(
       classroom.title,
     );
-    await expect(page.getByRole('region', { name: 'Последние оценки' })).toHaveCount(0);
+    // A helper is still a pupil, and the teacher must see their marks as well.
+    await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
     expect((await pupil.request.get(`/api/classrooms/${classroom.id}/participants`)).status()).toBe(
       401,
     );

@@ -25,6 +25,7 @@ import { Dropdown } from '../components/Dropdown';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
 import { ClassroomGradingScheme } from '../components/ClassroomGradingScheme';
 import { sortClassroomRoster, type ClassroomRosterSort } from '../components/classroom-roster-sort';
+import { classroomStudentNavigation } from '../components/classroom-student-navigation';
 import '../modules/classroom-owner-layout.css';
 import '../modules/classroom-mobile.css';
 import '../modules/classroom-usability.css';
@@ -665,11 +666,18 @@ function ClassroomPageContent({
   );
 
   if (openStudent !== null) {
+    // Navigate the complete sorted class, even when the teacher searched for one pupil.
+    const navigation = classroomStudentNavigation(
+      sortClassroomRoster(students, rosterSort, sortDirection, participantMetrics),
+      openStudent,
+    );
     return (
       <ClassroomStudentPage
         classroomId={classroomId}
         classroomTitle={classroom.title}
         seatId={openStudent}
+        navigation={navigation}
+        onNavigateStudent={setOpenStudent}
         onBack={() => {
           setOpenStudent(null);
           void reload();
