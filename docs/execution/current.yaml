@@ -639,8 +639,8 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: owner_first_problem_two_tab_recovery_cleanup_before
+      status: blocked
+      checkpoint: save_scenario_passed_exact_acceptance_gates_failed
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -660,8 +660,25 @@ parallel_lanes:
       paused_field_ci_cancellation: requested_by_controller; cancelled is not PASS
       accepted_save_recovery_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
       school_actions: deferred_by_owner_no_installation_actions
-      next_action: Reproduce exact production-browser two-tab cleanup loss, minimal fix, focused and required gates, NEW
-        independent review; report and STOP
+      candidate_branch: codex/electronics-save-cross-tab-566
+      candidate_sha: d94d3a91fa6768d536728a3fcd774a44b18f564f
+      candidate_tree: 57f8ae5e7be996580f7761520489ff69ba19e251
+      candidate_integration: not_integrated
+      exact_save_scenario: passed_in_ordinary_built_browser_gate
+      exact_general_run: 38480957015
+      exact_general_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/38480957015
+      exact_general_conclusion: failure
+      exact_general_failure: Access registration setup HTTP429 in two scenarios; not a save product finding
+      exact_electronics_run: 38480969448
+      exact_electronics_url: https://github.com/spikeal8-maker/asa-lab/actions/runs/38480969448
+      exact_electronics_conclusion: failure
+      exact_electronics_browser: 150 passed, 1 image recovery href retry0 failure; cross-tab save scenario passed
+      independent_review: acceptance_blocked_required_gates_failed_no_product_findings_reported
+      technical_acceptance: blocked
+      deployment: not_run
+      database_actions: none
+      next_action: Preserve exact candidate and evidence; no repair, rerun, integration, closeout or installation action;
+        report and STOP. No next task.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -4568,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: release_registration_fixture_baseline_selected
+      checkpoint: release_scratch_clock_compatibility_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4576,6 +4593,8 @@ parallel_lanes:
         - document: OBSERVABILITY-REPAIR-SPEC
           revision: '1.8'
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
+          revision: '1.0'
+        - document: RELEASE-SCRATCH-CLOCK-SPEC
           revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
@@ -4786,26 +4805,35 @@ parallel_lanes:
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: separate_CI_registration_setup_baseline_repair_then_exact_main_General_release_and_guarded_site_update
+        next_action: Scratch_clock_network_compatibility_then_exact_main_General_release_and_guarded_site_update
       release_execution:
         status: in_progress
-        selected_phase: separate_registration_setup_CI_baseline_repair
+        selected_phase: Scratch_clock_network_compatibility
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
+        candidate_source_sha: 2a3d2f49fc7ed8412914e3ca0800ced59bf623b5
         integration_branch: codex/observability-main-integration
-        current_baseline_task:
+        registration_fixture_result:
           id: TASK-RELEASE-REGISTRATION-FIXTURE-001
-          specification: docs/delivery/RELEASE_REGISTRATION_FIXTURE_SPEC.md
-          branch: codex/release-registration-fixture
+          source_sha: 2a3d2f49fc7ed8412914e3ca0800ced59bf623b5
+          status: implemented_focused_verified_pending_final_main_browser_CI
+          independent_review: pass
+          local_focused: 30_passed
+          assertion_preservation: 214_assertions_3_payload_origin_3_timeout_declarations_unchanged
+          local_browser_discovery: not_run_missing_identity_dist_no_local_build
+          report: docs/execution/RELEASE_REGISTRATION_FIXTURE_REPORT.md
+          production_quota: unchanged_generic900_per5min_registration60_per_hour
+        current_baseline_task:
+          id: TASK-RELEASE-SCRATCH-CLOCK-001
+          specification: docs/delivery/RELEASE_SCRATCH_CLOCK_SPEC.md
+          branch: codex/release-scratch-clock
           status: in_progress
-          category: C_independent_shared_browser_setup_quota
-          failing_run: 38479261357
+          category: B_CLIENT_deadline_and_existing_fixture_virtual_clock_compatibility
+          failing_run: 38480278103
           failing_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
-          failed_job: Access_A_real_browser_journeys
-          observed: 19_passed_2_failed_at_teacher_registration_HTTP429_generic_mutation_budget
-          quota: generic_mutation_900_per_5min_registration_specific_60_per_hour_unchanged
-          scope: Bounded server-directed retry of registration setup only, preserving all admissions assertions and original runtime budgets.
-          deployment_gate: exact_main_General_and_portable_release_must_succeed_before_live_update
+          failed_job: Standalone_host_image_and_health_smoke
+          observed: expected_1_raw_close_received_2_event_identity_not_in_old_log
+          scope: Slice virtual clock with real client ACK consumption barrier, preserve exact raw counts and all functional assertions.
+          deployment_gate: repaired_real_Scratch_scenario_exact_code_General_final_main_and_portable_release_before_live_update
         main_integration_result:
           source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
           main_publication: completed_normal_fast_forward
@@ -5294,4 +5322,24 @@ blocking:
       actual42ready37fractional and correctintegertext. IndependentC baseline557 must be repaired/reviewed
       and required exact gates green; labels552 repaired separately. No product clock regression proven.
     evidence: docs/product/electronics/evidence/startup-audio-552-final-review-975f1fef.md
+  - id: ELECTRONICS-566-EXACT-GATES
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
+    blocks:
+    - integration
+    - technical_acceptance
+    - closeout
+    - close_issue
+    - owner_acceptance
+    - release_claim
+    allows:
+    - documentation_update
+    - independent_source_review
+    reason: Save candidate d94d3a91fa6768d536728a3fcd774a44b18f564f passes its actual ordinary browser cross-tab
+      recovery scenario, but exact General38480957015 fails two Access registration HTTP429 setup scenarios and
+      ordinary Electronics38480969448 fails one image recovery href retry0 scenario (150 passed). These failures
+      do not authorize foreign repair or acceptance. Preserve accepted526 and paused544; do not close566 or452.
+      Required exact-head gates and independent acceptance must be satisfied before integration or closure.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
 next_task: null

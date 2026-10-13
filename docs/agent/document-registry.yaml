@@ -110,6 +110,17 @@ documents:
     context_role: task
     read_when: [release_ci_fixture_repair]
 
+  - id: RELEASE-SCRATCH-CLOCK-SPEC
+    path: docs/delivery/RELEASE_SCRATCH_CLOCK_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_authorized_full_site_update_20261014
+    revision: '1.0'
+    context_role: task
+    read_when: [release_ci_fixture_repair]
+
   - id: PORTABLE-DEPLOYMENT-CONTRACT
     path: docs/agent/contracts/deployment.yaml
     scope: global
