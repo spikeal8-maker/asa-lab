@@ -1,0 +1,30 @@
+{
+  "candidate": "0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae",
+  "tree": "92815acdf8048dc32e0e2aa82abf06b58ab7f08a",
+  "verdict": "TECHNICAL_ACCEPTANCE_CRITERIA_SATISFIED",
+  "independentReportSHA256": "6aff1d0387723a1641e75bd3410f2f7cc9c70190779abb7cf6774ba65b9aa1ed",
+  "manifestSHA256": "f77a62d0db346de48c8d46c6c3f9de1d91c00df1ab61e30dabecfc3efefe6a0b",
+  "runs": [
+    38163534208,
+    38163538498
+  ],
+  "all8": "SUCCESS",
+  "ordinaryBrowserPassed": 147,
+  "focusedTests": [
+    633,
+    426
+  ],
+  "dataPass": 3505,
+  "rlsPass": 16,
+  "externalVerified": 94,
+  "gitVerified": 83,
+  "controllerActualPrimaryNetworkTraceWholeSave": "PASS",
+  "rootNativeFinalImages": "all4 personally viewed",
+  "visualState": "provisional existing clipping retained",
+  "technicalScope": "native stage wheel cancellation only",
+  "acceptedWholeOriginalComplaint": false,
+  "school": "NONE",
+  "ownerAcceptance": "pending",
+  "hygieneCountBefore": 2,
+  "hygieneCountAfterIntegration": 3
+}
