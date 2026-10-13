@@ -3,6 +3,7 @@ export interface ActivityTransport {
   start(sessionId: string, projectId: string): Promise<boolean>;
   touch(sessionId: string, closed: boolean): Promise<boolean>;
   closeIntent?(sessionId: string): void;
+  bindingVersion?(): string;
 }
 
 /** One tracker per accepted editor/frame/principal binding. Liveness never enters here. */
@@ -13,8 +14,21 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
   let lastAttempt = -Infinity;
   let idleTimer: number | null = null;
   let current: { id: string; accepted: boolean; pending: boolean; lastTouch: number } | null = null;
+  let binding = api.bindingVersion?.();
+  const renewBinding = (): void => {
+    const next = api.bindingVersion?.();
+    if (next === binding) return;
+    binding = next;
+    // Authentication recovery is no observation of the old period's end or new input.
+    current = null;
+    if (idleTimer !== null) window.clearTimeout(idleTimer);
+    idleTimer = null;
+    lastInput = -Infinity;
+    lastAttempt = -Infinity;
+  };
 
   const close = (): void => {
+    renewBinding();
     const session = current;
     current = null;
     if (idleTimer !== null) window.clearTimeout(idleTimer);
@@ -56,6 +70,7 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
   };
 
   const timer = window.setInterval(() => {
+    renewBinding();
     if (!eligible()) {
       close();
       return;
@@ -92,6 +107,7 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
       if (!value) close();
     },
     input(): void {
+      renewBinding();
       if (disposed || !ready || document.visibilityState !== 'visible') return;
       lastInput = Date.now();
       if (idleTimer !== null) window.clearTimeout(idleTimer);

@@ -124,6 +124,7 @@ describe('actual v2 envelopes and persistence receipts', () => {
       expect(await sendTelemetry('/api/analytics/v2/events', event, () => false, fetch)).toEqual({
         kind: 'rejected',
         context,
+        authentication: status === 401,
       });
       expect(fetch).toHaveBeenCalledOnce();
       expect(fetch.mock.calls[0]?.[0]).toBe('/api/analytics/v2/events');

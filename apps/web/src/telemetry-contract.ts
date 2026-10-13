@@ -160,7 +160,7 @@ export function confirmedAnalytics(value: unknown, envelope: AnalyticsEnvelope):
 export type Delivery =
   | { kind: 'acknowledged'; value: unknown }
   | { kind: 'retry' }
-  | { kind: 'rejected'; context: boolean };
+  | { kind: 'rejected'; context: boolean; authentication: boolean };
 /** HTTP failures and invalid successful bodies never masquerade as an acknowledgement. */
 export async function sendTelemetry(
   path: string,
@@ -194,12 +194,17 @@ export async function sendTelemetry(
     } catch {
       return response.ok
         ? { kind: 'retry' }
-        : { kind: 'rejected', context: response.status === 401 };
+        : {
+            kind: 'rejected',
+            context: response.status === 401,
+            authentication: response.status === 401,
+          };
     }
     if (response.ok) return confirmed(value) ? { kind: 'acknowledged', value } : { kind: 'retry' };
     const code = record(value) && record(value.error) ? value.error.code : '';
     return {
       kind: 'rejected',
+      authentication: response.status === 401,
       context:
         response.status === 401 ||
         (response.status === 409 &&

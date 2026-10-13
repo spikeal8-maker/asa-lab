@@ -2,16 +2,36 @@ import { newClientId } from './client-id';
 import { AnalyticsDelivery, browserAnalytics } from './analytics-delivery';
 import {
   actorKey,
+  record,
   safeReferrer,
+  uuid,
   type TelemetryActor,
   type TelemetryModule,
 } from './telemetry-contract';
-import { subscribeTelemetry, telemetryContext, type TelemetryContext } from './telemetry-context';
+import {
+  renewTelemetryContext,
+  sameTelemetryBinding,
+  subscribeProductConfirmation,
+  subscribeTelemetry,
+  telemetryContext,
+  type TelemetryContext,
+} from './telemetry-context';
 
 let delivery: AnalyticsDelivery | undefined;
 let generation = -1;
+let continuity = -1;
 let visitId = '';
+let proof: { context: TelemetryContext; controller: AbortController } | undefined;
+let productObservation: TelemetryContext | undefined;
+let observationTimer: ReturnType<typeof setTimeout> | undefined;
+function clearProductObservation(): void {
+  productObservation = undefined;
+  if (observationTimer) clearTimeout(observationTimer);
+  observationTimer = undefined;
+}
 function update(context: TelemetryContext): void {
+  if (proof && !sameTelemetryBinding(proof.context)) proof.controller.abort();
+  if (productObservation && !sameTelemetryBinding(productObservation)) clearProductObservation();
   if (!context.ready) {
     delivery?.pause(true);
     return;
@@ -20,11 +40,21 @@ function update(context: TelemetryContext): void {
     delivery?.pause(false);
     return;
   }
+  const recovery = context.continuity === continuity;
   delivery?.retire();
   delivery = undefined;
   generation = context.generation;
+  continuity = context.continuity;
   if (!context.actor) return;
-  delivery = browserAnalytics(context.actor);
+  const created = browserAnalytics(context.actor, () => {
+    if (delivery === created && productObservation) recoverAuthentication(productObservation);
+  });
+  delivery = created;
+  if (recovery) {
+    // The document did not navigate. Its rejected original visit stays an honest coverage gap.
+    delivery.pause(false);
+    return;
+  }
   visitId = newClientId();
   let referrer: string | null = null;
   try {
@@ -36,6 +66,107 @@ function update(context: TelemetryContext): void {
   delivery.pause(false);
 }
 subscribeTelemetry(update);
+/** Bounded canonical identity read; it cannot refresh credentials or alter the product response. */
+async function freshActor(signal: AbortSignal): Promise<TelemetryActor | null> {
+  try {
+    const response = await fetch('/api/auth/me', {
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal,
+      headers: { accept: 'application/json' },
+    });
+    if (!response.ok || signal.aborted || !response.body) {
+      void response.body?.cancel().catch(() => undefined);
+      return null;
+    }
+    const reader = response.body.getReader();
+    const cancel = () => {
+      void reader.cancel().catch(() => undefined);
+    };
+    signal.addEventListener('abort', cancel, { once: true });
+    try {
+      const bytes = new Uint8Array(64_000);
+      let length = 0;
+      while (!signal.aborted) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (length + value.byteLength > bytes.length) {
+          cancel();
+          return null;
+        }
+        bytes.set(value, length);
+        length += value.byteLength;
+      }
+      if (signal.aborted) return null;
+      const value: unknown = JSON.parse(new TextDecoder().decode(bytes.subarray(0, length)));
+      if (
+        !record(value) ||
+        value.authenticated !== true ||
+        !record(value.account) ||
+        !uuid(value.account.id) ||
+        !record(value.activeWorkspace) ||
+        !uuid(value.activeWorkspace.workspaceId)
+      )
+        return null;
+      return {
+        kind: 'account',
+        accountId: value.account.id,
+        workspaceId: value.activeWorkspace.workspaceId,
+      };
+    } finally {
+      signal.removeEventListener('abort', cancel);
+      reader.releaseLock();
+    }
+  } catch {
+    return null;
+  }
+}
+function recoverAuthentication(context: TelemetryContext): void {
+  const target = delivery;
+  if (
+    proof ||
+    context.actor?.kind !== 'account' ||
+    !sameTelemetryBinding(context) ||
+    !target?.canRecoverAuthentication()
+  )
+    return;
+  // Consume one independent product observation at most once, including a delayed old-cookie401.
+  clearProductObservation();
+  const pending = { context, controller: new AbortController() };
+  proof = pending;
+  const signal = pending.controller.signal;
+  const timeout = setTimeout(() => pending.controller.abort(), 12_000);
+  let aborted!: () => void;
+  const cancelled = new Promise<null>((resolve) => {
+    aborted = () => resolve(null);
+    signal.addEventListener('abort', aborted, { once: true });
+  });
+  void Promise.race([freshActor(signal), cancelled])
+    .then((actor) => {
+      if (
+        !signal.aborted &&
+        actor &&
+        delivery === target &&
+        target.canRecoverAuthentication() &&
+        sameTelemetryBinding(context) &&
+        actorKey(actor) === actorKey(context.actor)
+      )
+        renewTelemetryContext(context);
+    })
+    .finally(() => {
+      clearTimeout(timeout);
+      signal.removeEventListener('abort', aborted);
+      if (proof === pending) proof = undefined;
+    });
+}
+subscribeProductConfirmation((context) => {
+  if (proof || context.actor?.kind !== 'account') return;
+  clearProductObservation();
+  productObservation = context;
+  // A telemetry request has a 12s deadline; a healthy refresh needs no speculative identity read.
+  observationTimer = setTimeout(clearProductObservation, 12_000);
+  recoverAuthentication(context);
+});
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
     delivery?.retryNow();
@@ -48,21 +179,52 @@ export function analyticsSessionTransport(
   actor: TelemetryActor | null,
   moduleKey: TelemetryModule,
 ) {
-  const expectedGeneration = telemetryContext().generation;
-  const target = delivery;
-  const current = () =>
-    target &&
-    delivery === target &&
-    telemetryContext().ready &&
-    expectedGeneration === telemetryContext().generation &&
-    actorKey(actor) === actorKey(target.actor);
+  const expectedContinuity = telemetryContext().continuity;
+  let ownerGeneration = telemetryContext().generation;
+  const owners = new Map<string, AnalyticsDelivery>();
+  const current = () => {
+    if (
+      ownerGeneration !== telemetryContext().generation ||
+      expectedContinuity !== telemetryContext().continuity
+    ) {
+      owners.clear();
+      ownerGeneration = telemetryContext().generation;
+    }
+    return (
+      delivery &&
+      telemetryContext().ready &&
+      expectedContinuity === telemetryContext().continuity &&
+      actorKey(actor) === actorKey(delivery.actor)
+    );
+  };
   return {
-    start: (sessionId: string, projectId: string): Promise<boolean> =>
-      current() ? target!.open(sessionId, projectId, moduleKey, visitId) : Promise.resolve(false),
-    touch: (sessionId: string, closed: boolean): Promise<boolean> =>
-      current() ? target!.touch(sessionId, closed) : Promise.resolve(false),
+    bindingVersion: () => {
+      current();
+      return `${telemetryContext().continuity}:${telemetryContext().generation}`;
+    },
+    start: (sessionId: string, projectId: string): Promise<boolean> => {
+      if (!current() || (!owners.has(sessionId) && owners.size >= 32))
+        return Promise.resolve(false);
+      const target = delivery!;
+      owners.set(sessionId, target);
+      return target.open(sessionId, projectId, moduleKey, visitId).then((accepted) => {
+        if (!accepted && owners.get(sessionId) === target) owners.delete(sessionId);
+        return accepted;
+      });
+    },
+    touch: (sessionId: string, closed: boolean): Promise<boolean> => {
+      if (!current() || owners.get(sessionId) !== delivery) return Promise.resolve(false);
+      const target = delivery!;
+      return target.touch(sessionId, closed).then((accepted) => {
+        if (closed && owners.get(sessionId) === target) owners.delete(sessionId);
+        return accepted;
+      });
+    },
     closeIntent: (sessionId: string): void => {
-      if (current()) void target!.touch(sessionId, true);
+      if (current() && owners.get(sessionId) === delivery) {
+        void delivery!.touch(sessionId, true);
+        owners.delete(sessionId);
+      }
     },
   };
 }

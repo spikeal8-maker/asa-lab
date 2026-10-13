@@ -44,10 +44,18 @@ export interface TelemetryContext {
   actor: TelemetryActor | null;
   ready: boolean;
   generation: number;
+  continuity: number;
   route: EntryRoute;
 }
-let current: TelemetryContext = { actor: null, ready: false, generation: 0, route: 'unknown' };
+let current: TelemetryContext = {
+  actor: null,
+  ready: false,
+  generation: 0,
+  continuity: 0,
+  route: 'unknown',
+};
 const listeners = new Set<(context: TelemetryContext) => void>();
+const productConfirmations = new Set<(context: TelemetryContext) => void>();
 export const telemetryContext = () => current;
 export function setTelemetryContext(
   actor: TelemetryActor | null,
@@ -55,13 +63,19 @@ export function setTelemetryContext(
   route: EntryRoute,
 ): void {
   const changed = ready && (actorKey(actor) !== actorKey(current.actor) || !current.ready);
+  const interrupted =
+    ready !== current.ready || (ready && actorKey(actor) !== actorKey(current.actor));
   // The layout effect retires old admissions before editor passive effects run.
   current = {
     actor: ready ? actor : current.actor,
     ready,
     route,
     generation: current.generation + (changed ? 1 : 0),
+    continuity: current.continuity + (interrupted ? 1 : 0),
   };
+  publish();
+}
+function publish(): void {
   for (const listener of listeners) {
     try {
       listener(current);
@@ -69,6 +83,40 @@ export function setTelemetryContext(
       /* Observability cannot break a product context switch. */
     }
   }
+}
+export function sameTelemetryBinding(expected: TelemetryContext): boolean {
+  return (
+    current.ready &&
+    expected.ready &&
+    !!current.actor &&
+    current.generation === expected.generation &&
+    current.continuity === expected.continuity &&
+    actorKey(current.actor) === actorKey(expected.actor)
+  );
+}
+/** A product retry is a trigger for a fresh server identity read, never identity proof itself. */
+export function confirmTelemetryProductSession(expected: TelemetryContext): void {
+  if (!sameTelemetryBinding(expected)) return;
+  for (const listener of productConfirmations) {
+    try {
+      listener(expected);
+    } catch {
+      /* Product success is independent of analytics. */
+    }
+  }
+}
+export function subscribeProductConfirmation(
+  listener: (context: TelemetryContext) => void,
+): () => void {
+  productConfirmations.add(listener);
+  return () => {
+    productConfirmations.delete(listener);
+  };
+}
+export function renewTelemetryContext(expected: TelemetryContext): void {
+  if (!sameTelemetryBinding(expected)) return;
+  current = { ...current, generation: current.generation + 1 };
+  publish();
 }
 export function subscribeTelemetry(listener: (context: TelemetryContext) => void): () => void {
   listeners.add(listener);

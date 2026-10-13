@@ -101,6 +101,7 @@ export class TelemetryQuality {
   private sequence = 0;
   private active = false;
   private stopped = false;
+  private authenticationUnavailable = false;
   private retired = false;
   private paused = false;
   private dirty = true;
@@ -113,6 +114,7 @@ export class TelemetryQuality {
     private readonly transport: typeof fetch = (...args) => fetch(...args),
     private readonly now: () => number = Date.now,
     private readonly id: () => string = newClientId,
+    private readonly onAuthenticationUnavailable?: () => void,
   ) {
     this.key = `asa:quality:v2:${actor ? 'product' : 'diagnostics'}`;
     this.snapshot = {
@@ -302,8 +304,10 @@ export class TelemetryQuality {
     } else if (outcome.kind === 'rejected') {
       // A rejected quality stream is a coverage failure, never an acknowledgement or recursively reported event.
       this.unclean();
+      this.authenticationUnavailable = outcome.authentication;
       this.stopped = true;
       this.persist(true);
+      if (this.authenticationUnavailable) this.onAuthenticationUnavailable?.();
     } else {
       this.failures++;
       this.schedule(Math.min(30_000, 1000 * 2 ** Math.min(5, this.failures - 1)));
@@ -336,6 +340,9 @@ export class TelemetryQuality {
       this.unavailable();
     }
     this.persist(true);
+  }
+  canRecoverAuthentication(): boolean {
+    return this.authenticationUnavailable;
   }
 }
 let diagnostics: TelemetryQuality | undefined;

@@ -38,6 +38,7 @@ interface Options {
   transport?: typeof fetch;
   now?: () => number;
   id?: () => string;
+  onAuthenticationUnavailable?: (() => void) | undefined;
 }
 /** 32 sessions × (start,touch,close) +32 visits, including the one in flight: at most128 operations. */
 export class AnalyticsDelivery {
@@ -46,6 +47,7 @@ export class AnalyticsDelivery {
   private visits: AnalyticsEnvelope[] = [];
   private inFlight: AnalyticsEnvelope | null = null;
   private stopped = false;
+  private authenticationUnavailable = false;
   private paused = false;
   private timer: ReturnType<typeof setTimeout> | undefined;
   private failures = 0;
@@ -54,6 +56,7 @@ export class AnalyticsDelivery {
   private readonly transport: typeof fetch;
   private readonly now: () => number;
   private readonly id: () => string;
+  private readonly onAuthenticationUnavailable: (() => void) | undefined;
   constructor(
     readonly actor: TelemetryActor,
     options: Options = {},
@@ -62,9 +65,17 @@ export class AnalyticsDelivery {
     this.transport = options.transport ?? ((...args) => fetch(...args));
     this.now = options.now ?? Date.now;
     this.id = () => (options.id ?? newClientId)().toLowerCase();
+    this.onAuthenticationUnavailable = options.onAuthenticationUnavailable;
     this.quality =
       options.quality ??
-      new TelemetryQuality(actor, this.storage, this.transport, this.now, this.id);
+      new TelemetryQuality(
+        actor,
+        this.storage,
+        this.transport,
+        this.now,
+        this.id,
+        this.onAuthenticationUnavailable,
+      );
     this.load();
     this.persist();
   }
@@ -422,7 +433,9 @@ export class AnalyticsDelivery {
     }
     this.failures = 0;
     if (outcome.kind === 'rejected' && outcome.context) {
+      this.authenticationUnavailable = outcome.authentication;
       this.retire();
+      if (this.authenticationUnavailable) this.onAuthenticationUnavailable?.();
       return;
     }
     const accepted = outcome.kind === 'acknowledged';
@@ -477,6 +490,11 @@ export class AnalyticsDelivery {
       sessions: this.sessions.length,
     };
   }
+  canRecoverAuthentication(): boolean {
+    return (
+      this.authenticationUnavailable || (!this.stopped && this.quality.canRecoverAuthentication())
+    );
+  }
 }
-export const browserAnalytics = (actor: TelemetryActor) =>
-  new AnalyticsDelivery(actor, { storage: sessionStoragePort() });
+export const browserAnalytics = (actor: TelemetryActor, onAuthenticationUnavailable?: () => void) =>
+  new AnalyticsDelivery(actor, { storage: sessionStoragePort(), onAuthenticationUnavailable });
