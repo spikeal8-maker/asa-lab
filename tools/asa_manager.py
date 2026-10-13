@@ -12,7 +12,7 @@ import sys
 from contextlib import nullcontext
 
 from deployment.backup import export_backup, recovery_configuration, restore_check
-from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, verify_backup, verify_embedded_entry_http
+from deployment.contracts import DEFAULT_WINDOW, REPOSITORY, Blocked, atomic_json, attest_editor_env, exact_origin, in_window, require, validate_public_domain, verify_backup, verify_embedded_entry_http
 from deployment.releases import apply_release_environment, assert_ci, discover_release, fetch_images, validate_resolved_images
 from deployment.system import Installation, operation_lock, run
 from deployment.collector import prepare as prepare_collector, reconcile as reconcile_collector, status as collector_status
@@ -50,10 +50,15 @@ def save_settings(install, enabled=False):
     })
 
 
-def first_environment(root, profile):
+def first_environment(root, profile, public_domain=None):
     require(not (root / ".env").exists(), "ENV_EXISTS", "Private configuration already exists.", "Review it explicitly before the first installation; do not regenerate secrets.")
+    if public_domain is not None:
+        require(profile == "production", "PUBLIC_PROFILE", "Public HTTPS requires a fresh production installation.")
+        public_domain = validate_public_domain(public_domain)
+    entry_origin = f"https://{public_domain}" if public_domain else "http://127.0.0.1:4610"
     admin, app = secrets.token_hex(24), secrets.token_hex(24)
-    values = {"COMPOSE_PROJECT_NAME": "asa-lab-dev", "ASA_IMAGE_TAG": "local",
+    project = {"production": "asa-lab-production", "staging": "asa-lab-staging"}.get(profile, "asa-lab-dev")
+    values = {"COMPOSE_PROJECT_NAME": project, "ASA_IMAGE_TAG": "local",
               "POSTGRES_DB": "asalab", "POSTGRES_USER": "asalab_admin", "POSTGRES_PASSWORD": admin,
               "ASA_APP_DB_PASSWORD": app,
               "MIGRATION_DATABASE_URL": f"postgres://asalab_admin:{admin}@postgres:5432/asalab",
@@ -65,11 +70,13 @@ def first_environment(root, profile):
               "ASA_OBJECT_STORAGE_BUCKET": "asa-blocks", "ASA_OBJECT_STORAGE_ACCESS_KEY": secrets.token_hex(16),
               "ASA_OBJECT_STORAGE_SECRET_KEY": secrets.token_hex(32), "ASA_OBJECT_STORAGE_FORCE_PATH_STYLE": "true",
               "ASA_WEB_PORT": "4610", "ASA_API_PORT": "4611", "ASA_BLOCKS_PORT": "4613",
-              "ASA_BLOCKS_PARENT_ORIGIN": "http://127.0.0.1:4610", "ASA_BLOCKS_RUNTIME_ORIGIN": "http://127.0.0.1:4610",
-              "ASA_UPDATE_ENTRY_ORIGIN": "http://127.0.0.1:4610",
+              "ASA_BLOCKS_PARENT_ORIGIN": entry_origin, "ASA_BLOCKS_RUNTIME_ORIGIN": entry_origin,
+              "ASA_UPDATE_ENTRY_ORIGIN": entry_origin,
               "ASA_SEED_DEV": "true" if profile == "dev" else "false",
               "ASA_SEED_WORKSPACE": "school-1580", "ASA_SEED_TEACHER_EMAIL": "teacher@school-1580.local",
               "ASA_SEED_TEACHER_PASSWORD": secrets.token_hex(24)}
+    if public_domain:
+        values.update({"ASA_PUBLIC_DOMAIN": public_domain, "ASA_PUBLIC_WEB_ORIGINS": entry_origin})
     descriptor = os.open(root / ".env", os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as stream:
         stream.write("# Private installation settings. Never commit or upload unencrypted.\n")
@@ -197,8 +204,12 @@ def main(argv=None):
     parser.add_argument("--backup", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--database")
+    parser.add_argument("--public-domain", help="Enable automatic HTTPS on a fresh production install")
     args = parser.parse_args(argv)
     try:
+        if args.public_domain is not None:
+            require(args.action == "install" and args.profile == "production", "PUBLIC_ARGUMENT",
+                    "--public-domain requires install --profile production.")
         if args.action == "verify-backup":
             require(args.backup, "ARGUMENT", "--backup is required.")
             manifest = verify_backup(args.backup)
@@ -214,8 +225,12 @@ def main(argv=None):
                 print("CONFIGURED window=Sunday 03:00-05:00 Moscow; install the OS scheduler separately")
             elif args.action == "install":
                 require(not install.identity(existing=False), "ALREADY_INSTALLED", "Use update for the existing installation.")
+                if args.public_domain is not None:
+                    require(not install.env, "PUBLIC_EXISTING",
+                            "Existing private installation settings must never be overwritten.",
+                            "Use a controlled existing-installation transition without renaming the database.")
                 if not install.env:
-                    first_environment(install.root, install.profile)
+                    first_environment(install.root, install.profile, args.public_domain)
                 update(Installation(install.root, install.profile), fresh=True)
             elif args.action in ("check", "update"):
                 update(install, check=args.action == "check", scheduled=args.scheduled)

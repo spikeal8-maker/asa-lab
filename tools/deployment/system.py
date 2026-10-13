@@ -9,7 +9,7 @@ import subprocess
 import time
 import urllib.request
 
-from .contracts import Blocked, atomic_json, attest_database_targets, attest_proxy_policy, read_env, require
+from .contracts import Blocked, atomic_json, attest_database_targets, attest_proxy_policy, read_env, require, validate_public_domain
 
 
 def run(args, *, cwd=None, env=None, capture=False, output=None, input_data=None, input_file=None):
@@ -66,6 +66,19 @@ class Installation:
         import re
         require(re.fullmatch(r"[a-z0-9][a-z0-9_-]*", self.project), "PROJECT", "Invalid project name.")
         self.files = ["compose.yaml"] + ([] if self.profile == "base" else [f"compose.{self.profile}.yaml"])
+        if self.env.get("ASA_PUBLIC_DOMAIN"):
+            domain = validate_public_domain(self.env["ASA_PUBLIC_DOMAIN"])
+            require(self.profile == "production", "PUBLIC_PROFILE",
+                    "Public HTTPS requires the production profile; do not expose development accounts.")
+            origin = f"https://{domain}"
+            require(all(self.env.get(key) == origin for key in
+                        ("ASA_BLOCKS_PARENT_ORIGIN", "ASA_BLOCKS_RUNTIME_ORIGIN", "ASA_UPDATE_ENTRY_ORIGIN")),
+                    "PUBLIC_ORIGIN", "Public portal and Scratch must share one exact HTTPS origin.")
+            accepted = {value.strip() for value in self.env.get("ASA_PUBLIC_WEB_ORIGINS", "").split(",") if value.strip()}
+            require(origin in accepted, "PUBLIC_ORIGIN", "Public HTTPS origin is not allowed by the API.")
+            require(not (self.root / "compose.frp.yaml").exists(), "PUBLIC_TRANSPORT",
+                    "Choose either built-in HTTPS or an existing FRP transport, not both.")
+            self.files.append("compose.public.yaml")
         if (self.root / "compose.frp.yaml").exists():
             self.files.append("compose.frp.yaml")
         self.process_env = dict(os.environ)
