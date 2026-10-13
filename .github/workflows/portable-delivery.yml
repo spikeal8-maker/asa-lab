@@ -75,5 +75,7 @@ jobs:
           for domain in "" "asa-lab.ru"; do
             docker run --rm --read-only --tmpfs /tmp -e ASA_PUBLIC_DOMAIN="$domain" asa-lab-web:ci --check-config > /dev/null
           done
+      - name: Test HTTPS, www redirect and certificate persistence on the actual Web image
+        run: sh tools/deployment/ci_caddy_https_smoke.sh
       - name: Verify portable boot and complete backup restoration
         run: python tools/deployment/ci_smoke.py /tmp/release.json
