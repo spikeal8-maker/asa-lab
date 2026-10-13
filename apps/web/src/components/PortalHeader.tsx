@@ -77,7 +77,9 @@ export function PortalHeader({
   maxVerificationDue = false,
   adminNavigation,
   onNavigate,
+  onBeforeExit,
   onSessionChanged,
+  onWorkspaceChanged,
   onLoggedOut,
 }: {
   session: SessionPayload;
@@ -109,7 +111,9 @@ export function PortalHeader({
     readonly onNavigate: (section: AdminSection) => void;
   };
   onNavigate: (section: PortalSection) => void;
+  onBeforeExit?: () => boolean;
   onSessionChanged: (session: SessionPayload) => void;
+  onWorkspaceChanged?: () => void;
   onLoggedOut: () => void;
 }): JSX.Element {
   const [busy, setBusy] = useState<string | null>(null);
@@ -333,7 +337,7 @@ export function PortalHeader({
   }
 
   async function logout(): Promise<void> {
-    if (busy) return;
+    if (busy || (onBeforeExit && !onBeforeExit())) return;
     setBusy('logout');
     setError(null);
     // A seat's session is a different cookie with a different lifetime; ending
@@ -350,7 +354,12 @@ export function PortalHeader({
   }
 
   async function switchWorkspace(workspaceId: string): Promise<void> {
-    if (busy || workspaceId === session.activeWorkspace.workspaceId) return;
+    if (
+      busy ||
+      workspaceId === session.activeWorkspace.workspaceId ||
+      (onBeforeExit && !onBeforeExit())
+    )
+      return;
     setBusy(`workspace:${workspaceId}`);
     setError(null);
     const result = await api.switchWorkspace(workspaceId);
@@ -363,7 +372,8 @@ export function PortalHeader({
     ) {
       onSessionChanged(refreshed.data);
       closeAccountMenu();
-      onNavigate('home');
+      if (onWorkspaceChanged) onWorkspaceChanged();
+      else onNavigate('home');
       return;
     }
     setError(
