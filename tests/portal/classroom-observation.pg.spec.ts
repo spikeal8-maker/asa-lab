@@ -409,80 +409,56 @@ describe('classroom observation — real PostgreSQL, restricted runtime and API'
       clearTimeout(probe);
       mark('HTTP ' + endpoint + ':complete');
       if (endpoint === 'history') {
-        // Read-only diagnosis in the isolated test database. The original HTTP
-        // assertion below still fails; this probe must never turn failure green.
-        const probeClient = await admin.connect();
+        // Exercise the real restricted role under both caller JIT settings.
+        // A repeatable-read snapshot makes result equality independent of
+        // asynchronous analytics delivery. No timeout or access check is relaxed.
+        const client = await runtime.connect();
         try {
-          await probeClient.query('BEGIN');
-          await probeClient.query("SET LOCAL statement_timeout = '5s'");
-          const settings = (
-            await probeClient.query(
-              "SELECT current_setting('jit') AS jit, pg_jit_available() AS available, current_setting('jit_above_cost') AS threshold",
+          await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY');
+          await client.query("SET LOCAL statement_timeout = '3s'");
+          const args = [f.actor.principal_id, f.classId, null, 'all', null, null, null, null];
+          let reference: ObservationHistoryPage | undefined;
+          for (const jit of ['on', 'off']) {
+            await client.query("SELECT set_config('jit',$1,true)", [jit]);
+            const started = performance.now();
+            const history = (
+              await client.query<{ data: ObservationHistoryPage }>(
+                'SELECT public.classroom_observation_history($1,$2,$3,$4,$5,$6,$7,$8) AS data',
+                args,
+              )
+            ).rows[0]!.data;
+            const milliseconds = performance.now() - started;
+            console.info(
+              'observation_history_bounded',
+              JSON.stringify({ jit, milliseconds, items: history.items.length }),
+            );
+            expect(milliseconds).toBeLessThan(3000);
+            expect(history.learners).toHaveLength(30);
+            expect(
+              history.items.some(
+                (event) =>
+                  event.action === 'submission.created' && event.projectId === work.projectId,
+              ),
+            ).toBe(true);
+            if (reference) expect(history).toEqual(reference);
+            reference = history;
+            expect((await client.query("SELECT current_setting('jit') AS jit")).rows[0].jit).toBe(
+              jit,
+            );
+          }
+          const options = (
+            await client.query(
+              "SELECT proconfig,prosecdef FROM pg_proc WHERE oid='public.classroom_observation_history(uuid,uuid,uuid,text,timestamptz,timestamptz,timestamptz,text)'::regprocedure",
             )
           ).rows[0];
-          const definition = (
-            await probeClient.query(
-              "SELECT prosrc FROM pg_proc WHERE oid='public.classroom_observation_history(uuid,uuid,uuid,text,timestamptz,timestamptz,timestamptz,text)'::regprocedure",
-            )
-          ).rows[0].prosrc as string;
-          const parameters = [
-            'p_actor',
-            'p_class',
-            'p_seat',
-            'p_category',
-            'p_from',
-            'p_to',
-            'p_before',
-            'p_before_id',
-          ];
-          const types = [
-            'uuid',
-            'uuid',
-            'uuid',
-            'text',
-            'timestamptz',
-            'timestamptz',
-            'timestamptz',
-            'text',
-          ];
-          const body = definition.replace(
-            /\bp_(?:actor|class|seat|category|from|to|before|before_id)\b/g,
-            (name) => '$' + (parameters.indexOf(name) + 1) + '::' + types[parameters.indexOf(name)],
-          );
-          const args = [f.actor.principal_id, f.classId, null, 'all', null, null, null, null];
-          const plan = (await probeClient.query('EXPLAIN (FORMAT JSON) ' + body, args)).rows[0][
-            'QUERY PLAN'
-          ][0];
-          console.info(
-            'observation_history_plan',
-            JSON.stringify({
-              settings,
-              cost: plan.Plan['Total Cost'],
-              rows: plan.Plan['Plan Rows'],
-              jit: plan.JIT,
-            }),
-          );
-          await probeClient.query('SET LOCAL jit = off');
-          const started = performance.now();
-          const withoutJit = await probeClient.query(
-            'SELECT public.classroom_observation_history($1,$2,$3,$4,$5,$6,$7,$8) AS data',
-            args,
-          );
-          console.info(
-            'observation_history_no_jit',
-            JSON.stringify({
-              milliseconds: performance.now() - started,
-              items: withoutJit.rows[0].data?.items.length,
-            }),
-          );
-        } catch (error) {
-          console.info(
-            'observation_history_probe_error',
-            typeof error === 'object' && error !== null && 'code' in error ? error.code : 'unknown',
-          );
+          expect(options.proconfig).toContain('jit=off');
+          expect(options.prosecdef).toBe(true);
         } finally {
-          await probeClient.query('ROLLBACK');
-          probeClient.release();
+          try {
+            await client.query('ROLLBACK');
+          } finally {
+            client.release();
+          }
         }
       }
       expect(result.statusCode, result.body).toBe(200);
