@@ -235,23 +235,32 @@ switch ($Action) {
   'doctor' {
     Assert-Docker
     Assert-StartupIdentity
-    New-PrivateEnvironment
+    if (-not (Test-Path -LiteralPath $EnvPath)) { throw 'No private environment. Use up for authorized installation.' }
     Invoke-Compose @('config', '--quiet')
     Write-Host 'Deployment doctor PASS: Docker, Compose and private configuration are ready.'
     Write-Host "Profile: $Profile"
     Write-Host "Revision: $env:ASA_BUILD_REVISION"
     Write-Host "Schema: $env:ASA_EXPECTED_SCHEMA_VERSION"
+    if ($Profile -ne 'test') { & python tools/log_collector.py status --root $RepoRoot --profile $Profile }
   }
   'up' {
     Assert-Docker
     Assert-StartupIdentity
     New-PrivateEnvironment
+    if ($Profile -ne 'test') {
+      & python tools/log_collector.py prepare --root $RepoRoot --profile $Profile
+      if ($LASTEXITCODE -ne 0) { throw 'Collector preparation failed before service replacement.' }
+    }
     Invoke-Compose @('config', '--quiet')
     # Build sequentially: a failed build never replaces healthy running containers.
     foreach ($service in @('minio', 'scratch', 'api', 'web')) { Invoke-Compose @('build', $service) }
     Assert-StartupIdentity
     Invoke-Compose @('up', '-d', '--no-build')
     Wait-Ready
+    if ($Profile -ne 'test') {
+      & python tools/log_collector.py reconcile --root $RepoRoot --profile $Profile
+      if ($LASTEXITCODE -ne 0) { Write-Warning 'ASA ready; diagnostic collection is degraded. Inspect .asa/collector-operation.json.' }
+    }
     Invoke-Compose @('ps')
     Show-Access
   }

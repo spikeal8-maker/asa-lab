@@ -155,6 +155,9 @@
           onDirty(generation) {
             reporter?.projectDirty(generation);
           },
+          onActivity() {
+            reporter?.userActivity();
+          },
           onHomeRequest() {
             reporter?.homeRequest();
           },

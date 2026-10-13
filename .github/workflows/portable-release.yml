@@ -30,6 +30,7 @@ jobs:
         with:
           python-version: '3.11'
       - run: python -m unittest discover -s tools/deployment -p "test_*.py" -v
+      - run: python tools/test_collect_logs.py
   gate:
     if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository))
     runs-on: ubuntu-latest

@@ -1,0 +1,12 @@
+{
+  "nameCenterError": 0.0078125,
+  "identityCenterError": 0,
+  "nameBelowHeader": true,
+  "nameAboveCodes": true,
+  "brandLeftOfClass": true,
+  "labelsAligned": true,
+  "nameFont": 18.6667,
+  "studentCodeFont": 25.3333,
+  "classCodeFont": 16,
+  "labelFont": 10.6667
+}

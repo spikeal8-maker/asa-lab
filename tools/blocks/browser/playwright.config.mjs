@@ -9,6 +9,7 @@ export default defineConfig({
     'blocks-recovery.spec.ts',
     'blocks-loading.spec.ts',
     'blocks-recovery-media.spec.ts',
+    'classroom-scratch-time.spec.ts',
   ],
   outputDir: '../../../reports/blocks/test-results',
   workers: 1,

@@ -5,6 +5,7 @@ import { BlocksRuntimeBridge, requireExactHttpOrigin } from './runtime-protocol'
 import { requestBlocksRuntimeSession } from './runtime-session';
 import { beginDiagnosticContext, reportClientDiagnostic } from '../client-diagnostics';
 import { newClientId } from '../client-id';
+import { trackBlocksActivity } from './module-activity';
 
 interface BlocksEditorProps {
   projectId: string;
@@ -74,6 +75,7 @@ export function BlocksEditor({
     if (!runtimeOrigin) return undefined;
     const frame = iframeRef.current;
     if (!frame) return undefined;
+    const activity = trackBlocksActivity(projectId);
     let bridge: BlocksRuntimeBridge | null = null;
     let disposed = false;
     let editorReady = false;
@@ -95,6 +97,7 @@ export function BlocksEditor({
       if (!editorReady || document.visibilityState !== 'visible') return;
       const delay = Date.now() - lastHeartbeat;
       if (delay > 60_000 && !unresponsive) {
+        activity.setReady(false);
         unresponsive = true;
         reportClientDiagnostic('editor_unresponsive', 'scratch', {
           phase: 'runtime',
@@ -174,6 +177,8 @@ export function BlocksEditor({
 
     const failStartup = (runtimeFailure = false): void => {
       if (disposed) return;
+      activity.setReady(false);
+      editorReady = false;
       reportClientDiagnostic(
         runtimeFailure ? 'editor_runtime_error' : 'editor_start_failed',
         'scratch',
@@ -183,8 +188,10 @@ export function BlocksEditor({
     };
 
     const onMessage = (event: MessageEvent): void => {
+      if (event.source !== frame.contentWindow) return;
       if (!bridge?.acceptChildMessage(event)) return;
       const payload = event.data as Record<string, unknown>;
+      if (payload['messageType'] === 'ASA_BLOCKS_USER_ACTIVITY') activity.input();
       if (
         payload['messageType'] === 'ASA_BLOCKS_STATUS' &&
         payload['status'] === 'request-failed'
@@ -211,9 +218,11 @@ export function BlocksEditor({
           phase: 'runtime',
         });
         unresponsive = false;
+        if (editorReady) activity.setReady(true);
       }
       if (payload['messageType'] === 'ASA_BLOCKS_STATUS' && payload['status'] === 'editor-ready') {
         editorReady = true;
+        activity.setReady(true);
         lastHeartbeat = Date.now();
         reportClientDiagnostic('editor_ready', 'scratch', { phase: 'startup' });
         window.clearTimeout(startupTimer);
@@ -279,6 +288,7 @@ export function BlocksEditor({
     };
 
     const onLoad = (): void => {
+      activity.setReady(false);
       editorReady = false;
       unresponsive = false;
       lastHeartbeat = Date.now();
@@ -299,6 +309,7 @@ export function BlocksEditor({
     window.addEventListener('message', onMessage);
     frame.addEventListener('load', onLoad);
     return () => {
+      activity.dispose();
       disposed = true;
       loadGeneration += 1;
       requestController?.abort();
@@ -338,7 +349,7 @@ export function BlocksEditor({
         onAccountClick={onAccountClick}
       >
         <iframe
-          key={attempt}
+          key={`${projectId}:${recoveryPrincipalKey}:${attempt}`}
           ref={iframeRef}
           title="Scratch runtime"
           src={`/internal/blocks/?asaStatus=parent&diagnosticInstance=${diagnosticInstance}`}

@@ -133,6 +133,148 @@ afterEach(async () => {
 });
 
 describe('BlocksEditor runtime session bootstrap', () => {
+  it.each(['project', 'principal'] as const)(
+    'closes analytics and binds a fresh iframe on %s change',
+    async (change: 'project' | 'principal') => {
+      const telemetry: Array<Record<string, unknown>> = [];
+      vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof fetch>(async (input: RequestInfo | URL, options?: RequestInit) => {
+          if (String(input).startsWith('/api/analytics/v1/module-session/')) {
+            const body = JSON.parse(options?.body as string) as Record<string, unknown>;
+            telemetry.push(body);
+            return jsonResponse({ accepted: true, sessionId: body['sessionId'] }, 202);
+          }
+          return jsonResponse(session());
+        }),
+      );
+      const iframe = await renderEditor();
+      const post = spyOnPostMessage(iframe);
+      await fireLoad(iframe);
+      const init = initCalls(post)[0]![0] as Record<string, unknown>;
+      await dispatchChild(iframe, init, {
+        messageType: 'ASA_BLOCKS_STATUS',
+        status: 'editor-ready',
+      });
+      await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+      const replacementProject =
+        change === 'project' ? '22222222-2222-4222-8222-222222222222' : PROJECT_ID;
+      await act(async () => {
+        root?.render(
+          createElement(BlocksEditor, {
+            projectId: replacementProject,
+            recoveryPrincipalKey:
+              change === 'principal'
+                ? '44444444-4444-4444-8444-444444444444'
+                : '33333333-3333-4333-8333-333333333333',
+            onBack: vi.fn(),
+            onHomeClick: vi.fn(),
+            accountLabel: 'ASA test user',
+            accountInitials: 'AT',
+            onAccountClick: vi.fn(),
+          }),
+        );
+        await flushAsync();
+      });
+      expect(telemetry[1]?.['closed']).toBe(true);
+      const next = container!.querySelector('iframe')!;
+      expect(next).not.toBe(iframe);
+      const nextPost = spyOnPostMessage(next);
+      await fireLoad(next);
+      const nextInit = initCalls(nextPost)[0]![0] as Record<string, unknown>;
+      await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+      expect(telemetry).toHaveLength(2);
+      await dispatchChild(next, nextInit, {
+        messageType: 'ASA_BLOCKS_STATUS',
+        status: 'editor-ready',
+      });
+      await dispatchChild(next, nextInit, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+      expect(telemetry[2]?.['projectId']).toBe(replacementProject);
+      expect(telemetry[2]?.['sessionId']).not.toBe(telemetry[0]?.['sessionId']);
+    },
+  );
+  it('routes only bound child activity to analytics; heartbeat, stale frames and hidden tabs cannot start it', async () => {
+    vi.useFakeTimers();
+    const telemetry: Array<{ path: string; body: Record<string, unknown> }> = [];
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn<typeof fetch>(async (input: RequestInfo | URL, options?: RequestInit) => {
+        const path = String(input);
+        if (path.startsWith('/api/analytics/v1/module-session/')) {
+          const body = JSON.parse(options?.body as string) as Record<string, unknown>;
+          telemetry.push({ path, body });
+          return jsonResponse(
+            {
+              accepted: true,
+              ...(path.endsWith('/start') ? { sessionId: body['sessionId'] } : {}),
+            },
+            202,
+          );
+        }
+        return jsonResponse(session());
+      }),
+    );
+    const iframe = await renderEditor();
+    const post = spyOnPostMessage(iframe);
+    await fireLoad(iframe);
+    const init = initCalls(post)[0]![0] as Record<string, unknown>;
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry).toHaveLength(0); // Not ready yet.
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_STATUS', status: 'editor-ready' });
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'runtime-heartbeat',
+    });
+    await dispatchChild(iframe, init, {
+      messageType: 'ASA_BLOCKS_STATUS',
+      status: 'project-dirty',
+      generation: 1,
+    });
+    expect(telemetry).toHaveLength(0); // Neither health nor autonomous VM changes are user input.
+    await act(async () => {
+      const forged = new MessageEvent('message', {
+        origin: RUNTIME_ORIGIN,
+        data: { ...init, messageType: 'ASA_BLOCKS_USER_ACTIVITY' },
+      });
+      Object.defineProperty(forged, 'source', { value: {} });
+      window.dispatchEvent(forged);
+      await flushAsync();
+    });
+    expect(telemetry).toHaveLength(0);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry).toHaveLength(1);
+    expect(telemetry[0]?.body).toEqual({
+      sessionId: expect.any(String),
+      projectId: PROJECT_ID,
+      moduleKey: 'blocks',
+    });
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await flushAsync();
+    });
+    expect(telemetry[1]?.body['closed']).toBe(true);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(telemetry).toHaveLength(2);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry).toHaveLength(3);
+    expect(telemetry[2]?.body['sessionId']).not.toBe(telemetry[0]?.body['sessionId']);
+    await fireLoad(iframe);
+    expect(telemetry[3]?.body['closed']).toBe(true);
+    await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
+    expect(telemetry).toHaveLength(4); // Reload invalidated the old bridge/nonce.
+    await act(async () => root?.unmount());
+    root = null;
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(telemetry).toHaveLength(4);
+  });
   it('detects missing child heartbeats, reports recovery, and ignores hidden tabs', async () => {
     vi.useFakeTimers();
     const fetchMock = vi.fn(async () => jsonResponse(session()));

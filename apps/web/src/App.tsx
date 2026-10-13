@@ -763,6 +763,7 @@ export function App(): JSX.Element {
     if (publicView.kind === 'join-class') {
       return (
         <JoinClassPage
+          key={window.location.hash}
           onBack={() => setPublicView({ kind: 'sign-in' })}
           onHome={goToPublicHome}
           onSignedIn={() => void checkSession()}
@@ -804,6 +805,24 @@ export function App(): JSX.Element {
           }}
         />
       </PageDeliveryBoundary>
+    );
+  }
+
+  // The same class link must work for an already authenticated Account.
+  // Keep its session; admission still goes through the server approval flow.
+  if (session.kind === 'authenticated' && publicView.kind === 'join-class') {
+    const leaveJoin = (kind: 'home' | 'attending') => {
+      setPublicViewState({ kind: 'entry' });
+      setView({ kind });
+    };
+    return (
+      <JoinClassPage
+        key={window.location.hash}
+        accountDisplayName={session.session.account.displayName}
+        onBack={() => leaveJoin('home')}
+        onHome={() => leaveJoin('home')}
+        onSignedIn={() => leaveJoin('attending')}
+      />
     );
   }
 

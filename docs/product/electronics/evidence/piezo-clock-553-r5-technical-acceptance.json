@@ -1,0 +1,190 @@
+{
+  "candidate": "e1328940fd215b1aec48975c33d42bda22e01e2e",
+  "baseline": "064e5f34e6d99101b60aad2007dfae902621bc4f",
+  "verdict": "TECHNICAL_ACCEPTANCE_CRITERIA_SATISFIED",
+  "externalVerified": 680,
+  "gitVerified": 45,
+  "nestedVerified": 2879,
+  "piezoCases": [
+    {
+      "raw": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\e1328940-ci\\run-38171278726\\extracted\\reports\\playwright\\electronics-piezo-clock-ca-43510--Stop-and-whole-Save-reopen\\piezo-piezo-disc-originals.json",
+      "ready": 48,
+      "yielded": 11,
+      "wholeSaveAndGETExact": true,
+      "revision": "2\u21923",
+      "draftPupilPut": 1,
+      "previewSnapshotPuts": 2,
+      "pcm": [
+        {
+          "page": "initial",
+          "gain": [
+            1,
+            1
+          ],
+          "frequency": 999.9998970919206,
+          "rms": 0.019722947211774446,
+          "lastRms": 0.0
+        },
+        {
+          "page": "cookies-only",
+          "gain": [
+            1,
+            1
+          ],
+          "frequency": 1000.0000187779481,
+          "rms": 0.01973410995756483,
+          "lastRms": 0.0
+        }
+      ]
+    },
+    {
+      "raw": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\e1328940-ci\\run-38171278726\\extracted\\reports\\playwright\\electronics-piezo-clock-ca-48345--Stop-and-whole-Save-reopen\\piezo-piezo-passive-buzzer-originals.json",
+      "ready": 41,
+      "yielded": 10,
+      "wholeSaveAndGETExact": true,
+      "revision": "2\u21923",
+      "draftPupilPut": 1,
+      "previewSnapshotPuts": 2,
+      "pcm": [
+        {
+          "page": "initial",
+          "gain": [
+            1,
+            1
+          ],
+          "frequency": 999.9865370006939,
+          "rms": 0.030157436944454802,
+          "lastRms": 0.0
+        },
+        {
+          "page": "cookies-only",
+          "gain": [
+            1,
+            1
+          ],
+          "frequency": 1000.0057800043804,
+          "rms": 0.030159610813832182,
+          "lastRms": 0.0
+        }
+      ]
+    },
+    {
+      "raw": "C:\\Users\\spike\\.codex\\temp\\electronics-e01\\e1328940-ci\\run-38171278726\\extracted\\reports\\playwright\\electronics-piezo-clock-ca-a8783--Stop-and-whole-Save-reopen\\piezo-original-active-originals.json",
+      "ready": 10,
+      "yielded": 2,
+      "wholeSaveAndGETExact": true,
+      "revision": "2\u21923",
+      "draftPupilPut": 1,
+      "previewSnapshotPuts": 2,
+      "pcm": [
+        {
+          "page": "initial",
+          "gain": [
+            1,
+            1
+          ],
+          "frequency": 2300.0178818866825,
+          "rms": 0.029652594946073623,
+          "lastRms": 0.0
+        },
+        {
+          "page": "initial",
+          "gain": [
+            1,
+            2
+          ],
+          "frequency": 2300.0178818866825,
+          "rms": 0.029652594946073623,
+          "lastRms": 0.0
+        },
+        {
+          "page": "cookies-only",
+          "gain": [
+            1,
+            1
+          ],
+          "frequency": 2299.9963981177266,
+          "rms": 0.029652834441248603,
+          "lastRms": 0.0
+        },
+        {
+          "page": "cookies-only",
+          "gain": [
+            1,
+            2
+          ],
+          "frequency": 2299.9963981177266,
+          "rms": 0.029652834441248603,
+          "lastRms": 0.0
+        }
+      ]
+    }
+  ],
+  "soundingPublicationsCompleteReady": 8,
+  "emptyCookiesDraftChecks": 3,
+  "runs": [
+    {
+      "run": 38171274734,
+      "head": "e1328940fd215b1aec48975c33d42bda22e01e2e",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 114564218625,
+          "name": "Governance contracts",
+          "conclusion": "success"
+        },
+        {
+          "id": 114564486348,
+          "name": "Format lint types contracts build",
+          "conclusion": "success"
+        },
+        {
+          "id": 114565413160,
+          "name": "PostgreSQL tests and RLS",
+          "conclusion": "success"
+        },
+        {
+          "id": 114565413227,
+          "name": "Access A real browser journeys",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "run": 38171278726,
+      "head": "e1328940fd215b1aec48975c33d42bda22e01e2e",
+      "conclusion": "success",
+      "jobs": [
+        {
+          "id": 114564233711,
+          "name": "Shared solver, editor contracts and build",
+          "conclusion": "success"
+        },
+        {
+          "id": 114564842015,
+          "name": "Actual editor live simulation journey",
+          "conclusion": "success"
+        },
+        {
+          "id": 114564842045,
+          "name": "Electronics E-OPT benchmark integrity",
+          "conclusion": "success"
+        },
+        {
+          "id": 114568340422,
+          "name": "Package exact-head review images",
+          "conclusion": "success"
+        }
+      ]
+    }
+  ],
+  "independentReportSHA256": "8ef21afd997a6c700f18c485c56cab3a1b5c23e1d1ea6ce99b40d92f16dacb87",
+  "independentManifestSHA256": "4c78a8a49025b720b99d9555a1dc33ee6aa092262aa4ccab0474af591b086f53",
+  "school": "NOT_UPDATED",
+  "ownerAcceptance": "PENDING",
+  "nativeImagesRootViewed": 10,
+  "freshNxTasks": 341,
+  "tree": "7dd55897a8f51cc5b352f6e209ffd321461ba74d",
+  "originalComplaintsFullyAccepted": 3,
+  "fullE12E14Acceptance": false
+}

@@ -1,0 +1,52 @@
+{
+  "width": 430,
+  "documentWidth": 430,
+  "mainWidth": 430,
+  "mainScrollWidth": 430,
+  "firstRow": {
+    "x": 12,
+    "y": 391.1875,
+    "width": 406,
+    "height": 98,
+    "top": 391.1875,
+    "right": 418,
+    "bottom": 489.1875,
+    "left": 12
+  },
+  "maxRowHeight": 98,
+  "visibleRows": 4,
+  "controls": [
+    {
+      "x": 12,
+      "y": 287.1875,
+      "width": 131.328125,
+      "height": 44,
+      "top": 287.1875,
+      "right": 143.328125,
+      "bottom": 331.1875,
+      "left": 12
+    },
+    {
+      "x": 149.328125,
+      "y": 287.1875,
+      "width": 131.328125,
+      "height": 44,
+      "top": 287.1875,
+      "right": 280.65625,
+      "bottom": 331.1875,
+      "left": 149.328125
+    },
+    {
+      "x": 286.65625,
+      "y": 287.1875,
+      "width": 131.328125,
+      "height": 44,
+      "top": 287.1875,
+      "right": 417.984375,
+      "bottom": 331.1875,
+      "left": 286.65625
+    }
+  ],
+  "nameSize": "16px",
+  "statisticsHeight": 54
+}

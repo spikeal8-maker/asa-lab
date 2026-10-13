@@ -33,6 +33,7 @@ import {
   type ListClassroomsUseCase,
 } from '@asa-lab/classroom';
 import { classroomCodeSecret } from './classroom-code-secret.js';
+import { classroomSeatAccess } from './classroom-seat-access.js';
 import { teacherHomeAttention } from './teacher-home-attention.js';
 import {
   decryptStudentCode,
@@ -241,9 +242,7 @@ function seatView(row: StudentSeatRow) {
   return {
     id: row.id,
     displayLabel: row.display_label,
-    studentCode: row.login_handle,
-    // Legacy alias kept temporarily for older clients; new UI calls this Student Code.
-    loginHandle: row.login_handle,
+    ...classroomSeatAccess(row.login_handle),
     // Сколько заданий выдано классу, сколько этот человек сдал и сколько из
     // сданного ещё ждёт ответа. Преподаватель видит это в списке, а не после
     // того, как откроет каждого по очереди.
@@ -581,11 +580,12 @@ export class ClassroomsController {
     accountId: string,
     classroomId: string,
     rows: StudentSeatRow[],
+    client: pg.Pool | pg.PoolClient = this.requirePool(),
   ): Promise<StudentSeatRow[]> {
     const config = this.studentCodeProtection();
     if (!config || rows.length === 0) return rows;
     const protectedRows = (
-      await this.requirePool().query(
+      await client.query(
         `SELECT seat_id,tenant_id,classroom_id,credential_version,credential_state,
                 encryption_key_id,encryption_nonce,encryption_ciphertext,encryption_tag,lookup_key_id
            FROM classroom_student_code_protected_read($1,$2)`,
@@ -594,6 +594,8 @@ export class ClassroomsController {
     ).rows as ProtectedStudentCodeRow[];
     const bySeat = new Map(protectedRows.map((row) => [row.seat_id, row]));
     return rows.map((row) => {
+      // Account admission has no Student Code to decrypt, even in enforced mode.
+      if (classroomSeatAccess(row.login_handle).loginMethod === 'account') return row;
       const protectedRow = bySeat.get(row.id);
       if (!protectedRow) {
         if (config.mode === 'enforced') {
@@ -1512,8 +1514,8 @@ export class ClassroomsController {
       typeof displayLabel !== 'string' ||
       displayLabel.trim().length < 1 ||
       displayLabel.trim().length > 120 ||
-      typeof loginHandle !== 'string' ||
-      !STUDENT_CODE_PATTERN.test(loginHandle.trim()) ||
+      (loginHandle != null &&
+        (typeof loginHandle !== 'string' || !STUDENT_CODE_PATTERN.test(loginHandle.trim()))) ||
       typeof safeMode !== 'boolean' ||
       typeof status !== 'string' ||
       !SEAT_STATUSES.includes(status as (typeof SEAT_STATUSES)[number]) ||
@@ -1521,21 +1523,24 @@ export class ClassroomsController {
     ) {
       throw new HttpException(error('validation_error', 'Проверьте настройки ученика.'), 400);
     }
-    const current = await this.requirePool().query(
-      `SELECT login_handle FROM classroom_management_roster($1,$2) WHERE id=$3`,
-      [context.accountId, classroomId, seatId],
-    );
-    if (!current.rows[0]) {
-      throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
-    }
-    if (String(current.rows[0].login_handle) !== loginHandle.trim()) {
-      throw new HttpException(
-        error('student_code_endpoint_required', 'Код ученика изменяется отдельным действием.'),
-        409,
-      );
-    }
+    const client = await this.requirePool().connect();
     try {
-      const result = await this.requirePool().query(
+      await client.query('BEGIN');
+      const current = await client.query(
+        `SELECT login_handle FROM classroom_management_roster($1,$2) WHERE id=$3`,
+        [context.accountId, classroomId, seatId],
+      );
+      if (!current.rows[0]) {
+        throw new HttpException(error('student_not_found', 'Ученик не найден.'), 404);
+      }
+      const storedHandle = String(current.rows[0].login_handle);
+      if (typeof loginHandle === 'string' && storedHandle !== loginHandle.trim()) {
+        throw new HttpException(
+          error('student_code_endpoint_required', 'Код ученика изменяется отдельным действием.'),
+          409,
+        );
+      }
+      const result = await client.query(
         `SELECT id, display_label, login_handle, safe_mode, status, avatar_key, last_active_at, created_at
            FROM classroom_management_update_seat($1, $2, $3, $4, $5, $6, $7, $8)`,
         [
@@ -1543,19 +1548,40 @@ export class ClassroomsController {
           classroomId,
           seatId,
           displayLabel.trim(),
-          loginHandle.trim(),
+          storedHandle,
           safeMode,
           status,
           avatarKey,
         ],
       );
-      return { student: seatView(result.rows[0] as StudentSeatRow) };
+      const [student] = await this.protectedReadback(
+        context.accountId,
+        classroomId,
+        result.rows as StudentSeatRow[],
+        client,
+      );
+      const response = { student: seatView(student) };
+      // A refused protected readback must not leave a saved policy behind.
+      await client.query('COMMIT');
+      return response;
     } catch (failure) {
+      await client.query('ROLLBACK');
       const message = failure instanceof Error ? failure.message : '';
+      if (
+        message.includes('classroom unavailable') ||
+        message.includes('student seat unavailable')
+      ) {
+        throw new HttpException(
+          error('classroom_not_found', 'Класс или ученик недоступен для изменения.'),
+          404,
+        );
+      }
       if (message.includes('unique') || message.includes('duplicate')) {
         throw new HttpException(error('handle_taken', 'Это имя для входа уже занято.'), 409);
       }
       throw failure;
+    } finally {
+      client.release();
     }
   }
 
@@ -1943,6 +1969,12 @@ export class ClassroomsController {
   async rotateJoinCode(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
     const current = await this.summary(context, classroomId);
+    if (current.status !== 'active') {
+      throw new HttpException(
+        error('classroom_archived', 'Архивный класс доступен только для чтения.'),
+        409,
+      );
+    }
     const version = (current.joinCodeVersion ?? 0) + 1;
     const joinCode = classroomCodeFor(classroomId, version, classroomCodeSecret());
     await this.requirePool().query(`SELECT classroom_management_rotate_join_code($1, $2, $3, $4)`, [
@@ -1957,7 +1989,13 @@ export class ClassroomsController {
   @Delete(':classroomId/join-code')
   async revokeJoinCode(@Req() request: FastifyRequest, @Param('classroomId') classroomId: string) {
     const context = await this.requireEducator(request);
-    this.requireUuid(classroomId, 'classroom');
+    const current = await this.summary(context, classroomId);
+    if (current.status !== 'active') {
+      throw new HttpException(
+        error('classroom_archived', 'Архивный класс доступен только для чтения.'),
+        409,
+      );
+    }
     await this.requirePool().query(`SELECT classroom_management_revoke_join_code($1, $2)`, [
       context.accountId,
       classroomId,

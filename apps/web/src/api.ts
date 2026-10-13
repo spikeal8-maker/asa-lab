@@ -1045,9 +1045,11 @@ export interface ClassroomStudentSeat {
   id: string;
   displayLabel: string;
   /** Current case-sensitive Student Code; automatic creation uses six safe mixed-case characters. */
-  studentCode: string;
+  studentCode: string | null;
+  /** Server projection of the Seat admission method; a linked Account keeps its real code. */
+  loginMethod: 'account' | 'student_code';
   /** @deprecated compatibility alias; use studentCode in new UI. */
-  loginHandle: string;
+  loginHandle: string | null;
   safeMode: boolean;
   status: 'issued' | 'active' | 'suspended';
   /** Chosen picture, or null while nobody has chosen and one is drawn by seat. */
@@ -1986,7 +1988,7 @@ export const api = {
       ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
       : result;
   },
-  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers') =>
+  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks') =>
     call<{ accepted: true }>('/api/analytics/v1/module-opened', {
       method: 'POST',
       body: JSON.stringify({ moduleKey }),
@@ -1994,7 +1996,7 @@ export const api = {
   startModuleSession: (
     sessionId: string,
     projectId: string,
-    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers',
+    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks',
   ) =>
     call<{ accepted: boolean; sessionId: string }>('/api/analytics/v1/module-session/start', {
       method: 'POST',
@@ -2176,7 +2178,6 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({
           displayLabel: seat.displayLabel,
-          loginHandle: seat.loginHandle,
           safeMode: seat.safeMode,
           status: seat.status,
           avatarKey: seat.avatarKey,

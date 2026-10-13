@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-OBS-ANALYTICS-DELIVERY-001
+    title: Bounded telemetry delivery, current actor authority and immutable PostgreSQL receipts
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm vitest run tests/portal/analytics-delivery.pg.spec.ts tests/migration/analytics-delivery-upgrade.pg.spec.ts
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
   - id: TST-ADMIN-LOGS-001
     title: Durable diagnostic collection, bounded archives and authorization
     suite: security

@@ -71,6 +71,7 @@
     getRuntimeToken,
     onReady,
     onDirty,
+    onActivity,
     onThumbnailReady,
     onHomeRequest,
   }) {
@@ -93,6 +94,29 @@
     let upstreamSaverRearmSequence = 0;
     const upstreamSaverRearmWaiters = new Set();
     const autoSaveIntervalSecs = chooseAutoSaveIntervalSecs();
+    let lastActivityReport = -Infinity;
+    // iframe DOM events do not bubble to ASA. Capture only real input, never
+    // pointer movement, VM ticks, dirty notifications, or the health heartbeat.
+    const inputTypes = ['pointerdown', 'pointerup', 'keydown', 'input'];
+    const noteInput = (event) => {
+      if (
+        !event.isTrusted ||
+        disposed ||
+        !loaded ||
+        session.mode !== 'editor' ||
+        globalThis.document?.visibilityState !== 'visible'
+      )
+        return;
+      const now = Date.now();
+      if (now - lastActivityReport < 1000) return;
+      lastActivityReport = now;
+      try {
+        onActivity?.();
+      } catch {
+        // Telemetry must not enter the fatal runtime path or interrupt a save.
+      }
+    };
+    for (const type of inputTypes) globalThis.window?.addEventListener(type, noteInput, true);
     const createStorage = () =>
       globalThis.AsaBlocksStorage.createReadOnlyStorage(standalone, {
         projectId: session.projectId,
@@ -153,6 +177,7 @@
     const dispose = () => {
       if (disposePromise) return disposePromise;
       disposed = true;
+      for (const type of inputTypes) globalThis.window?.removeEventListener(type, noteInput, true);
       loaded = false;
       upstreamProjectSaver = null;
       for (const waiter of [...upstreamSaverRearmWaiters]) {

@@ -593,9 +593,13 @@ function networkKindLabel(kind: AdminNetworkKind | null): string {
 
 function moduleLabel(moduleKey: string): string {
   return (
-    { electronics: 'Электроника', 'three-d': '3D', chess: 'Шахматы', checkers: 'Шашки' }[
-      moduleKey
-    ] ?? moduleKey
+    {
+      electronics: 'Электроника',
+      'three-d': '3D',
+      chess: 'Шахматы',
+      checkers: 'Шашки',
+      blocks: 'Scratch',
+    }[moduleKey] ?? moduleKey
   );
 }
 
@@ -616,6 +620,7 @@ function activityEventLabel(event: AdminAccountCrm['activity'][number]): string 
       'three-d': '3D',
       chess: 'Шахматы',
       checkers: 'Шашки',
+      blocks: 'Scratch',
     };
     return `Открыт модуль «${modules[event.moduleKey ?? ''] ?? event.moduleKey ?? 'Неизвестный'}»`;
   }

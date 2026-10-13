@@ -23,6 +23,7 @@ import type {
 } from '@asa-lab/identity';
 import { REFRESH_COOKIE, SESSION_COOKIE, TOKENS } from './tokens.js';
 import { STUDENT_SESSION_COOKIE } from './seat-context.js';
+import { requestReceivedAt } from './request-receipt.js';
 import { checkBodyShape } from './validation.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import { clientAddress, clientConnection, type ClientNetworkKind } from './client-address.js';
@@ -242,17 +243,18 @@ export class AuthController {
     return status === 403 || status === 429 ? 'blocked' : 'failed';
   }
 
-  private async recordAuth(input: {
+  private recordAuth(input: {
     readonly eventType: AnalyticsEventType;
     readonly method: AnalyticsAuthMethod;
     readonly outcome: AnalyticsOutcome;
     readonly flowId: string;
+    readonly receivedAt: string;
     readonly address: string;
     readonly networkKind: ClientNetworkKind;
     readonly userAgent: string | undefined;
     readonly context?: ActiveContext;
-  }): Promise<void> {
-    await this.analytics.record({
+  }): void {
+    this.analytics.enqueueEvent({
       actor: input.context ? { kind: 'account', context: input.context } : { kind: 'anonymous' },
       eventType: input.eventType,
       outcome: input.outcome,
@@ -260,7 +262,8 @@ export class AuthController {
       flowId: input.flowId,
       address: input.address,
       networkKind: input.networkKind,
-      userAgentSummary: summarizeUserAgent(input.userAgent) ?? null,
+      userAgent: input.userAgent,
+      receivedAt: input.receivedAt,
     });
   }
 
@@ -419,7 +422,8 @@ export class AuthController {
     await this.establishSession(reply, result.token, 'max');
     const context = await this.activeContext.resolve(result.token);
     if (!context) throw new HttpException(error('server_error', 'session was not created'), 500);
-    await this.recordAuth({
+    this.recordAuth({
+      receivedAt: requestReceivedAt(request),
       eventType: 'auth.max',
       method: 'max',
       outcome: 'succeeded',
@@ -512,7 +516,8 @@ export class AuthController {
       if (!context) {
         throw new HttpException(error('server_error', 'session was not created'), 500);
       }
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.max',
         method: 'max',
         outcome: 'succeeded',
@@ -525,7 +530,8 @@ export class AuthController {
       this.closeAuthFlow(reply);
       return this.payload(context);
     } catch (failure) {
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.max',
         method: 'max',
         outcome: this.analyticsOutcome(failure),
@@ -608,7 +614,8 @@ export class AuthController {
       await this.establishSession(reply, result.token, 'max');
       const context = await this.activeContext.resolve(result.token);
       if (!context) throw new HttpException(error('server_error', 'session was not created'), 500);
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.register',
         method: 'max',
         outcome: 'succeeded',
@@ -621,7 +628,8 @@ export class AuthController {
       this.closeAuthFlow(reply);
       return this.payload(context);
     } catch (failure) {
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.register',
         method: 'max',
         outcome: this.analyticsOutcome(failure),
@@ -816,7 +824,8 @@ export class AuthController {
       if (!context) {
         throw new HttpException(error('server_error', 'session was not created'), 500);
       }
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.register',
         method: 'password',
         outcome: 'succeeded',
@@ -829,7 +838,8 @@ export class AuthController {
       this.closeAuthFlow(reply);
       return this.payload(context);
     } catch (failure) {
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.register',
         method: 'password',
         outcome: this.analyticsOutcome(failure),
@@ -894,7 +904,8 @@ export class AuthController {
       if (!context) {
         throw new HttpException(error('server_error', 'session was not created'), 500);
       }
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.login',
         method,
         outcome: 'succeeded',
@@ -907,7 +918,8 @@ export class AuthController {
       this.closeAuthFlow(reply);
       return this.payload(context);
     } catch (failure) {
-      await this.recordAuth({
+      this.recordAuth({
+        receivedAt: requestReceivedAt(request),
         eventType: 'auth.login',
         method,
         outcome: this.analyticsOutcome(failure),
@@ -1019,13 +1031,14 @@ export class AuthController {
     }
     const context = await this.requireContext(request);
     const connection = clientConnection(request);
-    await this.analytics.record({
+    this.analytics.enqueueEvent({
+      receivedAt: requestReceivedAt(request),
       actor: { kind: 'account', context },
       eventType: 'session.observed',
       outcome: 'succeeded',
       address: connection.address,
       networkKind: connection.networkKind,
-      userAgentSummary: summarizeUserAgent(request.headers['user-agent']) ?? null,
+      userAgent: request.headers['user-agent'],
     });
     return this.payload(context);
   }

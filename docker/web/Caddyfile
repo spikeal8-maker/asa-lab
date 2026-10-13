@@ -1,9 +1,45 @@
 {
 	admin off
 	auto_https off
+	servers {
+		# Explicit deployment ingress policy; never trust all private networks.
+		trusted_proxies static {$ASA_INGRESS_TRUSTED_PROXY_CIDRS:127.0.0.1/32 ::1/128}
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+	# Upstream failures use Caddy's runtime logger, outside the site's access logger.
+	log default {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request delete
+				resp_headers delete
+				path regexp "^(/api/classroom-teacher-invitations/)[^/]+.*$" "${1}[redacted]"
+			}
+		}
+	}
 }
 
 :8080 {
+	# Headers, query strings and bodies never enter the access log.
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request delete
+				resp_headers delete
+				path regexp "^(/api/classroom-teacher-invitations/)[^/]+.*$" "${1}[redacted]"
+			}
+		}
+	}
+	# Use original placeholders: the pinned 2.10.2 does not support '<key' syntax.
+	log_append path {http.request.orig_uri.path}
+	log_append method {http.request.orig_method}
+	log_append requestId {http.response.header.X-Request-Id}
+	log_append revision {$ASA_BUILD_REVISION}
+	log_append kind http_response
 	encode zstd gzip
 	# The public alias must reach the same canonical origin as the embedded editor.
 	@publicAlias host www.asa-lab.ru
@@ -28,11 +64,18 @@
 	}
 
 	handle /api/* {
-		reverse_proxy api:4611
+		reverse_proxy api:4611 {
+			# Send only the validated visitor, never an attacker-controlled chain.
+			header_up X-Forwarded-For {client_ip}
+			header_up -CF-Connecting-IP
+		}
 	}
 
 	handle /health/* {
-		reverse_proxy api:4611
+		reverse_proxy api:4611 {
+			header_up X-Forwarded-For {client_ip}
+			header_up -CF-Connecting-IP
+		}
 	}
 
 	# Content-hashed build output may be held for a year; nothing else may.

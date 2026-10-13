@@ -41,6 +41,35 @@ afterEach(() => {
   for (const worker of workers.splice(0)) worker.emit('message', { ok: false });
 });
 describe('bounded archive jobs', () => {
+  it('marks fresh partial source failures as errors without treating protected channels as collector failures', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'asa-source-health-'));
+    try {
+      const catalog = {
+        version: 1,
+        collectedAt: new Date().toISOString(),
+        segments: [],
+        bytes: 0,
+        sources: [{ source: 'windows:Security', state: 'unavailable' }],
+      };
+      await writeFile(
+        join(root, 'collector-health.json'),
+        JSON.stringify({ version: 1, checkedAt: new Date().toISOString(), state: 'ok' }),
+      );
+      await writeFile(join(root, 'catalog.json'), JSON.stringify(catalog));
+      expect(await new AdminLogsService(root, root).status()).toMatchObject({
+        state: 'ok',
+        sourceFailures: [],
+      });
+      catalog.sources.push({ source: 'metrics', state: 'error' });
+      await writeFile(join(root, 'catalog.json'), JSON.stringify(catalog));
+      expect(await new AdminLogsService(root, root).status()).toMatchObject({
+        state: 'error',
+        sourceFailures: [{ source: 'metrics' }],
+      });
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
   it('freezes effective default dates across continuation requests', async () => {
     const service = new AdminLogsService('fixture', 'fixture');
     const first = service.query(filter, 'owner', '', { from: true, to: true });

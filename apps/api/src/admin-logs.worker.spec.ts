@@ -16,6 +16,64 @@ const filter: LogFilter = {
 };
 
 describe('retained log reader and archive', () => {
+  it.each([false, true])(
+    'filters old and indexed mixed subsystems in queries and ZIP exports (index=%s)',
+    async (indexed) => {
+      const root = await mkdtemp(join(tmpdir(), 'asa-subsystem-'));
+      try {
+        const rows = ['projects', 'classrooms'].map((name, i) => ({
+          id: String(i + 1).padStart(64, '0'),
+          time: filter.from,
+          source: 'api',
+          module: 'portal',
+          level: 'info',
+          message: JSON.stringify({ path: `/api/${name}/fixture` }),
+        }));
+        const raw = Buffer.from(rows.map((e) => JSON.stringify(e)).join('\n') + '\n');
+        const file = 'seg-0000000000000001-0000000000000002.jsonl.gz';
+        const data = gzipSync(raw);
+        await writeFile(join(root, file), data);
+        await writeFile(
+          join(root, 'catalog.json'),
+          JSON.stringify({
+            version: 1,
+            sources: [],
+            segments: [
+              {
+                file,
+                schema: 2,
+                sha256: createHash('sha256').update(raw).digest('hex'),
+                bytes: data.length,
+                rawBytes: raw.length,
+                count: 2,
+                first: filter.from,
+                last: filter.from,
+                sources: ['api'],
+                modules: ['portal'],
+                levels: ['info'],
+                ...(indexed ? { subsystems: ['projects', 'classrooms'] } : {}),
+              },
+            ],
+          }),
+        );
+        const selected = { ...filter, subsystem: 'projects' };
+        expect((await queryLogs(root, selected, 100)).items).toMatchObject([
+          { id: rows[0]!.id, subsystem: 'projects' },
+        ]);
+        const output = join(root, 'selected.zip');
+        expect((await exportLogs(root, selected, output)).count).toBe(1);
+        const zip = await readFile(output),
+          offset = 30 + zip.readUInt16LE(26);
+        const exported = inflateRawSync(
+          zip.subarray(offset, offset + zip.readUInt32LE(18)),
+        ).toString();
+        expect(exported).toContain(rows[0]!.id);
+        expect(exported).not.toContain(rows[1]!.id);
+      } finally {
+        await rm(root, { recursive: true, force: true });
+      }
+    },
+  );
   it('respects application scope in whole-segment exports of mixed historical segments', async () => {
     const root = await mkdtemp(join(tmpdir(), 'asa-logs-scope-'));
     try {
