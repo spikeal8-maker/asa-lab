@@ -32,7 +32,7 @@ if [ -n "$public_domain" ]; then
     echo "Invalid ASA_PUBLIC_DOMAIN: use an exact lowercase DNS hostname." >&2
     exit 78
   fi
-  printf "%s {\n\treverse_proxy 127.0.0.1:8080 {\n\t\theader_up -CF-Connecting-IP\n\t}\n}\n" "$public_domain" > /tmp/asa-public.caddy
+  printf "%s, www.%s {\n\t@www host www.%s\n\tredir @www https://%s{uri} 308\n\treverse_proxy 127.0.0.1:8080 {\n\t\theader_up -CF-Connecting-IP\n\t}\n}\n" "$public_domain" "$public_domain" "$public_domain" "$public_domain" > /tmp/asa-public.caddy
 else
   : > /tmp/asa-public.caddy
 fi
