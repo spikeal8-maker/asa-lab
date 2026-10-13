@@ -240,7 +240,7 @@ async function saveProject(page: Page, module: 'electronics' | 'three-d') {
     );
   }
   const context = await page.request.get(
-    '/api/learning/projects/' + projectId(page, module) + '/context',
+    '/api/learning/projects/' + (await projectId(page, module)) + '/context',
   );
   expect(context.ok()).toBe(true);
   expect((await context.json()).origin.immutable).toBe(true);
@@ -250,7 +250,12 @@ async function saveProject(page: Page, module: 'electronics' | 'three-d') {
   else await expect(page.getByTestId('schematic-component')).toHaveCount(count);
   return count;
 }
-function projectId(page: Page, module: 'electronics' | 'three-d') {
+async function projectId(page: Page, module: 'electronics' | 'three-d') {
+  await expect(page).toHaveURL(
+    module === 'electronics'
+      ? /\/projects\/[0-9a-f-]+\/electronics\/edit\/?(?:\?|$)/i
+      : /#\/3d\/[0-9a-f-]+(?:\?|$)/i,
+  );
   const url = new URL(page.url());
   return module === 'electronics'
     ? url.pathname.split('/projects/')[1]!.split('/')[0]!
@@ -787,11 +792,11 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
     await learner.setViewportSize({ width: 1440, height: 900 });
     await activity.getByRole('button', { name: 'Начать', exact: true }).click();
     const expectedObjectCount = await saveProject(learner, module);
-    const started = projectId(learner, module);
+    const started = await projectId(learner, module);
     player = await openCourse();
     activity = player.locator('.lesson-activity-block').filter({ hasText: practice });
     await activity.getByRole('button', { name: 'Открыть работу', exact: true }).click();
-    expect(projectId(learner, module)).toBe(started);
+    expect(await projectId(learner, module)).toBe(started);
     await expect(learner.getByTestId('assignment-brief-anchor')).toBeVisible({ timeout: 60_000 });
     if (module === 'three-d') {
       const viewport = learner.getByTestId('asa3d-viewport');
@@ -805,7 +810,7 @@ test('named Library exact mixed v1 copy survives source v2 and lost response the
       const canvas = viewport.locator('canvas.asa3d-canvas');
       for (const width of [1440, 1024, 390, 320]) {
         await learner.setViewportSize({ width, height: 900 });
-        expect(projectId(learner, module)).toBe(started);
+        expect(await projectId(learner, module)).toBe(started);
         await expect(viewport).toHaveAttribute('data-runtime-ready', 'true');
         await expect(viewport).toBeVisible();
         await expect(objectCount).toContainText(new RegExp(`^${expectedObjectCount} `));
