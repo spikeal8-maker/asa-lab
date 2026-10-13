@@ -2902,136 +2902,90 @@ parallel_lanes:
     - contexts/electronics/testing/arduino-circuit-scheduler.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md
     task:
-      id: TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001
-      issue: 553
+      id: TASK-ELECTRONICS-SOLVER-PREPARATION-001
+      issue: 546
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
-      status: done
-      checkpoint: r5_exact_all8_new_independent_approved_integrated
-      kind: repair
+      status: in_progress
+      checkpoint: r4_approved_three_path_composition_with_current_main
       owner_acceptance: pending
-      programme_issue: 452
-      owner_problem: E12/E14
-      context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
-      - docs/product/electronics/components/engine-worker-clock.yaml
-      dependency_for_issue: 552
-      repair_scope: 'Integration ONLY: preserve five non-registration553 source entries exactly9f950 and
-        all current main entries outside553. Resolve ONLY two approved package commands and workflow pathfilter
-        by exact saved proposal preserving piezo-clock AND native-wheel. No new product/test/timeout/physics/observer
-        changes.'
-      shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552
-        source preserved and its separate browser witness repair coordinated only after independent finding.548
-        ONLYoldinteractions/549 ONLYnewoutline. Actual dirty-path checks, no shared writes over another
-        author.
-      mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
-      scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all
-        legacy owned paths and all suspended candidates; actual dirty-path checks remain mandatory for every
-        exact card write path including shared registrations.
-      next_action: STOP accepted bounded canonical piezo repair. Controller452 fresh-selects separate ready
-        slice;552 requires its own owner-coordinated composition and strict built BEFORE/AFTER/exact gates/NEW
-        review.548 remains NO_PROVEN_CAUSE with existing blockers. School/K0/T3/class/device/owner/deployment
-        pending.
-      preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual
-        accepted production count2 since542, hygiene006 due after third accepted product before later new
-        product phase. No school operations.
-      frozen_directed_evidence:
-        candidate: c051c5cfb649206379bfb30df44ceff946a78a47
-        before_run: 38158088686
-        before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
-        after_run: 38158787892
-        after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
-        root_originals_verified: true
-        product_acceptance: true
-      integration_phase_history:
-      - task_snapshot:
-          id: TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001
-          issue: 553
-          branch: main
-          base_branch: main
-          pr: null
-          pr_draft: false
-          status: in_progress
-          checkpoint: r4_directed_before_after_complete_final_convergence_required
-          kind: repair
-          owner_acceptance: pending
-          programme_issue: 452
-          owner_problem: E12/E14
-          context_hints:
-          - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
-          - docs/product/electronics/components/engine-worker-clock.yaml
-          dependency_for_issue: 552
-          repair_scope: 'R4 TEST ONLY e2e/electronics-piezo-clock.spec.ts: explicitly include four existing
-            passive editor-default properties before parser/API seeding and scope recorded real Worker request-response
-            identity by browser page. Preserve all original physical values, topology, Arduino and strict
-            whole equality/CAS/native PCM/ready/yielded assertions. No product/runtime/timeout changes.'
-          shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552
-            source preserved and its separate browser witness repair coordinated only after independent
-            finding.548 ONLYoldinteractions/549 ONLYnewoutline. Actual dirty-path checks, no shared writes
-            over another author.
-          mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
-          scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve
-            all legacy owned paths and all suspended candidates; actual dirty-path checks remain mandatory
-            for every exact card write path including shared registrations.
-          next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence
-            with current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full
-            ordinary browser/repository gates on NEW exact SHA and NEW independent final product review.
-            Old source-ready and directed evidence are not acceptance of the composition; no school actions.
-          preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved.
-            Actual accepted production count2 since542, hygiene006 due after third accepted product before
-            later new product phase. No school operations.
-          frozen_directed_evidence:
-            candidate: c051c5cfb649206379bfb30df44ceff946a78a47
-            before_run: 38158088686
-            before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
-            after_run: 38158787892
-            after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
-            root_originals_verified: true
-            product_acceptance: false
-        revision_snapshot:
-          kind: observed_snapshot
-          convergence_baseline_sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
-          head_sha: null
-          observed_at: '2026-10-11T12:13:35.199881+00:00'
-          main:
-            branch: main
-            sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
-          observation_note: Dated selection only. Current e51 General38136942401 independently verified
-            all4SUCCESS. New553 repair not implemented or accepted. Exact546 task/revisions/candidate and
-            all other suspended tasks preserved; school actions NONE. Fetch main and actual exact CI before
-            every write.
-        reason: Exact9f950 NEW independent review REQUEST_CHANGES category C old catalog548 failure; all
-          originals/candidate preserved. Owner now approves specific mutual553/554 registration conflicts.548
-          observation natural PASS is NOT a fix or blocker closure.
-      preserved_final_candidate_sha: 9f9505f9e7a84b7a869e5a2fd93583742c27abdd
-      preserved_final_review_verdict: REQUEST_CHANGES_category_C_catalog548
-      preserved_final_review_original_sha256: 3ec4ba63f40514c63c25d5d02a22b9c5dacddacd5f7501edd079ca4f54536644
-      mutual_553_554_owner_approval: 'Explicit owner reply: preserve both scenarios and verify combined
-        SHA; applies to TWO package command lines and focused workflow pathfilter only.'
-      approved_package_sha256: f724c0356b5ab66b5f505407a1c3ac5ab79175f5cb8e7f37f335065b5aa33f73
-      approved_workflow_sha256: cf3a883a9c07dd8557aab61325b3805592e338a75cd700d506869f96496f2c6e
-      main_554_accepted_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
-      hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
-      asset548_status: NO_PROVEN_CAUSE; no repair/blocker closure. New final composition gate is integration
-        evidence, not a rerun of9f950.
-      controller_observed_at: '2026-10-11T20:45:38.093619+00:00'
-      accepted_candidate_sha: e1328940fd215b1aec48975c33d42bda22e01e2e
-      candidate_tree: 7dd55897a8f51cc5b352f6e209ffd321461ba74d
-      integrated_sha: e1328940fd215b1aec48975c33d42bda22e01e2e
-      independent_review: approved
-      independent_evidence: docs/product/electronics/evidence/piezo-clock-553-r5-independent-review-e1328940.md
-      independent_review_original_sha256: 8ef21afd997a6c700f18c485c56cab3a1b5c23e1d1ea6ce99b40d92f16dacb87
-      independent_manifest_sha256: 4c78a8a49025b720b99d9555a1dc33ee6aa092262aa4ccab0474af591b086f53
-      exact_candidate_general_run: 38171274734
+      selected_at: '2026-10-09T21:17:44Z'
+      repair_scope: Integration ONLY saved03344e9c with current main. Resolve exactly two package commands,
+        one workflow filter and one controller-spec import by approved external proposals. Preserve both
+        current main and546 tests/runtime, no new product/timeout/physics/budget/dependency changes.
+      preserved_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
+      preserved_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
+      candidate_publication: published
+      candidate_acceptance: pending
+      controller_observed_at: '2026-10-10T02:00:19Z'
+      acceptance_dependency_issue: 545
+      final_candidate_sha: 0fd0ba3da17401e10ce81554fa842c60af7e0812
+      final_candidate_tree: 3cee2ebb8f8dd03510ff7850eac70acb1fd0f736
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/solver-preparation-546-independent-review-037ebb37.md
+      independent_review_original_sha256: 23718a90d1dc1f2c5123df0d1afaa3939c6d62a27be5dba9becd104a434bd4cb
+      exact_general_run: 38006466273
+      exact_general_conclusion: pending
+      exact_electronics_run: null
+      exact_electronics_conclusion: not_dispatched_after_directed_fail
+      browser_passed: 136
+      browser_failed: 1
+      residual_cause: Cookies-only reopened poll deadline22819.185ms; genuine ready7/UI7 upper bounds21455.795/21479.895ms;
+        fullsnapshot final evaluate22588.763..22848.810ms crosses olddeadline29.625ms. Initial GPIO full0..7/Serial
+        Save-reopen PASS; GPIO final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause
+        observer repair needed.
+      residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
+      residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
+      residual_profile: One actual final0677 fullGPIO0..2s profile; observation callback9.5pct self, solveStep53.8pct
+        inclusive, quality19.3pct/allNumbers12.5pct outside repair scope. No school or browser timing claim.
+      implementation_acceptance: Fresh actual full-return corpus/parity versus0677 plus stale/dynamic/state
+        challenges and focused gate before unchanged fullGPIO/Serial browser; no claimed sufficiency until
+        actual directed and ordinary exact all8/newreview.
+      r1_directed_probe: 66310186ec6eab8dee9634de3143fce0bc4f27ab
+      r1_directed_run: 38006467707
+      r1_directed_conclusion: failure
+      r1_failure_classification: 'D: full observation transport/poll deadline race; all8 genuine ready and
+        UI already exist before old deadline; new compute defect NOT proved'
+      exact_candidate_general_run: 38008510546
       exact_candidate_general_conclusion: success
-      exact_candidate_electronics_run: 38171278726
-      exact_candidate_electronics_conclusion: success
-      acceptance: technical_accepted
-      fresh_nx_tasks: 341
+      exact_candidate_electronics_run: 38009043770
+      exact_candidate_electronics_conclusion: failure
+      actual_new_failure: FIRST initialGPIO before reopen,14ready C=H0to1.3s/0yielded/solvedQualityPASS,indices0to5;computeSum4098.4ms/max698.2ms.
+        Fullfinally returns before olddeadline; not prior latefullsnapshotD. Precise CPU/host split and
+        exact-deadline absence notproved.
+      next_action: NEW bounded integration author, fresh preflight/actual dirty checks, proper merge and
+        only approved conflicts; narrow focused gate/source preservation/selfreview and one unpublished
+        exactSHA thenSTOP. Root actualcheck, NEW independent source review, final exact all8/ordinaryGPIO-Serial+piezo
+        and NEW final product review. Old directed38014843498 retained, not repeated without cause; no old
+        source acceptance reused.
+      r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
+      r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
+      r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
+      r3_profile_actual: ONE instrumented local fullGPIO17parts24wires/21ready C=H0to2s/0yielded; solveLinear14743calls907of2970selfSamples30.539pct.
+        Coverage overhead; no speedup/browser/school/5s sufficiency claim.
+      r3_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
+      r3_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
+      r3_candidate_branch: codex/electronics-546-r3-linear-rows
+      r3_candidate_publication: published
+      r3_directed_probe_sha: 8893bc6c712d375641919a85f6fe26430580f2ea
+      r3_directed_run: 38014843498
+      r3_directed_conclusion: success_directed_not_final_acceptance
+      r3_root_actual: 64originals/3796foreignentries/11255fullreturns281groups/399GPIO-Serialraw verified;
+        rebuilt40-input bundles and rootexecuted12038directcases. Directedfull17/24GPIOinitial21/reopen20ready
+        all8GPIO+UI,Serialall8lines;wholeSave/rev+1/cookies-onlyfinaldraft equal,yieldednull. Finalmaincomposition/ordinaryall8/NEWreviewpending.
+      context_hints:
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md
+      - docs/product/electronics/components/engine-worker-clock.yaml
+      candidate_branch: codex/electronics-546-r3-linear-rows
+      owner_conflict_approval: 'Owner reply2026-10-13: preserve both parts and verify newSHA; covers package
+        two commands, focused workflow and parseElectronicsEngineDocument import only.'
+      approved_proposal_manifest_sha256: 230a207bbcc426eb9758d4858340bee6011ad79a048b08b27bb7fcf759dd4045
+      approved_package_sha256: df8bd641816b7af06313f4080928781b63044ec813045dbba1028e12feb9d295
+      approved_workflow_sha256: 709d9ce5a4cd6d44ca6e30c333a841ffdd50d8a133aafe49ac5ff890143fdf53
+      approved_controller_spec_sha256: 111be7d95de17c54f91b84e6557619f7b4348c0e600c7a97111b054dba2656ba
       production_slices_since_hygiene556: 1
-      full_original_E12_E14_acceptance: false
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -3053,15 +3007,15 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      convergence_baseline_sha: 064e5f34e6d99101b60aad2007dfae902621bc4f
+      convergence_baseline_sha: a92092fb94364f1b152e0a03c86b9ebc23fd4043
       head_sha: null
-      observed_at: '2026-10-11T20:45:38.093619+00:00'
+      observed_at: '2026-10-13T16:36:34.294540+00:00'
       main:
         branch: main
-        sha: e1328940fd215b1aec48975c33d42bda22e01e2e
-      observation_note: Accepted exacte132 integrated by normal fast-forward; General38171274734 and Electronics38171278726
-        all8SUCCESS/NEW independent PRODUCT APPROVE/root original checks. Dated observation, fetch main
-        and actual exact-SHA CI before writes. No school deployment or full E12/E14 acceptance.
+        sha: a92092fb94364f1b152e0a03c86b9ebc23fd4043
+      observation_note: Freshmaina920 General38426403704attempt2 all4SUCCESS; singleData retry afterECR429.
+        546notaccepted;553technicalaccepted snapshot preserved. 5496f27 Generalall4SUCCESS but frozenBEFOREinvalid;557/552heldPortal
+        diagnostic. No school operations. Dated snapshot; fetch main and exact-SHA CI before writes.
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-SCHEDULER-SAME-TIME-001
       issue: 540
@@ -3322,6 +3276,153 @@ parallel_lanes:
       resume_contract: Preserve accepted directed fullGPIO/Serial evidence and all original candidates.
         No actual final merge or manual import conflict resolution before the pending specific owner decision.
         No repeated old measurements without new cause.
+    - task_id: TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001
+      issue: 553
+      task:
+        id: TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001
+        issue: 553
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: done
+        checkpoint: r5_exact_all8_new_independent_approved_integrated
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E12/E14
+        context_hints:
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
+        - docs/product/electronics/components/engine-worker-clock.yaml
+        dependency_for_issue: 552
+        repair_scope: 'Integration ONLY: preserve five non-registration553 source entries exactly9f950 and
+          all current main entries outside553. Resolve ONLY two approved package commands and workflow pathfilter
+          by exact saved proposal preserving piezo-clock AND native-wheel. No new product/test/timeout/physics/observer
+          changes.'
+        shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552
+          source preserved and its separate browser witness repair coordinated only after independent finding.548
+          ONLYoldinteractions/549 ONLYnewoutline. Actual dirty-path checks, no shared writes over another
+          author.
+        mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
+        scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve all
+          legacy owned paths and all suspended candidates; actual dirty-path checks remain mandatory for
+          every exact card write path including shared registrations.
+        next_action: STOP accepted bounded canonical piezo repair. Controller452 fresh-selects separate
+          ready slice;552 requires its own owner-coordinated composition and strict built BEFORE/AFTER/exact
+          gates/NEW review.548 remains NO_PROVEN_CAUSE with existing blockers. School/K0/T3/class/device/owner/deployment
+          pending.
+        preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved. Actual
+          accepted production count2 since542, hygiene006 due after third accepted product before later
+          new product phase. No school operations.
+        frozen_directed_evidence:
+          candidate: c051c5cfb649206379bfb30df44ceff946a78a47
+          before_run: 38158088686
+          before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
+          after_run: 38158787892
+          after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
+          root_originals_verified: true
+          product_acceptance: true
+        integration_phase_history:
+        - task_snapshot:
+            id: TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001
+            issue: 553
+            branch: main
+            base_branch: main
+            pr: null
+            pr_draft: false
+            status: in_progress
+            checkpoint: r4_directed_before_after_complete_final_convergence_required
+            kind: repair
+            owner_acceptance: pending
+            programme_issue: 452
+            owner_problem: E12/E14
+            context_hints:
+            - docs/product/electronics/tasks/TASK-ELECTRONICS-CANONICAL-PIEZO-CLOCK-001.md
+            - docs/product/electronics/components/engine-worker-clock.yaml
+            dependency_for_issue: 552
+            repair_scope: 'R4 TEST ONLY e2e/electronics-piezo-clock.spec.ts: explicitly include four existing
+              passive editor-default properties before parser/API seeding and scope recorded real Worker
+              request-response identity by browser page. Preserve all original physical values, topology,
+              Arduino and strict whole equality/CAS/native PCM/ready/yielded assertions. No product/runtime/timeout
+              changes.'
+            shared_write_contract: 553 scheduler/newtestfiles/engine map and additive browser registrations;552
+              source preserved and its separate browser witness repair coordinated only after independent
+              finding.548 ONLYoldinteractions/549 ONLYnewoutline. Actual dirty-path checks, no shared writes
+              over another author.
+            mandatory_source_preflight: pnpm agent:preflight --scope electronics-arduino --check
+            scope_catalog_note: Use the existing canonical Arduino lane and its scheduler scope. Preserve
+              all legacy owned paths and all suspended candidates; actual dirty-path checks remain mandatory
+              for every exact card write path including shared registrations.
+            next_action: Accepted baseline555 is integrated. Controller performs ONE automatic final convergence
+              with current main, conflict STOP; all pupil product/test bytes preserved. Required focused/full
+              ordinary browser/repository gates on NEW exact SHA and NEW independent final product review.
+              Old source-ready and directed evidence are not acceptance of the composition; no school actions.
+            preservation: Accepted526/541/543; all held candidates/old sources/probes/questions preserved.
+              Actual accepted production count2 since542, hygiene006 due after third accepted product before
+              later new product phase. No school operations.
+            frozen_directed_evidence:
+              candidate: c051c5cfb649206379bfb30df44ceff946a78a47
+              before_run: 38158088686
+              before_report_sha256: cb7bc621c001bd69d2c70bb21ef6558cf1aa5c1d8a99c101d95840c7c733a0f0
+              after_run: 38158787892
+              after_report_sha256: c83993772c744269eb9b726c4795ee0d2f1cfd407b754149dfa73473ed7e696c
+              root_originals_verified: true
+              product_acceptance: false
+          revision_snapshot:
+            kind: observed_snapshot
+            convergence_baseline_sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
+            head_sha: null
+            observed_at: '2026-10-11T12:13:35.199881+00:00'
+            main:
+              branch: main
+              sha: e51db4daa4d5cee6dc55fa68979bbc9740ced068
+            observation_note: Dated selection only. Current e51 General38136942401 independently verified
+              all4SUCCESS. New553 repair not implemented or accepted. Exact546 task/revisions/candidate
+              and all other suspended tasks preserved; school actions NONE. Fetch main and actual exact
+              CI before every write.
+          reason: Exact9f950 NEW independent review REQUEST_CHANGES category C old catalog548 failure; all
+            originals/candidate preserved. Owner now approves specific mutual553/554 registration conflicts.548
+            observation natural PASS is NOT a fix or blocker closure.
+        preserved_final_candidate_sha: 9f9505f9e7a84b7a869e5a2fd93583742c27abdd
+        preserved_final_review_verdict: REQUEST_CHANGES_category_C_catalog548
+        preserved_final_review_original_sha256: 3ec4ba63f40514c63c25d5d02a22b9c5dacddacd5f7501edd079ca4f54536644
+        mutual_553_554_owner_approval: 'Explicit owner reply: preserve both scenarios and verify combined
+          SHA; applies to TWO package command lines and focused workflow pathfilter only.'
+        approved_package_sha256: f724c0356b5ab66b5f505407a1c3ac5ab79175f5cb8e7f37f335065b5aa33f73
+        approved_workflow_sha256: cf3a883a9c07dd8557aab61325b3805592e338a75cd700d506869f96496f2c6e
+        main_554_accepted_sha: 0e41e9bd4aa181215676d6fdfea1b32ca4dae4ae
+        hygiene006_accepted_sha: 05e122aff108d05670416fd2b55273d56243e397
+        asset548_status: NO_PROVEN_CAUSE; no repair/blocker closure. New final composition gate is integration
+          evidence, not a rerun of9f950.
+        controller_observed_at: '2026-10-11T20:45:38.093619+00:00'
+        accepted_candidate_sha: e1328940fd215b1aec48975c33d42bda22e01e2e
+        candidate_tree: 7dd55897a8f51cc5b352f6e209ffd321461ba74d
+        integrated_sha: e1328940fd215b1aec48975c33d42bda22e01e2e
+        independent_review: approved
+        independent_evidence: docs/product/electronics/evidence/piezo-clock-553-r5-independent-review-e1328940.md
+        independent_review_original_sha256: 8ef21afd997a6c700f18c485c56cab3a1b5c23e1d1ea6ce99b40d92f16dacb87
+        independent_manifest_sha256: 4c78a8a49025b720b99d9555a1dc33ee6aa092262aa4ccab0474af591b086f53
+        exact_candidate_general_run: 38171274734
+        exact_candidate_general_conclusion: success
+        exact_candidate_electronics_run: 38171278726
+        exact_candidate_electronics_conclusion: success
+        acceptance: technical_accepted
+        fresh_nx_tasks: 341
+        production_slices_since_hygiene556: 1
+        full_original_E12_E14_acceptance: false
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: 064e5f34e6d99101b60aad2007dfae902621bc4f
+        head_sha: null
+        observed_at: '2026-10-11T20:45:38.093619+00:00'
+        main:
+          branch: main
+          sha: e1328940fd215b1aec48975c33d42bda22e01e2e
+        observation_note: Accepted exacte132 integrated by normal fast-forward; General38171274734 and Electronics38171278726
+          all8SUCCESS/NEW independent PRODUCT APPROVE/root original checks. Dated observation, fetch main
+          and actual exact-SHA CI before writes. No school deployment or full E12/E14 acceptance.
+      status: technical_accepted_preserved
+      reason: Resume separately approved546 integration; accepted553 entire state preserved, no redo.
   - id: electronics-wire
     parent_lane: electronics
     worktree_id: electronics-wire-538
