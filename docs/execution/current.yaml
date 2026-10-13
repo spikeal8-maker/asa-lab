@@ -630,81 +630,67 @@ parallel_lanes:
         commands:
         - pnpm gate:repository
   - id: electronics
-    worktree_id: electronics-e06-psu-wire-entry
+    worktree_id: electronics-field-544
     owned_paths:
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+    - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
-      issue: 466
+      id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
+      issue: 544
       branch: main
       base_branch: main
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r3_share_canonical_psu_geometry_and_presentation_without_budget_change
+      checkpoint: owner_field_accessibility_saved_candidate_final_composition
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E06 connected/pending PSU terminal approach only
+      owner_problem: E03 invisible field boundary prevents grabbing or moving existing components
+      selected_at: 2026-10-13T21:18:54.227Z
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
-      - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
-      - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: 'ONE bounded attempt: reuse E06 entry-path writer, Stage paint/hit construction, canonical
-        rounded L/Q traversal in the three existing runtime files. Existing geometry/presentation tests
-        only as necessary. Preserve all semantics, browser99/digest exact; no threshold/config/dependency/chunk
-        shifting or general cleanup.'
-      acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
-      source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
-      historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
-      historical_visual_run: 38007826968
-      current_render_layers_byte_equal_historical: true
+        - docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
+        - docs/product/electronics/components/ui-assets-persistence.yaml
+        - docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+      repair_scope: "One owner point only: preserve existing 544 Stage root alpha fallback and finite unrestricted
+        componentDragDelta; controlled final composition with current main. No new product mechanism, asset548
+        repair, Arduino, solver, CSS, dependencies, timeout or assertion weakening."
+      acceptance_boundary: slice; report this owner point and STOP; no automatic next task
+      preserved_candidate_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
+      preserved_candidate_tree: dd842fe350d425f3418a4d519bb9fb333d5fc7d6
+      candidate_branch: codex/electronics-544-r3-expected-binding
+      previous_independent_review: request_changes
+      previous_independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
+      previous_general_run: 38007112131
+      previous_general_conclusion: success
+      previous_electronics_run: 38008086985
+      previous_electronics_conclusion: failure
+      acceptance_dependency_issue: 548
+      dependency_status: open_no_proven_cause
+      acceptance_blocked_actions:
+        - integration
+        - technical_acceptance
+        - issue_closeout
+        - release_claim
+      dependency_reason: Unchanged required permanent-image catalog badge scenario failed at original5000ms;
+        separate 548 remains OPEN/NO_PROVEN_CAUSE. Existing field raw passes are historical evidence, not
+        acceptance of final composition.
+      preserved_field_evidence: 32 directed and32 ordinary complete native journeys; four widths/eight boundaries,
+        whole Save/CAS/cookies-only reopen/regrab. Do not repeat unchanged measurements without a specific new
+        risk.
+      accepted_prerequisites:
+        - 526 save recovery
+        - 542 hygiene
+        - 543 PSU setpoints
+        - 554 native wheel
+        - 556 hygiene checkpoint006
       production_slices_since_hygiene556: 1
-      shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
-        Existing simulation test add only this scenario; generator only canonical digest, no package/workflow/lock/CSS/owner
-        assets. Check every worktree dirty path before writing.
-      scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
-        Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
-        actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
-        sources remain immutable and no simultaneous overlapping writer is authorized.
-      next_action: NEW author preserves42ed and all refs, proper canonical merge, narrow regression checks
-        and one actual production size measurement. Savings2673B unproven. If budget still fails, preserve
-        candidate and STOP this attempt; no hopeful builds/weakening. If PASS complete focused gate and
-        NEW independent review, then matching saved-test AFTER/exact gates/NEW PRODUCT. BEFOREb06 unchanged,
-        no repeat. Portal independently delegated;552/557 preserved.
-      preserved_candidate_sha: 42ed2d2090d67ec5d21edb0c6168b467b8492957
-      preserved_candidate_tree: 3cfd777fc03bc124de8677a726b9206491bf4d0d
-      candidate_branch: codex/electronics-e06-r2-bounded-runtime
-      independent_source_challenge: 'REQUEST_CHANGES: missing canonical pending arrival to PSU; primary
-        FAIL not flushed before browser awaits and unguarded collector masks original.'
-      independent_source_report_sha256: 3741474256e97d96661cbb64231d391b87defd56d46ef38e5647675d32e3e992
-      independent_source_manifest_sha256: 0855af4aa830a377301ba1eba29601b9962aa94866dc015cde9373e040ddc48f
-      independent_source_review: docs/product/electronics/evidence/psu-wire-entry-e06-source-review-fe9193b9.md
-      independent_source_actual: Root verified12external10Git reviewer originals; separately48author originals+6Git/3940foreign/sourcepreservation.
-        Actual installed lock differs only API pngjs importer;4physicalweb/testpackageversions exact, no
-        complete local frozen-graph claim. No browser/CI sourceacceptance yet.
-      exact_candidate_general_run: 38184087641
-      exact_candidate_general_conclusion: failure
-      ci_failure_category: A bounded source adds runtime and exceeds unchanged209000 bundle ceiling at211790;
-        no release acceptance
-      cause_evidence: docs/product/electronics/evidence/psu-entry-e06-bundle-cause-99f76124.md
-      cause_manifest_sha256: f4426b510d68d950c631ac5afe5c45eac8d21f8a5336e95da5087b075c8b3074
-      cause_root_actual: 4external30Git originals verified; two repeated computations structurally confirmed.
-        >=2790 compiled savings not proven until production build.
-      valid_before_probe_sha: b06b11dd34f73eed9f309d0e3438f606fbde2353
-      valid_before_run: 38184098404
-      valid_before_root_actual: 16of16 native ownership failures at495; whole documents/history preserved.142external27Git/122outer2170nested
-        CRC; test bytes99 preserved. Do not repeat BEFORE while test/fixture/budgets remain byte-exact.
+      shared_write_contract: One bounded544 author; all actual dirty paths checked. Preserve accepted543/554 and all
+        foreign current.yaml sections and candidates. New text conflict stops composition.
+      next_action: Publish canonical selection, then inherit it in one controlled unpublished final544 composition;
+        exact focused gate/self-review and STOP. Controller separately resolves applicability of548 required
+        browser blocker and appoints NEW exact-SHA independent reviewer. No product publication/browser
+        dispatch/closeout in author stage.
       school_actions: deferred_by_owner_no_installation_actions
-      candidate_publication: unpublished_preserved
-      candidate_acceptance: request_changes_bundle_budget
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/psu-entry-e06-r2-independent-budget-review-42ed2d20.md
-      independent_manifest_sha256: 165f5c2567cd5047a22fb2c2b810a83377de605e48b0ba35b1caa17f91332650
-      compiled_candidate_bytes: 211673
-      compiled_required_ceiling: 209000
-      r2_focused_result: 644domainPASS;458webPASS/1 unchanged archive-hash timeout5000. Cause unproven;
-        no retry.
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -2068,6 +2054,103 @@ parallel_lanes:
       deployment: not_run
       production_slices_since_hygiene542: 2
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+      issue: 466
+      status: suspended_owner_direct_field_priority
+      suspended_at: 2026-10-13T21:18:54.227Z
+      task:
+        id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+        issue: 466
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r3_share_canonical_psu_geometry_and_presentation_without_budget_change
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E06 connected/pending PSU terminal approach only
+        context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+          - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
+          - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: "ONE bounded attempt: reuse E06 entry-path writer, Stage paint/hit construction, canonical
+          rounded L/Q traversal in the three existing runtime files. Existing geometry/presentation tests only as
+          necessary. Preserve all semantics, browser99/digest exact; no threshold/config/dependency/chunk shifting
+          or general cleanup."
+        acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
+        source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
+        historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
+        historical_visual_run: 38007826968
+        current_render_layers_byte_equal_historical: true
+        production_slices_since_hygiene556: 1
+        shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
+          Existing simulation test add only this scenario; generator only canonical digest, no
+          package/workflow/lock/CSS/owner assets. Check every worktree dirty path before writing.
+        scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
+          Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
+          actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
+          sources remain immutable and no simultaneous overlapping writer is authorized.
+        next_action: NEW author preserves42ed and all refs, proper canonical merge, narrow regression checks and one
+          actual production size measurement. Savings2673B unproven. If budget still fails, preserve candidate and
+          STOP this attempt; no hopeful builds/weakening. If PASS complete focused gate and NEW independent
+          review, then matching saved-test AFTER/exact gates/NEW PRODUCT. BEFOREb06 unchanged, no repeat. Portal
+          independently delegated;552/557 preserved.
+        preserved_candidate_sha: 42ed2d2090d67ec5d21edb0c6168b467b8492957
+        preserved_candidate_tree: 3cfd777fc03bc124de8677a726b9206491bf4d0d
+        candidate_branch: codex/electronics-e06-r2-bounded-runtime
+        independent_source_challenge: "REQUEST_CHANGES: missing canonical pending arrival to PSU; primary FAIL not
+          flushed before browser awaits and unguarded collector masks original."
+        independent_source_report_sha256: 3741474256e97d96661cbb64231d391b87defd56d46ef38e5647675d32e3e992
+        independent_source_manifest_sha256: 0855af4aa830a377301ba1eba29601b9962aa94866dc015cde9373e040ddc48f
+        independent_source_review: docs/product/electronics/evidence/psu-wire-entry-e06-source-review-fe9193b9.md
+        independent_source_actual: Root verified12external10Git reviewer originals; separately48author
+          originals+6Git/3940foreign/sourcepreservation. Actual installed lock differs only API pngjs
+          importer;4physicalweb/testpackageversions exact, no complete local frozen-graph claim. No browser/CI
+          sourceacceptance yet.
+        exact_candidate_general_run: 38184087641
+        exact_candidate_general_conclusion: failure
+        ci_failure_category: A bounded source adds runtime and exceeds unchanged209000 bundle ceiling at211790; no release acceptance
+        cause_evidence: docs/product/electronics/evidence/psu-entry-e06-bundle-cause-99f76124.md
+        cause_manifest_sha256: f4426b510d68d950c631ac5afe5c45eac8d21f8a5336e95da5087b075c8b3074
+        cause_root_actual: 4external30Git originals verified; two repeated computations structurally confirmed. >=2790
+          compiled savings not proven until production build.
+        valid_before_probe_sha: b06b11dd34f73eed9f309d0e3438f606fbde2353
+        valid_before_run: 38184098404
+        valid_before_root_actual: 16of16 native ownership failures at495; whole documents/history
+          preserved.142external27Git/122outer2170nested CRC; test bytes99 preserved. Do not repeat BEFORE while
+          test/fixture/budgets remain byte-exact.
+        school_actions: deferred_by_owner_no_installation_actions
+        candidate_publication: unpublished_preserved
+        candidate_acceptance: request_changes_bundle_budget
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/psu-entry-e06-r2-independent-budget-review-42ed2d20.md
+        independent_manifest_sha256: 165f5c2567cd5047a22fb2c2b810a83377de605e48b0ba35b1caa17f91332650
+        compiled_candidate_bytes: 211673
+        compiled_required_ceiling: 209000
+        r2_focused_result: 644domainPASS;458webPASS/1 unchanged archive-hash timeout5000. Cause unproven; no retry.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: da6782f125b220c4f55b1cf61c39224a6404e623
+        head_sha: null
+        observed_at: 2026-10-13T15:44:56.054017+00:00
+        main:
+          branch: main
+          sha: da6782f125b220c4f55b1cf61c39224a6404e623
+        observation_note: Dated R3 selection; fresh fetch main and exact CI before writes. da6782 General38421156503
+          FAIL Portal810 timeout; other3SUCCESS.557final1a03 General38422331028 Access timeout810/849; Electronics
+          pending. R2 bundleFAIL; no product acceptance or school actions.
+      preserved_final_candidate_sha: 5e040da74c6e5733da4adabc4a33c95ad58002a3
+      preserved_final_candidate_tree: 8288d69dfdaae2a84e9138db296c23a349a61034
+      preserved_final_candidate_branch: codex/electronics-e06-r3-canonical-reuse
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/psu-entry-e06-r3-independent-budget-review-5e040da7.md
+      compiled_candidate_bytes: 211495
+      compiled_required_ceiling: 209000
+      reason: Owner requested one concrete listed problem at a time. Preserve complete466R3 candidate and
+        earlier42ed; actual independent budget failure, no proven safe next savings, no acceptance or new466
+        implementation.
     - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
       issue: 548
       task:
@@ -3338,7 +3421,7 @@ parallel_lanes:
       checkpoint: new_exact_composition_blocked_by_independent_asset_548
       dependency_issue: 548
       owner_acceptance: pending
-      dependency_status: technical_accepted
+      dependency_status: open_no_proven_cause
       selected_at: '2026-10-09T16:49:06Z'
       preserved_candidate_sha: 51991c0339009f3e358bf405fddb8c48743262ef
       independent_review: request_changes
