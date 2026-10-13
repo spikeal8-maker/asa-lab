@@ -165,12 +165,16 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
     activity.setReady(true);
     // A cancellable first observation avoids StrictMode's development probe.
     const startTimer = window.setTimeout(() => activity.input(), 0);
+    // BFCache preserves this effect; its old callback is not fresh input on return.
+    const cancelStart = (): void => window.clearTimeout(startTimer);
+    window.addEventListener('pagehide', cancelStart);
     const interaction = (): void => activity.input();
     window.addEventListener('pointerdown', interaction, { passive: true });
     window.addEventListener('keydown', interaction, { passive: true });
     return () => {
       if (recordedOpen.current === key) recordedOpen.current = null;
-      window.clearTimeout(startTimer);
+      cancelStart();
+      window.removeEventListener('pagehide', cancelStart);
       window.removeEventListener('pointerdown', interaction);
       window.removeEventListener('keydown', interaction);
       activity.dispose();

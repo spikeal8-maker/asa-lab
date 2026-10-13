@@ -238,6 +238,92 @@ async function mountTrackers(apis?: ActivityTransport[], input = true) {
   await act(async () => root!.render(createElement(Probe)));
   return trackers;
 }
+describe('OBS007 repair actual ModuleEditorHost startup observation', () => {
+  async function mountHost(strict = false) {
+    vi.doMock('./chess/load-chess-editor', () => ({
+      loadChessEditor: async () => ({ default: () => null }),
+    }));
+    vi.doMock('./blocks/BlocksEditor', () => ({ BlocksEditor: () => null }));
+    vi.doMock('./components/AssignmentBrief', () => ({ AssignmentBrief: () => null }));
+    const { ModuleEditorHost } = await import('./modules/ModuleEditorHost');
+    context.setTelemetryContext(actor, true, 'editor.chess');
+    const host = createElement(ModuleEditorHost, {
+      projectId,
+      moduleKey: 'chess',
+      returnTo: { kind: 'games' },
+      user: { id: actor.accountId, displayName: 'Editor user', email: 'editor@example.invalid' },
+      telemetryActor: actor,
+      onBack: () => undefined,
+    });
+    await act(async () => root!.render(strict ? createElement(StrictMode, null, host) : host));
+  }
+
+  afterEach(() => {
+    vi.doUnmock('./chess/load-chess-editor');
+    vi.doUnmock('./blocks/BlocksEditor');
+    vi.doUnmock('./components/AssignmentBrief');
+  });
+
+  it('cancels a pre-hide startup callback and accepts only fresh pointer or keyboard input after return', async () => {
+    await mountHost();
+    // The real host has mounted, but its initial setTimeout(input,0) has not fired.
+    expect(operations()).toEqual([]);
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(operations()).toEqual([]);
+    window.dispatchEvent(new Event('pointerdown'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(operations().map((body) => body.operation)).toEqual(['start']);
+    const original = operations()[0];
+    window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(operations().map((body) => body.operation)).toEqual(['start', 'close']);
+    window.dispatchEvent(new Event('keydown'));
+    await vi.advanceTimersByTimeAsync(0);
+    expect(operations().map((body) => body.operation)).toEqual(['start', 'close', 'start']);
+    expect(operations()[2]).toMatchObject({ visitId: original.visitId, moduleKey: 'chess' });
+    expect(operations()[2].sessionId).not.toBe(original.sessionId);
+    expect(
+      transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events'),
+    ).toHaveLength(1);
+  });
+
+  it.each([false, true])(
+    'preserves ordinary initial observation and cleanup (StrictMode=%s)',
+    async (strict) => {
+      await mountHost(strict);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(operations().map((body) => body.operation)).toEqual(['start']);
+      const original = operations()[0];
+      const remove = vi.spyOn(window, 'removeEventListener');
+      await act(async () => root!.unmount());
+      root = undefined;
+      await vi.advanceTimersByTimeAsync(0);
+      expect(operations().map((body) => body.operation)).toEqual(['start', 'close']);
+      expect(operations()[1].sessionId).toBe(original.sessionId);
+      expect(remove.mock.calls.map(([type]) => type)).toEqual(
+        expect.arrayContaining(['pagehide', 'pointerdown', 'keydown']),
+      );
+      window.dispatchEvent(new Event('pointerdown'));
+      window.dispatchEvent(new Event('keydown'));
+      window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(operations().map((body) => body.operation)).toEqual(['start', 'close']);
+    },
+  );
+
+  it('cancels the pending initial observation when the actual host unmounts', async () => {
+    await mountHost();
+    await act(async () => root!.unmount());
+    root = undefined;
+    await vi.advanceTimersByTimeAsync(0);
+    expect(operations()).toEqual([]);
+  });
+});
+
 describe('actual runtime identity and React ownership', () => {
   it('StrictMode probe creates one visit and one start; disposal records the exact original close', async () => {
     const { trackInputActivity } = await import('./activity-lifecycle');
