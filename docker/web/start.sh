@@ -24,4 +24,20 @@ if [ -n "$origin" ]; then
   }
 fi
 printf 'globalThis.__ASA_RUNTIME_CONFIG__={"blocksRuntimeOrigin":"%s"};\n' "$origin" > /tmp/runtime-config.js
+# A configured domain creates a TLS listener on this SAME Caddy process.
+# Never interpolate an unvalidated value into a Caddyfile.
+public_domain=${ASA_PUBLIC_DOMAIN:-}
+if [ -n "$public_domain" ]; then
+  if [ "${#public_domain}" -gt 253 ] || ! printf "%s\n" "$public_domain" | grep -Eq '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]([a-z0-9-]{0,61}[a-z0-9])?
+ ; then
+    echo "Invalid ASA_PUBLIC_DOMAIN: use an exact lowercase DNS hostname." >&2
+    exit 78
+  fi
+  printf "%s {\n\treverse_proxy 127.0.0.1:8080 {\n\t\theader_up -CF-Connecting-IP\n\t}\n}\n" "$public_domain" > /tmp/asa-public.caddy
+else
+  : > /tmp/asa-public.caddy
+fi
+if [ "${1:-}" = "--check-config" ]; then
+  exec caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile
+fi
 exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
