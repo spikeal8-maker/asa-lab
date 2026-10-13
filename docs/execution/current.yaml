@@ -4568,13 +4568,15 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs009_reported_main_integration_authorized
+      checkpoint: release_registration_fixture_baseline_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
           revision: '1.8'
+        - document: RELEASE-REGISTRATION-FIXTURE-SPEC
+          revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
@@ -4784,13 +4786,37 @@ parallel_lanes:
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: bounded_main_integration_preserve_foreign_source_then_review_exact_main_general_publish_and_guarded_site_update
+        next_action: separate_CI_registration_setup_baseline_repair_then_exact_main_General_release_and_guarded_site_update
       release_execution:
         status: in_progress
-        selected_phase: main_integration
+        selected_phase: separate_registration_setup_CI_baseline_repair
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: 75e2b4687fdbc2cacd77c5933b92bba415901adf
+        candidate_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
         integration_branch: codex/observability-main-integration
+        current_baseline_task:
+          id: TASK-RELEASE-REGISTRATION-FIXTURE-001
+          specification: docs/delivery/RELEASE_REGISTRATION_FIXTURE_SPEC.md
+          branch: codex/release-registration-fixture
+          status: in_progress
+          category: C_independent_shared_browser_setup_quota
+          failing_run: 38479261357
+          failing_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
+          failed_job: Access_A_real_browser_journeys
+          observed: 19_passed_2_failed_at_teacher_registration_HTTP429_generic_mutation_budget
+          quota: generic_mutation_900_per_5min_registration_specific_60_per_hour_unchanged
+          scope: Bounded server-directed retry of registration setup only, preserving all admissions assertions and original runtime budgets.
+          deployment_gate: exact_main_General_and_portable_release_must_succeed_before_live_update
+        main_integration_result:
+          source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
+          main_publication: completed_normal_fast_forward
+          independent_review: pass_full_CLIENT_delta_and_preservation
+          local_focused: 93_passed_6_files
+          local_browser: discovery_only_2_scenarios_not_executed
+          preservation: 53_main_paths_28_CLIENT_paths_8_critical_repairs_byte_identical
+          source_general_run: 38479261357
+          source_general: governance_code_postgres_success_browser_baseline_quota_failure
+          original_main_general_run: 38480278081
+          original_main_general: cancelled_to_avoid_repeating_known_identical_baseline_failure
         scope: Merge prepared CLIENT and accepted repairs with current main, resolve necessary conflicts preserving both features.
         required_fixture_compatibility: Existing classroom Scratch browser fixture must acknowledge v2 visits and quality so new CLIENT queue can reach module-session; preserve all behavioral assertions.
         gate_order: Focused checks and independent source review before main publication, exact main General all required jobs and portable release checks before runtime update.
@@ -4874,7 +4900,7 @@ parallel_lanes:
         OBS-007 BFCache resume passed focused checks and new independent review after stale initial timer repair; report and STOP.
         OBS-008 exact fractional receipts passed source review and 179 selected local/CI tests; separate report recorded.
         OBS-009 fixture passed independent source review and 29 local/CI tests; exact focused438 and Code job succeeded.
-        Owner-authorized main integration and full guarded site update are now selected.
+        Main integration3ab is source-reviewed and published; full release is gated by a separate browser setup quota baseline repair.
         OBS-009 known focused blocker is repaired; source09 broader jobs were cancelled in favor of exact final main verification.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
@@ -4889,7 +4915,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-009 are focused-verified and reported. Main integration and full guarded site update are explicitly selected under the owner batch; preserve all foreign source and unfinished drafts.
+        accepted; OBS-002 through OBS-009 are focused-verified and reported. Main integration is source-reviewed and published; a separate bounded CI registration setup task is selected before the authorized full guarded site update. Preserve all foreign source and unfinished drafts.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
