@@ -117,9 +117,9 @@ test('real participant works, persisted rating, merits, avatars and mixed-cookie
     }
     await row.locator('.classroom-student-name').click();
     await expect(page.getByRole('heading', { name: 'Анна Участница', exact: true })).toBeVisible();
-    await expect(
-      page.getByText('Доступно преподавателю: 1 из 1 работ.', { exact: false }),
-    ).toBeVisible();
+    // The redundant "1 of 1 accessible" sentence is intentionally hidden.
+    // The one accessible project and the cross-module filters remain asserted.
+    await expect(page.getByTestId('project-card')).toHaveCount(1);
     await expect(page.getByText('Модель участницы', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Электроника', exact: true }).click();
     await expect(page.getByText('Нет доступных работ по этому фильтру.')).toBeVisible();

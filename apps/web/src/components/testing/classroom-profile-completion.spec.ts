@@ -378,6 +378,8 @@ describe('participant completion DOM behavior', () => {
         classroomId: 'class',
         classroomTitle: 'Класс',
         seatId: 'seat-a',
+        navigation: null,
+        onNavigateStudent: vi.fn(),
         onBack: vi.fn(),
         onOpenProject: vi.fn(),
       }),
@@ -829,6 +831,8 @@ describe('participant completion DOM behavior', () => {
       classroomId: 'class',
       classroomTitle: 'Класс',
       seatId: 'seat-a',
+      navigation: null,
+      onNavigateStudent: vi.fn(),
       onBack: vi.fn(),
       onOpenProject: vi.fn(),
     };
@@ -842,10 +846,11 @@ describe('participant completion DOM behavior', () => {
     await render(createElement(ClassroomStudentPage, { ...props, seatId: 'seat-b' }));
     expect(
       host.querySelector('.participant-hero')?.nextElementSibling?.getAttribute('aria-label'),
-    ).toBe('Классы помощника');
+    ).toBe('Последние оценки');
     expect(host.textContent).toContain('Доступный класс помощника');
-    expect(host.querySelector('.participant-grade-summary')).toBeNull();
-    expect(host.querySelector('.participant-role-hint')).not.toBeNull();
+    expect(host.querySelector('[aria-label="Классы помощника"]')).not.toBeNull();
+    expect(host.querySelector('.participant-grade-summary')).not.toBeNull();
+    expect(host.querySelector('.participant-role-hint')).toBeNull();
     await click('Оценки и история');
     expect(host.querySelector('.participant-grades')).not.toBeNull();
   });
