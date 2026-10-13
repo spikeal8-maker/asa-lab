@@ -47,6 +47,29 @@ Two production files; two focused test files plus explicit real-browser regressi
 
 An explicitly selected diagnostic-only workflow derived from the unchanged canonical isolated browser recipe may run ONLY this new case before/after, retaining original assertions/timeouts/build inputs/artifact provenance. It does not replace any ordinary gate and is not integrated as a product change.
 
+## Evidence checkpoint — 14 October 2026
+
+Canonical selection and current status remain in `docs/execution/current.yaml`.
+Preserved candidate: `codex/electronics-save-cross-tab-566` at
+`d94d3a91fa6768d536728a3fcd774a44b18f564f`, tree
+`57f8ae5e7be996580f7761520489ff69ba19e251`. It is not integrated into main.
+
+The actual built-browser cross-tab save recovery scenario passed in the ordinary
+Electronics gate. This confirms the bounded repair scenario, not all E01 causes
+or recovery of previously lost pupil work.
+
+- [Exact General 38480957015](https://github.com/spikeal8-maker/asa-lab/actions/runs/38480957015):
+  failure in two Access registration setup scenarios with HTTP429.
+- [Exact ordinary Electronics 38480969448](https://github.com/spikeal8-maker/asa-lab/actions/runs/38480969448):
+  browser result 150 passed, one image recovery `href` / `retry0` failure; the new
+  cross-tab save scenario passed.
+
+Required gates prevent technical acceptance, integration, closeout and release.
+No save product finding was reported by the independent review; this is not an
+approval or permission to repair another module. Preserve the exact candidate,
+accepted526 and paused544. Do not rerun unchanged checks, integrate, update the
+installation or close566/452 from this checkpoint. Report and STOP.
+
 ## Forbidden
 
 No solver/Arduino behaviour, visual/field/PSU/asset repair, auth/API/schema/RLS change, timeout/assertion weakening, package/dependency updates, foreign-module repair, installation/Docker/DB/network/backup action, protected assets or owner data. Preserve paused field544 candidate a126dc75620eefb6c6f63b5fc2521b4338829688 and all other candidates.
