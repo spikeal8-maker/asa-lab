@@ -95,7 +95,7 @@ documents:
     kind: implementation_spec
     status: canonical
     authority: owner_sequential_observability_repairs
-    revision: '1.3'
+    revision: '1.4'
     context_role: task
     read_when: [observability_repair]
 
