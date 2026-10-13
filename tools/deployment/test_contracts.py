@@ -158,6 +158,10 @@ class PublicHttpsInstallationTests(unittest.TestCase):
             self.assertEqual(install.files, ["compose.yaml", "compose.production.yaml", "compose.public.yaml"])
             self.assertEqual(install.project, "asa-lab-production")
 
+    def test_dev_compose_does_not_reenable_seed_for_a_restored_database(self):
+        compose = Path(__file__).resolve().parents[2] / "compose.dev.yaml"
+        self.assertIn("ASA_SEED_DEV: '${ASA_SEED_DEV:-true}'", compose.read_text(encoding="utf-8"))
+
     def test_first_local_install_remains_available_without_public_certificate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
