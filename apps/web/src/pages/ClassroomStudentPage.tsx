@@ -62,12 +62,12 @@ function asProject(work: ClassroomStudentWork): Project {
 }
 const TABS = [
   { key: 'all', label: 'Все работы', module: null },
+  { key: 'grades', label: 'Оценки и история', module: null },
+  { key: 'assignments', label: 'Задания', module: null },
   { key: 'three-d', label: '3D', module: 'three-d' },
   { key: 'electronics', label: 'Электроника', module: 'electronics' },
   { key: 'blocks', label: 'Scratch', module: 'blocks' },
-  { key: 'assignments', label: 'Задания', module: null },
   { key: 'merits', label: 'Заслуги', module: null },
-  { key: 'grades', label: 'Оценки и история', module: null },
   { key: 'activity', label: 'Активность', module: null },
 ] as const;
 type Tab = (typeof TABS)[number]['key'];
@@ -235,19 +235,26 @@ export function ClassroomStudentPage({
   );
   return (
     <main className="portal-content classroom-student" id="main-content" tabIndex={-1}>
-      <button type="button" className="classroom-student-back" onClick={onBack}>
-        ← {classroomTitle}
+      <button type="button" className="classroom-student-back" onClick={onBack} title={classroomTitle}>
+        ← К классу
       </button>
-      <section className="classroom-student-hero participant-hero">
-        <img
-          className="classroom-student-avatar"
-          src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
-          alt=""
-          width={64}
-          height={64}
-        />
-        <div className="classroom-student-identity">
-          <h1>{student.displayLabel}</h1>
+      <section className="classroom-student-hero participant-hero" aria-label="Профиль ученика">
+        <div className="classroom-student-heading-row">
+          <div className="classroom-student-person">
+            <img
+              className="classroom-student-avatar"
+              src={metrics.avatarUrl ?? seatAvatar(student.id, student.avatarKey).src}
+              alt=""
+              width={56}
+              height={56}
+            />
+            <div className="classroom-student-identity">
+              <h1>{student.displayLabel}</h1>
+              {student.status === 'suspended' ? (
+                <small className="classroom-student-suspended">Доступ приостановлен</small>
+              ) : null}
+            </div>
+          </div>
           {navigation ? (
             <nav className="classroom-student-navigation" aria-label="Переход по ученикам">
               <button
@@ -258,7 +265,7 @@ export function ClassroomStudentPage({
                 disabled={navigation.total < 2}
                 onClick={() => onNavigateStudent(navigation.previous.id)}
               >
-                <span className="classroom-student-navigation-label">← Предыдущий ученик</span>
+                <span className="classroom-student-navigation-label"><span className="student-pager-desktop">← Предыдущий ученик</span><span className="student-pager-mobile">← Предыдущий</span></span>
                 <small>{navigation.previous.displayLabel}</small>
               </button>
               <span className="classroom-student-navigation-position" aria-label={`Ученик ${navigation.position} из ${navigation.total}`}>
@@ -272,60 +279,62 @@ export function ClassroomStudentPage({
                 disabled={navigation.total < 2}
                 onClick={() => onNavigateStudent(navigation.next.id)}
               >
-                <span className="classroom-student-navigation-label">Следующий ученик →</span>
+                <span className="classroom-student-navigation-label"><span className="student-pager-desktop">Следующий ученик →</span><span className="student-pager-mobile">Следующий →</span></span>
                 <small>{navigation.next.displayLabel}</small>
               </button>
             </nav>
           ) : null}
-          <p>
-            {classroomTitle} · {metrics.role === 'helper' ? 'Помощник' : 'Учащийся'}
-            {student.status === 'suspended' ? ' · доступ приостановлен' : ''}
-          </p>
-          <div className="participant-main-stats">
-            <span>
-              Всего работ <strong>{metrics.totalWorks}</strong>
-            </span>
-            <span>
-              В архиве <strong>{metrics.archivedWorks}</strong>
-            </span>
-            <span>
-              Сдано <strong>{profile.submittedCount}</strong>
-            </span>
-            <span>
-              Ждут ответа <strong>{profile.awaitingReview}</strong>
-            </span>
+
+        </div>
+        <div className="classroom-student-meta-row">
+          <div className="participant-main-stats" aria-label="Показатели ученика">
+            <span className="classroom-student-stat"><strong>{metrics.totalWorks}</strong><small>Работы</small></span>
+            <span className="classroom-student-stat"><strong>{profile.submittedCount}</strong><small>Сдано</small></span>
+            <span className="classroom-student-stat"><strong>{profile.awaitingReview}</strong><small>Ждут</small></span>
             <ParticipantRating metrics={metrics} settings={settings} />
           </div>
-          <div className="classroom-student-badges">
-            <SeatAwardRow keys={awardKeys} size="small" />
-            {student.safeMode ? <span>Безопасный режим</span> : null}
+          <div className="classroom-student-meta-actions">
+          <label className="participant-role">
+            <span>Роль</span>
+            <select
+              aria-label="Роль в классе"
+              value={metrics.role}
+              disabled={readOnly || roleBusy}
+              onChange={(e) => {
+                const token = profileGeneration.current;
+                setRoleBusy(true);
+                setProfileError(null);
+                void participantsApi
+                  .mutate(classroomId, 'role', { seatId, role: e.target.value }, newClientId())
+                  .then(async (r) => {
+                    if (token !== profileGeneration.current) return;
+                    if (r.ok) await load();
+                    else setProfileError(r.error.message);
+                  })
+                  .finally(() => setRoleBusy(false));
+              }}
+            >
+              <option value="student">Учащийся</option>
+              <option value="helper">Помощник</option>
+            </select>
+          </label>
+            <div className="classroom-student-badges">
+              <SeatAwardRow keys={awardKeys} size="small" />
+              {student.safeMode ? (
+                <span title="Безопасный режим включён" className="classroom-student-safety">
+                  Защита
+                </span>
+              ) : null}
+            </div>
           </div>
         </div>
-        <label className="participant-role">
-          Роль в классе
-          <select
-            aria-label="Роль в классе"
-            value={metrics.role}
-            disabled={readOnly || roleBusy}
-            onChange={(e) => {
-              const token = profileGeneration.current;
-              setRoleBusy(true);
-              setProfileError(null);
-              void participantsApi
-                .mutate(classroomId, 'role', { seatId, role: e.target.value }, newClientId())
-                .then(async (r) => {
-                  if (token !== profileGeneration.current) return;
-                  if (r.ok) await load();
-                  else setProfileError(r.error.message);
-                })
-                .finally(() => setRoleBusy(false));
-            }}
-          >
-            <option value="student">Учащийся</option>
-            <option value="helper">Помощник</option>
-          </select>
-        </label>
       </section>
+      <ParticipantGradeHistory
+        key={`${classroomId}:${seatId}:summary`}
+        classroomId={classroomId}
+        seatId={seatId}
+        compact
+      />
       {metrics.role === 'helper' ? (
         <section className="participant-helper-classes" aria-label="Классы помощника">
           <h2>Классы помощника</h2>
@@ -341,19 +350,6 @@ export function ClassroomStudentPage({
             </ul>
           )}
         </section>
-      ) : (
-        <ParticipantGradeHistory
-          key={`${classroomId}:${seatId}:summary`}
-          classroomId={classroomId}
-          seatId={seatId}
-          compact
-        />
-      )}
-      {metrics.role === 'helper' ? (
-        <p className="participant-role-hint">
-          Помощник помогает организовать занятия в этом классе, без доступа к чужим оценкам и
-          управлению. Преподавателей добавляют через приглашение коллег.
-        </p>
       ) : null}
       {readOnly ? <p role="status">Класс в архиве. Изменения недоступны.</p> : null}
       {profileError ? (
@@ -397,13 +393,9 @@ export function ClassroomStudentPage({
               {onlyAwaiting ? 'Показать все' : 'Только ждущие ответа'}
             </button>
           </div>
-          {works ? (
+          {works && works.visibleWorks < works.totalWorks ? (
             <p className="participant-visibility-note">
-              Доступно преподавателю: {works.visibleWorks} из {works.totalWorks} работ.
-              {works.visibleWorks < works.totalWorks
-                ? ' Остальные работы закрыты. Счётчик включает их, но не даёт права просмотра.'
-                : ''}
-              {` По фильтру: ${works.filteredWorks}.`}
+              Часть личных работ закрыта для преподавателя ({works.visibleWorks} из {works.totalWorks}).
             </p>
           ) : null}
           {worksError ? (

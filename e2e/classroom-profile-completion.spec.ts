@@ -425,7 +425,8 @@ test('assigned without a project stays one row through start, submission and rev
     await expect(page.getByRole('region', { name: 'Классы помощника' })).toContainText(
       classroom.title,
     );
-    await expect(page.getByRole('region', { name: 'Последние оценки' })).toHaveCount(0);
+    // A helper is still a pupil, and the teacher must see their marks as well.
+    await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
     expect((await pupil.request.get(`/api/classrooms/${classroom.id}/participants`)).status()).toBe(
       401,
     );
