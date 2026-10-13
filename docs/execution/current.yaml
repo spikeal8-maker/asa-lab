@@ -630,81 +630,38 @@ parallel_lanes:
         commands:
         - pnpm gate:repository
   - id: electronics
-    worktree_id: electronics-e06-psu-wire-entry
+    worktree_id: electronics-field-544
     owned_paths:
-    - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+    - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
-      issue: 466
+      id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
+      issue: 566
       branch: main
       base_branch: main
       pr: null
-      pr_draft: false
       status: in_progress
-      checkpoint: r3_share_canonical_psu_geometry_and_presentation_without_budget_change
+      checkpoint: owner_first_problem_two_tab_recovery_cleanup_before
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E06 connected/pending PSU terminal approach only
+      owner_problem: E01 pupil work must survive a late save acknowledgement in another tab
+      selected_at: '2026-10-13T22:07:25.238035+00:00'
       context_hints:
-      - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
-      - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
       - docs/product/electronics/components/ui-assets-persistence.yaml
-      repair_scope: 'ONE bounded attempt: reuse E06 entry-path writer, Stage paint/hit construction, canonical
-        rounded L/Q traversal in the three existing runtime files. Existing geometry/presentation tests
-        only as necessary. Preserve all semantics, browser99/digest exact; no threshold/config/dependency/chunk
-        shifting or general cleanup.'
-      acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
-      source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
-      historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
-      historical_visual_run: 38007826968
-      current_render_layers_byte_equal_historical: true
-      production_slices_since_hygiene556: 1
-      shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
-        Existing simulation test add only this scenario; generator only canonical digest, no package/workflow/lock/CSS/owner
-        assets. Check every worktree dirty path before writing.
-      scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
-        Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
-        actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
-        sources remain immutable and no simultaneous overlapping writer is authorized.
-      next_action: NEW author preserves42ed and all refs, proper canonical merge, narrow regression checks
-        and one actual production size measurement. Savings2673B unproven. If budget still fails, preserve
-        candidate and STOP this attempt; no hopeful builds/weakening. If PASS complete focused gate and
-        NEW independent review, then matching saved-test AFTER/exact gates/NEW PRODUCT. BEFOREb06 unchanged,
-        no repeat. Portal independently delegated;552/557 preserved.
-      preserved_candidate_sha: 42ed2d2090d67ec5d21edb0c6168b467b8492957
-      preserved_candidate_tree: 3cfd777fc03bc124de8677a726b9206491bf4d0d
-      candidate_branch: codex/electronics-e06-r2-bounded-runtime
-      independent_source_challenge: 'REQUEST_CHANGES: missing canonical pending arrival to PSU; primary
-        FAIL not flushed before browser awaits and unguarded collector masks original.'
-      independent_source_report_sha256: 3741474256e97d96661cbb64231d391b87defd56d46ef38e5647675d32e3e992
-      independent_source_manifest_sha256: 0855af4aa830a377301ba1eba29601b9962aa94866dc015cde9373e040ddc48f
-      independent_source_review: docs/product/electronics/evidence/psu-wire-entry-e06-source-review-fe9193b9.md
-      independent_source_actual: Root verified12external10Git reviewer originals; separately48author originals+6Git/3940foreign/sourcepreservation.
-        Actual installed lock differs only API pngjs importer;4physicalweb/testpackageversions exact, no
-        complete local frozen-graph claim. No browser/CI sourceacceptance yet.
-      exact_candidate_general_run: 38184087641
-      exact_candidate_general_conclusion: failure
-      ci_failure_category: A bounded source adds runtime and exceeds unchanged209000 bundle ceiling at211790;
-        no release acceptance
-      cause_evidence: docs/product/electronics/evidence/psu-entry-e06-bundle-cause-99f76124.md
-      cause_manifest_sha256: f4426b510d68d950c631ac5afe5c45eac8d21f8a5336e95da5087b075c8b3074
-      cause_root_actual: 4external30Git originals verified; two repeated computations structurally confirmed.
-        >=2790 compiled savings not proven until production build.
-      valid_before_probe_sha: b06b11dd34f73eed9f309d0e3438f606fbde2353
-      valid_before_run: 38184098404
-      valid_before_root_actual: 16of16 native ownership failures at495; whole documents/history preserved.142external27Git/122outer2170nested
-        CRC; test bytes99 preserved. Do not repeat BEFORE while test/fixture/budgets remain byte-exact.
+      repair_scope: ONLY preserve different unconfirmed local recovery document during Electronics cleanup; real same-pupil
+        two-tab BEFORE/AFTER; accepted526 unchanged; no next task.
+      paused_field_candidate_sha: a126dc75620eefb6c6f63b5fc2521b4338829688
+      paused_field_issue: 544
+      paused_field_status: owner_paused_not_integrated_not_accepted
+      paused_field_ci_runs:
+      - 38472389943
+      - 38472412673
+      paused_field_ci_cancellation: requested_by_controller; cancelled is not PASS
+      accepted_save_recovery_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
       school_actions: deferred_by_owner_no_installation_actions
-      candidate_publication: unpublished_preserved
-      candidate_acceptance: request_changes_bundle_budget
-      independent_review: request_changes
-      independent_evidence: docs/product/electronics/evidence/psu-entry-e06-r2-independent-budget-review-42ed2d20.md
-      independent_manifest_sha256: 165f5c2567cd5047a22fb2c2b810a83377de605e48b0ba35b1caa17f91332650
-      compiled_candidate_bytes: 211673
-      compiled_required_ceiling: 209000
-      r2_focused_result: 644domainPASS;458webPASS/1 unchanged archive-hash timeout5000. Cause unproven;
-        no retry.
+      next_action: Reproduce exact production-browser two-tab cleanup loss, minimal fix, focused and required gates, NEW
+        independent review; report and STOP
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
@@ -2068,6 +2025,103 @@ parallel_lanes:
       deployment: not_run
       production_slices_since_hygiene542: 2
     suspended_tasks:
+    - task_id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+      issue: 466
+      status: suspended_owner_direct_field_priority
+      suspended_at: 2026-10-13T21:18:54.227Z
+      task:
+        id: TASK-ELECTRONICS-PSU-WIRE-ENTRY-001
+        issue: 466
+        branch: main
+        base_branch: main
+        pr: null
+        pr_draft: false
+        status: in_progress
+        checkpoint: r3_share_canonical_psu_geometry_and_presentation_without_budget_change
+        kind: repair
+        owner_acceptance: pending
+        programme_issue: 452
+        owner_problem: E06 connected/pending PSU terminal approach only
+        context_hints:
+          - docs/product/electronics/tasks/TASK-ELECTRONICS-PSU-WIRE-ENTRY-001.md
+          - docs/product/electronics/evidence/psu-wire-entry-e06-cause-preparation.md
+          - docs/product/electronics/components/ui-assets-persistence.yaml
+        repair_scope: "ONE bounded attempt: reuse E06 entry-path writer, Stage paint/hit construction, canonical
+          rounded L/Q traversal in the three existing runtime files. Existing geometry/presentation tests only as
+          necessary. Preserve all semantics, browser99/digest exact; no threshold/config/dependency/chunk shifting
+          or general cleanup."
+        acceptance_boundary: slice; keep Issue466 OPEN until remaining full scope accepted
+        source_cause_report_sha256: 1f56b9816d600795ac41f597380ab3daf4a319161307b3eda2df6e32ca49290d
+        historical_visual_evidence_sha: 53a8c7efdafeea6f145217339973593e594e2000
+        historical_visual_run: 38007826968
+        current_render_layers_byte_equal_historical: true
+        production_slices_since_hygiene556: 1
+        shared_write_contract: One new bounded author; preserve all held Stage/Visual/wire candidates544549525538547.
+          Existing simulation test add only this scenario; generator only canonical digest, no
+          package/workflow/lock/CSS/owner assets. Check every worktree dirty path before writing.
+        scope_catalog_note: Advisory owned_paths lists the exclusive card only, preserving other lanes unchanged.
+          Exact Stage/preview/geometry and two tests/generator write budget is declared in this selected card;
+          actual dirty-path checks remain mandatory for every path. Accepted554 author stopped; held544/549
+          sources remain immutable and no simultaneous overlapping writer is authorized.
+        next_action: NEW author preserves42ed and all refs, proper canonical merge, narrow regression checks and one
+          actual production size measurement. Savings2673B unproven. If budget still fails, preserve candidate and
+          STOP this attempt; no hopeful builds/weakening. If PASS complete focused gate and NEW independent
+          review, then matching saved-test AFTER/exact gates/NEW PRODUCT. BEFOREb06 unchanged, no repeat. Portal
+          independently delegated;552/557 preserved.
+        preserved_candidate_sha: 42ed2d2090d67ec5d21edb0c6168b467b8492957
+        preserved_candidate_tree: 3cfd777fc03bc124de8677a726b9206491bf4d0d
+        candidate_branch: codex/electronics-e06-r2-bounded-runtime
+        independent_source_challenge: "REQUEST_CHANGES: missing canonical pending arrival to PSU; primary FAIL not
+          flushed before browser awaits and unguarded collector masks original."
+        independent_source_report_sha256: 3741474256e97d96661cbb64231d391b87defd56d46ef38e5647675d32e3e992
+        independent_source_manifest_sha256: 0855af4aa830a377301ba1eba29601b9962aa94866dc015cde9373e040ddc48f
+        independent_source_review: docs/product/electronics/evidence/psu-wire-entry-e06-source-review-fe9193b9.md
+        independent_source_actual: Root verified12external10Git reviewer originals; separately48author
+          originals+6Git/3940foreign/sourcepreservation. Actual installed lock differs only API pngjs
+          importer;4physicalweb/testpackageversions exact, no complete local frozen-graph claim. No browser/CI
+          sourceacceptance yet.
+        exact_candidate_general_run: 38184087641
+        exact_candidate_general_conclusion: failure
+        ci_failure_category: A bounded source adds runtime and exceeds unchanged209000 bundle ceiling at211790; no release acceptance
+        cause_evidence: docs/product/electronics/evidence/psu-entry-e06-bundle-cause-99f76124.md
+        cause_manifest_sha256: f4426b510d68d950c631ac5afe5c45eac8d21f8a5336e95da5087b075c8b3074
+        cause_root_actual: 4external30Git originals verified; two repeated computations structurally confirmed. >=2790
+          compiled savings not proven until production build.
+        valid_before_probe_sha: b06b11dd34f73eed9f309d0e3438f606fbde2353
+        valid_before_run: 38184098404
+        valid_before_root_actual: 16of16 native ownership failures at495; whole documents/history
+          preserved.142external27Git/122outer2170nested CRC; test bytes99 preserved. Do not repeat BEFORE while
+          test/fixture/budgets remain byte-exact.
+        school_actions: deferred_by_owner_no_installation_actions
+        candidate_publication: unpublished_preserved
+        candidate_acceptance: request_changes_bundle_budget
+        independent_review: request_changes
+        independent_evidence: docs/product/electronics/evidence/psu-entry-e06-r2-independent-budget-review-42ed2d20.md
+        independent_manifest_sha256: 165f5c2567cd5047a22fb2c2b810a83377de605e48b0ba35b1caa17f91332650
+        compiled_candidate_bytes: 211673
+        compiled_required_ceiling: 209000
+        r2_focused_result: 644domainPASS;458webPASS/1 unchanged archive-hash timeout5000. Cause unproven; no retry.
+      revisions:
+        kind: observed_snapshot
+        convergence_baseline_sha: da6782f125b220c4f55b1cf61c39224a6404e623
+        head_sha: null
+        observed_at: 2026-10-13T15:44:56.054017+00:00
+        main:
+          branch: main
+          sha: da6782f125b220c4f55b1cf61c39224a6404e623
+        observation_note: Dated R3 selection; fresh fetch main and exact CI before writes. da6782 General38421156503
+          FAIL Portal810 timeout; other3SUCCESS.557final1a03 General38422331028 Access timeout810/849; Electronics
+          pending. R2 bundleFAIL; no product acceptance or school actions.
+      preserved_final_candidate_sha: 5e040da74c6e5733da4adabc4a33c95ad58002a3
+      preserved_final_candidate_tree: 8288d69dfdaae2a84e9138db296c23a349a61034
+      preserved_final_candidate_branch: codex/electronics-e06-r3-canonical-reuse
+      independent_review: request_changes
+      independent_evidence: docs/product/electronics/evidence/psu-entry-e06-r3-independent-budget-review-5e040da7.md
+      compiled_candidate_bytes: 211495
+      compiled_required_ceiling: 209000
+      reason: Owner requested one concrete listed problem at a time. Preserve complete466R3 candidate and
+        earlier42ed; actual independent budget failure, no proven safe next savings, no acceptance or new466
+        implementation.
     - task_id: TASK-ELECTRONICS-ORDINARY-IMAGE-CONSUMER-FAILURE-001
       issue: 548
       task:
@@ -2783,7 +2837,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: docs_prototype_published_product_integration_pending
+      checkpoint: existing_course_code_docs_prototype_published_owner_acceptance_pending
       owner_acceptance: pending
       normative_refs:
       - document: PRODUCT-INTEGRATED-V15
@@ -3338,7 +3392,7 @@ parallel_lanes:
       checkpoint: new_exact_composition_blocked_by_independent_asset_548
       dependency_issue: 548
       owner_acceptance: pending
-      dependency_status: technical_accepted
+      dependency_status: open_no_proven_cause
       selected_at: '2026-10-09T16:49:06Z'
       preserved_candidate_sha: 51991c0339009f3e358bf405fddb8c48743262ef
       independent_review: request_changes
@@ -4514,7 +4568,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs009_scratch_diagnostic_fixture
+      checkpoint: obs009_reported_main_integration_authorized
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4528,8 +4582,8 @@ parallel_lanes:
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-009
-        status: in_progress
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008]
+        status: implemented_focused_verified
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4697,19 +4751,59 @@ parallel_lanes:
             deployment: pending_after_OBS009_and_required_checks
             database_actions: none
             report: docs/execution/OBS_008_REPORT.md
+          OBS-009:
+            status: implemented_focused_verified
+            source_sha: 75e2b4687fdbc2cacd77c5933b92bba415901adf
+            source_branch: codex/observability-item-09
+            authoring_baseline_sha: af30cdea694fece82efb974ed1b2a72adc3d449d
+            independent_review: scoped_pass
+            local_before: 1_failed_28_intentionally_skipped
+            local_intermediate_case_only: isolated_pass_full_file_28_passed_1_failed_shared_outbox_fixture
+            local_final: 29_passed_0_skipped_assertions_unchanged
+            exact_ci_run: 38476998498
+            exact_ci_conclusion: cancelled_by_controller_to_avoid_unconverged_heavy_duplicate_gates
+            exact_ci_governance: success
+            exact_ci_code_job: success
+            exact_ci_focused: 438_passed_0_failed
+            exact_ci_item_tests: 29_passed
+            exact_ci_lint_typecheck_build: 27_projects_passed
+            exact_ci_postgres_and_browser: cancelled_pending_exact_main_general
+            product_integration: pending_owner_authorized_main_integration
+            deployment: pending_required_release_checks
+            database_actions: none
+            report: docs/execution/OBS_009_REPORT.md
         owner_authorized_batch:
           ordered_items: [OBS-008, OBS-009]
           reports: separate_after_each_item
           integration_into_main: authorized
           resolve_necessary_integration_conflicts: authorized_by_full_main_update_request
           canonical_site_update: explicitly_authorized_after_required_checks
-          remaining_OBS010_through_OBS045: not_implemented_by_this_authorization
+          remaining_OBS010_through_OBS045: not_selected_as_numbered_tasks_necessary_integration_compatibility_repairs_separately_scoped
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: false
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: implement_OBS009_verify_report_then_owner_authorized_main_integration_and_full_site_update
+        next_action: bounded_main_integration_preserve_foreign_source_then_review_exact_main_general_publish_and_guarded_site_update
+      release_execution:
+        status: in_progress
+        selected_phase: main_integration
+        owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
+        candidate_source_sha: 75e2b4687fdbc2cacd77c5933b92bba415901adf
+        integration_branch: codex/observability-main-integration
+        scope: Merge prepared CLIENT and accepted repairs with current main, resolve necessary conflicts preserving both features.
+        required_fixture_compatibility: Existing classroom Scratch browser fixture must acknowledge v2 visits and quality so new CLIENT queue can reach module-session; preserve all behavioral assertions.
+        gate_order: Focused checks and independent source review before main publication, exact main General all required jobs and portable release checks before runtime update.
+        production_directory: 'F:\Asa-Lab\asa-lab'
+        production_project: asa-lab-dev
+        production_profile: production
+        production_entry_origin: https://asa-lab.ru
+        production_before_revision: fa282924d97c21c552f5bdef11b9af94324b02fc
+        production_before_schema: 203
+        production_manager: tools/asa_manager.py
+        backup: required_verified_full_recovery_set_before_switch
+        deployment: pending
+        owner_product_acceptance: not_claimed_by_health_or_CI
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4779,8 +4873,9 @@ parallel_lanes:
         OBS-006 synchronous close-before-quality passed source review and focused checks; report and STOP.
         OBS-007 BFCache resume passed focused checks and new independent review after stale initial timer repair; report and STOP.
         OBS-008 exact fractional receipts passed source review and 179 selected local/CI tests; separate report recorded.
-        Owner-authorized OBS-009 fixture is now selected, then main integration and full guarded site update.
-        Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
+        OBS-009 fixture passed independent source review and 29 local/CI tests; exact focused438 and Code job succeeded.
+        Owner-authorized main integration and full guarded site update are now selected.
+        OBS-009 known focused blocker is repaired; source09 broader jobs were cancelled in favor of exact final main verification.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
         Preserve canonical Account/Seat authority, existing Scratch single-writer ownership, telemetry
@@ -4794,7 +4889,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-008 are focused-verified and reported. OBS-009 is selected under the explicit owner batch, followed by main integration and full guarded site update; each executor handles only its selected item.
+        accepted; OBS-002 through OBS-009 are focused-verified and reported. Main integration and full guarded site update are explicitly selected under the owner batch; preserve all foreign source and unfinished drafts.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:

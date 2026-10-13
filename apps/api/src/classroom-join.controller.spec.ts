@@ -190,6 +190,94 @@ describe('exact Course Activity sample route', () => {
   });
 });
 
+describe('exact Course manual material routes', () => {
+  const runId = '123e4567-e89b-42d3-a456-426614174010';
+  const lessonId = '123e4567-e89b-42d3-a456-426614174011';
+  const versionId = '123e4567-e89b-42d3-a456-426614174012';
+  const hash = 'a'.repeat(64);
+
+  it('projects only safe published fields and links image/PDF to the course proof', async () => {
+    const query = vi.fn(async (sql: string) =>
+      sql.includes('classroom_student_session_context')
+        ? { rows: [{ seat_id: 'seat-id' }] }
+        : {
+            rows: [
+              {
+                version_id: versionId,
+                version_number: 1,
+                content_digest: 'digest',
+                title: 'Manual',
+                blocks: [
+                  { type: 'paragraph', text: 'Read first' },
+                  { type: 'image', alt: 'Figure', contentHash: hash },
+                  { type: 'file', name: 'lesson.pdf', contentHash: hash },
+                ],
+              },
+            ],
+          },
+    );
+    const controller = new ClassroomJoinController(
+      { query } as unknown as pg.Pool,
+      {} as ActiveContextUseCase,
+    );
+    const result = await controller.courseManualMaterial(seatRequest(), runId, lessonId, 'manual');
+    expect(result).toEqual({
+      source: { kind: 'published', id: versionId, versionNumber: 1, contentDigest: 'digest' },
+      title: 'Manual',
+      blocks: [
+        { type: 'paragraph', text: 'Read first' },
+        {
+          type: 'image',
+          alt: 'Figure',
+          contentHash: hash,
+          src: `/api/class-join/course-runs/${runId}/lessons/${lessonId}/materials/manual/image/${hash}`,
+        },
+        {
+          type: 'file',
+          name: 'lesson.pdf',
+          contentHash: hash,
+          src: `/api/class-join/course-runs/${runId}/lessons/${lessonId}/materials/manual/file/${hash}`,
+        },
+      ],
+    });
+    expect(query).toHaveBeenLastCalledWith(
+      expect.stringContaining('learning_course_manual_material_for_viewer'),
+      [runId, lessonId, 'manual', null, 'seat-id'],
+    );
+  });
+
+  it('requires account identity and a server proof before returning immutable media bytes', async () => {
+    const bytes = Buffer.from('%PDF-1.4 exact');
+    const query = vi.fn(async () => ({
+      rows: [{ media_bytes: bytes, content_type: 'application/pdf', content_hash: hash }],
+    }));
+    const activeContext = {
+      resolve: vi.fn(async () => ({ accountId: 'account-id' })),
+    } as unknown as ActiveContextUseCase;
+    const controller = new ClassroomJoinController({ query } as unknown as pg.Pool, activeContext);
+    const accountRequest = request('203.0.113.20');
+    accountRequest.cookies['asa_session'] = 'account-session';
+    const send = vi.fn();
+    const response = { header: vi.fn().mockReturnThis(), type: vi.fn().mockReturnThis(), send };
+    await controller.courseManualMedia(
+      accountRequest,
+      response as unknown as FastifyReply,
+      runId,
+      lessonId,
+      'manual',
+      'file',
+      hash,
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('learning_course_manual_media_for_viewer'),
+      [runId, lessonId, 'manual', 'account-id', null, 'task-file', hash],
+    );
+    expect(send).toHaveBeenCalledWith(bytes);
+    expect(response.header).toHaveBeenCalledWith('cache-control', 'private, no-store');
+    expect(response.header).toHaveBeenCalledWith('x-content-type-options', 'nosniff');
+  });
+});
+
 describe('immutable classroom submissions', () => {
   it('submits a quiz for the session seat and returns released correctness', async () => {
     const assignmentId = '123e4567-e89b-42d3-a456-426614174020';

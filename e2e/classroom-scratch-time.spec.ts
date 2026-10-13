@@ -1,4 +1,45 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
+
+// The shipping CLIENT queue delivers its document visit before module sessions.
+// Give each endpoint its own receipt so the fixture exercises that queue unchanged.
+async function acknowledgeVisitsAndQuality(page: Page): Promise<void> {
+  await page.route(
+    /\/api\/(?:analytics\/v2\/(?:events|quality)|diagnostics\/quality)$/,
+    async (route) => {
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      const path = new URL(route.request().url()).pathname;
+      const diagnostics = path === '/api/diagnostics/quality';
+      const quality = path.endsWith('/quality');
+      const timestamp = new Date().toISOString();
+      await route.fulfill({
+        status: diagnostics ? 202 : 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          accepted: true,
+          state: diagnostics ? 'intake_acknowledged' : 'persisted',
+          schemaVersion: 2,
+          eventId: body['eventId'],
+          ...(diagnostics
+            ? {}
+            : {
+                receiptId: body['eventId'],
+                operation: quality ? 'quality' : body['eventType'],
+                receivedAt: timestamp,
+                persistedAt: timestamp,
+              }),
+          ...(quality
+            ? {
+                streamId: body['streamId'],
+                sequence: body['sequence'],
+                pipeline: body['pipeline'],
+                acknowledgementStage: body['acknowledgementStage'],
+              }
+            : { recordId: body['eventId'] }),
+        }),
+      });
+    },
+  );
+}
 
 // Production pinned Scratch GUI/VM + shipping BlocksEditor, with the existing
 // persistence fixture and mocked telemetry responses. PostgreSQL/rating proof
@@ -9,11 +50,11 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
   const { parentOrigin, projectId } = await import('../tools/blocks/browser/protocol.mjs');
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
+  await acknowledgeVisitsAndQuality(page);
   const telemetry: { path: string; body: Record<string, unknown> }[] = [];
   await page.route('**/api/analytics/v2/module-session', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     const path = new URL(route.request().url()).pathname;
-    telemetry.push({ path, body });
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -35,6 +76,7 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
         },
       }),
     });
+    telemetry.push({ path, body });
   });
   try {
     await installMinuteAutosaveClock(page);
@@ -84,7 +126,9 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
       targets: Array<{ name: string }>;
     };
     expect(saved.targets.some((t) => t.name === 'Abby')).toBe(true);
-    expect(touches().some((e) => e.body['operation'] === 'close')).toBe(true);
+    await expect
+      .poll(() => touches().filter((e) => e.body['operation'] === 'close').length)
+      .toBe(1);
     const closedCount = telemetry.length;
     await page.clock.runFor(120_000);
     expect(telemetry).toHaveLength(closedCount);
@@ -109,6 +153,7 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
   const { parentOrigin } = await import('../tools/blocks/browser/protocol.mjs');
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
+  await acknowledgeVisitsAndQuality(page);
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
   await page.route('**/api/analytics/v2/module-session', (route) =>
