@@ -265,7 +265,7 @@ export function compileCircuit(document: ElectronicsDocument): CompiledCircuit {
 }
 
 function allNumbers(result: SolveResult): readonly number[] {
-  return [
+  const numbers = [
     result.current,
     result.iterations,
     result.numericalResidual,
@@ -328,56 +328,67 @@ function allNumbers(result: SolveResult): readonly number[] {
         ]
       : []),
     ...result.nodes.flatMap((node) => [node.voltage]),
-    ...result.components.flatMap((component) => [
-      component.voltageDrop,
-      component.current,
-      component.power ?? 0,
-      component.internalResistanceOhm ?? 0,
-      component.internalPower ?? 0,
-      component.voltageSag ?? 0,
-      component.voltageSetpointVolt ?? 0,
-      component.currentLimitAmp ?? 0,
-      component.brightness ?? 0,
-      component.baseCurrent ?? 0,
-      component.collectorCurrent ?? 0,
-      component.emitterCurrent ?? 0,
-      component.currentGain ?? 0,
-      component.frequencyHz ?? 0,
-      component.soundLevel ?? 0,
-      component.motorRpm ?? 0,
-      component.outputRpm ?? 0,
-      component.motorAngularPhaseRadian ?? 0,
-      component.electromagneticTorqueNewtonMeter ?? 0,
-      component.outputTorqueNewtonMeter ?? 0,
-      component.outputLoadTorqueNewtonMeter ?? 0,
-      component.transmissionEfficiency ?? 0,
-      component.copperLossWatt ?? 0,
-      component.motorMechanicalPowerWatt ?? 0,
-      component.outputMechanicalPowerWatt ?? 0,
-      component.capacitanceFarad ?? 0,
-      component.chargeCoulomb ?? 0,
-      component.storedEnergyJoule ?? 0,
-      component.voltageRatingVolt ?? 0,
-      component.temperatureCelsius ?? 0,
-      component.sensorTemperatureCelsius ?? 0,
-      component.sensorMoisturePercent ?? 0,
-      component.sensorResistanceOhm ?? 0,
-      component.sensorOutputVoltageVolt ?? 0,
-      component.sensorSupplyVoltageVolt ?? 0,
-      component.sensorOutputCurrentAmp ?? 0,
-      component.thermalLoadPercent ?? 0,
-      component.accumulatedDamagePercent ?? 0,
-      component.voltageConstraintResidual ?? 0,
-      ...Object.values(component.terminalVoltages).filter(
-        (value): value is number => value !== undefined,
-      ),
-      ...Object.values(component.branchCurrents ?? {}),
-      ...Object.values(component.terminalCurrents ?? {}).filter(
-        (value): value is number => value !== undefined,
-      ),
-      ...Object.values(component.branchBrightness ?? {}),
-    ]),
   ];
+  const empty: readonly number[] = [];
+  void [
+    ...result.components.flatMap((component) => {
+      numbers.push(
+        component.voltageDrop,
+        component.current,
+        component.power ?? 0,
+        component.internalResistanceOhm ?? 0,
+        component.internalPower ?? 0,
+        component.voltageSag ?? 0,
+        component.voltageSetpointVolt ?? 0,
+        component.currentLimitAmp ?? 0,
+        component.brightness ?? 0,
+        component.baseCurrent ?? 0,
+        component.collectorCurrent ?? 0,
+        component.emitterCurrent ?? 0,
+        component.currentGain ?? 0,
+        component.frequencyHz ?? 0,
+        component.soundLevel ?? 0,
+        component.motorRpm ?? 0,
+        component.outputRpm ?? 0,
+        component.motorAngularPhaseRadian ?? 0,
+        component.electromagneticTorqueNewtonMeter ?? 0,
+        component.outputTorqueNewtonMeter ?? 0,
+        component.outputLoadTorqueNewtonMeter ?? 0,
+        component.transmissionEfficiency ?? 0,
+        component.copperLossWatt ?? 0,
+        component.motorMechanicalPowerWatt ?? 0,
+        component.outputMechanicalPowerWatt ?? 0,
+        component.capacitanceFarad ?? 0,
+        component.chargeCoulomb ?? 0,
+        component.storedEnergyJoule ?? 0,
+        component.voltageRatingVolt ?? 0,
+        component.temperatureCelsius ?? 0,
+        component.sensorTemperatureCelsius ?? 0,
+        component.sensorMoisturePercent ?? 0,
+        component.sensorResistanceOhm ?? 0,
+        component.sensorOutputVoltageVolt ?? 0,
+        component.sensorSupplyVoltageVolt ?? 0,
+        component.sensorOutputCurrentAmp ?? 0,
+        component.thermalLoadPercent ?? 0,
+        component.accumulatedDamagePercent ?? 0,
+        component.voltageConstraintResidual ?? 0,
+      );
+      for (const value of Object.values(component.terminalVoltages).filter(
+        (value): value is number => value !== undefined,
+      )) {
+        numbers.push(value);
+      }
+      for (const value of Object.values(component.branchCurrents ?? {})) numbers.push(value);
+      for (const value of Object.values(component.terminalCurrents ?? {}).filter(
+        (value): value is number => value !== undefined,
+      )) {
+        numbers.push(value);
+      }
+      for (const value of Object.values(component.branchBrightness ?? {})) numbers.push(value);
+      return empty;
+    }),
+  ];
+  return numbers;
 }
 
 export function verifyCircuitQuality(
