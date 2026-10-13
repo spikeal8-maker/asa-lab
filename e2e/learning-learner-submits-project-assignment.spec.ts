@@ -526,7 +526,7 @@ test('approved Account starts a Direct assignment by its exact Run without legac
   await expect(learner.getByText(/Заявка в класс.*отправлена/)).toBeVisible();
   await page
     .getByRole('navigation', { name: 'Разделы класса' })
-    .getByRole('button', { name: 'Ученики', exact: true })
+    .getByRole('button', { name: 'Заявки', exact: true })
     .click();
   await page.getByRole('button', { name: 'Обновить заявки', exact: true }).click();
   await page.getByRole('button', { name: 'Принять заявку', exact: true }).click();
