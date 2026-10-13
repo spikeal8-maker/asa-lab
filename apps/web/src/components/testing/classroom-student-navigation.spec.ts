@@ -23,11 +23,18 @@ describe('teacher review navigation', () => {
     const ordered = sortClassroomRoster(seats, 'name', 'asc');
     expect(ordered.map((s) => s.displayLabel)).toEqual(['Анна', 'Борис', 'Яна']);
     const first = classroomStudentNavigation(ordered, ordered[0]!.id)!;
-    expect([first.previous.displayLabel, first.next.displayLabel, first.position, first.total])
-      .toEqual(['Яна', 'Борис', 1, 3]);
+    expect([
+      first.previous.displayLabel,
+      first.next.displayLabel,
+      first.position,
+      first.total,
+    ]).toEqual(['Яна', 'Борис', 1, 3]);
     const last = classroomStudentNavigation(ordered, ordered[2]!.id)!;
-    expect([last.previous.displayLabel, last.next.displayLabel, last.position])
-      .toEqual(['Борис', 'Анна', 3]);
+    expect([last.previous.displayLabel, last.next.displayLabel, last.position]).toEqual([
+      'Борис',
+      'Анна',
+      3,
+    ]);
   });
 
   it('follows an alternative teacher sort and ignores search filtering', () => {

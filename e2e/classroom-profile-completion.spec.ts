@@ -161,6 +161,27 @@ async function assertLayout(page: Page, width: number, file: string) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
+  const studentPager = page.getByRole('navigation', { name: 'Переход по ученикам' });
+  await expect(studentPager).toBeVisible();
+  const back = studentPager.getByRole('button', { name: /^Предыдущий ученик:/ });
+  const forward = studentPager.getByRole('button', { name: /^Следующий ученик:/ });
+  const previousRect = (await back.boundingBox())!;
+  const nextRect = (await forward.boundingBox())!;
+  for (const rect of [previousRect, nextRect]) {
+    expect(rect).not.toBeNull();
+    expect(rect.width).toBeGreaterThanOrEqual(44);
+    expect(rect.height).toBeGreaterThanOrEqual(44);
+    expect(rect.x).toBeGreaterThanOrEqual(0);
+    expect(rect.x + rect.width).toBeLessThanOrEqual(width + 1);
+  }
+  expect(previousRect.x + previousRect.width).toBeLessThan(nextRect.x);
+  await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();
+  // The long learner name and both navigation targets occupy different bands.
+  if (width <= 600) {
+    const heading = (await page.locator('.classroom-student-identity h1').boundingBox())!;
+    expect(heading.y + heading.height).toBeLessThanOrEqual(previousRect.y + 1);
+  }
+
   const controls = page.locator(
     '.participant-tabs button, .participant-assignments button, .participant-assignments a, .participant-role select, .participant-grades button',
   );
@@ -283,8 +304,11 @@ test('assigned without a project stays one row through start, submission and rev
   await page.getByRole('button', { name: 'Задания', exact: true }).click();
   await neighbors.getByRole('button', { name: 'Следующий ученик: ' + a.name }).click();
   await expect(page.getByRole('heading', { name: a.name, exact: true })).toBeVisible();
-  await expect(page.getByRole('navigation', { name: 'Разделы профиля' })
-    .getByRole('button', { name: 'Задания', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(
+    page
+      .getByRole('navigation', { name: 'Разделы профиля' })
+      .getByRole('button', { name: 'Задания', exact: true }),
+  ).toHaveAttribute('aria-pressed', 'true');
   // Work/grade tab selection survives switching pupils; return to works explicitly.
   await page.getByRole('button', { name: 'Все работы', exact: true }).click();
   await expect(page.getByRole('region', { name: 'Последние оценки' })).toBeVisible();

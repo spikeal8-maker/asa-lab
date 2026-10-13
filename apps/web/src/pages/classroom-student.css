@@ -400,9 +400,17 @@
   color: #566a76;
 }
 @media (max-width: 640px) {
-  .classroom-student-navigation { gap: 4px; max-width: 100%; }
-  .classroom-student-navigation-button { min-height: 44px; padding: 5px 7px; }
-  .classroom-student-navigation-label { font-size: 12px; }
+  .classroom-student-navigation {
+    gap: 4px;
+    max-width: 100%;
+  }
+  .classroom-student-navigation-button {
+    min-height: 44px;
+    padding: 5px 7px;
+  }
+  .classroom-student-navigation-label {
+    font-size: 12px;
+  }
 }
 
 /* A review screen is not a second classroom dashboard. Keep identity, class
@@ -456,7 +464,7 @@
   font-size: clamp(21px, 2.3vw, 27px);
   font-weight: 750;
   line-height: 1.15;
-  letter-spacing: -.025em;
+  letter-spacing: -0.025em;
   overflow-wrap: break-word;
 }
 .classroom-student .classroom-student-suspended {
@@ -479,7 +487,9 @@
   font-size: 11px;
   color: #586f7b;
 }
-.classroom-student .student-pager-mobile { display: none; }
+.classroom-student .student-pager-mobile {
+  display: none;
+}
 .classroom-student .classroom-student-meta-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -591,10 +601,14 @@
 .classroom-student > .participant-grade-summary .participant-grade-value {
   font-size: 13px;
 }
-.classroom-student > .participant-grade-summary :is(.participant-grade-author,.participant-grade-feedback) {
+.classroom-student
+  > .participant-grade-summary
+  :is(.participant-grade-author, .participant-grade-feedback) {
   display: none;
 }
-.classroom-student > .participant-grade-summary > p { margin: 0; }
+.classroom-student > .participant-grade-summary > p {
+  margin: 0;
+}
 .classroom-student .participant-helper-classes {
   padding: 6px 10px;
   margin: 5px 0;
@@ -636,8 +650,12 @@
   font-size: 15px;
 }
 .classroom-student .classroom-student-works-head label,
-.classroom-student .classroom-student-filter { font-size: 12px; }
-.classroom-student .classroom-student-filter { padding: 5px 8px; }
+.classroom-student .classroom-student-filter {
+  font-size: 12px;
+}
+.classroom-student .classroom-student-filter {
+  padding: 5px 8px;
+}
 .classroom-student .participant-visibility-note {
   font-size: 12px;
   margin: 3px 0 5px;
@@ -651,60 +669,143 @@
     grid-template-columns: minmax(0, 1fr);
     gap: 6px;
   }
-  .classroom-student .classroom-student-meta-actions { justify-content: space-between; }
+  .classroom-student .classroom-student-meta-actions {
+    justify-content: space-between;
+  }
 }
 @media (max-width: 600px) {
-  .classroom-student { font-size: 13px; }
-  .classroom-student > .classroom-student-back { min-height: 36px; margin-bottom: 4px; }
+  .classroom-student {
+    font-size: 13px;
+  }
+  .classroom-student > .classroom-student-back {
+    min-height: 36px;
+    margin-bottom: 4px;
+  }
   .classroom-student .classroom-student-hero {
     padding: 5px 0 7px;
     gap: 7px;
     margin-bottom: 5px;
   }
-  .classroom-student .classroom-student-person { gap: 7px; }
-  .classroom-student .classroom-student-avatar { width: 38px; height: 38px; }
-  .classroom-student .classroom-student-identity { flex-basis: auto; }
+  .classroom-student .classroom-student-person {
+    gap: 7px;
+  }
+  .classroom-student .classroom-student-avatar {
+    width: 38px;
+    height: 38px;
+  }
+  .classroom-student .classroom-student-identity {
+    flex-basis: auto;
+  }
   .classroom-student .classroom-student-identity h1 {
     font-size: clamp(18px, 5vw, 22px);
     line-height: 1.13;
   }
-  .classroom-student .classroom-student-navigation-button { min-height: 44px; padding: 4px 6px; }
-  .classroom-student .student-pager-desktop { display: none; }
-  .classroom-student .student-pager-mobile { display: inline; }
-  .classroom-student .classroom-student-navigation-button small { font-size: 10px; }
-  .classroom-student .classroom-student-navigation-label { font-size: 12px; }
-  .classroom-student .classroom-student-stat { min-width: 0; padding: 4px 8px; }
-  .classroom-student .classroom-student-stat strong { font-size: 16px; }
-  .classroom-student .participant-main-stats { gap: 4px; }
-  .classroom-student .participant-rating summary { min-height: 34px; }
-  .classroom-student .participant-role > span { font-size: 11px; }
-  .classroom-student .participant-role select { min-height: 36px; font-size: 12px; }
-  .classroom-student > .participant-grade-summary {
-    margin: 4px 0 6px; padding: 6px 8px; gap: 4px 7px;
+  .classroom-student .classroom-student-navigation-button {
+    min-height: 44px;
+    padding: 4px 6px;
   }
-  .classroom-student .participant-tabs { padding-bottom: 5px; }
-  .classroom-student .participant-tabs button { min-height: 40px; padding-inline: 9px; font-size: 13px; }
-  .classroom-student .classroom-student-works-head h2 { display: none; }
+  .classroom-student .student-pager-desktop {
+    display: none;
+  }
+  .classroom-student .student-pager-mobile {
+    display: inline;
+  }
+  .classroom-student .classroom-student-navigation-button small {
+    font-size: 10px;
+  }
+  .classroom-student .classroom-student-navigation-label {
+    font-size: 12px;
+  }
+  .classroom-student .classroom-student-stat {
+    min-width: 0;
+    padding: 4px 8px;
+  }
+  .classroom-student .classroom-student-stat strong {
+    font-size: 16px;
+  }
+  .classroom-student .participant-main-stats {
+    gap: 4px;
+  }
+  .classroom-student .participant-rating summary {
+    min-height: 34px;
+  }
+  .classroom-student .participant-role > span {
+    font-size: 11px;
+  }
+  .classroom-student .participant-role select {
+    min-height: 36px;
+    font-size: 12px;
+  }
+  .classroom-student > .participant-grade-summary {
+    margin: 4px 0 6px;
+    padding: 6px 8px;
+    gap: 4px 7px;
+  }
+  .classroom-student .participant-tabs {
+    padding-bottom: 5px;
+  }
+  .classroom-student .participant-tabs button {
+    min-height: 40px;
+    padding-inline: 9px;
+    font-size: 13px;
+  }
+  .classroom-student .classroom-student-works-head h2 {
+    display: none;
+  }
   .classroom-student .project-card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
   }
-  .classroom-student .project-card-frame { aspect-ratio: 5 / 4; }
-  .classroom-student .project-card-body { padding: 6px 7px 7px; }
-  .classroom-student .project-card-title { font-size: 13px; line-height: 1.25; }
+  .classroom-student .project-card-frame {
+    aspect-ratio: 5 / 4;
+  }
+  .classroom-student .project-card-body {
+    padding: 6px 7px 7px;
+  }
+  .classroom-student .project-card-title {
+    font-size: 13px;
+    line-height: 1.25;
+  }
   .classroom-student .project-card-time,
-  .classroom-student .project-card-footer { font-size: 11px; }
-  .classroom-student .project-card-primary { min-height: 40px; font-size: 12px; }
+  .classroom-student .project-card-footer {
+    font-size: 11px;
+  }
+  .classroom-student .project-card-primary {
+    min-height: 40px;
+    font-size: 12px;
+  }
 }
 @media (max-width: 350px) {
-  .classroom-student .classroom-student-heading-row { gap: 6px; }
-  .classroom-student .classroom-student-navigation { gap: 3px; }
-  .classroom-student .classroom-student-navigation-label { font-size: 11px; }
-  .classroom-student .classroom-student-navigation-button { padding-inline: 4px; }
-  .classroom-student .participant-main-stats { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); }
-  .classroom-student .participant-rating { grid-column: 1 / -1; }
-  .classroom-student .project-card-grid { grid-template-columns: minmax(0,1fr); }
-  .classroom-student .project-card-grid .project-card { display: grid; grid-template-columns: 112px minmax(0, 1fr); }
-  .classroom-student .project-card-grid .project-card-frame { aspect-ratio: 1 / 1; }
-  .classroom-student .project-card-grid .project-card-body { min-width: 0; }
+  .classroom-student .classroom-student-heading-row {
+    gap: 6px;
+  }
+  .classroom-student .classroom-student-navigation {
+    gap: 3px;
+  }
+  .classroom-student .classroom-student-navigation-label {
+    font-size: 11px;
+  }
+  .classroom-student .classroom-student-navigation-button {
+    padding-inline: 4px;
+  }
+  .classroom-student .participant-main-stats {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .classroom-student .participant-rating {
+    grid-column: 1 / -1;
+  }
+  .classroom-student .project-card-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .classroom-student .project-card-grid .project-card {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+  }
+  .classroom-student .project-card-grid .project-card-frame {
+    aspect-ratio: 1 / 1;
+  }
+  .classroom-student .project-card-grid .project-card-body {
+    min-width: 0;
+  }
 }
