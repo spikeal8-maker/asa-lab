@@ -5,6 +5,75 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('client diagnostics isolation', () => {
+  it('OBS007 resumes anonymous quality and retries original diagnostics only once per cached return', async () => {
+    vi.resetModules();
+    vi.useFakeTimers();
+    vi.setSystemTime(1_000_000);
+    const data = new Map<string, string>();
+    const listeners = new Map<string, (event: { persisted?: boolean }) => void>();
+    const transport = vi.fn<typeof fetch>(async (_path, init) => {
+      const body = JSON.parse(init!.body as string);
+      return new Response(
+        JSON.stringify(
+          body.pipeline
+            ? {
+                accepted: true,
+                state: 'intake_acknowledged',
+                schemaVersion: 2,
+                eventId: body.eventId,
+                streamId: body.streamId,
+                sequence: body.sequence,
+                pipeline: body.pipeline,
+                acknowledgementStage: body.acknowledgementStage,
+              }
+            : { accepted: true },
+        ),
+        { status: 202 },
+      );
+    });
+    transport.mockResolvedValueOnce(new Response('{}', { status: 503 }));
+    const browser = {
+      fetch: transport,
+      sessionStorage: {
+        getItem: (key: string) => data.get(key) ?? null,
+        setItem: (key: string, value: string) => data.set(key, value),
+      },
+      location: { href: 'https://asa.invalid/', origin: 'https://asa.invalid' },
+      addEventListener: vi.fn((type: string, listener: (event: { persisted?: boolean }) => void) =>
+        listeners.set(type, listener),
+      ),
+    };
+    vi.stubGlobal('window', browser);
+    vi.stubGlobal('fetch', transport);
+    const { installClientDiagnostics, reportClientDiagnostic } =
+      await import('./client-diagnostics');
+    const { diagnosticQuality } = await import('./telemetry-quality');
+    installClientDiagnostics();
+    reportClientDiagnostic('autosave_failed', 'electronics');
+    await Promise.resolve();
+    await Promise.resolve();
+    const diagnostic = transport.mock.calls[0]![1]!.body;
+    listeners.get('pagehide')!({ persisted: true });
+    await diagnosticQuality().flush();
+    const streamId = diagnosticQuality().read().streamId;
+    expect(diagnosticQuality().read().coverage.final).toBe(true);
+    listeners.get('pageshow')?.({ persisted: false });
+    expect(diagnosticQuality().read().coverage.final).toBe(true);
+    listeners.get('pageshow')?.({ persisted: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(diagnosticQuality().read()).toMatchObject({ streamId, coverage: { final: false } });
+    const diagnosticCalls = transport.mock.calls.filter(
+      ([path]) => path === '/api/diagnostics/client',
+    );
+    expect(diagnosticCalls).toHaveLength(2);
+    expect(diagnosticCalls[1]![1]!.body).toBe(diagnostic);
+    const calls = transport.mock.calls.length;
+    listeners.get('pageshow')?.({ persisted: true });
+    listeners.get('pageshow')?.({ persisted: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).toHaveBeenCalledTimes(calls);
+  });
+
   it.each([
     '/api/analytics/v2/events',
     '/api/analytics/v2/module-session',

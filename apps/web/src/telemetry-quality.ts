@@ -250,6 +250,15 @@ export class TelemetryQuality {
     if (this.timer) clearTimeout(this.timer);
     this.timer = undefined;
   }
+  /** A cached document continues its stream; an immutable pending sequence still retries unchanged. */
+  resumeAfterPageShow(): void {
+    if (this.stopped || this.retired) return;
+    this.snapshot.coverage.final = false;
+    this.dirty = true;
+    this.persist();
+    // A browser return cannot restore authentication readiness.
+    if (!this.paused) void this.flush();
+  }
   private schedule(delay: number): void {
     if (this.stopped || this.paused) return;
     this.timer = setTimeout(() => {

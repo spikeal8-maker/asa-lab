@@ -104,6 +104,121 @@ const qualityCalls = () =>
 const qualityBodies = () => qualityCalls().map(([, init]) => JSON.parse(init!.body as string));
 const savedQuality = () => JSON.parse(sessionStorage.getItem('asa:quality:v2:product')!);
 const savedQueue = () => JSON.parse(sessionStorage.getItem('asa:analytics:v2')!);
+
+describe('OBS007 mounted runtime BFCache restoration', () => {
+  const hide = () => window.dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }));
+  const show = (persisted = true) =>
+    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted }));
+
+  it('retries the original pending start and close on return without reopening old activity', async () => {
+    let failed = false;
+    transport.mockImplementation(async (path, init) => {
+      const body = JSON.parse(init!.body as string);
+      if (path === '/api/analytics/v2/module-session' && body.operation === 'start' && !failed) {
+        failed = true;
+        return new Response('{}', { status: 503 });
+      }
+      return response(body);
+    });
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    await mountTrackers();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = transport.mock.calls.find(
+      ([path]) => path === '/api/analytics/v2/module-session',
+    )![1]!.body;
+    hide();
+    await vi.advanceTimersByTimeAsync(0);
+    const queuedClose = savedQueue().sessions[0].close;
+    const calls = transport.mock.calls.length;
+    show(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).toHaveBeenCalledTimes(calls);
+    show();
+    await vi.advanceTimersByTimeAsync(0);
+    const sessions = transport.mock.calls.filter(
+      ([path]) => path === '/api/analytics/v2/module-session',
+    );
+    expect(sessions.map(([, init]) => JSON.parse(init!.body as string).operation)).toEqual([
+      'start',
+      'start',
+      'close',
+    ]);
+    expect(sessions[1]![1]!.body).toBe(original);
+    expect(JSON.parse(sessions[2]![1]!.body as string)).toEqual(queuedClose);
+    expect(savedQueue().sessions).toEqual([]);
+    expect(
+      transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events'),
+    ).toHaveLength(1);
+  });
+
+  it('restores the same mounted editor and quality stream without a synthetic visit or activity', async () => {
+    context.setTelemetryContext(actor, true, 'editor.electronics');
+    const [tracker] = await mountTrackers();
+    await vi.advanceTimersByTimeAsync(0);
+    const original = operations()[0];
+    hide();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(savedQuality().snapshot.coverage.final).toBe(true);
+    const streamId = savedQuality().snapshot.streamId;
+    await vi.advanceTimersByTimeAsync(120_000);
+    show();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(savedQuality().snapshot).toMatchObject({ streamId, coverage: { final: false } });
+    expect(operations().map((body) => body.operation)).toEqual(['start', 'close']);
+    expect(operations()[1]).toMatchObject({
+      sessionId: original.sessionId,
+      visitId: original.visitId,
+    });
+    expect(
+      transport.mock.calls.filter(([path]) => path === '/api/analytics/v2/events'),
+    ).toHaveLength(1);
+    const calls = transport.mock.calls.length;
+    show();
+    show(false);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(transport).toHaveBeenCalledTimes(calls);
+    tracker!.input();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(operations().map((body) => body.operation)).toEqual(['start', 'close', 'start']);
+    expect(operations()[2]).toMatchObject({ visitId: original.visitId, actorExpectation: actor });
+    expect(operations()[2].sessionId).not.toBe(original.sessionId);
+    expect(transport.mock.calls.some(([path]) => path === '/api/auth/me')).toBe(false);
+  });
+
+  it('records the return while context is paused without unpausing or making requests', async () => {
+    context.setTelemetryContext(actor, true, 'home');
+    await vi.advanceTimersByTimeAsync(0);
+    hide();
+    await vi.advanceTimersByTimeAsync(0);
+    context.setTelemetryContext(actor, false, 'home');
+    const calls = transport.mock.calls.length;
+    show();
+    expect(savedQuality().snapshot.coverage.final).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(transport).toHaveBeenCalledTimes(calls);
+    context.setTelemetryContext(actor, true, 'home');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(savedQuality().snapshot.coverage.final).toBe(false);
+    expect(transport.mock.calls.length).toBeGreaterThan(calls);
+  });
+
+  it('does not resume or retry a successor actor created while suspended', async () => {
+    context.setTelemetryContext(actor, true, 'home');
+    await vi.advanceTimersByTimeAsync(1000);
+    hide();
+    await vi.advanceTimersByTimeAsync(0);
+    context.setTelemetryContext({ ...actor, workspaceId: projectId }, true, 'home');
+    await vi.advanceTimersByTimeAsync(1000);
+    const saved = sessionStorage.getItem('asa:quality:v2:product');
+    const calls = transport.mock.calls.length;
+    show();
+    show();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(sessionStorage.getItem('asa:quality:v2:product')).toBe(saved);
+    expect(transport).toHaveBeenCalledTimes(calls);
+  });
+});
+
 async function mountTrackers(apis?: ActivityTransport[], input = true) {
   const { trackInputActivity } = await import('./activity-lifecycle');
   const { analyticsSessionTransport } = await import('./analytics-runtime');

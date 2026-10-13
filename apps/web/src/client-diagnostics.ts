@@ -149,6 +149,7 @@ export function reportClientDiagnostic(
 export function installClientDiagnostics(): void {
   if (installed) return;
   installed = true;
+  let suspended = false;
   diagnosticQuality().start();
   diagnosticOutbox().retryNow();
   window.addEventListener('online', () => {
@@ -156,7 +157,14 @@ export function installClientDiagnostics(): void {
     void diagnosticQuality().flush();
   });
   window.addEventListener('pagehide', () => {
+    suspended = true;
     void diagnosticQuality().flush(true);
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted || !suspended) return;
+    suspended = false;
+    diagnosticQuality().resumeAfterPageShow();
+    diagnosticOutbox().retryNow();
   });
   window.addEventListener('error', (event) => {
     let script: string | undefined;

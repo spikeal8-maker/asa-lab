@@ -185,13 +185,26 @@ subscribeProductConfirmation((context) => {
   recoverAuthentication(productObservation);
 });
 if (typeof window !== 'undefined') {
+  let suspended = false;
+  let suspendedDelivery: AnalyticsDelivery | undefined;
   window.addEventListener('online', () => {
     delivery?.retryNow();
   });
   window.addEventListener('pagehide', () => {
     const target = delivery;
+    suspended = true;
+    suspendedDelivery = target;
     finalizeInputActivitiesForPageHide();
     if (delivery === target) void target?.quality.flush(true);
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted || !suspended) return;
+    suspended = false;
+    const target = suspendedDelivery;
+    suspendedDelivery = undefined;
+    if (!target || delivery !== target) return;
+    target.quality.resumeAfterPageShow();
+    if (telemetryContext().ready) target.retryNow();
   });
 }
 export function analyticsSessionTransport(

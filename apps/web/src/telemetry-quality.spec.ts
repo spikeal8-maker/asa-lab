@@ -48,6 +48,99 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
 });
+
+describe('OBS007 quality after BFCache', () => {
+  it.each(['product', 'diagnostics'] as const)(
+    'clears mutable final while paused and preserves the exact pending %s body',
+    async (pipeline) => {
+      const identity = pipeline === 'product' ? actor : undefined;
+      const transport = vi.fn<typeof fetch>(async (_path, init) => {
+        const body = JSON.parse(init!.body as string) as QualitySnapshot;
+        return new Response(JSON.stringify(acknowledgement(body)), {
+          status: identity ? 200 : 202,
+        });
+      });
+      transport.mockResolvedValueOnce(new Response('{}', { status: 503 }));
+      // fixture's default actor is deliberately bypassed for the anonymous pipeline.
+      const ledger = new TelemetryQuality(identity, storage(), transport, Date.now, () =>
+        id(1000 + transport.mock.calls.length),
+      );
+      ledgers.push(ledger);
+      await ledger.flush(true);
+      const frozen = transport.mock.calls[0]![1]!.body;
+      ledger.pause();
+      ledger.resumeAfterPageShow();
+      expect(ledger.read().coverage.final).toBe(false);
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(transport).toHaveBeenCalledTimes(1);
+      ledger.start();
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(transport.mock.calls[1]![1]!.body).toBe(frozen);
+      await vi.advanceTimersByTimeAsync(1000);
+      const next = JSON.parse(transport.mock.calls[2]![1]!.body as string);
+      expect(next).toMatchObject({
+        streamId: JSON.parse(frozen as string).streamId,
+        sequence: 2,
+        coverage: { final: false },
+      });
+      expect(next.eventId).not.toBe(JSON.parse(frozen as string).eventId);
+    },
+  );
+
+  it.each(['product', 'diagnostics'] as const)(
+    'allows a late final %s ACK followed by an honest resumed sequence',
+    async (pipeline) => {
+      const identity = pipeline === 'product' ? actor : undefined;
+      let complete!: (response: Response) => void;
+      const transport = vi.fn<typeof fetch>(
+        async (_path, init) =>
+          new Response(JSON.stringify(acknowledgement(JSON.parse(init!.body as string))), {
+            status: identity ? 200 : 202,
+          }),
+      );
+      transport.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            complete = resolve;
+          }),
+      );
+      let serial = 2000;
+      const ledger = new TelemetryQuality(identity, storage(), transport, Date.now, () =>
+        id(serial++),
+      );
+      ledgers.push(ledger);
+      const final = ledger.flush(true);
+      const original = JSON.parse(transport.mock.calls[0]![1]!.body as string);
+      ledger.resumeAfterPageShow();
+      expect(ledger.read().coverage.final).toBe(false);
+      expect(transport).toHaveBeenCalledTimes(1);
+      complete(
+        new Response(JSON.stringify(acknowledgement(original)), { status: identity ? 200 : 202 }),
+      );
+      await final;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(JSON.parse(transport.mock.calls[1]![1]!.body as string)).toMatchObject({
+        streamId: original.streamId,
+        sequence: 2,
+        coverage: { final: false },
+      });
+    },
+  );
+
+  it.each(['rejected', 'retired'] as const)('never revives a %s stream', async (reason) => {
+    const f = fixture();
+    if (reason === 'rejected') {
+      f.fetch.mockResolvedValueOnce(new Response('{}', { status: 401 }));
+      await f.ledger.flush(true);
+    } else f.ledger.retire();
+    const original = f.ledger.read();
+    const calls = f.fetch.mock.calls.length;
+    f.ledger.resumeAfterPageShow();
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(f.ledger.read()).toEqual(original);
+    expect(f.fetch).toHaveBeenCalledTimes(calls);
+  });
+});
 afterEach(() => {
   ledgers.splice(0).forEach((ledger) => ledger.retire());
   vi.clearAllTimers();

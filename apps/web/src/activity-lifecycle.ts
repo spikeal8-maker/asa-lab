@@ -35,6 +35,7 @@ export interface ActivityTransport {
 export function trackInputActivity(projectId: string, api: ActivityTransport, idleMs = 30_000) {
   let disposed = false;
   let ready = false;
+  let suspended = false;
   let lastInput = -Infinity;
   let lastAttempt = -Infinity;
   let idleTimer: number | null = null;
@@ -64,7 +65,11 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
     // A pending start closes itself if it eventually succeeds after detachment.
   };
   const eligible = (): boolean =>
-    !disposed && ready && document.visibilityState === 'visible' && Date.now() - lastInput < idleMs;
+    !disposed &&
+    !suspended &&
+    ready &&
+    document.visibilityState === 'visible' &&
+    Date.now() - lastInput < idleMs;
 
   const start = (): void => {
     if (current || !eligible() || Date.now() - lastAttempt < 30_000) return;
@@ -120,12 +125,16 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
     if (document.visibilityState !== 'visible') close();
   };
   const pagehide = (): void => {
-    ready = false;
+    suspended = true;
     close();
+  };
+  const pageshow = (event: PageTransitionEvent): void => {
+    if (event.persisted && suspended) suspended = false;
   };
   pagehideCallbacks.add(pagehide);
   document.addEventListener('visibilitychange', visibility);
   window.addEventListener('pagehide', pagehide);
+  window.addEventListener('pageshow', pageshow);
 
   return {
     setReady(value: boolean): void {
@@ -134,7 +143,7 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
     },
     input(): void {
       renewBinding();
-      if (disposed || !ready || document.visibilityState !== 'visible') return;
+      if (disposed || suspended || !ready || document.visibilityState !== 'visible') return;
       lastInput = Date.now();
       if (idleTimer !== null) window.clearTimeout(idleTimer);
       idleTimer = window.setTimeout(close, idleMs);
@@ -147,6 +156,7 @@ export function trackInputActivity(projectId: string, api: ActivityTransport, id
       window.clearInterval(timer);
       document.removeEventListener('visibilitychange', visibility);
       window.removeEventListener('pagehide', pagehide);
+      window.removeEventListener('pageshow', pageshow);
       close();
     },
   };
