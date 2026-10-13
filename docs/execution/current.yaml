@@ -634,63 +634,34 @@ parallel_lanes:
     owned_paths:
     - apps/web/src/electronics/testing/workbench-field-drag.spec.ts
     task:
-      id: TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001
-      issue: 544
+      id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
+      issue: 566
       branch: main
       base_branch: main
       pr: null
-      pr_draft: false
       status: in_progress
-      checkpoint: owner_field_accessibility_saved_candidate_final_composition
+      checkpoint: owner_first_problem_two_tab_recovery_cleanup_before
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
-      owner_problem: E03 invisible field boundary prevents grabbing or moving existing components
-      selected_at: 2026-10-13T21:18:54.227Z
+      owner_problem: E01 pupil work must survive a late save acknowledgement in another tab
+      selected_at: '2026-10-13T22:07:25.238035+00:00'
       context_hints:
-        - docs/product/electronics/tasks/TASK-ELECTRONICS-FIELD-HIT-BOUNDARY-001.md
-        - docs/product/electronics/components/ui-assets-persistence.yaml
-        - docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
-      repair_scope: "One owner point only: preserve existing 544 Stage root alpha fallback and finite unrestricted
-        componentDragDelta; controlled final composition with current main. No new product mechanism, asset548
-        repair, Arduino, solver, CSS, dependencies, timeout or assertion weakening."
-      acceptance_boundary: slice; report this owner point and STOP; no automatic next task
-      preserved_candidate_sha: ebf3622f7572d59b418fc09f302dba460fcf1dd6
-      preserved_candidate_tree: dd842fe350d425f3418a4d519bb9fb333d5fc7d6
-      candidate_branch: codex/electronics-544-r3-expected-binding
-      previous_independent_review: request_changes
-      previous_independent_evidence: docs/product/electronics/evidence/field-boundary-544-independent-review-ebf3622f.md
-      previous_general_run: 38007112131
-      previous_general_conclusion: success
-      previous_electronics_run: 38008086985
-      previous_electronics_conclusion: failure
-      acceptance_dependency_issue: 548
-      dependency_status: open_no_proven_cause
-      acceptance_blocked_actions:
-        - integration
-        - technical_acceptance
-        - issue_closeout
-        - release_claim
-      dependency_reason: Unchanged required permanent-image catalog badge scenario failed at original5000ms;
-        separate 548 remains OPEN/NO_PROVEN_CAUSE. Existing field raw passes are historical evidence, not
-        acceptance of final composition.
-      preserved_field_evidence: 32 directed and32 ordinary complete native journeys; four widths/eight boundaries,
-        whole Save/CAS/cookies-only reopen/regrab. Do not repeat unchanged measurements without a specific new
-        risk.
-      accepted_prerequisites:
-        - 526 save recovery
-        - 542 hygiene
-        - 543 PSU setpoints
-        - 554 native wheel
-        - 556 hygiene checkpoint006
-      production_slices_since_hygiene556: 1
-      shared_write_contract: One bounded544 author; all actual dirty paths checked. Preserve accepted543/554 and all
-        foreign current.yaml sections and candidates. New text conflict stops composition.
-      next_action: Publish canonical selection, then inherit it in one controlled unpublished final544 composition;
-        exact focused gate/self-review and STOP. Controller separately resolves applicability of548 required
-        browser blocker and appoints NEW exact-SHA independent reviewer. No product publication/browser
-        dispatch/closeout in author stage.
+      - docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
+      - docs/product/electronics/components/ui-assets-persistence.yaml
+      repair_scope: ONLY preserve different unconfirmed local recovery document during Electronics cleanup; real same-pupil
+        two-tab BEFORE/AFTER; accepted526 unchanged; no next task.
+      paused_field_candidate_sha: a126dc75620eefb6c6f63b5fc2521b4338829688
+      paused_field_issue: 544
+      paused_field_status: owner_paused_not_integrated_not_accepted
+      paused_field_ci_runs:
+      - 38472389943
+      - 38472412673
+      paused_field_ci_cancellation: requested_by_controller; cancelled is not PASS
+      accepted_save_recovery_sha: 185d723b900b5e497bf1fc323ed64409c095d0f6
       school_actions: deferred_by_owner_no_installation_actions
+      next_action: Reproduce exact production-browser two-tab cleanup loss, minimal fix, focused and required gates, NEW
+        independent review; report and STOP
     suspended_slices:
     - task_id: TASK-ELECTRONICS-GOVERNANCE-007
       issue: 535
