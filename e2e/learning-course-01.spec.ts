@@ -2859,6 +2859,38 @@ test('Course Activity blocks preserve mixed order and open exact Electronics and
   await expect(page.getByText('Урок сохранён.', { exact: true })).toBeVisible();
   for (const width of [1440, 1024, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
+    const courseHeading = editor
+      .locator('.course-compact-title')
+      .getByRole('heading', { name: courseTitle, exact: true });
+    await expect(courseHeading).toBeVisible();
+    const titleGeometry = await courseHeading.evaluate((element) => {
+      const box = element.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(element);
+      return {
+        left: box.left,
+        right: box.right,
+        top: box.top,
+        bottom: box.bottom,
+        text: Array.from(range.getClientRects(), (rect) => ({
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          width: rect.width,
+        })),
+      };
+    });
+    expect(titleGeometry.left, `Course title left at ${width}px`).toBeGreaterThanOrEqual(0);
+    expect(titleGeometry.right, `Course title right at ${width}px`).toBeLessThanOrEqual(width);
+    expect(titleGeometry.text.length, `Rendered course title at ${width}px`).toBeGreaterThan(0);
+    for (const rect of titleGeometry.text) {
+      expect(rect.width, `Visible course title text at ${width}px`).toBeGreaterThan(0);
+      expect(rect.left).toBeGreaterThanOrEqual(titleGeometry.left - 1);
+      expect(rect.right).toBeLessThanOrEqual(titleGeometry.right + 1);
+      expect(rect.top).toBeGreaterThanOrEqual(titleGeometry.top - 1);
+      expect(rect.bottom).toBeLessThanOrEqual(titleGeometry.bottom + 1);
+    }
     for (const [index, title, expectedGoal] of [
       [0, electronicsTitle, electronicsGoal],
       [1, threeDTitle, threeDGoal],
