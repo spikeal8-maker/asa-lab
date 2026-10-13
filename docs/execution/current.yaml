@@ -2896,7 +2896,10 @@ parallel_lanes:
     parent_lane: electronics
     worktree_id: electronics-ready-cadence-539
     owned_paths:
-    - e2e/electronics-piezo-clock.spec.ts
+    - contexts/electronics/domain/solver.ts
+    - contexts/electronics/domain/simulation.ts
+    - contexts/electronics/testing/solver.spec.ts
+    - contexts/electronics/testing/simulation-contract.spec.ts
     - docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md
     task:
       id: TASK-ELECTRONICS-SOLVER-PREPARATION-001
@@ -2906,27 +2909,27 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: r5_nonblocking_full_evidence_collector_before_gpio_recheck
+      checkpoint: r6_actual_gpio_cpu_localization_then_one_causal_compute_repair
       owner_acceptance: pending
-      selected_at: '2026-10-13T18:24:08.632703+00:00'
-      repair_scope: 'ONLY e2e/electronics-piezo-clock.spec.ts: repair proven per-event full JSON write queue. Preserve every original record/schema/assertion, original30000/5000ms, complete atomic valid final evidence, primary failure identity. Runtime75, ready-cadence test, fixtures, sketches, physics, dependencies unchanged. No speculative GPIO optimization.'
+      selected_at: '2026-10-13T19:13:54.343466+00:00'
+      repair_scope: 'R6 first ONE actual exacteb fullGPIO CPU profile, normal100000us horizons0..2s, complete ready/state, CPU+wall without coverage. Send actual hotspot and ONE proposal to controller before product edits. Finite product paths ONLY solver.ts and simulation.ts plus solver.spec.ts/simulation-contract.spec.ts: document-derived immutable preparation or repeated allocation in observations/independent validation. Preserve every physical step/arithmetic/quality check/output/state. Outside envelope STOP proposal; no speculative changes.'
       preserved_candidate_sha: 03344e9c6b74a064ab90fd8294199b4dde783ff5
       preserved_candidate_tree: 727086ecacb0f2c039387bf5b46477553c6d5983
       candidate_publication: published
       candidate_acceptance: request_changes
-      controller_observed_at: '2026-10-13T18:24:08.632703+00:00'
+      controller_observed_at: '2026-10-13T19:13:54.343466+00:00'
       acceptance_dependency_issue: 545
-      final_candidate_sha: 75a0af0699d184c987602eda0f15126d26057d9d
-      final_candidate_tree: 654d71cc8269800110b950a427908e683945339a
+      final_candidate_sha: eb8d4d3d1e6383a9dd87a8619205ebeae41ca867
+      final_candidate_tree: d392b4d53144752ea514caf36a826628372c293b
       independent_review: request_changes
-      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md#r5-supporting-evidence-repair-after-independent-exact75-failure
-      independent_review_original_sha256: deefb6d03d82226d33b638134a64df8ddffad693975af4cfdb3eebcb2f867ca4
-      exact_general_run: 38437820901
-      exact_general_conclusion: success
-      exact_electronics_run: 38437829948
-      exact_electronics_conclusion: failure
-      browser_passed: 150
-      browser_failed: 2
+      independent_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SOLVER-PREPARATION-001.md#r6-actual-full-gpio-compute-localization-and-one-causal-repair
+      independent_review_original_sha256: b35d70b1b24e89087ec3638215e90a05dde881166d18554e5eadb1c267558589
+      exact_general_run: 38450075220
+      exact_general_conclusion: pending
+      exact_electronics_run: null
+      exact_electronics_conclusion: not_dispatched_after_directed_fail
+      browser_passed: 1
+      browser_failed: 1
       residual_cause: Cookies-only reopened poll deadline22819.185ms; genuine ready7/UI7 upper bounds21455.795/21479.895ms; fullsnapshot final evaluate22588.763..22848.810ms crosses olddeadline29.625ms. Initial GPIO full0..7/Serial Save-reopen PASS; GPIO final draft NOT_REACHED. Preserve source0fd and old raw; one changed-cause observer repair needed.
       residual_localization_head: 76252052130f9100f2654d2f656f342a36566c2b
       residual_proposal_original_sha256: ec4db8d67151a59317d5544ea05ed3511abcd0615e094258be22e958f7d3da7b
@@ -2936,12 +2939,12 @@ parallel_lanes:
       r1_directed_run: 38006467707
       r1_directed_conclusion: failure
       r1_failure_classification: 'D: full observation transport/poll deadline race; all8 genuine ready and UI already exist before old deadline; new compute defect NOT proved'
-      exact_candidate_general_run: 38437820901
-      exact_candidate_general_conclusion: success
-      exact_candidate_electronics_run: 38437829948
-      exact_candidate_electronics_conclusion: failure
-      actual_new_failure: GPIO initial0..4/0..7,13readyC=H0..1.2s/0yielded; wallcompute3888.5ms/max558.9. Original-active piezo successful cookies PNG then guard await persist blocks secondStop; raw13107200B incomplete. CPU hotspot, sticky shrink and product piezo fault NOT proved.
-      next_action: NEW bounded author from preserved75 inherits canonical R5. Coalesced complete snapshots; no action waits on ever-growing full-write queue. Required final flush after producers stop; meaningful deterministic collector tests, one unpublishedSHA thenSTOP. Root actual proof, NEW independent source review, directed original GPIO/original-active piezo. If GPIO still fails, separate proved narrow546 localization. No unrelated repair.
+      exact_candidate_general_run: 38450075220
+      exact_candidate_general_conclusion: pending
+      exact_candidate_electronics_run: null
+      exact_candidate_electronics_conclusion: not_dispatched_after_directed_fail
+      actual_new_failure: Directed6a GPIO initial0..5/0..7,15readyC=H0..1.4s/0yielded0fault, wallcompute4423.1ms/max551.2/UI8.3..21.7ms. Latefullsnapshot and stickyshrink explanations disproved; CPU-vs-host unmeasured. Piezo fullStop/PCM/SaveCAS2to3/cookies/finaldraft and valid11130877B118records passed; whole546 NOT accepted.
+      next_action: NEW bounded R6 author inherits preservedeb and canonical selection. ONE actualprofile then controller actualcheck/proposal confirmation before ONE causal product patch within finite envelope. Fresh full-return parity versus currenteb/state/negative challenges; focusedgate NX_SKIP_NX_CACHE=true, selfreview, one unpublishedSHA STOP. Root actualproof and NEW independent source review; directed GPIO/Serial/piezo then exact General4/Electronics4 and NEW product review. Only546/noPortal/school.
       r3_profile_source_sha: 037ebb37a0609d247f19a96811a8b52c1960a9a5
       r3_profile_proposal_original_sha256: 7280eda6cdcf9e769d10477379cfeacab955e72714efba2639fc1b9499fe66e6
       r3_profile_manifest_sha256: b6b4c6933d8176eb870d5518f963939f6dba36a88e2e4d3dc8e02283f9e2c9c2
@@ -2965,6 +2968,14 @@ parallel_lanes:
       approved_controller_spec_sha256: 111be7d95de17c54f91b84e6557619f7b4348c0e600c7a97111b054dba2656ba
       production_slices_since_hygiene556: 1
       r4_independent_manifest_sha256: fc0f61b532eb4d37b22c1f424fd6755e63d7d4bde912b68939c162edeb2e9bac
+      r5_independent_manifest_sha256: f043fedd9e5bdf3928aa3ccc5e18ae5f97eb14c308ccbda18940f7fc73198c0c
+      r5_supporting_source_sha: eb8d4d3d1e6383a9dd87a8619205ebeae41ca867
+      r5_supporting_result: independent_directed_piezo_pass_not_task_acceptance
+      r5_directed_probe_sha: 6a5b0f64c0cefc0b56bda8f304a88477e63f26ca
+      r5_directed_run: 38450087992
+      r5_directed_conclusion: failure_gpio_pass_piezo
+      general_data_failed_job: 115481162329
+      general_data_failure_classification: 'D: pinnedNodeECR429 before PostgreSQL/tests/RLS; no foreign repair or retry'
     execution_lease:
       executor_id: electronics-ready-cadence-539
       holder: unassigned
@@ -2986,13 +2997,13 @@ parallel_lanes:
         - pnpm gate:repository
     revisions:
       kind: observed_snapshot
-      observed_at: '2026-10-13T18:24:08.632703+00:00'
+      observed_at: '2026-10-13T19:13:54.343466+00:00'
       main:
         branch: main
-        sha: 1c7ec7ef92b82ca88a72c61f8c35920c921ab014
-      convergence_baseline_sha: 1c7ec7ef92b82ca88a72c61f8c35920c921ab014
+        sha: 18ea208619d3181f8db2680b50b76f9e595c65e7
+      convergence_baseline_sha: 18ea208619d3181f8db2680b50b76f9e595c65e7
       head_sha: null
-      observation_note: Dated snapshot; fresh fetch main and exact-SHA CI before writes. Main1c7 General38441510694 SUCCESS. Exact75 General38437820901 all4SUCCESS; Electronics38437829948 attempt2 focused/benchmarkSUCCESS browser150PASS/2FAIL/imagesSKIPPED. NEW independent REQUEST_CHANGES, no acceptance. R5 only proven test-evidence queue, runtime preserved. Owner prioritizes only546 Electronics; all unrelated work preserved/deferred. No school operations.
+      observation_note: 'Dated snapshot; fresh fetch main and exact-SHA CI before writes. Maine9 General38448215509 SUCCESS. Preservedeb General38450075220 pendingAccess/DataECR429beforetestsD/GovCodeSUCCESS. NEW independent REQUEST_CHANGES directed6a38450087992 GPIOFAIL/piezoPASS; ordinaryNOT_RUN. R6 only actualGPIOCPU/localized compute within solver/simulation and mapped specs after controller proposal check. R5 supporting result retained; all other work deferred/preserved; no school operations. Controlled metadata convergence with main644: only foreign Observability report/lane; General38452585068 in_progress, no new acceptance claim. Both disjoint sections preserved under prior owner approval. Final governance-selection metadata convergence18ea: only foreign OBSspec/registry/lane; exacteb product reviews not invalidated and no product candidate convergence performed.'
     suspended_tasks:
     - task_id: TASK-ELECTRONICS-SCHEDULER-SAME-TIME-001
       issue: 540
@@ -4503,43 +4514,67 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs001_focused_verified_reported_waiting_owner
+      checkpoint: obs003_exact_http_ack_contract
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.0'
+          revision: '1.2'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-001
-        status: implemented_focused_verified
-        completed_items: [OBS-001]
-        source_sha: f8ed3a1ff6815acd953567cc8a513b4a34855365
-        source_branch: codex/observability-item-01
-        authoring_baseline_sha: 928bddb3a90841bc153584b6f859d57b2dac8af4
-        independent_review: scoped_pass
-        local_before: 4_failed_1_passed
-        local_after: 7_passed_27_intentionally_skipped
-        exact_ci_run: 38440183994
-        exact_ci_conclusion: failure
-        exact_ci_item_tests: 5_passed
-        exact_ci_focused: 281_passed_1_failed_baseline_OBS009
-        exact_ci_postgres_and_browser: skipped
-        product_integration: held_with_unaccepted_CLIENT_parent
-        deployment: not_run
-        database_actions: none
-        report: docs/execution/OBS_001_REPORT.md
-        next_action: stop_and_wait_for_owner_instruction
+        selected_item: OBS-003
+        status: in_progress
+        completed_items: [OBS-001, OBS-002]
+        accepted_items:
+          OBS-001:
+            status: implemented_focused_verified
+            source_sha: f8ed3a1ff6815acd953567cc8a513b4a34855365
+            source_branch: codex/observability-item-01
+            authoring_baseline_sha: 928bddb3a90841bc153584b6f859d57b2dac8af4
+            independent_review: scoped_pass
+            local_before: 4_failed_1_passed
+            local_after: 7_passed_27_intentionally_skipped
+            exact_ci_run: 38440183994
+            exact_ci_conclusion: failure
+            exact_ci_item_tests: 5_passed
+            exact_ci_focused: 281_passed_1_failed_baseline_OBS009
+            exact_ci_postgres_and_browser: skipped
+            product_integration: held_with_unaccepted_CLIENT_parent
+            deployment: not_run
+            database_actions: none
+            report: docs/execution/OBS_001_REPORT.md
+          OBS-002:
+            status: implemented_focused_verified
+            source_sha: b45e28d75c5ff8deafd349f27df8ea31c89d85dc
+            initial_source_sha: 2263df4c9019389c9668bedaa18c04e622cc8410
+            source_branch: codex/observability-item-02
+            authoring_baseline_sha: 4b89ed64f45769606b992239798c3e0a5fe9548f
+            initial_independent_review: needs_fix_timer_only_deadline
+            independent_review: scoped_pass_after_deadline_repair
+            local_before: 15_failed_7_passed
+            delayed401_before: 2_failed
+            deadline_before: 4_failed
+            local_after: 136_passed_0_skipped_37_own_99_existing
+            exact_ci_run: 38451320746
+            exact_ci_conclusion: failure
+            exact_ci_item_tests: 37_passed
+            exact_ci_focused: baseline_OBS009_failure_own37_passed
+            exact_ci_postgres_and_browser: skipped
+            product_integration: held_with_unaccepted_CLIENT_parent
+            deployment: not_run
+            database_actions: none
+            report: docs/execution/OBS_002_REPORT.md
         mode: one_item_report_then_stop
         next_item_requires_owner_instruction: true
-        owner_instruction: Implement item1 only, report completely and stop; do not advance to item2.
-        candidate_baseline_sha: 3093a291569da91245ffe8336b23ca17d64e3a70
-        acceptance_scope: Scratch bridge lifecycle on workspace change; remaining CLIENT defects stay open.
+        owner_instruction: Implement item3 only, report completely and stop; do not advance to item4.
+        candidate_baseline_sha: b45e28d75c5ff8deafd349f27df8ea31c89d85dc
+        acceptance_scope: Exact HTTP status and valid receipt body for each existing telemetry acknowledgement stage.
+        next_action: Implement OBS003, verify exact ACK contracts, report and stop.
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4602,7 +4637,10 @@ parallel_lanes:
         Main integration 3e09 preserves byte-identical product source and the later foreign documents,
         with independent preservation review and four Python validators; no full 3e09 CI is claimed.
         Owner narrowed execution to one numbered item with report and STOP; OBS-001 is focused-verified.
-        No next item is selected. Remaining OBS3B-CLIENT work includes stable retry identities,
+        OBS-002 independent source review and focused checks passed after deadline repair; report and STOP.
+        Owner selected OBS-003 only: exact HTTP acknowledgement contracts, report and STOP before item4.
+        Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
+        Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
         Preserve canonical Account/Seat authority, existing Scratch single-writer ownership, telemetry
         exclusion from auth refresh, academic edit-qualified intervals and transactional project activity.
@@ -4615,7 +4653,8 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted separately from the unfinished CLIENT package and release. Preserve unrelated lane owner
+        accepted; OBS-002 is focused-verified and reported. Owner selected OBS-003 only, then report and STOP.
+        The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
       focused:
