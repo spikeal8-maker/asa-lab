@@ -1,0 +1,603 @@
+.manual-journal {
+  min-width: 0;
+  max-width: 100%;
+  position: relative;
+  font-size: 16px;
+}
+.manual-journal-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: end;
+  margin: 6px 0;
+}
+.manual-journal-toolbar label,
+.manual-journal-editor label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.manual-journal input,
+.manual-journal select {
+  min-height: 40px;
+  max-width: 100%;
+}
+.manual-journal-toolbar label {
+  flex: 1 1 160px;
+}
+.manual-journal-hint {
+  color: var(--text-secondary, #64748b);
+}
+.manual-journal-scroll {
+  width: 100%;
+  max-height: 65vh;
+  overflow: auto;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 8px;
+}
+.manual-journal table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  table-layout: fixed;
+  font-size: inherit;
+}
+.manual-journal th,
+.manual-journal td {
+  border-right: 1px solid var(--border, #d6dce5);
+  border-bottom: 1px solid var(--border, #d6dce5);
+  padding: 4px 8px;
+}
+.manual-journal thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface, #fff);
+  width: 78px;
+}
+.manual-journal tr > th:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface, #fff);
+  width: 220px;
+  overflow-wrap: break-word;
+  text-align: left;
+}
+.manual-journal thead th:first-child {
+  z-index: 3;
+}
+.manual-journal th span,
+.manual-journal th small {
+  display: block;
+  max-width: 180px;
+  overflow-wrap: anywhere;
+}
+.manual-journal-cell {
+  width: 100%;
+  min-height: 44px;
+  min-width: 44px;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  font: inherit;
+  cursor: pointer;
+}
+.manual-journal-cell:hover,
+.manual-journal-cell:focus-visible {
+  background: var(--surface-hover, #eaf2ff);
+  outline: 2px solid var(--accent, #2563eb);
+}
+.manual-journal-editor {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 8px;
+}
+.manual-journal-editor header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.manual-journal-editor h3 {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.manual-journal-editor fieldset {
+  display: grid;
+  gap: 10px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.student-journal-results {
+  min-width: 0;
+}
+.student-journal-results ul {
+  list-style: none;
+  padding: 0;
+}
+.student-journal-results li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border, #d6dce5);
+  overflow-wrap: anywhere;
+}
+.student-journal-results li div {
+  display: grid;
+  flex: 1;
+  min-width: 140px;
+}
+.student-journal-results li small,
+.student-journal-results li p {
+  flex-basis: 100%;
+}
+@media (max-width: 600px) {
+  .manual-journal-toolbar label {
+    flex-basis: 130px;
+  }
+  .manual-journal-toolbar button {
+    min-height: 44px;
+  }
+  .manual-journal tr > th:first-child {
+    width: 152px;
+  }
+}
+
+/* The matrix stays visible on a phone: one month row and one filter row.
+   Font sizes are inherited unchanged; action targets remain at least 44px. */
+.manual-journal-monthbar {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: end;
+  gap: 8px;
+  max-width: 400px;
+  margin: 4px 0;
+}
+.manual-journal-monthbar label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.manual-journal-monthbar input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.manual-journal button:not(.btn-primary):not(.manual-journal-cell),
+.student-journal-results button:not(.btn-primary) {
+  min-height: 44px;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: inherit;
+  padding: 8px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+.manual-journal button:disabled,
+.student-journal-results button:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+.manual-journal-monthbar button {
+  display: grid;
+  place-items: center;
+  padding: 0 !important;
+}
+.manual-journal-monthbar button span {
+  font-size: 24px;
+  line-height: 1;
+}
+.manual-journal .manual-journal-filters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px;
+  gap: 8px;
+}
+.manual-journal .manual-journal-filters input,
+.manual-journal .manual-journal-filters select {
+  width: 100%;
+  min-width: 0;
+}
+.manual-journal-hint {
+  margin: 6px 0;
+}
+.manual-journal-hint summary {
+  cursor: pointer;
+}
+.manual-journal-hint p {
+  margin: 8px 0;
+}
+
+.manual-journal .manual-journal-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+}
+.manual-journal-modes {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 4px;
+  white-space: nowrap;
+}
+.manual-journal-modes button {
+  min-height: 44px;
+}
+.manual-journal-filters > button[aria-label='Обновить журнал'],
+.manual-journal-popover header > button {
+  min-width: 44px;
+}
+.manual-journal-popover summary {
+  min-height: 44px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+.manual-journal .manual-journal-modes button {
+  padding: 6px 8px;
+}
+.manual-journal-modes button[aria-pressed='true'] {
+  background: var(--surface-hover, #eaf2ff) !important;
+  border-color: var(--accent, #2563eb) !important;
+}
+.manual-journal .manual-journal-monthbar {
+  flex: 0 0 218px;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 3px;
+  margin: 0;
+  width: 218px;
+}
+.manual-journal .manual-journal-filters > input,
+.manual-journal .manual-journal-filters > select {
+  flex: 1 1 120px;
+  width: 120px;
+  min-width: 80px;
+  height: 44px;
+}
+.manual-journal-filters > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.manual-journal th,
+.manual-journal td {
+  padding: 2px 4px;
+}
+.manual-journal col {
+  width: 78px;
+}
+.manual-journal col.manual-journal-name-column {
+  width: 220px;
+}
+.manual-journal .manual-journal-column {
+  width: 100%;
+  height: 56px;
+  padding: 2px !important;
+  border: 0 !important;
+  text-align: center;
+}
+.manual-journal-column span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.manual-journal-column time {
+  font-weight: normal;
+}
+.manual-journal-roster-number {
+  display: inline !important;
+  margin-right: 8px;
+  color: var(--text-secondary, #64748b);
+  font-weight: normal;
+}
+.manual-journal-popover {
+  position: fixed;
+  inset: 16% 0 auto;
+  z-index: 30;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 70vh;
+  overflow: auto;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: inherit;
+  box-shadow: 0 8px 36px #0003;
+}
+.manual-journal-popover header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.manual-journal-popover small {
+  display: block;
+  font-weight: normal;
+}
+.manual-journal-popover label {
+  display: grid;
+  gap: 4px;
+  margin: 8px 0;
+}
+.manual-journal-popover input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 44px;
+}
+.manual-journal .manual-journal-editor {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.manual-journal-levels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 8px 0;
+}
+.manual-journal-levels button {
+  min-width: 44px;
+  padding: 8px !important;
+}
+.manual-journal-history {
+  max-height: 32vh;
+  overflow: auto;
+}
+.manual-journal-notice {
+  margin: 0;
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  z-index: 31;
+  max-width: calc(100vw - 32px);
+  padding: 8px 12px;
+  border: 1px solid var(--border, #d6dce5);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+}
+@media (max-width: 1000px) {
+  .manual-journal .manual-journal-filters {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px auto;
+  }
+  .manual-journal-modes {
+    grid-column: 1 / 3;
+  }
+  .manual-journal .manual-journal-monthbar {
+    grid-column: 3 / 5;
+    width: auto;
+    min-width: 0;
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+  .manual-journal .manual-journal-filters > input,
+  .manual-journal .manual-journal-filters > select {
+    width: 100%;
+    min-width: 0;
+  }
+  .manual-journal-filters > button:last-child {
+    padding: 6px !important;
+  }
+}
+@media (max-width: 600px) {
+  .manual-journal col.manual-journal-name-column {
+    width: 152px;
+  }
+  .manual-journal {
+    --journal-name-width: 152px;
+  }
+  .manual-journal-modes button {
+    padding: 4px !important;
+  }
+}
+
+/* Align the compact toolbar without moving the matrix on each grade. */
+.manual-journal .manual-journal-filters > *,
+.manual-journal .manual-journal-filters .manual-journal-monthbar :is(label, input, button) {
+  box-sizing: border-box;
+  min-height: 44px;
+  height: 44px;
+}
+.manual-journal .manual-journal-filters {
+  align-items: stretch;
+}
+.manual-journal .manual-journal-monthbar label {
+  margin: 0;
+}
+
+/* Keep the two mode buttons, month, filters and add action disjoint on narrow content. */
+@container classroom (max-width: 900px) {
+  .manual-journal .manual-journal-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .manual-journal .manual-journal-filters > .manual-journal-modes {
+    order: 0;
+    flex: 1 1 168px;
+    height: auto;
+    min-width: 0;
+    max-width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+  }
+  .manual-journal .manual-journal-filters > button:last-child {
+    order: 1;
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+  .manual-journal .manual-journal-filters > .manual-journal-monthbar {
+    order: 2;
+    flex: 1 0 100%;
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+  }
+  .manual-journal .manual-journal-filters > :is(input, select) {
+    order: 3;
+    flex: 1 1 100px;
+    width: 100px;
+    min-width: 0;
+  }
+  .manual-journal .manual-journal-filters > button[aria-label='Обновить журнал'] {
+    order: 4;
+    flex: 0 0 44px;
+  }
+}
+/* Ten ordinary work columns fit the normal desktop viewport; long data wraps. */
+.manual-journal thead th:not(:first-child) button {
+  font-size: 14px;
+  line-height: 1.2;
+  min-width: 0;
+  padding: 6px 4px;
+  white-space: normal;
+}
+.manual-journal thead th:not(:first-child) strong {
+  font-size: 14px;
+}
+.manual-journal thead th {
+  background: #f4f8fb;
+}
+.manual-journal thead th:first-child {
+  background: #f4f8fb;
+}
+.manual-journal tbody th {
+  font-weight: 600;
+}
+.manual-journal tbody tr:hover > :is(th, td) {
+  background: #f6fafc;
+}
+.manual-journal .manual-journal-cell {
+  color: var(--ink, #273b49);
+  font-weight: 600;
+}
+.manual-journal .manual-journal-cell:hover {
+  background: #e8f4fa;
+}
+.manual-journal .manual-journal-filters {
+  margin-bottom: 8px;
+}
+.manual-journal .manual-journal-filters > :is(input, select) {
+  font-size: 14px;
+}
+.manual-journal .manual-journal-modes > button[aria-pressed='true'] {
+  background: #eaf6fc;
+  border-color: #7db6d1;
+  color: #05698f;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  :is(.manual-journal-cell, .manual-journal-column) {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 4px;
+  min-height: 44px;
+  color: var(--ink, #273b49);
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  .manual-journal-cell {
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  .manual-journal-column {
+  font-size: 14px;
+  line-height: 1.2;
+}
+.classroom-owner-workspace.classroom-workspace
+  .classroom-tab-panel
+  .manual-journal
+  :is(.manual-journal-cell, .manual-journal-column):hover:not(:disabled) {
+  background: #e8f4fa;
+}
+.manual-journal .manual-journal-monthbar {
+  min-width: 230px;
+}
+.manual-journal .manual-journal-monthbar input {
+  min-width: 130px;
+}
+@container classroom (max-width:550px) {
+  .manual-journal .manual-journal-monthbar {
+    min-width: 0;
+  }
+}
+.manual-journal table {
+  min-width: 100%;
+}
+.manual-journal .manual-journal-column > span {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  line-height: 1.15;
+  overflow-wrap: anywhere;
+}
+.manual-journal tbody td {
+  padding: 0;
+}
+.manual-journal thead th:not(:first-child) {
+  padding: 2px;
+}
+.manual-journal .manual-journal-column > span {
+  hyphens: auto;
+}
+
+/* Keep full words and dates readable; scroll only the matrix, never the page. */
+.classroom-owner-workspace .manual-journal thead th:not(:first-child),
+.classroom-owner-workspace .manual-journal tbody td {
+  width: 132px;
+  min-width: 132px;
+  max-width: 132px;
+}
+.classroom-owner-workspace .manual-journal th span,
+.classroom-owner-workspace .manual-journal th small,
+.classroom-owner-workspace .manual-journal-column {
+  max-width: none;
+  word-break: normal;
+  overflow-wrap: break-word;
+}
+.classroom-owner-workspace .manual-journal-column {
+  width: 100%;
+}
+.classroom-owner-workspace .manual-journal-column time {
+  white-space: nowrap;
+}
+@container classroom (max-width: 550px) {
+  .classroom-owner-workspace .manual-journal tr > th:first-child {
+    width: 160px;
+    min-width: 160px;
+    max-width: 160px;
+  }
+}
+
+.classroom-owner-workspace .manual-journal {
+  --journal-work-width: 132px;
+  --journal-name-width: 220px;
+}
+.classroom-owner-workspace .manual-journal col:not(.manual-journal-name-column) {
+  width: var(--journal-work-width);
+}
+.classroom-owner-workspace .manual-journal col.manual-journal-name-column,
+.classroom-owner-workspace .manual-journal tr > th:first-child {
+  width: var(--journal-name-width);
+  min-width: var(--journal-name-width);
+  max-width: var(--journal-name-width);
+}
+@container classroom (max-width: 550px) {
+  .classroom-owner-workspace .manual-journal {
+    --journal-name-width: 160px;
+  }
+}

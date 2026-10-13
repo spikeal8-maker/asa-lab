@@ -84,9 +84,10 @@ export class AdminLogsService {
         trimmed: false,
       };
     const age = Date.now() - Date.parse(catalog.collectedAt);
+    const sourceFailures = catalog.sources.filter((s) => s.state === 'error');
     return {
       state:
-        collectorHealth?.state === 'error'
+        collectorHealth?.state === 'error' || sourceFailures.length > 0
           ? ('error' as const)
           : age > 5 * 60_000
             ? ('stale' as const)
@@ -94,6 +95,7 @@ export class AdminLogsService {
       collectorHealth,
       collectedAt: catalog.collectedAt,
       sources: catalog.sources,
+      sourceFailures,
       eventSources: [...new Set(catalog.segments.flatMap((s) => s.sources))].sort(),
       retentionDays: catalog.retentionDays,
       bytes: catalog.bytes,

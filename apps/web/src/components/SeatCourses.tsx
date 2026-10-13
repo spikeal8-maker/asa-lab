@@ -6,6 +6,7 @@ import {
   type SeatAssignment,
   type SeatCourseRun,
   type SeatCourseRunLesson,
+  type CourseManualMaterial,
 } from '../api';
 import { useLearningDestination } from '../learning/use-learning-destination';
 import { courseCompletion, lessonComplete, lessonExcused } from '../learning/course-completion';
@@ -86,6 +87,50 @@ function courseActivityModuleLabel(moduleKey: string): string {
   return moduleKey;
 }
 
+function SeatManualMaterial({
+  runId,
+  lessonId,
+  blockId,
+  versionId,
+}: {
+  readonly runId: string;
+  readonly lessonId: string;
+  readonly blockId: string;
+  readonly versionId: string;
+}): JSX.Element {
+  const [material, setMaterial] = useState<CourseManualMaterial | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setMaterial(null);
+    setError(null);
+    void api.courseManualMaterial(runId, lessonId, blockId).then((result) => {
+      if (!active) return;
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      if (result.data.source.id !== versionId) {
+        setError('Версия материала изменилась. Обновите курс.');
+        return;
+      }
+      setMaterial(result.data);
+    });
+    return () => {
+      active = false;
+    };
+  }, [runId, lessonId, blockId, versionId]);
+  if (error) return <p role="status">Материал пока недоступен.</p>;
+  if (!material) return <p role="status">Загружаем материал…</p>;
+  return (
+    <div className="seat-course-manual-material" data-testid="seat-course-manual-material">
+      <strong>{material.title}</strong>
+      <small>Опубликованная версия {material.source.versionNumber}</small>
+      <TaskBlocks blocks={material.blocks} />
+    </div>
+  );
+}
+
 export function SeatCourses({
   onOpenProject,
   source = 'seat',
@@ -107,10 +152,12 @@ export function SeatCourses({
         r.sections.some((s) =>
           s.lessons.some(
             (l) =>
-              l.classroomAssignmentId === destination.assignment ||
-              l.activityOccurrences.some(
-                (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
-              ),
+              l.id === destination.lesson ||
+              (destination.assignment !== null &&
+                (l.classroomAssignmentId === destination.assignment ||
+                  l.activityOccurrences.some(
+                    (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
+                  ))),
           ),
         ),
     );
@@ -121,14 +168,16 @@ export function SeatCourses({
           .flatMap((s) => s.lessons)
           .find(
             (l) =>
-              l.classroomAssignmentId === destination.assignment ||
-              l.activityOccurrences.some(
-                (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
-              ),
+              l.id === destination.lesson ||
+              (destination.assignment !== null &&
+                (l.classroomAssignmentId === destination.assignment ||
+                  l.activityOccurrences.some(
+                    (occurrence) => occurrence.classroomAssignmentId === destination.assignment,
+                  ))),
           )?.id ?? null,
       );
     }
-  }, [runs, destination.courseRun, destination.assignment]);
+  }, [runs, destination.courseRun, destination.assignment, destination.lesson]);
   const [busy, setBusy] = useState<string | null>(null);
   const starter = useRef(new AtomicLearningStarter());
   const [error, setError] = useState<string | null>(null);
@@ -313,6 +362,14 @@ export function SeatCourses({
             <LessonBlocks
               blocks={openLesson.blocks}
               legacyContent={openLesson.content}
+              renderMaterial={(block) => (
+                <SeatManualMaterial
+                  runId={openRun.id}
+                  lessonId={openLesson.id}
+                  blockId={block.id}
+                  versionId={block.learningActivityVersionId}
+                />
+              )}
               renderActivity={(block) => {
                 const occurrence = courseActivityOccurrenceForBlock(openLesson, block.id);
                 if (!occurrence) {

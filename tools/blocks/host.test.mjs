@@ -1519,6 +1519,8 @@ for (const [query, mode, delegated] of [
     const shell = { dataset: {} };
     const status = { hidden: false, textContent: '' };
     let handlers;
+    const intervals = new Map();
+    const reported = [];
     const root = {};
     loadHost('main', {
       URL,
@@ -1526,6 +1528,14 @@ for (const [query, mode, delegated] of [
         parent: {},
         location: { href: `https://scratch.example/${query}` },
         addEventListener() {},
+        setInterval(callback, milliseconds) {
+          assert.equal(milliseconds, 15_000);
+          intervals.set(1, callback);
+          return 1;
+        },
+        clearInterval(id) {
+          intervals.delete(id);
+        },
       },
       document: {
         addEventListener() {},
@@ -1557,12 +1567,21 @@ for (const [query, mode, delegated] of [
           };
         },
       },
-      AsaBlocksStatus: { createStatusReporter: () => ({ status() {} }) },
+      AsaBlocksStatus: {
+        createStatusReporter: () => ({
+          status(value) {
+            reported.push(value);
+          },
+          fatal(code) {
+            assert.fail('Unexpected initialization failure: ' + code);
+          },
+        }),
+      },
       AsaBlocksRecovery: {},
       AsaBlocksEditor: {
         mountEditor: ({ onReady }) => {
           onReady();
-          return { dispose() {}, startup: Promise.resolve() };
+          return { dispose: async () => {}, startup: Promise.resolve() };
         },
       },
     });
@@ -1581,10 +1600,17 @@ for (const [query, mode, delegated] of [
     await Promise.resolve();
     assert.equal(status.hidden, delegated);
     assert.match(status.textContent, /Учебный проект готов/);
+    assert.equal(intervals.size, 1, 'ready mounts exactly one health heartbeat');
+    intervals.get(1)();
+    assert.deepEqual(reported, ['init-accepted', 'editor-ready', 'runtime-heartbeat']);
     assert.equal(
       handlers.onTokenUpdate,
       undefined,
       'token rotation must have no user-visible status',
     );
+    handlers.onStop();
+    await Promise.resolve();
+    assert.equal(intervals.size, 0, 'stop removes the existing heartbeat');
+    assert.equal(reported.at(-1), 'stopped');
   });
 }

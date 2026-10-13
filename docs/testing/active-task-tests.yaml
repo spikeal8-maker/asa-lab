@@ -80,3 +80,25 @@ tests:
     timeout_seconds: 3600
     owner: learning
     artifacts: [repository-report, migration-report, candidate-sha]
+
+  - id: TST-ASA-OBSERVABILITY-CORE-001
+    title: Application log collection and browser diagnostics contracts
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-OBSERVABILITY-001]
+    command: pnpm test:admin-logs
+    timeout_seconds: 1800
+    owner: observability
+    artifacts: [vitest-report, collector-report]
+
+  - id: TST-ASA-OBSERVABILITY-REPOSITORY-001
+    title: Integrated observability repository gate on isolated CI data
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: [TASK-OBSERVABILITY-001]
+    command: pnpm gate:repository
+    timeout_seconds: 3600
+    owner: observability
+    artifacts: [repository-report, ci-candidate-sha]

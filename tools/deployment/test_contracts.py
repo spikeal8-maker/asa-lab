@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from deployment.contracts import (Blocked, DEFAULT_WINDOW, REGISTRY, SERVICES, atomic_json,
-                                  attest_database_targets, attest_embedded_editor, exact_origin, in_window, inventory_files, read_env, safe_member,
+                                  attest_database_targets, attest_embedded_editor, attest_proxy_policy, exact_origin, in_window, inventory_files, read_env, safe_member,
                                   validate_release, verify_backup, verify_embedded_entry_http)
 from deployment.backup import recovery_configuration
 from deployment.system import Installation, operation_lock, run
@@ -33,7 +33,50 @@ def compose_config():
     }, "volumes": {"postgres-data": {"name": "asa-lab-dev_postgres-data"}, "objects": {"name": "asa-lab-dev_objects"}}}
 
 
+class ProxyPolicyTests(unittest.TestCase):
+    def test_default_and_explicit_ipv4_ipv6_ingress_are_valid(self):
+        attest_proxy_policy({})
+        attest_proxy_policy({'ASA_TRUSTED_PROXY_CIDRS': '172.16.0.0/12,fd00::/64',
+                             'ASA_INGRESS_TRUSTED_PROXY_CIDRS': '192.0.2.7/32 2001:db8::7/128'})
+
+    def test_malformed_unbounded_and_injected_policies_block_before_operations(self):
+        for key in ('ASA_TRUSTED_PROXY_CIDRS', 'ASA_INGRESS_TRUSTED_PROXY_CIDRS'):
+            for raw in ('', '0.0.0.0/0', '::/0', '172.16.0.0/99', 'private_ranges',
+                        '127.0.0.1/32 } servers {', 'x' * 2049):
+                with self.subTest(key=key, raw=raw), self.assertRaises(Blocked) as failure:
+                    attest_proxy_policy({key: raw})
+                self.assertEqual(failure.exception.code, 'PROXY_POLICY')
+        with tempfile.TemporaryDirectory() as directory:
+            Path(directory, '.env').write_text('ASA_INGRESS_TRUSTED_PROXY_CIDRS=0.0.0.0/0\n')
+            with patch('deployment.system.run') as command, self.assertRaises(Blocked):
+                Installation(directory)
+            command.assert_not_called()
+
+
 class EmbeddedEntryTests(unittest.TestCase):
+    def test_transient_public_404_is_retried_and_permanent_failure_names_the_path(self):
+        from urllib.error import HTTPError
+        origin, revision = 'https://asa.example.test', 'a' * 40
+        responses = {'/health/ready': json.dumps({'status':'ready', 'deployment':{'revision':revision,'synchronized':True}}),
+                     '/build-metadata.json':json.dumps({'revision':revision}),
+                     '/runtime-config.js':'globalThis.__ASA_RUNTIME_CONFIG__='+json.dumps({'blocksRuntimeOrigin':origin})+';',
+                     '/internal/blocks/':'<html data-asa-scratch-host="m1-002a">Scratch</html>', '/internal/blocks/healthz':'ok'}
+        attempts = {}
+        def fetch(url, **kwargs):
+            path = url.removeprefix(origin); attempts[path] = attempts.get(path, 0) + 1
+            if path == '/internal/blocks/' and attempts[path] == 1:
+                raise HTTPError(url,404,'not found',{},None)
+            value = io.BytesIO(responses[path].encode()); value.status = 200; value.geturl = lambda: url
+            return value
+        with patch('deployment.contracts.urlopen', side_effect=fetch), patch('deployment.contracts.time.sleep'):
+            verify_embedded_entry_http(origin, revision)
+        self.assertEqual(attempts['/internal/blocks/'],2)
+        for status, expected in ((404, 3), (401, 1)):
+            with patch('deployment.contracts.urlopen', side_effect=lambda *a,**k: (_ for _ in ()).throw(HTTPError(a[0],status,'private text',{},None))) as mocked, patch('deployment.contracts.time.sleep'):
+                with self.assertRaises(Blocked) as failure: verify_embedded_entry_http(origin, revision)
+            self.assertEqual(mocked.call_count,expected)
+            self.assertIn('/health/ready',str(failure.exception)); self.assertNotIn('private text',str(failure.exception))
+
     def config(self, origin, parent, public=''):
         return {'services': {'api': {'environment': {'ASA_BLOCKS_RUNTIME_ORIGIN': origin, 'ASA_PUBLIC_WEB_ORIGINS': public}},
                              'scratch': {'environment': {'ASA_BLOCKS_PARENT_ORIGIN': parent}}}}
@@ -293,7 +336,8 @@ class IdentityTests(unittest.TestCase):
         config = compose_config()
         attest_database_targets(config, {"POSTGRES_DB": "asalab"}, config["services"]["api"]["environment"])
         for service, key in (("api", "APP_DATABASE_URL"), ("migration", "MIGRATION_DATABASE_URL")):
-            for url in ("postgres://user:synthetic@external:5432/asalab", "postgres://user:synthetic@postgres:5432/other"):
+            for url in ("postgres://user:synthetic@external:5432/asalab", "postgres://user:synthetic@postgres:5432/other",
+                        "postgres://user:synthetic@postgres:5432/asalab_delivery_restore_test"):
                 candidate = compose_config()
                 candidate["services"][service]["environment"][key] = url
                 with self.subTest(service=service, url=url), self.assertRaises(Blocked):
@@ -343,6 +387,28 @@ class IdentityTests(unittest.TestCase):
 
 
 class UpdateBoundaryTests(unittest.TestCase):
+    def test_acknowledge_recovers_only_known_switch_phases_and_recorded_runtime(self):
+        from unittest.mock import MagicMock
+        for phase in ('switch', 'verify_entry', 'backup'):
+            for matching_runtime in (True, False):
+                with self.subTest(phase=phase, matching_runtime=matching_runtime), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory); state = root / '.asa'; state.mkdir()
+                    install = MagicMock(); install.root = root; install.state = state
+                    install.readiness.return_value = {'revision': ('a' if matching_runtime else 'b') * 40}
+                    operation = {'phase':phase, 'selected':{'revision':'a'*40}}
+                    atomic_json(state / 'maintenance.json', operation)
+                    atomic_json(state / 'failed-switch.json', operation)
+                    with patch.object(asa_manager, 'Installation', return_value=install), patch.object(asa_manager, 'doctor') as doctor, patch('sys.stderr', io.StringIO()):
+                        result = asa_manager.main(['acknowledge', '--root', str(root)])
+                    accepted = phase in ('switch', 'verify_entry') and matching_runtime
+                    self.assertEqual(result, 0 if accepted else 2)
+                    self.assertEqual((state / 'maintenance.json').exists(), not accepted)
+                    self.assertEqual((state / 'failed-switch.json').exists(), not accepted)
+                    if accepted:
+                        self.assertEqual(len(list(state.glob('reviewed-*.json'))), 1)
+                        self.assertEqual(len(list(state.glob('acknowledged-*.json'))), 1)
+                    doctor.assert_called_once_with(install); install.compose.assert_not_called()
+
     def test_missing_owner_entry_stops_before_release_or_backup(self):
         from unittest.mock import MagicMock
         with tempfile.TemporaryDirectory() as root:
@@ -374,6 +440,9 @@ class UpdateBoundaryTests(unittest.TestCase):
             install.identity.return_value = {name: {"image": ref} for name, ref in candidate["images"].items()}
             with patch.object(asa_manager, "doctor"), patch.object(asa_manager, "clean_checkout"), \
                     patch.object(asa_manager, "discover_release", return_value=candidate), \
+                    patch.object(asa_manager, "prepare_collector", return_value={'readerGroupChanged': False}), \
+                    patch.object(asa_manager, "reconcile_collector") as collector, \
+                    patch.object(asa_manager, "Installation", return_value=install), \
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "verify_embedded_entry_http"), \
                     patch.object(asa_manager, "export_backup") as backup, \
                     patch.object(asa_manager, "selected_source") as switch:
@@ -381,6 +450,7 @@ class UpdateBoundaryTests(unittest.TestCase):
             backup.assert_not_called()
             switch.assert_not_called()
             install.compose.assert_not_called()
+            collector.assert_called_once_with(install)
 
     def test_backup_failure_never_switches_running_services(self):
         from unittest.mock import MagicMock
@@ -393,14 +463,16 @@ class UpdateBoundaryTests(unittest.TestCase):
                            'ASA_BLOCKS_RUNTIME_ORIGIN': 'http://127.0.0.1:4610'}
             with patch.object(asa_manager, "doctor"), patch.object(asa_manager, "clean_checkout"), \
                     patch.object(asa_manager, "discover_release", return_value=release()), \
+                    patch.object(asa_manager, "prepare_collector", return_value={'readerGroupChanged': True}), \
                     patch.object(asa_manager, "assert_ci"), patch.object(asa_manager, "fetch_images"), \
                     patch.object(asa_manager, "selected_source"), patch.object(asa_manager, "Installation", return_value=install), \
                     patch.object(asa_manager, "apply_release_environment"), patch.object(asa_manager, "validate_resolved_images"), \
-                    patch.object(asa_manager, "export_backup", side_effect=Blocked("BACKUP", "disk full", "free space")), \
+                    patch.object(asa_manager, "export_backup", side_effect=Blocked("BACKUP", "disk full", "free space")) as backup, \
                     self.assertRaises(Blocked):
                 asa_manager.update(install)
             self.assertFalse(any(call.args[0] in ("up", "stop") for call in install.compose.call_args_list))
             self.assertFalse((install.state / "installed-release.json").exists())
+            backup.assert_called_once_with(install)
 
     def test_outside_window_does_not_touch_docker_or_network(self):
         from unittest.mock import MagicMock

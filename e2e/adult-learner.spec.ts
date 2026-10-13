@@ -55,6 +55,7 @@ test('человек с аккаунтом входит в класс по ко�
     .filter({ hasText: 'Курс для взрослых' })
     .locator('.classroom-row-title')
     .click();
+  await page.locator('.classroom-code-chip').click();
   const joinCode = (await page.locator('.classroom-code-chip').innerText()).trim();
   expect(joinCode).toMatch(/^[A-Z2-9]{3} [A-Z2-9]{3} [A-Z2-9]{3}$/);
 
@@ -105,7 +106,7 @@ test('человек с аккаунтом входит в класс по ко�
 
   // Преподаватель видит сдачу и отвечает.
   await page.reload();
-  await page.getByRole('button', { name: 'Учащиеся' }).click();
+  await page.getByRole('button', { name: 'Ученики' }).click();
   const row = page.getByText('Педагог adult-learner');
   await expect(row).toBeVisible();
   await page.screenshot({ path: `${evidenceDir}/roster.png`, fullPage: true });

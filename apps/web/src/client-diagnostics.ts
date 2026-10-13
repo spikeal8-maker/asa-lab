@@ -1,4 +1,10 @@
 import { newClientId } from './client-id';
+import {
+  ASSET_SCRIPT,
+  DiagnosticOutbox,
+  FAILURE_CATEGORIES,
+  FAILURE_CODES,
+} from './client-diagnostic-outbox';
 
 export type DiagnosticCode =
   | 'render_failed'
@@ -18,6 +24,11 @@ export type DiagnosticCode =
   | 'editor_recovered';
 export type DiagnosticModule = 'portal' | 'scratch' | 'electronics' | 'auth';
 export interface DiagnosticDetail {
+  readonly category?: string;
+  readonly failureCode?: string;
+  readonly script?: string;
+  readonly line?: number;
+  readonly column?: number;
   readonly relatedRequestId?: string | undefined;
   readonly httpStatus?: number;
   readonly durationMs?: number;
@@ -27,6 +38,19 @@ const recent = new Map<string, number>();
 let windowStarted = 0;
 let count = 0;
 let installed = false;
+let outbox: DiagnosticOutbox | undefined;
+function diagnosticOutbox(): DiagnosticOutbox {
+  if (!outbox) {
+    let storage: Storage | undefined;
+    try {
+      storage = window.sessionStorage;
+    } catch {
+      /* Storage may be unavailable. */
+    }
+    outbox = new DiagnosticOutbox(storage);
+  }
+  return outbox;
+}
 let context = { module: 'portal' as DiagnosticModule, instanceId: newClientId() };
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 
@@ -67,6 +91,21 @@ export function reportClientDiagnostic(
         ? __ASA_BUILD_REVISION__
         : 'unknown';
     const safe = {
+      ...(FAILURE_CATEGORIES.includes(detail.category as (typeof FAILURE_CATEGORIES)[number])
+        ? { category: detail.category }
+        : {}),
+      ...(FAILURE_CODES.includes(detail.failureCode as (typeof FAILURE_CODES)[number])
+        ? { failureCode: detail.failureCode }
+        : {}),
+      ...(detail.script && ASSET_SCRIPT.test(detail.script) ? { script: detail.script } : {}),
+      ...Object.fromEntries(
+        ['line', 'column'].flatMap((key) => {
+          const value = detail[key as 'line' | 'column'];
+          return Number.isInteger(value) && value! > 0 && value! <= 10_000_000
+            ? [[key, value]]
+            : [];
+        }),
+      ),
       ...(detail.relatedRequestId && UUID.test(detail.relatedRequestId)
         ? { relatedRequestId: detail.relatedRequestId }
         : {}),
@@ -83,13 +122,15 @@ export function reportClientDiagnostic(
         ? { phase: detail.phase }
         : {}),
     };
-    void fetch('/api/diagnostics/client', {
-      method: 'POST',
-      credentials: 'same-origin',
-      keepalive: true,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ code, module, revision, instanceId: context.instanceId, ...safe }),
-    }).catch(() => undefined);
+    diagnosticOutbox().enqueue({
+      code,
+      module,
+      revision,
+      instanceId: context.instanceId,
+      eventId: newClientId(),
+      occurredAt: now,
+      ...safe,
+    });
   } catch {
     /* Diagnostics must not change the product action. */
   }
@@ -98,7 +139,22 @@ export function reportClientDiagnostic(
 export function installClientDiagnostics(): void {
   if (installed) return;
   installed = true;
-  window.addEventListener('error', () => reportClientDiagnostic('window_error', context.module));
+  diagnosticOutbox().retryNow();
+  window.addEventListener('online', () => diagnosticOutbox().retryNow());
+  window.addEventListener('error', (event) => {
+    let script: string | undefined;
+    try {
+      const url = new URL(event.filename, window.location.href);
+      if (url.origin === window.location.origin && ASSET_SCRIPT.test(url.pathname))
+        script = url.pathname;
+    } catch {
+      /* Cross-origin and non-script failures have no safe location. */
+    }
+    reportClientDiagnostic('window_error', context.module, {
+      phase: 'runtime',
+      ...(script ? { script, line: event.lineno, column: event.colno } : {}),
+    });
+  });
   window.addEventListener('unhandledrejection', () =>
     reportClientDiagnostic('unhandled_rejection', context.module),
   );

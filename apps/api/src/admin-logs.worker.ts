@@ -3,6 +3,7 @@ import { open, readFile, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { deflateRawSync, gunzipSync } from 'node:zlib';
 import { createHash } from 'node:crypto';
+import { LOG_SUBSYSTEMS, logSubsystem } from './log-subsystems.js';
 
 export const LOG_STORE_FORMAT = 2;
 const MAX_SEGMENT_BYTES = 4 * 1024 * 1024;
@@ -13,6 +14,7 @@ export interface LogEntry {
   readonly time: string;
   readonly source: string;
   readonly module: string;
+  readonly subsystem?: string;
   readonly level: string;
   readonly message: string;
   readonly requestId: string | null;
@@ -27,6 +29,7 @@ export interface LogEntry {
 
 export interface LogFilter {
   readonly scope?: 'all' | 'application' | 'host';
+  readonly subsystem?: string;
   readonly from: string;
   readonly to: string;
   readonly source: string;
@@ -52,6 +55,7 @@ interface Segment {
   readonly sources: readonly string[];
   readonly modules: readonly string[];
   readonly levels: readonly string[];
+  readonly subsystems?: readonly string[];
   readonly rawBytes?: number;
   readonly schema?: number;
   readonly sha256?: string;
@@ -99,6 +103,7 @@ function candidates(catalog: LogCatalog, filter: LogFilter): readonly Segment[] 
     .filter((s) => !filter.before || s.first <= filter.before.time)
     .filter((s) => !filter.source || s.sources.includes(filter.source))
     .filter((s) => !filter.module || s.modules.includes(filter.module))
+    .filter((s) => !filter.subsystem || !s.subsystems || s.subsystems.includes(filter.subsystem))
     .filter((s) => !filter.level || s.levels.includes(filter.level))
     .filter((s) => s.sources.some((source) => inScope(source, filter.scope)))
     .sort((a, b) => b.last.localeCompare(a.last));
@@ -116,6 +121,7 @@ function matches(event: LogEntry, filter: LogFilter): boolean {
     event.time <= filter.to &&
     (!filter.source || event.source === filter.source) &&
     (!filter.module || event.module === filter.module) &&
+    (!filter.subsystem || event.subsystem === filter.subsystem) &&
     (!filter.level || event.level === filter.level) &&
     (!filter.before ||
       event.time < filter.before.time ||
@@ -175,6 +181,22 @@ function parseEntry(line: string): LogEntry {
     !Number.isFinite(Date.parse(entry.time))
   )
     throw new Error('LOG_SEGMENT_INVALID');
+  if (!LOG_SUBSYSTEMS.includes(entry.subsystem as (typeof LOG_SUBSYSTEMS)[number])) {
+    let path = '';
+    let kind = '';
+    let module = '';
+    if ((entry.source === 'api' || entry.source === 'web') && entry.message.startsWith('{')) {
+      try {
+        const value = JSON.parse(entry.message);
+        if (typeof value?.path === 'string') path = value.path;
+        if (typeof value?.kind === 'string') kind = value.kind;
+        if (typeof value?.module === 'string') module = value.module;
+      } catch {
+        /* Historical plain messages remain searchable. */
+      }
+    }
+    entry = { ...entry, subsystem: logSubsystem(entry.source, path, entry.origin, kind, module) };
+  }
   return entry;
 }
 
@@ -330,6 +352,9 @@ export async function exportLogs(root: string, filter: LogFilter, output: string
         segment.first >= filter.from &&
         segment.last <= filter.to &&
         !filter.search &&
+        (!filter.subsystem ||
+          (segment.subsystems?.length &&
+            segment.subsystems.every((s) => s === filter.subsystem))) &&
         segment.sources.every((source) => inScope(source, filter.scope)) &&
         (!filter.source || segment.sources.every((s) => s === filter.source)) &&
         (!filter.module || segment.modules.every((s) => s === filter.module)) &&

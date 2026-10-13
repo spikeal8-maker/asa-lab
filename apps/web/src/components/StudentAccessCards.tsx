@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ClassroomStudentSeat } from '../api';
 import { ClassJoinQr } from './ClassJoinQr';
 import './student-access.css';
@@ -47,6 +48,17 @@ export function StudentAccessCards({
       ),
   );
   const selectedStudents = available.filter((student) => selected.has(student.id));
+  const pages = Array.from({ length: Math.ceil(selectedStudents.length / 20) }, (_, index) =>
+    selectedStudents.slice(index * 20, (index + 1) * 20),
+  );
+  useEffect(() => {
+    const cleanup = () => document.body.classList.remove('student-access-printing');
+    window.addEventListener('afterprint', cleanup);
+    return () => {
+      window.removeEventListener('afterprint', cleanup);
+      cleanup();
+    };
+  }, []);
   const entry = portalEntry();
   const classJoinUrl = entry
     ? `${entry.origin}/#/join-class${classCode ? `?code=${encodeURIComponent(classCode)}` : ''}`
@@ -55,14 +67,15 @@ export function StudentAccessCards({
   function printCards(): void {
     if (!classCode || !classJoinUrl || selectedStudents.length === 0) return;
     const className = 'student-access-printing';
-    const cleanup = () => document.body.classList.remove(className);
     document.body.classList.add(className);
-    window.addEventListener('afterprint', cleanup, { once: true });
-    window.print();
-    window.setTimeout(cleanup, 1500);
+    try {
+      window.print();
+    } catch {
+      document.body.classList.remove(className);
+    }
   }
 
-  return (
+  const content = (
     <div className="modal-backdrop student-access-backdrop" role="presentation">
       <section
         className="modal student-access-dialog"
@@ -74,8 +87,8 @@ export function StudentAccessCards({
           <div>
             <h2 id="student-access-title">Карточки доступа</h2>
             <p>
-              {classroomTitle}. Карточки можно печатать повторно — печать не меняет коды и не
-              завершает входы учеников.
+              {classroomTitle} · А4 · 20 карточек на листе · листов: {pages.length}. Печать не
+              меняет коды учеников.
             </p>
           </div>
           <button type="button" className="btn-ghost" onClick={onClose} aria-label="Закрыть">
@@ -113,60 +126,106 @@ export function StudentAccessCards({
           </button>
         </div>
 
-        <div className="student-access-selector no-print" aria-label="Учащиеся для печати">
-          {available.map((student) => (
-            <label key={student.id}>
-              <input
-                type="checkbox"
-                checked={selected.has(student.id)}
-                onChange={(event) => {
-                  const next = new Set(selected);
-                  if (event.target.checked) next.add(student.id);
-                  else next.delete(student.id);
-                  setSelected(next);
-                }}
-              />
-              <span>{student.displayLabel}</span>
-              <code>{student.studentCode}</code>
-            </label>
-          ))}
-        </div>
-
+        <details className="student-access-selection no-print">
+          <summary>Выбрать учеников</summary>
+          <div className="student-access-selector" aria-label="Учащиеся для печати">
+            {available.map((student) => (
+              <label key={student.id}>
+                <input
+                  type="checkbox"
+                  checked={selected.has(student.id)}
+                  onChange={(event) => {
+                    const next = new Set(selected);
+                    if (event.target.checked) next.add(student.id);
+                    else next.delete(student.id);
+                    setSelected(next);
+                  }}
+                />
+                <span>{student.displayLabel}</span>
+                {student.loginMethod === 'account' ? (
+                  <span className="student-access-account-label">Вход через аккаунт</span>
+                ) : (
+                  <code>{student.studentCode}</code>
+                )}
+              </label>
+            ))}
+          </div>
+        </details>
         <div className="student-access-print-sheet" aria-label="Карточки доступа для печати">
-          {selectedStudents.map((student) => (
-            <article
-              className="student-access-card"
-              key={student.id}
-              data-qr-url={classJoinUrl ?? undefined}
+          {pages.map((page, pageIndex) => (
+            <section
+              className="student-access-print-page"
+              key={pageIndex}
+              aria-label={`Лист ${pageIndex + 1}`}
+              data-card-count={page.length}
             >
-              <div className="student-access-card-copy">
-                <header>
-                  <strong>ASA Lab</strong>
-                  <span>{entry?.label ?? 'Адрес недоступен'}</span>
-                </header>
-                <h3>{student.displayLabel}</h3>
-                <p className="student-access-class">{classroomTitle}</p>
-                <div className="student-access-codes">
-                  <div>
-                    <span>Код класса</span>
-                    <code>{classCode ?? '—'}</code>
+              <h3 className="student-access-page-label no-print">
+                Лист {pageIndex + 1} из {pages.length}
+              </h3>
+              {page.map((student) => (
+                <article
+                  className={[
+                    'student-access-card',
+                    student.loginMethod === 'account' ? 'is-account-entry' : '',
+                    student.displayLabel.length > 28 ? 'is-long-name' : '',
+                    classroomTitle.length > 36 ? 'is-long-class' : '',
+                    (entry?.label.length ?? 0) > 22 ? 'is-long-site' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                  key={student.id}
+                  data-qr-url={classJoinUrl ?? undefined}
+                >
+                  <div className="student-access-card-copy">
+                    <header className="student-access-topline">
+                      <strong className="student-access-brand">ASA Lab</strong>
+                      <p className="student-access-class" title={classroomTitle}>
+                        {classroomTitle}
+                      </p>
+                    </header>
+                    <div className="student-access-identity">
+                      <h3 title={student.displayLabel}>{student.displayLabel}</h3>
+                    </div>
+                    <div className="student-access-codes">
+                      {student.loginMethod !== 'account' ? (
+                        <div>
+                          <span>Код класса</span>
+                          <code>{classCode ?? '—'}</code>
+                        </div>
+                      ) : null}
+                      <div className="student-access-student-code">
+                        {student.loginMethod === 'account' ? (
+                          <>
+                            <span className="student-access-account-label">Вход через аккаунт</span>
+                            <p className="student-access-instruction">
+                              Войдите в ASA Lab → Моё обучение.
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <span>Код ученика</span>
+                            <code>{student.studentCode}</code>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {student.loginMethod !== 'account' ? (
+                      <p className="student-access-instruction">
+                        {`Вручную: ${entry?.label ?? 'адрес портала'} → код класса → код ученика.`}
+                      </p>
+                    ) : null}
                   </div>
-                  <div className="student-access-student-code">
-                    <span>Код ученика</span>
-                    <code>{student.studentCode}</code>
-                  </div>
-                </div>
-                <p className="student-access-instruction">
-                  Вручную: {entry?.label ?? 'адрес портала'} → код класса → код ученика.
-                </p>
-              </div>
-              <aside className="student-access-qr" aria-label="QR для входа в класс">
-                {classJoinUrl ? (
-                  <ClassJoinQr url={classJoinUrl} label={`Войти в класс ${classroomTitle}`} />
-                ) : null}
-                {classJoinUrl ? <strong>Войти в класс</strong> : null}
-              </aside>
-            </article>
+                  <aside className="student-access-qr" aria-label="QR для входа в класс">
+                    {classJoinUrl ? (
+                      <ClassJoinQr url={classJoinUrl} label={`Войти в класс ${classroomTitle}`} />
+                    ) : null}
+                    <span className="student-access-site">
+                      {entry?.label ?? 'Адрес недоступен'}
+                    </span>
+                  </aside>
+                </article>
+              ))}
+            </section>
           ))}
         </div>
 
@@ -186,4 +245,5 @@ export function StudentAccessCards({
       </section>
     </div>
   );
+  return typeof document === 'undefined' ? content : createPortal(content, document.body);
 }

@@ -16,6 +16,7 @@ import { TOKENS, SESSION_COOKIE } from './tokens.js';
 import { AdminControlPlaneService } from './admin-control-plane.service.js';
 import { AdminLogsService } from './admin-logs.service.js';
 import type { LogFilter } from './admin-logs.worker.js';
+import { LOG_SUBSYSTEMS } from './log-subsystems.js';
 
 function fail(code: string, status: number): never {
   throw new HttpException(
@@ -56,6 +57,9 @@ export function logFilter(input: unknown): LogFilter {
   };
   const source = text('source', 200);
   const module = text('module', 20);
+  const subsystem = text('subsystem', 30);
+  if (subsystem && !LOG_SUBSYSTEMS.includes(subsystem as (typeof LOG_SUBSYSTEMS)[number]))
+    fail('validation_error', 400);
   const level = text('level', 10);
   const scope = text('scope', 20) || 'all';
   if (!['all', 'application', 'host'].includes(scope)) fail('validation_error', 400);
@@ -77,6 +81,7 @@ export function logFilter(input: unknown): LogFilter {
     to,
     source,
     module,
+    ...(subsystem ? { subsystem } : {}),
     level,
     search: text('search', 120),
     before: beforeTime ? { time: new Date(beforeTime).toISOString(), id: beforeId } : null,

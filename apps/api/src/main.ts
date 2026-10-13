@@ -1,4 +1,5 @@
 import 'reflect-metadata';
+import { lifecycleEvent } from './owned-pool-lifecycle.js';
 import {
   launchApiRuntime,
   type TelemetryLifecycle,
@@ -58,11 +59,11 @@ if (require.main === module) {
         void runtime
           .close()
           .then(() => {
-            process.stdout.write(`api stopped on ${signal}\n`);
+            lifecycleEvent(`stopped_${signal}`);
             process.exit(0);
           })
           .catch((error: unknown) => {
-            process.stderr.write(`api shutdown failed on ${signal}: ${String(error)}\n`);
+            lifecycleEvent(`shutdown_failed_${signal}`, error);
             process.exit(1);
           });
       };
@@ -73,7 +74,7 @@ if (require.main === module) {
     })
     .catch((error: unknown) => {
       const message = String(error instanceof Error ? error.message : error);
-      process.stderr.write(`api failed to start: ${message}\n`);
+      lifecycleEvent('startup_failed', error);
       process.exit(message.includes('APP_DATABASE_URL') ? 78 : 1);
     });
 }

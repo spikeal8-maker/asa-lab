@@ -21,7 +21,7 @@ export const notificationCategories: Record<NotificationCategory, string> = {
 const categoryHints: Record<NotificationCategory, string> = {
   NC01: 'Новые назначения и изменения условий задания. Само задание останется в обучении, даже если оповещение выключено.',
   NC02: 'Работы, которые поступили вам на проверку. Настройка не меняет очередь работ и доступ преподавателя.',
-  NC03: 'Проверка работы и её результаты. Оценки и комментарии остаются в журнале.',
+  NC03: 'Ручные оценки по датам, проверка работ и исправления результатов. Оценки и комментарии остаются видны, даже если оповещения выключены.',
   NC04: 'Напоминания о приближении срока. Выключение не переносит срок задания.',
   NC05: 'Напоминания о пропущенном сроке. Статус задания не меняется.',
   NC06: 'События выполнения работ и курсов. Прогресс обучения сохраняется независимо от оповещений.',
@@ -150,7 +150,7 @@ export function LearningNotificationPreferences({
       ) : draft ? (
         <>
           <div className="notification-setting-row">
-            <label>
+            <label className="notification-setting-label">
               <input
                 type="checkbox"
                 checked={draft.masterEnabled}
@@ -159,7 +159,7 @@ export function LearningNotificationPreferences({
                   editDraft({ ...draft, masterEnabled: e.target.checked });
                 }}
               />
-              Получать учебные оповещения
+              <span>Получать учебные оповещения</span>
             </label>
             <InfoHint label="О получении учебных оповещений">
               Общий выключатель останавливает доставку всех выбранных учебных категорий. Выбор
@@ -173,7 +173,7 @@ export function LearningNotificationPreferences({
             <div className="learning-category-grid">
               {keys.map((key) => (
                 <div className="notification-setting-row" key={key}>
-                  <label>
+                  <label className="notification-setting-label">
                     <input
                       type="checkbox"
                       disabled={busy}
@@ -185,7 +185,7 @@ export function LearningNotificationPreferences({
                         });
                       }}
                     />
-                    {notificationCategories[key]}
+                    <span>{notificationCategories[key]}</span>
                   </label>
                   <InfoHint label={`О категории «${notificationCategories[key]}»`}>
                     {categoryHints[key]}
@@ -323,8 +323,8 @@ export function ClassroomLearningReminders({ classroomId }: { classroomId: strin
     void load();
   }, [load]);
   return (
-    <details>
-      <summary>Напоминания ученикам</summary>
+    <fieldset className="learning-notification-settings">
+      <legend>Напоминания ученикам</legend>
       <p>
         Для учащихся этого класса. Личные выключатели учеников сохраняют приоритет. Сроки и оценки
         не меняются.
@@ -337,21 +337,21 @@ export function ClassroomLearningReminders({ classroomId }: { classroomId: strin
       ) : null}
       {value ? (
         <>
-          <label>
+          <label className="notification-setting-label">
             <input
               type="checkbox"
               checked={value.due}
               onChange={(e) => setValue({ ...value, due: e.target.checked })}
             />
-            Напоминать о приближении срока
+            <span>Напоминать о приближении срока</span>
           </label>
-          <label>
+          <label className="notification-setting-label">
             <input
               type="checkbox"
               checked={value.overdue}
               onChange={(e) => setValue({ ...value, overdue: e.target.checked })}
             />
-            Напоминать о просроченных действиях
+            <span>Напоминать о просроченных действиях</span>
           </label>
           <button
             className="btn-secondary"
@@ -369,6 +369,6 @@ export function ClassroomLearningReminders({ classroomId }: { classroomId: strin
           </button>
         </>
       ) : null}
-    </details>
+    </fieldset>
   );
 }

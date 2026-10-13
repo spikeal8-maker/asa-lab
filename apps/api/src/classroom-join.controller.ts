@@ -28,7 +28,7 @@ import { RefreshSessionService } from './refresh-session.service.js';
 import { checkBodyShape } from './validation.js';
 import { clientAddress, clientConnection } from './client-address.js';
 import { ProductAnalyticsService } from './product-analytics.service.js';
-import { SeatContextUseCase } from './seat-context.js';
+import { requestReceivedAt } from './request-receipt.js';
 import { FixedWindowRateLimiter } from './rate-limit.js';
 import {
   loadStudentCodeProtectionConfig,
@@ -782,6 +782,24 @@ export class ClassroomJoinController {
     @Res({ passthrough: true }) reply: FastifyReply,
     @Body() rawBody: unknown,
   ) {
+    try {
+      return await this.signInDecision(request, reply, rawBody);
+    } catch (failure) {
+      const status = failure instanceof HttpException ? failure.getStatus() : 500;
+      this.analytics?.enqueueEvent({
+        actor: { kind: 'anonymous' },
+        eventType: 'auth.class_join',
+        outcome: status === 403 || status === 429 ? 'blocked' : 'failed',
+        authMethod: 'class_code',
+        ...clientConnection(request),
+        userAgent: request.headers['user-agent'],
+        receivedAt: requestReceivedAt(request),
+      });
+      throw failure;
+    }
+  }
+
+  private async signInDecision(request: FastifyRequest, reply: FastifyReply, rawBody: unknown) {
     const shape = checkBodyShape(rawBody, ['code', 'studentCode']);
     const code = shape.ok ? shape.body['code'] : null;
     const rawStudentCode = shape.ok ? shape.body['studentCode'] : null;
@@ -911,48 +929,15 @@ export class ClassroomJoinController {
     });
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     reply.clearCookie(REFRESH_COOKIE, { path: '/api/auth' });
-    await this.recordSeatActivity(row.seat_id, 'seat.signed_in');
-    const seatContext = await new SeatContextUseCase(this.pool).resolve(token);
-    if (seatContext && this.analytics) {
-      const connection = clientConnection(request);
-      await this.analytics.record({
-        actor: { kind: 'student', context: seatContext },
-        eventType: 'auth.class_join',
-        outcome: 'succeeded',
-        authMethod: 'class_code',
-        address: connection.address,
-        networkKind: connection.networkKind,
-        userAgentSummary: request.headers['user-agent']?.slice(0, 128) ?? null,
-      });
-    }
+    this.analytics?.enqueueSeatActivity({
+      seatId: row.seat_id,
+      classId: row.classroom_id,
+      signedIn: true,
+      ...clientConnection(request),
+      userAgent: request.headers['user-agent'],
+      receivedAt: requestReceivedAt(request),
+    });
     return studentPayload(row);
-  }
-
-  /**
-   * Notes a learner's arrival or departure in their class record. It is written
-   * after the session itself so a failure here can never cost a learner their
-   * sign-in: the record exists to tell a teacher how someone is getting on, and
-   * that is never worth a locked door.
-   */
-  private async recordSeatActivity(seatId: string, action: string): Promise<void> {
-    try {
-      const principal = await this.requirePool().query(
-        `SELECT principal_id, tenant_id, classroom_id FROM student_seat_principal($1)`,
-        [seatId],
-      );
-      const seat = principal.rows[0] as
-        { principal_id: string; tenant_id: string; classroom_id: string } | undefined;
-      if (!seat) return;
-      await this.requirePool().query(`SELECT classroom_activity_record($1,$2,$3,$4,$5,NULL,NULL)`, [
-        seat.tenant_id,
-        seat.classroom_id,
-        seatId,
-        seat.principal_id,
-        action,
-      ]);
-    } catch {
-      // Deliberately silent: see above.
-    }
   }
 
   @Get('me')
@@ -1113,6 +1098,26 @@ export class ClassroomJoinController {
     const shape = checkBodyShape(rawBody, ['decision', 'reason']);
     if (!UUID_PATTERN.test(classroomId) || !UUID_PATTERN.test(requestId) || !shape.ok)
       throw new HttpException(error('validation_error', 'Некорректная заявка.'), 400);
+    const reason = shape.body['reason'];
+    if (
+      reason !== undefined &&
+      reason !== null &&
+      (typeof reason !== 'string' ||
+        reason.length > 500 ||
+        [...reason].some((char) => {
+          const code = char.charCodeAt(0);
+          return (
+            char === '<' ||
+            char === '>' ||
+            code === 127 ||
+            (code < 32 && ![9, 10, 13].includes(code))
+          );
+        }))
+    )
+      throw new HttpException(
+        error('validation_error', 'Ответ: до 500 символов обычного текста.'),
+        400,
+      );
     const result = await this.requirePool().query(
       'SELECT classroom_account_join_decide($1,$2,$3,$4,$5,$6) AS code',
       [
@@ -1121,7 +1126,7 @@ export class ClassroomJoinController {
         classroomId,
         requestId,
         shape.body['decision'],
-        shape.body['reason'] ?? null,
+        typeof reason === 'string' ? reason.trim() || null : null,
       ],
     );
     if (result.rows[0]?.['code'] !== 'ok')
@@ -1599,6 +1604,114 @@ export class ClassroomJoinController {
     if (!row) throw new HttpException(error('media_not_found', 'Образец не найден.'), 404);
     reply.header('Cache-Control', 'private, max-age=3600, immutable');
     reply.type(row.content_type).send(row.sample_bytes);
+  }
+
+  private async courseMaterialViewer(request: FastifyRequest): Promise<{
+    seatId: string | null;
+    accountId: string | null;
+  }> {
+    if (request.cookies[STUDENT_SESSION_COOKIE])
+      return { seatId: (await this.currentSeat(request)).seat_id, accountId: null };
+    const context = await this.activeContext.resolve(request.cookies[SESSION_COOKIE]);
+    if (!context) throw new HttpException(error('unauthorized', 'no active session'), 401);
+    return { seatId: null, accountId: context.accountId };
+  }
+
+  /** Exact published manual content for an authorized course lesson and block. */
+  @Get('course-runs/:runId/lessons/:lessonId/materials/:blockId')
+  async courseManualMaterial(
+    @Req() request: FastifyRequest,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('blockId') blockId: string,
+  ) {
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(blockId)
+    )
+      throw new HttpException(error('validation_error', 'course material is invalid'), 400);
+    const viewer = await this.courseMaterialViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT version_id,version_number,content_digest,title,blocks
+         FROM learning_course_manual_material_for_viewer($1,$2,$3,$4,$5)`,
+      [runId, lessonId, blockId, viewer.accountId, viewer.seatId],
+    );
+    const row = result.rows[0] as
+      | {
+          version_id: string;
+          version_number: number;
+          content_digest: string;
+          title: string;
+          blocks: Array<Record<string, unknown>>;
+        }
+      | undefined;
+    if (!row || !Array.isArray(row.blocks))
+      throw new HttpException(error('material_not_found', 'Материал недоступен.'), 404);
+    const base = `/api/class-join/course-runs/${runId}/lessons/${lessonId}/materials/${blockId}`;
+    return {
+      source: {
+        kind: 'published' as const,
+        id: row.version_id,
+        versionNumber: Number(row.version_number),
+        contentDigest: row.content_digest,
+      },
+      title: row.title,
+      blocks: row.blocks.map((block) => {
+        if (block['type'] !== 'image' && block['type'] !== 'file') return block;
+        const hash = block['contentHash'];
+        if (typeof hash !== 'string' || !/^[0-9a-f]{64}$/.test(hash))
+          throw new HttpException(error('material_unavailable', 'Медиа недоступно.'), 409);
+        return { ...block, src: `${base}/${block['type']}/${hash}` };
+      }),
+    };
+  }
+
+  @Get('course-runs/:runId/lessons/:lessonId/materials/:blockId/:role/:contentHash')
+  async courseManualMedia(
+    @Req() request: FastifyRequest,
+    @Res({ passthrough: false }) reply: FastifyReply,
+    @Param('runId') runId: string,
+    @Param('lessonId') lessonId: string,
+    @Param('blockId') blockId: string,
+    @Param('role') role: string,
+    @Param('contentHash') contentHash: string,
+  ): Promise<void> {
+    if (
+      !UUID_PATTERN.test(runId) ||
+      !UUID_PATTERN.test(lessonId) ||
+      !/^[A-Za-z0-9_-]{1,80}$/.test(blockId) ||
+      !['image', 'file'].includes(role) ||
+      !/^[0-9a-f]{64}$/.test(contentHash)
+    )
+      throw new HttpException(error('validation_error', 'course media is invalid'), 400);
+    const viewer = await this.courseMaterialViewer(request);
+    const result = await this.requirePool().query(
+      `SELECT media_bytes,content_type,content_hash
+         FROM learning_course_manual_media_for_viewer($1,$2,$3,$4,$5,$6,$7)`,
+      [
+        runId,
+        lessonId,
+        blockId,
+        viewer.accountId,
+        viewer.seatId,
+        role === 'image' ? 'task-image' : 'task-file',
+        contentHash,
+      ],
+    );
+    const row = result.rows[0] as
+      { media_bytes: Buffer; content_type: string; content_hash: string } | undefined;
+    if (!row || !row.media_bytes || row.content_hash !== contentHash)
+      throw new HttpException(error('media_not_found', 'Медиа недоступно.'), 404);
+    reply.header('cache-control', 'private, no-store').header('x-content-type-options', 'nosniff');
+    if (role === 'file') {
+      if (row.content_type !== 'application/pdf')
+        throw new HttpException(error('media_not_found', 'Файл недоступен.'), 404);
+      reply.header('content-disposition', 'attachment; filename="material.pdf"');
+    } else if (!['image/png', 'image/jpeg', 'image/webp'].includes(row.content_type)) {
+      throw new HttpException(error('media_not_found', 'Изображение недоступно.'), 404);
+    }
+    reply.type(row.content_type).send(row.media_bytes);
   }
 
   /** Exact immutable sample of a visible Course Activity block occurrence. */
@@ -2111,14 +2224,22 @@ export class ClassroomJoinController {
     const token = request.cookies[STUDENT_SESSION_COOKIE];
     if (token) {
       const active = await this.requirePool().query(
-        `SELECT seat_id FROM classroom_student_session_context($1)`,
+        `SELECT seat_id, classroom_id FROM classroom_student_session_context($1)`,
         [hashSessionToken(token)],
       );
-      const seatId = (active.rows[0] as { seat_id: string } | undefined)?.seat_id;
+      const seat = active.rows[0] as { seat_id: string; classroom_id: string } | undefined;
       await this.requirePool().query(`SELECT classroom_student_session_revoke($1)`, [
         hashSessionToken(token),
       ]);
-      if (seatId) await this.recordSeatActivity(seatId, 'seat.signed_out');
+      if (seat)
+        this.analytics?.enqueueSeatActivity({
+          seatId: seat.seat_id,
+          classId: seat.classroom_id,
+          signedIn: false,
+          ...clientConnection(request),
+          userAgent: request.headers['user-agent'],
+          receivedAt: requestReceivedAt(request),
+        });
     }
     if (request.cookies[SESSION_COOKIE]) {
       await new RefreshSessionService(this.requirePool()).revoke(

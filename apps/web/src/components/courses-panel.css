@@ -383,19 +383,18 @@
 
 .course-compact-title > div {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
   min-width: 0;
 }
 
 .course-compact-title h2 {
-  overflow: hidden;
   margin: 0;
   color: #16232c;
   font-size: 18px;
   letter-spacing: -0.01em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .course-compact-title p {
@@ -1274,6 +1273,21 @@
   background: #f3f7f9;
 }
 
+@media (max-width: 1200px) {
+  .course-compact-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .course-header-actions {
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+
+  .course-header-actions button {
+    width: auto;
+  }
+}
+
 @media (max-width: 980px) {
   .course-row-main {
     grid-template-columns: 42px minmax(0, 1fr);
@@ -1409,8 +1423,13 @@
     font-size: 14px;
   }
 
+  .courses-toolbar-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .courses-toolbar-actions > button {
-    flex: 1 1 0;
+    min-width: 0;
     min-height: 36px;
     padding: 6px 10px;
     font-size: 12px;
@@ -1496,5 +1515,90 @@
 
   .course-preview-page h2 {
     font-size: 20px;
+  }
+}
+
+.course-practice-picker,
+.course-manual-material-picker {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--line, #dbe4ec);
+  border-radius: 12px;
+}
+.course-pinned-practice,
+.course-pinned-material {
+  overflow-wrap: anywhere;
+}
+.course-practice-options {
+  margin-top: 12px;
+  padding: 12px;
+  background: #f5f8fb;
+  border-radius: 12px;
+}
+.course-practice-options label {
+  display: grid;
+  gap: 6px;
+}
+.course-practice-options input {
+  width: 100%;
+  min-width: 0;
+}
+.course-practice-options ul {
+  padding: 0;
+  list-style: none;
+}
+.course-practice-options li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid #dbe4ec;
+}
+.course-practice-options li strong {
+  flex: 1 1 180px;
+  overflow-wrap: anywhere;
+}
+.course-practice-options li span {
+  color: #516879;
+  font-size: 12px;
+}
+.lesson-block-add {
+  position: relative;
+  display: block;
+}
+.lesson-block-add [role='menu'] {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  margin-top: 8px;
+  border: 1px solid #dbe4ec;
+  background: #fff;
+  border-radius: 12px;
+}
+.course-assign-dialog {
+  width: min(560px, calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow-y: auto;
+}
+.course-assign-dialog p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 520px) {
+  .lesson-block-add [role='menu'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .course-practice-options {
+    padding: 8px;
+  }
+  .course-practice-picker {
+    padding: 8px;
+  }
+  .course-assign-dialog .modal-actions {
+    flex-wrap: wrap;
+  }
+  .course-assign-dialog .modal-actions button {
+    flex: 1 1 100%;
   }
 }

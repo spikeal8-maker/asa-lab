@@ -1,5 +1,5 @@
-/** Thin same-origin API client. The session lives in an HttpOnly cookie; the
- * client never sends or stores tenant identifiers. */
+/** Thin same-origin API client. The session lives in an HttpOnly cookie and
+ * determines access; frozen copy destinations are independently server-validated. */
 
 import type { ModulePreviewDescriptor } from '@asa-lab/module-sdk';
 import type { ArduinoControllerState } from '@asa-lab/electronics/simulation';
@@ -374,7 +374,14 @@ export type LessonBlock = { id: string; hidden?: boolean } & (
   | { type: 'table'; rows: string[][] }
   | { type: 'divider' }
   | { type: 'activity'; learningActivityVersionId: string }
+  | { type: 'manual-material'; learningActivityVersionId: string }
 );
+
+export interface CourseManualMaterial {
+  source: { kind: 'published'; id: string; versionNumber: number; contentDigest: string };
+  title: string;
+  blocks: SafeTaskBlock[];
+}
 
 export interface CourseLesson {
   id: string;
@@ -537,6 +544,10 @@ export interface PublicKnowledgeItem {
 }
 
 export interface CatalogueCoursePreview {
+  versionId?: string;
+  contentHash?: string;
+  destinationTenantId?: string;
+  pinnedItems?: Record<string, CataloguePinnedItem>;
   versionNumber: number;
   title: string;
   summary: string | null;
@@ -555,8 +566,33 @@ export interface CatalogueCoursePreview {
       kind: 'material' | 'assignment';
       estimatedMinutes: number | null;
       position: number;
+      learningActivityVersionId?: string;
     }>;
   }>;
+}
+
+export interface CataloguePinnedItem {
+  versionId: string;
+  versionNumber: number;
+  title: string;
+  moduleKey: string | null;
+  goal: string | null;
+  brief: string | null;
+  blocks: SafeTaskBlock[];
+  sampleImage: string | null;
+}
+export interface CatalogueCopyRequest {
+  versionId: string;
+  contentHash: string;
+  requestId: string;
+  destinationTenantId: string;
+}
+export interface CatalogueCopyReceipt {
+  id: string;
+  sourceVersionId?: string;
+  sourceVersionNumber?: number;
+  sourceContentHash?: string;
+  reused?: boolean;
 }
 
 export interface ContentShare {
@@ -1045,9 +1081,11 @@ export interface ClassroomStudentSeat {
   id: string;
   displayLabel: string;
   /** Current case-sensitive Student Code; automatic creation uses six safe mixed-case characters. */
-  studentCode: string;
+  studentCode: string | null;
+  /** Server projection of the Seat admission method; a linked Account keeps its real code. */
+  loginMethod: 'account' | 'student_code';
   /** @deprecated compatibility alias; use studentCode in new UI. */
-  loginHandle: string;
+  loginHandle: string | null;
   safeMode: boolean;
   status: 'issued' | 'active' | 'suspended';
   /** Chosen picture, or null while nobody has chosen and one is drawn by seat. */
@@ -1872,6 +1910,7 @@ export const api = {
     call<{
       id: string;
       title: string;
+      kind?: string;
       draftRevision: number;
       draftSampleImage: string | null;
       currentPublishedVersionId: string | null;
@@ -1936,7 +1975,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({
         ...draft,
-        kind: 'project',
+        kind: draft.moduleKey === null ? 'manual' : 'project',
         scope: 'personal',
         visibility: 'private',
         requestId,
@@ -1986,7 +2025,7 @@ export const api = {
       ? { ...result, data: { ...result.data, items: projectEntries(result.data.items) } }
       : result;
   },
-  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers') =>
+  recordModuleOpened: (moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks') =>
     call<{ accepted: true }>('/api/analytics/v1/module-opened', {
       method: 'POST',
       body: JSON.stringify({ moduleKey }),
@@ -1994,7 +2033,7 @@ export const api = {
   startModuleSession: (
     sessionId: string,
     projectId: string,
-    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers',
+    moduleKey: 'electronics' | 'three-d' | 'chess' | 'checkers' | 'blocks',
   ) =>
     call<{ accepted: boolean; sessionId: string }>('/api/analytics/v1/module-session/start', {
       method: 'POST',
@@ -2176,7 +2215,6 @@ export const api = {
         method: 'PATCH',
         body: JSON.stringify({
           displayLabel: seat.displayLabel,
-          loginHandle: seat.loginHandle,
           safeMode: seat.safeMode,
           status: seat.status,
           avatarKey: seat.avatarKey,
@@ -2253,10 +2291,14 @@ export const api = {
     classroomId: string,
     requestId: string,
     decision: 'approved' | 'rejected',
+    reason?: string,
   ) =>
     call<{ ok: true }>(
       `/api/class-join/requests/${encodeURIComponent(classroomId)}/${encodeURIComponent(requestId)}/decision`,
-      { method: 'POST', body: JSON.stringify({ decision }) },
+      {
+        method: 'POST',
+        body: JSON.stringify({ decision, ...(reason?.trim() ? { reason: reason.trim() } : {}) }),
+      },
     ),
   attendedAssignments: () =>
     call<{ items: Array<SeatAssignment & { classroomTitle: string }> }>(
@@ -2608,10 +2650,14 @@ export const api = {
   catalogueCourse: (courseId: string) =>
     call<CatalogueCoursePreview>(`/api/catalogue/courses/${encodeURIComponent(courseId)}`),
   /** Забрать себе копией: автор правит своё, вы — своё. */
-  takeFromCatalogue: (kind: 'course' | 'assignment', subjectId: string) =>
-    call<{ id: string }>(`/api/catalogue/${kind}/${encodeURIComponent(subjectId)}/take`, {
+  takeFromCatalogue: (
+    kind: 'course' | 'assignment',
+    subjectId: string,
+    exact?: CatalogueCopyRequest,
+  ) =>
+    call<CatalogueCopyReceipt>(`/api/catalogue/${kind}/${encodeURIComponent(subjectId)}/take`, {
       method: 'POST',
-      body: JSON.stringify({}),
+      body: JSON.stringify(exact ?? {}),
     }),
   deleteLibraryAssignment: (assignmentId: string) =>
     call<{ removed: true }>(`/api/assignments/${encodeURIComponent(assignmentId)}`, {
@@ -2771,6 +2817,10 @@ export const api = {
     }),
   seatCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/me/course-runs'),
   accountCourseRuns: () => call<{ items: SeatCourseRun[] }>('/api/class-join/account/course-runs'),
+  courseManualMaterial: (runId: string, lessonId: string, blockId: string) =>
+    call<CourseManualMaterial>(
+      `/api/class-join/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(lessonId)}/materials/${encodeURIComponent(blockId)}`,
+    ),
   setSeatCourseLessonProgress: (runId: string, lessonId: string, completed: boolean) =>
     call<{ completedAt: string | null }>(
       `/api/class-join/me/course-runs/${encodeURIComponent(runId)}/lessons/${encodeURIComponent(

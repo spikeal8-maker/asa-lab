@@ -9,13 +9,15 @@ export function StudentCodeDialog({
   student,
   onClose,
   onSaved,
+  onForbidden,
 }: {
   classroomId: string;
   student: ClassroomStudentSeat;
   onClose: () => void;
   onSaved: (studentCode: string) => Promise<void> | void;
+  onForbidden?: () => void;
 }): JSX.Element {
-  const [value, setValue] = useState(student.studentCode);
+  const [value, setValue] = useState(student.studentCode ?? '');
   const [busy, setBusy] = useState<'save' | 'generate' | null>(null);
   const [error, setError] = useState<string | null>(null);
   const request = useRef<{ key: string; id: string } | null>(null);
@@ -25,18 +27,24 @@ export function StudentCodeDialog({
     if (request.current?.key !== key) request.current = { key, id: crypto.randomUUID() };
     setBusy(studentCode ? 'save' : 'generate');
     setError(null);
-    const result = await api.setStudentCode(classroomId, student.id, {
-      ...(studentCode ? { studentCode } : {}),
-      requestId: request.current.id,
-    });
-    setBusy(null);
-    if (!result.ok) {
-      setError(result.error.message || 'Не удалось изменить код ученика.');
-      return;
+    try {
+      const result = await api.setStudentCode(classroomId, student.id, {
+        ...(studentCode ? { studentCode } : {}),
+        requestId: request.current.id,
+      });
+      if (!result.ok) {
+        if (result.status === 401 || result.status === 403) onForbidden?.();
+        setError(result.error.message || 'Не удалось изменить код ученика.');
+        return;
+      }
+      request.current = null;
+      await onSaved(result.data.studentCode);
+      onClose();
+    } catch {
+      setError('Не удалось получить подтверждение смены кода. Повторите попытку.');
+    } finally {
+      setBusy(null);
     }
-    request.current = null;
-    await onSaved(result.data.studentCode);
-    onClose();
   }
 
   return (

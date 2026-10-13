@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.clearAllTimers();
   vi.useRealTimers();
 });
 describe('client diagnostics isolation', () => {
@@ -16,12 +17,14 @@ describe('client diagnostics isolation', () => {
     const options = fetch.mock.calls[0]![1] as RequestInit;
     expect(Object.keys(JSON.parse(options.body as string)).sort()).toEqual([
       'code',
+      'eventId',
       'instanceId',
       'module',
+      'occurredAt',
       'revision',
     ]);
     for (let i = 0; i < 20; i++) {
-      vi.advanceTimersByTime(10000);
+      await vi.advanceTimersByTimeAsync(10000);
       reportClientDiagnostic('autosave_failed', 'electronics');
     }
     expect(fetch.mock.calls.length).toBe(21);
@@ -31,6 +34,8 @@ describe('client diagnostics isolation', () => {
     for (let i = 0; i < 100; i++) {
       beginDiagnosticContext('scratch');
       reportClientDiagnostic('editor_start_failed', 'scratch');
+      await Promise.resolve();
+      await Promise.resolve();
     }
     expect(fetch.mock.calls.length - before).toBe(12);
   });
@@ -80,6 +85,7 @@ describe('client diagnostics isolation', () => {
   });
   it('does not throw when logging transport fails', async () => {
     vi.resetModules();
+    vi.useFakeTimers();
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
     const { reportClientDiagnostic } = await import('./client-diagnostics');
     expect(() => reportClientDiagnostic('session_refresh_failed', 'auth')).not.toThrow();

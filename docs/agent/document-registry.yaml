@@ -88,6 +88,17 @@ documents:
       - host_migration
       - new_self_hosted_project
 
+  - id: OBSERVABILITY-REPAIR-SPEC
+    path: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
+    scope: observability
+    lanes: [observability]
+    kind: implementation_spec
+    status: canonical
+    authority: owner_sequential_observability_repairs
+    revision: '1.6'
+    context_role: task
+    read_when: [observability_repair]
+
   - id: PORTABLE-DEPLOYMENT-CONTRACT
     path: docs/agent/contracts/deployment.yaml
     scope: global

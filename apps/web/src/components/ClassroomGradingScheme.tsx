@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
+import { JournalScaleSettings } from './JournalScaleSettings';
 
-export function ClassroomGradingScheme({ classroomId }: { classroomId: string }) {
-  return <ClassroomGradingSchemeForClass key={classroomId} classroomId={classroomId} />;
+export function ClassroomGradingScheme({
+  classroomId,
+  section = 'all',
+}: {
+  classroomId: string;
+  section?: 'all' | 'manual' | 'assignments';
+}) {
+  return (
+    <>
+      {section !== 'assignments' ? <JournalScaleSettings classroomId={classroomId} /> : null}
+      {section !== 'manual' ? (
+        <ClassroomGradingSchemeForClass key={classroomId} classroomId={classroomId} />
+      ) : null}
+    </>
+  );
 }
 
 function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }) {
@@ -88,8 +102,8 @@ function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }
     else setError(result.error.message);
   }
   return (
-    <details className="learning-notification-settings">
-      <summary>Шкала новых оцениваемых заданий</summary>
+    <fieldset className="learning-notification-settings classroom-assignment-scale">
+      <legend>Шкала новых оцениваемых заданий</legend>
       <p>
         Шкала закрепляется при назначении. Новая версия не меняет прежние задания и результаты. Без
         шкалы показываются только исходные баллы.
@@ -120,7 +134,7 @@ function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }
             />
           </label>
           {bands.map((band, index) => (
-            <div className="learning-notification-actions" key={index}>
+            <div className="learning-notification-actions classroom-scale-band" key={index}>
               <label>
                 От, %
                 <input
@@ -157,12 +171,15 @@ function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }
               {bands.length > 2 ? (
                 <button
                   disabled={busy}
+                  className="classroom-scale-remove"
+                  aria-label={`Удалить диапазон ${index + 1}`}
+                  title={`Удалить диапазон ${index + 1}`}
                   onClick={() => {
                     editDraft();
                     setBands(bands.filter((_, i) => i !== index));
                   }}
                 >
-                  Удалить диапазон {index + 1}
+                  ×
                 </button>
               ) : null}
             </div>
@@ -194,6 +211,6 @@ function ClassroomGradingSchemeForClass({ classroomId }: { classroomId: string }
           </div>
         </>
       ) : null}
-    </details>
+    </fieldset>
   );
 }

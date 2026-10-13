@@ -1,7 +1,9 @@
-import { createElement } from 'react';
+// @vitest-environment jsdom
+import { act, createElement, useState } from 'react';
+import { createRoot, type Root } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
-import type { LessonBlock } from '../api';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { api, type AuthoredActivityLearnerPreview, type LessonBlock } from '../api';
 import {
   LessonBlockEditor,
   MAX_LESSON_BLOCKS,
@@ -15,6 +17,156 @@ import {
   setLessonBlockHidden,
 } from './LessonBlockEditor';
 import { LessonBlocks } from './LessonBlocks';
+
+const reactGlobal = globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT: boolean };
+let root: Root | null = null;
+let container: HTMLDivElement | null = null;
+beforeAll(() => {
+  reactGlobal.IS_REACT_ACT_ENVIRONMENT = true;
+});
+afterAll(() => {
+  reactGlobal.IS_REACT_ACT_ENVIRONMENT = false;
+});
+afterEach(async () => {
+  if (root) await act(async () => root?.unmount());
+  container?.remove();
+  root = null;
+  container = null;
+  vi.restoreAllMocks();
+});
+async function flush(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+}
+function ControlledEditor({
+  blocks: initial,
+  onChange,
+}: {
+  readonly blocks: LessonBlock[];
+  readonly onChange: (value: LessonBlock[]) => void;
+}) {
+  const [blocks, setBlocks] = useState(initial);
+  return createElement(LessonBlockEditor, {
+    blocks,
+    activities: [],
+    onChange: (value) => {
+      setBlocks(value);
+      onChange(value);
+    },
+  });
+}
+async function mountEditor(blocks: LessonBlock[], onChange = vi.fn()) {
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  await act(async () => {
+    root?.render(createElement(ControlledEditor, { blocks, onChange }));
+    await flush();
+  });
+  return onChange;
+}
+function button(label: string, scope: HTMLElement = container!) {
+  const found = [...scope.querySelectorAll<HTMLButtonElement>('button')].find(
+    (item) => item.textContent?.trim() === label,
+  );
+  if (!found) throw new Error('Missing button: ' + label);
+  return found;
+}
+const pinnedVersion = '33333333-3333-4333-8333-333333333333';
+const currentVersion = '11111111-1111-4111-8111-111111111111';
+function exactPreview(
+  id: string,
+  versionNumber: number,
+  title: string,
+): AuthoredActivityLearnerPreview {
+  return {
+    source: { kind: 'published', id, versionNumber, draftRevision: null, contentDigest: id },
+    assignment: {
+      title,
+      goal: 'Точная цель ' + versionNumber,
+      brief: 'Точное содержание ' + versionNumber,
+      blocks: [{ type: 'paragraph', text: 'Точное содержание ' + versionNumber }],
+      sampleImage: null,
+    },
+    moduleKey: 'electronics',
+    resultMode: 'completion',
+    maxPoints: null,
+    policies: {},
+    learnerRuntime: false,
+  };
+}
+function mockCanonicalRoots() {
+  vi.spyOn(api, 'authoredActivities').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          id: 'own-published',
+          title: 'Название источника v3',
+          kind: 'project',
+          draftRevision: 4,
+          currentPublishedVersionId: currentVersion,
+        },
+        {
+          id: 'own-draft',
+          title: 'Черновая практика',
+          kind: 'project',
+          draftRevision: 1,
+          currentPublishedVersionId: null,
+        },
+        {
+          id: 'own-manual',
+          title: 'Обычный материал',
+          kind: 'manual',
+          draftRevision: 1,
+          currentPublishedVersionId: '44444444-4444-4444-8444-444444444444',
+        },
+      ],
+    },
+  });
+  vi.spyOn(api, 'authorVersions').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        { id: pinnedVersion, versionNumber: 2 },
+        { id: currentVersion, versionNumber: 3 },
+      ],
+    },
+  });
+  vi.spyOn(api, 'listModules').mockResolvedValue({
+    ok: true,
+    status: 200,
+    data: {
+      items: [
+        {
+          moduleKey: 'electronics',
+          moduleVersion: '1',
+          displayName: 'Электроника',
+          shortDescription: 'Электрические схемы',
+          defaultProjectTitlePrefix: 'Схема',
+          projectType: 'schematic',
+          schemaVersion: 1,
+          editorRoute: 'electronics',
+          viewerRoute: 'electronics',
+          safeModeSupported: true,
+          availability: 'active',
+          previewKind: 'schematic',
+          iconKey: 'electronics',
+          categories: [],
+          creatable: true,
+          learningCapabilities: {
+            assignable: true,
+            editableEvidence: true,
+            submitProjectVersion: true,
+            preview: 'snapshot',
+          },
+        },
+      ],
+    },
+  });
+}
 
 describe('informational lesson blocks', () => {
   it('creates the four canonical block payloads used by the editor', () => {
@@ -53,7 +205,10 @@ describe('informational lesson blocks', () => {
     expect(markup).toContain('aria-label="Язык кода"');
     expect(markup).toContain('aria-label="Описание изображения"');
     expect(markup).toContain('+ Строка');
-    expect(markup).toContain('+ Текст');
+    expect(markup).toContain('+ Добавить содержимое');
+    expect(markup).toContain('aria-expanded="false"');
+    expect(markup).not.toContain('role="menu"');
+    expect(markup).not.toContain('+ Текст');
     expect(markup).toContain('type="button"');
   });
 
@@ -189,37 +344,109 @@ describe('informational lesson blocks', () => {
     });
   });
 
-  it('renders Activity add/select controls, disables drafts and preserves a missing current pin', () => {
-    const pinnedVersion = '33333333-3333-4333-8333-333333333333';
-    const blocks: LessonBlock[] = [
-      { id: 'activity-pinned', type: 'activity', learningActivityVersionId: pinnedVersion },
-    ];
-    const markup = renderToStaticMarkup(
-      createElement(LessonBlockEditor, {
-        blocks,
-        activities: [
-          {
-            id: 'published',
-            title: 'Опубликованная практика',
-            currentPublishedVersionId: '11111111-1111-4111-8111-111111111111',
-          },
-          {
-            id: 'draft',
-            title: 'Черновая практика',
-            currentPublishedVersionId: null,
-          },
-        ],
-        onChange: () => undefined,
-      }),
-    );
+  it('opens the single native add-content menu and closes it after adding text', async () => {
+    const original: LessonBlock = { id: 'existing', type: 'paragraph', text: 'Original' };
+    const change = await mountEditor([original]);
+    const trigger = button('+ Добавить содержимое');
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+    expect(container!.querySelector('[role="menu"]')).toBeNull();
+    await act(async () => trigger.click());
+    const menu = container!.querySelector<HTMLElement>('[role="menu"]')!;
+    expect(trigger.getAttribute('aria-expanded')).toBe('true');
+    expect(menu.getAttribute('aria-label')).toBe('Добавить содержимое урока');
+    expect(button('+ Текст', menu).getAttribute('role')).toBe('menuitem');
+    expect(button('+ Практика', menu).getAttribute('role')).toBe('menuitem');
+    expect(
+      [...menu.querySelectorAll('[role="menuitem"]')].every((item) => item.tagName === 'BUTTON'),
+    ).toBe(true);
+    await act(async () => button('+ Текст', menu).click());
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(change.mock.calls[0]?.[0]).toEqual([
+      original,
+      expect.objectContaining({ type: 'paragraph', text: '' }),
+    ]);
+    expect(container!.querySelector('[role="menu"]')).toBeNull();
+    expect(trigger.getAttribute('aria-expanded')).toBe('false');
+  });
 
-    expect(markup).toContain('+ Практика');
-    expect(markup).toContain('Выберите опубликованную активность…');
-    expect(markup).toContain('Опубликованная практика');
-    expect(markup).toContain('Черновая практика · черновик — сначала опубликуйте');
-    expect(markup).toContain('disabled=""');
-    expect(markup).toContain('Закреплённая версия');
-    expect(markup).toContain(`value="${pinnedVersion}"`);
+  it('preserves a historical pin, excludes drafts/manuals and selects only server-confirmed canonical metadata', async () => {
+    mockCanonicalRoots();
+    let resolve!: (value: Awaited<ReturnType<typeof api.previewAuthoredActivityVersion>>) => void;
+    const read = vi
+      .spyOn(api, 'previewAuthoredActivityVersion')
+      .mockImplementation(async (_rootId, versionId) => {
+        if (versionId === pinnedVersion)
+          return {
+            ok: true,
+            status: 200,
+            data: exactPreview(pinnedVersion, 2, 'Закреплённая практика v2'),
+          };
+        return new Promise((done) => {
+          resolve = done;
+        });
+      });
+    const change = await mountEditor([
+      { id: 'activity-pinned', type: 'activity', learningActivityVersionId: pinnedVersion },
+    ]);
+    expect(container!.textContent).toContain('Закреплённая практика v2');
+    expect(container!.textContent).toContain('Точное содержание 2');
+    expect(container!.textContent).toContain('Электроника');
+    expect(read).toHaveBeenCalledWith('own-published', pinnedVersion);
+    expect(change).not.toHaveBeenCalled();
+    await act(async () => {
+      button('Заменить практику').click();
+      await flush();
+    });
+    const picker = container!.querySelector<HTMLElement>('[aria-label="Выбор практики"]')!;
+    expect(picker.textContent).toContain('Название источника v3');
+    expect(picker.textContent).not.toContain('Черновая практика');
+    expect(picker.textContent).not.toContain('Обычный материал');
+    await act(async () => button('Добавить', picker).click());
+    expect(change).not.toHaveBeenCalled();
+    expect(container!.textContent).toContain('Закреплённая практика v2');
+    expect(read).toHaveBeenCalledWith('own-published', currentVersion);
+    // Selection and subsequent pinned preview both require exact server reads.
+    read.mockImplementation(async (_rootId, versionId) => ({
+      ok: true,
+      status: 200,
+      data: exactPreview(versionId, 3, 'Опубликованная практика v3'),
+    }));
+    await act(async () => {
+      resolve({
+        ok: true,
+        status: 200,
+        data: exactPreview(currentVersion, 3, 'Опубликованная практика v3'),
+      });
+      await flush();
+    });
+    expect(api.listModules).toHaveBeenCalledTimes(1);
+    expect(change).toHaveBeenCalledTimes(1);
+    expect(change.mock.calls[0]?.[0]).toEqual([
+      { id: 'activity-pinned', type: 'activity', learningActivityVersionId: currentVersion },
+    ]);
+    expect(container!.textContent).toContain('Опубликованная практика v3');
+    expect(container!.textContent).toContain('Точная цель 3');
+    expect(container!.textContent).not.toContain('Закреплённая практика v2');
+    expect(container!.querySelector('[aria-label="Выбор практики"]')).toBeNull();
+  });
+
+  it('keeps an unavailable historical pin unchanged and never substitutes the current version', async () => {
+    mockCanonicalRoots();
+    const read = vi.spyOn(api, 'previewAuthoredActivityVersion').mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: exactPreview(currentVersion, 3, 'Future content'),
+    });
+    const change = await mountEditor([
+      { id: 'activity-pinned', type: 'activity', learningActivityVersionId: pinnedVersion },
+    ]);
+    expect(container!.querySelector('[role="alert"]')!.textContent).toContain(
+      'Сервер не подтвердил закреплённую версию',
+    );
+    expect(container!.textContent).not.toContain('Future content');
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledWith('own-published', pinnedVersion);
+    expect(change).not.toHaveBeenCalled();
   });
 
   it('inserts an empty Activity block above and below through generic insertion semantics', () => {

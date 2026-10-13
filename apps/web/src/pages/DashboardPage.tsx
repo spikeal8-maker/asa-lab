@@ -1,12 +1,15 @@
+import '../modules/classroom-owner-layout.css';
+import '../modules/classroom-mobile.css';
+import '../modules/classroom-usability.css';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api, type Classroom, type ClassroomStatus } from '../api';
 import { CreateClassroomModal } from '../components/CreateClassroomModal';
 import { ClassroomPropertiesModal } from '../components/ClassroomPropertiesModal';
 import { ageBandLabel } from '../components/ClassroomFields';
 import { Dropdown } from '../components/Dropdown';
-import { classroomWord, learnerWord, workWord } from '../plural';
 import { useSchoolTime } from '../components/school-time';
 import { ClassesIcon, PlusIcon } from '../electronics/workbench-icons';
+import { ClassroomMetrics, useClassroomMetrics } from '../components/ClassroomMetrics';
 
 type ListState =
   { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; items: Classroom[] };
@@ -149,6 +152,16 @@ export function DashboardPage({
   }, [list, roleView, sort]);
 
   const selectedItems = visibleItems.filter((item) => selected.has(item.id));
+  const summaryClassIds = visibleItems
+    .map((item) => item.id)
+    .sort()
+    .join(',');
+  const summary = useClassroomMetrics(
+    summaryClassIds,
+    list,
+    list.kind === 'ready' && roleView !== 'enrolled',
+  );
+  const rowMetrics = new Map(summary.data?.items.map((item) => [item.classroomId, item]));
   const allSelected = visibleItems.length > 0 && selectedItems.length === visibleItems.length;
   const ownedSelection = selectedItems.filter((item) => item.teacherRole === 'owner');
 
@@ -202,27 +215,32 @@ export function DashboardPage({
 
   const sortLabel = SORTS.find((entry) => entry.id === sort)?.label ?? 'Сначала новые';
 
-  /** Итоги по видимым классам — те же числа, что в колонках, но одной строкой. */
-  const totals = visibleItems.reduce(
-    (acc, classroom) => ({
-      students: acc.students + classroom.studentCount,
-      assigned: acc.assigned + (classroom.assignedCount ?? 0) * classroom.studentCount,
-      submitted: acc.submitted + (classroom.submittedCount ?? 0),
-      awaiting: acc.awaiting + (classroom.awaitingReview ?? 0),
-      behind: acc.behind + (classroom.behindCount ?? 0),
-    }),
-    { students: 0, assigned: 0, submitted: 0, awaiting: 0, behind: 0 },
-  );
-
   return (
     <main
       id="main-content"
-      className="portal-content"
+      className="portal-content classroom-owner-list"
       tabIndex={-1}
       aria-busy={list.kind === 'loading'}
     >
       <section className="classroom-hub-heading" aria-labelledby="classroom-hub-title">
-        <h1 id="classroom-hub-title">Мои классы</h1>
+        <div className="classroom-title-row">
+          <h1 id="classroom-hub-title">Мои классы</h1>
+          {roleView !== 'enrolled' ? (
+            <ClassroomMetrics
+              showClasses
+              classes={list.kind === 'ready' ? visibleItems.length : undefined}
+              data={summary.data?.totals ?? null}
+            />
+          ) : null}
+        </div>
+        {summary.error ? (
+          <p role="alert">
+            Показатели: {summary.error}{' '}
+            <button type="button" onClick={summary.retry}>
+              Повторить
+            </button>
+          </p>
+        ) : null}
         {/* Преподаватель тоже учится: у коллеги, на курсах, ради себя. Вход в
             чужой класс лежит здесь же, а не в другом конце продукта. */}
         <button type="button" className="classroom-attend-link" onClick={onAttendClasses}>
@@ -268,7 +286,7 @@ export function DashboardPage({
           className="portal-create-button"
           onClick={openModal}
         >
-          <PlusIcon /> Создать новый класс
+          <PlusIcon /> Создать класс
         </button>
         {/* The actions apply to what is ticked. With nothing ticked the menu
             says so instead of being a dead button that gives no reason. */}
@@ -404,26 +422,6 @@ export function DashboardPage({
       ) : null}
       {/* Дашборд по всем классам сразу: до него преподавателю приходилось
           складывать колонки глазами, чтобы понять, где сегодня работа. */}
-      {list.kind === 'ready' && visibleItems.length > 0 && roleView !== 'enrolled' ? (
-        <section className="classroom-progress" aria-label="Итоги по классам">
-          <span>
-            <strong>{visibleItems.length}</strong> {classroomWord(visibleItems.length)}
-          </span>
-          <span>
-            <strong>{totals.students}</strong> {learnerWord(totals.students)}
-          </span>
-          <span>
-            <strong>{totals.submitted}</strong> из {totals.assigned} {workWord(totals.assigned)}{' '}
-            сдано
-          </span>
-          <span className={totals.awaiting > 0 ? 'is-waiting' : undefined}>
-            <strong>{totals.awaiting}</strong> ждут проверки
-          </span>
-          <span className={totals.behind > 0 ? 'is-behind' : undefined}>
-            <strong>{totals.behind}</strong> не сдали ничего
-          </span>
-        </section>
-      ) : null}
       {list.kind === 'ready' && visibleItems.length > 0 ? (
         <ul className="classroom-list" data-testid="classroom-grid" aria-label="Мои классы">
           {/* Шапка таблицы: без неё числа в строке — просто числа. */}
@@ -431,9 +429,10 @@ export function DashboardPage({
             <span />
             <span>Класс</span>
             <span>Ученики</span>
-            <span>Сдано из выданного</span>
-            <span>Ждут проверки</span>
-            <span>Отстают</span>
+            <span>Работы</span>
+            <span>Сдано</span>
+            <span>Ждут</span>
+            <span>Не сдали</span>
             <span>Создан</span>
             <span />
           </li>
@@ -457,18 +456,37 @@ export function DashboardPage({
                   <em className="classroom-row-archived">в архиве</em>
                 ) : null}
               </button>
-              <span className="classroom-row-students">{classroom.studentCount}</span>
-              {/* Сколько работ сдано из выданного классу: первое число, по
-                  которому преподаватель понимает, идёт ли работа вообще. */}
-              <span className="classroom-row-progress">
-                {classroom.submittedCount ?? 0} из{' '}
-                {(classroom.assignedCount ?? 0) * (classroom.studentCount || 0)}
+              <span className="classroom-row-students" data-label="Ученики">
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.students ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Ученики</span>
               </span>
-              <span className="classroom-row-awaiting">
-                {classroom.awaitingReview ? <em>{classroom.awaitingReview}</em> : '—'}
+              <span className="classroom-row-works" data-label="Работы">
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.works ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Работы</span>
               </span>
-              <span className="classroom-row-behind">
-                {classroom.behindCount ? <em>{classroom.behindCount}</em> : '—'}
+              <span className="classroom-row-progress" data-label="Сдано">
+                <span className="classroom-stat-number">
+                  {rowMetrics.has(classroom.id)
+                    ? `${rowMetrics.get(classroom.id)!.submitted}/${rowMetrics.get(classroom.id)!.assigned}`
+                    : '—'}
+                </span>
+                <span className="classroom-stat-label">Сдано</span>
+              </span>
+              <span className="classroom-row-awaiting" data-label="Ждут">
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.waiting ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Ждут</span>
+              </span>
+              <span className="classroom-row-behind" data-label="Не сдали">
+                <span className="classroom-stat-number">
+                  {rowMetrics.get(classroom.id)?.notSubmitted ?? '—'}
+                </span>
+                <span className="classroom-stat-label">Не сдали</span>
               </span>
               <span className="classroom-row-date">
                 {/* Подпись нужна только архиву: у остальных её говорит колонка. */}

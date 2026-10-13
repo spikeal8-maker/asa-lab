@@ -2,10 +2,13 @@
 
 import datetime as dt
 import hashlib
+import ipaddress
 import json
 import os
 from pathlib import Path, PurePosixPath
 import re
+import time
+from urllib.error import HTTPError, URLError
 from urllib.parse import urlsplit, unquote
 from urllib.request import urlopen
 
@@ -40,6 +43,25 @@ def exact_origin(value):
     except ValueError as exc:
         raise Blocked("ORIGIN", "Invalid origin port.", "Correct the configured origin.") from exc
     return value
+
+
+def attest_proxy_policy(env):
+    """Two distinct trust boundaries; values never become application identity."""
+    for key, default, separator in (
+        ('ASA_TRUSTED_PROXY_CIDRS', '172.16.0.0/12', ','),
+        ('ASA_INGRESS_TRUSTED_PROXY_CIDRS', '127.0.0.1/32 ::1/128', None),
+    ):
+        raw = env.get(key, default)
+        require(isinstance(raw, str) and len(raw) <= 2048, 'PROXY_POLICY', f'Invalid {key}.')
+        values = raw.split(separator)
+        require(0 < len(values) <= 16, 'PROXY_POLICY', f'{key} needs 1..16 explicit CIDRs.')
+        for value in values:
+            try:
+                require(bool(re.fullmatch(r'[a-fA-F0-9:.]+/[0-9]+', value.strip())), 'PROXY_POLICY', f'Invalid CIDR in {key}.')
+                network = ipaddress.ip_network(value.strip(), strict=False)
+                require(network.prefixlen > 0 and not network.is_multicast, 'PROXY_POLICY', f'Unsafe CIDR in {key}.')
+            except ValueError as failure:
+                raise Blocked('PROXY_POLICY', f'Invalid CIDR in {key}.', 'Configure only the actual trusted proxy hops; never trust all sources.') from failure
 
 
 def attest_database_targets(config, postgres_env, api_env=None):
@@ -97,11 +119,20 @@ def verify_embedded_entry_http(entry_origin, revision, fetch_text=None):
     exact_origin(entry_origin)
 
     def fetch(path):
-        with urlopen(entry_origin + path, timeout=15) as response:
-            actual = urlsplit(response.geturl())
-            require(response.status == 200 and response.geturl() == entry_origin + path,
-                    'EDITOR_ENTRY', f'The owner portal URL redirected or failed at {path}.')
-            return response.read(1024 * 1024).decode('utf-8')
+        for attempt in range(3):
+            try:
+                with urlopen(entry_origin + path, timeout=15) as response:
+                    require(response.status == 200 and response.geturl() == entry_origin + path,
+                            'EDITOR_ENTRY', f'The owner portal URL redirected or failed at {path}.')
+                    return response.read(1024 * 1024).decode('utf-8')
+            except HTTPError as failure:
+                failure.close()
+                if failure.code not in (404, 502, 503, 504) or attempt == 2:
+                    raise Blocked('EDITOR_ENTRY_HTTP', f'HTTP {failure.code} at {path}; attempt {attempt+1}/3.', 'Inspect the named public entry path and update stages; preserve the database.') from failure
+            except (URLError, OSError) as failure:
+                if attempt == 2:
+                    raise Blocked('EDITOR_ENTRY_HTTP', f'Public entry request failed at {path}; attempt 3/3.', 'Check entry connectivity and update stages; preserve the database.') from failure
+            time.sleep(0.5 * (attempt+1))
 
     read = fetch_text or fetch
     ready = json.loads(read('/health/ready'))
