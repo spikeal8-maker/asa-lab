@@ -79,6 +79,86 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 describe('immutable actor-scoped browser delivery', () => {
+  it.each(['touch', 'close'] as const)(
+    'acknowledges a server microsecond %s receipt and releases its queued operation',
+    async (operation) => {
+      const f = fixture();
+      await f.worker.open(id(10), id(11), 'blocks', id(12));
+      f.transport.mockImplementationOnce(async (_path, init) => {
+        const body = JSON.parse(init!.body as string) as AnalyticsEnvelope;
+        return Response.json({
+          ...receipt(body),
+          result: {
+            creditedSeconds: 29,
+            creditedFrom: '2026-10-11T12:00:00.000001Z',
+            creditedTo: '2026-10-11T12:00:30Z',
+            sessionState: operation === 'close' ? 'closed' : 'open',
+          },
+        });
+      });
+      const result = f.worker.touch(id(10), operation === 'close');
+      await pump();
+      expect(await result).toBe(true);
+      expect(f.worker.inspect()).toEqual({
+        pending: 0,
+        inFlight: 0,
+        sessions: operation === 'close' ? 0 : 1,
+      });
+      expect(pendingWaiters(f.worker)).toBe(0);
+      expect(f.quality.read().counters).toMatchObject({ acknowledged: 2, retried: 0 });
+    },
+  );
+  it.each([
+    ['touch', 200, 30],
+    ['close', 200, 30],
+    ['touch', 202, 29],
+    ['close', 202, 29],
+  ] as const)(
+    'retries %s after HTTP%s/credit%s with identical event, actor and body',
+    async (operation, status, seconds) => {
+      const f = fixture();
+      await f.worker.open(id(10), id(11), 'blocks', id(12));
+      let retry = false;
+      f.transport.mockImplementation(async (_path, init) => {
+        const body = JSON.parse(init!.body as string) as AnalyticsEnvelope;
+        return Response.json(
+          {
+            ...receipt(body),
+            result: {
+              creditedSeconds: retry ? 29 : seconds,
+              creditedFrom: '2026-10-11T12:00:00.000001Z',
+              creditedTo: '2026-10-11T12:00:30Z',
+              sessionState: operation === 'close' ? 'closed' : 'open',
+            },
+          },
+          { status: retry ? 200 : status },
+        );
+      });
+      let settled = false;
+      const result = f.worker.touch(id(10), operation === 'close');
+      void result.then(() => {
+        settled = true;
+      });
+      await pump();
+      const original = f.transport.mock.calls.at(-1)![1]!.body;
+      expect(JSON.parse(original as string)).toMatchObject({
+        eventId: expect.any(String),
+        actorExpectation: actor,
+        sessionId: id(10),
+        operation,
+      });
+      expect(settled).toBe(false);
+      expect(f.worker.inspect().pending).toBe(1);
+      expect(f.quality.read().counters).toMatchObject({ acknowledged: 1, retried: 1 });
+      retry = true;
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(f.transport.mock.calls.at(-1)![1]!.body).toBe(original);
+      expect(await result).toBe(true);
+      expect(f.worker.inspect().pending).toBe(0);
+      expect(pendingWaiters(f.worker)).toBe(0);
+      expect(f.quality.read().counters.acknowledged).toBe(2);
+    },
+  );
   it.each(['start', 'touch', 'close'] as const)(
     'shares one pending %s promise throughout a duplicate storm and releases it on acknowledgement',
     async (operation) => {

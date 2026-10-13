@@ -128,6 +128,22 @@ export function validEnvelope(value: unknown): value is AnalyticsEnvelope {
     ['electronics', 'three-d', 'chess', 'checkers', 'blocks'].includes(value.moduleKey as string)
   );
 }
+/** PostgreSQL receipts retain up to six fractional digits; Date.parse alone loses microseconds. */
+function receiptMicroseconds(value: unknown): bigint | null {
+  if (typeof value !== 'string') return null;
+  const parts = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d)(?:\.(\d{1,6}))?(Z|[+-]\d\d:\d\d)$/i.exec(value);
+  if (!parts) return null;
+  const whole = parts[1]!.toUpperCase();
+  const calendar = Date.parse(`${whole}Z`);
+  const epoch = Date.parse(`${whole}${parts[3]}`);
+  if (
+    !Number.isFinite(calendar) ||
+    !Number.isFinite(epoch) ||
+    new Date(calendar).toISOString().slice(0, 19) !== whole
+  )
+    return null;
+  return BigInt(epoch) * 1000n + BigInt((parts[2] ?? '').padEnd(6, '0'));
+}
 export function confirmedAnalytics(value: unknown, envelope: AnalyticsEnvelope): boolean {
   if (
     !record(value) ||
@@ -144,17 +160,23 @@ export function confirmedAnalytics(value: unknown, envelope: AnalyticsEnvelope):
   if (!envelope.operation) return uuid(value.recordId);
   if (value.sessionId !== envelope.sessionId || !record(value.result)) return false;
   const r = value.result;
+  if (
+    !Number.isInteger(r.creditedSeconds) ||
+    (r.creditedSeconds as number) < 0 ||
+    (r.creditedSeconds as number) > 90 ||
+    !['open', 'closed'].includes(r.sessionState as string)
+  )
+    return false;
+  if (r.creditedSeconds === 0) return r.creditedFrom === null && r.creditedTo === null;
+  const from = receiptMicroseconds(r.creditedFrom);
+  const to = receiptMicroseconds(r.creditedTo);
+  // Migration 0207 credits floor(elapsed seconds) only when that integer is between 5 and 90.
   return (
-    Number.isInteger(r.creditedSeconds) &&
-    (r.creditedSeconds as number) >= 0 &&
-    (r.creditedSeconds as number) <= 90 &&
-    ['open', 'closed'].includes(r.sessionState as string) &&
-    (r.creditedSeconds === 0
-      ? r.creditedFrom === null && r.creditedTo === null
-      : time(r.creditedFrom) &&
-        time(r.creditedTo) &&
-        Math.floor((Date.parse(r.creditedTo) - Date.parse(r.creditedFrom)) / 1000) ===
-          r.creditedSeconds)
+    (r.creditedSeconds as number) >= 5 &&
+    from !== null &&
+    to !== null &&
+    to > from &&
+    (to - from) / 1_000_000n === BigInt(r.creditedSeconds as number)
   );
 }
 export type Delivery =

@@ -152,6 +152,67 @@ describe('actual v2 envelopes and persistence receipts', () => {
       }),
     ).toBe(false);
   });
+  describe('server microsecond credit intervals', () => {
+    const envelope: AnalyticsEnvelope = {
+      schemaVersion: 2,
+      eventId: event.eventId,
+      actorExpectation: actor,
+      visitId: event.visitId,
+      clientOccurredAt: event.clientOccurredAt,
+      sessionId: id(6),
+      operation: 'touch',
+    };
+    function response(seconds: number, from: string | null, to: string | null) {
+      return {
+        ...receipt,
+        operation: 'touch',
+        sessionId: envelope.sessionId,
+        result: {
+          creditedSeconds: seconds,
+          creditedFrom: from,
+          creditedTo: to,
+          sessionState: 'open',
+        },
+      };
+    }
+    it('floors PostgreSQL microseconds before acknowledging the interval', () => {
+      expect(
+        confirmedAnalytics(
+          response(29, '2026-10-11T12:00:00.000001Z', '2026-10-11T12:00:30.000000Z'),
+          envelope,
+        ),
+      ).toBe(true);
+    });
+    it.each([
+      [5, '2026-10-11T12:00:00.999999Z', '2026-10-11T12:00:06.000000Z'],
+      [90, '2026-10-11T12:00:00Z', '2026-10-11T12:01:30.999999Z'],
+      [29, '2026-10-11T15:00:00.000001+03:00', '2026-10-11T12:00:30Z'],
+      [5, '1969-12-31T23:59:59.999999Z', '1970-01-01T00:00:05Z'],
+      [30, '2026-10-11T12:00:00.1Z', '2026-10-11T12:00:30.9Z'],
+      [0, null, null],
+    ] as const)('accepts server credit %s for %s through %s', (seconds, from, to) => {
+      expect(confirmedAnalytics(response(seconds, from, to), envelope)).toBe(true);
+    });
+    it.each([
+      [30, '2026-10-11T12:00:00.000001Z', '2026-10-11T12:00:30Z'],
+      [90, '2026-10-11T12:00:00Z', '2026-10-11T12:01:31Z'],
+      [91, '2026-10-11T12:00:00Z', '2026-10-11T12:01:31Z'],
+      [4, '2026-10-11T12:00:00Z', '2026-10-11T12:00:04.999999Z'],
+      [5.5, '2026-10-11T12:00:00Z', '2026-10-11T12:00:05.5Z'],
+      [5, '2026-10-11T12:00:05Z', '2026-10-11T12:00:00Z'],
+      [5, '2026-10-11T12:00:00Z', '2026-10-11T12:00:00Z'],
+      [0, '2026-10-11T12:00:00Z', '2026-10-11T12:00:04Z'],
+      [0, null, '2026-10-11T12:00:00Z'],
+      [0, '2026-10-11T12:00:00Z', null],
+      [5, null, null],
+      [5, '2026-02-30T12:00:00Z', '2026-03-02T12:00:05Z'],
+      [5, '2026-10-11T12:00:00.0000001Z', '2026-10-11T12:00:05.0000001Z'],
+      [5, '2026-10-11T12:00:00+03:60', '2026-10-11T12:00:05Z'],
+      [5, '2026-10-11T12:00:00Z', 'malformed'],
+    ] as const)('rejects contradictory credit %s for %s through %s', (seconds, from, to) => {
+      expect(confirmedAnalytics(response(seconds, from, to), envelope)).toBe(false);
+    });
+  });
   it.each([408, 429, 500, 503])(
     'keeps HTTP%s ambiguous rather than acknowledged',
     async (status) => {
