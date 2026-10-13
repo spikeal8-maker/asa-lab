@@ -114,7 +114,7 @@ async function acknowledgeVisitsAndQuality(page: Page): Promise<void> {
 // Production pinned Scratch GUI/VM + shipping BlocksEditor, with the existing
 // persistence fixture and mocked telemetry responses. PostgreSQL/rating proof
 // is separate: tests/portal/classroom-scratch-time.pg.spec.ts.
-test('real Scratch input reaches bounded analytics while heartbeat/idle do not; minute save still persists', async ({}, testInfo) => {
+test('real Scratch input reaches bounded analytics while heartbeat/idle do not; minute save still persists', async () => {
   const { createProtocolFixture, installMinuteAutosaveClock, waitForMinuteAutosaveArm } =
     await import('../tools/blocks/browser/fixture.mjs');
   const { parentOrigin, projectId } = await import('../tools/blocks/browser/protocol.mjs');
@@ -220,7 +220,7 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     expect(closes[1]?.body['eventId']).not.toBe(firstClose.body['eventId']);
     expect(fixture.pageErrors).toEqual([]);
   } catch (error) {
-    await testInfo.attach('raw-module-session-identities', {
+    await test.info().attach('raw-module-session-identities', {
       contentType: 'application/json',
       body: JSON.stringify(
         telemetry.map(({ body }) => ({
