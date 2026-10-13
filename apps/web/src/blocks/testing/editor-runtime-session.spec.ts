@@ -4,6 +4,44 @@ import { act, createElement, type ComponentProps } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BlocksEditor } from '../BlocksEditor';
+import { setTelemetryContext } from '../../telemetry-context';
+const TELEMETRY_ACTOR = {
+  kind: 'account' as const,
+  accountId: '33333333-3333-4333-8333-333333333333',
+  workspaceId: '55555555-5555-4555-8555-555555555555',
+};
+function telemetryResponse(input: RequestInfo | URL, options?: RequestInit): Response | null {
+  if (!String(input).startsWith('/api/analytics/v2/')) return null;
+  const body = JSON.parse(options?.body as string) as Record<string, unknown>;
+  return jsonResponse({
+    accepted: true,
+    state: 'persisted',
+    schemaVersion: 2,
+    eventId: body['eventId'],
+    receiptId: body['eventId'],
+    operation: body['operation'] ?? body['eventType'] ?? 'quality',
+    receivedAt: new Date().toISOString(),
+    persistedAt: new Date().toISOString(),
+    ...(body['operation']
+      ? {
+          sessionId: body['sessionId'],
+          result: {
+            creditedSeconds: 0,
+            creditedFrom: null,
+            creditedTo: null,
+            sessionState: body['operation'] === 'close' ? 'closed' : 'open',
+          },
+        }
+      : body['pipeline']
+        ? {
+            streamId: body['streamId'],
+            sequence: body['sequence'],
+            pipeline: body['pipeline'],
+            acknowledgementStage: body['acknowledgementStage'],
+          }
+        : { recordId: PROJECT_ID }),
+  });
+}
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const RUNTIME_ORIGIN = window.location.origin;
@@ -67,8 +105,7 @@ async function dispatchChild(
 }
 
 async function flushAsync(): Promise<void> {
-  await Promise.resolve();
-  await Promise.resolve();
+  for (let i = 0; i < 12; i++) await Promise.resolve();
 }
 
 let root: Root | null = null;
@@ -127,6 +164,8 @@ afterEach(async () => {
   container?.remove();
   root = null;
   container = null;
+  setTelemetryContext(null, true, 'public');
+  vi.clearAllTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();
@@ -141,15 +180,17 @@ describe('BlocksEditor runtime session bootstrap', () => {
       vi.stubGlobal(
         'fetch',
         vi.fn<typeof fetch>(async (input: RequestInfo | URL, options?: RequestInit) => {
-          if (String(input).startsWith('/api/analytics/v1/module-session/')) {
+          if (String(input) === '/api/analytics/v2/module-session') {
             const body = JSON.parse(options?.body as string) as Record<string, unknown>;
             telemetry.push(body);
-            return jsonResponse({ accepted: true, sessionId: body['sessionId'] }, 202);
+            return telemetryResponse(input, options)!;
           }
-          return jsonResponse(session());
+          return telemetryResponse(input, options) ?? jsonResponse(session());
         }),
       );
-      const iframe = await renderEditor();
+      setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+      await flushAsync();
+      const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR });
       const post = spyOnPostMessage(iframe);
       await fireLoad(iframe);
       const init = initCalls(post)[0]![0] as Record<string, unknown>;
@@ -164,6 +205,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
         root?.render(
           createElement(BlocksEditor, {
             projectId: replacementProject,
+            telemetryActor: TELEMETRY_ACTOR,
             recoveryPrincipalKey:
               change === 'principal'
                 ? '44444444-4444-4444-8444-444444444444'
@@ -177,7 +219,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
         );
         await flushAsync();
       });
-      expect(telemetry[1]?.['closed']).toBe(true);
+      expect(telemetry[1]?.['operation']).toBe('close');
       const next = container!.querySelector('iframe')!;
       expect(next).not.toBe(iframe);
       const nextPost = spyOnPostMessage(next);
@@ -202,21 +244,17 @@ describe('BlocksEditor runtime session bootstrap', () => {
       'fetch',
       vi.fn<typeof fetch>(async (input: RequestInfo | URL, options?: RequestInit) => {
         const path = String(input);
-        if (path.startsWith('/api/analytics/v1/module-session/')) {
+        if (path === '/api/analytics/v2/module-session') {
           const body = JSON.parse(options?.body as string) as Record<string, unknown>;
           telemetry.push({ path, body });
-          return jsonResponse(
-            {
-              accepted: true,
-              ...(path.endsWith('/start') ? { sessionId: body['sessionId'] } : {}),
-            },
-            202,
-          );
+          return telemetryResponse(input, options)!;
         }
-        return jsonResponse(session());
+        return telemetryResponse(input, options) ?? jsonResponse(session());
       }),
     );
-    const iframe = await renderEditor();
+    setTelemetryContext(TELEMETRY_ACTOR, true, 'editor.blocks');
+    await flushAsync();
+    const iframe = await renderEditor({ telemetryActor: TELEMETRY_ACTOR });
     const post = spyOnPostMessage(iframe);
     await fireLoad(iframe);
     const init = initCalls(post)[0]![0] as Record<string, unknown>;
@@ -246,6 +284,12 @@ describe('BlocksEditor runtime session bootstrap', () => {
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
     expect(telemetry).toHaveLength(1);
     expect(telemetry[0]?.body).toEqual({
+      schemaVersion: 2,
+      eventId: expect.any(String),
+      actorExpectation: TELEMETRY_ACTOR,
+      operation: 'start',
+      visitId: expect.any(String),
+      clientOccurredAt: expect.any(String),
       sessionId: expect.any(String),
       projectId: PROJECT_ID,
       moduleKey: 'blocks',
@@ -255,7 +299,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
       document.dispatchEvent(new Event('visibilitychange'));
       await flushAsync();
     });
-    expect(telemetry[1]?.body['closed']).toBe(true);
+    expect(telemetry[1]?.body['operation']).toBe('close');
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
     vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
     await act(async () => {
@@ -267,7 +311,7 @@ describe('BlocksEditor runtime session bootstrap', () => {
     expect(telemetry).toHaveLength(3);
     expect(telemetry[2]?.body['sessionId']).not.toBe(telemetry[0]?.body['sessionId']);
     await fireLoad(iframe);
-    expect(telemetry[3]?.body['closed']).toBe(true);
+    expect(telemetry[3]?.body['operation']).toBe('close');
     await dispatchChild(iframe, init, { messageType: 'ASA_BLOCKS_USER_ACTIVITY' });
     expect(telemetry).toHaveLength(4); // Reload invalidated the old bridge/nonce.
     await act(async () => root?.unmount());

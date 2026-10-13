@@ -1,3 +1,5 @@
+import { diagnosticQuality, type TelemetryQuality } from './telemetry-quality';
+import { record, sendTelemetry } from './telemetry-contract';
 // Only this fixed vocabulary may cross the browser diagnostics boundary.
 export const DIAGNOSTIC_CODES = [
   'render_failed',
@@ -76,7 +78,6 @@ function valid(value: unknown, now: number): value is Envelope {
     typeof v.eventId === 'string' &&
     UUID.test(v.eventId) &&
     Number.isSafeInteger(v.occurredAt) &&
-    (v.occurredAt as number) > now - TTL &&
     (v.occurredAt as number) <= now + 60_000 &&
     DIAGNOSTIC_CODES.includes(v.code as (typeof DIAGNOSTIC_CODES)[number]) &&
     ['portal', 'scratch', 'electronics', 'auth'].includes(v.module as string) &&
@@ -113,31 +114,74 @@ function valid(value: unknown, now: number): value is Envelope {
 export class DiagnosticOutbox {
   private queue: Envelope[] = [];
   private active = false;
+  private current: Envelope | undefined;
   private retry: ReturnType<typeof setTimeout> | undefined;
   private failures = 0;
 
-  constructor(private readonly storage?: StoragePort) {
+  constructor(
+    private readonly storage?: StoragePort,
+    private readonly quality: TelemetryQuality = diagnosticQuality(),
+  ) {
     try {
       const raw = storage?.getItem(KEY);
-      const values: unknown = raw && raw.length <= 100_000 ? JSON.parse(raw) : [];
-      if (Array.isArray(values))
-        this.queue = values.filter((v) => valid(v, Date.now())).slice(-MAX);
+      const values: unknown = raw ? (raw.length <= 100_000 ? JSON.parse(raw) : null) : [];
+      if (!Array.isArray(values)) {
+        this.quality.increment('invalidStored');
+        this.quality.unclean();
+      } else {
+        const ids = new Set<string>();
+        for (const value of values) {
+          if (!valid(value, Date.now()) || ids.has(value.eventId))
+            this.quality.increment('invalidStored');
+          else if (value.occurredAt <= Date.now() - TTL) this.quality.increment('expired');
+          else {
+            ids.add(value.eventId);
+            this.queue.push(value);
+          }
+        }
+        if (this.queue.length > MAX) {
+          this.quality.increment('evicted', this.queue.length - MAX);
+          this.queue = this.queue.slice(-MAX);
+        }
+      }
     } catch {
-      /* Private mode or damaged storage: use the bounded memory queue. */
+      this.quality.increment('invalidStored');
+      this.quality.unclean();
     }
     this.persist();
   }
 
-  enqueue(value: unknown): void {
-    if (!valid(value, Date.now())) return;
-    this.queue = this.queue.filter((e) => e.occurredAt > Date.now() - TTL);
+  enqueue(value: unknown, countAttempt = true): void {
+    if (countAttempt) this.quality.increment('attempted');
+    if (!valid(value, Date.now())) {
+      this.quality.increment('invalidEnvelope');
+      return;
+    }
+    if (value.occurredAt <= Date.now() - TTL) {
+      this.quality.increment('expired');
+      return;
+    }
+    this.queue = this.queue.filter((e) => {
+      if (e === this.current || e.occurredAt > Date.now() - TTL) return true;
+      this.quality.increment('expired');
+      return false;
+    });
+    if (this.queue.some((e) => e.eventId === value.eventId)) {
+      this.quality.increment('deduplicated');
+      return;
+    }
     if (this.queue.length >= MAX) {
-      const heartbeat = this.queue.findIndex((e) =>
-        ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(e.code),
+      const heartbeat = this.queue.findIndex(
+        (e) =>
+          e !== this.current &&
+          ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(e.code),
       );
-      this.queue.splice(heartbeat >= 0 ? heartbeat : 0, 1);
+      const index = heartbeat >= 0 ? heartbeat : this.queue.findIndex((e) => e !== this.current);
+      this.queue.splice(index, 1);
+      this.quality.increment('evicted');
     }
     this.queue.push(value);
+    this.quality.increment('enqueued');
     this.persist();
     void this.flush();
   }
@@ -149,10 +193,17 @@ export class DiagnosticOutbox {
   }
 
   private persist(): void {
+    this.quality.gauges(this.queue.filter((e) => e !== this.current).length, this.current ? 1 : 0);
     try {
-      this.storage?.setItem(KEY, JSON.stringify(this.queue));
+      if (!this.storage) {
+        this.quality.increment('storageUnavailable');
+        this.quality.unclean();
+        return;
+      }
+      this.storage.setItem(KEY, JSON.stringify(this.queue));
     } catch {
-      /* Memory fallback. */
+      this.quality.increment('storageUnavailable');
+      this.quality.unclean();
     }
   }
 
@@ -164,28 +215,20 @@ export class DiagnosticOutbox {
         const event = this.queue[0]!;
         if (event.occurredAt <= Date.now() - TTL) {
           this.queue.shift();
+          this.quality.increment('expired');
           this.persist();
           continue;
         }
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 5_000);
-        let retry = false;
-        try {
-          const response = await fetch('/api/diagnostics/client', {
-            method: 'POST',
-            credentials: 'same-origin',
-            keepalive: true,
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(event),
-            signal: controller.signal,
-          });
-          retry = response.status === 408 || response.status === 429 || response.status >= 500;
-        } catch {
-          retry = true;
-        } finally {
-          clearTimeout(timeout);
-        }
-        if (retry) {
+        this.current = event;
+        this.persist();
+        const outcome = await sendTelemetry(
+          '/api/diagnostics/client',
+          event,
+          (value) => record(value) && value.accepted === true,
+        );
+        this.current = undefined;
+        if (outcome.kind === 'retry') {
+          this.quality.increment('retried');
           this.failures += 1;
           this.retry = setTimeout(
             () => {
@@ -196,6 +239,9 @@ export class DiagnosticOutbox {
           );
           return;
         }
+        this.quality.increment(
+          outcome.kind === 'acknowledged' ? 'acknowledged' : 'permanentRejected',
+        );
         this.failures = 0;
         // A full queue may have evicted the in-flight event. Remove by identity.
         this.queue = this.queue.filter((e) => e.eventId !== event.eventId);
@@ -203,6 +249,8 @@ export class DiagnosticOutbox {
       }
     } finally {
       this.active = false;
+      this.current = undefined;
+      this.persist();
     }
   }
 }

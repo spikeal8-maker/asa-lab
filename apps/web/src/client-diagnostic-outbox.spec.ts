@@ -37,7 +37,9 @@ describe('bounded diagnostics delivery', () => {
     outbox.enqueue(original);
     await vi.advanceTimersByTimeAsync(0);
     expect(JSON.parse(disk.getItem())).toEqual([original]);
-    transport.mockResolvedValue(new Response(null, { status: 202 }));
+    transport.mockImplementation(
+      async () => new Response(JSON.stringify({ accepted: true }), { status: 202 }),
+    );
     new DiagnosticOutbox(disk).retryNow();
     await vi.advanceTimersByTimeAsync(0);
     expect(JSON.parse(transport.mock.calls[1]![1].body)).toEqual(original);
@@ -49,7 +51,9 @@ describe('bounded diagnostics delivery', () => {
       const transport = vi
         .fn()
         .mockResolvedValueOnce(new Response(null, { status }))
-        .mockResolvedValue(new Response(null, { status: 202 }));
+        .mockImplementation(
+          async () => new Response(JSON.stringify({ accepted: true }), { status: 202 }),
+        );
       vi.stubGlobal('fetch', transport);
       new DiagnosticOutbox().enqueue(event());
       await vi.advanceTimersByTimeAsync(999);
@@ -82,6 +86,7 @@ describe('bounded diagnostics delivery', () => {
     const disk = storage();
     const outbox = new DiagnosticOutbox(disk);
     outbox.enqueue({ ...event(), code: 'editor_heartbeat' });
+    await vi.advanceTimersByTimeAsync(0); // The failed flight settled; the queued health report can be evicted.
     for (let n = 2; n <= 51; n++) outbox.enqueue(event(n));
     expect(JSON.parse(disk.getItem())).toHaveLength(50);
     expect(disk.getItem()).not.toContain('editor_heartbeat');
@@ -107,7 +112,7 @@ describe('bounded diagnostics delivery', () => {
       },
     });
     expect(() => outbox.enqueue(event())).not.toThrow();
-    await vi.advanceTimersByTimeAsync(6_000);
+    await vi.advanceTimersByTimeAsync(13_000);
     expect(transport).toHaveBeenCalledTimes(2);
   });
 });

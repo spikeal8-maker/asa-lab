@@ -26,6 +26,16 @@ suites:
   accessibility:
     description: Доступность критических пользовательских путей.
 tests:
+  - id: TST-OBS-CLIENT-DELIVERY-001
+    title: Browser immutable receipts, actor isolation, bounded recovery and truthful delivery quality
+    suite: integration
+    level: system
+    phase_available: PHASE-12
+    required_for: []
+    command: pnpm test:admin-logs
+    timeout_seconds: 120
+    owner: admin-auth
+    artifacts: [vitest-report]
   - id: TST-OBS-ANALYTICS-DELIVERY-001
     title: Bounded telemetry delivery, current actor authority and immutable PostgreSQL receipts
     suite: integration

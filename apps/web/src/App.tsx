@@ -2,7 +2,17 @@ import {
   PresentationProvider,
   usePresentationSessionLifetime,
 } from './components/PresentationPreferences';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { setTelemetryContext, telemetryActor, telemetryRoute } from './telemetry-context';
 import { api, type ClassroomStudentSession, type SessionPayload } from './api';
 import { LoginPage } from './pages/LoginPage';
 import { MaxLinkPage } from './pages/MaxLinkPage';
@@ -183,6 +193,23 @@ export function App(): JSX.Element {
   const [view, setViewState] = useState<CreatorPortalView>(() =>
     creatorViewFromLocation(window.location),
   );
+  const actor = telemetryActor(session);
+  const actorIdentity =
+    actor?.kind === 'account'
+      ? `account:${actor.accountId}:${actor.workspaceId}`
+      : actor?.kind === 'student'
+        ? `student:${actor.seatId}:${actor.classId}`
+        : '';
+  const telemetryBinding = useMemo(() => actor, [actorIdentity]);
+  const telemetryReady = ['authenticated', 'student', 'anonymous'].includes(session.kind);
+  const telemetryEntry = telemetryRoute(view, window.location.pathname.startsWith('/admin'));
+  useLayoutEffect(() => {
+    setTelemetryContext(telemetryBinding, telemetryReady, telemetryEntry);
+    if (telemetryReady && telemetryBinding)
+      void import('./analytics-runtime')
+        .then((runtime) => runtime.observeAnalytics())
+        .catch(() => undefined);
+  }, [telemetryBinding, telemetryReady, telemetryEntry]);
   const [pendingTeacherInvite, setPendingTeacherInvite] = useState<string | null>(() => {
     const initial = creatorViewFromLocation(window.location);
     return initial.kind === 'teacher-invite' ? initial.token : null;
@@ -869,6 +896,7 @@ export function App(): JSX.Element {
               onModuleResolved={handleModuleResolved}
               returnTo={view.returnTo}
               seatLearner={isSeatLearner}
+              telemetryActor={telemetryBinding}
               user={portalSession.user}
             />
           </Suspense>

@@ -31,21 +31,6 @@ afterEach(() => {
 });
 
 describe('Scratch ProductAnalytics activity lifecycle', () => {
-  it.each([null, {}, { accepted: true, sessionId: 'foreign' }, { accepted: false }])(
-    'rejects malformed/null start response %j',
-    async (body: unknown) => {
-      const fetch = vi.fn<typeof globalThis.fetch>(
-        async () => new Response(JSON.stringify(body), { status: 202 }),
-      );
-      vi.stubGlobal('fetch', fetch);
-      const tracker = trackBlocksActivity(PROJECT);
-      trackers.push(tracker);
-      tracker.setReady(true);
-      tracker.input();
-      await vi.advanceTimersByTimeAsync(30_000);
-      expect(fetch).toHaveBeenCalledTimes(1);
-    },
-  );
   it('requires readiness and input; opening and liveness alone never create a session', async () => {
     const { tracker, api } = fixture();
     tracker.input();
@@ -186,29 +171,4 @@ describe('Scratch ProductAnalytics activity lifecycle', () => {
     await flush();
     expect(api.start).toHaveBeenCalledTimes(2);
   });
-  it.each([401, 409, 503])(
-    'telemetry %s never refreshes/logs out or sends capabilities',
-    async (status: number) => {
-      const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response('{}', { status }));
-      vi.stubGlobal('fetch', fetch);
-      const logout = vi.fn();
-      window.addEventListener('asa-session-logout', logout);
-      const tracker = trackBlocksActivity(PROJECT);
-      trackers.push(tracker);
-      tracker.setReady(true);
-      tracker.input();
-      await flush();
-      expect(fetch).toHaveBeenCalledTimes(1);
-      expect(fetch.mock.calls[0]?.[0]).toBe('/api/analytics/v1/module-session/start');
-      const request = fetch.mock.calls[0]?.[1] as RequestInit;
-      expect(JSON.parse(request.body as string)).toEqual({
-        sessionId: expect.any(String),
-        projectId: PROJECT,
-        moduleKey: 'blocks',
-      });
-      expect(request.headers).toEqual({ 'content-type': 'application/json' });
-      expect(logout).not.toHaveBeenCalled();
-      window.removeEventListener('asa-session-logout', logout);
-    },
-  );
 });

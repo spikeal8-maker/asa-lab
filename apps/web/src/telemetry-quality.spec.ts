@@ -1,0 +1,191 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { TelemetryQuality, validQuality, type QualitySnapshot } from './telemetry-quality';
+import { COUNTERS } from './telemetry-contract';
+const id = (n: number) => `10000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const actor = { kind: 'account' as const, accountId: id(1), workspaceId: id(2) };
+function storage() {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      values.set(key, value);
+    },
+    values,
+  };
+}
+function acknowledgement(body: QualitySnapshot) {
+  return {
+    accepted: true,
+    state: body.pipeline === 'product-analytics' ? 'persisted' : 'intake_acknowledged',
+    schemaVersion: 2,
+    eventId: body.eventId,
+    receiptId: body.eventId,
+    operation: 'quality',
+    streamId: body.streamId,
+    sequence: body.sequence,
+    pipeline: body.pipeline,
+    acknowledgementStage: body.acknowledgementStage,
+    receivedAt: new Date().toISOString(),
+    persistedAt: new Date().toISOString(),
+  };
+}
+const ledgers: TelemetryQuality[] = [];
+function fixture(
+  identity: typeof actor | undefined = actor,
+  disk = storage(),
+  fetch = vi.fn<typeof globalThis.fetch>(async (_path, init) => {
+    return new Response(JSON.stringify(acknowledgement(JSON.parse(init!.body as string))), {
+      status: identity ? 200 : 202,
+    });
+  }),
+) {
+  let serial = 100;
+  const ledger = new TelemetryQuality(identity, disk, fetch, Date.now, () => id(serial++));
+  ledgers.push(ledger);
+  return { ledger, disk, fetch };
+}
+beforeEach(() => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date('2026-10-11T12:00:00Z'));
+});
+afterEach(() => {
+  ledgers.splice(0).forEach((ledger) => ledger.retire());
+  vi.clearAllTimers();
+  vi.useRealTimers();
+});
+describe('independent truthful cumulative quality', () => {
+  it('retries the exact snapshot while concurrent increments remain for the next sequence', async () => {
+    const f = fixture();
+    let first = true;
+    f.fetch.mockImplementation(async (_path, init) => {
+      if (first) {
+        first = false;
+        throw Error('lost ack after save');
+      }
+      return new Response(JSON.stringify(acknowledgement(JSON.parse(init!.body as string))), {
+        status: 200,
+      });
+    });
+    f.ledger.increment('attempted');
+    await f.ledger.flush();
+    const original = f.fetch.mock.calls[0]![1]!.body;
+    f.ledger.increment('attempted', 2);
+    f.ledger.increment('evicted');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.fetch.mock.calls[1]![1]!.body).toBe(original);
+    await vi.advanceTimersByTimeAsync(1000);
+    const next = JSON.parse(f.fetch.mock.calls[2]![1]!.body as string);
+    expect(next).toMatchObject({ sequence: 2, counters: { attempted: 3, evicted: 1 } });
+    expect(next.eventId).not.toBe(JSON.parse(original as string).eventId);
+    expect(f.ledger.read().counters.retried).toBe(0); // Quality's own transport cannot recursively count itself.
+  });
+  it('validates the exact stream/sequence/stage and does not treat wrong acknowledgements as delivered', async () => {
+    const f = fixture();
+    f.fetch.mockImplementation(async (_path, init) => {
+      const body = JSON.parse(init!.body as string);
+      return new Response(
+        JSON.stringify({ ...acknowledgement(body), sequence: body.sequence + 1 }),
+        { status: 200 },
+      );
+    });
+    await f.ledger.flush();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(f.fetch).toHaveBeenCalledTimes(2);
+    expect(f.fetch.mock.calls[1]![1]!.body).toBe(f.fetch.mock.calls[0]![1]!.body);
+    expect(f.ledger.read().counters.acknowledged).toBe(0);
+  });
+  it('anonymous diagnostics quality carries no actor and acknowledges only intake', async () => {
+    const disk = storage();
+    const fetch = vi.fn<typeof globalThis.fetch>(
+      async (_path, init) =>
+        new Response(JSON.stringify(acknowledgement(JSON.parse(init!.body as string))), {
+          status: 202,
+        }),
+    );
+    const ledger = new TelemetryQuality(undefined, disk, fetch);
+    ledgers.push(ledger);
+    ledger.increment('acknowledged', 3);
+    await ledger.flush();
+    expect(fetch.mock.calls[0]![0]).toBe('/api/diagnostics/quality');
+    const body = JSON.parse(fetch.mock.calls[0]![1]!.body as string);
+    expect(body).toMatchObject({
+      pipeline: 'client-diagnostics',
+      acknowledgementStage: 'intake_acknowledged',
+      counters: { acknowledged: 3 },
+    });
+    expect(body).not.toHaveProperty('actorExpectation');
+    expect(validQuality(body)).toBe(true);
+  });
+  it('recovers immutable pending snapshot on reload and records unclean termination', async () => {
+    const f = fixture(
+      undefined,
+      storage(),
+      vi.fn<typeof fetch>(async () => {
+        throw Error('offline');
+      }),
+    );
+    f.ledger.increment('expired');
+    await f.ledger.flush();
+    const pending = f.fetch.mock.calls[0]![1]!.body;
+    // This fixture uses the explicit protected actor default; recover the same binding.
+    const resumed = fixture(actor, f.disk);
+    await resumed.ledger.flush();
+    expect(resumed.fetch.mock.calls[0]![1]!.body).toBe(pending);
+    expect(resumed.ledger.read().coverage.uncleanEnd).toBe(true);
+  });
+  it('refuses a pending snapshot with a different actor or unknown fields', () => {
+    const f = fixture();
+    const key = 'asa:quality:v2:product';
+    const saved = JSON.parse(f.disk.getItem(key)!);
+    saved.pending = {
+      ...saved.snapshot,
+      actorExpectation: { ...actor, workspaceId: id(9) },
+      password: 'secret',
+    };
+    f.disk.setItem(key, JSON.stringify(saved));
+    const resumed = fixture(actor, f.disk);
+    expect(resumed.ledger.read().counters.invalidStored).toBe(1);
+    expect(JSON.stringify(resumed.ledger.read())).not.toContain('secret');
+  });
+  it('records storage unavailable once without recursive persistence; counters saturate explicitly', () => {
+    const broken = {
+      getItem: () => {
+        throw Error('denied');
+      },
+      setItem: () => {
+        throw Error('quota');
+      },
+    };
+    const ledger = new TelemetryQuality(actor, broken);
+    ledgers.push(ledger);
+    for (const counter of COUNTERS) ledger.increment(counter);
+    ledger.increment('attempted', Number.MAX_SAFE_INTEGER);
+    expect(ledger.read().coverage).toMatchObject({
+      persistenceUnavailable: true,
+      uncleanEnd: true,
+      counterSaturated: true,
+    });
+    expect(ledger.read().counters.storageUnavailable).toBe(2); // One availability transition plus the explicit fixture increment.
+    expect(ledger.read().counters.attempted).toBe(Number.MAX_SAFE_INTEGER);
+  });
+  it('quality failure neither marks event delivery nor produces recursive counters, and retired streams are bounded', async () => {
+    const disk = storage();
+    for (let n = 0; n < 7; n++) {
+      const f = fixture(
+        actor,
+        disk,
+        vi.fn<typeof fetch>(async () => new Response('{}', { status: 503 })),
+      );
+      await f.ledger.flush();
+      f.ledger.retire();
+    }
+    const retired = JSON.parse(disk.getItem('asa:quality:v2:product:retired')!);
+    expect(retired).toHaveLength(4);
+    expect(
+      retired.every(
+        (snapshot: QualitySnapshot) =>
+          snapshot.counters.retried === 0 && snapshot.coverage.uncleanEnd,
+      ),
+    ).toBe(true);
+  });
+});

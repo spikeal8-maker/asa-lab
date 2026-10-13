@@ -9,10 +9,12 @@ import { EditorErrorBoundary } from './EditorErrorBoundary';
 import { AssignmentBrief } from '../components/AssignmentBrief';
 import { ProjectSaveEvidence } from './project-save-evidence';
 import { AppBootShell } from '../components/AppBootShell';
-import { newClientId } from '../client-id';
 import { beginDiagnosticContext } from '../client-diagnostics';
 import { isGameModule } from '../games/game-catalog';
 import { BlocksEditor } from '../blocks/BlocksEditor';
+import { analyticsSessionTransport } from '../analytics-runtime';
+import { actorKey, type TelemetryActor } from '../telemetry-contract';
+import { trackInputActivity } from '../activity-lifecycle';
 import { useEditorAvatar } from '../components/editor-chrome/EditorAvatar';
 
 interface ModuleEditorProps {
@@ -20,6 +22,7 @@ interface ModuleEditorProps {
   onBack: () => void;
   user: PublicUser;
   readonly seatLearner?: boolean;
+  readonly telemetryActor?: TelemetryActor | null;
 }
 
 interface ModuleEditorHostProps extends ModuleEditorProps {
@@ -38,6 +41,7 @@ function BlocksEditorAdapter(props: ModuleEditorProps): JSX.Element {
     <BlocksEditor
       projectId={props.projectId}
       recoveryPrincipalKey={props.user.id}
+      telemetryActor={props.telemetryActor ?? null}
       onBack={props.onBack}
       onHomeClick={() => {
         window.location.hash = '/home';
@@ -149,68 +153,29 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
       !Object.hasOwn(EDITORS, state.moduleKey)
     )
       return;
-    const key = `${props.projectId}:${state.moduleKey}`;
+    const key = `${props.projectId}:${state.moduleKey}:${actorKey(props.telemetryActor ?? null)}`;
     if (recordedOpen.current === key) return;
     recordedOpen.current = key;
-    // randomUUID is unavailable in Chromium on the plain-HTTP Docker hostname
-    // used by the browser gate. Keep module telemetry working there with the
-    // same Web Crypto fallback used by other durable client actions.
-    const sessionId = newClientId();
     const moduleKey = state.moduleKey as 'electronics' | 'three-d' | 'chess' | 'checkers';
-    let active = true;
-    let started = false;
-    let lastInteraction = Date.now();
-    const noteInteraction = (): void => {
-      lastInteraction = Date.now();
-    };
-    const close = (): void => {
-      if (!started) return;
-      started = false;
-      void api.touchModuleSession(sessionId, true, true);
-    };
-    const noteVisibility = (): void => {
-      if (document.visibilityState === 'visible') {
-        noteInteraction();
-      } else if (started) {
-        void api.touchModuleSession(sessionId, false, true);
-      }
-    };
-
-    window.addEventListener('pointerdown', noteInteraction, { passive: true });
-    window.addEventListener('keydown', noteInteraction, { passive: true });
-    window.addEventListener('pagehide', close);
-    document.addEventListener('visibilitychange', noteVisibility);
-    // Deferring the start avoids recording React StrictMode's development-only
-    // mount probe as a second launch.
-    const startTimer = window.setTimeout(() => {
-      void api.startModuleSession(sessionId, props.projectId, moduleKey).then((result) => {
-        if (!result.ok || !result.data.accepted) return;
-        started = true;
-        if (!active) close();
-      });
-    }, 0);
-    const heartbeat = window.setInterval(() => {
-      if (
-        started &&
-        document.visibilityState === 'visible' &&
-        Date.now() - lastInteraction <= 90_000
-      ) {
-        void api.touchModuleSession(sessionId);
-      }
-    }, 30_000);
-
+    const activity = trackInputActivity(
+      props.projectId,
+      analyticsSessionTransport(props.telemetryActor ?? null, moduleKey),
+      90_000,
+    );
+    activity.setReady(true);
+    // A cancellable first observation avoids StrictMode's development probe.
+    const startTimer = window.setTimeout(() => activity.input(), 0);
+    const interaction = (): void => activity.input();
+    window.addEventListener('pointerdown', interaction, { passive: true });
+    window.addEventListener('keydown', interaction, { passive: true });
     return () => {
-      active = false;
       if (recordedOpen.current === key) recordedOpen.current = null;
       window.clearTimeout(startTimer);
-      window.clearInterval(heartbeat);
-      window.removeEventListener('pointerdown', noteInteraction);
-      window.removeEventListener('keydown', noteInteraction);
-      window.removeEventListener('pagehide', close);
-      document.removeEventListener('visibilitychange', noteVisibility);
-      close();
+      window.removeEventListener('pointerdown', interaction);
+      window.removeEventListener('keydown', interaction);
+      activity.dispose();
     };
-  }, [props.projectId, state]);
+  }, [props.projectId, state, props.telemetryActor]);
 
   const game = isGameModule(props.moduleKey) || props.returnTo.kind === 'games';
   const backLabel = game ? 'К играм' : 'К проектам';
@@ -261,6 +226,7 @@ export function ModuleEditorHost(props: ModuleEditorHostProps): JSX.Element {
             onBack={props.onBack}
             user={props.user}
             seatLearner={props.seatLearner ?? false}
+            telemetryActor={props.telemetryActor ?? null}
           />
         </Suspense>
       </ProjectSaveEvidence>

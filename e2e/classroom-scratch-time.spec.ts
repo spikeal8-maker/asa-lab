@@ -10,16 +10,29 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
   const fixture = await createProtocolFixture({ product: true, locale: 'en-US' });
   const page = await fixture.context.newPage();
   const telemetry: { path: string; body: Record<string, unknown> }[] = [];
-  await page.route('**/api/analytics/v1/module-session/*', async (route) => {
+  await page.route('**/api/analytics/v2/module-session', async (route) => {
     const body = route.request().postDataJSON() as Record<string, unknown>;
     const path = new URL(route.request().url()).pathname;
     telemetry.push({ path, body });
     await route.fulfill({
-      status: 202,
+      status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         accepted: true,
-        ...(path.endsWith('/start') ? { sessionId: body['sessionId'] } : {}),
+        state: 'persisted',
+        schemaVersion: 2,
+        eventId: body['eventId'],
+        receiptId: body['eventId'],
+        operation: body['operation'],
+        receivedAt: new Date().toISOString(),
+        persistedAt: new Date().toISOString(),
+        sessionId: body['sessionId'],
+        result: {
+          creditedSeconds: 0,
+          creditedFrom: null,
+          creditedTo: null,
+          sessionState: body['operation'] === 'close' ? 'closed' : 'open',
+        },
       }),
     });
   });
@@ -32,8 +45,9 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
       'ready',
       { timeout: 45_000 },
     );
-    const start = () => telemetry.filter((e) => e.path.endsWith('/start'));
-    const touches = () => telemetry.filter((e) => e.path.endsWith('/touch'));
+    const start = () => telemetry.filter((e) => e.body['operation'] === 'start');
+    const touches = () =>
+      telemetry.filter((e) => e.body['operation'] === 'touch' || e.body['operation'] === 'close');
     await page.clock.runFor(66_000);
     expect(start()).toHaveLength(0); // Includes several genuine health heartbeats.
     await frame.locator('body').evaluate(() => {
@@ -48,6 +62,16 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     await expect(frame.getByPlaceholder('Name', { exact: true })).toHaveValue('Abby');
     await expect.poll(() => start().length).toBe(1);
     expect(start()[0]?.body).toEqual({
+      schemaVersion: 2,
+      eventId: expect.any(String),
+      visitId: expect.any(String),
+      clientOccurredAt: expect.any(String),
+      operation: 'start',
+      actorExpectation: {
+        kind: 'account',
+        accountId: '33333333-3333-4333-8333-333333333333',
+        workspaceId: '55555555-5555-4555-8555-555555555555',
+      },
       sessionId: expect.any(String),
       projectId,
       moduleKey: 'blocks',
@@ -60,7 +84,7 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
       targets: Array<{ name: string }>;
     };
     expect(saved.targets.some((t) => t.name === 'Abby')).toBe(true);
-    expect(touches().some((e) => e.body['closed'] === true)).toBe(true);
+    expect(touches().some((e) => e.body['operation'] === 'close')).toBe(true);
     const closedCount = telemetry.length;
     await page.clock.runFor(120_000);
     expect(telemetry).toHaveLength(closedCount);
@@ -70,7 +94,9 @@ test('real Scratch input reaches bounded analytics while heartbeat/idle do not; 
     await expect.poll(() => start().length).toBe(2);
     expect(start()[1]?.body['sessionId']).not.toBe(start()[0]?.body['sessionId']);
     await page.goto('about:blank');
-    await expect.poll(() => touches().filter((e) => e.body['closed'] === true).length).toBe(2);
+    await expect
+      .poll(() => touches().filter((e) => e.body['operation'] === 'close').length)
+      .toBe(2);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();
@@ -85,7 +111,7 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
   const page = await fixture.context.newPage();
   const requests: string[] = [];
   page.on('request', (request) => requests.push(request.url()));
-  await page.route('**/api/analytics/v1/module-session/*', (route) =>
+  await page.route('**/api/analytics/v2/module-session', (route) =>
     route.fulfill({
       status: 401,
       contentType: 'application/json',
@@ -122,9 +148,7 @@ test('telemetry rejection leaves the real Scratch minute save and controlled exi
     };
     expect(saved.targets.some((t) => t.name === 'Saved despite telemetry')).toBe(true);
     expect(requests.some((url) => url.endsWith('/api/auth/refresh'))).toBe(false);
-    expect(requests.some((url) => url.includes('/api/analytics/v1/module-session/start'))).toBe(
-      true,
-    );
+    expect(requests.some((url) => url.includes('/api/analytics/v2/module-session'))).toBe(true);
     expect(fixture.pageErrors).toEqual([]);
   } finally {
     await fixture.close();

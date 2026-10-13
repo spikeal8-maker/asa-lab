@@ -6,10 +6,12 @@ import { requestBlocksRuntimeSession } from './runtime-session';
 import { beginDiagnosticContext, reportClientDiagnostic } from '../client-diagnostics';
 import { newClientId } from '../client-id';
 import { trackBlocksActivity } from './module-activity';
+import { actorKey, type TelemetryActor } from '../telemetry-contract';
 
 interface BlocksEditorProps {
   projectId: string;
   recoveryPrincipalKey: string;
+  telemetryActor?: TelemetryActor | null;
   onBack: () => void;
   accountLabel: string;
   accountInitials: string;
@@ -35,6 +37,7 @@ function configuredRuntimeOrigin(): string | null {
 export function BlocksEditor({
   projectId,
   recoveryPrincipalKey,
+  telemetryActor = null,
   onBack,
   accountLabel,
   accountInitials,
@@ -75,7 +78,7 @@ export function BlocksEditor({
     if (!runtimeOrigin) return undefined;
     const frame = iframeRef.current;
     if (!frame) return undefined;
-    const activity = trackBlocksActivity(projectId);
+    const activity = trackBlocksActivity(projectId, undefined, telemetryActor);
     let bridge: BlocksRuntimeBridge | null = null;
     let disposed = false;
     let editorReady = false;
@@ -324,7 +327,14 @@ export function BlocksEditor({
       if (bridgeRef.current === bridge) bridgeRef.current = null;
       homeSavePendingRef.current = false;
     };
-  }, [projectId, recoveryPrincipalKey, runtimeOrigin, attempt, requestHomeExit]);
+  }, [
+    projectId,
+    recoveryPrincipalKey,
+    runtimeOrigin,
+    attempt,
+    requestHomeExit,
+    actorKey(telemetryActor),
+  ]);
 
   if (!runtimeOrigin) {
     return (
