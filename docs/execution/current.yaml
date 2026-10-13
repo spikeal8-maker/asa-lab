@@ -4514,21 +4514,21 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs006_focused_verified_reported_waiting_owner
+      checkpoint: obs007_bfcache_observation_resume
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
           revision: '1.0'
         - document: OBSERVABILITY-REPAIR-SPEC
-          revision: '1.5'
+          revision: '1.6'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
       status: in_progress
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-006
-        status: implemented_focused_verified
+        selected_item: OBS-007
+        status: in_progress
         completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006]
         accepted_items:
           OBS-001:
@@ -4651,10 +4651,10 @@ parallel_lanes:
             report: docs/execution/OBS_006_REPORT.md
         mode: one_item_report_then_stop
         next_item_requires_owner_instruction: true
-        owner_instruction: Implement item6 only, report completely and stop; do not advance to item7.
-        candidate_baseline_sha: 43972fe66f9934073acb4f4a6e61c254064e4462
-        acceptance_scope: Synchronous existing tracker close intents before final page quality without duplicate close or frozen snapshot mutation.
-        next_action: stop_and_wait_for_owner_instruction
+        owner_instruction: Implement item7 only, report completely and stop; do not advance to item8.
+        candidate_baseline_sha: ff6e94f95ed8f9f18d1b7d0adaa599551db25ee4
+        acceptance_scope: BFCache resumes legitimate readiness and truthful quality without synthetic input, new visit, frozen snapshot mutation or authorization revival.
+        next_action: implement_OBS007_verify_report_then_stop
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4722,7 +4722,7 @@ parallel_lanes:
         OBS-004 storage coverage passed source review and focused checks; report and STOP.
         OBS-005 shared operation waiters passed source review and focused checks; report and STOP.
         OBS-006 synchronous close-before-quality passed source review and focused checks; report and STOP.
-        No next item is selected.
+        Owner selected OBS-007 BFCache observation resume only; report and STOP before OBS-008.
         Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
@@ -4737,7 +4737,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-006 are focused-verified and reported. Wait for the next explicit owner instruction.
+        accepted; OBS-002 through OBS-006 are focused-verified and reported. OBS-007 only is selected by fresh owner instruction.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
