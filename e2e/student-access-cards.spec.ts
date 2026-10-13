@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import jsQR from 'jsqr';
 import { PNG } from 'pngjs';
 import { e2eAdminPool } from './seed';
+import { registerAccountSetup } from './registration-setup';
 
 const origin = 'http://127.0.0.1:4612';
 const evidence = 'e2e/artifacts/owner-preview/e1-fix-03/after';
@@ -60,17 +61,21 @@ async function decodeRenderedQr(qr: Locator, path?: string): Promise<string> {
 
 async function registerTeacher(page: Page): Promise<void> {
   const id = crypto.randomUUID().replaceAll('-', '');
-  const response = await page.request.post('/api/auth/register', {
-    headers: { origin },
-    data: {
-      email: `${id}@e1fix03.test`,
-      username: `e1fix03_${id.slice(0, 20)}`,
-      displayName: 'E1 FIX 03 Teacher',
-      password: `Safe-${id}-Password`,
-      birthDate: '1990-04-12',
-      country: 'RU',
+  const response = await registerAccountSetup(
+    page.request,
+    {
+      headers: { origin },
+      data: {
+        email: `${id}@e1fix03.test`,
+        username: `e1fix03_${id.slice(0, 20)}`,
+        displayName: 'E1 FIX 03 Teacher',
+        password: `Safe-${id}-Password`,
+        birthDate: '1990-04-12',
+        country: 'RU',
+      },
     },
-  });
+    test.info(),
+  );
   expect(response.status(), await response.text()).toBe(201);
 
   const attest = await page.request.post('/api/capabilities/educator/self-attest', {
@@ -1004,17 +1009,21 @@ test('owner classroom flow: one-click batch, exact retry and existing Account ap
   try {
     const accountPage = await accountContext.newPage();
     const id = crypto.randomUUID().replaceAll('-', '');
-    const registered = await accountPage.request.post('/api/auth/register', {
-      headers: { origin },
-      data: {
-        email: `${id}@classroom-owner.test`,
-        username: `co_${id.slice(0, 20)}`,
-        displayName: 'Участник по существующему аккаунту',
-        password: `Safe-${id}-Password`,
-        birthDate: '1990-04-12',
-        country: 'RU',
+    const registered = await registerAccountSetup(
+      accountPage.request,
+      {
+        headers: { origin },
+        data: {
+          email: `${id}@classroom-owner.test`,
+          username: `co_${id.slice(0, 20)}`,
+          displayName: 'Участник по существующему аккаунту',
+          password: `Safe-${id}-Password`,
+          birthDate: '1990-04-12',
+          country: 'RU',
+        },
       },
-    });
+      test.info(),
+    );
     expect(registered.status(), await registered.text()).toBe(201);
     const initialAccount = await (await accountPage.request.get('/api/auth/me')).json();
     await accountPage.goto(`/#/join-class?code=${encodeURIComponent(classroom.joinCode)}`);
