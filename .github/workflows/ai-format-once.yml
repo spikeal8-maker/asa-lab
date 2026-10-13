@@ -1,0 +1,58 @@
+name: Temporary AI PR formatter
+"on":
+  push:
+    branches:
+      - feature/ai-chat-gpt-integration-20261014
+    paths:
+      - .github/workflows/ai-format-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.repository == 'spikeal8-maker/asa-lab' && github.ref == 'refs/heads/feature/ai-chat-gpt-integration-20261014'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/ai-chat-gpt-integration-20261014
+          persist-credentials: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Format changed code without bypassing repository checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          pnpm exec prettier --write \
+            apps/api/src/ai-admin.controller.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/api/src/ai-chat.service.spec.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/web/src/admin/AdminAiPage.tsx \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            apps/web/src/App.tsx
+          git add -- \
+            apps/api/src/ai-admin.controller.ts \
+            apps/api/src/ai-chat.controller.ts \
+            apps/api/src/ai-chat.service.spec.ts \
+            apps/api/src/ai-chat.service.ts \
+            apps/web/src/admin/AdminAiPage.tsx \
+            apps/web/src/ai/AiChatPage.tsx \
+            apps/web/src/ai/izo-chat-design.css \
+            apps/web/src/App.tsx
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "style(ai): apply repository Prettier formatting"
+            git push origin HEAD:refs/heads/feature/ai-chat-gpt-integration-20261014
+          fi
