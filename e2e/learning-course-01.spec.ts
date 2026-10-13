@@ -376,7 +376,12 @@ test('author-only content keeps exact ID and versions after teaching activation;
   await expect(events.getByText('Работа сдана', { exact: true })).toHaveCount(0);
   await events.screenshot({ path: evidenceDir + '/muted-inbox-queue-independent.png' });
   await learner.page.goto('/#/learning');
-  await expect(learner.page.getByText('Освоено', { exact: true })).toBeVisible();
+  // The profile repeats a grade in its summary and history; assert the actual result region.
+  await expect(
+    learner.page
+      .getByRole('region', { name: 'Мои результаты', exact: true })
+      .getByText('Освоено', { exact: true }),
+  ).toBeVisible();
   const gradedProjectionResponse = await learner.page.request.get('/api/class-join/me/assignments');
   expect(gradedProjectionResponse.ok()).toBe(true);
   const gradedProjection = (await gradedProjectionResponse.json()) as {
@@ -443,7 +448,10 @@ test('author-only content keeps exact ID and versions after teaching activation;
     'Нужна практика',
   );
   await learner.page.reload();
-  await expect(learner.page.getByText('Нужна практика', { exact: true })).toBeVisible();
+  // After reloading the editor, its persistent brief anchor must show the corrected grade.
+  await expect(
+    learner.page.getByTestId('assignment-brief-anchor').locator('.assignment-brief-anchor-result'),
+  ).toHaveText('· Нужна практика');
   await detail.screenshot({ path: evidenceDir + '/graded-correction-history.png' });
   await staleDetail.screenshot({ path: evidenceDir + '/graded-stale-correction-denied.png' });
   await stale.close();
