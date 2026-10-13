@@ -809,3 +809,48 @@
     min-width: 0;
   }
 }
+
+/* Mobile work filters are one compact row, not an isolated checkbox above its caption. */
+@media (max-width: 600px) {
+  .classroom-student .classroom-student-works-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 7px 10px;
+    margin: 5px 0 7px;
+  }
+  .classroom-student .classroom-student-works-head > label {
+    display: inline-flex;
+    flex: 0 1 auto;
+    align-items: center;
+    gap: 5px;
+    min-width: 0;
+    width: auto;
+    max-width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 0;
+    white-space: nowrap;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .classroom-student .classroom-student-works-head > label > input[type='checkbox'] {
+    display: block;
+    flex: 0 0 16px;
+    width: 16px;
+    height: 16px;
+    min-height: 0;
+    margin: 0;
+  }
+  .classroom-student .classroom-student-filter {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    min-height: 36px;
+    padding: 5px 9px;
+    margin: 0;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+}

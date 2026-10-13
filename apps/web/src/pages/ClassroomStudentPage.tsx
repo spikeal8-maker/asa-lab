@@ -412,7 +412,7 @@ export function ClassroomStudentPage({
               aria-pressed={onlyAwaiting}
               onClick={() => setOnlyAwaiting(!onlyAwaiting)}
             >
-              {onlyAwaiting ? 'Показать все' : 'Только ждущие ответа'}
+              {onlyAwaiting ? 'Показать все' : 'Ждут проверки'}
             </button>
           </div>
           {works && works.visibleWorks < works.totalWorks ? (

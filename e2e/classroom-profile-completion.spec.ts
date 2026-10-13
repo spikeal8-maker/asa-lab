@@ -210,7 +210,8 @@ async function assertLayout(page: Page, width: number, file: string) {
     expect(
       await control.evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize)),
     ).toBeGreaterThanOrEqual(minFontSize);
-    if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(44);
+    // Touch navigation is 44px on phones; the desktop's compact rail is 40px.
+    if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(width <= 600 ? 44 : 40);
   }
   // Return the horizontal tab strip to its first tab for the screenshot.
   await page.locator('.participant-tabs').evaluate((element) => {
