@@ -359,7 +359,7 @@ export function BlocksEditor({
         onAccountClick={onAccountClick}
       >
         <iframe
-          key={`${projectId}:${recoveryPrincipalKey}:${attempt}`}
+          key={`${projectId}:${recoveryPrincipalKey}:${actorKey(telemetryActor)}:${attempt}`}
           ref={iframeRef}
           title="Scratch runtime"
           src={`/internal/blocks/?asaStatus=parent&diagnosticInstance=${diagnosticInstance}`}
