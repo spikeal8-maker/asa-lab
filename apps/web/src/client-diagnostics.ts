@@ -1,4 +1,6 @@
 import { newClientId } from './client-id';
+import { diagnosticQuality } from './telemetry-quality';
+import { isTelemetryPath } from './telemetry-contract';
 import {
   ASSET_SCRIPT,
   DiagnosticOutbox,
@@ -72,17 +74,22 @@ export function reportClientDiagnostic(
 ): void {
   try {
     const now = Date.now();
+    const quality = diagnosticQuality();
+    quality.increment('attempted');
     if (now - windowStarted > 60_000) {
       windowStarted = now;
       count = 0;
     }
     const health = ['editor_ready', 'editor_heartbeat', 'editor_recovered'].includes(code);
     const key = `${context.instanceId}:${module}:${code}`;
-    if (
-      (!health && count >= 12) ||
-      now - (recent.get(key) ?? -Infinity) < (health ? 60_000 : 10_000)
-    )
+    if (!health && count >= 12) {
+      quality.increment('suppressed');
       return;
+    }
+    if (now - (recent.get(key) ?? -Infinity) < (health ? 60_000 : 10_000)) {
+      quality.increment('deduplicated');
+      return;
+    }
     if (recent.size > 200) for (const [id, at] of recent) if (now - at > 60_000) recent.delete(id);
     recent.set(key, now);
     if (!health) count += 1;
@@ -122,15 +129,18 @@ export function reportClientDiagnostic(
         ? { phase: detail.phase }
         : {}),
     };
-    diagnosticOutbox().enqueue({
-      code,
-      module,
-      revision,
-      instanceId: context.instanceId,
-      eventId: newClientId(),
-      occurredAt: now,
-      ...safe,
-    });
+    diagnosticOutbox().enqueue(
+      {
+        code,
+        module,
+        revision,
+        instanceId: context.instanceId,
+        eventId: newClientId(),
+        occurredAt: now,
+        ...safe,
+      },
+      false,
+    );
   } catch {
     /* Diagnostics must not change the product action. */
   }
@@ -139,8 +149,23 @@ export function reportClientDiagnostic(
 export function installClientDiagnostics(): void {
   if (installed) return;
   installed = true;
+  let suspended = false;
+  diagnosticQuality().start();
   diagnosticOutbox().retryNow();
-  window.addEventListener('online', () => diagnosticOutbox().retryNow());
+  window.addEventListener('online', () => {
+    diagnosticOutbox().retryNow();
+    void diagnosticQuality().flush();
+  });
+  window.addEventListener('pagehide', () => {
+    suspended = true;
+    void diagnosticQuality().flush(true);
+  });
+  window.addEventListener('pageshow', (event) => {
+    if (!event.persisted || !suspended) return;
+    suspended = false;
+    diagnosticQuality().resumeAfterPageShow();
+    diagnosticOutbox().retryNow();
+  });
   window.addEventListener('error', (event) => {
     let script: string | undefined;
     try {
@@ -169,7 +194,7 @@ export function installClientDiagnostics(): void {
     if (
       url.origin !== window.location.origin ||
       !url.pathname.startsWith('/api/') ||
-      url.pathname === '/api/diagnostics/client'
+      isTelemetryPath(url.pathname)
     )
       return original(input, init);
     const active = context;
