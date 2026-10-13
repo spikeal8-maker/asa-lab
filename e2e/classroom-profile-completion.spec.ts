@@ -212,7 +212,10 @@ async function assertLayout(page: Page, width: number, file: string) {
     ).toBeGreaterThanOrEqual(minFontSize);
     if (compactNavigation) expect(rect!.height).toBeGreaterThanOrEqual(44);
   }
-  await page.locator('.participant-tabs').evaluate((element) => { element.scrollLeft = 0; });
+  // Return the horizontal tab strip to its first tab for the screenshot.
+  await page.locator('.participant-tabs').evaluate((element) => {
+    element.scrollLeft = 0;
+  });
   await page.evaluate(() => window.scrollTo(0, 0));
   if (width <= 900) {
     const header = page.locator('.portal-header');
