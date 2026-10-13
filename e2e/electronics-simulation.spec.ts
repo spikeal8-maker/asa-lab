@@ -8961,3 +8961,135 @@ test('RGB LED mirrors ordinary LED lit, reverse-polarity and burnout states', as
   }
   failures.assertEmpty();
 });
+
+test('ELECTRONICS-E01 CROSS-TAB late acknowledgement preserves another tab recovery document', async ({
+  page,
+}) => {
+  test.setTimeout(120_000);
+  await loginWithOrganization(page, teacher);
+  const projectId = await createProject(page, 'E01 cross-tab recovery');
+  await saveDocument(page, projectId, e01Document());
+  await page.goto(`/#/home/${projectId}`);
+  await expect(page.locator('.workbench-stage')).toBeVisible();
+  const second = await page.context().newPage();
+  await second.goto(`/#/home/${projectId}`);
+  await expect(second.locator('.workbench-stage')).toBeVisible();
+  const beforeServer = await e01Server(page, projectId);
+  const metadataResponse = await page.context().request.get('/build-metadata.json');
+  expect(metadataResponse.ok()).toBe(true);
+  const build = (await metadataResponse.json()) as { revision: string; builtAt: string };
+  expect(build.revision).toMatch(/^[0-9a-f]{40}$/);
+  let release!: () => void;
+  let reached!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const pending = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  const firstPuts: unknown[] = [];
+  const secondPuts: unknown[] = [];
+  await page.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    firstPuts.push({ at: Date.now(), body: route.request().postDataJSON() });
+    reached();
+    await held;
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    await route.fulfill({ response });
+  });
+  // Preserve the actual unsaved-tab lifecycle while forbidding a successful B PUT.
+  await second.route(`**/api/projects/${projectId}/draft`, async (route) => {
+    secondPuts.push({
+      at: Date.now(),
+      body: route.request().postDataJSON(),
+      outcome: 'transport-aborted',
+    });
+    await route.abort('internetdisconnected');
+  });
+  const sketchA = `${E01_CHANGED_SKETCH}\n// saved by tab A`;
+  const sketchB = `${E01_CHANGED_SKETCH}\n// latest unsaved pupil work in tab B`;
+  await e01EditSketch(page, sketchA);
+  await (await e01Resistance(page)).fill('111.1');
+  await page.getByRole('button', { name: 'Сохранить проект', exact: true }).click();
+  await pending;
+  await e01EditSketch(second, sketchB);
+  await (await e01Resistance(second)).fill('222.2');
+  const localBeforeAck = JSON.parse((await e01LocalDraft(second, projectId))!) as {
+    document: SchematicDocument;
+    baseRevision: number;
+  };
+  expect(localBeforeAck.document.components.find((c) => c.id === 'resistor')?.value).toBe(222.2);
+  expect(
+    localBeforeAck.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(sketchB);
+  expect((await e01Server(page, projectId)).draft).toEqual(beforeServer.draft);
+  release();
+  await expect(page.locator('.workbench-main')).toHaveAttribute(
+    'data-project-save-status',
+    'saved',
+  );
+  const afterAckServer = await e01Server(page, projectId);
+  expect(afterAckServer.draft.revision).toBe(beforeServer.draft.revision + 1);
+  expect(afterAckServer.draft.document.components.find((c) => c.id === 'resistor')?.value).toBe(
+    111.1,
+  );
+  expect(
+    afterAckServer.draft.document.components.find((c) => c.id === 'uno')?.stateProperties?.[
+      'arduinoSource'
+    ],
+  ).toBe(sketchA);
+  const localAfterAck = await e01LocalDraft(second, projectId);
+  const secondStatus = await second
+    .locator('.workbench-main')
+    .getAttribute('data-project-save-status');
+  await second.close();
+  const reopened = await page.context().newPage();
+  await reopened.route(`**/api/projects/${projectId}/draft`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await reopened.goto(`/#/home/${projectId}`);
+  const reopenedResistance = await (await e01Resistance(reopened)).inputValue();
+  await reopened.getByRole('button', { name: 'Открыть редактор кода', exact: true }).click();
+  const reopenedSketch = await reopened.getByLabel('Код Arduino C++', { exact: true }).inputValue();
+  const reopenedLocal = await e01LocalDraft(reopened, projectId);
+  const reopenedStatus = await reopened
+    .locator('.workbench-main')
+    .getAttribute('data-project-save-status');
+  const finalServer = await e01Server(page, projectId);
+  mkdirSync('reports/playwright/electronics-e01', { recursive: true });
+  writeFileSync(
+    'reports/playwright/electronics-e01/cross-tab-recovery.json',
+    JSON.stringify(
+      {
+        build,
+        projectId,
+        beforeServer,
+        firstPuts,
+        secondPuts,
+        localBeforeAck,
+        afterAckServer,
+        localAfterAck: localAfterAck ? JSON.parse(localAfterAck) : null,
+        secondStatus,
+        closedWithoutSuccessfulPut: true,
+        reopenedResistance,
+        reopenedSketch,
+        reopenedLocal: reopenedLocal ? JSON.parse(reopenedLocal) : null,
+        reopenedStatus,
+        finalServer,
+      },
+      null,
+      2,
+    ),
+  );
+  await reopened.screenshot({ path: 'reports/playwright/electronics-e01/cross-tab-reopened.png' });
+  // These exact assertions deliberately fail on the unmodified production baseline.
+  expect(localAfterAck && JSON.parse(localAfterAck).document).toEqual(localBeforeAck.document);
+  expect(reopenedResistance).toBe('222.2');
+  expect(reopenedSketch).toBe(sketchB);
+  expect(reopenedLocal && JSON.parse(reopenedLocal).document).toEqual(localBeforeAck.document);
+  expect(finalServer.draft).toEqual(afterAckServer.draft);
+  expect(firstPuts).toHaveLength(1);
+  await reopened.close();
+});
