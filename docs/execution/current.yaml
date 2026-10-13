@@ -4514,7 +4514,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: obs005_bounded_shared_operation_waiters
+      checkpoint: obs005_focused_verified_reported_waiting_owner
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4528,8 +4528,8 @@ parallel_lanes:
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
         selected_item: OBS-005
-        status: in_progress
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004]
+        status: implemented_focused_verified
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4608,12 +4608,32 @@ parallel_lanes:
             deployment: not_run
             database_actions: none
             report: docs/execution/OBS_004_REPORT.md
+          OBS-005:
+            status: implemented_focused_verified
+            source_sha: 43972fe66f9934073acb4f4a6e61c254064e4462
+            source_branch: codex/observability-item-05
+            authoring_baseline_sha: cfe8c16be85430d684456c23bb2cb61e65334761
+            independent_review: scoped_pass
+            local_before: 12_failed_33_intentionally_skipped
+            local_after: 45_passed_12_new
+            local_regressions: 115_passed
+            exact_ci_run: 38463665669
+            exact_ci_conclusion: failure
+            exact_ci_item_tests: 45_passed
+            exact_ci_auth_regressions: 37_passed
+            exact_ci_focused: 374_passed_1_failed_baseline_OBS009
+            exact_ci_code_postgres_and_browser: skipped
+            product_integration: held_with_unaccepted_CLIENT_parent
+            main_convergence: foreign_learning_App_conflict_aborted_canonical_selection_only_inherited
+            deployment: not_run
+            database_actions: none
+            report: docs/execution/OBS_005_REPORT.md
         mode: one_item_report_then_stop
         next_item_requires_owner_instruction: true
         owner_instruction: Implement item5 only, report completely and stop; do not advance to item6.
         candidate_baseline_sha: 5902a2f931f8192a115fefe32b33a7a51ff53dac
         acceptance_scope: One bounded shared Promise per pending immutable operation, truthful settlement and terminal cleanup.
-        next_action: implement_OBS005_verify_report_then_stop
+        next_action: stop_and_wait_for_owner_instruction
       dependency_order: [OBS1, OBS3A, OBS2, OBS3B-SERVER, OBS3B-CLIENT, OBS4, OBS5, OBS6]
       completed_slices: [OBS1, OBS3A, OBS2, OBS3B-SERVER]
       remaining_slices: [OBS3B-CLIENT, OBS4, OBS5, OBS6]
@@ -4679,7 +4699,8 @@ parallel_lanes:
         OBS-002 independent source review and focused checks passed after deadline repair; report and STOP.
         OBS-003 exact acknowledgement contracts passed source review and focused checks; report and STOP.
         OBS-004 storage coverage passed source review and focused checks; report and STOP.
-        Owner now selected OBS-005 bounded shared operation waiters only; report and STOP before OBS-006.
+        OBS-005 shared operation waiters passed source review and focused checks; report and STOP.
+        No next item is selected.
         Exact general CLIENT CI still fails the separate baseline OBS-009 fixture.
         Remaining OBS3B-CLIENT work includes stable retry identities,
         confirmed module sessions and visits, independent truthful quality ledgers and diagnostic intake.
@@ -4694,7 +4715,7 @@ parallel_lanes:
       scope_note: >-
         Owner authorized the observability programme and subsequently required one numbered item per run,
         a complete report and STOP until the next explicit instruction. OBS-001 source/focused result is
-        accepted; OBS-002 through OBS-004 are focused-verified and reported. OBS-005 only is selected by fresh owner instruction.
+        accepted; OBS-002 through OBS-005 are focused-verified and reported. Wait for the next explicit owner instruction.
         The CLIENT package and release remain unfinished. Preserve unrelated lane owner
         acceptance, protected data, canonical installation and security boundaries.
     gates:
