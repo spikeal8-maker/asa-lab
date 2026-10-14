@@ -57,9 +57,9 @@ export function autosaveIsDue<TDocument>(state: DraftSaveState<TDocument>): bool
 
 export const AUTOSAVE_INTERVAL_MS = 60_000;
 
-/** At most one attempt per minute after the initial bounded backoff. */
-export function transientSaveRetryDelay(attempt: number): number {
-  return Math.min(AUTOSAVE_INTERVAL_MS, 5_000 * 2 ** Math.min(4, Math.max(0, attempt - 1)));
+/** Wait a full minute after each transient failure before an automatic retry. */
+export function transientSaveRetryDelay(): number {
+  return AUTOSAVE_INTERVAL_MS;
 }
 
 export interface TimedDraftSaveState<TDocument> extends DraftSaveState<TDocument> {
