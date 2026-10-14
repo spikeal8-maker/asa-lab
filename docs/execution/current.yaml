@@ -4585,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: UI_telemetry_fixture_compatibility_selected
+      checkpoint: Scratch_protocol_fixture_compatibility_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4597,6 +4597,8 @@ parallel_lanes:
         - document: RELEASE-SCRATCH-CLOCK-SPEC
           revision: '1.0'
         - document: RELEASE-UI-TELEMETRY-FIXTURE-SPEC
+          revision: '1.0'
+        - document: RELEASE-SCRATCH-PROTOCOL-FIXTURE-SPEC
           revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
@@ -4807,12 +4809,12 @@ parallel_lanes:
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: UI_telemetry_fixture_compatibility_then_exact_main_General_release_and_guarded_site_update
+        next_action: Scratch_protocol_fixture_compatibility_then_final_release_gates_and_guarded_site_update
       release_execution:
         status: in_progress
-        selected_phase: UI_telemetry_fixture_compatibility
+        selected_phase: Scratch_protocol_fixture_compatibility
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
+        candidate_source_sha: 85742e662fb03bf8b981d69bc3182e4009b75958
         integration_branch: codex/observability-main-integration
         registration_fixture_result:
           id: TASK-RELEASE-REGISTRATION-FIXTURE-001
@@ -4833,23 +4835,30 @@ parallel_lanes:
           source_focused_run: 38485756130
           source_focused_contracts: success
           source_real_activity_minute_save: success
-          source_cumulative_browser: in_progress_at_checkpoint
+          source_cumulative_browser: 51_passed_4_failed_classified_separately
           local: format_targeted_ESLint_discovery2_assertion_preservation_pass
           original_assertions: 23_retained_4_identity_checks_added
-        current_baseline_task:
+        UI_telemetry_fixture_result:
           id: TASK-RELEASE-UI-TELEMETRY-FIXTURE-001
-          specification: docs/delivery/RELEASE_UI_TELEMETRY_FIXTURE_SPEC.md
-          branch: codex/release-ui-telemetry-fixture
+          source_sha: 85742e662fb03bf8b981d69bc3182e4009b75958
+          independent_review: pass
+          local_focused: 29_passed
+          original_assertion_preservation: 1257_expect_calls_identical_across_5_UI_specs
+          local_browser: discovery402_only_not_execution
+          report: docs/execution/RELEASE_UI_TELEMETRY_FIXTURE_REPORT.md
+          full_UI_execution: required_on_final_main
+        current_baseline_task:
+          id: TASK-RELEASE-SCRATCH-PROTOCOL-FIXTURE-001
+          specification: docs/delivery/RELEASE_SCRATCH_PROTOCOL_FIXTURE_SPEC.md
+          branch: codex/release-scratch-protocol-fixture
           status: in_progress
-          category: B_CLIENT_new_telemetry_is_misclassified_as_business_mutations_by_UI_fixtures
-          failing_run: 38485755516
+          category: B_CLIENT_telemetry_receipts_and_expected401_in_shared_Scratch_fixture
+          failing_run: 38485756130
           failing_source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
-          failed_job: Access_A_real_browser_journeys
-          failed_step: Account_settings_synthetic_UI_and_layout_regression
-          observed: 371_passed_31_failed_same_three_telemetry_endpoint_counting_cause
-          preceding_steps: governance_code_postgres_real_Access_success
-          scope: Exact endpoint receipts before business mutation tracking in two existing fixture handlers, original assertions unchanged.
-          deployment_gate: exact_final_main_General_and_portable_release_success_before_live_update
+          observed: 51_passed_4_failed_2_direct_fixture_B_1_known_clock_blocker_1_autosave_causality_unproved
+          scope: Correct exact telemetry receipts and native File classification; correlate expected module-session401 console record without deleting raw errors.
+          out_of_scope: Existing recovery_clock_pauseAt_and_unproved_failed_autosave_case_no_assertion_or_timer_changes
+          deployment_gate: final_General_real_Scratch_classification_and_verified_Portable_Release_before_live_update
         main_integration_result:
           source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
           main_publication: completed_normal_fast_forward
