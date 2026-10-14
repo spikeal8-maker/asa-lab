@@ -84,7 +84,7 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
       'true',
       { timeout: 30_000 },
     );
-    const projectTitle = `Без задания ${randomUUID().slice(0, 8)}`;
+    const projectTitle = `Исследование электрической цепи ${randomUUID().slice(0, 8)}`;
     const titleInput = student.getByLabel('Название проекта', { exact: true });
     await titleInput.fill(projectTitle);
     const renamed = student.waitForResponse(
@@ -111,6 +111,49 @@ test('teacher finds and opens genuine unassigned pupil work, reads real history 
     await works.getByLabel('Задание', { exact: true }).selectOption('assigned');
     await expect(works.getByText('По этим фильтрам доступных работ нет.')).toBeVisible();
     await works.getByLabel('Задание', { exact: true }).selectOption('unassigned');
+    await expect(workRow).toBeVisible();
+
+    // A real authenticated teacher, server API and isolated PostgreSQL. At a
+    // narrow CSS viewport the title must not be crushed by the Open action.
+    // Keep the same project, identity and server-side permission path at every size.
+    for (const width of [320, 360, 390, 430, 768, 1024, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await expect(workRow).toBeVisible();
+      const geometry = await workRow.evaluate((row) => {
+        const title = row.querySelector<HTMLElement>('.observation-project-title strong')!;
+        const action = row.querySelector<HTMLButtonElement>('button')!;
+        const textNode = title.firstChild as Text;
+        const brokenWords: string[] = [];
+        const value = textNode.textContent ?? '';
+        for (const word of value.matchAll(/\S+/gu)) {
+          const range = document.createRange();
+          range.setStart(textNode, word.index);
+          range.setEnd(textNode, word.index + word[0].length);
+          if (range.getClientRects().length > 1) brokenWords.push(word[0]);
+        }
+        const textBox = title.getBoundingClientRect();
+        const actionBox = action.getBoundingClientRect();
+        const overlap =
+          Math.min(textBox.right, actionBox.right) - Math.max(textBox.left, actionBox.left) > 1 &&
+          Math.min(textBox.bottom, actionBox.bottom) - Math.max(textBox.top, actionBox.top) > 1;
+        return {
+          brokenWords,
+          overlap,
+          actionHeight: actionBox.height,
+          actionWithinViewport: actionBox.left >= -1 && actionBox.right <= innerWidth + 1,
+          documentWithinViewport: document.documentElement.scrollWidth <= innerWidth + 1,
+        };
+      });
+      expect(geometry.brokenWords, `Full project words at ${width}px`).toEqual([]);
+      expect(geometry.overlap, `Title/action overlap at ${width}px`).toBe(false);
+      expect(geometry.actionWithinViewport, `Open action visible at ${width}px`).toBe(true);
+      expect(geometry.documentWithinViewport, `No page overflow at ${width}px`).toBe(true);
+      if (width <= 430) expect(geometry.actionHeight).toBeGreaterThanOrEqual(44);
+      await page.screenshot({
+        path: `e2e/artifacts/owner-preview/classroom-observation/projects-${width}.png`,
+        fullPage: true,
+      });
+    }
     await workRow
       .getByRole('button', { name: `Открыть работу ${projectTitle}`, exact: true })
       .click();
