@@ -4601,7 +4601,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS012_privacy_accepted_OBS013_legacy_reader_selected
+      checkpoint: OBS013_legacy_privacy_accepted_OBS014_system_classification_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4624,9 +4624,9 @@ parallel_lanes:
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-013
+        selected_item: OBS-014
         status: selected_implementation_pending
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012]
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4859,6 +4859,23 @@ parallel_lanes:
             deployment: not_run_explicitly_excluded_by_owner
             database_actions: temporary_fixtures_only_no_live_actions
             report: docs/execution/OBS_012_REPORT.md
+          OBS-013:
+            status: implemented_repaired_focused_verified_and_independently_reviewed
+            source_sha: a5f4aca80fe469885b716e06dde822e478e489b6
+            initial_source_sha: 10491503082b9229670c146e635031c6682d0caa
+            authoring_baseline_sha: 7e31490e7c25811ac53b81756a8ca758cf57e329
+            initial_independent_review: needs_fix_real_API_quality_sequence_false_positive
+            independent_review: scoped_challenge_pass_fresh_reviewer_after_repair
+            local_before: 2_reader_crashes_and_2_privacy_failures_raw_gzip
+            repair_before: 2_actual_quality_producer_failures_raw_gzip
+            local_after: 17_worker_passed_plus_21_unchanged_service_controller_passed_38_distinct
+            large_worker_regressions: 2_intentionally_skipped_bounded_256_row_volume_check_passed
+            packaging: isolated_actual_API_compiler_options_JSON_copy_and_real_Worker_passed_not_full_build
+            archive_source_status: explicitly_omitted_no_complete_coverage_claim
+            exact_ci_conclusion: not_run_before_main_publication_not_claimed_green
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: temporary_fixtures_only_no_live_actions
+            report: docs/execution/OBS_013_REPORT.md
         owner_authorized_batch:
           ordered_items: [OBS-012, OBS-013, OBS-014]
           reports: separate_report_after_each_item_controller_STOP_after_OBS014
@@ -4868,9 +4885,9 @@ parallel_lanes:
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: false
         owner_instruction: Implement three sequential items OBS012 then OBS013 then OBS014, report each, publish into main without site update, STOP after OBS014.
-        candidate_baseline_sha: dfb768a75c1b972362479ef4e5bbc78cb6ed18e4
-        acceptance_scope: Sanitize legacy database diagnostic records using OBS012 shared contract before search, API response and every ZIP/export path; preserve original bytes.
-        next_action: implement_OBS013_review_report_main_then_select_OBS014
+        candidate_baseline_sha: a5f4aca80fe469885b716e06dde822e478e489b6
+        acceptance_scope: Consistent Linux and Docker system classification across collector, catalog, API, search, import and ZIP; preserve application classification and original history.
+        next_action: implement_OBS014_review_report_main_then_controller_STOP_batch_complete
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5092,15 +5109,15 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-012 accepted. Owner now authorizes a three-item sequential batch OBS012, OBS013, OBS014.
+        OBS001-013 accepted. Owner now authorizes a three-item sequential batch OBS012, OBS013, OBS014.
         Select and complete one item at a time with a fresh author and independent review, report and main publication.
         Controller continues within this batch only after previous item is accepted; STOP after OBS014.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
       scope_note: >-
-        Current item OBS013: sanitize legacy diagnostic reads and all exports. OBS014 is the authorized successor
-        requiring canonical selection after OBS013 acceptance. No website update, live database/logs,
+        Current item OBS014: align Linux and Docker system classification across all diagnostic paths.
+        This is the final authorized item of the three-item batch; report, main publication and STOP. No website update, live database/logs,
         Docker or schedule operations. Preserve prior accepted results, other lanes and blockers.
         OBS015-045 and unrelated Windows/VSCR issues remain unselected.
     gates:
