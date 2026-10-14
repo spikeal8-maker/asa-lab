@@ -4669,7 +4669,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: OBS015_accepted_OBS016_selected_owner_batch_015_016_017
+      checkpoint: OBS016_accepted_OBS017_selected_owner_batch_015_016_017
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4692,9 +4692,9 @@ parallel_lanes:
       selected_slice: OBS3B-CLIENT
       item_execution:
         document: docs/product/ASA_OBSERVABILITY_REPAIR_SPEC.md
-        selected_item: OBS-016
+        selected_item: OBS-017
         status: selected_pending_bounded_author
-        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013, OBS-014, OBS-015]
+        completed_items: [OBS-001, OBS-002, OBS-003, OBS-004, OBS-005, OBS-006, OBS-007, OBS-008, OBS-009, OBS-010, OBS-011, OBS-012, OBS-013, OBS-014, OBS-015, OBS-016]
         accepted_items:
           OBS-001:
             status: implemented_focused_verified
@@ -4973,6 +4973,22 @@ parallel_lanes:
             deployment: not_run_explicitly_excluded_by_owner
             database_actions: temporary_fixtures_only_no_live_actions
             report: docs/execution/OBS_015_REPORT.md
+          OBS-016:
+            status: implemented_actual_database_verified_and_independently_reviewed
+            source_sha: 3843956f0b33383ac32d3104680e961e7d818405
+            author_source_sha: 46b0ae4adabbe1c47c1f50d18d2e4fd43b941cd0
+            authoring_baseline_sha: d4659e5c6a0d7025ab73eada73e7451aeae10df4
+            independent_review: pass_exact_final_source_no_actionable_defect
+            actual_database_before: baseline_run38613177389_schema_change_27_to54
+            actual_database_after: unchanged27_repeat27_real_mutations28_29_30
+            local_after: 56_passed_1_actual_database_skip_57_run
+            exact_source_CI: focused_database_run38614199354_success_56_passed_1_platform_skip
+            compatibility: exact_legacy_hash_and_hashed_full_fields_with_proved_missing_defaults
+            mutable_limit: no_per_native_cap_260_observations_and_retention_cleanup_verified
+            convergence: foreign_electronics_only_five_tested_blobs_identical_full_integrated_CI_not_claimed
+            deployment: not_run_explicitly_excluded_by_owner
+            database_actions: isolated_synthetic_GitHub_PostgreSQL_only_no_working_database
+            report: docs/execution/OBS_016_REPORT.md
         owner_authorized_batch:
           status: authorized_sequential_execution
           ordered_items: [OBS-015, OBS-016, OBS-017]
@@ -4983,9 +4999,9 @@ parallel_lanes:
         mode: one_item_per_executor_report_then_controller_continues_owner_batch
         next_item_requires_owner_instruction: false
         owner_instruction: Continue three sequential items OBS015 then OBS016 then OBS017, report each, publish into main without site update, STOP after OBS017.
-        candidate_baseline_sha: 90ed457646d399f020d88fc6f113e5092079a6ed
-        acceptance_scope: Verify real isolated PostgreSQL collection before and after schema extension; repair reproduced identity drift without losing legitimate mutable observations or historical IDs.
-        next_action: NEW_bounded_author_OBS016_only_real_isolated_CI_database_evidence_focused_checks_review_report_then_controller_selects_OBS017
+        candidate_baseline_sha: 3843956f0b33383ac32d3104680e961e7d818405
+        acceptance_scope: Bounded recent database batches advance without missing equal-time rows or duplicating observations, preserve history and report truthful backlog/error status.
+        next_action: NEW_bounded_author_OBS017_only_focused_and_actual_SQL_CI_checks_independent_review_report_then_controller_STOP
       release_execution:
         status: completed_owner_authorized_batch_with_documented_diagnostics_limitations
         selected_phase: report_and_STOP_after_OBS008_OBS009_main_and_canonical_site_update
@@ -5207,9 +5223,9 @@ parallel_lanes:
           runtime_evidence: actual_PostgreSQL_receipts_concurrency_authority_replay_lock_isolation_RLS_upgrade_and_existing_browser_journeys_pass_on_556_and_aab
           production_evidence: pending_OBS6_guarded_release_and_safe_legacy_analytics_projection
       priority_note: >-
-        OBS001-015 accepted within each report's declared scope. OBS015 initial independent NEEDS_FIX was
-        repaired and fresh final review passed the exact source including composed import/query/ZIP probes.
-        Owner batch OBS015-017 continues; only OBS016 selected for new author. Controller STOP after OBS017.
+        OBS001-016 accepted within each report's declared scope. OBS016 real PostgreSQL baseline reproduced
+        schema-only duplicates, exact focused repaired CI succeeded, independent review PASS. Only OBS017
+        selected for new bounded author. Controller STOP after OBS017; OBS018 needs new owner instruction.
       deployment_authorized: false
       destructive_database_actions_authorized: false
       owner_classroom_acceptance: not_run
