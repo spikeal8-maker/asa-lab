@@ -12,6 +12,7 @@ import unittest
 from datetime import datetime, timedelta, timezone
 
 from collect_logs import Collector, normalize
+from test_database_progress import response
 
 
 SENTINELS = ('PRIVATE_PERSON_012', 'private012@example.invalid', '203.0.113.212',
@@ -56,8 +57,7 @@ def collected_fixture(root):
         table = re.search(r'FROM public\."([a-z_]+)"', sql)[1]
         historical = ' OR ' not in sql
         row = rows.setdefault((table, historical), fixture_row(table, historical))
-        stream = io.StringIO(); csv.writer(stream).writerow([json.dumps(row)])
-        return stream.getvalue().encode()
+        return response([row])
     collector.command = command
     collector.database()
     return collector, rows, queries
