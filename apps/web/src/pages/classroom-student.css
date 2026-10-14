@@ -881,8 +881,38 @@
     height: auto;
     padding: 5px 3px;
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
     line-height: 1.2;
     text-align: center;
+  }
+}
+
+/* Give long labels a complete track, without making all eight buttons a
+   tall vertical list. DOM order remains row-major and every section is visible. */
+@media (max-width: 430px) {
+  .classroom-student .participant-tabs button:is(
+    :nth-child(1),
+    :nth-child(2),
+    :nth-child(5),
+    :nth-child(8)
+  ) {
+    grid-column: span 2;
+  }
+}
+
+/* Effective narrow viewport under browser zoom: preserve whole words. */
+@media (max-width: 310px) {
+  .classroom-student .participant-tabs {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .classroom-student .participant-tabs button:is(
+    :nth-child(1),
+    :nth-child(2),
+    :nth-child(5),
+    :nth-child(8)
+  ) {
+    grid-column: auto;
   }
 }
