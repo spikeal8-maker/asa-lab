@@ -639,8 +639,8 @@ parallel_lanes:
       branch: main
       base_branch: main
       pr: null
-      status: in_progress
-      checkpoint: owner_point_1_truthful_saving_feedback
+      status: blocked
+      checkpoint: candidate_exact_focused_browser_passed_general_external_fixture_failed
       kind: repair
       owner_acceptance: pending
       programme_issue: 452
@@ -650,6 +650,25 @@ parallel_lanes:
       - docs/product/electronics/components/ui-assets-persistence.yaml
       repair_scope: ONLY indicator dirty versus actual saving; preserve unchanged minute cadence and local protection; report before point2.
       school_actions: deferred_by_owner_no_installation_actions
+      preserved_candidate_sha: d3d417cfd1aaeafe2d037e428298c60d57a8bb3d
+      preserved_candidate_tree: 36fbfb94fe32d7ed8358128f107d912b545dd29b
+      preserved_candidate_branch: codex/electronics-save-indicator-569
+      independent_review: blocked_external_baseline
+      exact_candidate_evidence:
+        focused_run: 38603937841
+        focused_job: 115989895473
+        focused_conclusion: success
+        directed_browser_run: 38603937841
+        directed_browser_job: 115991080347
+        directed_browser_conclusion: success
+        general_run: 38603732138
+        general_attempt: 2
+        general_conclusion: failure
+        data_job: 116000847298
+        failure_category: C_unrelated_observability_fixture_python_ENOENT
+        product_integrated: false
+        deployment: not_requested
+      checkpoint_evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
     suspended_slices:
     - task_id: TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001
       issue: 566
@@ -5532,4 +5551,26 @@ blocking:
       do not authorize foreign repair or acceptance. Preserve accepted526 and paused544; do not close566 or452.
       Required exact-head gates and independent acceptance must be satisfied before integration or closure.
     evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-CROSS-TAB-DRAFT-SAFETY-001.md
+  - id: ELECTRONICS-569-EXACT-GATES
+    kind: acceptance_blocker
+    lane: electronics
+    task_id: TASK-ELECTRONICS-SAVE-INDICATOR-001
+    blocks:
+    - integration
+    - technical_acceptance
+    - closeout
+    - close_issue
+    - owner_acceptance
+    - release_claim
+    allows:
+    - documentation_update
+    - focused_verification
+    - independent_source_review
+    reason: Candidate d3d417cfd1aaeafe2d037e428298c60d57a8bb3d passes canonical focused and actual
+      directed browser evidence38603937841, but exact General38603732138 attempt2 fails unrelated
+      Observability fixture apps/api/src/admin-logs.worker.spec.ts because spawnSync python returns
+      ENOENT before privacy assertions. Governance, Code and Access succeed. One authorized Data-only
+      retry resolved initial pre-test ECR429; no further blind retry or foreign repair is authorized.
+      Preserve candidate and evidence; required exact gates and new independent acceptance remain unmet.
+    evidence: docs/product/electronics/tasks/TASK-ELECTRONICS-SAVE-INDICATOR-001.md
 next_task: null
