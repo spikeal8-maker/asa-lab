@@ -4585,7 +4585,7 @@ parallel_lanes:
       pr: null
       pr_draft: false
       status: in_progress
-      checkpoint: final_main_release_gates_selected
+      checkpoint: UI_telemetry_fixture_compatibility_selected
       owner_acceptance: pending
       normative_refs:
         - document: PORTABLE-DEPLOYMENT-CONTRACT
@@ -4595,6 +4595,8 @@ parallel_lanes:
         - document: RELEASE-REGISTRATION-FIXTURE-SPEC
           revision: '1.0'
         - document: RELEASE-SCRATCH-CLOCK-SPEC
+          revision: '1.0'
+        - document: RELEASE-UI-TELEMETRY-FIXTURE-SPEC
           revision: '1.0'
     programme:
       owner_authorization: sequential_log_and_user_observability_repair_20261011
@@ -4805,12 +4807,12 @@ parallel_lanes:
         owner_instruction: Implement item8 then item9 with separate reports, integrate all prepared changes into main and fully update the canonical site after required release checks.
         candidate_baseline_sha: b1a93e6c14cac35cf5e440e4af86650ebf9bb3bb
         acceptance_scope: Endpoint-correct Scratch diagnostics fixture preserving heartbeat failure, recovery and hidden-tab assertions.
-        next_action: Scratch_clock_network_compatibility_then_exact_main_General_release_and_guarded_site_update
+        next_action: UI_telemetry_fixture_compatibility_then_exact_main_General_release_and_guarded_site_update
       release_execution:
         status: in_progress
-        selected_phase: final_main_General_and_real_Scratch_release_gates
+        selected_phase: UI_telemetry_fixture_compatibility
         owner_authorization: explicit_OBS008_then_OBS009_then_all_changes_main_and_full_site_update_20261014
-        candidate_source_sha: 6eacfb8802d9e04b4d9222d991432c4b876017f8
+        candidate_source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
         integration_branch: codex/observability-main-integration
         registration_fixture_result:
           id: TASK-RELEASE-REGISTRATION-FIXTURE-001
@@ -4824,22 +4826,30 @@ parallel_lanes:
           local_browser_discovery: not_run_missing_identity_dist_no_local_build
           report: docs/execution/RELEASE_REGISTRATION_FIXTURE_REPORT.md
           production_quota: unchanged_generic900_per5min_registration60_per_hour
-        current_baseline_task:
+        Scratch_clock_result:
           id: TASK-RELEASE-SCRATCH-CLOCK-001
-          specification: docs/delivery/RELEASE_SCRATCH_CLOCK_SPEC.md
-          branch: codex/release-scratch-clock
-          status: implemented_reviewed_pending_real_CI
-          source_sha: 6eacfb8802d9e04b4d9222d991432c4b876017f8
-          independent_review: pass
-          local_browser_discovery: 2_scenarios_passed_not_execution
-          original_assertion_preservation: 23_retained_4_identity_checks_added
-          category: B_CLIENT_deadline_and_existing_fixture_virtual_clock_compatibility
-          failing_run: 38480278103
-          failing_source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
-          failed_job: Standalone_host_image_and_health_smoke
-          observed: expected_1_raw_close_received_2_event_identity_not_in_old_log
-          scope: Slice virtual clock with real client ACK consumption barrier, preserve exact raw counts and all functional assertions.
-          deployment_gate: repaired_real_Scratch_scenario_exact_code_General_final_main_and_portable_release_before_live_update
+          source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
+          independent_review: pass_new_reviewer_after_two_line_lint_repair
+          source_focused_run: 38485756130
+          source_focused_contracts: success
+          source_real_activity_minute_save: success
+          source_cumulative_browser: in_progress_at_checkpoint
+          local: format_targeted_ESLint_discovery2_assertion_preservation_pass
+          original_assertions: 23_retained_4_identity_checks_added
+        current_baseline_task:
+          id: TASK-RELEASE-UI-TELEMETRY-FIXTURE-001
+          specification: docs/delivery/RELEASE_UI_TELEMETRY_FIXTURE_SPEC.md
+          branch: codex/release-ui-telemetry-fixture
+          status: in_progress
+          category: B_CLIENT_new_telemetry_is_misclassified_as_business_mutations_by_UI_fixtures
+          failing_run: 38485755516
+          failing_source_sha: 35a9c99ba1d238ac2e678acc0c564aea7ca0cff6
+          failed_job: Access_A_real_browser_journeys
+          failed_step: Account_settings_synthetic_UI_and_layout_regression
+          observed: 371_passed_31_failed_same_three_telemetry_endpoint_counting_cause
+          preceding_steps: governance_code_postgres_real_Access_success
+          scope: Exact endpoint receipts before business mutation tracking in two existing fixture handlers, original assertions unchanged.
+          deployment_gate: exact_final_main_General_and_portable_release_success_before_live_update
         main_integration_result:
           source_sha: 3ab6693eb3bf52d7ba73c5f6679bbac83c656efb
           main_publication: completed_normal_fast_forward
